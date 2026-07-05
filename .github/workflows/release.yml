@@ -1,8 +1,9 @@
 name: Release
 
 # Push a version tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) and this builds the
-# self-contained Windows exe, zips it, and publishes a GitHub Release with the asset attached —
-# no manual packaging. Can also be run manually against an existing tag via "Run workflow".
+# self-contained Windows exe, wraps it in a silent Inno Setup installer, zips the portable
+# build, and publishes a GitHub Release with all assets + their SHA256 checksums.
+# Can also be run manually against an existing tag via "Run workflow".
 
 on:
   push:
@@ -32,7 +33,7 @@ jobs:
       - name: Publish self-contained exe
         run: dotnet publish MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
 
-      - name: Package
+      - name: Package portable zip
         shell: pwsh
         run: |
           $pub = "MdToPdf/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish"
@@ -40,11 +41,40 @@ jobs:
           Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
           Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-x64.zip -Force
 
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "packaging\installer\marksmith.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $exe = "dist_installer/Marksmith-Setup-x64.exe"
+          $he = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          $hz = (Get-FileHash "Marksmith-win-x64.zip" -Algorithm SHA256).Hash.ToLower()
+          "$he  Marksmith-Setup-x64.exe`n$hz  Marksmith-win-x64.zip" | Set-Content checksums.txt
+          @(
+            "### SHA256 checksums",
+            "",
+            "| File | SHA256 |",
+            "| --- | --- |",
+            "| Marksmith-Setup-x64.exe | ``$he`` |",
+            "| Marksmith-win-x64.zip | ``$hz`` |",
+            "",
+            "Paste the installer hash into winget ``InstallerSha256`` and Chocolatey ``checksum64``."
+          ) | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: Marksmith ${{ inputs.tag || github.ref_name }}
-          files: Marksmith-win-x64.zip
+          files: |
+            Marksmith-win-x64.zip
+            dist_installer/Marksmith-Setup-x64.exe
+            checksums.txt
           fail_on_unmatched_files: true
           generate_release_notes: true
