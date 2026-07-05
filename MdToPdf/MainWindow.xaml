@@ -218,47 +218,56 @@
                                           IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
                             <ToggleSwitch Header="Table of contents"
                                           IsOn="{Binding IncludeToc, Mode=TwoWay}" />
-                            <CheckBox Content="No emoji mode"
-                                      IsChecked="{Binding NoEmoji, Mode=TwoWay}" />
-                            <TextBlock Text="Strips every emoji from the document — whatever the input — in preview, PDF and DOCX."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                            <!-- Power-user styling — revealed by Advanced mode (Settings cog). -->
+                            <StackPanel x:Name="AdvancedStyleSection" Spacing="14" Visibility="Collapsed">
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE90F;" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
+                                    <TextBlock Text="Advanced" FontWeight="SemiBold" />
+                                </StackPanel>
 
-                            <ComboBox Header="Em dashes (—)" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding DashMode, Mode=TwoWay}">
-                                <x:String>Keep as-is</x:String>
-                                <x:String>Replace with hyphen (-)</x:String>
-                                <x:String>Replace with spaced ( - )</x:String>
-                                <x:String>Custom…</x:String>
-                            </ComboBox>
-                            <TextBox PlaceholderText="Custom replacement (used when 'Custom…' is selected)"
-                                     Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     IsSpellCheckEnabled="False" />
-                            <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                <CheckBox Content="No emoji mode"
+                                          IsChecked="{Binding NoEmoji, Mode=TwoWay}" />
+                                <TextBlock Text="Strips every emoji from the document — whatever the input — in preview, PDF and DOCX."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
 
-                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                <ComboBox Header="Em dashes (—)" HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding DashMode, Mode=TwoWay}">
+                                    <x:String>Keep as-is</x:String>
+                                    <x:String>Replace with hyphen (-)</x:String>
+                                    <x:String>Replace with spaced ( - )</x:String>
+                                    <x:String>Custom…</x:String>
+                                </ComboBox>
+                                <TextBox PlaceholderText="Custom replacement (used when 'Custom…' is selected)"
+                                         Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         IsSpellCheckEnabled="False" />
+                                <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
 
-                            <TextBlock Text="Formatting" FontWeight="SemiBold" />
-                            <TextBlock Text="Make the formatting yours instead of the model's default — structure, not cleanup."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
 
-                            <NumberBox Header="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
-                                       SpinButtonPlacementMode="Inline" Minimum="-5" Maximum="5" SmallChange="1" />
-                            <TextBlock Text="Promote (−) or demote (+) every heading, e.g. +1 turns # into ##. Clamped to 1–6."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                <TextBlock Text="Formatting" FontWeight="SemiBold" />
+                                <TextBlock Text="Make the formatting yours instead of the model's default — structure, not cleanup."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
 
-                            <ComboBox Header="Bold" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
-                                <x:String>Keep</x:String>
-                                <x:String>Remove (plain text)</x:String>
-                                <x:String>Convert to italic</x:String>
-                            </ComboBox>
+                                <NumberBox Header="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
+                                           SpinButtonPlacementMode="Inline" Minimum="-5" Maximum="5" SmallChange="1" />
+                                <TextBlock Text="Promote (−) or demote (+) every heading, e.g. +1 turns # into ##. Clamped to 1–6."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
 
-                            <ComboBox Header="Italic" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
-                                <x:String>Keep</x:String>
-                                <x:String>Remove (plain text)</x:String>
-                            </ComboBox>
+                                <ComboBox Header="Bold" HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
+                                    <x:String>Keep</x:String>
+                                    <x:String>Remove (plain text)</x:String>
+                                    <x:String>Convert to italic</x:String>
+                                </ComboBox>
+
+                                <ComboBox Header="Italic" HorizontalAlignment="Stretch"
+                                          SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
+                                    <x:String>Keep</x:String>
+                                    <x:String>Remove (plain text)</x:String>
+                                </ComboBox>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
@@ -321,6 +330,9 @@
                                     </Grid>
                                 </Flyout>
                             </Button.Flyout>
+                        </Button>
+                        <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
+                            <FontIcon Glyph="&#xE713;" FontSize="14" />
                         </Button>
                     </StackPanel>
                 </Grid>

@@ -1,0 +1,76 @@
+<UserControl
+    x:Class="MdToPdf.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="560">
+        <StackPanel Spacing="14" MinWidth="460" Padding="2,4,12,4">
+
+            <!-- ===== General ===== -->
+            <TextBlock Text="General" FontWeight="SemiBold" Opacity="0.7" />
+            <Border Style="{StaticResource PipelineCardStyle}">
+                <Grid Padding="16,12" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Advanced mode" />
+                        <TextBlock Text="Show power-user styling options in the Style panel — cleanup controls and formatting transforms."
+                                   Style="{StaticResource StepCaptionStyle}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding AdvancedMode, Mode=TwoWay}" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <!-- ===== About & updates ===== -->
+            <TextBlock Text="About &amp; updates" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
+            <Border Style="{StaticResource PipelineCardStyle}">
+                <StackPanel Padding="16" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="40" Height="40" CornerRadius="10"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}">
+                            <TextBlock Text="M" FontSize="22" FontWeight="Bold"
+                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Marksmith" FontWeight="SemiBold" FontSize="16" />
+                            <TextBlock x:Name="VersionText" Text="Version 1.0.0"
+                                       Style="{StaticResource StepCaptionStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Text="Turn AI chats into polished documents." Opacity="0.8" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Button x:Name="CheckButton" Click="OnCheckForUpdates">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE895;" FontSize="14" />
+                                <TextBlock Text="Check for updates" />
+                            </StackPanel>
+                        </Button>
+                        <ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" />
+                    </StackPanel>
+                    <TextBlock x:Name="UpdateStatus" Text="" Style="{StaticResource StepCaptionStyle}"
+                               IsTextSelectionEnabled="True" TextWrapping="Wrap" Visibility="Collapsed" />
+                    <HyperlinkButton x:Name="DownloadLink" Content="Download the latest release"
+                                     Visibility="Collapsed" Padding="0" />
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Links ===== -->
+            <Border Style="{StaticResource PipelineCardStyle}">
+                <StackPanel Padding="8,4">
+                    <HyperlinkButton Content="GitHub repository" NavigateUri="https://github.com/thebubbsy/marksmith" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <HyperlinkButton Content="Releases &amp; changelog" NavigateUri="https://github.com/thebubbsy/marksmith/releases" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/thebubbsy/marksmith/issues" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <HyperlinkButton Content="License (MIT)" NavigateUri="https://github.com/thebubbsy/marksmith/blob/main/LICENSE" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Built with WinUI 3 and .NET 8 · Rendering by WebView2 · MIT licensed"
+                       Style="{StaticResource StepCaptionStyle}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
