@@ -4,37 +4,119 @@
     <meta charset="UTF-8">
     <title>Marksmith Connector — Options</title>
     <style>
-        body { font-family: "Segoe UI", sans-serif; max-width: 420px; margin: 40px auto; color: #222; }
-        h1 { font-size: 18px; }
-        label { display: block; margin: 16px 0 6px; font-weight: 600; }
-        input { width: 120px; padding: 6px 8px; font-size: 14px; }
-        button { margin-top: 16px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
-        #status { margin-left: 10px; color: #1f883d; }
-        .hint { color: #666; font-size: 12.5px; margin-top: 4px; }
-        .row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
-        .row label { margin: 0; }
-        hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+        :root {
+            --bg: #12131b; --card: #1c1c28; --line: #2a2a3a; --text: #e8e8f0;
+            --dim: #9a9ab0; --accent: #7c4dff; --accent-hi: #8f66ff; --ok: #3fb950;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 40px 20px; min-height: 100vh;
+            background: radial-gradient(1200px 400px at 50% -80px, #201f33 0%, var(--bg) 60%);
+            color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px;
+        }
+        .wrap { max-width: 460px; margin: 0 auto; }
+        header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+        header img {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: #fff; padding: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.4);
+        }
+        header h1 { font-size: 20px; margin: 0; font-weight: 700; }
+        header p { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
+
+        .card {
+            background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            padding: 20px; margin-bottom: 16px;
+        }
+        .card h2 {
+            font-size: 12px; text-transform: uppercase; letter-spacing: .6px;
+            color: var(--dim); margin: 0 0 14px; font-weight: 600;
+        }
+        label { display: block; font-weight: 600; margin-bottom: 6px; }
+        input[type=number] {
+            width: 130px; padding: 9px 12px; font-size: 14px; color: var(--text);
+            background: #14141d; border: 1px solid var(--line); border-radius: 9px; outline: none;
+        }
+        input[type=number]:focus { border-color: var(--accent); }
+        .hint { color: var(--dim); font-size: 12.5px; margin-top: 7px; line-height: 1.5; }
+        .hint b { color: #c8c8d8; }
+        .field + .field { margin-top: 18px; }
+
+        /* toggle */
+        .toggle-row { display: flex; align-items: flex-start; gap: 12px; }
+        .toggle-row .txt { flex: 1; }
+        .switch { position: relative; width: 42px; height: 24px; flex: none; margin-top: 2px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; inset: 0; cursor: pointer; border-radius: 24px;
+            background: #3a3a4a; transition: .2s;
+        }
+        .slider::before {
+            content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+            background: #fff; border-radius: 50%; transition: .2s;
+        }
+        .switch input:checked + .slider { background: var(--accent); }
+        .switch input:checked + .slider::before { transform: translateX(18px); }
+
+        .actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+        button {
+            padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+            color: #fff; background: var(--accent); border: none; border-radius: 10px; transition: .15s;
+        }
+        button:hover { background: var(--accent-hi); }
+        #status { color: var(--ok); font-weight: 600; }
+        footer { text-align: center; color: var(--dim); font-size: 12px; margin-top: 20px; }
+        footer a { color: #9a86ff; text-decoration: none; }
     </style>
 </head>
 <body>
-    <h1>Marksmith Connector</h1>
-    <label for="port">API port</label>
-    <input type="number" id="port" min="1024" max="65535">
-    <div class="hint">Must match Automation &rarr; Local REST API &rarr; Port in the Marksmith app (default 47821).</div>
+    <div class="wrap">
+        <header>
+            <img src="icons/icon128.png" alt="Marksmith">
+            <div>
+                <h1>Marksmith Connector</h1>
+                <p>Send AI chats to Marksmith &middot; export polished PDFs</p>
+            </div>
+        </header>
 
-    <hr>
+        <div class="card">
+            <h2>Connection</h2>
+            <div class="field">
+                <label for="port">API port</label>
+                <input type="number" id="port" min="1024" max="65535">
+                <div class="hint">Must match <b>Automation &rarr; Local REST API &rarr; Port</b> in the
+                    Marksmith app (default 47821).</div>
+            </div>
+        </div>
 
-    <div class="row">
-        <input type="checkbox" id="autoSendIdle" style="width:auto">
-        <label for="autoSendIdle">Auto-send the conversation when I stop interacting</label>
+        <div class="card">
+            <h2>Automation</h2>
+            <div class="field toggle-row">
+                <div class="txt">
+                    <label for="autoSendIdle">Auto-send the conversation when I stop interacting</label>
+                    <div class="hint">Sends the whole conversation to Marksmith after the assistant finishes
+                        and you've been idle. Turn on <b>Auto-generate PDF from AI-chat ingests</b> in the app
+                        to get a finished PDF each time. Never sends mid-reply.</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="autoSendIdle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="field">
+                <label for="idleSeconds">Idle seconds before sending</label>
+                <input type="number" id="idleSeconds" min="5" max="300">
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="save">Save changes</button>
+            <span id="status"></span>
+        </div>
+
+        <footer>
+            Marksmith &middot; <a href="https://github.com/thebubbsy/marksmith" target="_blank">GitHub</a>
+        </footer>
     </div>
-    <div class="hint">Sends the whole conversation to Marksmith after the assistant finishes and you've
-        been idle. Turn on <b>Auto-generate PDF from AI-chat ingests</b> in the app to get a finished
-        PDF each time. Never sends mid-reply.</div>
-    <label for="idleSeconds">Idle seconds before sending</label>
-    <input type="number" id="idleSeconds" min="5" max="300">
-
-    <br><button id="save">Save</button><span id="status"></span>
     <script src="options.js"></script>
 </body>
 </html>
