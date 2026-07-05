@@ -74,17 +74,17 @@ Ten built‑in themes (GitHub Light/Dark, Solarized, Dracula, Monokai Pro, Cyber
 Obsidian) with control over page width, A4 lock, single‑continuous‑page mode, and an auto‑generated
 table of contents.
 
-### 🧜 Mermaid diagrams
+### 🐚 Mermaid diagrams
 
-Fenced ` ```mermaid ` blocks render inline and inherit the active theme — nodes, edges, and labels
-all recolor to match. The same diagram across four themes:
+Fenced ` ```mermaid ` blocks render inline and inherit whichever theme is active — nodes, edges, and
+labels all recolor to match, across **every** built‑in theme. Here's the same diagram in four of them:
 
-![Mermaid diagrams in four themes](docs/images/mermaid-themes.png)
+![The same Mermaid diagram recolored to match four of the built-in themes](docs/images/mermaid-themes.png)
 
 And it scales: here's a single diagram of a **global datacenter network** — an AS8075 backbone
 fanning out to four regions, each a Clos spine‑leaf fabric, all the way down through top‑of‑rack
-switches and servers to individual **HDD bays**, with real‑world addressing throughout
-(click to zoom):
+switches and servers to individual **HDD bays**, with real‑world addressing throughout. It's rendered
+at full resolution — **right‑click → "Open image in new tab"** to read the IP addressing:
 
 ![Massive Mermaid network topology](docs/images/mermaid-network.png)
 
