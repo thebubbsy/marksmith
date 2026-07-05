@@ -1,0 +1,50 @@
+name: Release
+
+# Push a version tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) and this builds the
+# self-contained Windows exe, zips it, and publishes a GitHub Release with the asset attached —
+# no manual packaging. Can also be run manually against an existing tag via "Run workflow".
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v1.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained exe
+        run: dotnet publish MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $pub = "MdToPdf/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish"
+          New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
+          Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
+          Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-x64.zip -Force
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Marksmith ${{ inputs.tag || github.ref_name }}
+          files: Marksmith-win-x64.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
