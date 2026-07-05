@@ -73,6 +73,7 @@ public sealed class DocxExportService
         {
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+            markdown = FormattingService.Apply(markdown, settings);
             var doc = Markdown.Parse(markdown, Pipeline);
             var theme = Themes.GetOrDefault(settings.Theme);
             var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";

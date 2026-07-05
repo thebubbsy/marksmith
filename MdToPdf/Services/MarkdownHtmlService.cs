@@ -38,6 +38,7 @@ public sealed class MarkdownHtmlService
     {
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+        markdown = FormattingService.Apply(markdown, settings);
         var body = Markdown.ToHtml(markdown, Pipeline);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with

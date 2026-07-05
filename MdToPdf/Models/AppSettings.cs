@@ -25,6 +25,11 @@ public sealed class AppSettings
     public int DashMode { get; set; } // em-dash handling: 0 keep, 1 hyphen, 2 spaced, 3 custom
     public string DashCustom { get; set; } = ""; // replacement text when DashMode == 3
 
+    // Formatting personalization (structure, not cleanup)
+    public int HeadingShift { get; set; } // -5..+5: promote (-) or demote (+) every heading
+    public int BoldMode { get; set; }     // 0 keep, 1 remove, 2 to italic
+    public int ItalicMode { get; set; }   // 0 keep, 1 remove
+
     // Local REST API
     public bool ApiEnabled { get; set; }
     public int ApiPort { get; set; } = 47821;
