@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Marksmith Connector — Options</title>
+    <style>
+        body { font-family: "Segoe UI", sans-serif; max-width: 420px; margin: 40px auto; color: #222; }
+        h1 { font-size: 18px; }
+        label { display: block; margin: 16px 0 6px; font-weight: 600; }
+        input { width: 120px; padding: 6px 8px; font-size: 14px; }
+        button { margin-top: 16px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
+        #status { margin-left: 10px; color: #1f883d; }
+        .hint { color: #666; font-size: 12.5px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Marksmith Connector</h1>
+    <label for="port">API port</label>
+    <input type="number" id="port" min="1024" max="65535">
+    <div class="hint">Must match Automation &rarr; Local REST API &rarr; Port in the Marksmith app (default 47821).</div>
+    <button id="save">Save</button><span id="status"></span>
+    <script src="options.js"></script>
+</body>
+</html>

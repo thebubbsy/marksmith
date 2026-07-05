@@ -1,0 +1,24 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ist/
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/
+*.userprefs
+
+# Extension packaging (generated)
+store/*.zip
+store/pkg_*/
+# Chrome Web Store API credentials — never commit
+store/store-credentials.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Scratch
+spinframes*/
