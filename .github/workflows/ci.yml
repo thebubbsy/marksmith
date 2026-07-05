@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'MdToPdf/**'
+      - 'MdToPdf.sln'
+      - 'extension/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  app:
+    name: Build app (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build (Release, x64)
+        run: dotnet build MdToPdf/MdToPdf.csproj -c Release -p:Platform=x64
+
+  extension:
+    name: Validate extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate JSON (manifest + managed schema)
+        run: node -e "require('./extension/manifest.json'); require('./extension/managed_schema.json'); console.log('JSON OK')"
+
+      - name: Syntax-check scripts
+        run: |
+          for f in extension/*.js; do node --check "$f" && echo "ok: $f"; done

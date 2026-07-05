@@ -14,6 +14,7 @@ formatting quirks each one leaves behind, and exports a professional **PDF** or 
 
 ![Marksmith](docs/images/hero.png)
 
+[![CI](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml/badge.svg)](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)
