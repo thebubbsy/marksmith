@@ -1,0 +1,398 @@
+<Window
+    x:Class="MdToPdf.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="RootGrid">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Border Width="26" Height="26" CornerRadius="7"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}">
+                    <FontIcon Glyph="&#xE8A5;" FontSize="13"
+                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                </Border>
+                <TextBlock Text="Marksmith" FontWeight="SemiBold"
+                           Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+                <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
+                <TextBlock Text="AI chats &#x2192; polished documents" Opacity="0.55"
+                           Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Left-to-right pipeline: 1 Source -> 2 Style -> 3 Preview & Export -->
+        <Grid Grid.Row="1" Padding="16,6,16,16" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ============ 1 · SOURCE ============ -->
+            <Grid Grid.Column="0" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
+                    <Border Style="{StaticResource StepBadgeStyle}">
+                        <TextBlock Text="1" Style="{StaticResource StepBadgeTextStyle}" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Source" Style="{StaticResource StepTitleStyle}" />
+                        <TextBlock Text="Pick a file or paste Markdown" Style="{StaticResource StepCaptionStyle}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}"
+                        AllowDrop="True" DragOver="OnSourceDragOver" Drop="OnSourceDrop">
+                    <Grid Padding="14" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <SelectorBar x:Name="SourceSelector" Grid.Row="0" SelectionChanged="OnSourceSelectorChanged">
+                            <SelectorBarItem x:Name="FileTab" Text="File">
+                                <SelectorBarItem.Icon>
+                                    <FontIcon Glyph="&#xE8A5;" />
+                                </SelectorBarItem.Icon>
+                            </SelectorBarItem>
+                            <SelectorBarItem x:Name="PasteTab" Text="Paste">
+                                <SelectorBarItem.Icon>
+                                    <FontIcon Glyph="&#xE70F;" />
+                                </SelectorBarItem.Icon>
+                            </SelectorBarItem>
+                        </SelectorBar>
+
+                        <!-- File mode -->
+                        <StackPanel x:Name="FilePanel" Grid.Row="1" Spacing="12">
+                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="16,24">
+                                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE896;" FontSize="26" Opacity="0.6" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Drop a .md file here" HorizontalAlignment="Center" Opacity="0.75" />
+                                    <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
+                                               Style="{StaticResource CaptionTextBlockStyle}" />
+                                    <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBox Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
+                                     PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
+
+                            <ComboBox Header="Recent files" ItemsSource="{Binding RecentFiles}"
+                                      SelectionChanged="OnRecentSelectionChanged"
+                                      PlaceholderText="Reopen a recent file..." HorizontalAlignment="Stretch" />
+                        </StackPanel>
+
+                        <!-- Paste mode -->
+                        <Grid x:Name="PastePanel" Grid.Row="1" RowSpacing="8" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBox Grid.Row="0"
+                                     Text="{Binding PastedMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
+                                     PlaceholderText="Paste or type Markdown here..."
+                                     VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Grid.Row="1" Text="{Binding WordCountText}" HorizontalAlignment="Right"
+                                       Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" />
+                        </Grid>
+
+                        <!-- Automated ingest: clipboard watcher, watched folder, local REST API -->
+                        <Expander Grid.Row="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE945;" FontSize="14" />
+                                    <TextBlock Text="Automation" />
+                                </StackPanel>
+                            </Expander.Header>
+                            <StackPanel Spacing="10">
+                                <ToggleSwitch Header="Auto-ingest AI chats from clipboard"
+                                              OnContent="Watching" OffContent="Off"
+                                              IsOn="{Binding AutoClipboardIngest, Mode=TwoWay}" />
+                                <TextBlock Text="Copy a reply in ChatGPT / Gemini / Claude and it lands here, detected and cleaned."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+
+                                <ToggleSwitch Header="Watch a folder for Markdown exports"
+                                              OnContent="Watching" OffContent="Off"
+                                              IsOn="{Binding WatchFolderEnabled, Mode=TwoWay}" />
+                                <ToggleSwitch Header="Auto-convert watched files to PDF"
+                                              OnContent="Hands-free" OffContent="Ingest only"
+                                              IsOn="{Binding WatchFolderAutoConvert, Mode=TwoWay}" />
+                                <TextBlock Text="New .md files become PDFs in your output folder automatically, with a toast when done."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
+                                             PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
+                                    <Button Grid.Column="1" Click="OnBrowseWatchFolderClick">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                    </Button>
+                                </Grid>
+
+                                <ToggleSwitch Header="Local REST API" OnContent="Running" OffContent="Off"
+                                              IsOn="{Binding ApiEnabled, Mode=TwoWay}" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox Grid.Column="0" Header="Port" Value="{Binding ApiPort, Mode=TwoWay}"
+                                               Minimum="1024" Maximum="65535" />
+                                    <TextBlock x:Name="ApiUrlText" Grid.Column="1" VerticalAlignment="Bottom" Margin="0,0,0,6"
+                                               Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"
+                                               IsTextSelectionEnabled="True" />
+                                </Grid>
+
+                                <ToggleSwitch Header="Keep running in system tray when closed"
+                                              OnContent="Tray mode" OffContent="Off"
+                                              IsOn="{Binding MinimizeToTray, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Expander>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <FontIcon Grid.Column="1" Style="{StaticResource FlowChevronStyle}" />
+
+            <!-- ============ 2 · STYLE ============ -->
+            <Grid Grid.Column="2" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10">
+                    <Border Style="{StaticResource StepBadgeStyle}">
+                        <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Style" Style="{StaticResource StepTitleStyle}" />
+                        <TextBlock Text="Theme and page layout" Style="{StaticResource StepCaptionStyle}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Padding="14" Spacing="14">
+                            <ComboBox Header="Theme" ItemsSource="{Binding ThemeNames}"
+                                      SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <NumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
+                                       SpinButtonPlacementMode="Inline" Minimum="400" Maximum="2400" SmallChange="50" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                            <ToggleSwitch Header="Lock to A4 width" IsOn="{Binding A4FixedWidth, Mode=TwoWay}" />
+                            <ToggleSwitch Header="Single continuous page (no page breaks)"
+                                          IsOn="{Binding UnlimitedHeight, Mode=TwoWay}" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                            <TextBlock Text="AI documents" FontWeight="SemiBold" />
+                            <ToggleSwitch Header="Normalize AI formatting quirks"
+                                          IsOn="{Binding NormalizeLlm, Mode=TwoWay}" />
+                            <TextBlock Text="Fixes ChatGPT LaTeX + citation pips, Gemini pseudo-headings, Claude tag remnants."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                            <ToggleSwitch Header="Source attribution strip in export"
+                                          IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
+                            <ToggleSwitch Header="Table of contents"
+                                          IsOn="{Binding IncludeToc, Mode=TwoWay}" />
+                            <CheckBox Content="No emoji mode"
+                                      IsChecked="{Binding NoEmoji, Mode=TwoWay}" />
+                            <TextBlock Text="Strips every emoji from the document — whatever the input — in preview, PDF and DOCX."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
+                            <ComboBox Header="Em dashes (—)" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding DashMode, Mode=TwoWay}">
+                                <x:String>Keep as-is</x:String>
+                                <x:String>Replace with hyphen (-)</x:String>
+                                <x:String>Replace with spaced ( - )</x:String>
+                                <x:String>Custom…</x:String>
+                            </ComboBox>
+                            <TextBox PlaceholderText="Custom replacement (used when 'Custom…' is selected)"
+                                     Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsSpellCheckEnabled="False" />
+                            <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <FontIcon Grid.Column="3" Style="{StaticResource FlowChevronStyle}" />
+
+            <!-- ============ 3 · PREVIEW & EXPORT ============ -->
+            <Grid Grid.Column="4" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Style="{StaticResource StepBadgeStyle}">
+                            <TextBlock Text="3" Style="{StaticResource StepBadgeTextStyle}" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Preview &amp; export" Style="{StaticResource StepTitleStyle}" />
+                            <TextBlock Text="Live preview of the final document" Style="{StaticResource StepCaptionStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4"
+                                Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE945;" FontSize="12"
+                                          Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding DetectedSourceText}" FontSize="12"
+                                           Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Button ToolTipService.ToolTip="Export history">
+                            <FontIcon Glyph="&#xE81C;" FontSize="14" />
+                            <Button.Flyout>
+                                <Flyout Placement="Bottom">
+                                    <Grid RowSpacing="8" Width="380">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="Export history" FontWeight="SemiBold" />
+                                        <ListView x:Name="HistoryList" Grid.Row="1" MaxHeight="420"
+                                                  SelectionMode="None" IsItemClickEnabled="True"
+                                                  ItemClick="OnHistoryItemClick">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Padding="0,6" Spacing="2">
+                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Subtitle}" Opacity="0.6" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                    </Grid>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
+                    <Grid>
+                        <WebView2 x:Name="PreviewWebView" Margin="1" />
+
+                        <!-- Live-preview loading spinner: centered, on-brand, animated in code-behind.
+                             Shown on every refresh with a minimum visible time so quick renders read
+                             as a smooth animation, not a white flash. Three styles picked at random:
+                             (0) M with an orbiting clock hand, (1) figure-eight, (2) DVD-logo bounce. -->
+                        <Grid x:Name="PreviewSpinner" Visibility="Collapsed" Background="#14000000">
+                            <!-- Clock mode: an arrow orbiting the centered M -->
+                            <Grid x:Name="OrbitLayer" Width="132" Height="132"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Grid.RenderTransform>
+                                    <RotateTransform x:Name="OrbitRotate" CenterX="66" CenterY="66" />
+                                </Grid.RenderTransform>
+                                <Polygon Points="0,0 20,0 10,18" Fill="#2E7DFF"
+                                         HorizontalAlignment="Center" VerticalAlignment="Top" />
+                            </Grid>
+
+                            <!-- The M logo: static center (clock), or moving (figure-eight / DVD) -->
+                            <Grid x:Name="SpinnerLogo" Width="56" Height="56"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Grid.RenderTransform>
+                                    <CompositeTransform x:Name="SpinnerLogoTransform" />
+                                </Grid.RenderTransform>
+                                <Border x:Name="SpinnerLogoBg" CornerRadius="14" Background="#2E7DFF">
+                                    <TextBlock Text="M" FontSize="30" FontWeight="Bold" Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <InfoBar Grid.Row="2" IsOpen="True" IsClosable="False"
+                         Severity="{Binding StatusSeverity}" Message="{Binding StatusText}" />
+
+                <Grid Grid.Row="3" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0" Text="{Binding OutputFolder, Mode=TwoWay}"
+                             PlaceholderText="Output folder (defaults to next to the input file)"
+                             IsSpellCheckEnabled="False" ToolTipService.ToolTip="Output folder" />
+
+                    <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
+                            ToolTipService.ToolTip="Choose output folder">
+                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                    </Button>
+
+                    <Button Grid.Column="2" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
+                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8E5;" FontSize="14" />
+                            <TextBlock Text="Open output" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Grid Grid.Row="4" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Height="40" Style="{StaticResource AccentButtonStyle}"
+                            Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE749;" FontSize="16" />
+                            <TextBlock Text="Generate PDF" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="1" Height="40" Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE74E;" FontSize="14" />
+                            <TextBlock Text="Export DOCX" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="2" Height="40" Content="Cancel"
+                            Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}" />
+
+                    <ProgressRing Grid.Column="3" IsActive="{Binding IsBusy}" Width="22" Height="22"
+                                  VerticalAlignment="Center" />
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
