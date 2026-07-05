@@ -33,4 +33,7 @@ public sealed class AppSettings
     // Local REST API
     public bool ApiEnabled { get; set; }
     public int ApiPort { get; set; } = 47821;
+
+    // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
+    public bool AdvancedMode { get; set; }
 }

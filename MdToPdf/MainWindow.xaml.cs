@@ -129,6 +129,7 @@ public sealed partial class MainWindow : Window
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         SyncSourcePanels();
         ApplyAutomationSettings();
+        SyncAdvancedSection();
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         InitTrayIcon();
 
@@ -165,6 +166,11 @@ public sealed partial class MainWindow : Window
                 ? Visibility.Collapsed : Visibility.Visible;
         }
 
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.AdvancedMode))
+        {
+            SyncAdvancedSection();
+        }
+
         if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
         {
             ApplyAutomationSettings();
@@ -175,6 +181,21 @@ public sealed partial class MainWindow : Window
             _previewDebounce.Stop();
             _previewDebounce.Start();
         }
+    }
+
+    private void SyncAdvancedSection() =>
+        AdvancedStyleSection.Visibility = ViewModel.AdvancedMode ? Visibility.Visible : Visibility.Collapsed;
+
+    private async void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Settings",
+            Content = new Views.SettingsView(),
+            CloseButtonText = "Close",
+            XamlRoot = Content.XamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 
     // ---- Automation (clipboard watcher / folder watcher / REST API) ----

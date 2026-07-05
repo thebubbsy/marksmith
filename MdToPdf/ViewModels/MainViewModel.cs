@@ -39,6 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _headingShift;
     [ObservableProperty] private int _boldMode;
     [ObservableProperty] private int _italicMode;
+    [ObservableProperty] private bool _advancedMode;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
@@ -111,6 +112,7 @@ public sealed partial class MainViewModel : ObservableObject
         _headingShift = settings.HeadingShift;
         _boldMode = settings.BoldMode;
         _italicMode = settings.ItalicMode;
+        _advancedMode = settings.AdvancedMode;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
 
@@ -137,6 +139,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnHeadingShiftChanged(int value) { _settingsService.Current.HeadingShift = value; _settingsService.Save(); }
     partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; _settingsService.Save(); }
     partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; _settingsService.Save(); }
+    partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; _settingsService.Save(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; _settingsService.Save(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; _settingsService.Save(); }
 

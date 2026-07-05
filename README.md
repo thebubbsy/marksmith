@@ -143,6 +143,15 @@ It flags secrets, credentials, and PII (API keys, AWS keys, emails, SSNs) pasted
 rolls usage up per user and per assistant. See [`store/GOVERNANCE.md`](store/GOVERNANCE.md) for the
 deployment guide and the legal considerations before rollout.
 
+### ⚙️ Settings, updates & advanced mode
+
+A settings cog (top‑right) opens **About & updates** — app version, a **Check for updates** button that
+queries GitHub Releases, and quick links (repo, releases, report‑an‑issue, license). It's also where
+**Advanced mode** lives: off by default to keep the Style panel simple, it reveals the power‑user
+options — the cleanup controls (no‑emoji, em‑dash handling) and the formatting transforms.
+
+![Settings — about, updates, and advanced mode](docs/images/settings.png)
+
 ---
 
 ## Download
