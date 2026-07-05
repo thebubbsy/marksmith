@@ -279,7 +279,7 @@ public sealed partial class MainWindow : Window
             await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
 
             ViewModel.LastOutputPath = outPath;
-            ViewModel.RecordExport("PDF", outPath);
+            ViewModel.RecordExport("PDF", outPath, md);
             ViewModel.StatusText = $"Auto-generated: {outPath}";
             ViewModel.StatusSeverity = InfoBarSeverity.Success;
             ShowPdfToast(outPath);
@@ -315,7 +315,7 @@ public sealed partial class MainWindow : Window
                 await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
 
                 ViewModel.LastOutputPath = outPath;
-                ViewModel.RecordExport("PDF", outPath);
+                ViewModel.RecordExport("PDF", outPath, ViewModel.PastedMarkdown);
                 ViewModel.StatusText = $"Auto-converted: {outPath}";
                 ViewModel.StatusSeverity = InfoBarSeverity.Success;
                 ShowPdfToast(outPath);
