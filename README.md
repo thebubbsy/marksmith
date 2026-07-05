@@ -55,14 +55,6 @@ One‑click switches for the things that make text look machine‑generated:
 
 ![Em-dash and cleanup options](docs/images/emdash.png)
 
-### ⚡ Live preview
-
-The preview re‑renders on every change — no refresh button. A minimum‑duration, on‑brand loading
-animation (it randomises between an orbiting clock, a figure‑eight, and a DVD‑logo bounce) means fast
-edits never flash white.
-
-![Live preview spinner](docs/images/spinner.gif)
-
 ### 🎨 Themes & layout
 
 Ten built‑in themes (GitHub Light/Dark, Solarized, Dracula, Monokai Pro, Cyberpunk, Nordic, Forest,
