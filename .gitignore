@@ -2,6 +2,10 @@
 [Bb]in/
 [Oo]bj/
 [Dd]ist/
+dist_installer/
+dist_stage/
+staging/
+checksums.txt
 *.user
 *.suo
 
