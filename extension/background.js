@@ -73,11 +73,11 @@ async function grabAndSend(tab, mode) {
     }
 
     try {
-        const { port } = await chrome.storage.sync.get({ port: DEFAULT_PORT });
+        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: null });
         const resp = await fetch(`http://127.0.0.1:${port}/api/ingest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ markdown: extracted.markdown }),
+            body: JSON.stringify({ markdown: extracted.markdown, output: output || undefined }),
         });
         if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
         notify("Sent to Marksmith ✓", `${extracted.markdown.length.toLocaleString()} chars ingested — check the preview.`);

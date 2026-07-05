@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Marksmith Connector",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Send ChatGPT / Gemini / Claude replies to Marksmith as Markdown, plus optional transparent AI-usage governance for managed organizations.",
     "permissions": ["contextMenus", "notifications", "storage", "scripting", "activeTab"],
     "host_permissions": ["http://127.0.0.1/*"],
