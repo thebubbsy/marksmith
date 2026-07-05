@@ -40,4 +40,26 @@ public sealed class AppSettings
 
     // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
     public bool AdvancedMode { get; set; }
+
+    // Returns a copy with any non-null override fields applied — used so an API/extension caller can
+    // export with its own output profile without mutating the app's persistent settings.
+    public AppSettings CloneWith(OutputOverride? o)
+    {
+        var s = (AppSettings)MemberwiseClone();
+        if (o is null) return s;
+        if (o.Theme is not null) s.Theme = o.Theme;
+        if (o.ContentWidth is { } cw) s.ContentWidth = cw;
+        if (o.A4FixedWidth is { } a4) s.A4FixedWidth = a4;
+        if (o.UnlimitedHeight is { } uh) s.UnlimitedHeight = uh;
+        if (o.IncludeToc is { } toc) s.IncludeToc = toc;
+        if (o.ShowAttribution is { } sa) s.ShowAttribution = sa;
+        if (o.NoEmoji is { } ne) s.NoEmoji = ne;
+        if (o.DashMode is { } dm) s.DashMode = dm;
+        if (o.DashCustom is not null) s.DashCustom = o.DashCustom;
+        if (o.HeadingShift is { } hs) s.HeadingShift = hs;
+        if (o.BoldMode is { } bm) s.BoldMode = bm;
+        if (o.ItalicMode is { } im) s.ItalicMode = im;
+        if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
+        return s;
+    }
 }

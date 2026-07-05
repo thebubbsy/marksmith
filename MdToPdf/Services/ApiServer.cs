@@ -18,8 +18,8 @@ public sealed class ApiServer : IDisposable
 
     private readonly LlmSourceService _llm;
     private readonly Func<IReadOnlyList<string>> _themeNames;
-    private readonly Action<string, string> _ingest;                       // (markdown, origin) — marshalled to UI by caller
-    private readonly Func<string, string?, bool, Task<byte[]>> _convert;   // (markdown, theme?, normalize) -> pdf bytes
+    private readonly Action<string, string, OutputOverride?> _ingest;      // (markdown, origin, output profile)
+    private readonly Func<string, OutputOverride?, Task<byte[]>> _convert; // (markdown, output profile) -> pdf bytes
     private readonly GovernanceService _governance;
 
     private HttpListener? _listener;
@@ -28,7 +28,9 @@ public sealed class ApiServer : IDisposable
     public bool IsRunning => _listener?.IsListening == true;
     public int Port { get; private set; }
 
-    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize);
+    // `output` carries the full output profile (extension/automation). `theme`/`normalize` are kept
+    // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
+    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, OutputOverride? Output);
 
     // Governance report from a managed extension. consentAcknowledged MUST be true — the collector
     // rejects reports that don't assert the user saw the monitoring notice, so the transparency
@@ -40,8 +42,8 @@ public sealed class ApiServer : IDisposable
     public ApiServer(
         LlmSourceService llm,
         Func<IReadOnlyList<string>> themeNames,
-        Action<string, string> ingest,
-        Func<string, string?, bool, Task<byte[]>> convert,
+        Action<string, string, OutputOverride?> ingest,
+        Func<string, OutputOverride?, Task<byte[]>> convert,
         GovernanceService governance)
     {
         _llm = llm;
@@ -123,7 +125,7 @@ public sealed class ApiServer : IDisposable
                 {
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
-                    _ingest(md, "api");
+                    _ingest(md, "api", req.Output);
                     await WriteJsonAsync(ctx, 200, new { ok = true });
                     break;
                 }
@@ -132,7 +134,8 @@ public sealed class ApiServer : IDisposable
                 {
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
-                    var pdf = await _convert(md, req.Theme, req.Normalize ?? true);
+                    var ovr = req.Output ?? new OutputOverride { Theme = req.Theme, NormalizeLlm = req.Normalize };
+                    var pdf = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
                     ctx.Response.ContentType = "application/pdf";
                     ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pdf");
