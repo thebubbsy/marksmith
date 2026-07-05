@@ -122,7 +122,7 @@ public sealed partial class MainWindow : Window
         _apiServer = new Services.ApiServer(
             App.LlmSource,
             () => ViewModel.ThemeNames.ToList(),
-            (md, origin) => DispatcherQueue.TryEnqueue(() => IngestFromSource(md, origin)),
+            (md, origin, ovr) => DispatcherQueue.TryEnqueue(() => IngestFromSource(md, origin, ovr)),
             ConvertForApiAsync,
             App.Governance);
 
@@ -257,13 +257,15 @@ public sealed partial class MainWindow : Window
     // Clipboard / API / extension ingests land here. Always update the UI; when "auto-generate PDF
     // from AI-chat ingests" is on, also export a PDF — so the extension sending a conversation at
     // its end produces a finished document with no clicks.
-    private void IngestFromSource(string text, string origin)
+    private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
         ViewModel.IngestMarkdown(text, origin);
-        if (ViewModel.AutoConvertIngests) _ = AutoExportIngestAsync();
+        if (ViewModel.AutoConvertIngests) _ = AutoExportIngestAsync(output);
     }
 
-    private async Task AutoExportIngestAsync()
+    // The export uses the caller's output profile (theme, layout, formatting) merged over the app's
+    // settings — so the extension can drive the look of automated PDFs without touching the app UI.
+    private async Task AutoExportIngestAsync(Models.OutputOverride? output)
     {
         await _convertLock.WaitAsync();
         try
@@ -271,12 +273,14 @@ public sealed partial class MainWindow : Window
             var md = ViewModel.PastedMarkdown;
             if (string.IsNullOrWhiteSpace(md)) return;
 
-            var html = ViewModel.BuildPreviewHtml(md); // IngestMarkdown already normalized it
-            var folder = App.Settings.Current.OutputFolder;
+            var settings = App.Settings.Current.CloneWith(output);
+            var theme = App.Themes.GetOrDefault(settings.Theme);
+            var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
+            var folder = settings.OutputFolder;
             Directory.CreateDirectory(folder);
             var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
             var outPath = Path.Combine(folder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
-            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
+            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, settings);
 
             ViewModel.LastOutputPath = outPath;
             ViewModel.RecordExport("PDF", outPath, md);
@@ -381,7 +385,7 @@ public sealed partial class MainWindow : Window
     // Runs an /api/convert request on the UI thread using the shared preview WebView2 (WebView2
     // can't render off-tree — see PdfExportService). Serialized by _convertLock; the preview is
     // restored afterwards.
-    private async Task<byte[]> ConvertForApiAsync(string markdown, string? themeName, bool normalize)
+    private async Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
     {
         var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         DispatcherQueue.TryEnqueue(async () =>
@@ -389,17 +393,18 @@ public sealed partial class MainWindow : Window
             await _convertLock.WaitAsync();
             try
             {
+                var settings = App.Settings.Current.CloneWith(output);
                 var md = markdown;
                 Models.LlmClassification? classification = null;
-                if (normalize)
+                if (settings.NormalizeLlm)
                 {
                     classification = App.LlmSource.Classify(md);
                     (md, _) = App.LlmSource.Normalize(md, classification);
                 }
-                var theme = App.Themes.GetOrDefault(themeName ?? ViewModel.SelectedThemeName);
-                var html = App.MarkdownHtml.Render(md, App.Settings.Current, theme, classification);
+                var theme = App.Themes.GetOrDefault(settings.Theme);
+                var html = App.MarkdownHtml.Render(md, settings, theme, classification);
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, tmp, App.Settings.Current);
+                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, tmp, settings);
                 var bytes = await File.ReadAllBytesAsync(tmp);
                 File.Delete(tmp);
                 tcs.SetResult(bytes);

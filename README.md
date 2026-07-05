@@ -132,7 +132,10 @@ curl -X POST http://127.0.0.1:47821/api/convert \
 ### 🧩 Browser extension
 
 The **Marksmith Connector** (Chrome/Edge, MV3) adds a one‑click "send to Marksmith" button on
-ChatGPT, Gemini, and Claude — it converts the reply to Markdown and posts it to the local API. See
+ChatGPT, Gemini, and Claude — it converts the reply to Markdown and posts it to the local API. It can
+also **auto-send at the end of a conversation** (when you stop interacting) and carries its own
+**output profile** — theme, page layout, and formatting set in the connector's Options page — so
+automated PDFs use those settings independently of the app's own Style panel. See
 [`extension/README.md`](extension/README.md) to load it.
 
 ### 🏢 AI Usage Governance (for organizations)
