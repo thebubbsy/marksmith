@@ -235,6 +235,30 @@
                                      IsSpellCheckEnabled="False" />
                             <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                            <TextBlock Text="Formatting" FontWeight="SemiBold" />
+                            <TextBlock Text="Make the formatting yours instead of the model's default — structure, not cleanup."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
+                            <NumberBox Header="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
+                                       SpinButtonPlacementMode="Inline" Minimum="-5" Maximum="5" SmallChange="1" />
+                            <TextBlock Text="Promote (−) or demote (+) every heading, e.g. +1 turns # into ##. Clamped to 1–6."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
+                            <ComboBox Header="Bold" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
+                                <x:String>Keep</x:String>
+                                <x:String>Remove (plain text)</x:String>
+                                <x:String>Convert to italic</x:String>
+                            </ComboBox>
+
+                            <ComboBox Header="Italic" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
+                                <x:String>Keep</x:String>
+                                <x:String>Remove (plain text)</x:String>
+                            </ComboBox>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
