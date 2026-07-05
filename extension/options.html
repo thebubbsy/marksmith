@@ -11,6 +11,9 @@
         button { margin-top: 16px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
         #status { margin-left: 10px; color: #1f883d; }
         .hint { color: #666; font-size: 12.5px; margin-top: 4px; }
+        .row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+        .row label { margin: 0; }
+        hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
     </style>
 </head>
 <body>
@@ -18,7 +21,20 @@
     <label for="port">API port</label>
     <input type="number" id="port" min="1024" max="65535">
     <div class="hint">Must match Automation &rarr; Local REST API &rarr; Port in the Marksmith app (default 47821).</div>
-    <button id="save">Save</button><span id="status"></span>
+
+    <hr>
+
+    <div class="row">
+        <input type="checkbox" id="autoSendIdle" style="width:auto">
+        <label for="autoSendIdle">Auto-send the conversation when I stop interacting</label>
+    </div>
+    <div class="hint">Sends the whole conversation to Marksmith after the assistant finishes and you've
+        been idle. Turn on <b>Auto-generate PDF from AI-chat ingests</b> in the app to get a finished
+        PDF each time. Never sends mid-reply.</div>
+    <label for="idleSeconds">Idle seconds before sending</label>
+    <input type="number" id="idleSeconds" min="5" max="300">
+
+    <br><button id="save">Save</button><span id="status"></span>
     <script src="options.js"></script>
 </body>
 </html>
