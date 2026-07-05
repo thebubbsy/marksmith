@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # NuGet packages for the desktop app
+  - package-ecosystem: nuget
+    directory: "/MdToPdf"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Keep the GitHub Actions themselves current
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
