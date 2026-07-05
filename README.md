@@ -118,11 +118,22 @@ deployment guide and the legal considerations before rollout.
 
 ---
 
-## Getting started
+## Download
 
-**Requirements:** Windows 10 (1809+) or 11, the [.NET 8 SDK](https://dotnet.microsoft.com/download),
-and the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (preinstalled on
-current Windows).
+**[⬇️ Download the latest release](https://github.com/thebubbsy/marksmith/releases/latest)** —
+grab `Marksmith-win-x64.zip`, unzip anywhere, and run `Marksmith.exe`. No installer, no .NET SDK,
+nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
+
+Runs on Windows 10 (1809+) and Windows 11 (x64). The WebView2 runtime it uses for rendering ships
+with current Windows; if yours somehow lacks it, grab it
+[here](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+---
+
+## Build from source
+
+Only needed if you want to hack on it. Requires the
+[.NET 8 SDK](https://dotnet.microsoft.com/download).
 
 ```powershell
 git clone https://github.com/thebubbsy/marksmith.git
