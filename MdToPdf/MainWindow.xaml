@@ -63,7 +63,10 @@
 
                 <Border Grid.Row="2" Style="{StaticResource PipelineCardStyle}"
                         AllowDrop="True" DragOver="OnSourceDragOver" Drop="OnSourceDrop">
-                    <Grid Padding="14" RowSpacing="12">
+                    <ScrollViewer x:Name="SourceScroll" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
+                    <Grid Padding="14" RowSpacing="12"
+                          MinHeight="{Binding ViewportHeight, ElementName=SourceScroll}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -111,7 +114,7 @@
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBox Grid.Row="0"
+                            <TextBox Grid.Row="0" MinHeight="180"
                                      Text="{Binding PastedMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" TextWrapping="Wrap"
                                      FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
@@ -183,6 +186,7 @@
                             </StackPanel>
                         </Expander>
                     </Grid>
+                    </ScrollViewer>
                 </Border>
             </Grid>
 
