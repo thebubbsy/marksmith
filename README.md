@@ -162,6 +162,17 @@ options — the cleanup controls (no‑emoji, em‑dash handling) and the format
 
 ---
 
+## Examples
+
+Real documents run through Marksmith — inputs *and* their rendered PDFs — live in
+[`examples/`](examples/). Here's [`product-spec.md`](examples/product-spec.md), a design doc with a
+Mermaid architecture diagram, GitHub‑style alert boxes, syntax‑highlighted code, and tables, exported
+straight to PDF:
+
+<img src="docs/images/example-product-spec.png" width="540" alt="The product-spec example rendered to PDF by Marksmith">
+
+---
+
 ## Download
 
 **[⬇️ Download the latest release](https://github.com/thebubbsy/marksmith/releases/latest)** —
