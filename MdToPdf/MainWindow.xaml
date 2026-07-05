@@ -355,32 +355,19 @@
                     <Grid>
                         <WebView2 x:Name="PreviewWebView" Margin="1" />
 
-                        <!-- Live-preview loading spinner: centered, on-brand, animated in code-behind.
-                             Shown on every refresh with a minimum visible time so quick renders read
-                             as a smooth animation, not a white flash. Three styles picked at random:
-                             (0) M with an orbiting clock hand, (1) figure-eight, (2) DVD-logo bounce. -->
+                        <!-- Live-preview loading spinner: the logo, animated in code-behind. Shown on
+                             every refresh with a minimum visible time so quick renders read as a smooth
+                             animation, not a white flash. Two styles, alternating each time (not random):
+                             (0) the logo spinning about its centre, (1) the upright logo tracing a
+                             figure-eight. -->
                         <Grid x:Name="PreviewSpinner" Visibility="Collapsed" Background="#14000000">
-                            <!-- Clock mode: an arrow orbiting the centered M -->
-                            <Grid x:Name="OrbitLayer" Width="132" Height="132"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Grid.RenderTransform>
-                                    <RotateTransform x:Name="OrbitRotate" CenterX="66" CenterY="66" />
-                                </Grid.RenderTransform>
-                                <Polygon Points="0,0 20,0 10,18" Fill="#2E7DFF"
-                                         HorizontalAlignment="Center" VerticalAlignment="Top" />
-                            </Grid>
-
-                            <!-- The M logo: static center (clock), or moving (figure-eight / DVD) -->
-                            <Grid x:Name="SpinnerLogo" Width="56" Height="56"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Grid.RenderTransform>
+                            <Image x:Name="SpinnerLogo" Source="ms-appx:///Assets/logo.png"
+                                   Width="60" Height="60" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   RenderTransformOrigin="0.5,0.5">
+                                <Image.RenderTransform>
                                     <CompositeTransform x:Name="SpinnerLogoTransform" />
-                                </Grid.RenderTransform>
-                                <Border x:Name="SpinnerLogoBg" CornerRadius="14" Background="#2E7DFF">
-                                    <TextBlock Text="M" FontSize="30" FontWeight="Bold" Foreground="White"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                            </Grid>
+                                </Image.RenderTransform>
+                            </Image>
                         </Grid>
                     </Grid>
                 </Border>

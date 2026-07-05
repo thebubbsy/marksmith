@@ -60,6 +60,7 @@ public sealed class AppSettings
         if (o.BoldMode is { } bm) s.BoldMode = bm;
         if (o.ItalicMode is { } im) s.ItalicMode = im;
         if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
+        if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         return s;
     }
 }
