@@ -17,6 +17,10 @@ public sealed class AppSettings
     public string WatchFolder { get; set; } = "";
     public bool WatchFolderAutoConvert { get; set; }
     public bool MinimizeToTray { get; set; }
+    // Auto-generate a PDF whenever an AI chat is ingested (clipboard / API / extension).
+    public bool AutoConvertIngests { get; set; }
+    // One-time in-app tip about the browser extension.
+    public bool ShowExtensionTip { get; set; } = true;
 
     // Export extras
     public bool IncludeToc { get; set; }
