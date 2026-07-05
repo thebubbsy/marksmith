@@ -31,6 +31,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _watchFolder;
     [ObservableProperty] private bool _watchFolderAutoConvert;
     [ObservableProperty] private bool _minimizeToTray;
+    [ObservableProperty] private bool _autoConvertIngests;
+    [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
@@ -103,6 +105,8 @@ public sealed partial class MainViewModel : ObservableObject
         _watchFolder = settings.WatchFolder;
         _watchFolderAutoConvert = settings.WatchFolderAutoConvert;
         _minimizeToTray = settings.MinimizeToTray;
+        _autoConvertIngests = settings.AutoConvertIngests;
+        _showExtensionTip = settings.ShowExtensionTip;
         foreach (var h in App.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _showAttribution = settings.ShowAttribution;
@@ -131,6 +135,8 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnWatchFolderChanged(string value) { _settingsService.Current.WatchFolder = value; _settingsService.Save(); }
     partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; _settingsService.Save(); }
     partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; _settingsService.Save(); }
+    partial void OnAutoConvertIngestsChanged(bool value) { _settingsService.Current.AutoConvertIngests = value; _settingsService.Save(); }
+    partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; _settingsService.Save(); }
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; _settingsService.Save(); }

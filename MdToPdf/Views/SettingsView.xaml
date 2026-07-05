@@ -28,12 +28,7 @@
             <Border Style="{StaticResource PipelineCardStyle}">
                 <StackPanel Padding="16" Spacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Width="40" Height="40" CornerRadius="10"
-                                Background="{ThemeResource AccentFillColorDefaultBrush}">
-                            <TextBlock Text="M" FontSize="22" FontWeight="Bold"
-                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                        <Image Source="ms-appx:///Assets/logo.png" Width="44" Height="44" />
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="Marksmith" FontWeight="SemiBold" FontSize="16" />
                             <TextBlock x:Name="VersionText" Text="Version 1.0.0"

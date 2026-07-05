@@ -117,12 +117,12 @@ public sealed partial class MainWindow : Window
         _spinTimer.IsRepeating = true;
         _spinTimer.Tick += (_, _) => OnSpinTick();
 
-        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin) => ViewModel.IngestMarkdown(text, origin));
+        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin) => IngestFromSource(text, origin));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
         _apiServer = new Services.ApiServer(
             App.LlmSource,
             () => ViewModel.ThemeNames.ToList(),
-            (md, origin) => DispatcherQueue.TryEnqueue(() => ViewModel.IngestMarkdown(md, origin)),
+            (md, origin) => DispatcherQueue.TryEnqueue(() => IngestFromSource(md, origin)),
             ConvertForApiAsync,
             App.Governance);
 
@@ -130,6 +130,7 @@ public sealed partial class MainWindow : Window
         SyncSourcePanels();
         ApplyAutomationSettings();
         SyncAdvancedSection();
+        ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         InitTrayIcon();
 
@@ -248,6 +249,50 @@ public sealed partial class MainWindow : Window
         {
             _trayIcon = null; // tray is a convenience — never block startup on it
             System.Diagnostics.Debug.WriteLine($"Tray icon unavailable: {ex.Message}");
+        }
+    }
+
+    private void OnExtensionTipClosed(InfoBar sender, object args) => ViewModel.ShowExtensionTip = false;
+
+    // Clipboard / API / extension ingests land here. Always update the UI; when "auto-generate PDF
+    // from AI-chat ingests" is on, also export a PDF — so the extension sending a conversation at
+    // its end produces a finished document with no clicks.
+    private void IngestFromSource(string text, string origin)
+    {
+        ViewModel.IngestMarkdown(text, origin);
+        if (ViewModel.AutoConvertIngests) _ = AutoExportIngestAsync();
+    }
+
+    private async Task AutoExportIngestAsync()
+    {
+        await _convertLock.WaitAsync();
+        try
+        {
+            var md = ViewModel.PastedMarkdown;
+            if (string.IsNullOrWhiteSpace(md)) return;
+
+            var html = ViewModel.BuildPreviewHtml(md); // IngestMarkdown already normalized it
+            var folder = App.Settings.Current.OutputFolder;
+            Directory.CreateDirectory(folder);
+            var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
+            var outPath = Path.Combine(folder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
+
+            ViewModel.LastOutputPath = outPath;
+            ViewModel.RecordExport("PDF", outPath);
+            ViewModel.StatusText = $"Auto-generated: {outPath}";
+            ViewModel.StatusSeverity = InfoBarSeverity.Success;
+            ShowPdfToast(outPath);
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Auto-generate failed: {ex.Message}";
+            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+        }
+        finally
+        {
+            _convertLock.Release();
+            await RefreshPreviewAsync();
         }
     }
 

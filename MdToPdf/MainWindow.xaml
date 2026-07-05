@@ -13,11 +13,7 @@
         <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Border Width="26" Height="26" CornerRadius="7"
-                        Background="{ThemeResource AccentFillColorDefaultBrush}">
-                    <FontIcon Glyph="&#xE8A5;" FontSize="13"
-                              Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                </Border>
+                <Image Source="ms-appx:///Assets/logo.png" Width="26" Height="26" />
                 <TextBlock Text="Marksmith" FontWeight="SemiBold"
                            Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
                 <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
@@ -40,6 +36,7 @@
             <Grid Grid.Column="0" RowSpacing="10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -53,7 +50,18 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}"
+                <!-- One-time tip: the browser extension lets users send AI chats here in one click. -->
+                <InfoBar Grid.Row="1" x:Name="ExtensionTip" Severity="Informational" IsOpen="True"
+                         IsClosable="True" CloseButtonClick="OnExtensionTipClosed"
+                         Title="Work in your AI chat as normal"
+                         Message="Install the Marksmith Connector browser extension to send ChatGPT, Gemini and Claude replies straight here — then export a polished PDF whenever you're ready.">
+                    <InfoBar.ActionButton>
+                        <HyperlinkButton Content="Get the extension"
+                                         NavigateUri="https://github.com/thebubbsy/marksmith/tree/main/extension" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
+                <Border Grid.Row="2" Style="{StaticResource PipelineCardStyle}"
                         AllowDrop="True" DragOver="OnSourceDragOver" Drop="OnSourceDrop">
                     <Grid Padding="14" RowSpacing="12">
                         <Grid.RowDefinitions>
@@ -127,6 +135,12 @@
                                               OnContent="Watching" OffContent="Off"
                                               IsOn="{Binding AutoClipboardIngest, Mode=TwoWay}" />
                                 <TextBlock Text="Copy a reply in ChatGPT / Gemini / Claude and it lands here, detected and cleaned."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+
+                                <ToggleSwitch Header="Auto-generate PDF from AI-chat ingests"
+                                              OnContent="On" OffContent="Off"
+                                              IsOn="{Binding AutoConvertIngests, Mode=TwoWay}" />
+                                <TextBlock Text="Every chat sent here (clipboard, API, or the extension at end of conversation) is exported to a PDF automatically."
                                            Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
 
                                 <ToggleSwitch Header="Watch a folder for Markdown exports"

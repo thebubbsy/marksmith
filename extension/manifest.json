@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Marksmith Connector",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Send ChatGPT / Gemini / Claude replies to Marksmith as Markdown, plus optional transparent AI-usage governance for managed organizations.",
     "permissions": ["contextMenus", "notifications", "storage", "scripting", "activeTab"],
     "host_permissions": ["http://127.0.0.1/*"],
@@ -18,7 +18,7 @@
                 "https://gemini.google.com/*",
                 "https://claude.ai/*"
             ],
-            "js": ["governance.js"],
+            "js": ["governance.js", "autosend.js"],
             "run_at": "document_idle"
         }
     ],
