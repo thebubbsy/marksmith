@@ -59,7 +59,21 @@ One‑click switches for the things that make text look machine‑generated:
 
 Ten built‑in themes (GitHub Light/Dark, Solarized, Dracula, Monokai Pro, Cyberpunk, Nordic, Forest,
 Obsidian) with control over page width, A4 lock, single‑continuous‑page mode, and an auto‑generated
-table of contents. Mermaid diagrams render inline.
+table of contents.
+
+### 🧜 Mermaid diagrams
+
+Fenced ` ```mermaid ` blocks render inline and inherit the active theme — nodes, edges, and labels
+all recolor to match. The same diagram across four themes:
+
+![Mermaid diagrams in four themes](docs/images/mermaid-themes.png)
+
+And it scales: here's a single diagram of a **global datacenter network** — an AS8075 backbone
+fanning out to four regions, each a Clos spine‑leaf fabric, all the way down through top‑of‑rack
+switches and servers to individual **HDD bays**, with real‑world addressing throughout
+(click to zoom):
+
+![Massive Mermaid network topology](docs/images/mermaid-network.png)
 
 ### 📤 Export
 

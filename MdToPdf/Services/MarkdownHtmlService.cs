@@ -39,6 +39,14 @@ public sealed class MarkdownHtmlService
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         var body = Markdown.ToHtml(markdown, Pipeline);
+
+        // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
+        // the content HTML-escaped, but mermaid.js only auto-renders class="mermaid" elements holding
+        // raw diagram text. Rewrite the fence to a <div class="mermaid"> and unescape its content.
+        body = Regex.Replace(body,
+            "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
+            m => $"<div class=\"mermaid\">{System.Net.WebUtility.HtmlDecode(m.Groups[1].Value)}</div>",
+            RegexOptions.Singleline);
         var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
 
