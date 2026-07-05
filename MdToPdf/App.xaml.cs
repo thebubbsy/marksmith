@@ -15,6 +15,7 @@ public partial class App : Application
     public static LlmSourceService LlmSource { get; } = new();
     public static HistoryService History { get; } = new();
     public static GovernanceService Governance { get; } = new();
+    public static UpdateService Updates { get; } = new();
 
     // Constructed lazily (after the services above exist) since MainViewModel reads them in its constructor.
     public static MainViewModel ViewModel { get; } = new();
