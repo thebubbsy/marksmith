@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-full-dark.png">
+  <img src="docs/images/logo-full-light.png" alt="Marksmith" width="260">
+</picture>
+
 # Marksmith
 
 ### Turn AI chats into polished documents.
