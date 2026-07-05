@@ -39,6 +39,15 @@ It's a native **WinUI 3** desktop app with a left‑to‑right workflow: **Sourc
 
 ## Features
 
+### ⌨️ A live Markdown editor
+
+You don't need an AI chat to use Marksmith — switch to the **Paste** tab and just start writing.
+Every keystroke re-renders the document on the right, so you're always looking at the finished
+page, not the source. When it looks right, hit **Generate PDF** (or **Export DOCX**) and it lands in
+your output folder.
+
+![Typing Markdown into Marksmith with the preview updating live, then exporting a PDF](docs/images/editor-demo.gif)
+
 ### 🧠 AI source detection & normalization
 
 Paste or drop Markdown and Marksmith fingerprints which assistant produced it, then normalizes the
