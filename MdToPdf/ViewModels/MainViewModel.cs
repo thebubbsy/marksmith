@@ -36,6 +36,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _noEmoji;
     [ObservableProperty] private int _dashMode;
     [ObservableProperty] private string _dashCustom;
+    [ObservableProperty] private int _headingShift;
+    [ObservableProperty] private int _boldMode;
+    [ObservableProperty] private int _italicMode;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
@@ -105,6 +108,9 @@ public sealed partial class MainViewModel : ObservableObject
         _noEmoji = settings.NoEmoji;
         _dashMode = settings.DashMode;
         _dashCustom = settings.DashCustom;
+        _headingShift = settings.HeadingShift;
+        _boldMode = settings.BoldMode;
+        _italicMode = settings.ItalicMode;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
 
@@ -128,6 +134,9 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; _settingsService.Save(); }
     partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; _settingsService.Save(); }
     partial void OnDashCustomChanged(string value) { _settingsService.Current.DashCustom = value; _settingsService.Save(); }
+    partial void OnHeadingShiftChanged(int value) { _settingsService.Current.HeadingShift = value; _settingsService.Save(); }
+    partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; _settingsService.Save(); }
+    partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; _settingsService.Save(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; _settingsService.Save(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; _settingsService.Save(); }
 

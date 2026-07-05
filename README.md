@@ -20,11 +20,12 @@ formatting quirks each one leaves behind, and exports a professional **PDF** or 
 
 ## Why Marksmith?
 
-AI assistants are great at writing and terrible at formatting. Copy a reply out of the web UI and
-you get `\(LaTeX\)` delimiters, `【7†source】` citation pips, "Copy code" buttons, em‑dashes
-everywhere, and headings that are really just bold lines. Marksmith knows each assistant's tells and
-fixes them automatically, then renders the result with proper math, syntax highlighting, and your
-choice of theme — ready to send.
+AI assistants all format the same way. It isn't *bad* formatting — it's **recognizable** formatting:
+the same em‑dashes, bold on everything, `\(LaTeX\)` delimiters, `【7†source】` citation pips. Marksmith
+turns that into **your** formatting — re‑theme it, shift the heading structure, tone down the emphasis,
+swap the dashes — then renders it with proper math, syntax highlighting, and your choice of theme,
+ready to send. (It also clears the genuine copy‑paste artifacts — citation pips, "Copy code" buttons —
+automatically.)
 
 It's a native **WinUI 3** desktop app with a left‑to‑right workflow: **Source → Style → Preview & Export.**
 
@@ -54,6 +55,18 @@ One‑click switches for the things that make text look machine‑generated:
 - **Normalize AI quirks** — the detection/cleanup engine above, toggleable
 
 ![Em-dash and cleanup options](docs/images/emdash.png)
+
+### ✍️ Personalize the formatting
+
+Make the output *yours* instead of the model's default — this changes the document's **structure**,
+not just its surface. Applied live to preview, PDF, and DOCX, and always code‑block‑safe:
+
+- **Heading level shift** — an up/down control that promotes (−) or demotes (+) every heading at once
+  (e.g. +1 turns `#` into `##`), clamped to 1–6
+- **Bold** — keep, remove entirely, or convert to italic
+- **Italic** — keep or remove
+
+![Personalize the formatting: heading shift + bold removed, italics and code untouched](docs/images/formatting.png)
 
 ### 🎨 Themes & layout
 

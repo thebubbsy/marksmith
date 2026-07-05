@@ -30,6 +30,9 @@ public sealed partial class MainWindow : Window
         nameof(ViewModels.MainViewModel.NoEmoji),
         nameof(ViewModels.MainViewModel.DashMode),
         nameof(ViewModels.MainViewModel.DashCustom),
+        nameof(ViewModels.MainViewModel.HeadingShift),
+        nameof(ViewModels.MainViewModel.BoldMode),
+        nameof(ViewModels.MainViewModel.ItalicMode),
     };
 
     private static readonly HashSet<string> AutomationProperties = new()
