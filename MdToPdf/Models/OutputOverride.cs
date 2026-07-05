@@ -18,4 +18,11 @@ public sealed class OutputOverride
     public int? BoldMode { get; set; }
     public int? ItalicMode { get; set; }
     public bool? NormalizeLlm { get; set; }
+
+    // Where automated exports are written (folder path). Blank = leave the app's setting.
+    public string? OutputFolder { get; set; }
+
+    // Which file(s) to produce: any of "pdf", "docx", "pptx", "epub", comma-separated, or "both"
+    // (= pdf,docx). Null/blank = pdf. pptx/epub are recognized but not yet implemented (roadmap).
+    public string? Format { get; set; }
 }

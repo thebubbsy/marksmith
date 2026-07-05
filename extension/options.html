@@ -136,11 +136,23 @@
                     <input type="text" id="o_dashCustom" placeholder="used when Custom"></div>
                 <div class="mini"><label for="o_headingShift">Heading shift</label>
                     <input type="number" id="o_headingShift" min="-5" max="5"></div>
-                <div class="mini"></div>
+                <div class="mini"><label for="o_format">Output format</label>
+                    <select id="o_format">
+                        <option value="pdf">PDF</option>
+                        <option value="docx">DOCX</option>
+                        <option value="both">PDF + DOCX</option>
+                        <option value="pptx">PPTX (coming soon)</option>
+                        <option value="epub">EPUB (coming soon)</option>
+                    </select></div>
                 <div class="mini"><label for="o_boldMode">Bold</label>
                     <select id="o_boldMode"><option value="0">Keep</option><option value="1">Remove</option><option value="2">To italic</option></select></div>
                 <div class="mini"><label for="o_italicMode">Italic</label>
                     <select id="o_italicMode"><option value="0">Keep</option><option value="1">Remove</option></select></div>
+            </div>
+
+            <div class="field" style="margin-top:16px">
+                <label for="o_outputFolder">Output folder</label>
+                <input type="text" id="o_outputFolder" placeholder="e.g. C:\Users\you\Documents — blank uses the app's folder">
             </div>
 
             <div class="grid2" style="margin-top:18px">
