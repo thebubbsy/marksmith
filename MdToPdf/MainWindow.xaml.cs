@@ -52,27 +52,17 @@ public sealed partial class MainWindow : Window
     private H.NotifyIcon.TaskbarIcon? _trayIcon;
     private bool _exitRequested;
 
-    // Preview loading spinner state. The spinner ticks at ~60fps, animating one of three randomly
-    // chosen styles, and stays up for at least SpinMinSec so a fast render never looks like a
-    // white flash. It hides only once BOTH the navigation has completed and the minimum time passed.
+    // Preview loading spinner state. The spinner ticks at ~60fps and stays up for at least SpinMinSec
+    // so a fast render never looks like a white flash. It hides only once BOTH the navigation has
+    // completed and the minimum time passed. Two styles alternate each time (not random): mode 0 spins
+    // the logo about its centre, mode 1 traces an upright figure-eight.
     private const double SpinMinSec = 0.65;
     private const double SpinDt = 1.0 / 60.0;
-    private static readonly Random _spinRng = new();
-    private static readonly Windows.UI.Color[] DvdColors =
-    {
-        Windows.UI.Color.FromArgb(255, 0x2E, 0x7D, 0xFF), // blue
-        Windows.UI.Color.FromArgb(255, 0x7C, 0x4D, 0xFF), // purple
-        Windows.UI.Color.FromArgb(255, 0x3F, 0xB9, 0x50), // green
-        Windows.UI.Color.FromArgb(255, 0xD2, 0x99, 0x22), // amber
-        Windows.UI.Color.FromArgb(255, 0xF8, 0x51, 0x49), // red
-    };
     private DispatcherQueueTimer? _spinTimer;
-    private int _spinMode;         // 0 clock, 1 figure-eight, 2 DVD bounce
+    private int _spinMode;         // 0 spin, 1 figure-eight — alternates on each show
     private double _spinPhase;     // seconds the spinner has been visible
     private bool _spinNavDone;
     private bool _spinActive;
-    private double _dvdX, _dvdY, _dvdVX, _dvdVY;
-    private int _dvdColorIdx;
 
     public IRelayCommand ShowWindowCommand { get; }
     public IRelayCommand ExitApplicationCommand { get; }
@@ -263,8 +253,22 @@ public sealed partial class MainWindow : Window
         if (ViewModel.AutoConvertIngests) _ = AutoExportIngestAsync(output);
     }
 
-    // The export uses the caller's output profile (theme, layout, formatting) merged over the app's
-    // settings — so the extension can drive the look of automated PDFs without touching the app UI.
+    // Which file formats an automated export should produce. "both" = pdf,docx; pptx/epub are
+    // recognized but currently throw NotImplemented (roadmap groundwork).
+    private static string[] ParseFormats(string? format)
+    {
+        if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
+        if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
+        var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(f => f.ToLowerInvariant())
+            .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
+            .Distinct().ToArray();
+        return fmts.Length > 0 ? fmts : new[] { "pdf" };
+    }
+
+    // The export uses the caller's output profile (theme, layout, formatting, folder) merged over the
+    // app's settings, and produces whichever format(s) the caller asked for — so the extension fully
+    // drives automated output without touching the app UI.
     private async Task AutoExportIngestAsync(Models.OutputOverride? output)
     {
         await _convertLock.WaitAsync();
@@ -274,19 +278,50 @@ public sealed partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(md)) return;
 
             var settings = App.Settings.Current.CloneWith(output);
-            var theme = App.Themes.GetOrDefault(settings.Theme);
-            var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
-            var folder = settings.OutputFolder;
-            Directory.CreateDirectory(folder);
+            Directory.CreateDirectory(settings.OutputFolder);
             var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
-            var outPath = Path.Combine(folder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
-            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, settings);
+            var stem = Path.Combine(settings.OutputFolder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}");
 
-            ViewModel.LastOutputPath = outPath;
-            ViewModel.RecordExport("PDF", outPath, md);
-            ViewModel.StatusText = $"Auto-generated: {outPath}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Success;
-            ShowPdfToast(outPath);
+            var produced = new List<string>();
+            var pending = new List<string>();
+            foreach (var fmt in ParseFormats(output?.Format))
+            {
+                var outPath = $"{stem}.{fmt}";
+                try
+                {
+                    switch (fmt)
+                    {
+                        case "pdf":
+                            var theme = App.Themes.GetOrDefault(settings.Theme);
+                            var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
+                            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, settings);
+                            break;
+                        case "docx": await new Services.DocxExportService().ExportAsync(md, outPath, settings); break;
+                        case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
+                        case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
+                    }
+                    produced.Add(outPath);
+                    ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
+                }
+                catch (NotImplementedException)
+                {
+                    pending.Add(fmt.ToUpperInvariant()); // roadmap format — skip gracefully
+                }
+            }
+
+            if (produced.Count > 0)
+            {
+                ViewModel.LastOutputPath = produced[^1];
+                ViewModel.StatusText = $"Auto-generated: {string.Join(", ", produced.Select(Path.GetFileName))}"
+                    + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "");
+                ViewModel.StatusSeverity = InfoBarSeverity.Success;
+                ShowPdfToast(produced[^1]);
+            }
+            else if (pending.Count > 0)
+            {
+                ViewModel.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
+                ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            }
         }
         catch (Exception ex)
         {
@@ -534,21 +569,11 @@ public sealed partial class MainWindow : Window
         _spinActive = true;
         _spinNavDone = false;
         _spinPhase = 0;
-        _spinMode = _spinRng.Next(3);
+        _spinMode = 1 - _spinMode; // alternate: spin, then figure-eight, then spin…
 
-        OrbitLayer.Visibility = _spinMode == 0 ? Visibility.Visible : Visibility.Collapsed;
         SpinnerLogoTransform.TranslateX = 0;
         SpinnerLogoTransform.TranslateY = 0;
         SpinnerLogoTransform.Rotation = 0;
-        OrbitRotate.Angle = 0;
-
-        if (_spinMode == 2)
-        {
-            _dvdX = _dvdY = 0;
-            _dvdVX = 165; _dvdVY = 120;
-            _dvdColorIdx = 0;
-        }
-        SpinnerLogoBg.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(DvdColors[0]); // blue to start
 
         PreviewSpinner.Visibility = Visibility.Visible;
         _spinTimer!.Start();
@@ -558,48 +583,19 @@ public sealed partial class MainWindow : Window
     {
         _spinPhase += SpinDt;
 
-        switch (_spinMode)
+        if (_spinMode == 0)
         {
-            case 0: // clock: arrow orbits the M
-                OrbitRotate.Angle = (_spinPhase * 240) % 360;
-                break;
-
-            case 1: // figure-eight (Gerono lemniscate): x = A sin t, y = (A/2) sin 2t
-            {
-                var t = _spinPhase * 2.4;
-                const double a = 44;
-                SpinnerLogoTransform.TranslateX = a * Math.Sin(t);
-                SpinnerLogoTransform.TranslateY = a * 0.6 * Math.Sin(2 * t);
-                SpinnerLogoTransform.Rotation = Math.Sin(t) * 12;
-                break;
-            }
-
-            case 2: // DVD-logo bounce, recoloring on each wall hit
-            {
-                var w = PreviewSpinner.ActualWidth;
-                var h = PreviewSpinner.ActualHeight;
-                if (w > 0 && h > 0)
-                {
-                    const double half = 28;
-                    var maxX = Math.Max(0, w / 2 - half);
-                    var maxY = Math.Max(0, h / 2 - half);
-                    _dvdX += _dvdVX * SpinDt;
-                    _dvdY += _dvdVY * SpinDt;
-                    var bounced = false;
-                    if (_dvdX > maxX) { _dvdX = maxX; _dvdVX = -_dvdVX; bounced = true; }
-                    else if (_dvdX < -maxX) { _dvdX = -maxX; _dvdVX = -_dvdVX; bounced = true; }
-                    if (_dvdY > maxY) { _dvdY = maxY; _dvdVY = -_dvdVY; bounced = true; }
-                    else if (_dvdY < -maxY) { _dvdY = -maxY; _dvdVY = -_dvdVY; bounced = true; }
-                    if (bounced)
-                    {
-                        _dvdColorIdx = (_dvdColorIdx + 1) % DvdColors.Length;
-                        SpinnerLogoBg.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(DvdColors[_dvdColorIdx]);
-                    }
-                    SpinnerLogoTransform.TranslateX = _dvdX;
-                    SpinnerLogoTransform.TranslateY = _dvdY;
-                }
-                break;
-            }
+            // Spin the logo about its centre (RenderTransformOrigin 0.5,0.5).
+            SpinnerLogoTransform.Rotation = (_spinPhase * 300) % 360;
+        }
+        else
+        {
+            // Upright logo tracing a figure-eight (Gerono lemniscate: x = A sin t, y = (A/2) sin 2t).
+            var t = _spinPhase * 2.4;
+            const double a = 46;
+            SpinnerLogoTransform.TranslateX = a * Math.Sin(t);
+            SpinnerLogoTransform.TranslateY = a * 0.55 * Math.Sin(2 * t);
+            SpinnerLogoTransform.Rotation = 0; // stays upright
         }
 
         if (_spinNavDone && _spinPhase >= SpinMinSec) HideSpinner();
