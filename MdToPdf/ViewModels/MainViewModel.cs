@@ -76,7 +76,7 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
 
-    public void RecordExport(string kind, string outputPath)
+    public void RecordExport(string kind, string outputPath, string markdown)
     {
         var entry = new HistoryEntry
         {
@@ -86,6 +86,7 @@ public sealed partial class MainViewModel : ObservableObject
             Theme = SelectedThemeName,
             OutputPath = outputPath,
             Kind = kind,
+            DocumentTitle = HistoryEntry.ExtractTitle(markdown),
         };
         History.Insert(0, entry);
         App.History.Add(entry);
@@ -252,7 +253,7 @@ public sealed partial class MainViewModel : ObservableObject
             await _pdfExport.ExportAsync(webView, html, outPath, _settingsService.Current);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("PDF", outPath);
+            RecordExport("PDF", outPath, markdown);
             StatusText = $"PDF export done: {outPath}";
         });
     }
@@ -268,7 +269,7 @@ public sealed partial class MainViewModel : ObservableObject
             await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("DOCX", outPath);
+            RecordExport("DOCX", outPath, markdown);
             StatusText = $"DOCX export done: {outPath}";
         });
     }
