@@ -333,8 +333,8 @@ public sealed class MermaidSequenceRenderer : IMermaidRenderer
                 Y = y0,
                 W = ActivationWidth,
                 H = Math.Max(10, y1 - y0),
-                Fill = theme.Heading,
-                Stroke = theme.Border,
+                Fill = theme.Secondary,
+                Stroke = theme.Line,
                 StrokeWidth = 1,
             });
         }
@@ -433,7 +433,7 @@ public sealed class MermaidSequenceRenderer : IMermaidRenderer
                         Kind = ShapeKind.RoundRect,
                         X = x, Y = y, W = w, H = 24,
                         Text = note.Text,
-                        Fill = theme.Secondary, Stroke = theme.Border, TextColor = theme.Text,
+                        Fill = theme.Background, Stroke = theme.Line, TextColor = theme.Primary,
                         FontSize = 9,
                     });
                     Content(x, x + w, y + 24);
@@ -555,7 +555,7 @@ public sealed class MermaidSequenceRenderer : IMermaidRenderer
                     Kind = p.IsActor ? ShapeKind.Ellipse : ShapeKind.RoundRect,
                     X = cx[i] - widths[i] / 2, Y = y, W = widths[i], H = BoxHeight,
                     Text = p.Label,
-                    Fill = theme.Secondary, Stroke = theme.Border, TextColor = theme.Text,
+                    Fill = theme.Background, Stroke = theme.Line, TextColor = theme.Primary,
                     FontSize = 10,
                 });
             }
