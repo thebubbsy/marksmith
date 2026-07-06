@@ -23,6 +23,36 @@
                 </Grid>
             </Border>
 
+            <!-- ===== Marksmith Pro (licensing) ===== -->
+            <TextBlock Text="License" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
+            <Border Style="{StaticResource PipelineCardStyle}">
+                <StackPanel Padding="16" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE734;" FontSize="16" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding EditionStatus}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="Marksmith Pro unlocks DOCX export (with editable equations), hands-free automation, and removes the footer from your exports."
+                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="KeyBox" PlaceholderText="Paste your license key" Width="280" IsSpellCheckEnabled="False" />
+                        <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense" />
+                    </StackPanel>
+                    <TextBlock x:Name="LicenseStatus" Text="" Style="{StaticResource StepCaptionStyle}"
+                               TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Click="OnBuyPro" Style="{StaticResource AccentButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE719;" FontSize="14" />
+                                <TextBlock Text="Buy Marksmith Pro" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- ===== About & updates ===== -->
             <TextBlock Text="About &amp; updates" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
             <Border Style="{StaticResource PipelineCardStyle}">
