@@ -202,6 +202,15 @@
                                     </Button>
                                 </Grid>
 
+                                <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8B9;" FontSize="14" />
+                                        <TextBlock Text="Batch convert a folder to PDF…" />
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Text="Every .md file in the folder becomes a themed PDF in your output folder — detection and cleanup applied to each."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+
                                 <ToggleSwitch Header="Local REST API" OnContent="Running" OffContent="Off"
                                               IsOn="{Binding ApiEnabled, Mode=TwoWay}" />
                                 <Grid ColumnSpacing="8">

@@ -41,7 +41,8 @@ product ships when things are ready, and priority follows what users actually as
       diffing remains a future refinement.)
 - [x] **Branding kit** — cover page (logo, display title, date), document-wide custom typeface.
       (Letterhead/logo in the running header remains a refinement.)
-- [ ] **Batch / export presets** — convert a folder, or one-click a saved output profile.
+- [x] **Batch convert a folder** — every .md becomes a themed PDF via the full pipeline (Pro).
+- [ ] **Export presets** — one-click saved output profiles.
 
 ## Later — raise the ceiling
 
