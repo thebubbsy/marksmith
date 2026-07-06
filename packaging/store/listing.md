@@ -33,7 +33,7 @@ structure, tone down the emphasis, swap the dashes — then renders it with prop
 syntax highlighting, and Mermaid diagrams, ready to send.
 
 WHAT YOU CAN DO
-• Paste or drop Markdown and export a pixel-perfect PDF or a native DOCX
+• Paste or drop Markdown and export a pixel-perfect PDF — or a native Word document via Marksmith's proprietary MD-to-Word engine (editable equations, native shape diagrams, self-updating TOC)
 • Detect the AI source automatically and clean up each assistant's quirks
 • Use it as a plain live Markdown editor — type on the left, watch it render on the right
 • Personalize the output: themes, page width, heading shifts, emphasis, em-dash handling
