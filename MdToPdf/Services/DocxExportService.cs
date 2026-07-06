@@ -75,8 +75,10 @@ public sealed class DocxExportService
     // mermaidImages: optional pre-rasterized PNGs of the document's mermaid fences (in order),
     // supplied by MainWindow's snapshot renderer. Used directly in Snapshot mode, and as the
     // fallback in ShapeForge mode for diagram types the shape engine can't fully parse.
+    // cleanupNotes: the normalizer's applied-fix list; when present, a real Word comment anchored
+    // at the top of the document discloses exactly what Marksmith cleaned — transparent, on-brand.
     public Task ExportAsync(string markdown, string docxPath, AppSettings settings,
-        IReadOnlyList<byte[]?>? mermaidImages = null) =>
+        IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null) =>
         Task.Run(() =>
         {
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
@@ -124,9 +126,34 @@ public sealed class DocxExportService
             foreach (var block in doc)
                 RenderBlock(block, body, ctx, listLevel: -1);
 
+            if (cleanupNotes is { Count: > 0 }) AddCleanupComment(main, body, cleanupNotes);
+
             body.Append(BuildSectionProperties(main, ctx, settings, title));
             main.Document.Save();
         });
+
+    // A genuine Word comment (review pane, margin bubble) anchored on the first paragraph,
+    // disclosing every normalization the AI-cleanup engine applied. Transparency, not magic.
+    private static void AddCleanupComment(MainDocumentPart main, W.Body body, IReadOnlyList<string> notes)
+    {
+        var part = main.WordprocessingCommentsPart ?? main.AddNewPart<WordprocessingCommentsPart>();
+        part.Comments ??= new W.Comments();
+
+        var comment = new W.Comment { Id = "1", Author = "Marksmith", Initials = "MS", Date = DateTime.UtcNow };
+        comment.Append(new W.Paragraph(new W.Run(new W.Text(
+            $"Marksmith normalized {notes.Count} AI formatting quirk{(notes.Count == 1 ? "" : "s")} in this document:"))));
+        foreach (var n in notes)
+            comment.Append(new W.Paragraph(new W.Run(new W.Text("• " + n) { Space = SpaceProcessingModeValues.Preserve })));
+        part.Comments.Append(comment);
+        part.Comments.Save();
+
+        var first = body.Elements<W.Paragraph>().FirstOrDefault();
+        if (first is null) { first = new W.Paragraph(); body.PrependChild(first); }
+        int at = first.Elements<W.ParagraphProperties>().Any() ? 1 : 0;
+        first.InsertAt(new W.CommentRangeStart { Id = "1" }, at);
+        first.Append(new W.CommentRangeEnd { Id = "1" });
+        first.Append(new W.Run(new W.CommentReference { Id = "1" }));
+    }
 
     // Append mode: add the content as a dated section to an existing running document instead of
     // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
