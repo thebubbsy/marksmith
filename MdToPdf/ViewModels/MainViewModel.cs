@@ -304,7 +304,9 @@ public sealed partial class MainViewModel : ObservableObject
             List<byte[]?>? mermaidImgs = null;
             if (markdown.Contains("```mermaid", StringComparison.Ordinal) && App.MainAppWindow is MainWindow mw)
                 mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, _settingsService.Current);
-            await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current, mermaidImgs);
+            // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
+            var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
+            await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current, mermaidImgs, fixes);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);

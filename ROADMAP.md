@@ -36,9 +36,9 @@ product ships when things are ready, and priority follows what users actually as
 - [x] **Mermaid diagrams in DOCX** — shipped *beyond* the plan: flowcharts are rebuilt as **native,
       editable Word shapes** (boxes/diamonds/connectors), not an embedded image. Unsupported diagram
       types fall back to the code block.
-- [ ] **Cleanup as tracked changes / comments** — show *what* was normalized ("removed citation pip",
-      "converted LaTeX") as real Word revisions. On-brand for "make it yours, transparently."
-      *(Substantial: the normalizer needs to emit a change log first.)*
+- [x] **Cleanup disclosed as a Word comment** — every DOCX exported from a normalized AI chat
+      carries a real margin comment listing each applied fix. (Full word-level tracked-changes
+      diffing remains a future refinement.)
 - [ ] **Branding kit** — letterhead/logo header, cover page, custom fonts (page numbers already ship).
 - [ ] **Batch / export presets** — convert a folder, or one-click a saved output profile.
 
