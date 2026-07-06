@@ -543,6 +543,58 @@ public sealed partial class MainWindow : Window
         if (folder is not null) ViewModel.WatchFolder = folder.Path;
     }
 
+    // Batch: convert every .md in a chosen folder to a themed PDF, one by one through the same
+    // classify → normalize → render pipeline the watched folder uses. Pro (automation) feature.
+    private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
+    {
+        if (!App.License.CanAutomate)
+        {
+            ViewModel.StatusText = "Batch conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            return;
+        }
+
+        var picker = new FolderPicker();
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        picker.FileTypeFilter.Add("*");
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is null) return;
+
+        var files = Directory.GetFiles(folder.Path, "*.md", SearchOption.TopDirectoryOnly);
+        if (files.Length == 0)
+        {
+            ViewModel.StatusText = $"No .md files found in {folder.Path}.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            return;
+        }
+
+        int done = 0, failed = 0;
+        var outFolder = App.Settings.Current.OutputFolder;
+        Directory.CreateDirectory(outFolder);
+        foreach (var f in files)
+        {
+            await _convertLock.WaitAsync();
+            try
+            {
+                var md = ViewModel.PrepareMarkdown(await File.ReadAllTextAsync(f));
+                var html = ViewModel.BuildPreviewHtml(md);
+                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + ".pdf");
+                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
+                ViewModel.RecordExport("PDF", outPath, md);
+                done++;
+                ViewModel.StatusText = $"Batch converting… {done + failed}/{files.Length}";
+            }
+            catch { failed++; }
+            finally { _convertLock.Release(); }
+        }
+
+        await RefreshPreviewAsync(false);
+        ViewModel.StatusText = failed == 0
+            ? $"Batch done: {done} PDF{(done == 1 ? "" : "s")} in {outFolder}"
+            : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
+        ViewModel.StatusSeverity = failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+    }
+
     private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
