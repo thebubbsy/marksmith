@@ -414,7 +414,8 @@ public sealed partial class MainWindow : Window
                                 await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs);
                                 outPath = settings.RunningDocPath;
                             }
-                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs);
+                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs,
+                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null);
                             break;
                         case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
                         case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
