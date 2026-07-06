@@ -86,9 +86,26 @@ public sealed class ApiServer : IDisposable
     {
         try
         {
+            var origin = ctx.Request.Headers["Origin"];
+            bool isAllowed = string.IsNullOrEmpty(origin) ||
+                             origin == "null" ||
+                             origin.StartsWith("chrome-extension://") ||
+                             origin.StartsWith("moz-extension://") ||
+                             origin.StartsWith("extension://") ||
+                             origin.StartsWith("http://127.0.0.1") ||
+                             origin.StartsWith("http://localhost") ||
+                             origin.StartsWith("file://");
+
+            if (!isAllowed)
+            {
+                await WriteJsonAsync(ctx, 403, new { error = "Forbidden origin" });
+                return;
+            }
+
             // The admin dashboard is a separate origin (served file/localhost); allow it to read the
-            // 127.0.0.1-bound API. Safe: the listener only accepts loopback connections regardless.
-            ctx.Response.AddHeader("Access-Control-Allow-Origin", "*");
+            // 127.0.0.1-bound API. We explicitly check Origin instead of blindly trusting all origins
+            // to prevent SSRF from malicious public websites.
+            ctx.Response.AddHeader("Access-Control-Allow-Origin", origin ?? "*");
             ctx.Response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             ctx.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
 

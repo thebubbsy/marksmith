@@ -42,11 +42,13 @@ public sealed class MarkdownHtmlService
         var body = Markdown.ToHtml(markdown, Pipeline);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
-        // the content HTML-escaped, but mermaid.js only auto-renders class="mermaid" elements holding
-        // raw diagram text. Rewrite the fence to a <div class="mermaid"> and unescape its content.
+        // the content HTML-escaped. We rewrite the fence to <div class="mermaid">.
+        // We purposefully keep the content HTML-escaped rather than using HtmlDecode,
+        // because Mermaid's inner parsing safely reads textContent, which naturally unescapes it
+        // and protects against XSS vulnerabilities via unescaped tags.
         body = Regex.Replace(body,
             "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
-            m => $"<div class=\"mermaid\">{System.Net.WebUtility.HtmlDecode(m.Groups[1].Value)}</div>",
+            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>",
             RegexOptions.Singleline);
         var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
@@ -82,7 +84,7 @@ public sealed class MarkdownHtmlService
                 maxTextSize: 10000000,
                 maxNodes: 10000,
                 flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },
-                securityLevel: "loose"
+                securityLevel: "strict"
             });
             </script>
             """ : "";
