@@ -11,12 +11,23 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
-        <InfoBar x:Name="LicenseBanner" Grid.Row="1" Margin="16,0,16,6" IsOpen="False" IsClosable="True">
-            <InfoBar.ActionButton>
-                <Button Content="Upgrade to Pro" Click="OnUpgradeClick" />
-            </InfoBar.ActionButton>
-        </InfoBar>
+        <StackPanel Grid.Row="1" Spacing="6">
+            <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
+            <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
+                <InfoBar.ActionButton>
+                    <Button Content="Upgrade to Pro" Click="OnUpgradeClick" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+            <!-- Shown once per session when a paste looks like plain text: the browser extension's
+                 "Copy as Markdown" button would have kept the formatting. -->
+            <InfoBar x:Name="ExtensionHintBar" Margin="16,0,16,0" IsOpen="False" IsClosable="True"
+                     Severity="Informational" Title="That paste looks like plain text"
+                     Message="Headings, tables and code were probably lost on the way. In your AI chat, use the Marksmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting.">
+                <InfoBar.ActionButton>
+                    <Button Content="Get the extension" Click="OnGetExtensionClick" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </StackPanel>
 
         <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">

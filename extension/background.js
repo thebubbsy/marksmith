@@ -18,6 +18,7 @@ chrome.runtime.onInstalled.addListener(() => {
             "https://chat.openai.com/*",
             "https://gemini.google.com/*",
             "https://claude.ai/*",
+            "https://copilot.microsoft.com/*",
         ],
     });
 });
@@ -33,6 +34,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // forward them to the configured collector. Content scripts can hit 127.0.0.1 directly, but
 // routing through the service worker keeps the collector URL/config in one place.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // Attention channel: copybutton.js polls through us (MV3 content scripts can't fetch
+    // cross-origin themselves). The app bumps /api/attention when it spots a plain-text paste.
+    if (msg?.type === "attention-poll") {
+        (async () => {
+            try {
+                const { port } = await chrome.storage.sync.get({ port: DEFAULT_PORT });
+                const resp = await fetch(`http://127.0.0.1:${port}/api/attention`);
+                sendResponse(resp.ok ? await resp.json() : { flashTs: 0 });
+            } catch {
+                sendResponse({ flashTs: 0 }); // app not running — nothing to flash
+            }
+        })();
+        return true; // async response
+    }
+
     if (msg?.type !== "governance-report") return;
     (async () => {
         try {
@@ -163,6 +179,10 @@ function extractMarkdown(mode) {
         if (!roots.length) roots = [...document.querySelectorAll("message-content, model-response")];
     } else if (host.includes("claude.ai")) {
         roots = [...document.querySelectorAll('[data-testid="assistant-message"], .font-claude-message')];
+    } else if (host.includes("copilot.microsoft.com")) {
+        // Copilot's DOM churns; try the stable-ish data attributes first, then class heuristics.
+        roots = [...document.querySelectorAll('[data-content="ai-message"], [data-testid="ai-message"]')];
+        if (!roots.length) roots = [...document.querySelectorAll('[class*="ai-message"]')];
     }
 
     if (!roots.length) {
