@@ -190,7 +190,11 @@ public sealed partial class MainWindow : Window
             {
                 // Small per-keystroke delta = typing (light); a big jump = paste (heavy).
                 var len = ViewModel.PastedMarkdown?.Length ?? 0;
-                if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold) _nextRefreshHeavy = true;
+                if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
+                {
+                    _nextRefreshHeavy = true;
+                    MaybeShowPlainPasteHint(ViewModel.PastedMarkdown ?? "");
+                }
                 _lastMarkdownLen = len;
             }
             else
@@ -200,6 +204,40 @@ public sealed partial class MainWindow : Window
             _previewDebounce.Stop();
             _previewDebounce.Start();
         }
+    }
+
+    private bool _plainPasteHintShown;
+
+    // A sizeable paste with no Markdown structure at all almost certainly came from plain
+    // copy-paste out of an AI chat — the formatting is already lost. Nudge once per session toward
+    // the extension's "Copy as Markdown" button, and bump /api/attention so that button pulses in
+    // the browser right now.
+    private void MaybeShowPlainPasteHint(string text)
+    {
+        if (_plainPasteHintShown || text.Length < 250) return;
+        if (!LooksLikePlainText(text)) return;
+        _plainPasteHintShown = true;
+        ExtensionHintBar.IsOpen = true;
+        Services.ApiServer.AttentionTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    private static bool LooksLikePlainText(string t)
+    {
+        if (t.Contains("```") || t.Contains("](") || t.Contains("**") || t.Contains("【")) return false;
+        foreach (var raw in t.Split('\n'))
+        {
+            var s = raw.TrimStart();
+            if (s.StartsWith('#') || s.StartsWith("- ") || s.StartsWith("* ") || s.StartsWith("> ")
+                || s.StartsWith('|') || (s.Length > 2 && char.IsDigit(s[0]) && s[1] == '.' && s[2] == ' '))
+                return false; // any structural markdown → not a plain paste
+        }
+        return true;
+    }
+
+    private async void OnGetExtensionClick(object sender, RoutedEventArgs e)
+    {
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
+        catch { /* no browser */ }
     }
 
     // Shows the upgrade banner only when the Pro trial is nearly up (<= 5 days) or has ended.

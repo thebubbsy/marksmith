@@ -14,6 +14,10 @@ namespace MdToPdf.Services;
 // Bound to 127.0.0.1 only — this is a local automation surface, not a network service.
 public sealed class ApiServer : IDisposable
 {
+    // Bumped (unix ms) when the app wants the extension's "Copy as Markdown" buttons to pulse —
+    // e.g. after a plain-text paste. Static so UI code can set it without holding the server.
+    public static long AttentionTs;
+
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly LlmSourceService _llm;
@@ -110,6 +114,12 @@ public sealed class ApiServer : IDisposable
 
                 case ("GET", "/api/themes"):
                     await WriteJsonAsync(ctx, 200, _themeNames());
+                    break;
+
+                case ("GET", "/api/attention"):
+                    // The browser extension polls this; a fresh timestamp makes its "Copy as
+                    // Markdown" buttons pulse (set when the app detects a plain-text paste).
+                    await WriteJsonAsync(ctx, 200, new { flashTs = AttentionTs });
                     break;
 
                 case ("POST", "/api/classify"):

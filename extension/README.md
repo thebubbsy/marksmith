@@ -1,8 +1,14 @@
 # Marksmith Connector (Chrome / Edge extension)
 
-Sends AI chat replies from **ChatGPT, Gemini, and Claude** web UIs straight into the
-Marksmith desktop app via its local REST API — converted to Markdown, classified, and
+Sends AI chat replies from **ChatGPT, Gemini, Claude, and Copilot** web UIs straight into
+the Marksmith desktop app via its local REST API — converted to Markdown, classified, and
 normalized on arrival.
+
+It also adds a **"Copy as Markdown"** button beneath every assistant reply on those sites —
+styled to match each site so it feels native. One click copies the reply with headings,
+tables, and code fences intact, so even without the automation you never paste plain text.
+If the Marksmith app spots a plain-text paste, it asks the extension to **pulse the button**
+in your browser so you know it's there.
 
 ## Install (30 seconds, one time)
 

@@ -1,0 +1,204 @@
+// Marksmith Connector — "Copy as Markdown" button, injected into every assistant reply on the
+// supported AI chat sites (ChatGPT, Gemini, Claude, Copilot). The button adopts each site's own
+// text color, font, and corner radius so it reads as part of the host UI. Clicking converts that
+// reply's HTML to Markdown and puts it on the clipboard — so even users who skip the automation
+// never paste plain text again.
+//
+// The Marksmith desktop app can also ask for attention: when it detects a plain-text paste it bumps
+// /api/attention, and the button pulses to teach the user it exists (polled via the service worker,
+// which has host permission for 127.0.0.1 — content scripts can't fetch cross-origin in MV3).
+
+(() => {
+    "use strict";
+
+    const BTN_CLASS = "mk-copy-md-btn";
+    const WRAP_CLASS = "mk-copy-md-wrap";
+
+    // Per-site: how to find assistant replies, and what corner radius feels native.
+    const SITES = [
+        {
+            host: /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$/,
+            messages: '[data-message-author-role="assistant"]',
+            content: ".markdown, .prose",
+            radius: "8px",
+        },
+        {
+            host: /(^|\.)gemini\.google\.com$/,
+            messages: "model-response, message-content",
+            content: ".markdown",
+            radius: "16px",
+        },
+        {
+            host: /(^|\.)claude\.ai$/,
+            messages: '[data-testid="assistant-message"], .font-claude-message',
+            content: null,
+            radius: "8px",
+        },
+        {
+            host: /(^|\.)copilot\.microsoft\.com$/,
+            messages: '[data-content="ai-message"], [data-testid="ai-message"], [class*="ai-message"]',
+            content: null,
+            radius: "4px",
+        },
+    ];
+
+    const site = SITES.find((s) => s.host.test(location.hostname));
+    if (!site) return;
+
+    // ---------- styling (inherits the host page's font; colors derive from the message text) ----------
+    const style = document.createElement("style");
+    style.textContent = `
+        .${WRAP_CLASS} { display: flex; justify-content: flex-end; margin-top: 2px; }
+        .${BTN_CLASS} {
+            display: inline-flex; align-items: center; gap: 5px;
+            font: inherit; font-size: 12px; line-height: 1;
+            padding: 5px 10px; border-radius: ${site.radius};
+            border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+            background: transparent; color: inherit; opacity: 0.55;
+            cursor: pointer; transition: opacity .15s ease, background .15s ease;
+            user-select: none;
+        }
+        .${BTN_CLASS}:hover { opacity: 1; background: color-mix(in srgb, currentColor 8%, transparent); }
+        .${BTN_CLASS}.mk-copied { opacity: 1; }
+        .${BTN_CLASS}.mk-flash { animation: mk-pulse 1s ease-in-out 4; opacity: 1; }
+        @keyframes mk-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(139, 109, 255, 0); }
+            50% { box-shadow: 0 0 0 5px rgba(139, 109, 255, 0.45); }
+        }
+        @media (prefers-reduced-motion: reduce) { .${BTN_CLASS}.mk-flash { animation: none; outline: 2px solid rgba(139,109,255,.7); } }
+    `;
+    document.documentElement.appendChild(style);
+
+    // ---------- HTML -> Markdown (same walker the toolbar/context-menu send uses) ----------
+    function conv(n) {
+        if (n.nodeType === Node.TEXT_NODE) return n.textContent;
+        if (n.nodeType !== Node.ELEMENT_NODE) return "";
+        if (n.classList?.contains(WRAP_CLASS)) return ""; // never copy our own button
+        const tag = n.tagName.toLowerCase();
+        const kids = () => [...n.childNodes].map(conv).join("");
+        switch (tag) {
+            case "h1": return `\n# ${kids().trim()}\n`;
+            case "h2": return `\n## ${kids().trim()}\n`;
+            case "h3": return `\n### ${kids().trim()}\n`;
+            case "h4": return `\n#### ${kids().trim()}\n`;
+            case "h5": return `\n##### ${kids().trim()}\n`;
+            case "h6": return `\n###### ${kids().trim()}\n`;
+            case "p": return `\n${kids()}\n`;
+            case "br": return "\n";
+            case "strong": case "b": return `**${kids()}**`;
+            case "em": case "i": return `*${kids()}*`;
+            case "del": case "s": return `~~${kids()}~~`;
+            case "code": return n.closest("pre") ? kids() : "`" + kids() + "`";
+            case "pre": {
+                const code = n.querySelector("code");
+                const lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
+                const txt = (code || n).textContent.replace(/\n$/, "");
+                return `\n\`\`\`${lang}\n${txt}\n\`\`\`\n`;
+            }
+            case "ul":
+                return "\n" + [...n.children].filter((c) => c.tagName === "LI")
+                    .map((li) => "- " + conv(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n";
+            case "ol":
+                return "\n" + [...n.children].filter((c) => c.tagName === "LI")
+                    .map((li, i) => `${i + 1}. ` + conv(li).trim().replace(/\n/g, "\n   ")).join("\n") + "\n";
+            case "li": return kids();
+            case "a": return n.href && !n.href.startsWith("javascript:") ? `[${kids()}](${n.href})` : kids();
+            case "img": return n.src ? `![${n.alt || ""}](${n.src})` : "";
+            case "blockquote":
+                return "\n" + kids().trim().split("\n").map((l) => `> ${l}`).join("\n") + "\n";
+            case "hr": return "\n---\n";
+            case "table": {
+                const rows = [...n.querySelectorAll("tr")].map(
+                    (tr) => "| " + [...tr.children].map((td) => conv(td).trim().replace(/\|/g, "\\|").replace(/\n/g, " ")).join(" | ") + " |");
+                if (rows.length > 1) {
+                    const cols = rows[0].split("|").length - 2;
+                    rows.splice(1, 0, "|" + " --- |".repeat(cols));
+                }
+                return "\n" + rows.join("\n") + "\n";
+            }
+            case "button": case "script": case "style": case "svg": case "noscript":
+                return "";
+            default: return kids();
+        }
+    }
+
+    function toMarkdown(root) {
+        const target = site.content ? root.querySelector(site.content) || root : root;
+        return conv(target).replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    // ---------- injection ----------
+    function makeButton(root) {
+        const wrap = document.createElement("div");
+        wrap.className = WRAP_CLASS;
+        const btn = document.createElement("button");
+        btn.className = BTN_CLASS;
+        btn.type = "button";
+        btn.title = "Copy this reply as Markdown — headings, tables and code intact (Marksmith)";
+        btn.innerHTML = svgIcon() + "<span>Copy as Markdown</span>";
+        btn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const md = toMarkdown(root);
+            if (!md) return flashText(btn, "Nothing to copy");
+            try {
+                await navigator.clipboard.writeText(md);
+                flashText(btn, "✓ Copied as Markdown");
+            } catch {
+                flashText(btn, "Copy failed");
+            }
+        });
+        wrap.appendChild(btn);
+        return wrap;
+    }
+
+    function flashText(btn, text) {
+        const span = btn.querySelector("span");
+        const old = span.textContent;
+        span.textContent = text;
+        btn.classList.add("mk-copied");
+        setTimeout(() => { span.textContent = old; btn.classList.remove("mk-copied"); }, 1600);
+    }
+
+    function svgIcon() {
+        return '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' +
+            '<rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>';
+    }
+
+    function scan() {
+        for (const root of document.querySelectorAll(site.messages)) {
+            if (root.dataset.mkCopyBtn) continue;
+            // Only decorate messages that have real content (streaming placeholders come back later).
+            if ((root.textContent || "").trim().length < 8) continue;
+            root.dataset.mkCopyBtn = "1";
+            root.appendChild(makeButton(root));
+        }
+    }
+
+    let scanQueued = false;
+    new MutationObserver(() => {
+        if (scanQueued) return;
+        scanQueued = true;
+        setTimeout(() => { scanQueued = false; scan(); }, 700);
+    }).observe(document.body, { childList: true, subtree: true });
+    scan();
+
+    // ---------- attention channel (Marksmith app -> these buttons) ----------
+    let lastFlash = Date.now(); // ignore anything the app raised before this page existed
+    setInterval(() => {
+        if (document.visibilityState !== "visible") return;
+        try {
+            chrome.runtime.sendMessage({ type: "attention-poll" }, (resp) => {
+                void chrome.runtime.lastError; // app offline / SW asleep — fine
+                const ts = resp?.flashTs || 0;
+                if (ts <= lastFlash) return;
+                lastFlash = ts;
+                for (const b of document.querySelectorAll("." + BTN_CLASS)) {
+                    b.classList.add("mk-flash");
+                    setTimeout(() => b.classList.remove("mk-flash"), 4500);
+                }
+                document.querySelector("." + BTN_CLASS)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            });
+        } catch { /* extension context invalidated (update/reload) */ }
+    }, 5000);
+})();
