@@ -72,7 +72,11 @@ public sealed class DocxExportService
             ["caution"] = ("#f85149", "🛑"),
         };
 
-    public Task ExportAsync(string markdown, string docxPath, AppSettings settings) =>
+    // mermaidImages: optional pre-rasterized PNGs of the document's mermaid fences (in order),
+    // supplied by MainWindow's snapshot renderer. Used directly in Snapshot mode, and as the
+    // fallback in ShapeForge mode for diagram types the shape engine can't fully parse.
+    public Task ExportAsync(string markdown, string docxPath, AppSettings settings,
+        IReadOnlyList<byte[]?>? mermaidImages = null) =>
         Task.Run(() =>
         {
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
@@ -107,6 +111,8 @@ public sealed class DocxExportService
                 Alerts = isDark ? AlertStylesDark : AlertStyles,
                 LinkColor = isDark ? "6CB6FF" : "0563C1",
                 NoEmoji = settings.NoEmoji,
+                MermaidMode = settings.MermaidDocxMode,
+                MermaidImages = mermaidImages,
             };
 
             AddStyles(main, ctx);
@@ -124,9 +130,10 @@ public sealed class DocxExportService
 
     // Append mode: add the content as a dated section to an existing running document instead of
     // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
-    public Task ExportAppendAsync(string markdown, string docxPath, AppSettings settings) => Task.Run(() =>
+    public Task ExportAppendAsync(string markdown, string docxPath, AppSettings settings,
+        IReadOnlyList<byte[]?>? mermaidImages = null) => Task.Run(() =>
     {
-        if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings).GetAwaiter().GetResult(); return; }
+        if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages).GetAwaiter().GetResult(); return; }
 
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
@@ -158,6 +165,8 @@ public sealed class DocxExportService
             NextNumId = maxNum + 1,
             NextBookmarkId = maxBm + 1,
             DropCapPending = false, // no drop cap on appended sections
+            MermaidMode = settings.MermaidDocxMode,
+            MermaidImages = mermaidImages,
         };
 
         CollectAnchors(doc, ctx);
@@ -196,7 +205,10 @@ public sealed class DocxExportService
         public required bool NoEmoji { get; init; }
         public int NextNumId = 2; // numId 1 is the shared bullet instance
         public int NextBookmarkId = 1;
-        public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shape groups)
+        public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shapes / snapshots)
+        public int MermaidMode = 1;       // 0 = Snapshot picture, 1 = ShapeForge native shapes
+        public IReadOnlyList<byte[]?>? MermaidImages; // pre-rasterized PNGs, one per fence in order
+        public int MermaidSeen;           // index of the next mermaid fence encountered
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
 
@@ -295,10 +307,19 @@ public sealed class DocxExportService
 
             case FencedCodeBlock fence when fence.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
             {
-                // Mermaid flowcharts become NATIVE, editable Word shapes (boxes/diamonds/arrows) via
-                // MermaidDocxRenderer. Anything it can't fully parse keeps the code-block fallback.
-                if (MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram))
+                // Two user-selectable methods (settings.MermaidDocxMode):
+                //   ShapeForge (1) — rebuild the diagram as native, editable Word shapes; if the shape
+                //                    engine can't fully parse it, fall back to the snapshot picture.
+                //   Snapshot  (0) — embed a picture of the rendered diagram.
+                // Last resort either way: the plain code block (never a half-understood diagram).
+                var idx = ctx.MermaidSeen++;
+                var png = ctx.MermaidImages is not null && idx < ctx.MermaidImages.Count ? ctx.MermaidImages[idx] : null;
+
+                if (ctx.MermaidMode == 1 &&
+                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram))
                     target.Append(diagram);
+                else if (png is not null)
+                    target.Append(SnapshotParagraph(png, ctx));
                 else
                     target.Append(CodeParagraph(fence.Lines.ToString(), ctx));
                 break;
@@ -399,6 +420,59 @@ public sealed class DocxExportService
         RenderInlines(rest, p.Inline, ctx, default);
         target.Append(rest);
         return true;
+    }
+
+    // Snapshot mode: embed the pre-rasterized diagram PNG as a centered inline picture, scaled to
+    // the printable width (the PNGs are rendered at 2x, so half their pixel size in points).
+    private static W.Paragraph SnapshotParagraph(byte[] png, Ctx ctx)
+    {
+        var part = ctx.MainPart.AddImagePart(ImagePartType.Png);
+        using (var ms = new MemoryStream(png)) part.FeedData(ms);
+        var relId = ctx.MainPart.GetIdOfPart(part);
+
+        var (pxW, pxH) = PngDimensions(png);
+        double ptW = Math.Max(40, pxW * 0.375), ptH = Math.Max(20, pxH * 0.375); // 2x render → 72/96/2
+        if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+        long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
+        var id = ctx.NextDrawingId++;
+
+        var drawing = new W.Drawing
+        {
+            InnerXml = $"""
+                <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <wp:extent cx="{cx}" cy="{cy}"/>
+                  <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                  <wp:docPr id="{id}" name="Mermaid diagram" descr="Diagram snapshot rendered by Marksmith"/>
+                  <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                  <a:graphic>
+                    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <pic:pic>
+                        <pic:nvPicPr><pic:cNvPr id="{id}" name="mermaid.png"/><pic:cNvPicPr/></pic:nvPicPr>
+                        <pic:blipFill><a:blip r:embed="{relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                        <pic:spPr>
+                          <a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
+                          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                        </pic:spPr>
+                      </pic:pic>
+                    </a:graphicData>
+                  </a:graphic>
+                </wp:inline>
+                """
+        };
+        return new W.Paragraph(
+            new W.ParagraphProperties( // schema order: spacing before jc
+                new W.SpacingBetweenLines { Before = "120", After = "120" },
+                new W.Justification { Val = W.JustificationValues.Center }),
+            new W.Run(drawing));
+    }
+
+    // Width/height from the PNG IHDR chunk (big-endian u32s at offsets 16 and 20).
+    private static (int W, int H) PngDimensions(byte[] png)
+    {
+        if (png.Length < 24) return (600, 400);
+        int w = (png[16] << 24) | (png[17] << 16) | (png[18] << 8) | png[19];
+        int h = (png[20] << 24) | (png[21] << 16) | (png[22] << 8) | png[23];
+        return w > 0 && h > 0 ? (w, h) : (600, 400);
     }
 
     private static W.Paragraph CodeParagraph(string text, Ctx ctx)

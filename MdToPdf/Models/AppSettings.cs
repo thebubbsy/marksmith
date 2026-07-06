@@ -25,6 +25,11 @@ public sealed class AppSettings
     // One-time in-app tip about the browser extension.
     public bool ShowExtensionTip { get; set; } = true;
 
+    // How Mermaid diagrams are written into DOCX exports:
+    //   0 = Snapshot — embed a picture of the rendered diagram
+    //   1 = ShapeForge — rebuild the diagram as native, editable Word shapes (default)
+    public int MermaidDocxMode { get; set; } = 1;
+
     // Export extras
     public bool IncludeToc { get; set; }
     public bool ShowAttribution { get; set; } = true;
@@ -63,6 +68,7 @@ public sealed class AppSettings
         if (o.BoldMode is { } bm) s.BoldMode = bm;
         if (o.ItalicMode is { } im) s.ItalicMode = im;
         if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
+        if (o.MermaidDocxMode is { } mm) s.MermaidDocxMode = mm;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         return s;
     }

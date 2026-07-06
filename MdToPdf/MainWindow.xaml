@@ -264,6 +264,14 @@
                                           IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
                             <ToggleSwitch Header="Table of contents"
                                           IsOn="{Binding IncludeToc, Mode=TwoWay}" />
+
+                            <ComboBox Header="Diagrams in Word exports" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding MermaidDocxMode, Mode=TwoWay}">
+                                <x:String>Snapshot — picture of the diagram</x:String>
+                                <x:String>ShapeForge™ — editable Word shapes</x:String>
+                            </ComboBox>
+                            <TextBlock Text="ShapeForge rebuilds Mermaid flowcharts from Word's own shapes — every box and arrow editable. Diagram types it can't parse fall back to the snapshot."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
                             <!-- Power-user styling — revealed by Advanced mode (Settings cog). -->
                             <StackPanel x:Name="AdvancedStyleSection" Spacing="14" Visibility="Collapsed">
                                 <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
