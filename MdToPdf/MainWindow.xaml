@@ -7,8 +7,16 @@
 
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
+        <InfoBar x:Name="LicenseBanner" Grid.Row="1" Margin="16,0,16,6" IsOpen="False" IsClosable="True">
+            <InfoBar.ActionButton>
+                <Button Content="Upgrade to Pro" Click="OnUpgradeClick" />
+            </InfoBar.ActionButton>
+        </InfoBar>
 
         <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
@@ -23,7 +31,7 @@
         </Grid>
 
         <!-- Left-to-right pipeline: 1 Source -> 2 Style -> 3 Preview & Export -->
-        <Grid Grid.Row="1" Padding="16,6,16,16" ColumnSpacing="10">
+        <Grid Grid.Row="2" Padding="16,6,16,16" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="380" />
                 <ColumnDefinition Width="Auto" />
