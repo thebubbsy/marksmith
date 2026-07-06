@@ -125,10 +125,11 @@ schema‑valid (Office 2010) and built to feel hand‑made in Word:
   under/over limits** and **integrals with sub/sup limits**, delimiters, Greek, and upright function
   names all map through — so `\sum_{i=1}^{n} i^2` opens as a real Cambria Math equation you can click
   into and edit, not an image or a line of raw `\LaTeX`.
-- **Diagrams built from real Word shapes** — Mermaid flowcharts are re‑drawn as a native shape group:
-  theme‑colored boxes, diamonds and connectors with arrowheads, edge labels and all — **every shape
-  editable in Word**, not a pasted picture. (Diagram types the parser can't fully understand keep the
-  code‑block fallback rather than guessing.)
+- **Diagrams built from real Word shapes (ShapeForge™)** — Mermaid **flowcharts, sequence diagrams,
+  class & ER diagrams, pie charts, gantt charts, mindmaps, timelines and quadrant charts** are
+  re‑drawn as native shape groups: theme‑colored boxes, lifelines, wedges and connectors with
+  arrowheads — **every shape editable in Word**, not a pasted picture. Anything the parser can't
+  fully understand falls back to an embedded snapshot of the rendered diagram rather than guessing.
 - **Whole‑document theme immersion** — `w:background` + `displayBackgroundShape` paint the real Word
   page in your theme, so a Dracula export opens as a genuinely dark document, not black‑on‑white.
 - **A self‑updating Table of Contents** — a real TOC *field* (not baked text) with `updateFields`, so

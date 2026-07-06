@@ -40,11 +40,36 @@ public static class MermaidDocxRenderer
         public double W, H;
     }
 
+    // The ShapeForge renderer registry: one geometry renderer per diagram family (see
+    // Services/Mermaid). Flowcharts keep the battle-tested path below; everything else goes
+    // renderer → MDiagram → DocxShapeEmitter.
+    private static readonly Mermaid.IMermaidRenderer[] Renderers =
+    {
+        new Mermaid.MermaidSequenceRenderer(),
+        new Mermaid.MermaidClassErRenderer(),
+        new Mermaid.MermaidTreesRenderer(),
+        new Mermaid.MermaidChartsRenderer(),
+    };
+
     public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph)
     {
         paragraph = null!;
         try
         {
+            var type = FirstWord(source);
+            if (type is not ("graph" or "flowchart"))
+            {
+                var renderer = Renderers.FirstOrDefault(r => r.CanRender(type));
+                if (renderer is null) return false; // unknown family → snapshot/code fallback
+                var d = renderer.Render(source, theme); // MermaidParseException → catch below
+                if (d.Shapes.Count == 0 && d.Connectors.Count == 0) return false;
+                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId) };
+                paragraph.PrependChild(new W.ParagraphProperties( // schema order: spacing before jc
+                    new W.SpacingBetweenLines { Before = "120", After = "120" },
+                    new W.Justification { Val = W.JustificationValues.Center }));
+                return true;
+            }
+
             var g = Parse(source);
             if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) return false;
             Layout(g);
@@ -59,8 +84,22 @@ public static class MermaidDocxRenderer
         }
         catch
         {
-            return false; // any surprise → code-block fallback, never a broken document
+            return false; // any surprise → snapshot/code-block fallback, never a broken document
         }
+    }
+
+    // Lowercased first token of the first meaningful line — the diagram family
+    // ("sequencediagram", "pie", "mindmap", ...). Renderers expect it lowercased.
+    private static string FirstWord(string source)
+    {
+        foreach (var raw in source.Replace("\r", "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("%%")) continue;
+            var m = Regex.Match(line, @"^([A-Za-z][A-Za-z0-9-]*)");
+            return m.Success ? m.Groups[1].Value.ToLowerInvariant() : "";
+        }
+        return "";
     }
 
     // ---------------- parsing ----------------
