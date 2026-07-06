@@ -332,6 +332,28 @@
                                     <x:String>Keep</x:String>
                                     <x:String>Remove (plain text)</x:String>
                                 </ComboBox>
+
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                                <TextBlock Text="Branding kit" FontWeight="SemiBold" />
+                                <TextBlock Text="Turn a converted chat into a client-ready deliverable — cover page, your logo, your typeface (Word exports)."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                <ToggleSwitch Header="Cover page (title, logo, date)"
+                                              IsOn="{Binding BrandCoverPage, Mode=TwoWay}" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Header="Logo (PNG/JPEG)" Text="{Binding BrandLogoPath, Mode=TwoWay}"
+                                             PlaceholderText="Optional — shown on the cover" IsSpellCheckEnabled="False" />
+                                    <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseBrandLogoClick">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                    </Button>
+                                </Grid>
+                                <TextBox Header="Document font" Text="{Binding BrandFontFamily, Mode=TwoWay}"
+                                         PlaceholderText="Default (Calibri) — e.g. Georgia, Garamond, Segoe UI"
+                                         IsSpellCheckEnabled="False" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

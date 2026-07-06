@@ -39,7 +39,8 @@ product ships when things are ready, and priority follows what users actually as
 - [x] **Cleanup disclosed as a Word comment** — every DOCX exported from a normalized AI chat
       carries a real margin comment listing each applied fix. (Full word-level tracked-changes
       diffing remains a future refinement.)
-- [ ] **Branding kit** — letterhead/logo header, cover page, custom fonts (page numbers already ship).
+- [x] **Branding kit** — cover page (logo, display title, date), document-wide custom typeface.
+      (Letterhead/logo in the running header remains a refinement.)
 - [ ] **Batch / export presets** — convert a folder, or one-click a saved output profile.
 
 ## Later — raise the ceiling
