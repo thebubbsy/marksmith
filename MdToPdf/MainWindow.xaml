@@ -281,7 +281,7 @@
                                 <x:String>Snapshot — picture of the diagram</x:String>
                                 <x:String>ShapeForge™ — editable Word shapes</x:String>
                             </ComboBox>
-                            <TextBlock Text="ShapeForge rebuilds Mermaid flowcharts from Word's own shapes — every box and arrow editable. Diagram types it can't parse fall back to the snapshot."
+                            <TextBlock Text="ShapeForge rebuilds Mermaid diagrams from Word's own shapes — flowcharts, sequence, class/ER, pie, gantt, mindmap, timeline, quadrant — every box and arrow editable. Anything it can't parse falls back to the snapshot."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
                             <!-- Power-user styling — revealed by Advanced mode (Settings cog). -->
                             <StackPanel x:Name="AdvancedStyleSection" Spacing="14" Visibility="Collapsed">
