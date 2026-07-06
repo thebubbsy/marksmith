@@ -45,6 +45,13 @@ public sealed partial class MainWindow : Window
     };
 
     private readonly DispatcherQueueTimer _previewDebounce;
+
+    // Preview refresh intensity. Typing does a silent "light" refresh (no sprite, no blur); a paste or
+    // a style/theme change does a "heavy" refresh — the loading sprite over a blur that clears as it
+    // completes. PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
+    private int _lastMarkdownLen;
+    private bool _nextRefreshHeavy;
+    private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
     private readonly Services.ApiServer _apiServer;
@@ -100,7 +107,12 @@ public sealed partial class MainWindow : Window
         _previewDebounce = DispatcherQueue.CreateTimer();
         _previewDebounce.Interval = TimeSpan.FromMilliseconds(180);
         _previewDebounce.IsRepeating = false;
-        _previewDebounce.Tick += async (_, _) => await RefreshPreviewAsync();
+        _previewDebounce.Tick += async (_, _) =>
+        {
+            var heavy = _nextRefreshHeavy;
+            _nextRefreshHeavy = false;
+            await RefreshPreviewAsync(heavy);
+        };
 
         _spinTimer = DispatcherQueue.CreateTimer();
         _spinTimer.Interval = TimeSpan.FromMilliseconds(16);
@@ -169,6 +181,17 @@ public sealed partial class MainWindow : Window
 
         if (e.PropertyName is not null && PreviewAffectingProperties.Contains(e.PropertyName))
         {
+            if (e.PropertyName == nameof(ViewModels.MainViewModel.PastedMarkdown))
+            {
+                // Small per-keystroke delta = typing (light); a big jump = paste (heavy).
+                var len = ViewModel.PastedMarkdown?.Length ?? 0;
+                if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold) _nextRefreshHeavy = true;
+                _lastMarkdownLen = len;
+            }
+            else
+            {
+                _nextRefreshHeavy = true; // theme / width / TOC / formatting — a visible re-render
+            }
             _previewDebounce.Stop();
             _previewDebounce.Start();
         }
@@ -618,13 +641,16 @@ public sealed partial class MainWindow : Window
         _spinTimer!.Stop();
         _spinActive = false;
         PreviewSpinner.Visibility = Visibility.Collapsed;
+        // Reveal the freshly-rendered content: the blur clears over a smooth transition as the sprite goes.
+        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(
+            "document.body && document.body.classList.remove('ms-loading')");
     }
 
-    private async Task RefreshPreviewAsync()
+    private async Task RefreshPreviewAsync(bool heavy = true)
     {
         if (PreviewWebView.CoreWebView2 is null) return;
 
-        StartSpinner();
+        if (heavy) StartSpinner();
 
         var vm = ViewModel;
         string markdown;
@@ -644,6 +670,8 @@ public sealed partial class MainWindow : Window
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown));
+        // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
+        if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
         PreviewWebView.CoreWebView2.NavigateToString(html);
     }
 }
