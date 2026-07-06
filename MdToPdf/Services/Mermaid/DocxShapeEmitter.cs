@@ -130,7 +130,7 @@ public static class DocxShapeEmitter
 
     private static string RunProps(MShape s, ThemeDefinition t)
     {
-        var color = Hex(s.TextColor ?? t.Text);
+        var color = Hex(s.TextColor ?? t.Primary);
         var sz = (int)Math.Round(s.FontSize * 2); // half-points
         return (s.Bold ? "<w:b/>" : "") +
                $"<w:color w:val=\"{color}\"/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
@@ -172,14 +172,14 @@ public static class DocxShapeEmitter
     private static string FillXml(MShape s, ThemeDefinition t)
     {
         if (s.Kind is ShapeKind.Frame or ShapeKind.Text) return "<a:noFill/>";
-        var fill = s.Fill ?? t.Secondary;
+        var fill = s.Fill ?? t.Background;
         return $"<a:solidFill><a:srgbClr val=\"{Hex(fill)}\"/></a:solidFill>";
     }
 
     private static string LineXml(MShape s, ThemeDefinition t)
     {
         if (s.Kind == ShapeKind.Text) return "<a:ln><a:noFill/></a:ln>";
-        var stroke = Hex(s.Stroke ?? t.Border);
+        var stroke = Hex(s.Stroke ?? t.Line);
         long w = (long)Math.Round(s.StrokeWidth * EmuPerPt);
         var dash = s.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
         return $"<a:ln w=\"{w}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}</a:ln>";

@@ -387,6 +387,9 @@ public sealed partial class MainWindow : Window
                 ViewModel.StatusSeverity = InfoBarSeverity.Error;
                 return;
             }
+            var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
+            try
+            {
 
             var settings = App.Settings.Current.CloneWith(output);
             Directory.CreateDirectory(settings.OutputFolder);
@@ -449,6 +452,12 @@ public sealed partial class MainWindow : Window
                 ViewModel.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
                 ViewModel.StatusSeverity = InfoBarSeverity.Warning;
             }
+
+            }
+            finally
+            {
+                EndOffscreenRender(offscreen);
+            }
         }
         catch (Exception ex)
         {
@@ -475,6 +484,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         if (!await EnsurePreviewWebViewAsync()) return; // engine not up yet — file stays ingested in the UI
+        var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
 
         try
         {
@@ -503,6 +513,10 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.StatusText = $"Auto-convert failed for {Path.GetFileName(path)}: {ex.Message}";
             ViewModel.StatusSeverity = InfoBarSeverity.Error;
+        }
+        finally
+        {
+            EndOffscreenRender(offscreen);
         }
     }
 
@@ -642,6 +656,7 @@ public sealed partial class MainWindow : Window
                 tcs.TrySetException(new InvalidOperationException("The preview engine couldn't start."));
                 return;
             }
+            var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
             await _convertLock.WaitAsync();
             try
             {
@@ -667,6 +682,7 @@ public sealed partial class MainWindow : Window
             }
             finally
             {
+                EndOffscreenRender(offscreen);
                 _convertLock.Release();
                 await RefreshPreviewAsync();
             }
@@ -726,6 +742,20 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.InputFilePath = file.Path;
             ViewModel.UsePasteSource = false;
+        }
+    }
+
+    private async void OnBrowseLogoClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        picker.FileTypeFilter.Add(".png");
+        picker.FileTypeFilter.Add(".jpg");
+        picker.FileTypeFilter.Add(".jpeg");
+        var file = await picker.PickSingleFileAsync();
+        if (file is not null)
+        {
+            ViewModel.BrandLogoPath = file.Path;
         }
     }
 
@@ -791,6 +821,27 @@ public sealed partial class MainWindow : Window
         if (PreviewWebView.CoreWebView2 is not null) return true;
         try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return false; }
         return PreviewWebView.CoreWebView2 is not null;
+    }
+
+    // WebView2 doesn't reliably paint while the window is hidden (tray mode), which can yield blank
+    // PDFs. For the duration of a headless render, present the window off-screen, unactivated, and
+    // hidden from the taskbar/Alt-Tab — the user never sees a thing — then hide it again.
+    private (bool Hidden, Windows.Graphics.PointInt32 Pos) BeginOffscreenRender()
+    {
+        if (AppWindow.IsVisible) return (false, default);
+        var pos = AppWindow.Position;
+        AppWindow.IsShownInSwitchers = false;
+        AppWindow.Move(new Windows.Graphics.PointInt32(-32000, -32000));
+        AppWindow.Show(false); // no activation — focus stays wherever the user has it
+        return (true, pos);
+    }
+
+    private void EndOffscreenRender((bool Hidden, Windows.Graphics.PointInt32 Pos) state)
+    {
+        if (!state.Hidden) return;
+        AppWindow.Hide();
+        AppWindow.Move(state.Pos);
+        AppWindow.IsShownInSwitchers = true;
     }
 
     // Called on every refresh. Starts the animated spinner if it isn't already running; otherwise

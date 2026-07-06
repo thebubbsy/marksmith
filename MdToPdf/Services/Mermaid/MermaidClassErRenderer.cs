@@ -430,8 +430,8 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
             {
                 Kind = ShapeKind.Rect,
                 X = n.X, Y = n.Y, W = n.W, H = n.HeaderH,
-                Fill = theme.Secondary, Stroke = theme.Border,
-                TextColor = theme.Heading, Bold = true, FontSize = 10,
+                Fill = theme.Background, Stroke = theme.Line,
+                TextColor = theme.Primary, Bold = true, FontSize = 10,
             };
             if (n.Annotation is null)
             {
@@ -459,7 +459,7 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
             {
                 Kind = ShapeKind.Rect,
                 X = n.X, Y = membersY, W = n.W, H = n.AttrsH + n.MethodsH,
-                Fill = theme.Background, Stroke = theme.Border,
+                Fill = theme.Background, Stroke = theme.Line,
             });
 
             void AddMemberLines(List<string> members, double top)

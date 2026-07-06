@@ -221,7 +221,7 @@ public static class MermaidDocxRenderer
 
     private static string Clean(string s)
     {
-        s = Regex.Replace(s, @"<br\s*/?>", "  ", RegexOptions.IgnoreCase);
+        s = Regex.Replace(s, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase); // real line breaks in Word
         s = WebUtility.HtmlDecode(Regex.Replace(s, "<.*?>", ""));
         return s.Trim().Trim('"').Replace("**", "").Replace("`", "").Trim();
     }
@@ -245,13 +245,23 @@ public static class MermaidDocxRenderer
 
         foreach (var n in g.Nodes)
         {
-            var baseW = Math.Clamp(18 + n.Label.Length * 5.6, 70, 240);
+            // Size from the text so labels never clip: width from the longest explicit line,
+            // height grown per line — both the <br> lines and an estimate of Word's own wrapping
+            // once the label exceeds the max box width.
+            var lines = n.Label.Length == 0 ? new[] { "" } : n.Label.Split('\n');
+            int longest = lines.Max(l => l.Length);
+            var baseW = Math.Clamp(18 + longest * 5.6, 70, 240);
             n.W = n.Shape == "diamond" ? baseW * 1.45 : baseW;
-            n.H = n.Shape is "diamond" or "ellipse" ? 44 : NodeH;
+
+            double usableW = n.W - (n.Shape == "diamond" ? n.W * 0.38 : 14); // diamonds squeeze text
+            double charsPerLine = Math.Max(6, usableW / 5.2);
+            int textLines = lines.Sum(l => Math.Max(1, (int)Math.Ceiling(l.Length / charsPerLine)));
+
+            double baseH = n.Shape is "diamond" or "ellipse" ? 44 : NodeH;
+            n.H = baseH + Math.Max(0, textLines - 1) * (n.Shape == "diamond" ? 18 : 12);
         }
 
         var ranks = g.Nodes.GroupBy(n => n.Rank).OrderBy(r => r.Key).ToList();
-        double slot = g.Nodes.Max(n => n.H);
 
         if (!g.LeftRight)
         {
@@ -259,6 +269,7 @@ public static class MermaidDocxRenderer
             double y = Margin;
             foreach (var rank in ranks)
             {
+                double slot = rank.Max(n => n.H); // per-rank: a tall node pushes its own row apart
                 double rowW = rank.Sum(n => n.W) + (rank.Count() - 1) * HGap;
                 double x = (canvasW - rowW) / 2;
                 foreach (var n in rank) { n.X = x; n.Y = y + (slot - n.H) / 2; x += n.W + HGap; }
@@ -295,7 +306,7 @@ public static class MermaidDocxRenderer
     private static string BuildInlineXml(Graph g, ThemeDefinition t, uint drawingId)
     {
         long CX = Emu(g.W), CY = Emu(g.H);
-        string fill = Hex(t.Secondary), border = Hex(t.Heading), text = Hex(t.Text),
+        string fill = Hex(t.Background), border = Hex(t.Line), text = Hex(t.Primary),
                line = Hex(t.Line), bg = Hex(t.Background);
 
         var sb = new StringBuilder();
@@ -346,10 +357,9 @@ public static class MermaidDocxRenderer
               </wps:spPr>
               <wps:txbx>
                 <w:txbxContent>
-                  <w:p>
-                    <w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr>
-                    <w:r><w:rPr><w:color w:val="{text}"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">{XmlEsc(n.Label)}</w:t></w:r>
-                  </w:p>
+                  {string.Join("", n.Label.Split('\n').Select(l =>
+                      $"<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/></w:pPr>" +
+                      $"<w:r><w:rPr><w:color w:val=\"{text}\"/><w:sz w:val=\"18\"/></w:rPr><w:t xml:space=\"preserve\">{XmlEsc(l)}</w:t></w:r></w:p>"))}
                 </w:txbxContent>
               </wps:txbx>
               <wps:bodyPr lIns="27432" tIns="9144" rIns="27432" bIns="9144" anchor="ctr"><a:noAutofit/></wps:bodyPr>
