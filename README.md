@@ -223,7 +223,7 @@ straight to PDF:
 grab `Marksmith-win-x64.zip`, unzip anywhere, and run `Marksmith.exe`. No installer, no .NET SDK,
 nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
 
-Runs on Windows 10 (1809+) and Windows 11 (x64). The WebView2 runtime it uses for rendering ships
+Runs on Windows 11 (x64). The WebView2 runtime it uses for rendering ships
 with current Windows; if yours somehow lacks it, grab it
 [here](https://developer.microsoft.com/microsoft-edge/webview2/).
 
