@@ -37,6 +37,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
     [ObservableProperty] private int _mermaidDocxMode = 1; // 0 Snapshot picture, 1 ShapeForge shapes
+    [ObservableProperty] private bool _brandCoverPage;
+    [ObservableProperty] private string _brandLogoPath = "";
+    [ObservableProperty] private string _brandFontFamily = "";
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
     [ObservableProperty] private int _dashMode;
@@ -131,6 +134,9 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var h in App.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _mermaidDocxMode = settings.MermaidDocxMode;
+        _brandCoverPage = settings.BrandCoverPage;
+        _brandLogoPath = settings.BrandLogoPath;
+        _brandFontFamily = settings.BrandFontFamily;
         _showAttribution = settings.ShowAttribution;
         _noEmoji = settings.NoEmoji;
         _dashMode = settings.DashMode;
@@ -165,6 +171,9 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
     partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; _settingsService.Save(); }
+    partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; _settingsService.Save(); }
+    partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; _settingsService.Save(); }
+    partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; _settingsService.Save(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; _settingsService.Save(); }
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; _settingsService.Save(); }
     partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; _settingsService.Save(); }
