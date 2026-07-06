@@ -381,6 +381,13 @@ public sealed partial class MainWindow : Window
             var md = ViewModel.PastedMarkdown;
             if (string.IsNullOrWhiteSpace(md)) return;
 
+            if (!await EnsurePreviewWebViewAsync())
+            {
+                ViewModel.StatusText = "Auto-generate failed: the preview engine couldn't start. Try the export again.";
+                ViewModel.StatusSeverity = InfoBarSeverity.Error;
+                return;
+            }
+
             var settings = App.Settings.Current.CloneWith(output);
             Directory.CreateDirectory(settings.OutputFolder);
             var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
@@ -467,6 +474,7 @@ public sealed partial class MainWindow : Window
             ViewModel.StatusSeverity = InfoBarSeverity.Warning;
             return;
         }
+        if (!await EnsurePreviewWebViewAsync()) return; // engine not up yet — file stays ingested in the UI
 
         try
         {
@@ -567,6 +575,12 @@ public sealed partial class MainWindow : Window
             ViewModel.StatusSeverity = InfoBarSeverity.Warning;
             return;
         }
+        if (!await EnsurePreviewWebViewAsync())
+        {
+            ViewModel.StatusText = "Batch failed: the preview engine couldn't start. Try again.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            return;
+        }
 
         int done = 0, failed = 0;
         var outFolder = App.Settings.Current.OutputFolder;
@@ -623,6 +637,11 @@ public sealed partial class MainWindow : Window
         var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         DispatcherQueue.TryEnqueue(async () =>
         {
+            if (!await EnsurePreviewWebViewAsync())
+            {
+                tcs.TrySetException(new InvalidOperationException("The preview engine couldn't start."));
+                return;
+            }
             await _convertLock.WaitAsync();
             try
             {
@@ -758,6 +777,16 @@ public sealed partial class MainWindow : Window
         await RefreshPreviewAsync();
     }
 
+    // The WebView initializes asynchronously after launch, but headless work (auto-generate on
+    // ingest, watched files, API convert, batch) can arrive first — "WebView2 is not initialized".
+    // Every headless caller awaits this before rendering.
+    private async Task<bool> EnsurePreviewWebViewAsync()
+    {
+        if (PreviewWebView.CoreWebView2 is not null) return true;
+        try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return false; }
+        return PreviewWebView.CoreWebView2 is not null;
+    }
+
     // Called on every refresh. Starts the animated spinner if it isn't already running; otherwise
     // just marks the new navigation in-flight so it stays up until the latest render finishes.
     private void StartSpinner()
@@ -821,11 +850,7 @@ public sealed partial class MainWindow : Window
                 System.Text.RegularExpressions.RegexOptions.Singleline)
             .Select(m => m.Groups[1].Value).ToList();
         if (fences.Count == 0) return new();
-        if (PreviewWebView.CoreWebView2 is null)
-        {
-            try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return new(); }
-            if (PreviewWebView.CoreWebView2 is null) return new();
-        }
+        if (!await EnsurePreviewWebViewAsync()) return new();
 
         var theme = App.Themes.GetOrDefault(settings.Theme);
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
