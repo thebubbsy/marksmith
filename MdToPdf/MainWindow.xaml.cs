@@ -750,6 +750,12 @@ public sealed partial class MainWindow : Window
 
     private async void OnConvertPdfClick(object sender, RoutedEventArgs e)
     {
+        if (!await EnsurePreviewWebViewAsync())
+        {
+            ViewModel.StatusText = "PDF export failed: the preview engine couldn't start. Try again.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            return;
+        }
         await ViewModel.ConvertToPdfAsync(PreviewWebView);
     }
 
