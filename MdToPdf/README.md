@@ -10,7 +10,7 @@ source-generated view model, and `WebView2` as both the live preview surface and
 - **Visual Studio 2022** (17.8+) with the **"Windows application development"** workload, which
   installs the Windows SDK and the WinUI 3 project templates/tooling.
 - .NET 8 SDK (already present in most VS 2022 installs; `dotnet --list-sdks` to check).
-- Windows 10 version 1809 (build 17763) or later to run the built app.
+- Windows 11 (x64) to run the built app.
 
 This project was **written but not built** in the sandbox that authored it — there's no Windows
 SDK or Visual Studio available there (`dotnet workload list` shows no workloads, and

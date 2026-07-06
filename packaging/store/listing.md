@@ -55,7 +55,7 @@ First public release of Marksmith 1.0.
 ---
 
 **System requirements:**
-- OS: Windows 10 version 1809 (build 17763) or later, or Windows 11
+- OS: Windows 11
 - Architecture: x64
 - The WebView2 runtime (ships with current Windows) is used for rendering
 
