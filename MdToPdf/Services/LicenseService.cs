@@ -10,8 +10,9 @@ public sealed class LicenseService
 {
     public const int TrialDays = 14;
 
-    // Your checkout / product page. Buttons open this; adjust to your Lemon Squeezy (or other) store.
-    public const string StoreUrl = "https://github.com/thebubbsy/marksmith#pricing";
+    // Your Lemon Squeezy checkout link (the "Buy" button opens this). Replace with your product's
+    // buy URL from Lemon Squeezy → Product → Share. See packaging/lemonsqueezy-setup.md.
+    public const string StoreUrl = "https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID";
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
@@ -95,6 +96,23 @@ public sealed class LicenseService
                 Status = exp is null
                     ? "Marksmith Pro — activated"
                     : $"Marksmith Pro — active until {exp:d MMM yyyy}",
+            };
+            Changed?.Invoke();
+            return;
+        }
+
+        // 1b) previously activated online via Lemon Squeezy (an LS key is not a signed token, so it
+        //     won't pass the offline check above — trust the stored activation instance instead).
+        if (LemonSqueezyClient.Enabled
+            && !string.IsNullOrWhiteSpace(_stored.Key)
+            && !string.IsNullOrWhiteSpace(_stored.InstanceId))
+        {
+            State = new LicenseState
+            {
+                Edition = Edition.Pro,
+                Key = _stored.Key,
+                Email = _stored.Email,
+                Status = "Marksmith Pro — activated",
             };
             Changed?.Invoke();
             return;
