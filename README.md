@@ -18,7 +18,7 @@ formatting quirks each one leaves behind, and exports a professional **PDF** or 
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)
-![license](https://img.shields.io/badge/license-MIT-green)
+![license](https://img.shields.io/badge/license-Proprietary-black)
 
 </div>
 
@@ -272,4 +272,9 @@ dotnet run --project MdToPdf/MdToPdf.csproj
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+**Proprietary — © 2026 thebubbsy. All rights reserved.** Marksmith is commercial software, not
+open source. Use is governed by the [End-User License Agreement](LICENSE); redistribution,
+modification, and reverse engineering are not permitted except as allowed by law. Third-party
+components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+This repository is source-available for reference only and confers no license to the source code.
