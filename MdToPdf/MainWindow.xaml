@@ -146,6 +146,23 @@
                                 <TextBlock Text="Every chat sent here (clipboard, API, or the extension at end of conversation) is exported to a PDF automatically."
                                            Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
 
+                                <ToggleSwitch Header="Append DOCX ingests to a running document"
+                                              OnContent="On" OffContent="Off"
+                                              IsOn="{Binding AppendToRunningDoc, Mode=TwoWay}" />
+                                <TextBlock Text="When a DOCX is auto-generated, add it as a dated section to one growing .docx instead of a new file — a living compendium of your AI work."
+                                           Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
+                                             PlaceholderText="e.g. C:\Docs\AI-notebook.docx" IsSpellCheckEnabled="False" />
+                                    <Button Grid.Column="1" Click="OnBrowseRunningDocClick">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                    </Button>
+                                </Grid>
+
                                 <ToggleSwitch Header="Watch a folder for Markdown exports"
                                               OnContent="Watching" OffContent="Off"
                                               IsOn="{Binding WatchFolderEnabled, Mode=TwoWay}" />

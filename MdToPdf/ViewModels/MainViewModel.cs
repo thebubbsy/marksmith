@@ -32,6 +32,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _watchFolderAutoConvert;
     [ObservableProperty] private bool _minimizeToTray;
     [ObservableProperty] private bool _autoConvertIngests;
+    [ObservableProperty] private bool _appendToRunningDoc;
+    [ObservableProperty] private string _runningDocPath = "";
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
     [ObservableProperty] private bool _showAttribution;
@@ -122,6 +124,8 @@ public sealed partial class MainViewModel : ObservableObject
         _watchFolderAutoConvert = settings.WatchFolderAutoConvert;
         _minimizeToTray = settings.MinimizeToTray;
         _autoConvertIngests = settings.AutoConvertIngests;
+        _appendToRunningDoc = settings.AppendToRunningDoc;
+        _runningDocPath = settings.RunningDocPath;
         _showExtensionTip = settings.ShowExtensionTip;
         foreach (var h in App.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
@@ -154,6 +158,8 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; _settingsService.Save(); }
     partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; _settingsService.Save(); }
     partial void OnAutoConvertIngestsChanged(bool value) { _settingsService.Current.AutoConvertIngests = value; _settingsService.Save(); }
+    partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; _settingsService.Save(); }
+    partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; _settingsService.Save(); }
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; _settingsService.Save(); }

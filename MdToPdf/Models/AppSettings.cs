@@ -19,6 +19,9 @@ public sealed class AppSettings
     public bool MinimizeToTray { get; set; }
     // Auto-generate a PDF whenever an AI chat is ingested (clipboard / API / extension).
     public bool AutoConvertIngests { get; set; }
+    // Append each DOCX ingest as a dated section to one growing document instead of a new file.
+    public bool AppendToRunningDoc { get; set; }
+    public string RunningDocPath { get; set; } = "";
     // One-time in-app tip about the browser extension.
     public bool ShowExtensionTip { get; set; } = true;
 

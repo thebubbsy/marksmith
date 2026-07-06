@@ -121,6 +121,70 @@ public sealed class DocxExportService
             main.Document.Save();
         });
 
+    // Append mode: add the content as a dated section to an existing running document instead of
+    // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
+    public Task ExportAppendAsync(string markdown, string docxPath, AppSettings settings) => Task.Run(() =>
+    {
+        if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings).GetAwaiter().GetResult(); return; }
+
+        if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
+        markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+        markdown = FormattingService.Apply(markdown, settings);
+        var doc = Markdown.Parse(markdown, Pipeline);
+        var theme = Themes.GetOrDefault(settings.Theme);
+        var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
+
+        using var package = WordprocessingDocument.Open(docxPath, true);
+        var main = package.MainDocumentPart!;
+        var body = main.Document.Body!;
+
+        // Reuse the existing document's numbering and bookmarks; offset new ids past what's there so an
+        // appended section never collides with earlier ones.
+        var numbering = main.NumberingDefinitionsPart?.Numbering ?? AddNumbering(main);
+        int maxNum = numbering.Elements<W.NumberingInstance>()
+            .Select(n => (int)(n.NumberID?.Value ?? 0)).DefaultIfEmpty(1).Max();
+        int maxBm = body.Descendants<W.BookmarkStart>()
+            .Select(b => int.TryParse(b.Id?.Value, out var v) ? v : 0).DefaultIfEmpty(0).Max();
+
+        var ctx = new Ctx
+        {
+            MainPart = main,
+            Numbering = numbering,
+            Theme = theme,
+            Alerts = isDark ? AlertStylesDark : AlertStyles,
+            LinkColor = isDark ? "6CB6FF" : "0563C1",
+            NoEmoji = settings.NoEmoji,
+            NextNumId = maxNum + 1,
+            NextBookmarkId = maxBm + 1,
+            DropCapPending = false, // no drop cap on appended sections
+        };
+
+        CollectAnchors(doc, ctx);
+        var tag = "s" + ctx.NextBookmarkId; // unique prefix so appended anchors stay unique
+        foreach (var key in ctx.Anchors.Keys.ToList())
+        {
+            var name = tag + "_" + ctx.Anchors[key];
+            ctx.Anchors[key] = name.Length > 40 ? name[..40] : name;
+        }
+
+        // Build the new section in a temp container, then splice it in before the trailing sectPr.
+        var tmp = new W.Body();
+        tmp.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
+        var divider = new W.Paragraph(new W.ParagraphProperties(new W.ParagraphStyleId { Val = "Heading2" }));
+        AddText(divider, $"Added {DateTime.Now:d MMM yyyy, HH:mm}", new Fmt { Color = ctx.HeadingHex });
+        tmp.Append(divider);
+        foreach (var block in doc) RenderBlock(block, tmp, ctx, listLevel: -1);
+
+        var sectPr = body.Elements<W.SectionProperties>().LastOrDefault();
+        foreach (var el in tmp.ChildElements.ToList())
+        {
+            el.Remove();
+            if (sectPr is not null) body.InsertBefore(el, sectPr); else body.Append(el);
+        }
+
+        main.Document.Save();
+    });
+
     private sealed class Ctx
     {
         public required MainDocumentPart MainPart { get; init; }
