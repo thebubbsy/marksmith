@@ -129,6 +129,7 @@ public sealed partial class MainWindow : Window
             App.Governance);
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        App.License.Changed += () => DispatcherQueue.TryEnqueue(SyncAdvancedSection);
         SyncSourcePanels();
         ApplyAutomationSettings();
         SyncAdvancedSection();
@@ -197,8 +198,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // Advanced formatting personalization is a Pro feature: the section shows only when Advanced mode
+    // is on AND the user is Pro (or on trial). Re-synced whenever either changes.
     private void SyncAdvancedSection() =>
-        AdvancedStyleSection.Visibility = ViewModel.AdvancedMode ? Visibility.Visible : Visibility.Collapsed;
+        AdvancedStyleSection.Visibility =
+            (ViewModel.AdvancedMode && App.License.IsPro) ? Visibility.Visible : Visibility.Collapsed;
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
@@ -325,7 +329,14 @@ public sealed partial class MainWindow : Window
                             var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
                             await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, settings);
                             break;
-                        case "docx": await new Services.DocxExportService().ExportAsync(md, outPath, settings); break;
+                        case "docx":
+                            if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
+                            {
+                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings);
+                                outPath = settings.RunningDocPath;
+                            }
+                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings);
+                            break;
                         case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
                         case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
                     }
@@ -450,6 +461,15 @@ public sealed partial class MainWindow : Window
         picker.FileTypeFilter.Add("*");
         var folder = await picker.PickSingleFolderAsync();
         if (folder is not null) ViewModel.WatchFolder = folder.Path;
+    }
+
+    private async void OnBrowseRunningDocClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "AI-notebook" };
+        picker.FileTypeChoices.Add("Word document", new List<string> { ".docx" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        var file = await picker.PickSaveFileAsync();
+        if (file is not null) ViewModel.RunningDocPath = file.Path;
     }
 
     // Runs an /api/convert request on the UI thread using the shared preview WebView2 (WebView2
