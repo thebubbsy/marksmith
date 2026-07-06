@@ -223,7 +223,10 @@
 
                             <ToggleSwitch Header="Lock to A4 width" IsOn="{Binding A4FixedWidth, Mode=TwoWay}" />
                             <ToggleSwitch Header="Single continuous page (no page breaks)"
+                                          OnContent="On · PDF only" OffContent="Off"
                                           IsOn="{Binding UnlimitedHeight, Mode=TwoWay}" />
+                            <TextBlock Text="A PDF-only layout. In DOCX there's no page-less print mode, so Word opens the file in Web Layout view instead — one continuous flow, not meant for printing."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
 
