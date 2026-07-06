@@ -11,7 +11,7 @@
     <iconUrl>https://raw.githubusercontent.com/thebubbsy/marksmith/main/docs/images/logo.png</iconUrl>
     <copyright>Copyright (c) thebubbsy</copyright>
     <licenseUrl>https://github.com/thebubbsy/marksmith/blob/main/LICENSE</licenseUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/thebubbsy/marksmith</projectSourceUrl>
     <docsUrl>https://github.com/thebubbsy/marksmith/blob/main/README.md</docsUrl>
     <bugTrackerUrl>https://github.com/thebubbsy/marksmith/issues</bugTrackerUrl>

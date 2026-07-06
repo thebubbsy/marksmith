@@ -60,11 +60,12 @@
                     <HyperlinkButton Content="GitHub repository" NavigateUri="https://github.com/thebubbsy/marksmith" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                     <HyperlinkButton Content="Releases &amp; changelog" NavigateUri="https://github.com/thebubbsy/marksmith/releases" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                     <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/thebubbsy/marksmith/issues" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
-                    <HyperlinkButton Content="License (MIT)" NavigateUri="https://github.com/thebubbsy/marksmith/blob/main/LICENSE" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <HyperlinkButton Content="License agreement (EULA)" NavigateUri="https://github.com/thebubbsy/marksmith/blob/main/LICENSE" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                    <HyperlinkButton Content="Third-party notices" NavigateUri="https://github.com/thebubbsy/marksmith/blob/main/THIRD-PARTY-NOTICES.md" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="Built with WinUI 3 and .NET 8 · Rendering by WebView2 · MIT licensed"
+            <TextBlock Text="© 2026 thebubbsy · All rights reserved · Built with WinUI 3, .NET 8 and WebView2"
                        Style="{StaticResource StepCaptionStyle}" HorizontalAlignment="Center" Margin="0,2,0,0" />
         </StackPanel>
     </ScrollViewer>

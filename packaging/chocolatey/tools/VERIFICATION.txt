@@ -19,4 +19,6 @@ To verify manually:
   2. Run:  Get-FileHash Marksmith-Setup-x64.exe -Algorithm SHA256
   3. Confirm it matches the checksum64 value in tools\chocolateyinstall.ps1.
 
-The software is licensed under the MIT License (see LICENSE.txt in this folder).
+The software is proprietary and licensed under the Marksmith End-User License Agreement
+(see LICENSE.txt in this folder). It is commercial software; a valid license/subscription
+may be required to unlock paid features.
