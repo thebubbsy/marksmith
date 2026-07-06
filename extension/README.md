@@ -38,7 +38,8 @@ independently of the app's own Style panel — so automated exports use *these* 
 
 | Setting | What it controls |
 | --- | --- |
-| **Output format** | PDF, DOCX, or **PDF + DOCX** for each send (DOCX needs Marksmith Pro) |
+| **Output format** | PDF, DOCX, PDF + DOCX, PowerPoint, or EPUB for each send (non-PDF needs Marksmith Pro) |
+| **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture) |
 | **Theme** | Any of the app's themes (the list auto-populates from the running app) |
 | **Page width / A4 lock / single continuous page** | Layout of the exported document |
 | **Normalize AI quirks / no-emoji / em-dash handling** | Cleanup applied on the way in |
