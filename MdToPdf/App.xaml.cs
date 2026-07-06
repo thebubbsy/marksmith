@@ -16,6 +16,7 @@ public partial class App : Application
     public static HistoryService History { get; } = new();
     public static GovernanceService Governance { get; } = new();
     public static UpdateService Updates { get; } = new();
+    public static LicenseService License { get; } = new();
 
     // Constructed lazily (after the services above exist) since MainViewModel reads them in its constructor.
     public static MainViewModel ViewModel { get; } = new();
@@ -31,6 +32,8 @@ public partial class App : Application
     {
         try
         {
+            License.Load(); // resolve Free / Trial / Pro before any UI reads entitlements
+
             // Toast notifications for background auto-conversions; button args open the PDF or its folder.
             Microsoft.Windows.AppNotifications.AppNotificationManager.Default.NotificationInvoked += (_, e) =>
             {

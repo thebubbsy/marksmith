@@ -72,6 +72,21 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsNotBusy => !IsBusy;
     public bool HasOutput => !string.IsNullOrEmpty(LastOutputPath);
 
+    // Licensing (drives the paywall UI). Backed by App.License; kept in sync via its Changed event.
+    public bool IsPro => App.License.IsPro;
+    public bool IsFree => !App.License.IsPro;
+    public string EditionStatus => App.License.State.Status ?? "Free";
+    public Microsoft.UI.Xaml.Visibility ProBadgeVisibility =>
+        IsFree ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    private void OnLicenseChanged()
+    {
+        OnPropertyChanged(nameof(IsPro));
+        OnPropertyChanged(nameof(IsFree));
+        OnPropertyChanged(nameof(EditionStatus));
+        OnPropertyChanged(nameof(ProBadgeVisibility));
+    }
+
     public ObservableCollection<string> ThemeNames { get; }
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
@@ -123,6 +138,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         ThemeNames = new ObservableCollection<string>(_themes.All.Select(t => t.Name));
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
+
+        App.License.Changed += OnLicenseChanged;
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; _settingsService.Save(); }
@@ -260,6 +277,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task ConvertToDocxAsync()
     {
+        if (!App.License.CanExportDocx)
+        {
+            StatusText = "DOCX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
+            StatusSeverity = InfoBarSeverity.Warning;
+            return;
+        }
+
         var (markdown, sourceLabel) = ResolveSource();
         if (markdown is null) return;
 

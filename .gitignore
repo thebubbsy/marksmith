@@ -26,3 +26,7 @@ Thumbs.db
 
 # Scratch
 spinframes*/
+
+# Licensing — the private signing key and any generated keys must NEVER be committed
+tools/licensing/private-key.pem
+tools/licensing/*-key.txt
