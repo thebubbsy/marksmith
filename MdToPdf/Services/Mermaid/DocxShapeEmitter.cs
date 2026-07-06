@@ -14,8 +14,34 @@ public static class DocxShapeEmitter
 {
     private const long EmuPerPt = 12700;
 
+    private static void ScaleToFit(MDiagram d)
+    {
+        double s = Math.Min(1, Math.Min(
+            MaxCanvasW / Math.Max(1, d.Width),
+            MaxCanvasH / Math.Max(1, d.Height)));
+        if (s >= 1) return;
+
+        foreach (var sh in d.Shapes)
+        {
+            sh.X *= s; sh.Y *= s; sh.W *= s; sh.H *= s;
+            sh.FontSize = Math.Max(6, sh.FontSize * s); // keep labels legible
+        }
+        foreach (var c in d.Connectors)
+        {
+            c.X1 *= s; c.Y1 *= s; c.X2 *= s; c.Y2 *= s;
+            c.LabelX *= s; c.LabelY *= s; c.LabelW *= s; c.LabelH *= s;
+        }
+        d.Width *= s; d.Height *= s;
+    }
+
+    // The printable window (A4/Letter minus margins). Diagrams wider or taller are scaled
+    // uniformly so no renderer ever runs a bar or box past the page edge.
+    private const double MaxCanvasW = 460, MaxCanvasH = 640;
+
     public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId)
     {
+        ScaleToFit(d);
+
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
                  "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
                  "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" " +
