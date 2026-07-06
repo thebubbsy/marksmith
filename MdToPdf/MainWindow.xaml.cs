@@ -129,10 +129,11 @@ public sealed partial class MainWindow : Window
             App.Governance);
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        App.License.Changed += () => DispatcherQueue.TryEnqueue(SyncAdvancedSection);
+        App.License.Changed += () => DispatcherQueue.TryEnqueue(() => { SyncAdvancedSection(); UpdateLicenseBanner(); });
         SyncSourcePanels();
         ApplyAutomationSettings();
         SyncAdvancedSection();
+        UpdateLicenseBanner();
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         InitTrayIcon();
@@ -196,6 +197,35 @@ public sealed partial class MainWindow : Window
             _previewDebounce.Stop();
             _previewDebounce.Start();
         }
+    }
+
+    // Shows the upgrade banner only when the Pro trial is nearly up (<= 5 days) or has ended.
+    private void UpdateLicenseBanner()
+    {
+        var st = App.License.State;
+        if (st.Edition == Models.Edition.Pro) { LicenseBanner.IsOpen = false; return; }
+
+        if (st.Edition == Models.Edition.Trial)
+        {
+            var daysLeft = st.ExpiresUtc is { } e ? Math.Max(0, (int)Math.Ceiling((e - DateTimeOffset.UtcNow).TotalDays)) : 0;
+            if (daysLeft > 5) { LicenseBanner.IsOpen = false; return; }
+            LicenseBanner.Severity = InfoBarSeverity.Informational;
+            LicenseBanner.Title = $"Pro trial — {daysLeft} day{(daysLeft == 1 ? "" : "s")} left";
+            LicenseBanner.Message = "Keep DOCX export, editable equations, automation, and footer-free exports.";
+        }
+        else // Free
+        {
+            LicenseBanner.Severity = InfoBarSeverity.Warning;
+            LicenseBanner.Title = "Your Pro trial has ended";
+            LicenseBanner.Message = "Upgrade to unlock DOCX export, editable equations, automation, and remove the footer.";
+        }
+        LicenseBanner.IsOpen = true;
+    }
+
+    private async void OnUpgradeClick(object sender, RoutedEventArgs e)
+    {
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
+        catch { /* no browser / bad uri */ }
     }
 
     // Advanced formatting personalization is a Pro feature: the section shows only when Advanced mode
