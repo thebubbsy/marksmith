@@ -33,6 +33,9 @@ namespace MdToPdf.Services;
 //   - w:pgBorders page frame, A4 vs Letter geometry from the A4FixedWidth setting, auto-hyphenation
 //   - tables get repeating header rows (w:tblHeader), unsplittable rows, zebra banding, and
 //     accessibility alt text (w:tblCaption/w:tblDescription)
+//   - LaTeX/KaTeX math becomes real, *editable* Word equations (OMML) via LatexToOmml — fractions,
+//     roots, n-ary sum/integral with proper limits, delimiters, Greek and upright function names —
+//     not flat text (inline $..$ flows in the run; display $$..$$ is a centered equation paragraph)
 // GitHub alerts render as single-cell tables with the same theme accent palette the Python DOCX
 // path used. Mermaid fences render as plain code blocks — the Python screenshot-and-splice step
 // needs a live browser (MermaidRenderService), which this service intentionally doesn't depend on.
@@ -214,8 +217,15 @@ public sealed class DocxExportService
                 break; // front matter is metadata, never rendered (matches HTML path)
 
             case MathBlock math:
-                target.Append(CodeParagraph(math.Lines.ToString(), ctx));
+            {
+                // Display math → a centered paragraph holding a real, editable Word equation (OMML).
+                var mp = new W.Paragraph(new W.ParagraphProperties(
+                    new W.Justification { Val = W.JustificationValues.Center },
+                    new W.SpacingBetweenLines { Before = "120", After = "120" }));
+                mp.Append(LatexToOmml.Build(math.Lines.ToString()));
+                target.Append(mp);
                 break;
+            }
 
             case CodeBlock code: // FencedCodeBlock included; mermaid fences render as code too
                 target.Append(CodeParagraph(code.Lines.ToString(), ctx));
@@ -615,7 +625,8 @@ public sealed class DocxExportService
                     break;
 
                 case MathInline math:
-                    AddText(target, math.Content.ToString(), fmt with { Italic = true });
+                    // Inline math → an editable Word equation (OMML) dropped into the run flow.
+                    target.Append(LatexToOmml.Build(math.Content.ToString()));
                     break;
 
                 case FootnoteLink fn:

@@ -120,6 +120,11 @@ Most Markdown‑to‑DOCX converters emit a flat wall of text. Marksmith's expor
 AST straight into OOXML and leans on the Word machinery almost nobody bothers with — the file is
 schema‑valid (Office 2010) and built to feel hand‑made in Word:
 
+- **Editable equations, not pictures of equations** — LaTeX/KaTeX math becomes native **OMML** (the
+  format Word's own equation editor uses). Fractions, roots, sub/superscripts, **n‑ary sums with
+  under/over limits** and **integrals with sub/sup limits**, delimiters, Greek, and upright function
+  names all map through — so `\sum_{i=1}^{n} i^2` opens as a real Cambria Math equation you can click
+  into and edit, not an image or a line of raw `\LaTeX`.
 - **Whole‑document theme immersion** — `w:background` + `displayBackgroundShape` paint the real Word
   page in your theme, so a Dracula export opens as a genuinely dark document, not black‑on‑white.
 - **A self‑updating Table of Contents** — a real TOC *field* (not baked text) with `updateFields`, so
