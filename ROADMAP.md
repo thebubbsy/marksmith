@@ -19,25 +19,26 @@ product ships when things are ready, and priority follows what users actually as
 - **Ten themes**, formatting personalization, Mermaid + KaTeX in preview/PDF.
 - **Automation** — clipboard/watch-folder watchers, browser extension, local REST API.
 - **Licensing** — Free / 14-day Trial / Pro, offline signed keys + Lemon Squeezy path.
+- **EPUB & PPTX export** — EPUB 3 (chaptered, valid container) and themed PPTX decks (schema-valid).
+- **Append to a running document** — each DOCX ingest added as a dated section to one growing `.docx`.
 
 ## Now — strengthen what's here
 
 - [ ] **Waitlist + landing page live** on a real domain (validation gate).
-- [ ] **"Upgrade to Pro" nudge** — a subtle banner when the trial is running low / expired.
-- [ ] **Advanced-formatting behind Pro** — tidy the last of the Free/Pro split.
-- [ ] **Extension docs** — document the output-profile/auto-send options in `extension/README.md`.
+- [x] **"Upgrade to Pro" nudge** — banner appears when the trial is low / expired.
+- [x] **Advanced-formatting behind Pro** — gated; the section shows only for Pro/trial.
+- [x] **Extension docs** — output-profile/auto-send options documented in `extension/README.md`.
 
 ## Next — the differentiators people will ask for
 
+- [x] **PPTX & EPUB export** — both implemented and schema-validated.
+- [x] **Append to a running document** — each ingest added as a dated section to one growing `.docx`.
 - [ ] **Mermaid diagrams in DOCX** — render fences to an embedded image so Word matches the PDF.
+      *(Substantial: needs a headless render path the DOCX exporter deliberately avoids today.)*
 - [ ] **Cleanup as tracked changes / comments** — show *what* was normalized ("removed citation pip",
-      "converted LaTeX") as real Word revisions. Nobody else does this; it's on-brand for "make it yours,
-      transparently."
-- [ ] **Append to a running document** — each ingest added as a dated section to one growing `.docx`,
-      turning Marksmith into a living compendium of your AI work.
-- [ ] **Branding kit** — letterhead/logo header, cover page, page numbers, custom fonts — turns
-      "converted markdown" into a client-ready deliverable.
-- [ ] **PPTX & EPUB export** — groundwork stubs already exist.
+      "converted LaTeX") as real Word revisions. On-brand for "make it yours, transparently."
+      *(Substantial: the normalizer needs to emit a change log first.)*
+- [ ] **Branding kit** — letterhead/logo header, cover page, custom fonts (page numbers already ship).
 - [ ] **Batch / export presets** — convert a folder, or one-click a saved output profile.
 
 ## Later — raise the ceiling

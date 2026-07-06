@@ -263,10 +263,13 @@ dotnet run --project MdToPdf/MdToPdf.csproj
 
 ## Roadmap
 
-- Branding kit (logo/letterhead, page numbers, cover pages)
-- Export presets and batch conversion queue
-- Delivery connectors (SharePoint / Drive / Slack)
-- EPUB and PPTX‑outline export
+See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later. Recently shipped: **EPUB & PPTX
+export**, **append‑to‑a‑running‑document**. Next up:
+
+- Mermaid diagrams embedded in DOCX
+- Cleanup shown as Word tracked changes / comments
+- Branding kit (logo/letterhead, cover pages)
+- Export presets and batch conversion
 
 ---
 
