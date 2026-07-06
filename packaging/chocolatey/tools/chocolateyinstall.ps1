@@ -4,7 +4,7 @@ $packageArgs = @{
   packageName    = 'marksmith'
   fileType       = 'exe'
   softwareName   = 'Marksmith*'
-  url64bit       = 'https://github.com/thebubbsy/marksmith/releases/download/v1.0.0/Marksmith-Setup-x64.exe'
+  url64bit       = 'https://github.com/thebubbsy/marksmith/releases/download/v1.1.0/Marksmith-Setup-x64.exe'
   # Replace with the real SHA256 of the released installer (the release workflow prints it).
   checksum64     = '0000000000000000000000000000000000000000000000000000000000000000'
   checksumType64 = 'sha256'
