@@ -36,6 +36,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _runningDocPath = "";
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
+    [ObservableProperty] private int _mermaidDocxMode = 1; // 0 Snapshot picture, 1 ShapeForge shapes
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
     [ObservableProperty] private int _dashMode;
@@ -129,6 +130,7 @@ public sealed partial class MainViewModel : ObservableObject
         _showExtensionTip = settings.ShowExtensionTip;
         foreach (var h in App.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
+        _mermaidDocxMode = settings.MermaidDocxMode;
         _showAttribution = settings.ShowAttribution;
         _noEmoji = settings.NoEmoji;
         _dashMode = settings.DashMode;
@@ -162,6 +164,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; _settingsService.Save(); }
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
+    partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; _settingsService.Save(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; _settingsService.Save(); }
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; _settingsService.Save(); }
     partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; _settingsService.Save(); }
@@ -296,7 +299,12 @@ public sealed partial class MainViewModel : ObservableObject
         await RunConversionAsync("DOCX", async ct =>
         {
             var outPath = ResolveOutputPath(sourceLabel, "docx");
-            await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            // Rasterize mermaid diagrams first (Snapshot mode, or ShapeForge's fallback) — the
+            // renderer needs the window's WebView2, so it lives on MainWindow.
+            List<byte[]?>? mermaidImgs = null;
+            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && App.MainAppWindow is MainWindow mw)
+                mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, _settingsService.Current);
+            await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current, mermaidImgs);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);

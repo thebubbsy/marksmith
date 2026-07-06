@@ -51,6 +51,9 @@ public sealed partial class MainWindow : Window
     // completes. PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
     private int _lastMarkdownLen;
     private bool _nextRefreshHeavy;
+    // True while the mermaid snapshot renderer owns the WebView — preview refreshes (e.g. the ingest
+    // debounce firing mid-harvest) must not navigate away from the render page.
+    private bool _mermaidHarvestActive;
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -347,7 +350,15 @@ public sealed partial class MainWindow : Window
 
             var produced = new List<string>();
             var pending = new List<string>();
-            foreach (var fmt in ParseFormats(output?.Format))
+            var formats = ParseFormats(output?.Format);
+
+            // Pre-rasterize mermaid diagrams once if a DOCX will need them (Snapshot mode, or as
+            // ShapeForge's fallback for unsupported diagram types).
+            List<byte[]?>? mermaidImgs = null;
+            if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
+                mermaidImgs = await RenderMermaidPngsAsync(md, settings);
+
+            foreach (var fmt in formats)
             {
                 var outPath = $"{stem}.{fmt}";
                 try
@@ -362,10 +373,10 @@ public sealed partial class MainWindow : Window
                         case "docx":
                             if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
                             {
-                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings);
+                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs);
                                 outPath = settings.RunningDocPath;
                             }
-                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings);
+                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs);
                             break;
                         case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
                         case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
@@ -696,9 +707,107 @@ public sealed partial class MainWindow : Window
             "document.body && document.body.classList.remove('ms-loading')");
     }
 
+    // Rasterizes every ```mermaid fence in the markdown to a PNG (2x scale) using the preview
+    // WebView2: navigate to a tiny self-contained render page (mermaid.js + svg→canvas), poll for
+    // completion, then restore the live preview. Returns one entry per fence, null where a diagram
+    // failed to render — DocxExportService then falls back per-diagram. Used by Snapshot mode and as
+    // ShapeForge's fallback for diagram types the shape engine can't parse.
+    public async Task<List<byte[]?>> RenderMermaidPngsAsync(string markdown, Models.AppSettings settings)
+    {
+        var fences = System.Text.RegularExpressions.Regex.Matches(
+                markdown.Replace("\r", ""), "```mermaid[ \\t]*\\n(.*?)```",
+                System.Text.RegularExpressions.RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value).ToList();
+        if (fences.Count == 0) return new();
+        if (PreviewWebView.CoreWebView2 is null)
+        {
+            try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return new(); }
+            if (PreviewWebView.CoreWebView2 is null) return new();
+        }
+
+        var theme = App.Themes.GetOrDefault(settings.Theme);
+        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
+        var html = $$"""
+            <!DOCTYPE html><html><head><meta charset="UTF-8">
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script></head>
+            <body><script>
+            window.__pngs = null;
+            const sources = {{sourcesJson}};
+            mermaid.initialize({ startOnLoad: false, theme: "base",
+              themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
+                primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
+                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
+              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" },
+              securityLevel: "loose" });
+            (async () => {
+              const out = [];
+              for (let i = 0; i < sources.length; i++) {
+                try { out.push(await toPng((await mermaid.render("m" + i, sources[i])).svg)); }
+                catch (e) { out.push(null); }
+              }
+              window.__pngs = out;
+            })();
+            async function toPng(svgText) {
+              // Give the SVG explicit pixel dimensions from its viewBox so <img> sizes it correctly.
+              const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(svgText);
+              const w = vb ? Math.ceil(parseFloat(vb[1])) : 600, h = vb ? Math.ceil(parseFloat(vb[2])) : 400;
+              // Set explicit dimensions via the DOM (mermaid may already carry width/height attrs —
+              // string-injecting duplicates would make the XML invalid and the <img> reject it).
+              const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+              if (parsed.querySelector("parsererror")) throw new Error("svg parse failed");
+              const el = parsed.documentElement;
+              el.setAttribute("width", String(w)); el.setAttribute("height", String(h));
+              el.removeAttribute("style");
+              svgText = new XMLSerializer().serializeToString(el);
+              // data: URI, not a blob URL — NavigateToString pages have an opaque origin, where
+              // blob: URLs refuse to load into <img>.
+              const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+              const img = new Image();
+              await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+              const c = document.createElement("canvas"); c.width = w * 2; c.height = h * 2;
+              const ctx = c.getContext("2d");
+              ctx.fillStyle = "{{theme.Background}}"; ctx.fillRect(0, 0, c.width, c.height);
+              ctx.drawImage(img, 0, 0, c.width, c.height);
+              return c.toDataURL("image/png");
+            }
+            </script></body></html>
+            """;
+
+        var result = new List<byte[]?>();
+        try
+        {
+            _mermaidHarvestActive = true;
+            _previewDebounce.Stop(); // a pending ingest refresh must not wipe the render page
+            PreviewWebView.CoreWebView2.NavigateToString(html);
+            for (int i = 0; i < 60; i++) // up to ~9s (CDN + render)
+            {
+                await Task.Delay(150);
+                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("JSON.stringify(window.__pngs)");
+                if (raw is null or "null" or "\"null\"") continue;
+                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
+                if (string.IsNullOrEmpty(json) || json == "null") continue;
+                var urls = System.Text.Json.JsonSerializer.Deserialize<List<string?>>(json) ?? new();
+                foreach (var u in urls)
+                    result.Add(u is not null && u.StartsWith("data:image/png;base64,")
+                        ? Convert.FromBase64String(u["data:image/png;base64,".Length..])
+                        : null);
+                break;
+            }
+        }
+        catch { /* rendering is best-effort; exporter falls back per-diagram */ }
+        finally
+        {
+            _mermaidHarvestActive = false;
+            await RefreshPreviewAsync(false); // restore the live preview silently
+        }
+        while (result.Count < fences.Count) result.Add(null);
+        return result;
+    }
+
     private async Task RefreshPreviewAsync(bool heavy = true)
     {
         if (PreviewWebView.CoreWebView2 is null) return;
+        if (_mermaidHarvestActive) return; // snapshot renderer owns the WebView right now
 
         if (heavy) StartSpinner();
 
