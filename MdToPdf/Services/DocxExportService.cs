@@ -106,7 +106,7 @@ public sealed class DocxExportService
             };
 
             AddStyles(main, ctx);
-            AddSettings(main, updateFieldsOnOpen: settings.IncludeToc);
+            AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, webLayout: settings.UnlimitedHeight);
             CollectAnchors(doc, ctx);
 
             if (settings.IncludeToc) AppendTocField(body, ctx);
@@ -851,10 +851,15 @@ public sealed class DocxExportService
         part.Styles = styles;
     }
 
-    private static void AddSettings(MainDocumentPart main, bool updateFieldsOnOpen)
+    private static void AddSettings(MainDocumentPart main, bool updateFieldsOnOpen, bool webLayout)
     {
         var part = main.AddNewPart<DocumentSettingsPart>();
         var settings = new W.Settings();
+        // "Single continuous page" is a PDF-only layout. Word has no page-less print layout, but Web
+        // Layout view is the closest equivalent — one continuous flow with no page breaks (and, like
+        // the continuous PDF, not meant for printing). w:view must precede w:zoom in the schema order.
+        if (webLayout)
+            settings.Append(new W.View { Val = W.ViewValues.Web });
         settings.Append(new W.Zoom { Percent = "110" });
         // Without this Word ignores w:background entirely — the pair is the whole trick.
         settings.Append(new W.DisplayBackgroundShape());

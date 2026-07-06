@@ -110,6 +110,35 @@ at full resolution — **right‑click → "Open image in new tab"** to read the
 - Optional **table of contents** and **source‑attribution** strip
 - Every export is logged to a searchable **history** you can reopen with a click
 
+> **Single continuous page** is a **PDF‑only** layout. Word has no page‑less *print* mode, so when
+> that option is on, the DOCX opens in Word's **Web Layout** view — one continuous flow, no page
+> breaks (not intended for printing). Everything else is fully paginated.
+
+### 📝 DOCX that actually uses Word
+
+Most Markdown‑to‑DOCX converters emit a flat wall of text. Marksmith's exporter walks the Markdown
+AST straight into OOXML and leans on the Word machinery almost nobody bothers with — the file is
+schema‑valid (Office 2010) and built to feel hand‑made in Word:
+
+- **Whole‑document theme immersion** — `w:background` + `displayBackgroundShape` paint the real Word
+  page in your theme, so a Dracula export opens as a genuinely dark document, not black‑on‑white.
+- **A self‑updating Table of Contents** — a real TOC *field* (not baked text) with `updateFields`, so
+  Word rebuilds it with live page numbers the moment the file opens. Every heading gets a **bookmark**,
+  and `#anchor` links become **in‑document hyperlinks that actually navigate**.
+- **Real Word fields** — a **Page X of Y** footer via `PAGE`/`NUMPAGES`, and the document title written
+  into the file's core properties and a small‑caps running header.
+- **Typography almost no one turns on** — standard + contextual ligatures, old‑style proportional
+  numerals, contextual alternates (Word 2010 `w14:*` run extensions), document‑wide kerning and
+  auto‑hyphenation, a small‑caps letter‑spaced H1, and a **drop cap** on the opening paragraph.
+- **Page furniture** — a `pgBorders` frame in the theme color, and A4 vs Letter geometry from your
+  layout toggle.
+- **Tables done properly** — header rows **repeat across page breaks** (`tblHeader`), rows refuse to
+  split mid‑page, data rows are zebra‑banded, and every table carries **accessibility alt text**
+  (`tblCaption`/`tblDescription`).
+- **Block deep‑cuts** — code blocks are `keepLines`‑protected from page breaks, inline code gets a
+  character‑level border, thematic breaks render as a wave rule, and the extended emphasis syntax maps
+  through: `~sub~`, `^sup^`, `==highlight==`, `++inserted++`.
+
 ### 🤖 Automation
 
 Marksmith can run hands‑free:
