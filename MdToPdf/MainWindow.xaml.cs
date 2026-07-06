@@ -250,7 +250,13 @@ public sealed partial class MainWindow : Window
     private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
         ViewModel.IngestMarkdown(text, origin);
-        if (ViewModel.AutoConvertIngests) _ = AutoExportIngestAsync(output);
+        if (!ViewModel.AutoConvertIngests) return;
+        if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);
+        else
+        {
+            ViewModel.StatusText = "Hands-free auto-convert is a Marksmith Pro feature. The content is ready — export it manually, or upgrade in Settings ⚙.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+        }
     }
 
     // Which file formats an automated export should produce. "both" = pdf,docx; pptx/epub are
@@ -341,6 +347,12 @@ public sealed partial class MainWindow : Window
     {
         ViewModel.IngestFile(path);
         if (!ViewModel.WatchFolderAutoConvert) return;
+        if (!App.License.CanAutomate)
+        {
+            ViewModel.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            return;
+        }
 
         try
         {

@@ -54,6 +54,10 @@ public sealed class MarkdownHtmlService
         var extraHead = BuildExtraHead(body, isDark);
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        // Free tier stamps a subtle footer on every export/preview; Pro removes it.
+        var footer = MdToPdf.App.License.ShowFooter
+            ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
+            : "";
 
         var alertCss = string.Join("\n", alertStyles.Select(kv => $$"""
             .markdown-alert-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; background: {{theme.Secondary}}; }
@@ -105,6 +109,8 @@ public sealed class MarkdownHtmlService
             .mermaid .label { color: {{theme.Primary}} !important; }
             .attribution { display: flex; align-items: center; gap: 10px; font-size: 12.5px; border: 1px solid {{theme.Border}}; border-left: 4px solid {{theme.Heading}}; background: {{theme.Secondary}}; border-radius: 8px; padding: 10px 14px; margin-bottom: 28px; opacity: 0.92; }
             .attribution .badge { font-weight: 700; color: {{theme.Heading}}; }
+            .mark-footer { margin-top: 34px; padding-top: 14px; border-top: 1px solid {{theme.Border}}; text-align: center; font-size: 12px; color: {{theme.Text}}; opacity: 0.62; }
+            .mark-footer a { color: {{theme.Heading}}; text-decoration: none; font-weight: 600; }
             #toc { border: 1px solid {{theme.Border}}; background: {{theme.Secondary}}; border-radius: 8px; padding: 14px 20px; margin-bottom: 28px; }
             #toc .toc-title { font-weight: 700; color: {{theme.Heading}}; margin-bottom: 6px; }
             #toc ul { margin: 0; padding-left: 18px; }
@@ -112,7 +118,7 @@ public sealed class MarkdownHtmlService
             #toc a { color: {{theme.Text}}; text-decoration: none; }
             #toc a:hover { color: {{theme.Heading}}; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
-            </style></head><body><div id="canvas">{{attribution}}{{toc}}{{body}}</div></body></html>
+            </style></head><body><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div></body></html>
             """;
     }
 
