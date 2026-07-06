@@ -33,8 +33,9 @@ product ships when things are ready, and priority follows what users actually as
 
 - [x] **PPTX & EPUB export** — both implemented and schema-validated.
 - [x] **Append to a running document** — each ingest added as a dated section to one growing `.docx`.
-- [ ] **Mermaid diagrams in DOCX** — render fences to an embedded image so Word matches the PDF.
-      *(Substantial: needs a headless render path the DOCX exporter deliberately avoids today.)*
+- [x] **Mermaid diagrams in DOCX** — shipped *beyond* the plan: flowcharts are rebuilt as **native,
+      editable Word shapes** (boxes/diamonds/connectors), not an embedded image. Unsupported diagram
+      types fall back to the code block.
 - [ ] **Cleanup as tracked changes / comments** — show *what* was normalized ("removed citation pip",
       "converted LaTeX") as real Word revisions. On-brand for "make it yours, transparently."
       *(Substantial: the normalizer needs to emit a change log first.)*

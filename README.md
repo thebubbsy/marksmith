@@ -125,6 +125,10 @@ schema‑valid (Office 2010) and built to feel hand‑made in Word:
   under/over limits** and **integrals with sub/sup limits**, delimiters, Greek, and upright function
   names all map through — so `\sum_{i=1}^{n} i^2` opens as a real Cambria Math equation you can click
   into and edit, not an image or a line of raw `\LaTeX`.
+- **Diagrams built from real Word shapes** — Mermaid flowcharts are re‑drawn as a native shape group:
+  theme‑colored boxes, diamonds and connectors with arrowheads, edge labels and all — **every shape
+  editable in Word**, not a pasted picture. (Diagram types the parser can't fully understand keep the
+  code‑block fallback rather than guessing.)
 - **Whole‑document theme immersion** — `w:background` + `displayBackgroundShape` paint the real Word
   page in your theme, so a Dracula export opens as a genuinely dark document, not black‑on‑white.
 - **A self‑updating Table of Contents** — a real TOC *field* (not baked text) with `updateFields`, so
@@ -264,9 +268,8 @@ dotnet run --project MdToPdf/MdToPdf.csproj
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later. Recently shipped: **EPUB & PPTX
-export**, **append‑to‑a‑running‑document**. Next up:
+export**, **append‑to‑a‑running‑document**, and **Mermaid flowcharts as native Word shapes**. Next up:
 
-- Mermaid diagrams embedded in DOCX
 - Cleanup shown as Word tracked changes / comments
 - Branding kit (logo/letterhead, cover pages)
 - Export presets and batch conversion
