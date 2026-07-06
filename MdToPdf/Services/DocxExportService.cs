@@ -37,8 +37,9 @@ namespace MdToPdf.Services;
 //     roots, n-ary sum/integral with proper limits, delimiters, Greek and upright function names —
 //     not flat text (inline $..$ flows in the run; display $$..$$ is a centered equation paragraph)
 // GitHub alerts render as single-cell tables with the same theme accent palette the Python DOCX
-// path used. Mermaid fences render as plain code blocks — the Python screenshot-and-splice step
-// needs a live browser (MermaidRenderService), which this service intentionally doesn't depend on.
+// path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
+// MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
+// code-block fallback.
 public sealed class DocxExportService
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
@@ -195,6 +196,7 @@ public sealed class DocxExportService
         public required bool NoEmoji { get; init; }
         public int NextNumId = 2; // numId 1 is the shared bullet instance
         public int NextBookmarkId = 1;
+        public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shape groups)
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
 
@@ -283,15 +285,26 @@ public sealed class DocxExportService
             case MathBlock math:
             {
                 // Display math → a centered paragraph holding a real, editable Word equation (OMML).
-                var mp = new W.Paragraph(new W.ParagraphProperties(
-                    new W.Justification { Val = W.JustificationValues.Center },
-                    new W.SpacingBetweenLines { Before = "120", After = "120" }));
+                var mp = new W.Paragraph(new W.ParagraphProperties( // schema order: spacing before jc
+                    new W.SpacingBetweenLines { Before = "120", After = "120" },
+                    new W.Justification { Val = W.JustificationValues.Center }));
                 mp.Append(LatexToOmml.Build(math.Lines.ToString()));
                 target.Append(mp);
                 break;
             }
 
-            case CodeBlock code: // FencedCodeBlock included; mermaid fences render as code too
+            case FencedCodeBlock fence when fence.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
+            {
+                // Mermaid flowcharts become NATIVE, editable Word shapes (boxes/diamonds/arrows) via
+                // MermaidDocxRenderer. Anything it can't fully parse keeps the code-block fallback.
+                if (MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram))
+                    target.Append(diagram);
+                else
+                    target.Append(CodeParagraph(fence.Lines.ToString(), ctx));
+                break;
+            }
+
+            case CodeBlock code: // other fenced/indented code renders as a code block
                 target.Append(CodeParagraph(code.Lines.ToString(), ctx));
                 break;
 
