@@ -114,11 +114,11 @@ at full resolution — **right‑click → "Open image in new tab"** to read the
 > that option is on, the DOCX opens in Word's **Web Layout** view — one continuous flow, no page
 > breaks (not intended for printing). Everything else is fully paginated.
 
-### 📝 DOCX that actually uses Word
+### 📝 Proprietary MD‑to‑Word conversion
 
-Most Markdown‑to‑DOCX converters emit a flat wall of text. Marksmith's exporter walks the Markdown
-AST straight into OOXML and leans on the Word machinery almost nobody bothers with — the file is
-schema‑valid (Office 2010) and built to feel hand‑made in Word:
+Most Markdown‑to‑DOCX converters emit a flat wall of text. Marksmith's **proprietary MD‑to‑Word
+engine** walks the Markdown AST straight into OOXML and leans on the Word machinery almost nobody
+bothers with — the file is schema‑valid and built to feel hand‑made in Word:
 
 - **Editable equations, not pictures of equations** — LaTeX/KaTeX math becomes native **OMML** (the
   format Word's own equation editor uses). Fractions, roots, sub/superscripts, **n‑ary sums with
@@ -145,6 +145,10 @@ schema‑valid (Office 2010) and built to feel hand‑made in Word:
 - **Tables done properly** — header rows **repeat across page breaks** (`tblHeader`), rows refuse to
   split mid‑page, data rows are zebra‑banded, and every table carries **accessibility alt text**
   (`tblCaption`/`tblDescription`).
+- **Branding kit (Pro)** — a title **cover page** with your logo and date, and a **document‑wide
+  typeface** of your choosing, so a converted chat lands as a client‑ready deliverable.
+- **Transparent cleanup** — when the AI‑normalizer fixes quirks, the export carries a real **Word
+  comment** listing every change. Nothing silent.
 - **Block deep‑cuts** — code blocks are `keepLines`‑protected from page breaks, inline code gets a
   character‑level border, thematic breaks render as a wave rule, and the extended emphasis syntax maps
   through: `~sub~`, `^sup^`, `==highlight==`, `++inserted++`.
