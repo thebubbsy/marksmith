@@ -115,12 +115,14 @@ public sealed class DocxExportService
                 NoEmoji = settings.NoEmoji,
                 MermaidMode = settings.MermaidDocxMode,
                 MermaidImages = mermaidImages,
+                BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
             };
 
             AddStyles(main, ctx);
             AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, webLayout: settings.UnlimitedHeight);
             CollectAnchors(doc, ctx);
 
+            if (settings.BrandCoverPage) AppendCoverPage(body, ctx, settings, title);
             if (settings.IncludeToc) AppendTocField(body, ctx);
 
             foreach (var block in doc)
@@ -233,6 +235,7 @@ public sealed class DocxExportService
         public int NextNumId = 2; // numId 1 is the shared bullet instance
         public int NextBookmarkId = 1;
         public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shapes / snapshots)
+        public string? BrandFont;         // branding kit: document-wide font override
         public int MermaidMode = 1;       // 0 = Snapshot picture, 1 = ShapeForge native shapes
         public IReadOnlyList<byte[]?>? MermaidImages; // pre-rasterized PNGs, one per fence in order
         public int MermaidSeen;           // index of the next mermaid fence encountered
@@ -447,6 +450,88 @@ public sealed class DocxExportService
         RenderInlines(rest, p.Inline, ctx, default);
         target.Append(rest);
         return true;
+    }
+
+    // Branding kit: a title cover page — optional logo, the document title in display size, a date
+    // line — followed by a page break, so the content proper starts on page 2.
+    private static void AppendCoverPage(W.Body body, Ctx ctx, AppSettings settings, string title)
+    {
+        // breathing room from the top of the page
+        body.Append(new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { Before = "2400", After = "0" })));
+
+        if (!string.IsNullOrWhiteSpace(settings.BrandLogoPath) && File.Exists(settings.BrandLogoPath))
+        {
+            try
+            {
+                var bytes = File.ReadAllBytes(settings.BrandLogoPath);
+                var isPng = bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == (byte)'P';
+                var part = ctx.MainPart.AddImagePart(isPng ? ImagePartType.Png : ImagePartType.Jpeg);
+                using (var ms = new MemoryStream(bytes)) part.FeedData(ms);
+                var relId = ctx.MainPart.GetIdOfPart(part);
+
+                var (pxW, pxH) = isPng ? PngDimensions(bytes) : JpegDimensions(bytes);
+                double ptW = Math.Min(140, pxW * 0.75), ptH = pxH * (ptW / Math.Max(1, pxW));
+                long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
+                var id = ctx.NextDrawingId++;
+                var drawing = new W.Drawing
+                {
+                    InnerXml = $"""
+                        <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                          <wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>
+                          <wp:docPr id="{id}" name="Brand logo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                          <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                            <pic:pic><pic:nvPicPr><pic:cNvPr id="{id}" name="logo"/><pic:cNvPicPr/></pic:nvPicPr>
+                            <pic:blipFill><a:blip r:embed="{relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                            <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                            </pic:pic></a:graphicData></a:graphic>
+                        </wp:inline>
+                        """
+                };
+                body.Append(new W.Paragraph(
+                    new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { Before = "0", After = "360" },
+                        new W.Justification { Val = W.JustificationValues.Center }),
+                    new W.Run(drawing)));
+            }
+            catch { /* unreadable logo — cover continues without it */ }
+        }
+
+        var titlePara = new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "0", After = "240" },
+            new W.Justification { Val = W.JustificationValues.Center }));
+        var titleRun = new W.Run(new W.Text(title));
+        titleRun.PrependChild(new W.RunProperties(
+            new W.Bold(),
+            new W.Color { Val = ctx.HeadingHex },
+            new W.FontSize { Val = "56" }));
+        titlePara.Append(titleRun);
+        body.Append(titlePara);
+
+        var datePara = new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "0", After = "0" },
+            new W.Justification { Val = W.JustificationValues.Center }));
+        var dateRun = new W.Run(new W.Text($"{DateTime.Now:d MMMM yyyy}"));
+        dateRun.PrependChild(new W.RunProperties(new W.Color { Val = ctx.TextHex }, new W.FontSize { Val = "24" }));
+        datePara.Append(dateRun);
+        body.Append(datePara);
+
+        body.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
+    }
+
+    // JPEG dimensions from the first SOF0/SOF2 frame header.
+    private static (int W, int H) JpegDimensions(byte[] b)
+    {
+        int i = 2;
+        while (i + 9 < b.Length)
+        {
+            if (b[i] != 0xFF) { i++; continue; }
+            byte marker = b[i + 1];
+            if (marker is 0xC0 or 0xC1 or 0xC2 or 0xC3)
+                return ((b[i + 7] << 8) | b[i + 8], (b[i + 5] << 8) | b[i + 6]);
+            if (marker is 0xD8 or 0x01 or (>= 0xD0 and <= 0xD7)) { i += 2; continue; }
+            i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+        }
+        return (400, 400);
     }
 
     // Snapshot mode: embed the pre-rasterized diagram PNG as a centered inline picture, scaled to
@@ -967,9 +1052,10 @@ public sealed class DocxExportService
 
         // Doc-wide defaults carry the theme text color and kerning; the w14 OpenType features are
         // stamped per-run in BuildRunProperties (the only place they're schema-legal).
+        var baseFont = ctx.BrandFont ?? "Calibri"; // branding kit can restyle the whole document
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
-                new W.RunFonts { Ascii = "Calibri", HighAnsi = "Calibri" },
+                new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont },
                 new W.Color { Val = ctx.TextHex },
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },

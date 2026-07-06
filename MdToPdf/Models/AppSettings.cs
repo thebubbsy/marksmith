@@ -30,6 +30,11 @@ public sealed class AppSettings
     //   1 = ShapeForge — rebuild the diagram as native, editable Word shapes (default)
     public int MermaidDocxMode { get; set; } = 1;
 
+    // Branding kit (Pro): make exports look like YOUR documents, not converted markdown.
+    public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
+    public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
+    public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
+
     // Export extras
     public bool IncludeToc { get; set; }
     public bool ShowAttribution { get; set; } = true;

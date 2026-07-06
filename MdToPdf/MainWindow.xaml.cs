@@ -543,6 +543,17 @@ public sealed partial class MainWindow : Window
         if (folder is not null) ViewModel.WatchFolder = folder.Path;
     }
 
+    private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        picker.FileTypeFilter.Add(".png");
+        picker.FileTypeFilter.Add(".jpg");
+        picker.FileTypeFilter.Add(".jpeg");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        var file = await picker.PickSingleFileAsync();
+        if (file is not null) ViewModel.BrandLogoPath = file.Path;
+    }
+
     private async void OnBrowseRunningDocClick(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "AI-notebook" };
