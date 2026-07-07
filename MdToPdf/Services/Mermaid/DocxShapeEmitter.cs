@@ -23,7 +23,7 @@ public static class DocxShapeEmitter
             MaxCanvasH / Math.Max(1, d.Height)));
         bool oversized = s < 0.75;
         if (oversized) s = 0.75;
-        if (s >= 1) return false;
+        if (s >= 1) return d.Height > 480;
 
         foreach (var sh in d.Shapes)
         {
@@ -36,7 +36,7 @@ public static class DocxShapeEmitter
             c.LabelX *= s; c.LabelY *= s; c.LabelW *= s; c.LabelH *= s;
         }
         d.Width *= s; d.Height *= s;
-        return oversized;
+        return oversized || d.Height > 480; // page-dominating diagrams read better in Web Layout
     }
 
     // The printable window (A4/Letter minus margins). Diagrams wider or taller are scaled
