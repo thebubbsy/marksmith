@@ -794,6 +794,44 @@ public sealed partial class MainWindow : Window
         await ViewModel.ConvertToDocxAsync();
     }
 
+    // The "call to user" for a page-dominating diagram: keep mermaid's exact layout (Web Layout view)
+    // or reflow it to fit the printed page. Returns 1 = exact, 2 = reflow. Persists if "remember".
+    public async Task<int> AskOversizedDiagramModeAsync()
+    {
+        var remember = new CheckBox { Content = "Remember my choice (change later in Settings)", Margin = new Thickness(0, 14, 0, 0) };
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Text = "This document has a large diagram that won't fit a printed page. How should Marksmith put it into Word?"
+        });
+        body.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap, Opacity = 0.75, Margin = new Thickness(0, 8, 0, 0),
+            Text = "• Keep exact layout — identical to the preview, nothing moved; the document opens in Word's Web Layout view (scrolls, not paginated).\n• Reflow to fit the page — Marksmith re-wraps and re-orders the diagram so it prints on standard pages."
+        });
+        body.Children.Add(remember);
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = "Large diagram",
+            Content = body,
+            PrimaryButtonText = "Keep exact layout",
+            SecondaryButtonText = "Reflow to fit page",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        var result = await dialog.ShowAsync();
+        int mode = result == ContentDialogResult.Primary ? 1 : 2;
+        if (remember.IsChecked == true)
+        {
+            App.Settings.Current.OversizedDiagramMode = mode;
+            App.Settings.Save();
+            ViewModel.OversizedDiagramMode = mode; // keep the Settings UI in sync
+        }
+        return mode;
+    }
+
     private void OnOpenOutputClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel.LastOutputPath is { } path && File.Exists(path))
@@ -983,6 +1021,116 @@ public sealed partial class MainWindow : Window
         {
             _mermaidHarvestActive = false;
             await RefreshPreviewAsync(false); // restore the live preview silently
+        }
+        while (result.Count < fences.Count) result.Add(null);
+        return result;
+    }
+
+    // "Exact layout" harvest: render each flowchart fence with mermaid and read back the geometry
+    // mermaid itself computed (node centres/sizes, edge endpoints, labels) via getCTM/getBBox, so
+    // ShapeForge can rebuild the diagram in Word node-for-node instead of re-laying-it-out. Same
+    // navigate/poll mechanics as RenderMermaidPngsAsync. Returns one entry per fence (null if the
+    // fence isn't a graph/flowchart or couldn't be harvested).
+    public async Task<List<Services.Mermaid.HarvestedDiagram?>> HarvestMermaidGeometryAsync(string markdown, Models.AppSettings settings)
+    {
+        var fences = System.Text.RegularExpressions.Regex.Matches(
+                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
+                System.Text.RegularExpressions.RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value).ToList();
+        if (fences.Count == 0) return new();
+        if (!await EnsurePreviewWebViewAsync()) return new();
+
+        var theme = App.Themes.GetOrDefault(settings.Theme);
+        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
+        var html = $$"""
+            <!DOCTYPE html><html><head><meta charset="UTF-8">
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script></head>
+            <body><script>
+            window.__geo = null;
+            const sources = {{sourcesJson}};
+            mermaid.initialize({ startOnLoad: false, theme: "base",
+              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" }, securityLevel: "loose" });
+            function T(node, root) { // node centre in root coords (getCTM is relative to the svg)
+              const m = node.getCTM ? node.getCTM() : null; return m ? [m.e, m.f] : [0, 0]; }
+            function kindOf(n) {
+              if (n.querySelector("circle")) return "Circle";
+              if (n.querySelector("ellipse")) return "Ellipse";
+              const p = n.querySelector("polygon");
+              if (p) { const pts = (p.getAttribute("points")||"").trim().split(/\s+/).length; return pts >= 6 ? "Hexagon" : "Diamond"; }
+              if (n.querySelector("path") && !n.querySelector("rect")) return "Cylinder";
+              const r = n.querySelector("rect"); if (r && parseFloat(r.getAttribute("rx")) > 0) return "RoundRect";
+              return "Rect";
+            }
+            function lines(n) { // reconstruct wrapped label lines from tspans
+              const ts = [...n.querySelectorAll("tspan")].map(t => t.textContent).filter(s => s && s.trim());
+              return (ts.length ? ts.join("\n") : (n.textContent||"")).trim();
+            }
+            function harvest(svgEl) {
+              const nodes = [...svgEl.querySelectorAll("g.node")].map(n => {
+                const [cx, cy] = T(n); let bb = {width:0,height:0}; try { bb = n.getBBox(); } catch(e) {}
+                const r = n.querySelector("rect");
+                const w = r ? parseFloat(r.getAttribute("width")) : bb.width;
+                const h = r ? parseFloat(r.getAttribute("height")) : bb.height;
+                return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: cx, Cy: cy, W: w||bb.width, H: h||bb.height, Kind: kindOf(n), Label: lines(n) };
+              });
+              const edges = [...svgEl.querySelectorAll("path.flowchart-link, .edgePath path")].map(p => {
+                const nums = [...(p.getAttribute("d")||"").matchAll(/[-\d.]+/g)].map(m => +m[0]);
+                const dashed = (p.getAttribute("class")||"").includes("dashed") || getComputedStyle(p).strokeDasharray !== "none";
+                return { X1: nums[0]||0, Y1: nums[1]||0, X2: nums[nums.length-2]||0, Y2: nums[nums.length-1]||0, Dashed: dashed, Label: null, Lx: 0, Ly: 0 };
+              });
+              const labels = [...svgEl.querySelectorAll(".edgeLabels .edgeLabel, .edgeLabel")].map(l => {
+                const g = l.closest("g") || l; const [x, y] = T(g); return { t: (l.textContent||"").trim(), x, y };
+              }).filter(l => l.t);
+              // attach each label to its nearest edge midpoint
+              labels.forEach(lab => {
+                let best = null, bd = 1e9;
+                edges.forEach(e => { const mx=(e.X1+e.X2)/2, my=(e.Y1+e.Y2)/2, dd=(mx-lab.x)**2+(my-lab.y)**2; if (dd<bd && !e.Label) { bd=dd; best=e; } });
+                if (best) { best.Label = lab.t; best.Lx = lab.x; best.Ly = lab.y; }
+              });
+              const vb = (svgEl.getAttribute("viewBox")||"0 0 0 0").split(/\s+/).map(Number);
+              return { W: vb[2], H: vb[3], Nodes: nodes, Edges: edges };
+            }
+            (async () => {
+              const out = [];
+              for (let i = 0; i < sources.length; i++) {
+                try {
+                  const first = (sources[i].trim().split(/\s+/)[0]||"").toLowerCase();
+                  if (first !== "graph" && first !== "flowchart") { out.push(null); continue; }
+                  const holder = document.createElement("div"); holder.style.position="absolute"; holder.style.left="-99999px";
+                  document.body.appendChild(holder);
+                  const { svg } = await mermaid.render("mg" + i, sources[i]);
+                  holder.innerHTML = svg; const el = holder.querySelector("svg");
+                  out.push(harvest(el)); holder.remove();
+                } catch (e) { out.push(null); }
+              }
+              window.__geo = JSON.stringify(out);
+            })();
+            </script></body></html>
+            """;
+
+        var result = new List<Services.Mermaid.HarvestedDiagram?>();
+        try
+        {
+            _mermaidHarvestActive = true;
+            _previewDebounce.Stop();
+            PreviewWebView.CoreWebView2.NavigateToString(html);
+            for (int i = 0; i < 60; i++)
+            {
+                await Task.Delay(150);
+                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("window.__geo");
+                if (raw is null or "null" or "\"null\"") continue;
+                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
+                if (string.IsNullOrEmpty(json) || json == "null") continue;
+                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                result = System.Text.Json.JsonSerializer.Deserialize<List<Services.Mermaid.HarvestedDiagram?>>(json, opts) ?? new();
+                break;
+            }
+        }
+        catch { /* best-effort; caller falls back to reflow */ }
+        finally
+        {
+            _mermaidHarvestActive = false;
+            await RefreshPreviewAsync(false);
         }
         while (result.Count < fences.Count) result.Add(null);
         return result;
