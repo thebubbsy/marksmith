@@ -159,6 +159,7 @@ public sealed partial class MainWindow : Window
         };
 
         _ = InitializePreviewAsync();
+        _ = LoadMarkdownFilesAsync(); // scan for real .md files in the background
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -759,11 +760,28 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnRecentSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is ComboBox { SelectedItem: string path })
+        if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
+            ViewModel.LoadRecentCommand.Execute(entry.Path);
+    }
+
+    private async void OnRescanMarkdownClick(object sender, RoutedEventArgs e)
+    {
+        await LoadMarkdownFilesAsync();
+    }
+
+    // Discover .md files across the user's common folders; drives the Step 1 picker. Toggles the
+    // inline "Scanning…" hint and disables Rescan while it runs.
+    private async Task LoadMarkdownFilesAsync()
+    {
+        RescanButton.IsEnabled = false;
+        ScanningLabel.Visibility = Visibility.Visible;
+        try { await ViewModel.RefreshMarkdownFilesAsync(); }
+        finally
         {
-            ViewModel.LoadRecentCommand.Execute(path);
+            ScanningLabel.Visibility = Visibility.Collapsed;
+            RescanButton.IsEnabled = true;
         }
     }
 

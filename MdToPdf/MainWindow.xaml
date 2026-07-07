@@ -122,9 +122,35 @@
                             <TextBox Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                      PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
 
-                            <ComboBox Header="Recent files" ItemsSource="{Binding RecentFiles}"
-                                      SelectionChanged="OnRecentSelectionChanged"
-                                      PlaceholderText="Reopen a recent file..." HorizontalAlignment="Stretch" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Recent &amp; found .md files" VerticalAlignment="Bottom"
+                                           Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.8" />
+                                <HyperlinkButton x:Name="RescanButton" Grid.Column="1" Click="OnRescanMarkdownClick" Padding="4,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE72C;" FontSize="12" />
+                                        <TextBlock Text="Rescan" Style="{StaticResource CaptionTextBlockStyle}" />
+                                    </StackPanel>
+                                </HyperlinkButton>
+                            </Grid>
+                            <ComboBox x:Name="MarkdownFilesCombo" ItemsSource="{Binding MarkdownFiles}"
+                                      SelectionChanged="OnMarkdownFileSelected" Margin="0,-8,0,0"
+                                      PlaceholderText="Pick a Markdown file from your PC..." HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Padding="0,2">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Detail}" Opacity="0.6"
+                                                       Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock x:Name="ScanningLabel" Text="Scanning your files…" Opacity="0.6" Margin="2,-6,0,0"
+                                       Style="{StaticResource CaptionTextBlockStyle}" Visibility="Collapsed" />
                         </StackPanel>
 
                         <!-- Paste mode -->
