@@ -37,6 +37,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
     [ObservableProperty] private int _mermaidDocxMode = 1; // 0 Snapshot picture, 1 ShapeForge shapes
+    [ObservableProperty] private int _oversizedDiagramMode; // 0 Ask, 1 Exact/WebLayout, 2 Reflow
     [ObservableProperty] private bool _brandCoverPage;
     [ObservableProperty] private string _brandLogoPath = "";
     [ObservableProperty] private string _brandFontFamily = "";
@@ -134,6 +135,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var h in App.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _mermaidDocxMode = settings.MermaidDocxMode;
+        _oversizedDiagramMode = settings.OversizedDiagramMode;
         _brandCoverPage = settings.BrandCoverPage;
         _brandLogoPath = settings.BrandLogoPath;
         _brandFontFamily = settings.BrandFontFamily;
@@ -171,6 +173,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
     partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; _settingsService.Save(); }
+    partial void OnOversizedDiagramModeChanged(int value) { _settingsService.Current.OversizedDiagramMode = value; _settingsService.Save(); }
     partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; _settingsService.Save(); }
     partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; _settingsService.Save(); }
     partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; _settingsService.Save(); }
@@ -308,14 +311,29 @@ public sealed partial class MainViewModel : ObservableObject
         await RunConversionAsync("DOCX", async ct =>
         {
             var outPath = ResolveOutputPath(sourceLabel, "docx");
-            // Rasterize mermaid diagrams first (Snapshot mode, or ShapeForge's fallback) — the
-            // renderer needs the window's WebView2, so it lives on MainWindow.
+            var settings = _settingsService.Current;
+            var hasMermaid = markdown.Contains("```mermaid", StringComparison.Ordinal);
+            var mw = App.MainAppWindow as MainWindow;
+
+            // Large diagram? Ask (or honor the saved preference): keep mermaid's EXACT layout (Web
+            // Layout view) or reflow to fit the printed page.
+            List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
+            if (hasMermaid && settings.MermaidDocxMode == 1 && mw is not null
+                && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
+            {
+                var mode = settings.OversizedDiagramMode;
+                if (mode == 0) mode = await mw.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
+                if (mode == 1) geometry = await mw.HarvestMermaidGeometryAsync(markdown, settings);
+            }
+
+            // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
+            // families) — the renderer needs the window's WebView2, so it lives on MainWindow.
             List<byte[]?>? mermaidImgs = null;
-            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && App.MainAppWindow is MainWindow mw)
-                mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, _settingsService.Current);
+            if (hasMermaid && mw is not null)
+                mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, settings);
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
-            await _docxExport.ExportAsync(markdown, outPath, _settingsService.Current, mermaidImgs, fixes);
+            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);

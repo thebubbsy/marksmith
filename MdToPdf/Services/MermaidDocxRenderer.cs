@@ -53,6 +53,33 @@ public static class MermaidDocxRenderer
         new Mermaid.MermaidChartsRenderer(),
     };
 
+    // Would this flowchart overflow a printed page (and thus benefit from exact-layout + Web Layout)?
+    // Runs the real parse+layout but emits nothing — used to decide whether to prompt the user.
+    public static bool WouldOverflow(string source)
+    {
+        try
+        {
+            var type = FirstWord(source);
+            if (type is not ("graph" or "flowchart")) return false;
+            var g = Parse(source);
+            if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) return false;
+            Layout(g);
+            return g.Oversized || g.H > 480;
+        }
+        catch { return false; }
+    }
+
+    // Any mermaid fence in the document that would overflow — the trigger for the export-time prompt.
+    public static bool AnyWouldOverflow(string markdown)
+    {
+        var fences = Regex.Matches(
+            markdown.Replace("\r\n", "\n").Replace('\r', '\n'),
+            "```mermaid[ \\t]*\\n(.*?)```", RegexOptions.Singleline);
+        foreach (System.Text.RegularExpressions.Match f in fences)
+            if (WouldOverflow(f.Groups[1].Value)) return true;
+        return false;
+    }
+
     public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph, out bool oversized)
     {
         paragraph = null!;
