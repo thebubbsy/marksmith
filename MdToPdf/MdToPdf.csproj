@@ -7,7 +7,7 @@
     <RootNamespace>MdToPdf</RootNamespace>
     <!-- Ship the binary as Marksmith.exe (namespace/project stay MdToPdf internally). -->
     <AssemblyName>Marksmith</AssemblyName>
-    <Version>1.2.5</Version>
+    <Version>1.2.6</Version>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
