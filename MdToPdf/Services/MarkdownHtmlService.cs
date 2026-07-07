@@ -34,7 +34,10 @@ public sealed class MarkdownHtmlService
         ["caution"] = ("#f85149", "🛑"),
     };
 
-    public string Render(string markdown, AppSettings settings, ThemeDefinition theme, LlmClassification? classification = null)
+    // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
+    // diagram viewer; the exported document is never affected.
+    public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
+        LlmClassification? classification = null, bool interactive = false)
     {
         markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
@@ -49,6 +52,19 @@ public sealed class MarkdownHtmlService
             "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
             m => $"<div class=\"mermaid\">{System.Net.WebUtility.HtmlDecode(m.Groups[1].Value)}</div>",
             RegexOptions.Singleline);
+
+        // When the whole document is essentially one diagram + a title (and maybe a few words),
+        // the live preview becomes a dedicated diagram viewer: title top-left, +/−/Reset, pan/zoom.
+        if (interactive && settings.MermaidEnabled)
+        {
+            var focus = AnalyzeDiagramFocus(markdown);
+            if (focus.Focused)
+            {
+                var mm = Regex.Match(body, "<div class=\"mermaid\">.*?</div>", RegexOptions.Singleline);
+                if (mm.Success) return BuildFocusedDiagramHtml(theme, mm.Value, focus.Title, focus.Subtitle);
+            }
+        }
+
         var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
 
@@ -187,6 +203,126 @@ public sealed class MarkdownHtmlService
             #toc a:hover { color: {{theme.Heading}}; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
             </style></head><body><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div></body></html>
+            """;
+    }
+
+    private static readonly Regex MermaidFenceRe =
+        new("```mermaid[ \\t]*\\n.*?```", RegexOptions.Singleline | RegexOptions.Compiled);
+
+    // Is this document "just a diagram"? Exactly one mermaid block, a title, and at most a few
+    // words of intro — no other diagrams, tables, images, lists or code. Returns the title/subtitle.
+    private static (bool Focused, string Title, string Subtitle) AnalyzeDiagramFocus(string markdown)
+    {
+        if (MermaidFenceRe.Matches(markdown).Count != 1) return (false, "", "");
+        var rest = MermaidFenceRe.Replace(markdown, "");
+        if (rest.Contains("```")) return (false, "", ""); // another code block
+
+        string title = "", subtitle = "";
+        int proseLen = 0;
+        foreach (var raw in rest.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            if (line.StartsWith('#')) { if (title.Length == 0) title = line.TrimStart('#', ' ').Trim(); continue; }
+            // Any richer block means it's a real document, not a diagram card.
+            if (line.Contains('|') || line.StartsWith("![") || line.StartsWith("- ") ||
+                line.StartsWith("* ") || line.StartsWith("> ") || Regex.IsMatch(line, @"^\d+\. "))
+                return (false, "", "");
+            if (subtitle.Length == 0) subtitle = line;
+            proseLen += line.Length;
+        }
+        if (title.Length == 0 || proseLen > 320) return (false, "", "");
+        return (true, StripInline(title), StripInline(subtitle));
+    }
+
+    private static string StripInline(string s) =>
+        System.Net.WebUtility.HtmlEncode(Regex.Replace(s, @"[*_`~]", "").Trim());
+
+    // The focused diagram viewer (live preview only): a full-viewport pan/zoom stage holding a
+    // single Mermaid diagram, with the title top-left and +/−/Reset controls. No Close — this IS
+    // the view, not an overlay. Never used for export.
+    private static string BuildFocusedDiagramHtml(ThemeDefinition theme, string mermaidDiv, string title, string subtitle)
+    {
+        var sub = string.IsNullOrEmpty(subtitle) ? "" : $"<div id=\"dv-sub\">{subtitle}</div>";
+        return $$"""
+            <!DOCTYPE html><html><head><meta charset="UTF-8">
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+            <style>
+            html, body { margin: 0; height: 100%; overflow: hidden; background: {{theme.Background}}; color: {{theme.Text}};
+                         font-family: -apple-system, "Segoe UI", sans-serif; }
+            #dv { position: fixed; inset: 0; }
+            #dv-head { position: absolute; top: 16px; left: 22px; z-index: 5; max-width: 62%; pointer-events: none; }
+            #dv-title { font-size: 19px; font-weight: 700; color: {{theme.Heading}}; line-height: 1.25; }
+            #dv-sub { font-size: 12.5px; opacity: 0.72; margin-top: 3px; }
+            #dv-controls { position: absolute; top: 14px; right: 18px; z-index: 5; display: flex; gap: 8px; align-items: center; font-size: 13px; }
+            #dv-controls #dv-pct { opacity: 0.7; min-width: 40px; text-align: right; }
+            #dv-controls button { background: {{theme.Secondary}}; color: {{theme.Text}}; border: 1px solid {{theme.Border}};
+                                  border-radius: 6px; padding: 4px 12px; font-size: 14px; cursor: pointer; }
+            #dv-controls button:hover { border-color: {{theme.Heading}}; }
+            #dv-stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
+            #dv-stage.dragging { cursor: grabbing; }
+            #dv-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+            #dv-inner .mermaid { margin: 0; padding: 0; border: none; background: transparent; width: auto;
+                                 min-width: 0; max-width: none; left: auto; transform: none; overflow: visible; }
+            #dv-inner .mermaid svg { max-width: none !important; }
+            .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect {
+                stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
+            .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
+            .mermaid .label { color: {{theme.Primary}} !important; }
+            </style></head>
+            <body>
+            <div id="dv">
+              <header id="dv-head"><div id="dv-title">{{title}}</div>{{sub}}</header>
+              <div id="dv-controls"><span id="dv-pct">100%</span>
+                <button id="dv-out" title="Zoom out">−</button>
+                <button id="dv-in" title="Zoom in">+</button>
+                <button id="dv-reset">Reset</button></div>
+              <div id="dv-stage"><div id="dv-inner">{{mermaidDiv}}</div></div>
+            </div>
+            <script>
+            mermaid.initialize({ startOnLoad: true, theme: "base",
+              themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
+                primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
+                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
+              maxTextSize: 10000000, maxNodes: 10000,
+              flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },
+              sequence: { useMaxWidth: false }, gantt: { useMaxWidth: false }, class: { useMaxWidth: false },
+              er: { useMaxWidth: false }, pie: { useMaxWidth: false }, mindmap: { useMaxWidth: false },
+              securityLevel: "loose" });
+            (function () {
+              const stage = document.getElementById("dv-stage"), inner = document.getElementById("dv-inner");
+              const pct = document.getElementById("dv-pct");
+              let sc = 1, tx = 0, ty = 0, drag = null, fitted = false;
+              const apply = () => { inner.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`;
+                                    pct.textContent = Math.round(sc * 100) + "%"; };
+              function fit() {
+                const svg = inner.querySelector("svg"); if (!svg) return false;
+                inner.style.transform = "none";
+                const w = svg.getBoundingClientRect().width, h = svg.getBoundingClientRect().height;
+                if (!w || !h) return false;
+                sc = Math.min(1.5, Math.min((stage.clientWidth - 48) / w, (stage.clientHeight - 96) / h));
+                tx = (stage.clientWidth - w * sc) / 2; ty = Math.max(70, (stage.clientHeight - h * sc) / 2);
+                apply(); return true;
+              }
+              // mermaid renders asynchronously — poll for the SVG, then fit once.
+              const t = setInterval(() => { if (!fitted && fit()) { fitted = true; clearInterval(t); } }, 120);
+              setTimeout(() => clearInterval(t), 8000);
+              stage.addEventListener("wheel", (e) => { e.preventDefault();
+                const r = stage.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
+                const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+                tx = cx - (cx - tx) * f; ty = cy - (cy - ty) * f;
+                sc = Math.min(12, Math.max(0.1, sc * f)); apply(); }, { passive: false });
+              stage.addEventListener("pointerdown", (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty };
+                stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId); });
+              stage.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); } });
+              stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); });
+              document.getElementById("dv-in").addEventListener("click", () => { sc = Math.min(12, sc * 1.25); apply(); });
+              document.getElementById("dv-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
+              document.getElementById("dv-reset").addEventListener("click", () => { fit(); });
+              window.addEventListener("resize", () => { if (fitted) fit(); });
+            })();
+            </script>
+            </body></html>
             """;
     }
 
