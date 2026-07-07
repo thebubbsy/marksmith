@@ -495,6 +495,9 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
+                        <Button Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour">
+                            <FontIcon Glyph="&#xE897;" FontSize="14" />
+                        </Button>
                         <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
                             <FontIcon Glyph="&#xE713;" FontSize="14" />
                         </Button>

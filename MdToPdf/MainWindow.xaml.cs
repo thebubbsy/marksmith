@@ -160,6 +160,16 @@ public sealed partial class MainWindow : Window
 
         _ = InitializePreviewAsync();
         _ = LoadMarkdownFilesAsync(); // scan for real .md files in the background
+
+        // First-run: show the guided tour once the visual tree is ready (XamlRoot available).
+        if (!App.Settings.Current.HasSeenWelcome)
+            RootGrid.Loaded += OnFirstRunLoaded;
+    }
+
+    private void OnFirstRunLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= OnFirstRunLoaded; // one-shot
+        DispatcherQueue.TryEnqueue(() => _ = ShowWelcomeTourAsync());
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -275,6 +285,34 @@ public sealed partial class MainWindow : Window
     private void SyncAdvancedSection() =>
         AdvancedStyleSection.Visibility =
             (ViewModel.AdvancedMode && App.License.IsPro) ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnTakeTourClick(object sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
+
+    // The first-run guided tour. Auto-shown once (gated on settings.HasSeenWelcome); the title-bar
+    // tour button replays it. A borderless dialog hosting the WelcomeTour control, closed when the
+    // tour raises Completed.
+    private async Task ShowWelcomeTourAsync()
+    {
+        try
+        {
+            var tour = new Views.WelcomeTour();
+            var dialog = new ContentDialog
+            {
+                Content = tour,
+                XamlRoot = Content.XamlRoot,
+                Padding = new Thickness(0),
+            };
+            tour.Completed += (_, _) => dialog.Hide();
+            await dialog.ShowAsync();
+        }
+        catch { /* never let the tour crash the app (dialog already open, XAML load, etc.) */ }
+
+        if (!App.Settings.Current.HasSeenWelcome)
+        {
+            App.Settings.Current.HasSeenWelcome = true;
+            App.Settings.Save();
+        }
+    }
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
