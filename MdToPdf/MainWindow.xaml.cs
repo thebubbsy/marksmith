@@ -1233,7 +1233,7 @@ public sealed partial class MainWindow : Window
 
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown));
+        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
         if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
         PreviewWebView.CoreWebView2.NavigateToString(html);

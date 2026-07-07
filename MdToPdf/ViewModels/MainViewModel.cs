@@ -208,8 +208,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
 
-    public string BuildPreviewHtml(string markdown) =>
-        _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification);
+    // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
+    public string BuildPreviewHtml(string markdown, bool interactive = false) =>
+        _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
 
     // Classification + normalization for content that did NOT arrive through IngestMarkdown —
     // manual paste and browsed/dropped files. Without this, the "Normalize AI formatting quirks"
