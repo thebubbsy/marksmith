@@ -1016,7 +1016,7 @@ public sealed partial class MainWindow : Window
                 primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
                 secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
               flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" },
-              securityLevel: "loose" });
+              securityLevel: "strict" });
             (async () => {
               const out = [];
               for (let i = 0; i < sources.length; i++) {
@@ -1105,7 +1105,7 @@ public sealed partial class MainWindow : Window
             window.__geo = null;
             const sources = {{sourcesJson}};
             mermaid.initialize({ startOnLoad: false, theme: "base",
-              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" }, securityLevel: "loose" });
+              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" }, securityLevel: "strict" });
             function T(node, root) { // node centre in root coords (getCTM is relative to the svg)
               const m = node.getCTM ? node.getCTM() : null; return m ? [m.e, m.f] : [0, 0]; }
             function kindOf(n) {
