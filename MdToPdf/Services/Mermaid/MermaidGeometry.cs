@@ -32,6 +32,7 @@ public sealed class HEdge
     public string? Label { get; set; }
     public double Lx { get; set; }   // label center, px
     public double Ly { get; set; }
+    public List<double[]> Points { get; set; } = new(); // sampled [x,y] along mermaid's curve, px
 }
 
 public sealed class HarvestedDiagram
@@ -89,6 +90,9 @@ public sealed class HarvestedDiagram
                 Dashed = e.Dashed,
                 EndHead = ArrowHead.Triangle,
             };
+            // Follow mermaid's exact curve when we harvested its path points; else a straight line.
+            if (e.Points is { Count: >= 2 })
+                c.Points = e.Points.Select(p => (p[0], p[1])).ToList();
             if (!string.IsNullOrWhiteSpace(e.Label))
             {
                 double lw = Math.Clamp(10 + e.Label!.Length * 5.0, 24, 160);
