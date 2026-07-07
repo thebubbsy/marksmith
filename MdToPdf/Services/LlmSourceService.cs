@@ -25,6 +25,7 @@ public sealed partial class LlmSourceService
 
     public LlmClassification Classify(string markdown)
     {
+        markdown = TextNormalizer.Newlines(markdown);
         var signals = new List<string>();
         int chatgpt = 0, gemini = 0, claude = 0;
 

@@ -292,6 +292,39 @@
                             </ComboBox>
                             <TextBlock Text="ShapeForge rebuilds Mermaid diagrams from Word's own shapes — flowcharts, sequence, class/ER, pie, gantt, mindmap, timeline, quadrant — every box and arrow editable. Anything it can't parse falls back to the snapshot."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <Expander HorizontalAlignment="Stretch" Margin="0,10,0,0">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8D4;" FontSize="14" />
+                                        <TextBlock Text="Export Branding" />
+                                        <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
+                                                VerticalAlignment="Center" Visibility="{Binding ProBadgeVisibility}">
+                                            <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="White" />
+                                        </Border>
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Spacing="14">
+                                    <ToggleSwitch Header="Include Cover Page (Logo, Title, Date)"
+                                                  IsOn="{Binding BrandCoverPage, Mode=TwoWay}" />
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Header="Company Logo (PNG/JPEG)" 
+                                                 Text="{Binding BrandLogoPath, Mode=TwoWay}"
+                                                 PlaceholderText="Select logo image..." IsSpellCheckEnabled="False" />
+                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseLogoClick">
+                                            <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                        </Button>
+                                    </Grid>
+                                    <TextBox Header="Custom Document Font Family" 
+                                             Text="{Binding BrandFontFamily, Mode=TwoWay}"
+                                             PlaceholderText="e.g. Segoe UI, Inter (leave blank for default)" IsSpellCheckEnabled="False" />
+                                    <TextBlock Text="Requires Marksmith Pro license to apply to DOCX exports."
+                                               Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                </StackPanel>
+                            </Expander>
                             <!-- Power-user styling — revealed by Advanced mode (Settings cog). -->
                             <StackPanel x:Name="AdvancedStyleSection" Spacing="14" Visibility="Collapsed">
                                 <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
