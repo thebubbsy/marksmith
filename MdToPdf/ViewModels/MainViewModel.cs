@@ -318,12 +318,24 @@ public sealed partial class MainViewModel : ObservableObject
             // Large diagram? Ask (or honor the saved preference): keep mermaid's EXACT layout (Web
             // Layout view) or reflow to fit the printed page.
             List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
+            string? layoutNote = null;
             if (hasMermaid && settings.MermaidDocxMode == 1 && mw is not null
                 && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
             {
                 var mode = settings.OversizedDiagramMode;
                 if (mode == 0) mode = await mw.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
-                if (mode == 1) geometry = await mw.HarvestMermaidGeometryAsync(markdown, settings);
+                if (mode == 1)
+                {
+                    geometry = await mw.HarvestMermaidGeometryAsync(markdown, settings);
+                    var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
+                    if (usable) layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
+                    else
+                    {
+                        geometry = null; // couldn't read exact geometry — reflow instead, and say so
+                        layoutNote = "  (couldn't read exact layout — reflowed to fit the page)";
+                    }
+                }
+                else layoutNote = "  (large diagram: reflowed to fit the page)";
             }
 
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
@@ -337,7 +349,7 @@ public sealed partial class MainViewModel : ObservableObject
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
-            StatusText = $"DOCX export done: {outPath}";
+            StatusText = $"DOCX export done: {outPath}{layoutNote}";
         });
     }
 
