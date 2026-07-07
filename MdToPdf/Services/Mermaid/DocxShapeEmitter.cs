@@ -14,12 +14,16 @@ public static class DocxShapeEmitter
 {
     private const long EmuPerPt = 12700;
 
-    private static void ScaleToFit(MDiagram d)
+    // Returns true when the diagram is too large for print layout even at the 75% floor — the
+    // caller opens the document in Word's Web Layout view (scrolls instead of clipping).
+    private static bool ScaleToFit(MDiagram d)
     {
         double s = Math.Min(1, Math.Min(
             MaxCanvasW / Math.Max(1, d.Width),
             MaxCanvasH / Math.Max(1, d.Height)));
-        if (s >= 1) return;
+        bool oversized = s < 0.75;
+        if (oversized) s = 0.75;
+        if (s >= 1) return false;
 
         foreach (var sh in d.Shapes)
         {
@@ -32,15 +36,16 @@ public static class DocxShapeEmitter
             c.LabelX *= s; c.LabelY *= s; c.LabelW *= s; c.LabelH *= s;
         }
         d.Width *= s; d.Height *= s;
+        return oversized;
     }
 
     // The printable window (A4/Letter minus margins). Diagrams wider or taller are scaled
     // uniformly so no renderer ever runs a bar or box past the page edge.
     private const double MaxCanvasW = 460, MaxCanvasH = 640;
 
-    public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId)
+    public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId, out bool oversized)
     {
-        ScaleToFit(d);
+        oversized = ScaleToFit(d);
 
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
                  "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
@@ -114,7 +119,7 @@ public static class DocxShapeEmitter
             var lines = s.Text.Replace("\r", "").Split('\n');
             foreach (var lineText in lines)
             {
-                sb.Append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/><w:rPr>");
+                sb.Append("<w:p><w:pPr><w:suppressAutoHyphens/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/><w:rPr>");
                 sb.Append(RunProps(s, t));
                 sb.Append("</w:rPr></w:pPr>");
                 sb.Append($"<w:r><w:rPr>{RunProps(s, t)}</w:rPr><w:t xml:space=\"preserve\">{Esc(lineText)}</w:t></w:r>");

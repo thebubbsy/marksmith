@@ -120,7 +120,6 @@ public sealed class DocxExportService
             };
 
             AddStyles(main, ctx);
-            AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, webLayout: settings.UnlimitedHeight);
             CollectAnchors(doc, ctx);
 
             if (settings.BrandCoverPage) AppendCoverPage(body, ctx, settings, title);
@@ -130,6 +129,11 @@ public sealed class DocxExportService
                 RenderBlock(block, body, ctx, listLevel: -1);
 
             if (cleanupNotes is { Count: > 0 }) AddCleanupComment(main, body, cleanupNotes);
+
+            // Written after rendering: an oversized ShapeForge diagram flips the doc to Web Layout,
+            // where a wider-than-page drawing scrolls instead of clipping (the user's own idea).
+            AddSettings(main, updateFieldsOnOpen: settings.IncludeToc,
+                webLayout: settings.UnlimitedHeight || ctx.ForceWebLayout);
 
             body.Append(BuildSectionProperties(main, ctx, settings, title));
             main.Document.Save();
@@ -238,6 +242,7 @@ public sealed class DocxExportService
         public int NextBookmarkId = 1;
         public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shapes / snapshots)
         public string? BrandFont;         // branding kit: document-wide font override
+        public bool ForceWebLayout;       // an oversized ShapeForge diagram wants Web Layout view
         public int MermaidMode = 1;       // 0 = Snapshot picture, 1 = ShapeForge native shapes
         public IReadOnlyList<byte[]?>? MermaidImages; // pre-rasterized PNGs, one per fence in order
         public int MermaidSeen;           // index of the next mermaid fence encountered
@@ -348,8 +353,11 @@ public sealed class DocxExportService
                 var png = ctx.MermaidImages is not null && idx < ctx.MermaidImages.Count ? ctx.MermaidImages[idx] : null;
 
                 if (ctx.MermaidMode == 1 &&
-                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram))
+                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram))
+                {
+                    ctx.ForceWebLayout |= oversizedDiagram;
                     target.Append(diagram);
+                }
                 else if (png is not null)
                     target.Append(SnapshotParagraph(png, ctx));
                 else

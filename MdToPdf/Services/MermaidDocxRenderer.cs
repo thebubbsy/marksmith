@@ -18,7 +18,7 @@ public static class MermaidDocxRenderer
     private const double EmuPerPt = 12700;
     private const double NodeH = 34, VGap = 46, HGap = 28, Margin = 10;
     private const double MaxCanvasW = 460, MaxCanvasH = 640; // pt — fits the printable page
-    private const int MaxNodes = 60;
+    private const int MaxNodes = 150;
 
     private sealed class Node
     {
@@ -38,7 +38,8 @@ public static class MermaidDocxRenderer
         public readonly Dictionary<string, Node> ById = new();
         public readonly List<Edge> Edges = new();
         public double W, H;
-        public double Scale = 1; // set by scale-to-fit; fonts follow it
+        public double Scale = 1;  // set by scale-to-fit; fonts follow it
+        public bool Oversized;     // too big for print layout even wrapped -> document opens in Web Layout
     }
 
     // The ShapeForge renderer registry: one geometry renderer per diagram family (see
@@ -52,9 +53,10 @@ public static class MermaidDocxRenderer
         new Mermaid.MermaidChartsRenderer(),
     };
 
-    public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph)
+    public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph, out bool oversized)
     {
         paragraph = null!;
+        oversized = false;
         try
         {
             var type = FirstWord(source);
@@ -64,7 +66,7 @@ public static class MermaidDocxRenderer
                 if (renderer is null) return false; // unknown family → snapshot/code fallback
                 var d = renderer.Render(source, theme); // MermaidParseException → catch below
                 if (d.Shapes.Count == 0 && d.Connectors.Count == 0) return false;
-                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId) };
+                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized) };
                 paragraph.PrependChild(new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
                     new W.Justification { Val = W.JustificationValues.Center }));
@@ -74,6 +76,7 @@ public static class MermaidDocxRenderer
             var g = Parse(source);
             if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) return false;
             Layout(g);
+            oversized = g.Oversized;
 
             var drawing = new W.Drawing { InnerXml = BuildInlineXml(g, theme, drawingId) };
             paragraph = new W.Paragraph(
@@ -256,7 +259,7 @@ public static class MermaidDocxRenderer
             // once the label exceeds the max box width.
             var lines = n.Label.Length == 0 ? new[] { "" } : n.Label.Split('\n');
             int longest = lines.Max(l => l.Length);
-            var baseW = Math.Clamp(18 + longest * 5.6, 70, 240);
+            var baseW = Math.Clamp(22 + longest * 6.0, 74, 260);
             n.W = n.Shape switch
             {
                 "diamond" => baseW * 1.45,
@@ -266,7 +269,7 @@ public static class MermaidDocxRenderer
             };
 
             double usableW = n.W - (n.Shape == "diamond" ? n.W * 0.38 : 14); // diamonds squeeze text
-            double charsPerLine = Math.Max(6, usableW / 5.2);
+            double charsPerLine = Math.Max(6, usableW / 6.2);
             int textLines = lines.Sum(l => Math.Max(1, (int)Math.Ceiling(l.Length / charsPerLine)));
 
             double baseH = n.Shape is "diamond" or "ellipse" ? 44 : NodeH;
@@ -337,8 +340,11 @@ public static class MermaidDocxRenderer
             g.W = x - VGap + Margin; g.H = canvasH;
         }
 
-        // Scale uniformly to fit the printable page.
+        // Scale uniformly to fit the printable page — but never below 75%, where text stops being
+        // readable. A diagram that would need more shrink keeps 75% and is flagged Oversized; the
+        // exporter then opens the document in Word's Web Layout view, which scrolls instead of clips.
         double s = Math.Min(1, Math.Min(MaxCanvasW / g.W, MaxCanvasH / g.H));
+        if (s < 0.75) { g.Oversized = true; s = 0.75; }
         if (s < 1)
         {
             foreach (var n in g.Nodes) { n.X *= s; n.Y *= s; n.W *= s; n.H *= s; }
@@ -404,7 +410,7 @@ public static class MermaidDocxRenderer
               <wps:txbx>
                 <w:txbxContent>
                   {string.Join("", n.Label.Split('\n').Select(l =>
-                      $"<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/></w:pPr>" +
+                      $"<w:p><w:pPr><w:suppressAutoHyphens/><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/></w:pPr>" +
                       $"<w:r><w:rPr><w:color w:val=\"{text}\"/><w:sz w:val=\"{Math.Max(12, (int)Math.Round(18 * scale))}\"/></w:rPr><w:t xml:space=\"preserve\">{XmlEsc(l)}</w:t></w:r></w:p>"))}
                 </w:txbxContent>
               </wps:txbx>
@@ -456,12 +462,15 @@ public static class MermaidDocxRenderer
 
     private static string EdgeLabelXml(Edge e, Graph g, string bg, string text, uint id, double scale)
     {
-        // Sit the label 38% along the edge (closer to the source) rather than dead centre — on a
-        // dense graph the midpoint is where crossings and other rows' boxes live.
+        // Sit the label a FIXED ~24pt along the edge from the source box — proportional placement
+        // lands on other rows' boxes once ranks wrap. Very short edges skip their label entirely.
         double x1 = e.From.X + e.From.W / 2, y1 = e.From.Y + e.From.H / 2;
         double x2 = e.To.X + e.To.W / 2, y2 = e.To.Y + e.To.H / 2;
-        double mx = x1 + (x2 - x1) * 0.38;
-        double my = y1 + (y2 - y1) * 0.38;
+        double len = Math.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+        if (len < 30 * scale) return "";
+        double tt = Math.Min(0.42, (24 * scale + e.From.H / 2) / len);
+        double mx = x1 + (x2 - x1) * tt;
+        double my = y1 + (y2 - y1) * tt;
         double w = Math.Clamp((10 + e.Label!.Length * 4.6) * scale, 20, 160), h = 15 * scale;
         return $"""
             <wps:wsp>
