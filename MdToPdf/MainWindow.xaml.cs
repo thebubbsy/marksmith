@@ -1108,12 +1108,17 @@ public sealed partial class MainWindow : Window
                 try {
                   const first = (sources[i].trim().split(/\s+/)[0]||"").toLowerCase();
                   if (first !== "graph" && first !== "flowchart") { out.push(null); continue; }
-                  const holder = document.createElement("div"); holder.style.position="absolute"; holder.style.left="-99999px";
+                  // In-viewport but invisible: far-offscreen (left:-99999px) content can be skipped
+                  // for layout, making getBBox/getCTM/getPointAtLength return zeros. Keeping it on
+                  // screen at opacity 0 forces a real layout so the harvested geometry is correct.
+                  const holder = document.createElement("div");
+                  holder.style.cssText = "position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1";
                   document.body.appendChild(holder);
                   const { svg } = await mermaid.render("mg" + i, sources[i]);
                   holder.innerHTML = svg; const el = holder.querySelector("svg");
+                  void el.getBoundingClientRect(); // force synchronous layout before measuring
                   out.push(harvest(el)); holder.remove();
-                } catch (e) { out.push(null); }
+                } catch (e) { window.__err = (window.__err||"") + " | fence" + i + ": " + (e && e.message); out.push(null); }
               }
               window.__geo = JSON.stringify(out);
             })();
@@ -1126,7 +1131,7 @@ public sealed partial class MainWindow : Window
             _mermaidHarvestActive = true;
             _previewDebounce.Stop();
             PreviewWebView.CoreWebView2.NavigateToString(html);
-            for (int i = 0; i < 60; i++)
+            for (int i = 0; i < 130; i++) // up to ~20s (CDN + a large graph's layout + geometry sampling)
             {
                 await Task.Delay(150);
                 var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("window.__geo");
