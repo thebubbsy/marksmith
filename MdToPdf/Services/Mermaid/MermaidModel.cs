@@ -61,6 +61,11 @@ public sealed class MConnector
     public double LabelY { get; set; }
     public double LabelW { get; set; } = 80;
     public double LabelH { get; set; } = 14;
+
+    // When set (>= 2 points, absolute pt), the connector is drawn as a freeform curve following
+    // exactly these points instead of a straight/bent line — used by the exact-layout path to
+    // reproduce mermaid's own curved edge routing. The arrowhead lands on the final point.
+    public IReadOnlyList<(double X, double Y)>? Points { get; set; }
 }
 
 public sealed class MDiagram
