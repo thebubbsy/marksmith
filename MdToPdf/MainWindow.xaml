@@ -292,6 +292,15 @@
                             </ComboBox>
                             <TextBlock Text="ShapeForge rebuilds Mermaid diagrams from Word's own shapes — flowcharts, sequence, class/ER, pie, gantt, mindmap, timeline, quadrant — every box and arrow editable. Anything it can't parse falls back to the snapshot."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+
+                            <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
+                                      SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}">
+                                <x:String>Ask me each time</x:String>
+                                <x:String>Keep exact layout (Web Layout view)</x:String>
+                                <x:String>Reflow to fit the page</x:String>
+                            </ComboBox>
+                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let Marksmith re-wrap it to fit standard pages."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
                             <Expander HorizontalAlignment="Stretch" Margin="0,10,0,0">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
