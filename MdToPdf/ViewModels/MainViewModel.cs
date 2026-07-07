@@ -96,7 +96,25 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<string> ThemeNames { get; }
     public ObservableCollection<string> RecentFiles { get; } = new();
+    public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
+
+    [ObservableProperty] private bool _isDiscoveringFiles;
+
+    // Scan Downloads/Documents/Desktop/OneDrive for real .md files (newest first), pinned/opened
+    // files kept on top. Called from the UI thread so the await resumes there to update the list.
+    public async Task RefreshMarkdownFilesAsync()
+    {
+        if (IsDiscoveringFiles) return;
+        IsDiscoveringFiles = true;
+        try
+        {
+            var entries = await Services.MarkdownDiscoveryService.DiscoverAsync(_recentFilesService.Load());
+            MarkdownFiles.Clear();
+            foreach (var e in entries) MarkdownFiles.Add(e);
+        }
+        finally { IsDiscoveringFiles = false; }
+    }
 
     public void RecordExport(string kind, string outputPath, string markdown)
     {
@@ -417,5 +435,18 @@ public sealed partial class MainViewModel : ObservableObject
         var updated = _recentFilesService.AddToRecent(path);
         RecentFiles.Clear();
         foreach (var f in updated) RecentFiles.Add(f);
+
+        // Promote the just-used file to the top of the discovered list, pinned, so it's easy to reopen.
+        try
+        {
+            var full = Path.GetFullPath(path);
+            for (int i = MarkdownFiles.Count - 1; i >= 0; i--)
+                if (string.Equals(MarkdownFiles[i].Path, full, StringComparison.OrdinalIgnoreCase))
+                    MarkdownFiles.RemoveAt(i);
+            var name = Path.GetFileName(full);
+            var folder = Path.GetFileName(Path.GetDirectoryName(full) ?? "");
+            MarkdownFiles.Insert(0, new Services.MarkdownFileEntry(full, name, $"★ {folder} · just now", true));
+        }
+        catch { /* non-critical */ }
     }
 }
