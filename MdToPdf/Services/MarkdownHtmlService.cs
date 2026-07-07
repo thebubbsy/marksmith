@@ -99,6 +99,43 @@ public sealed class MarkdownHtmlService
                 gitGraph: { useMaxWidth: false },
                 securityLevel: "loose"
             });
+            // Click-to-expand lens: wheel zooms about the cursor, drag pans, Esc / ✕ closes.
+            window.addEventListener("DOMContentLoaded", () => {
+                const lens = document.createElement("div"); lens.id = "mk-lens";
+                lens.innerHTML = '<div id="mk-lens-stage"></div>';
+                const bar = document.createElement("div"); bar.id = "mk-lens-bar";
+                bar.innerHTML = '<span id="mk-lens-pct">100%</span><button id="mk-lens-out">−</button><button id="mk-lens-in">+</button><button id="mk-lens-reset">Reset</button><button id="mk-lens-close">✕ Close</button>';
+                bar.style.display = "none";
+                document.body.append(lens, bar);
+                const stage = lens.firstChild;
+                let sc = 1, tx = 0, ty = 0, drag = null;
+                const apply = () => { stage.style.transform = `translate(${tx}px, ${ty}px) scale(${sc})`;
+                                      document.getElementById("mk-lens-pct").textContent = Math.round(sc * 100) + "%"; };
+                const openLens = (svg) => {
+                    stage.innerHTML = ""; stage.appendChild(svg.cloneNode(true));
+                    const w = svg.getBoundingClientRect().width || 800;
+                    sc = Math.min(1, (innerWidth - 60) / w);
+                    tx = Math.max(30, (innerWidth - w * sc) / 2); ty = 40;
+                    lens.classList.add("open"); bar.style.display = "flex"; apply();
+                };
+                const closeLens = () => { lens.classList.remove("open"); bar.style.display = "none"; };
+                document.querySelectorAll(".mermaid").forEach(m =>
+                    m.addEventListener("click", () => { const s = m.querySelector("svg"); if (s) openLens(s); }));
+                lens.addEventListener("wheel", (e) => {
+                    e.preventDefault();
+                    const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+                    tx = e.clientX - (e.clientX - tx) * f; ty = e.clientY - (e.clientY - ty) * f;
+                    sc = Math.min(12, Math.max(0.1, sc * f)); apply();
+                }, { passive: false });
+                lens.addEventListener("pointerdown", (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty }; lens.classList.add("dragging"); lens.setPointerCapture(e.pointerId); });
+                lens.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); } });
+                lens.addEventListener("pointerup", () => { drag = null; lens.classList.remove("dragging"); });
+                document.getElementById("mk-lens-in").addEventListener("click", () => { sc = Math.min(12, sc * 1.25); apply(); });
+                document.getElementById("mk-lens-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
+                document.getElementById("mk-lens-reset").addEventListener("click", () => { sc = 1; tx = 30; ty = 40; apply(); });
+                document.getElementById("mk-lens-close").addEventListener("click", closeLens);
+                window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLens(); });
+            });
             </script>
             """ : "";
 
@@ -118,14 +155,22 @@ public sealed class MarkdownHtmlService
             .markdown-alert { border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; }
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
-            /* Screen (the live preview): diagrams at NATURAL size in a scrollable box — forcing
-               width:100% crushed big diagrams and made zoom feel inverted. Print (the PDF export):
-               fit-to-page-width, which is what a fixed page wants. */
-            .mermaid { width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; }
+            /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
+               column to the full preview width; anything larger scrolls, and clicking opens the
+               full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
+            .mermaid { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
             .mermaid svg { max-width: none !important; }
+            #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; }
+            #mk-lens.open { display: block; }
+            #mk-lens.dragging { cursor: grabbing; }
+            #mk-lens-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+            #mk-lens-bar { position: fixed; top: 14px; right: 18px; z-index: 100; display: flex; gap: 8px; align-items: center; font-size: 13px; color: {{theme.Text}}; }
+            #mk-lens-bar button { background: {{theme.Secondary}}; color: {{theme.Text}}; border: 1px solid {{theme.Border}}; border-radius: 6px; padding: 4px 12px; font-size: 14px; cursor: pointer; }
+            #mk-lens-bar button:hover { border-color: {{theme.Heading}}; }
             @media print {
-              .mermaid { overflow-x: visible; }
+              .mermaid { overflow-x: visible; width: 100%; max-width: 100%; left: 0; transform: none; cursor: auto; }
               .mermaid svg { width: 100% !important; height: auto !important; max-width: 100% !important; }
+              #mk-lens, #mk-lens-bar { display: none !important; }
             }
             .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect { stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
