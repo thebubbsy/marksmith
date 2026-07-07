@@ -34,6 +34,8 @@ public static class DocxShapeEmitter
         {
             c.X1 *= s; c.Y1 *= s; c.X2 *= s; c.Y2 *= s;
             c.LabelX *= s; c.LabelY *= s; c.LabelW *= s; c.LabelH *= s;
+            if (c.Points is { Count: > 0 })
+                c.Points = c.Points.Select(p => (p.X * s, p.Y * s)).ToList();
         }
         d.Width *= s; d.Height *= s;
         return oversized || d.Height > 480; // page-dominating diagrams read better in Web Layout
@@ -192,8 +194,46 @@ public static class DocxShapeEmitter
 
     // ---- connectors ---------------------------------------------------------------------------
 
+    // Freeform curved connector: a custGeom path following the harvested points, so a Word edge
+    // traces mermaid's exact curve. Emitted as a shape (sp) with no fill and an arrow tail end.
+    private static string CurveXml(MConnector c, ThemeDefinition t, uint id)
+    {
+        var pts = c.Points!;
+        double minX = pts.Min(p => p.X), minY = pts.Min(p => p.Y);
+        double maxX = pts.Max(p => p.X), maxY = pts.Max(p => p.Y);
+        long ox = Emu(minX), oy = Emu(minY);
+        long w = Math.Max(1, Emu(maxX - minX)), h = Math.Max(1, Emu(maxY - minY));
+
+        var path = new StringBuilder();
+        path.Append($"<a:moveTo><a:pt x=\"{Emu(pts[0].X - minX)}\" y=\"{Emu(pts[0].Y - minY)}\"/></a:moveTo>");
+        for (int i = 1; i < pts.Count; i++)
+            path.Append($"<a:lnTo><a:pt x=\"{Emu(pts[i].X - minX)}\" y=\"{Emu(pts[i].Y - minY)}\"/></a:lnTo>");
+
+        var stroke = Hex(c.Stroke ?? t.Line);
+        long lw = (long)Math.Round(c.StrokeWidth * EmuPerPt);
+        var dash = c.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
+        var head = HeadXml("headEnd", c.StartHead);
+        var tail = HeadXml("tailEnd", c.EndHead);
+
+        return
+            "<wps:wsp>" +
+            $"<wps:cNvPr id=\"{id}\" name=\"Edge {id}\"/>" +
+            "<wps:cNvSpPr/>" +
+            "<wps:spPr>" +
+            $"<a:xfrm><a:off x=\"{ox}\" y=\"{oy}\"/><a:ext cx=\"{w}\" cy=\"{h}\"/></a:xfrm>" +
+            $"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=\"0\" t=\"0\" r=\"{w}\" b=\"{h}\"/>" +
+            $"<a:pathLst><a:path w=\"{w}\" h=\"{h}\" fill=\"none\">{path}</a:path></a:pathLst></a:custGeom>" +
+            "<a:noFill/>" +
+            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{head}{tail}</a:ln>" +
+            "</wps:spPr>" +
+            "<wps:bodyPr/>" +
+            "</wps:wsp>";
+    }
+
     private static string ConnectorXml(MConnector c, ThemeDefinition t, ref uint id)
     {
+        if (c.Points is { Count: >= 2 }) return CurveXml(c, t, ++id);
+
         // Degenerate elbows (both endpoints on one axis) can't be drawn by bentConnector3 — a
         // zero-width/height box renders as a straight line. These are loops (a sequence
         // self-message, a same-row relationship): decompose into a 3-segment U shape.

@@ -1074,9 +1074,21 @@ public sealed partial class MainWindow : Window
                 return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: cx, Cy: cy, W: w||bb.width, H: h||bb.height, Kind: kindOf(n), Label: lines(n) };
               });
               const edges = [...svgEl.querySelectorAll("path.flowchart-link, .edgePath path")].map(p => {
-                const nums = [...(p.getAttribute("d")||"").matchAll(/[-\d.]+/g)].map(m => +m[0]);
                 const dashed = (p.getAttribute("class")||"").includes("dashed") || getComputedStyle(p).strokeDasharray !== "none";
-                return { X1: nums[0]||0, Y1: nums[1]||0, X2: nums[nums.length-2]||0, Y2: nums[nums.length-1]||0, Dashed: dashed, Label: null, Lx: 0, Ly: 0 };
+                // Sample mermaid's actual curved path (getPointAtLength), mapped to root coords via
+                // the path's CTM, so Word can trace the same curve rather than a straight line.
+                const m = p.getCTM ? p.getCTM() : null;
+                const map = pt => m ? [pt.x*m.a + pt.y*m.c + m.e, pt.x*m.b + pt.y*m.d + m.f] : [pt.x, pt.y];
+                let pts = [];
+                try {
+                  const L = p.getTotalLength();
+                  const N = Math.max(6, Math.min(30, Math.round(L / 16)));
+                  for (let k = 0; k <= N; k++) { const [x, y] = map(p.getPointAtLength(L * k / N)); pts.push([+x.toFixed(1), +y.toFixed(1)]); }
+                } catch (e) {
+                  const nums = [...(p.getAttribute("d")||"").matchAll(/[-\d.]+/g)].map(v => +v[0]);
+                  pts = [[nums[0]||0, nums[1]||0], [nums[nums.length-2]||0, nums[nums.length-1]||0]];
+                }
+                return { X1: pts[0][0], Y1: pts[0][1], X2: pts[pts.length-1][0], Y2: pts[pts.length-1][1], Dashed: dashed, Label: null, Lx: 0, Ly: 0, Points: pts };
               });
               const labels = [...svgEl.querySelectorAll(".edgeLabels .edgeLabel, .edgeLabel")].map(l => {
                 const g = l.closest("g") || l; const [x, y] = T(g); return { t: (l.textContent||"").trim(), x, y };
