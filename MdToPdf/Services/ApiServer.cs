@@ -86,13 +86,50 @@ public sealed class ApiServer : IDisposable
         }
     }
 
+    // Which cross-origin callers may use the local API. Exact-host matching via Uri parsing — a
+    // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
+    private static bool IsAllowedOrigin(string? origin)
+    {
+        // No Origin header: a non-browser client (script, curl, the extension's direct fetch).
+        // "null": file:// pages and sandboxed/opaque contexts (a locally-opened dashboard).
+        if (string.IsNullOrEmpty(origin) || origin == "null") return true;
+
+        // Browser extensions (Chrome/Edge, Firefox, Safari) — the Marksmith Connector.
+        if (origin.StartsWith("chrome-extension://", StringComparison.Ordinal) ||
+            origin.StartsWith("moz-extension://", StringComparison.Ordinal) ||
+            origin.StartsWith("safari-web-extension://", StringComparison.Ordinal))
+            return true;
+
+        // Loopback only, matched on the exact host so look-alike public hosts can't slip through.
+        if (Uri.TryCreate(origin, UriKind.Absolute, out var u) &&
+            (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps || u.Scheme == "file"))
+        {
+            return u.Scheme == "file" || u.Host is "127.0.0.1" or "localhost" or "::1" or "[::1]";
+        }
+        return false;
+    }
+
     private async Task HandleAsync(HttpListenerContext ctx)
     {
         try
         {
-            // The admin dashboard is a separate origin (served file/localhost); allow it to read the
-            // 127.0.0.1-bound API. Safe: the listener only accepts loopback connections regardless.
-            ctx.Response.AddHeader("Access-Control-Allow-Origin", "*");
+            // CORS/CSRF hardening: the listener is bound to 127.0.0.1, but any public website the
+            // user visits could still fetch() this API. Blanket "Access-Control-Allow-Origin: *" let
+            // such a page READ responses (data exfiltration) and, worse, drive state-changing
+            // endpoints (/api/ingest, /api/convert). Only trusted callers are allowed: the browser
+            // extension, a loopback-hosted dashboard, file:// / opaque origins, and non-browser
+            // clients (no Origin header). Everything else is rejected BEFORE any handler runs, so a
+            // malicious origin can neither read data nor cause a side effect.
+            var origin = ctx.Request.Headers["Origin"];
+            if (!IsAllowedOrigin(origin))
+            {
+                ctx.Response.AddHeader("Access-Control-Allow-Origin", "null");
+                await WriteJsonAsync(ctx, 403, new { error = "forbidden origin" });
+                return;
+            }
+            // Echo the specific caller's origin (never blanket "*"), so only trusted origins can read.
+            ctx.Response.AddHeader("Access-Control-Allow-Origin", string.IsNullOrEmpty(origin) ? "*" : origin);
+            ctx.Response.AddHeader("Vary", "Origin");
             ctx.Response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             ctx.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
 

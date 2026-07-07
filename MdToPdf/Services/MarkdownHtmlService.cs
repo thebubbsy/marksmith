@@ -46,11 +46,13 @@ public sealed class MarkdownHtmlService
         var body = Markdown.ToHtml(markdown, Pipeline);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
-        // the content HTML-escaped, but mermaid.js only auto-renders class="mermaid" elements holding
-        // raw diagram text. Rewrite the fence to a <div class="mermaid"> and unescape its content.
+        // the content HTML-escaped. Rewrite the fence to a <div class="mermaid">, but KEEP the content
+        // escaped: mermaid reads the element's textContent (which the browser decodes automatically),
+        // so diagrams render correctly, while the browser never parses malicious markup like
+        // <img onerror=…> as live HTML inside the div. HtmlDecode-ing here would reintroduce that XSS.
         body = Regex.Replace(body,
             "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
-            m => $"<div class=\"mermaid\">{System.Net.WebUtility.HtmlDecode(m.Groups[1].Value)}</div>",
+            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>",
             RegexOptions.Singleline);
 
         // When the whole document is essentially one diagram + a title (and maybe a few words),
@@ -113,7 +115,7 @@ public sealed class MarkdownHtmlService
                 quadrantChart: { useMaxWidth: false },
                 mindmap: { useMaxWidth: false },
                 gitGraph: { useMaxWidth: false },
-                securityLevel: "loose"
+                securityLevel: "strict"
             });
             // Click-to-expand lens: wheel zooms about the cursor, drag pans, Esc / ✕ closes.
             window.addEventListener("DOMContentLoaded", () => {
@@ -290,7 +292,7 @@ public sealed class MarkdownHtmlService
               flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },
               sequence: { useMaxWidth: false }, gantt: { useMaxWidth: false }, class: { useMaxWidth: false },
               er: { useMaxWidth: false }, pie: { useMaxWidth: false }, mindmap: { useMaxWidth: false },
-              securityLevel: "loose" });
+              securityLevel: "strict" });
             (function () {
               const stage = document.getElementById("dv-stage"), inner = document.getElementById("dv-inner");
               const pct = document.getElementById("dv-pct");
