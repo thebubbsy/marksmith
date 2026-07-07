@@ -36,6 +36,7 @@ public sealed class MarkdownHtmlService
 
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme, LlmClassification? classification = null)
     {
+        markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);

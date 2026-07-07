@@ -81,6 +81,7 @@ public sealed class DocxExportService
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null) =>
         Task.Run(() =>
         {
+            markdown = TextNormalizer.Newlines(markdown);
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
             markdown = FormattingService.Apply(markdown, settings);
@@ -164,6 +165,7 @@ public sealed class DocxExportService
     {
         if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages).GetAwaiter().GetResult(); return; }
 
+        markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);

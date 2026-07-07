@@ -17,6 +17,7 @@ public sealed class PptxExportService
 
     public Task ExportAsync(string markdown, string pptxPath, AppSettings settings) => Task.Run(() =>
     {
+        markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
 

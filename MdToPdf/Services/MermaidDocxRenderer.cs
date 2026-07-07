@@ -38,6 +38,7 @@ public static class MermaidDocxRenderer
         public readonly Dictionary<string, Node> ById = new();
         public readonly List<Edge> Edges = new();
         public double W, H;
+        public double Scale = 1; // set by scale-to-fit; fonts follow it
     }
 
     // The ShapeForge renderer registry: one geometry renderer per diagram family (see
@@ -141,9 +142,14 @@ public static class MermaidDocxRenderer
             if (arrow is null) return false;
             var right = ReadNodeGroup(line, ref i, g);
             if (right is null) return false;
+            bool first = true;
             foreach (var u in left)
                 foreach (var v in right)
-                    g.Edges.Add(new Edge(u, v, arrow.Value.Label, arrow.Value.Dashed, arrow.Value.Thick, arrow.Value.Head));
+                {
+                    g.Edges.Add(new Edge(u, v, first ? arrow.Value.Label : null,
+                        arrow.Value.Dashed, arrow.Value.Thick, arrow.Value.Head));
+                    first = false;
+                }
             left = right;
         }
     }
@@ -251,42 +257,81 @@ public static class MermaidDocxRenderer
             var lines = n.Label.Length == 0 ? new[] { "" } : n.Label.Split('\n');
             int longest = lines.Max(l => l.Length);
             var baseW = Math.Clamp(18 + longest * 5.6, 70, 240);
-            n.W = n.Shape == "diamond" ? baseW * 1.45 : baseW;
+            n.W = n.Shape switch
+            {
+                "diamond" => baseW * 1.45,
+                "ellipse" => baseW * 1.35, // text region of an ellipse is ~70% of its width
+                "hexagon" => baseW * 1.25,
+                _ => baseW,
+            };
 
             double usableW = n.W - (n.Shape == "diamond" ? n.W * 0.38 : 14); // diamonds squeeze text
             double charsPerLine = Math.Max(6, usableW / 5.2);
             int textLines = lines.Sum(l => Math.Max(1, (int)Math.Ceiling(l.Length / charsPerLine)));
 
             double baseH = n.Shape is "diamond" or "ellipse" ? 44 : NodeH;
-            n.H = baseH + Math.Max(0, textLines - 1) * (n.Shape == "diamond" ? 18 : 12);
+            n.H = baseH + Math.Max(0, textLines - 1) * (n.Shape == "diamond" ? 20 : 14) + (textLines > 1 ? 4 : 0);
         }
 
         var ranks = g.Nodes.GroupBy(n => n.Rank).OrderBy(r => r.Key).ToList();
 
         if (!g.LeftRight)
         {
-            double canvasW = ranks.Max(r => r.Sum(n => n.W) + (r.Count() - 1) * HGap) + 2 * Margin;
-            double y = Margin;
+            // Wide ranks WRAP into multiple sub-rows instead of forcing a microscopic global scale —
+            // big fan-outs stay page-width and readable. Two passes: pack, then centre.
+            double usable = MaxCanvasW - 2 * Margin;
+            var rows = new List<List<Node>>();
             foreach (var rank in ranks)
             {
-                double slot = rank.Max(n => n.H); // per-rank: a tall node pushes its own row apart
-                double rowW = rank.Sum(n => n.W) + (rank.Count() - 1) * HGap;
+                var cur = new List<Node>();
+                double w = 0;
+                foreach (var n in rank)
+                {
+                    double add = (cur.Count > 0 ? HGap : 0) + n.W;
+                    if (cur.Count > 0 && w + add > usable) { rows.Add(cur); cur = new(); w = 0; add = n.W; }
+                    cur.Add(n); w += add;
+                }
+                if (cur.Count > 0) rows.Add(cur);
+            }
+
+            double canvasW = rows.Max(r => r.Sum(n => n.W) + (r.Count - 1) * HGap) + 2 * Margin;
+            double y = Margin;
+            foreach (var row in rows)
+            {
+                double slot = row.Max(n => n.H);
+                double rowW = row.Sum(n => n.W) + (row.Count - 1) * HGap;
                 double x = (canvasW - rowW) / 2;
-                foreach (var n in rank) { n.X = x; n.Y = y + (slot - n.H) / 2; x += n.W + HGap; }
+                foreach (var n in row) { n.X = x; n.Y = y + (slot - n.H) / 2; x += n.W + HGap; }
                 y += slot + VGap;
             }
             g.W = canvasW; g.H = y - VGap + Margin;
         }
         else
         {
-            double colW = g.Nodes.Max(n => n.W);
-            double canvasH = ranks.Max(r => r.Sum(n => n.H) + (r.Count() - 1) * HGap) + 2 * Margin;
-            double x = Margin;
+            // LR: tall ranks wrap into multiple sub-columns, symmetrically.
+            double usable = MaxCanvasH - 2 * Margin;
+            var cols = new List<List<Node>>();
             foreach (var rank in ranks)
             {
-                double colH = rank.Sum(n => n.H) + (rank.Count() - 1) * HGap;
+                var cur = new List<Node>();
+                double h = 0;
+                foreach (var n in rank)
+                {
+                    double add = (cur.Count > 0 ? HGap : 0) + n.H;
+                    if (cur.Count > 0 && h + add > usable) { cols.Add(cur); cur = new(); h = 0; add = n.H; }
+                    cur.Add(n); h += add;
+                }
+                if (cur.Count > 0) cols.Add(cur);
+            }
+
+            double canvasH = cols.Max(c => c.Sum(n => n.H) + (c.Count - 1) * HGap) + 2 * Margin;
+            double x = Margin;
+            foreach (var col in cols)
+            {
+                double colW = col.Max(n => n.W);
+                double colH = col.Sum(n => n.H) + (col.Count - 1) * HGap;
                 double y = (canvasH - colH) / 2;
-                foreach (var n in rank) { n.X = x + (colW - n.W) / 2; n.Y = y; y += n.H + HGap; }
+                foreach (var n in col) { n.X = x + (colW - n.W) / 2; n.Y = y; y += n.H + HGap; }
                 x += colW + VGap;
             }
             g.W = x - VGap + Margin; g.H = canvasH;
@@ -298,6 +343,7 @@ public static class MermaidDocxRenderer
         {
             foreach (var n in g.Nodes) { n.X *= s; n.Y *= s; n.W *= s; n.H *= s; }
             g.W *= s; g.H *= s;
+            g.Scale = s;
         }
     }
 
@@ -313,9 +359,9 @@ public static class MermaidDocxRenderer
         uint id = drawingId * 100;
 
         foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id));
-        foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, ++id));
+        foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, ++id, g.Scale));
         foreach (var e in g.Edges)
-            if (e.Label is not null) sb.Append(EdgeLabelXml(e, g, bg, text, ++id));
+            if (e.Label is not null) sb.Append(EdgeLabelXml(e, g, bg, text, ++id, g.Scale));
 
         return $"""
             <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -338,7 +384,7 @@ public static class MermaidDocxRenderer
             """;
     }
 
-    private static string NodeXml(Node n, string fill, string border, string text, uint id)
+    private static string NodeXml(Node n, string fill, string border, string text, uint id, double scale)
     {
         var prst = n.Shape switch
         {
@@ -359,7 +405,7 @@ public static class MermaidDocxRenderer
                 <w:txbxContent>
                   {string.Join("", n.Label.Split('\n').Select(l =>
                       $"<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\" w:line=\"216\" w:lineRule=\"auto\"/><w:jc w:val=\"center\"/></w:pPr>" +
-                      $"<w:r><w:rPr><w:color w:val=\"{text}\"/><w:sz w:val=\"18\"/></w:rPr><w:t xml:space=\"preserve\">{XmlEsc(l)}</w:t></w:r></w:p>"))}
+                      $"<w:r><w:rPr><w:color w:val=\"{text}\"/><w:sz w:val=\"{Math.Max(12, (int)Math.Round(18 * scale))}\"/></w:rPr><w:t xml:space=\"preserve\">{XmlEsc(l)}</w:t></w:r></w:p>"))}
                 </w:txbxContent>
               </wps:txbx>
               <wps:bodyPr lIns="27432" tIns="9144" rIns="27432" bIns="9144" anchor="ctr"><a:noAutofit/></wps:bodyPr>
@@ -408,11 +454,15 @@ public static class MermaidDocxRenderer
             """;
     }
 
-    private static string EdgeLabelXml(Edge e, Graph g, string bg, string text, uint id)
+    private static string EdgeLabelXml(Edge e, Graph g, string bg, string text, uint id, double scale)
     {
-        double mx = (e.From.X + e.From.W / 2 + e.To.X + e.To.W / 2) / 2;
-        double my = (e.From.Y + e.From.H / 2 + e.To.Y + e.To.H / 2) / 2;
-        double w = Math.Clamp(10 + e.Label!.Length * 4.6, 26, 160), h = 15;
+        // Sit the label 38% along the edge (closer to the source) rather than dead centre — on a
+        // dense graph the midpoint is where crossings and other rows' boxes live.
+        double x1 = e.From.X + e.From.W / 2, y1 = e.From.Y + e.From.H / 2;
+        double x2 = e.To.X + e.To.W / 2, y2 = e.To.Y + e.To.H / 2;
+        double mx = x1 + (x2 - x1) * 0.38;
+        double my = y1 + (y2 - y1) * 0.38;
+        double w = Math.Clamp((10 + e.Label!.Length * 4.6) * scale, 20, 160), h = 15 * scale;
         return $"""
             <wps:wsp>
               <wps:cNvPr id="{id}" name="edge label"/>
