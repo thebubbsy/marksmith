@@ -903,7 +903,7 @@ public sealed partial class MainWindow : Window
     public async Task<List<byte[]?>> RenderMermaidPngsAsync(string markdown, Models.AppSettings settings)
     {
         var fences = System.Text.RegularExpressions.Regex.Matches(
-                markdown.Replace("\r", ""), "```mermaid[ \\t]*\\n(.*?)```",
+                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
                 System.Text.RegularExpressions.RegexOptions.Singleline)
             .Select(m => m.Groups[1].Value).ToList();
         if (fences.Count == 0) return new();

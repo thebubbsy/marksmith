@@ -23,6 +23,7 @@ public sealed class EpubExportService
 
     public Task ExportAsync(string markdown, string epubPath, AppSettings settings) => Task.Run(() =>
     {
+        markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
