@@ -12,6 +12,6 @@ Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/thebubbsy/marksmith/releases/download/v1.2.3/Marksmith-Setup-x64.exe
     # Replace with the real SHA256 of the released installer (the release workflow prints it).
-    InstallerSha256: 28c69524ba1993b6da35a7a89af7283fbd9ed2145d009241e2f3dfded8bd526f
+    InstallerSha256: 6133df3398df9a7f4c184ee5686f7c5f8fe5ebbd900b1b2636d5172698b01d79
 ManifestType: installer
 ManifestVersion: 1.6.0
