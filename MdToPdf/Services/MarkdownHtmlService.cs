@@ -176,7 +176,7 @@ public sealed class MarkdownHtmlService
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
             .mermaid { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
             .mermaid svg { max-width: none !important; }
-            #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; }
+            #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; user-select: none; -webkit-user-select: none; }
             #mk-lens.open { display: block; }
             #mk-lens.dragging { cursor: grabbing; }
             #mk-lens-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -250,6 +250,8 @@ public sealed class MarkdownHtmlService
             <style>
             html, body { margin: 0; height: 100%; overflow: hidden; background: {{theme.Background}}; color: {{theme.Text}};
                          font-family: -apple-system, "Segoe UI", sans-serif; }
+            /* Panning the diagram must never highlight its labels. */
+            #dv, #dv-stage, #dv-inner { user-select: none; -webkit-user-select: none; }
             #dv { position: fixed; inset: 0; }
             #dv-head { position: absolute; top: 16px; left: 22px; z-index: 5; max-width: 62%; pointer-events: none; }
             #dv-title { font-size: 19px; font-weight: 700; color: {{theme.Heading}}; line-height: 1.25; }
