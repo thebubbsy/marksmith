@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: thebubbsy.Marksmith
-PackageVersion: 1.2.3
+PackageVersion: 1.2.4
 InstallerType: inno
 Scope: machine
 InstallModes:
@@ -10,7 +10,7 @@ InstallModes:
 UpgradeBehavior: install
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/thebubbsy/marksmith/releases/download/v1.2.3/Marksmith-Setup-x64.exe
+    InstallerUrl: https://github.com/thebubbsy/marksmith/releases/download/v1.2.4/Marksmith-Setup-x64.exe
     # Replace with the real SHA256 of the released installer (the release workflow prints it).
     InstallerSha256: 6133df3398df9a7f4c184ee5686f7c5f8fe5ebbd900b1b2636d5172698b01d79
 ManifestType: installer
