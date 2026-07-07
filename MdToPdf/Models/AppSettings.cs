@@ -30,6 +30,12 @@ public sealed class AppSettings
     //   1 = ShapeForge — rebuild the diagram as native, editable Word shapes (default)
     public int MermaidDocxMode { get; set; } = 1;
 
+    // What to do when a diagram is too big to fit a printed page in ShapeForge mode:
+    //   0 = Ask — prompt at export time (the "call to user")
+    //   1 = Exact — keep mermaid's exact layout/order; document opens in Word's Web Layout view
+    //   2 = Reflow — re-wrap and re-order the diagram to fit the page width (fully printable)
+    public int OversizedDiagramMode { get; set; } = 0;
+
     // Branding kit (Pro): make exports look like YOUR documents, not converted markdown.
     public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
     public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
