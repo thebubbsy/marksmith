@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: thebubbsy.Marksmith
-PackageVersion: 1.2.1
+PackageVersion: 1.2.2
 PackageLocale: en-US
 Publisher: thebubbsy
 PublisherUrl: https://github.com/thebubbsy
@@ -31,6 +31,6 @@ Tags:
   - documents
   - winui
 ReleaseNotes: ShapeForge native Word diagrams (9 mermaid families), editable equations, EPUB/PPTX export, Copy-as-Markdown browser button, Copilot support.
-ReleaseNotesUrl: https://github.com/thebubbsy/marksmith/releases/tag/v1.2.1
+ReleaseNotesUrl: https://github.com/thebubbsy/marksmith/releases/tag/v1.2.2
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
