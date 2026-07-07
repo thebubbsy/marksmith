@@ -36,6 +36,9 @@ public sealed class AppSettings
     //   2 = Reflow — re-wrap and re-order the diagram to fit the page width (fully printable)
     public int OversizedDiagramMode { get; set; } = 0;
 
+    // First-run guided tour: shown once automatically, replayable from the title-bar tour button.
+    public bool HasSeenWelcome { get; set; }
+
     // Branding kit (Pro): make exports look like YOUR documents, not converted markdown.
     public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
     public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
