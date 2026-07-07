@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>marksmith</id>
-    <version>1.1.3</version>
+    <version>1.1.4</version>
     <packageSourceUrl>https://github.com/thebubbsy/marksmith/tree/main/packaging/chocolatey</packageSourceUrl>
     <owners>thebubbsy</owners>
     <title>Marksmith</title>
@@ -30,7 +30,7 @@ ChatGPT, Gemini, and Claude — into professional **PDF** or **DOCX** documents.
 Requires Windows 11 (x64). The .NET runtime and Windows App SDK are bundled — nothing else
 to install.
     </description>
-    <releaseNotes>https://github.com/thebubbsy/marksmith/releases/tag/v1.1.3</releaseNotes>
+    <releaseNotes>https://github.com/thebubbsy/marksmith/releases/tag/v1.1.4</releaseNotes>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />
