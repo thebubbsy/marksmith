@@ -82,7 +82,21 @@ public sealed class MarkdownHtmlService
                 },
                 maxTextSize: 10000000,
                 maxNodes: 10000,
+                // useMaxWidth:true (the default) makes diagrams ELASTIC to the viewport — zooming in
+                // shrinks them back to fit, which reads as "zoom is broken". Pin every family to its
+                // natural size; the canvas scrolls instead.
                 flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },
+                sequence: { useMaxWidth: false },
+                gantt: { useMaxWidth: false },
+                journey: { useMaxWidth: false },
+                timeline: { useMaxWidth: false },
+                class: { useMaxWidth: false },
+                state: { useMaxWidth: false },
+                er: { useMaxWidth: false },
+                pie: { useMaxWidth: false },
+                quadrantChart: { useMaxWidth: false },
+                mindmap: { useMaxWidth: false },
+                gitGraph: { useMaxWidth: false },
                 securityLevel: "loose"
             });
             </script>
@@ -104,8 +118,15 @@ public sealed class MarkdownHtmlService
             .markdown-alert { border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; }
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
-            .mermaid { width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; }
-            .mermaid svg { width: 100% !important; height: auto !important; }
+            /* Screen (the live preview): diagrams at NATURAL size in a scrollable box — forcing
+               width:100% crushed big diagrams and made zoom feel inverted. Print (the PDF export):
+               fit-to-page-width, which is what a fixed page wants. */
+            .mermaid { width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; }
+            .mermaid svg { max-width: none !important; }
+            @media print {
+              .mermaid { overflow-x: visible; }
+              .mermaid svg { width: 100% !important; height: auto !important; max-width: 100% !important; }
+            }
             .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect { stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
             .mermaid .label { color: {{theme.Primary}} !important; }

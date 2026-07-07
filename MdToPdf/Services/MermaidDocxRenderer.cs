@@ -351,6 +351,9 @@ public static class MermaidDocxRenderer
             g.W *= s; g.H *= s;
             g.Scale = s;
         }
+        // A diagram that dominates the page reads far better in Web Layout too — page breaks and
+        // print margins just fight it. (Word still prints; the view is for reading/editing.)
+        if (g.H > 480) g.Oversized = true;
     }
 
     // ---------------- DrawingML emit ----------------
