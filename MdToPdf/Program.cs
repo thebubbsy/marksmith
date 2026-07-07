@@ -14,12 +14,18 @@ public static class Program
     [System.Runtime.InteropServices.DllImport("Microsoft.ui.xaml.dll")]
     private static extern void XamlCheckProcessRequirements();
 
-    private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "startup-crash.log");
+    // Per-user, always-writable app data root. The install lives under Program Files (read-only for
+    // standard users), so neither WebView2's data folder nor the crash log may live next to the exe.
+    private static readonly string AppDataDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Marksmith");
+
+    private static readonly string LogPath = Path.Combine(AppDataDir, "startup-crash.log");
 
     private static void LogFatal(string source, Exception ex)
     {
         try
         {
+            Directory.CreateDirectory(AppDataDir);
             File.WriteAllText(LogPath, $"[{source}] {DateTime.Now:O}{Environment.NewLine}{ex}");
         }
         catch
@@ -35,6 +41,18 @@ public static class Program
         {
             if (e.ExceptionObject is Exception ex) LogFatal("AppDomain.UnhandledException", ex);
         };
+
+        // WebView2 defaults its user-data folder to "<exe>.WebView2\" beside the exe. Under Program
+        // Files that's not writable by a standard user, so the WebView fails to start ("Microsoft
+        // Edge can't read and write to its data directory"). Point it at the per-user app data root
+        // BEFORE any WebView2 initialization. Must be set here, before the window is created.
+        try
+        {
+            var wv2 = Path.Combine(AppDataDir, "WebView2");
+            Directory.CreateDirectory(wv2);
+            Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", wv2);
+        }
+        catch (Exception ex) { LogFatal("WebView2 data folder setup", ex); }
 
         try
         {
