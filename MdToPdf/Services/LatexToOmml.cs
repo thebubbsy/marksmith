@@ -298,6 +298,11 @@ internal static class LatexToOmml
 
             void EndCol() { curRow.Add(Base(curCol)); curCol.Clear(); }
             void EndRow() { EndCol(); var r = new M.MatrixRow(); foreach (var c in curRow) r.Append(c); rows.Add(r); curRow.Clear(); }
+            if (envName == "array" && More && Cur.Kind == Kind.LBrace)
+            {
+                _i++;
+                ParseBracedRaw();
+            }
 
             while (More)
             {
@@ -308,7 +313,7 @@ internal static class LatexToOmml
                     if (curCol.Count > 0 || curRow.Count > 0) EndRow();
                     break;
                 }
-                if (Cur.Kind == Kind.Cmd && Cur.Text == "\\") { _i++; EndRow(); continue; }
+                if (Cur.Kind == Kind.Cmd && (Cur.Text == "\\" || Cur.Text == "\\\\")) { _i++; EndRow(); continue; }
                 if (Cur.Kind == Kind.Amp) { _i++; EndCol(); continue; }
                 curCol.AddRange(ParseAtomWithScripts());
             }
@@ -331,13 +336,14 @@ internal static class LatexToOmml
 
             switch (envName)
             {
-                case "matrix": return new() { baseEq };
+                case "matrix":
+                case "array": return new() { mat };
                 case "pmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "(" }, new M.EndChar { Val = ")" }), baseEq) };
                 case "bmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "[" }, new M.EndChar { Val = "]" }), baseEq) };
                 case "vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "|" }, new M.EndChar { Val = "|" }), baseEq) };
                 case "Vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "‖" }, new M.EndChar { Val = "‖" }), baseEq) };
                 case "cases": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "{" }, new M.EndChar { Val = "" }), baseEq) };
-                default: return new() { baseEq };
+                default: return new() { mat };
             }
         }
 
