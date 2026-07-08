@@ -74,16 +74,24 @@ function report(cfg, sentText) {
   const dlp = window.MarksmithDlp.scan(sentText);
   const words = sentText.split(/\s+/).filter(Boolean).length;
 
-  send(cfg, {
+  const payload = {
     charCount: sentText.length,
     wordCount: words,
     dlpFlags: dlp.flags,
     dlpHitCount: dlp.hits,
-    dlpMatches: dlp.matches, // {category, masked, remediation}[] — masked (or, for an AWS Access
-                             // Key ID specifically, revealed-in-full) values only
-    redactedContext: dlp.redactedContext, // "" when nothing was flagged — no capture on clean text
-    secretDensity: dlp.secretDensity,
-  });
+  };
+
+  if (dlp.hits > 0) {
+    if (cfg.captureMode === "raw") {
+      payload.rawMessage = sentText;
+    } else {
+      payload.dlpMatches = dlp.matches;
+      payload.redactedContext = dlp.redactedContext;
+      payload.secretDensity = dlp.secretDensity;
+    }
+  }
+
+  send(cfg, payload);
 
   if (dlp.hits > 0) flashDlpWarning(dlp.flags);
 }
@@ -129,14 +137,7 @@ function send(cfg, extra) {
       assistant: assistantName(),
       url: location.origin + location.pathname,
       title: (document.title || "").slice(0, 120),
-      charCount: 0,
-      wordCount: 0,
       timeSpentSeconds: 0,
-      dlpFlags: [],
-      dlpHitCount: 0,
-      dlpMatches: [],
-      redactedContext: "",
-      secretDensity: 0,
 
       ...extra,
     },

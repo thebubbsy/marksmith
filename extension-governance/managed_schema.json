@@ -29,6 +29,12 @@
         "policyUrl": {
             "type": "string",
             "description": "Link to the organization's AI-usage / monitoring policy."
+        },
+        "captureMode": {
+            "type": "string",
+            "enum": ["masked", "raw"],
+            "default": "masked",
+            "description": "Determines how the extension handles DLP hits. 'masked' sends redacted context and masked matches for zero-knowledge review. 'raw' captures the exact unmasked text of the message for full forensic ground truth."
         }
     }
 }
