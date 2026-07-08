@@ -298,11 +298,11 @@ internal static class LatexToOmml
 
             void EndCol() { curRow.Add(Base(curCol)); curCol.Clear(); }
             void EndRow() { EndCol(); var r = new M.MatrixRow(); foreach (var c in curRow) r.Append(c); rows.Add(r); curRow.Clear(); }
+            // \begin{array}{cc} carries a column-spec group; consume the WHOLE {…} so it doesn't
+            // leak into the first cell. ParseBracedRaw reads the full braced group itself — do NOT
+            // pre-advance past the '{' first (that double-consumes and corrupts the parse).
             if (envName == "array" && More && Cur.Kind == Kind.LBrace)
-            {
-                _i++;
                 ParseBracedRaw();
-            }
 
             while (More)
             {
@@ -332,17 +332,20 @@ internal static class LatexToOmml
             ));
             foreach (var r in rows) mat.Append(r);
 
-            var baseEq = Base(new[] { mat });
-
+            // NOTE: build the wrapping Base ONLY inside the delimiter cases. Creating it
+            // unconditionally parents `mat`, so the bare cases that return `mat` directly would then
+            // append an already-parented element and throw (→ literal fallback). One env runs per
+            // call, so wrapping in the chosen case parents `mat` exactly once.
+            M.Base Wrapped() => Base(new[] { mat });
             switch (envName)
             {
                 case "matrix":
                 case "array": return new() { mat };
-                case "pmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "(" }, new M.EndChar { Val = ")" }), baseEq) };
-                case "bmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "[" }, new M.EndChar { Val = "]" }), baseEq) };
-                case "vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "|" }, new M.EndChar { Val = "|" }), baseEq) };
-                case "Vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "‖" }, new M.EndChar { Val = "‖" }), baseEq) };
-                case "cases": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "{" }, new M.EndChar { Val = "" }), baseEq) };
+                case "pmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "(" }, new M.EndChar { Val = ")" }), Wrapped()) };
+                case "bmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "[" }, new M.EndChar { Val = "]" }), Wrapped()) };
+                case "vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "|" }, new M.EndChar { Val = "|" }), Wrapped()) };
+                case "Vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "‖" }, new M.EndChar { Val = "‖" }), Wrapped()) };
+                case "cases": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "{" }, new M.EndChar { Val = "" }), Wrapped()) };
                 default: return new() { mat };
             }
         }
