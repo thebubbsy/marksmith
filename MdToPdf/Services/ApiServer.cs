@@ -36,12 +36,27 @@ public sealed class ApiServer : IDisposable
     // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
     private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, OutputOverride? Output);
 
-    // Governance report from a managed extension. consentAcknowledged MUST be true — the collector
-    // rejects reports that don't assert the user saw the monitoring notice, so the transparency
-    // requirement is enforced server-side, not just in the extension UI.
+    // Governance report from a managed extension. 
+    private sealed record GovDlpMatch(string? Category, string? Masked, string? Remediation);
+
     private sealed record GovReport(
         string? User, string? Device, string? Assistant, string? Url, string? Title,
-        int? CharCount, int? WordCount, List<string>? DlpFlags, int? DlpHitCount, bool? ConsentAcknowledged);
+        int? CharCount, int? WordCount, int? TimeSpentSeconds,
+        List<string>? DlpFlags, int? DlpHitCount, List<GovDlpMatch>? DlpMatches,
+        string? RedactedContext, double? SecretDensity);
+
+    // Defense-in-depth: the extension is supposed to mask every DLP value before sending it, but a
+    // buggy or tampered client could forward raw text. Refuse (rather than silently store) any
+    // "masked" value that itself still matches a live secret pattern, so an unmasked leak can never
+    // reach the collector's storage even if the client-side masking has a bug.
+    private static bool LooksUnmasked(string masked)
+    {
+        if (masked.Contains('•') || masked.Contains('*') || masked.StartsWith('[')) return false;
+        // AWS Access Key IDs are deliberately revealed in full (identifiers, not secrets) — a
+        // correctly revealed key must not be flagged as a masking failure. Everything else that
+        // still matches a mask-worthy pattern here means the client failed to mask it.
+        return DlpScanService.ContainsUnmaskedSecret(masked);
+    }
 
     public ApiServer(
         LlmSourceService llm,
@@ -197,12 +212,23 @@ public sealed class ApiServer : IDisposable
                     var r = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<GovReport>(body, JsonOpts);
                     if (r is null) { await WriteJsonAsync(ctx, 400, new { error = "empty report" }); break; }
 
-                    // Transparency is enforced here, not just client-side: no consent flag, no record.
-                    if (r.ConsentAcknowledged != true)
+                    // Defense-in-depth (see LooksUnmasked): drop any finding whose "masked" value
+                    // still looks like a live secret rather than storing a potential raw leak.
+                    var safeMatches = new List<DlpFinding>();
+                    var droppedUnmasked = 0;
+                    foreach (var m in r.DlpMatches ?? new())
                     {
-                        await WriteJsonAsync(ctx, 403, new { error = "consentAcknowledged must be true; monitoring requires the employee to have seen the notice" });
-                        break;
+                        if (string.IsNullOrEmpty(m.Masked) || LooksUnmasked(m.Masked)) { droppedUnmasked++; continue; }
+                        safeMatches.Add(new DlpFinding { Category = m.Category ?? "", Masked = m.Masked, Remediation = m.Remediation ?? "" });
                     }
+
+                    // Same defense-in-depth for the redacted-context string: re-run the residual
+                    // redaction pass server-side too, so a bug in the client's span math can't
+                    // leave a raw secret sitting inside stored context. Also enforces the length
+                    // cap and clamps density — never trust client-computed bounds.
+                    var safeContext = DlpScanService.RedactResidual(
+                        (r.RedactedContext ?? "").Length > 500 ? r.RedactedContext![..500] + "…" : r.RedactedContext ?? "");
+                    var safeDensity = Math.Clamp(r.SecretDensity ?? 0, 0, 1);
 
                     _governance.Record(new UsageEvent
                     {
@@ -213,11 +239,14 @@ public sealed class ApiServer : IDisposable
                         Title = r.Title ?? "",
                         CharCount = r.CharCount ?? 0,
                         WordCount = r.WordCount ?? 0,
+                        TimeSpentSeconds = Math.Clamp(r.TimeSpentSeconds ?? 0, 0, 3600), // one report can't claim >1h
                         DlpFlags = r.DlpFlags ?? new(),
                         DlpHitCount = r.DlpHitCount ?? 0,
-                        ConsentAcknowledged = true,
+                        DlpMatches = safeMatches,
+                        RedactedContext = safeContext,
+                        SecretDensity = safeDensity,
                     });
-                    await WriteJsonAsync(ctx, 200, new { ok = true });
+                    await WriteJsonAsync(ctx, 200, new { ok = true, droppedUnmasked });
                     break;
                 }
 
