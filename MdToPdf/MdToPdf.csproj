@@ -7,7 +7,7 @@
     <RootNamespace>MdToPdf</RootNamespace>
     <!-- Ship the binary as Marksmith.exe (namespace/project stay MdToPdf internally). -->
     <AssemblyName>Marksmith</AssemblyName>
-    <Version>1.2.8</Version>
+    <Version>1.3.0</Version>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -51,6 +51,9 @@
     <Content Include="Assets\tray.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2
+         virtual host — no CDN calls, works without internet, faster preview. -->
+    <Content Include="Assets\web\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
