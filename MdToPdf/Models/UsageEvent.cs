@@ -53,6 +53,10 @@ public sealed class UsageEvent
     public string RedactedContext { get; set; } = "";
     public double SecretDensity { get; set; }
 
+    // Option 2 (Full Raw Capture) mode: If the organization configures the extension for "raw"
+    // capture, this field holds the exact, unmasked text of the message. If "masked", this is empty.
+    public string RawMessage { get; set; } = "";
+
     public bool ConsentAcknowledged { get; set; } // extension asserts the user saw the notice
 
     public string RiskLevel => DlpHitCount switch
