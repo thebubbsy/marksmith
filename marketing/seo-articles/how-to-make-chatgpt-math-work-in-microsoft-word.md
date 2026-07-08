@@ -55,7 +55,7 @@ Here is why Marksmith is the ultimate solution for AI-generated math:
 ### Real, editable math (not pictures)
 Marksmith features a proprietary MD-to-Word conversion engine that doesn't just try to paste LaTeX into Word. Instead, it translates LaTeX and KaTeX straight into **OMML** (Office Math Markup Language)—the exact native format that Word's own equation editor uses.
 
-This means that fractions, roots, sub/superscripts, delimiters, Greek letters, and upright function names all map through perfectly. Even complex structures like n-ary sums with under/over limits and integrals with sub/sup limits are handled natively. 
+This means that fractions, roots, sub/superscripts, delimiters, Greek letters, and upright function names all map through perfectly. Even complex structures like n-ary sums with under/over limits, integrals with sub/sup limits, matrices, piecewise functions (cases), arrays, binomials, and over/underbraces are handled natively. 
 
 When you export a document from Marksmith and open it in Word, `\sum_{i=1}^{n} i^2` doesn't appear as a string of code, nor does it appear as a static image. It opens as a real Cambria Math equation that you can click into, edit, and interact with, just as if you had typed it out yourself.
 
