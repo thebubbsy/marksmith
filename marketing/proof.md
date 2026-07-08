@@ -1,70 +1,71 @@
-# The Proof: Test Marksmith Yourself
+# Marksmith: Proof, Not Hype
 
-We make very specific claims about what Marksmith can do, but we don't want you to take our word for it. 
+We know the claims on our landing page sound a bit too good to be true. "Native editable equations" and "Word shapes from Mermaid diagrams" usually mean a tool is secretly just pasting a PNG image and calling it a day.
 
-Below, you'll find the exact steps to verify each feature on your own machine in about 30 seconds. No tricks, no hidden network calls, just the raw output. Here is how to test our native Word equations, fully editable diagrams, offline processing, and document restyling.
-
-(And further down, we list exactly what the app does *not* do yet. Honesty saves everyone's time.)
+Here is the concrete proof that Marksmith does exactly what it says on the tin. We encourage you to try these repros yourself.
 
 ---
 
-## 1. Editable Word Equations
+## Claim 1: Natively Editable Word Equations (Even Matrices)
 
-When an AI gives you LaTeX or KaTeX, pasting it into Microsoft Word usually results in broken slashes or static images. Marksmith translates it directly into Word's native OMML format.
+**The Claim:** Marksmith converts LaTeX and KaTeX math into true, native Word OMML equations. This includes complex environments like matrices and piecewise functions, binomials, overbraces, limits, and fractions. 
 
-**Before:** Raw `\sum_{i=1}^{n} i^2` or a broken picture of an equation.  
-**After:** A real, clickable, native Cambria Math equation in Word. 
-
-**Try it yourself in 30 seconds:**
+**The Repro:**
 1. Open Marksmith.
-2. Paste this text: `Here is a sum: \sum_{i=1}^{n} i^2`
-3. Click **Export DOCX**.
-4. Open the generated file in Word. Click on the equation—you can edit the variables, limits, and structure using Word's own native equation tools. It's the math and diagrams AI actually produces, fully integrated into your document.
+2. Paste the following LaTeX into the editor:
+   ```latex
+   \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+   ```
+3. Export to Word (DOCX).
+4. Open the document in Microsoft Word.
 
-## 2. Editable Word Diagrams
-
-Mermaid diagrams from AI usually have to be exported as flat PNGs. Marksmith redraws them as native, editable Word shape groups, matching the actual colors of the diagram. We support every Mermaid diagram type (flowchart, sequence, class, ER, state, C4, block, kanban, packet, sankey, gantt, pie, mindmap, timeline, journey, gitgraph, quadrant, xychart, requirement, architecture).
-
-**Before:** A static image where fixing a single typo means regenerating the whole chart.  
-**After:** A grouped set of native Word shapes (boxes, arrows, wedges) that you can individually recolor, move, or edit text inside.
-
-**Try it yourself in 30 seconds:**
-1. In Marksmith, paste a standard Mermaid flowchart snippet.
-2. Click **Export DOCX**.
-3. Open the file in Word. Click on any box or arrow in the diagram. You can drag the shapes, change the text, or re-theme them natively in Word.
-
-## 3. Strip the AI Tells (Your House Style)
-
-AI assistants leave behind recognizable formatting quirks: em-dash spray, citation pips like `[7]`, and pseudo-headings. Marksmith isn't designed to "beat" AI detectors—it's designed to make the document look like *your* house style, ready to send.
-
-**Before:** A document that screams "I copied this from a chatbot," complete with `【7†source】` and heavy, relentless bolding.  
-**After:** A clean, professional document using your chosen theme, with AI artifacts transparently normalized and removed.
-
-**Try it yourself in 30 seconds:**
-1. Copy a messy response directly from ChatGPT (ensure it has some citation pips or excessive bolding).
-2. Paste it into Marksmith and toggle on **Normalize AI quirks**.
-3. Export. The resulting document is clean, the quirks are gone, and a Word comment explicitly lists the changes made so nothing happens silently. 
-
-## 4. 100% Local and Offline
-
-Many tools claim privacy but still phone home to render math or diagrams. Marksmith runs entirely on-device and makes zero external network calls. Mermaid, KaTeX, and fonts are all bundled in the Windows 11 app.
-
-**Before:** Uploading sensitive company data to a third-party server just to get a PDF.  
-**After:** Processing strictly on your local hardware.
-
-**Try it yourself in 30 seconds:**
-1. Turn off your Wi-Fi or unplug your Ethernet cable.
-2. Open Marksmith, paste in a complex Markdown document with equations and Mermaid charts.
-3. Export to PDF or DOCX. It works instantly and flawlessly. 
+**The Proof:**
+Click on the matrix. You will see Word's native "Equation" box outline appear. You can place your cursor next to the `a` and change it to an `x`. It is not an image; it is an OOXML `<m:oMath>` element generated locally on your machine.
 
 ---
 
-## What it does NOT do yet
+## Claim 2: Mermaid Diagrams as Native Word Shapes (ShapeForge™)
 
-We believe in being upfront about our technical limitations so you know exactly what you are getting.
+**The Claim:** Marksmith converts *every* Mermaid diagram type (flowcharts, sequence, class, state, C4, sankey, mindmap, architecture, and more) into native, grouped Word shapes that you can click into, edit, and recolor.
 
-- **Sankey flow-ribbon widths:** While we reproduce the structure, color, connectivity, and text of Sankey diagrams perfectly in Word, we cannot currently reproduce the exact variable ribbon widths. 
-- **Architecture diagram icon glyphs:** For Mermaid architecture diagrams, the structural layout and text are fully converted to editable shapes, but the specific icon glyphs are not yet reproduced. 
-- **Platform support:** Marksmith is strictly for **Windows 11 only**. We do not support Windows 10, Mac, or Linux. 
+**The Repro:**
+1. Open Marksmith.
+2. Paste the following Mermaid code:
+   ```mermaid
+   stateDiagram-v2
+       [*] --> Still
+       Still --> [*]
+   ```
+3. Export to Word (DOCX).
+4. Open the document in Microsoft Word.
 
-*(Note: The free tier of Marksmith handles all PDF exports. Exporting to DOCX, PPTX, and EPUB, along with the Branding Kit, is part of Marksmith Pro—a one-time purchase.)*
+**The Proof:**
+Click on the "Still" box. You will see Word's "Shape Format" ribbon appear. You can change the fill color, drag the box around, or edit the text. The diagram is built from native Word rectangles, lines, and text boxes, perfectly retaining Mermaid's actual fill and stroke colors. *(Note: Sankey flow ribbons are currently rendered as connection lines, and architecture-beta icon glyphs are not reproduced, but the structure, connectivity, text, and colors are fully intact).*
+
+---
+
+## Claim 3: 100% Local and Private (Zero Cloud)
+
+**The Claim:** Marksmith runs entirely on your device and makes zero external network calls.
+
+**The Repro:**
+1. Turn off your Wi-Fi or unplug your ethernet cable.
+2. Open Marksmith and paste in a complex ChatGPT response containing both math and diagrams.
+3. Export it to PDF or Word.
+
+**The Proof:**
+The document exports instantly and perfectly. Marksmith bundles its own Mermaid and KaTeX rendering engines, so it never has to ping a cloud server to convert your data. Your proprietary work documents never leave your PC.
+
+---
+
+## Claim 4: Strips the "AI Tells" and Uses Your House Style
+
+**The Claim:** Marksmith removes obvious AI artifacts like pseudo-headings, citation pips, and em-dash spray, replacing them with standard formatting that matches your company's style.
+
+**The Repro:**
+1. Ask ChatGPT a question that requires citations (e.g., using a web search).
+2. Paste the result into Marksmith, complete with `[7]` citation pips and bolded text everywhere.
+3. Apply a custom theme in Marksmith and export to PDF.
+
+**The Proof:**
+The output document contains a professional Cover Page and Table of Contents. The `[7]` pips are cleaned up, the typography matches your chosen font (e.g., Inter or Garamond), and the document looks like a human crafted it in a dedicated word processor.
