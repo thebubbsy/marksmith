@@ -69,6 +69,27 @@ public static class MermaidDocxRenderer
         catch { return false; }
     }
 
+    // Diagram families a bespoke renderer handles directly (no generic harvest needed).
+    private static readonly HashSet<string> BespokeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "graph", "flowchart", "sequencediagram", "classdiagram", "erdiagram",
+        "mindmap", "timeline", "journey", "gitgraph",
+        "pie", "gantt", "quadrantchart", "xychart-beta", "xychart",
+    };
+
+    // True if the document has any mermaid fence whose type ISN'T handled by a bespoke renderer —
+    // i.e. one that needs the generic harvested-geometry path (state, C4, block, kanban, packet,
+    // sankey, requirement, architecture, …) rather than falling back to a picture.
+    public static bool HasUnsupportedFence(string markdown)
+    {
+        var fences = Regex.Matches(
+            markdown.Replace("\r\n", "\n").Replace('\r', '\n'),
+            "```mermaid[ \\t]*\\n(.*?)```", RegexOptions.Singleline);
+        foreach (System.Text.RegularExpressions.Match f in fences)
+            if (!BespokeTypes.Contains(FirstWord(f.Groups[1].Value))) return true;
+        return false;
+    }
+
     // Any mermaid fence in the document that would overflow — the trigger for the export-time prompt.
     public static bool AnyWouldOverflow(string markdown)
     {
