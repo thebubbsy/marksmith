@@ -50,8 +50,13 @@ public sealed class GovernanceService
                 users = window.Select(e => e.User).Distinct().Count(),
                 dlpIncidents = window.Count(e => e.DlpHitCount > 0),
                 highRisk = window.Count(e => e.RiskLevel == "High"),
+                // Structural signal, not content: a message that WAS almost entirely a secret,
+                // separate from "high risk" (many hit categories) — this is the accidental-vs-
+                // deliberate distinction, sortable/filterable without ever exposing the value.
+                likelyDeliberate = window.Count(e => e.DlpHitCount > 0 && e.SecretDensity >= 0.6),
+                totalTimeMinutes = window.Sum(e => e.TimeSpentSeconds) / 60,
                 byAssistant = window.GroupBy(e => e.Assistant)
-                    .Select(g => new { assistant = g.Key, count = g.Count() })
+                    .Select(g => new { assistant = g.Key, count = g.Count(), minutes = g.Sum(e => e.TimeSpentSeconds) / 60 })
                     .OrderByDescending(x => x.count),
                 byUser = window.GroupBy(e => e.User)
                     .Select(g => new
@@ -59,12 +64,27 @@ public sealed class GovernanceService
                         user = g.Key,
                         events = g.Count(),
                         dlpHits = g.Sum(e => e.DlpHitCount),
+                        minutes = g.Sum(e => e.TimeSpentSeconds) / 60,
                         topAssistant = g.GroupBy(e => e.Assistant).OrderByDescending(x => x.Count()).First().Key,
                     })
                     .OrderByDescending(x => x.dlpHits),
                 topFlags = window.SelectMany(e => e.DlpFlags).GroupBy(f => f)
                     .Select(g => new { flag = g.Key, count = g.Count() })
                     .OrderByDescending(x => x.count),
+                // Remediation worklist, one row per INCIDENT (not per finding): the masked matches
+                // it contained, plus the redacted context and density that tell an investigator
+                // whether this looks accidental or deliberate — never the raw value, at any grain.
+                recentIncidents = window.Where(e => e.DlpHitCount > 0)
+                    .OrderByDescending(e => e.Timestamp)
+                    .Take(30)
+                    .Select(e => new
+                    {
+                        timestamp = e.Timestamp, user = e.User, assistant = e.Assistant,
+                        secretDensity = Math.Round(e.SecretDensity, 2),
+                        intentLabel = e.IntentLabel,
+                        redactedContext = e.RedactedContext,
+                        matches = e.DlpMatches.Select(m => new { m.Category, m.Masked, m.Remediation }),
+                    }),
             };
         }
     }
