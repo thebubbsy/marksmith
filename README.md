@@ -215,10 +215,15 @@ options — the cleanup controls (no‑emoji, em‑dash handling) and the format
 
 ## Examples
 
-Real documents run through Marksmith — inputs *and* their rendered PDFs — live in
-[`examples/`](examples/). Here's [`product-spec.md`](examples/product-spec.md), a design doc with a
-Mermaid architecture diagram, GitHub‑style alert boxes, syntax‑highlighted code, and tables, exported
-straight to PDF:
+Real documents run through Marksmith — inputs *and* their rendered PDFs **and DOCXs** — live in [`examples/`](examples/).
+
+What sets Marksmith apart is its **proprietary native Word rendering**. Our unique converter takes Markdown and builds native, schema-valid OOXML under the hood. No other software on the market can do this:
+
+- **[`product-spec.md`](examples/product-spec.md)** features a **massive, complex Mermaid architecture diagram** that is reconstructed into *native, editable Word shapes* in the resulting DOCX.
+- **[`math-cheatsheet.md`](examples/math-cheatsheet.md)** demonstrates our **Clean Math** rendering, translating complex LaTeX blocks natively into Word's OMML equation editor.
+- **[`chatgpt-export.md`](examples/chatgpt-export.md)** shows off how messy conversational artifacts are automatically cleansed.
+
+This unmatched proprietary capability is exactly why organizations purchase a Marksmith license. Our engine delivers true professional document parity in a way that open-source alternatives simply cannot match.
 
 <img src="docs/images/example-product-spec.png" width="540" alt="The product-spec example rendered to PDF by Marksmith">
 
@@ -233,24 +238,6 @@ nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
 Runs on Windows 11 (x64). The WebView2 runtime it uses for rendering ships
 with current Windows; if yours somehow lacks it, grab it
 [here](https://developer.microsoft.com/microsoft-edge/webview2/).
-
----
-
-## Build from source
-
-Only needed if you want to hack on it. Requires the
-[.NET 8 SDK](https://dotnet.microsoft.com/download).
-
-```powershell
-git clone https://github.com/thebubbsy/marksmith.git
-cd marksmith
-dotnet restore
-dotnet build MdToPdf.sln
-dotnet run --project MdToPdf/MdToPdf.csproj
-```
-
-> Plain `dotnet build`/`run` default to an x64 build automatically — the Windows App SDK's
-> self‑contained mode needs a concrete architecture.
 
 ---
 
@@ -274,7 +261,6 @@ See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later. Recently shipped: 
 export**, **append‑to‑a‑running‑document**, and **Mermaid flowcharts as native Word shapes**. Next up:
 
 - Cleanup shown as Word tracked changes / comments
-- Branding kit (logo/letterhead, cover pages)
 - Export presets and batch conversion
 
 ---

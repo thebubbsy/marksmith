@@ -12,14 +12,68 @@ A small, auditable service that authorises card payments and records every state
 ## Architecture
 
 ```mermaid
-graph LR
-    Client["Client app"] -->|POST /charge| API["Payments API"]
-    API --> Auth["Auth / tokenization"]
-    Auth --> PSP["Card processor"]
-    API --> Ledger["Ledger (append-only)"]
-    Ledger --> DB[("Postgres")]
-    API --> Queue["Webhook queue"]
-    Queue --> Merchant["Merchant callback"]
+graph TD
+    subgraph Client Tier
+        Web["Web Client"]
+        Mobile["Mobile App"]
+        POS["Point of Sale"]
+    end
+
+    subgraph API Gateway
+        Gateway["API Gateway / WAF"]
+        RateLimit["Rate Limiter"]
+    end
+
+    subgraph Payments Core
+        API["Payments API"]
+        Auth["Auth / Tokenization"]
+        Risk["Risk & Fraud Engine"]
+        Ledger["Ledger (append-only)"]
+    end
+
+    subgraph External Processors
+        Stripe["Stripe Processor"]
+        PayPal["PayPal Processor"]
+        Bank["Direct Bank Transfer"]
+    end
+
+    subgraph Data & Async
+        DB[("Postgres Master")]
+        DB_Replica[("Postgres Read Replica")]
+        Cache[("Redis Cache")]
+        Queue["Kafka Event Bus"]
+        Webhook["Webhook Dispatcher"]
+        Merchant["Merchant Callback"]
+    end
+
+    %% Client requests
+    Web --> Gateway
+    Mobile --> Gateway
+    POS --> Gateway
+
+    %% Gateway logic
+    Gateway --> RateLimit
+    RateLimit --> |Allowed| API
+    RateLimit --> |Blocked| Drop["Drop Request"]
+
+    %% Core logic
+    API --> Cache
+    API --> Risk
+    Risk --> |Approved| Auth
+    Risk --> |Rejected| Decline["Decline Transaction"]
+    Auth --> Stripe
+    Auth --> PayPal
+    Auth --> Bank
+
+    %% State persistence
+    Auth --> |Success/Fail| Ledger
+    Ledger --> DB
+    DB -.-> |Replication| DB_Replica
+
+    %% Async processing
+    Ledger --> Queue
+    Queue --> Webhook
+    Webhook --> Merchant
 ```
 
 ## Request flow
