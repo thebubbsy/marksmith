@@ -51,7 +51,7 @@ internal static class LatexToOmml
 
     // ---- tokenizer ---------------------------------------------------------------------------
 
-    private enum Kind { Cmd, LBrace, RBrace, LBracket, RBracket, Sup, Sub, Chr }
+    private enum Kind { Cmd, LBrace, RBrace, LBracket, RBracket, Sup, Sub, Chr, Amp }
     private readonly record struct Tok(Kind Kind, string Text);
 
     private static List<Tok> Tokenize(string s)
@@ -77,7 +77,8 @@ internal static class LatexToOmml
                     // escaped single char: \{ \} \| \, \; etc. Spacing commands are dropped.
                     char e = s[i++];
                     if (e is ',' or ';' or ':' or '!' or ' ') continue; // thin spaces
-                    toks.Add(new Tok(Kind.Chr, e.ToString()));
+                    if (e == '\\') toks.Add(new Tok(Kind.Cmd, "\\"));
+                    else toks.Add(new Tok(Kind.Chr, e.ToString()));
                 }
                 continue;
             }
@@ -90,6 +91,7 @@ internal static class LatexToOmml
                 case ']': toks.Add(new Tok(Kind.RBracket, "]")); break;
                 case '^': toks.Add(new Tok(Kind.Sup, "^")); break;
                 case '_': toks.Add(new Tok(Kind.Sub, "_")); break;
+                case '&': toks.Add(new Tok(Kind.Amp, "&")); break;
                 default: toks.Add(new Tok(Kind.Chr, c.ToString())); break;
             }
         }
@@ -201,6 +203,35 @@ internal static class LatexToOmml
                     var den = ParseGroupArg();
                     return new() { new M.Fraction(Arg<M.Numerator>(num), Arg<M.Denominator>(den)) };
                 }
+                case "binom":
+                case "dbinom":
+                case "tbinom":
+                {
+                    var num = ParseGroupArg();
+                    var den = ParseGroupArg();
+                    var frac = new M.Fraction(
+                        new M.FractionProperties(new M.FractionType { Val = M.FractionTypeValues.NoBar }),
+                        Arg<M.Numerator>(num), Arg<M.Denominator>(den));
+                    return new() { new M.Delimiter(
+                        new M.DelimiterProperties(new M.BeginChar { Val = "(" }, new M.EndChar { Val = ")" }),
+                        Base(new[] { frac })) };
+                }
+                case "underbrace":
+                case "overbrace":
+                {
+                    var body = ParseGroupArg();
+                    var chr = cmd == "underbrace" ? "⏟" : "⏞";
+                    return new() { new M.GroupChar(
+                        new M.GroupCharProperties(
+                            new M.AccentChar { Val = chr },
+                            new M.Position { Val = cmd == "underbrace" ? M.VerticalJustificationValues.Bottom : M.VerticalJustificationValues.Top }),
+                        Base(body)) };
+                }
+                case "begin":
+                {
+                    var envName = ParseBracedRaw();
+                    return ParseEnvironment(envName);
+                }
                 case "sqrt":
                 {
                     List<OpenXmlElement>? deg = null;
@@ -232,6 +263,7 @@ internal static class LatexToOmml
                         "vec" => "⃗", "tilde" => "̃", "dot" => "̇", "ddot" => "̈", _ => "" };
                     return new() { TextRun(inner + comb) };
                 }
+                case "limits": return new(); // just skip \limits, we assume under/over behavior based on command
                 case "left.": return new();
             }
 
@@ -240,10 +272,73 @@ internal static class LatexToOmml
             if (Symbols.TryGetValue(cmd, out var sym))
                 return new() { TextRun(sym) };
             if (Functions.Contains(cmd))
-                return new() { TextRun(cmd, upright: true) };
+            {
+                var run = TextRun(cmd, upright: true);
+                if (More && Cur.Kind == Kind.Sub)
+                {
+                    _i++;
+                    var lim = ParseAtom();
+                    return new() { new M.LimitLower(
+                        new M.LimitLowerProperties(),
+                        Base(new[] { run }),
+                        Arg<M.Limit>(lim)) };
+                }
+                return new() { run };
+            }
 
             // Unknown command — emit its name so nothing silently disappears.
             return new() { TextRun(cmd) };
+        }
+
+        private List<OpenXmlElement> ParseEnvironment(string envName)
+        {
+            var rows = new List<M.MatrixRow>();
+            var curRow = new List<M.Base>();
+            var curCol = new List<OpenXmlElement>();
+
+            void EndCol() { curRow.Add(Base(curCol)); curCol.Clear(); }
+            void EndRow() { EndCol(); var r = new M.MatrixRow(); foreach (var c in curRow) r.Append(c); rows.Add(r); curRow.Clear(); }
+
+            while (More)
+            {
+                if (Cur.Kind == Kind.Cmd && Cur.Text == "end")
+                {
+                    _i++;
+                    var endEnv = ParseBracedRaw();
+                    if (curCol.Count > 0 || curRow.Count > 0) EndRow();
+                    break;
+                }
+                if (Cur.Kind == Kind.Cmd && Cur.Text == "\\") { _i++; EndRow(); continue; }
+                if (Cur.Kind == Kind.Amp) { _i++; EndCol(); continue; }
+                curCol.AddRange(ParseAtomWithScripts());
+            }
+
+            // Normalize column counts so Word doesn't complain about jagged matrices
+            int maxCols = 0;
+            foreach (var r in rows) maxCols = Math.Max(maxCols, r.ChildElements.Count);
+            foreach (var r in rows)
+            {
+                while (r.ChildElements.Count < maxCols) r.Append(Base(new List<OpenXmlElement>()));
+            }
+
+            var mat = new M.Matrix();
+            mat.Append(new M.MatrixProperties(
+                new M.HidePlaceholder { Val = M.BooleanValues.One }
+            ));
+            foreach (var r in rows) mat.Append(r);
+
+            var baseEq = Base(new[] { mat });
+
+            switch (envName)
+            {
+                case "matrix": return new() { baseEq };
+                case "pmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "(" }, new M.EndChar { Val = ")" }), baseEq) };
+                case "bmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "[" }, new M.EndChar { Val = "]" }), baseEq) };
+                case "vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "|" }, new M.EndChar { Val = "|" }), baseEq) };
+                case "Vmatrix": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "‖" }, new M.EndChar { Val = "‖" }), baseEq) };
+                case "cases": return new() { new M.Delimiter(new M.DelimiterProperties(new M.BeginChar { Val = "{" }, new M.EndChar { Val = "" }), baseEq) };
+                default: return new() { baseEq };
+            }
         }
 
         private M.Nary ParseNary(string chr, bool underOver)

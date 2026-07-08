@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWinUI>false</UseWinUI>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="0.37.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\MdToPdf\Services\LatexToOmml.cs" />
+    <Compile Include="..\..\MdToPdf\Services\DocxExportService.cs" />
+    <Compile Include="..\..\MdToPdf\Services\DashReplacer.cs" />
+    <Compile Include="..\..\MdToPdf\Services\MermaidDocxRenderer.cs" />
+    <Compile Include="..\..\MdToPdf\Services\ThemeCatalog.cs" />
+    <Compile Include="..\..\MdToPdf\Services\TextNormalizer.cs" />
+    <Compile Include="..\..\MdToPdf\Services\EmojiStripper.cs" />
+    <Compile Include="..\..\MdToPdf\Services\FormattingService.cs" />
+    <Compile Include="..\..\MdToPdf\Services\Mermaid\**\*.cs" />
+    <Compile Include="..\..\MdToPdf\Models\AppSettings.cs" />
+    <Compile Include="..\..\MdToPdf\Models\LlmClassification.cs" />
+    <Compile Include="..\..\MdToPdf\Models\OutputOverride.cs" />
+    <Compile Include="..\..\MdToPdf\Models\ThemeDefinition.cs" />
+  </ItemGroup>
+</Project>
