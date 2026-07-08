@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marksmith - WinUI 3 Mock</title>
+    
+    <!-- Marked for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- KaTeX for math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        :root {
+            --bg-app: #202020;
+            --bg-card: #2b2b2b;
+            --bg-card-hover: #323232;
+            --bg-input: #1e1e1e;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #707070;
+            --accent-primary: #d69fee;
+            --accent-button-bg: #e2b4f1;
+            --accent-button-text: #000000;
+            --border-color: #3b3b3b;
+            --font-main: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'Consolas', 'Courier New', monospace;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        * { box-sizing: border-box; }
+
+        /* Window Header */
+        .window-header {
+            height: 48px;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            font-size: 13px;
+        }
+
+        .window-header img { width: 20px; height: 20px; margin-right: 12px; }
+        .window-header .title { font-weight: 600; margin-right: 6px; }
+        .window-header .separator { color: var(--text-muted); margin-right: 6px; }
+        .window-header .subtitle { color: var(--text-secondary); }
+        .window-header .controls { margin-left: auto; display: flex; gap: 10px; }
+        .window-header .controls div { width: 40px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; }
+        .window-header .controls div:hover { background-color: rgba(255,255,255,0.1); }
+
+        /* Main Workspace */
+        .workspace {
+            display: flex;
+            flex: 1;
+            padding: 10px 20px 20px 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        /* Common Column Styles */
+        .col { display: flex; flex-direction: column; height: 100%; }
+        .col-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .col-badge { width: 24px; height: 24px; background-color: var(--accent-primary); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+        .col-header-text { display: flex; flex-direction: column; }
+        .col-title { font-weight: 600; font-size: 15px; }
+        .col-subtitle { font-size: 12px; color: var(--text-secondary); }
+        .card { background-color: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color); flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px; }
+        
+        .separator-icon {
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-top: 100px;
+        }
+
+        /* COL 1: Source (380px) */
+        .col-source { width: 380px; min-width: 380px; }
+        .source-tabs { display: flex; gap: 20px; margin-bottom: 16px; border-bottom: 1px solid transparent; }
+        .s-tab { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 14px; cursor: pointer; padding-bottom: 8px; }
+        .s-tab.active { color: var(--text-primary); }
+        .s-tab svg { width: 16px; height: 16px; fill: currentColor; }
+        
+        .source-textarea { flex: 1; background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; color: var(--text-primary); font-family: var(--font-mono); font-size: 13px; line-height: 1.5; resize: none; outline: none; margin-bottom: 8px; }
+        .word-count { text-align: right; font-size: 11px; color: var(--text-muted); margin-bottom: 16px; }
+        
+        .automation-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px; background-color: rgba(255,255,255,0.03); border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .automation-bar svg { fill: var(--text-secondary); width: 16px; height: 16px; }
+        
+        /* COL 2: Style (300px) */
+        .col-style { width: 320px; min-width: 320px; }
+        .style-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .style-group h4 { margin: 0 0 4px 0; font-size: 14px; font-weight: 600; }
+        .style-desc { font-size: 11px; color: var(--text-secondary); margin-top: -8px; line-height: 1.4; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .input-group label { font-size: 13px; color: var(--text-primary); }
+        .win-select { background-color: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 12px; font-size: 13px; appearance: none; outline: none; }
+        .win-input { background-color: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 12px; font-size: 13px; outline: none; }
+        
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .toggle-label { font-size: 13px; }
+        
+        /* WinUI Toggle Switch */
+        .win-toggle { position: relative; width: 42px; height: 20px; display: inline-block; }
+        .win-toggle input { opacity: 0; width: 0; height: 0; }
+        .win-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: transparent; border: 1px solid var(--text-secondary); transition: .2s; border-radius: 20px; }
+        .win-slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: var(--text-secondary); transition: .2s; border-radius: 50%; }
+        .win-toggle input:checked + .win-slider { background-color: var(--accent-primary); border-color: var(--accent-primary); }
+        .win-toggle input:checked + .win-slider:before { transform: translateX(22px); background-color: #000; }
+        .toggle-container { display: flex; align-items: center; gap: 10px; }
+        .toggle-status { font-size: 13px; width: 20px; }
+
+        /* COL 3: Preview */
+        .col-preview { flex: 1; }
+        .preview-header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+        .chatgpt-badge { display: flex; align-items: center; gap: 6px; background-color: rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 16px; font-size: 12px; }
+        .chatgpt-badge svg { width: 12px; height: 12px; fill: currentColor; }
+        .history-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background-color: rgba(255,255,255,0.05); border-radius: 4px; cursor: pointer; }
+        
+        .preview-card { background-color: #1e1e1e; padding: 0; display: flex; justify-content: center; overflow-y: auto; position: relative; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
+        
+        .document-wrapper { background-color: #2d2a2e; color: #fcfcfa; width: 100%; max-width: 800px; min-height: 100%; padding: 40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; }
+        .attribution-strip { border: 1px solid #e6db74; background-color: rgba(230,219,116,0.1); border-radius: 6px; padding: 12px 16px; font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 24px; color: #e6db74; }
+        .doc-contents { border: 1px solid #75715e; border-radius: 6px; padding: 20px; margin-bottom: 30px; }
+        .doc-contents h4 { margin: 0 0 10px 0; color: #fd971f; font-size: 16px; }
+        .document-wrapper h1 { color: #e6db74; border-bottom: none; font-size: 32px; margin-bottom: 20px; }
+        .document-wrapper p { margin-bottom: 16px; font-size: 14px; }
+        
+        /* Export Footer */
+        .export-footer { background-color: var(--bg-card); padding: 16px; border: 1px solid var(--border-color); border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; display: flex; flex-direction: column; gap: 12px; }
+        .success-bar { background-color: #273722; border: 1px solid #36502e; border-radius: 4px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; color: #8ee075; font-size: 13px; }
+        .success-bar svg { width: 16px; height: 16px; fill: currentColor; }
+        
+        .path-row { display: flex; gap: 8px; }
+        .path-input { flex: 1; background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px 12px; color: var(--text-primary); font-size: 13px; outline: none; }
+        .icon-btn { background-color: transparent; border: 1px solid var(--border-color); border-radius: 4px; width: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-primary); }
+        .icon-btn:hover { background-color: rgba(255,255,255,0.05); }
+        .open-output-btn { background-color: transparent; border: 1px solid var(--border-color); border-radius: 4px; padding: 0 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-primary); font-size: 13px; }
+        .open-output-btn:hover { background-color: rgba(255,255,255,0.05); }
+        
+        .action-row { display: flex; gap: 12px; }
+        .btn-primary { background-color: var(--accent-button-bg); color: var(--accent-button-text); border: none; border-radius: 4px; padding: 8px 24px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary { background-color: #323232; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px 24px; font-weight: 400; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-secondary:hover { background-color: #3b3b3b; }
+        .btn-disabled { background-color: transparent; color: var(--text-muted); border: none; padding: 8px 16px; font-size: 14px; cursor: not-allowed; }
+
+        /* KaTeX overrides for dark theme */
+        .katex { font-size: 1.1em; color: #a6e22e; }
+
+    </style>
+</head>
+<body>
+
+    <div class="window-header">
+        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: var(--accent-primary); margin-right: 12px;"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zm-1 14H4V6h16v12z"/><path d="M7 9h10v2H7zm0 4h7v2H7z"/></svg>
+        <span class="title">Marksmith</span>
+        <span class="separator">·</span>
+        <span class="subtitle">AI chats &rarr; polished documents</span>
+        <div class="controls">
+            <div>&#x2014;</div>
+            <div>&#x25A1;</div>
+            <div>&#x2715;</div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        
+        <!-- 1. SOURCE COLUMN -->
+        <div class="col col-source">
+            <div class="col-header">
+                <div class="col-badge">1</div>
+                <div class="col-header-text">
+                    <div class="col-title">Source</div>
+                    <div class="col-subtitle">Pick a file or paste Markdown</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="source-tabs">
+                    <div class="s-tab">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        File
+                    </div>
+                    <div class="s-tab active">
+                        <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+                        Paste
+                    </div>
+                </div>
+                <textarea class="source-textarea" id="markdown-input"># Neural Networks Explained
+
+Great question! Here's a clear breakdown :
+
+**Core idea:** a network learns weights so its output matches targets. The loss is $ L = \frac{1}{n}\sum_i (y_i - \hat{y}_i)^2 $ and we minimise it via gradient descent
+$$
+w \leftarrow w - \eta \nabla L
+$$
+
+```python
+import torch
+model = torch.nn.Linear(4, 1)
+```
+
+## Key points
+
+- Backpropagation computes gradients
+- Learning rate controls step size</textarea>
+                <div class="word-count">70 words &middot; 429 chars</div>
+                <div class="automation-bar">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg viewBox="0 0 24 24"><path d="M13 3L4 14h7v7l9-11h-7z"/></svg>
+                        Automation
+                    </div>
+                    <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="separator-icon">&gt;</div>
+
+        <!-- 2. STYLE COLUMN -->
+        <div class="col col-style">
+            <div class="col-header">
+                <div class="col-badge">2</div>
+                <div class="col-header-text">
+                    <div class="col-title">Style</div>
+                    <div class="col-subtitle">Theme and page layout</div>
+                </div>
+            </div>
+            <div class="card" style="overflow-y: auto;">
+                
+                <div class="style-group">
+                    <div class="input-group">
+                        <label>Theme</label>
+                        <select class="win-select">
+                            <option>Monokai Pro</option>
+                            <option>Dracula</option>
+                            <option>GitHub Dark</option>
+                            <option>Light</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Page width (px)</label>
+                        <input type="number" class="win-input" value="800">
+                    </div>
+                </div>
+
+                <div class="style-group">
+                    <div class="toggle-row">
+                        <span class="toggle-label">Lock to A4 width</span>
+                        <div class="toggle-container">
+                            <label class="win-toggle">
+                                <input type="checkbox" checked>
+                                <span class="win-slider"></span>
+                            </label>
+                            <span class="toggle-status">On</span>
+                        </div>
+                    </div>
+                    <div class="toggle-row">
+                        <span class="toggle-label">Single continuous page (no page breaks)</span>
+                        <div class="toggle-container">
+                            <label class="win-toggle">
+                                <input type="checkbox" checked>
+                                <span class="win-slider"></span>
+                            </label>
+                            <span class="toggle-status">On</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="style-group">
+                    <h4>AI documents</h4>
+                    <div class="toggle-row">
+                        <span class="toggle-label">Normalize AI formatting quirks</span>
+                        <div class="toggle-container">
+                            <label class="win-toggle">
+                                <input type="checkbox" id="clean-quirks" checked>
+                                <span class="win-slider"></span>
+                            </label>
+                            <span class="toggle-status">On</span>
+                        </div>
+                    </div>
+                    <div class="style-desc">Fixes ChatGPT LaTeX + citation pips, Gemini pseudo-headings, Claude tag remnants.</div>
+                    
+                    <div class="toggle-row" style="margin-top: 12px;">
+                        <span class="toggle-label">Source attribution strip in export</span>
+                        <div class="toggle-container">
+                            <label class="win-toggle">
+                                <input type="checkbox" id="show-strip" checked>
+                                <span class="win-slider"></span>
+                            </label>
+                            <span class="toggle-status">On</span>
+                        </div>
+                    </div>
+                    
+                    <div class="toggle-row">
+                        <span class="toggle-label">Table of contents</span>
+                        <div class="toggle-container">
+                            <label class="win-toggle">
+                                <input type="checkbox" id="show-toc" checked>
+                                <span class="win-slider"></span>
+                            </label>
+                            <span class="toggle-status">On</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="separator-icon">&gt;</div>
+
+        <!-- 3. PREVIEW & EXPORT COLUMN -->
+        <div class="col col-preview">
+            <div class="col-header">
+                <div class="col-badge">3</div>
+                <div class="col-header-text">
+                    <div class="col-title">Preview & export</div>
+                    <div class="col-subtitle">Live preview of the final document</div>
+                </div>
+                
+                <div class="preview-header-right">
+                    <div class="chatgpt-badge" id="pill-badge">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v1.46c3.05 1.51 5.16 4.6 5.16 8.54 0 1.25-.26 2.44-.7 3.52l-.56-.45z"/></svg>
+                        ChatGPT &middot; 100% &middot; 0 fixes
+                    </div>
+                    <div class="history-btn">
+                        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card preview-card">
+                <div class="document-wrapper">
+                    
+                    <div class="attribution-strip" id="attr-strip">
+                        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M13 3L4 14h7v7l9-11h-7z"/></svg>
+                        <strong style="color: #fd971f;">ChatGPT</strong> Imported 5 July 2026, 22:13 &middot; <span id="strip-fixes">0</span> formatting fixes applied &middot; Marksmith
+                    </div>
+
+                    <div class="doc-contents" id="toc-box">
+                        <h4>Contents</h4>
+                        <ul style="margin:0; padding-left: 20px;">
+                            <li>Neural Networks Explained</li>
+                            <li style="list-style-type: circle; margin-left: 10px;">Key points</li>
+                        </ul>
+                    </div>
+
+                    <div id="preview-output"></div>
+                </div>
+            </div>
+            
+            <div class="export-footer">
+                <div class="success-bar">
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    Ingested from api &mdash; detected ChatGPT formatting, applied <span id="toast-fixes">0</span> fixes.
+                </div>
+                <div class="path-row">
+                    <input type="text" class="path-input" value="C:\temp\md_out">
+                    <button class="icon-btn"><svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg></button>
+                    <button class="open-output-btn"><svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg> Open output</button>
+                </div>
+                <div class="action-row">
+                    <button class="btn-primary" onclick="alert('Export to PDF triggered')">
+                        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+                        Generate PDF
+                    </button>
+                    <button class="btn-secondary" onclick="alert('Export to DOCX triggered')">
+                        <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        Export DOCX
+                    </button>
+                    <button class="btn-disabled">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const input = document.getElementById('markdown-input');
+        const output = document.getElementById('preview-output');
+        const cleanQuirks = document.getElementById('clean-quirks');
+        const showStrip = document.getElementById('show-strip');
+        const showToc = document.getElementById('show-toc');
+        
+        const pillBadge = document.getElementById('pill-badge');
+        const stripFixes = document.getElementById('strip-fixes');
+        const toastFixes = document.getElementById('toast-fixes');
+        const attrStrip = document.getElementById('attr-strip');
+        const tocBox = document.getElementById('toc-box');
+        
+        // Handle custom Windows 11 style toggles
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const statusSpan = e.target.parentElement.nextElementSibling;
+                if(statusSpan && statusSpan.classList.contains('toggle-status')) {
+                    statusSpan.innerText = e.target.checked ? "On" : "Off";
+                }
+            });
+        });
+
+        function renderMarkdown() {
+            let text = input.value;
+            let fixes = 0;
+
+            if (cleanQuirks.checked) {
+                const origLength = text.length;
+                text = text.replace(/【\d+†source】/g, ''); // Fix citations
+                text = text.replace(/\*\*(.*?)\*\*/g, '$1'); // Aggressively remove bolding as a 'quirk' for this mock
+                if (origLength !== text.length) fixes = 7; // Mock arbitrary fixes count
+            }
+
+            // Simple LaTeX conversion to marked-friendly math blocks before parsing
+            text = text.replace(/\\\((.*?)\\\)/g, '$$$$$1$$$$'); // Inline math
+            
+            output.innerHTML = marked.parse(text);
+            
+            renderMathInElement(output, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError : false
+            });
+
+            // Update UI components
+            pillBadge.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v1.46c3.05 1.51 5.16 4.6 5.16 8.54 0 1.25-.26 2.44-.7 3.52l-.56-.45z"/></svg> ChatGPT &middot; 100% &middot; ${fixes} fixes`;
+            stripFixes.innerText = fixes;
+            toastFixes.innerText = fixes;
+            
+            attrStrip.style.display = showStrip.checked ? 'flex' : 'none';
+            tocBox.style.display = showToc.checked ? 'block' : 'none';
+        }
+
+        input.addEventListener('input', renderMarkdown);
+        cleanQuirks.addEventListener('change', renderMarkdown);
+        showStrip.addEventListener('change', renderMarkdown);
+        showToc.addEventListener('change', renderMarkdown);
+
+        // Initial render
+        renderMarkdown();
+    </script>
+</body>
+</html>
