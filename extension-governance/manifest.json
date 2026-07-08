@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "Marksmith Governance Monitor",
+    "version": "1.0.0",
+    "description": "Transparent AI-usage monitoring for managed organizations: which AI tools are used, how long, and whether sensitive data (keys, credentials, PII) appears in what's sent. Enterprise deployment only — not distributed via the Chrome Web Store.",
+    "permissions": ["storage", "alarms"],
+    "host_permissions": ["http://127.0.0.1/*", "https://*/*"],
+    "background": { "service_worker": "background.js" },
+    "action": {
+        "default_title": "Marksmith Governance Monitor",
+        "default_popup": "popup.html",
+        "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+    },
+    "options_page": "options.html",
+    "content_scripts": [
+        {
+            "matches": [
+                "https://chatgpt.com/*",
+                "https://chat.openai.com/*",
+                "https://gemini.google.com/*",
+                "https://claude.ai/*",
+                "https://copilot.microsoft.com/*"
+            ],
+            "js": ["dlp-mask.js", "governance.js"],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}
+

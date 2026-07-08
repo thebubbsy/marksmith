@@ -1,0 +1,35 @@
+{
+    "type": "object",
+    "description": "Enterprise policy for Marksmith Governance Monitor. Push via Intune/GPO/managed storage. This extension is NOT distributed via the Chrome Web Store — deploy it as an unpacked/force-installed extension via managed policy. Governance is always-on for this extension (it has no other purpose).",
+    "properties": {
+        "orgName": {
+            "type": "string",
+            "description": "Organization name shown to employees in the persistent monitoring badge."
+        },
+        "orgId": {
+            "type": "string",
+            \"description\": \"Opaque organization identifier.\"
+        },
+        "collectorUrl": {
+            "type": "string",
+            "description": "Base URL of the governance collector — a Marksmith instance on a shared/always-on machine, or a future hosted service. Defaults to http://127.0.0.1:47821 if unset."
+        },
+        "userId": {
+            "type": "string",
+            "description": "Identity to attribute events to (typically populated from SSO/device enrollment)."
+        },
+        "userEmail": {
+            "type": "string",
+            "description": "Employee work email, if the org attributes by email instead of userId."
+        },
+        "deviceId": {
+            "type": "string",
+            "description": "Managed device identifier."
+        },
+        "policyUrl": {
+            "type": "string",
+            "description": "Link to the organization's AI-usage / monitoring policy."
+        }
+    }
+}
+

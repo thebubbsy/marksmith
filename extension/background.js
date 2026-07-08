@@ -30,9 +30,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     else if (info.menuItemId === "mdpdfm-conversation") grabAndSend(tab, "all");
 });
 
-// Governance relay: the content script (governance.js) sends metadata-only usage reports; we
-// forward them to the configured collector. Content scripts can hit 127.0.0.1 directly, but
-// routing through the service worker keeps the collector URL/config in one place.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // Attention channel: copybutton.js polls through us (MV3 content scripts can't fetch
     // cross-origin themselves). The app bumps /api/attention when it spots a plain-text paste.
@@ -49,24 +46,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true; // async response
     }
 
-    if (msg?.type !== "governance-report") return;
-    (async () => {
-        try {
-            const managed = await chrome.storage.managed.get(null).catch(() => ({}));
-            const sync = await chrome.storage.sync.get(null).catch(() => ({}));
-            const cfg = { ...sync, ...managed };
-            const base = cfg.collectorUrl || `http://127.0.0.1:${cfg.port || DEFAULT_PORT}`;
-            const resp = await fetch(base.replace(/\/$/, "") + "/api/governance/report", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(msg.payload),
-            });
-            sendResponse({ ok: resp.ok });
-        } catch (e) {
-            sendResponse({ ok: false, error: e.message });
-        }
-    })();
-    return true; // async response
 });
 
 async function grabAndSend(tab, mode) {
