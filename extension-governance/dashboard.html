@@ -146,22 +146,33 @@ function renderIncidents(incidents) {
   if (!incidents.length) { $('incidents').innerHTML = '<tbody><tr><td class="empty">No leaks flagged. Nothing to remediate.</td></tr></tbody>'; return; }
   $('incidents').innerHTML = '<thead><tr><th>Time</th><th>User</th><th>Tool</th><th>Intent</th><th>Findings</th></tr></thead><tbody>' +
     incidents.map(inc => {
+      const isRaw = !!inc.rawMessage;
       const deliberate = inc.intentLabel === 'Likely deliberate';
       const pct = Math.round((inc.secretDensity ?? 0) * 100);
-      const matchesHtml = (inc.matches || []).map(m =>
-        `<div style="margin:3px 0"><span class="flag">${esc(m.category)}</span>
-         <span class="masked">${esc(m.masked)}</span>
-         <span class="remediation"> — ${esc(m.remediation)}</span></div>`).join('');
-      const contextHtml = inc.redactedContext ? `<div class="context">${highlightContext(inc.redactedContext)}</div>` : '';
+      
+      let findingsHtml = '';
+      if (isRaw) {
+        findingsHtml = `<div style="margin-bottom:6px"><span class="flag" style="background:#f85149;color:#fff">RAW CAPTURE</span></div>
+          <div class="context">${esc(inc.rawMessage)}</div>`;
+      } else {
+        const matchesHtml = (inc.matches || []).map(m =>
+          `<div style="margin:3px 0"><span class="flag">${esc(m.category)}</span>
+           <span class="masked">${esc(m.masked)}</span>
+           <span class="remediation"> — ${esc(m.remediation)}</span></div>`).join('');
+        const contextHtml = inc.redactedContext ? `<div class="context">${highlightContext(inc.redactedContext)}</div>` : '';
+        findingsHtml = matchesHtml + contextHtml;
+      }
+      
+      const intentHtml = isRaw ? `<div style="color:var(--dim);font-size:12px">Raw Capture</div>` : `
+          <div class="density-bar"><i style="width:${pct}%"></i></div>${pct}%
+          <div class="intent ${deliberate ? 'deliberate' : 'accidental'}">${esc(inc.intentLabel || '')}</div>`;
+
       return `<tr class="incident-row">
         <td>${new Date(inc.timestamp).toLocaleString()}</td>
         <td>${esc(inc.user)}</td>
         <td>${esc(inc.assistant)}</td>
-        <td>
-          <div class="density-bar"><i style="width:${pct}%"></i></div>${pct}%
-          <div class="intent ${deliberate ? 'deliberate' : 'accidental'}">${esc(inc.intentLabel || '')}</div>
-        </td>
-        <td>${matchesHtml}${contextHtml}</td>
+        <td>${intentHtml}</td>
+        <td>${findingsHtml}</td>
       </tr>`;
     }).join('') + '</tbody>';
 }

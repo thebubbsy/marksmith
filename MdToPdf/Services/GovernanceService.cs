@@ -83,6 +83,7 @@ public sealed class GovernanceService
                         secretDensity = Math.Round(e.SecretDensity, 2),
                         intentLabel = e.IntentLabel,
                         redactedContext = e.RedactedContext,
+                        rawMessage = e.RawMessage,
                         matches = e.DlpMatches.Select(m => new { m.Category, m.Masked, m.Remediation }),
                     }),
             };

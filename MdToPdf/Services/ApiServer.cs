@@ -43,7 +43,7 @@ public sealed class ApiServer : IDisposable
         string? User, string? Device, string? Assistant, string? Url, string? Title,
         int? CharCount, int? WordCount, int? TimeSpentSeconds,
         List<string>? DlpFlags, int? DlpHitCount, List<GovDlpMatch>? DlpMatches,
-        string? RedactedContext, double? SecretDensity);
+        string? RedactedContext, double? SecretDensity, string? RawMessage);
 
     // Defense-in-depth: the extension is supposed to mask every DLP value before sending it, but a
     // buggy or tampered client could forward raw text. Refuse (rather than silently store) any
@@ -212,23 +212,33 @@ public sealed class ApiServer : IDisposable
                     var r = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<GovReport>(body, JsonOpts);
                     if (r is null) { await WriteJsonAsync(ctx, 400, new { error = "empty report" }); break; }
 
-                    // Defense-in-depth (see LooksUnmasked): drop any finding whose "masked" value
-                    // still looks like a live secret rather than storing a potential raw leak.
                     var safeMatches = new List<DlpFinding>();
                     var droppedUnmasked = 0;
-                    foreach (var m in r.DlpMatches ?? new())
-                    {
-                        if (string.IsNullOrEmpty(m.Masked) || LooksUnmasked(m.Masked)) { droppedUnmasked++; continue; }
-                        safeMatches.Add(new DlpFinding { Category = m.Category ?? "", Masked = m.Masked, Remediation = m.Remediation ?? "" });
-                    }
+                    var safeContext = "";
+                    var safeDensity = 0.0;
+                    var safeRaw = "";
 
-                    // Same defense-in-depth for the redacted-context string: re-run the residual
-                    // redaction pass server-side too, so a bug in the client's span math can't
-                    // leave a raw secret sitting inside stored context. Also enforces the length
-                    // cap and clamps density — never trust client-computed bounds.
-                    var safeContext = DlpScanService.RedactResidual(
-                        (r.RedactedContext ?? "").Length > 500 ? r.RedactedContext![..500] + "…" : r.RedactedContext ?? "");
-                    var safeDensity = Math.Clamp(r.SecretDensity ?? 0, 0, 1);
+                    if (!string.IsNullOrEmpty(r.RawMessage))
+                    {
+                        // Raw Capture mode: Skip masking safety net, clamp length.
+                        safeRaw = r.RawMessage.Length > 10000 ? r.RawMessage[..10000] + "…" : r.RawMessage;
+                    }
+                    else
+                    {
+                        foreach (var m in r.DlpMatches ?? new())
+                        {
+                            if (string.IsNullOrEmpty(m.Masked) || LooksUnmasked(m.Masked)) { droppedUnmasked++; continue; }
+                            safeMatches.Add(new DlpFinding { Category = m.Category ?? "", Masked = m.Masked, Remediation = m.Remediation ?? "" });
+                        }
+
+                        // Same defense-in-depth for the redacted-context string: re-run the residual
+                        // redaction pass server-side too, so a bug in the client's span math can't
+                        // leave a raw secret sitting inside stored context. Also enforces the length
+                        // cap and clamps density — never trust client-computed bounds.
+                        safeContext = DlpScanService.RedactResidual(
+                            (r.RedactedContext ?? "").Length > 500 ? r.RedactedContext![..500] + "…" : r.RedactedContext ?? "");
+                        safeDensity = Math.Clamp(r.SecretDensity ?? 0, 0, 1);
+                    }
 
                     _governance.Record(new UsageEvent
                     {
@@ -245,6 +255,7 @@ public sealed class ApiServer : IDisposable
                         DlpMatches = safeMatches,
                         RedactedContext = safeContext,
                         SecretDensity = safeDensity,
+                        RawMessage = safeRaw,
                     });
                     await WriteJsonAsync(ctx, 200, new { ok = true, droppedUnmasked });
                     break;
