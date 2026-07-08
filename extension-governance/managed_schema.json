@@ -8,7 +8,7 @@
         },
         "orgId": {
             "type": "string",
-            \"description\": \"Opaque organization identifier.\"
+            "description": "Opaque organization identifier."
         },
         "collectorUrl": {
             "type": "string",
