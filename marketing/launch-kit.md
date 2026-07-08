@@ -6,7 +6,7 @@ Ready-to-post copy for your launch. Everything here is a starting draft — twea
 
 ## Positioning (the core message)
 
-> AI writing is easy to spot — it has weird formatting, random bolding, and broken math symbols. Marksmith removes these obvious signs and instantly turns your chat into a perfect, professional PDF or Word document.
+> AI writing is easy to spot — it has recognizable formatting like em-dashes, citation pips, and broken math delimiters. Marksmith removes these obvious signs and instantly turns your chat into a perfect, professional PDF or Word document with native math and diagrams.
 
 One-liner: **Proprietary MD to Word Conversion for ChatGPT, Gemini, and Claude.**
 
@@ -15,37 +15,36 @@ One-liner: **Proprietary MD to Word Conversion for ChatGPT, Gemini, and Claude.*
 ## Product Hunt
 
 - **Name:** Marksmith
-- **Tagline:** Turn AI chats into polished PDF & Word docs
+- **Tagline:** Turn AI chats into polished, private Word & PDF docs.
 - **Topics:** Productivity, Writing, Windows, Artificial Intelligence
 - **Description:**
-  > Marksmith is a Windows app that turns messy AI text into documents you can actually send to your boss or clients. It automatically removes the weird formatting AI leaves behind (like random bolding or broken code blocks) and creates a perfect PDF or Word doc. Your math formulas even become real, editable Word equations! Free to try; Pro is a one-time A$39.
+  > AI writing often has a formatting problem: tell-tale artifacts, citation pips, and broken math delimiters. Marksmith is a Windows 11 desktop app that strips those artifacts out and transforms the text into your own house style. It goes beyond simple text conversion by rebuilding every Mermaid diagram (flowcharts, sequence, class, Gantt, and more) as native, editable Word shapes and turning KaTeX into proper OMML Word equations. Everything runs 100% locally on your machine with zero external network calls. Free for PDF export; Pro is a one-time purchase for Word export.
 - **Maker's first comment:**
-  > Hey PH 👋 I'm the maker. I got really tired of pasting ChatGPT answers into Word and spending 10 minutes fixing the formatting every single time. So I built a tool to do it for me. Marksmith cleans up the text and exports a beautiful document. The best part? Math formulas actually work in Word instead of turning into broken text. Would love your feedback!
+  > Hey PH. I built Marksmith because I was tired of manually fixing the formatting every time I copied an AI response into a Word document. It cleans up the text, builds a self-updating table of contents, and actually renders Mermaid diagrams as editable shapes rather than pictures. It's completely offline for privacy. Would love to hear your thoughts.
 
 ---
 
 ## Reddit (r/productivity, r/students, r/college — tailor each)
 
-Reddit hates obvious ads. Post a relatable story first, and mention the tool as your solution. 
-
-> **Title:** I got sick of hand-fixing ChatGPT's formatting in Word, so I built an app to do it instantly.
+> **Title:** I got sick of hand-fixing ChatGPT's formatting in Word, so I built a Windows app to do it instantly.
 >
-> Every time I copy something from ChatGPT into a Word doc for work, I have to spend ten minutes fixing it. I have to delete those weird citation brackets, fix the bolding, and try to make the math formulas actually readable.
+> Every time I copy something from ChatGPT or Claude into a work document, I spend ten minutes fixing it. I have to delete the weird citation brackets, swap out all the em-dashes, and try to make the math formulas readable instead of broken LaTeX strings. 
 >
-> So I made a Windows app to do it automatically. You just paste your chat in, and it cleans up all the obvious "AI tells" and exports a perfect Word document or PDF. It even turns math into real, editable Word equations.
+> So I built a Windows 11 app to do it automatically. You paste your chat in, and it cleans up the obvious AI artifacts, then exports a perfect Word document or PDF. It actually turns math into real, editable Word equations, and if your prompt included a Mermaid diagram, it rebuilds it using native Word shapes so you can edit it later. The app runs completely offline.
 >
-> It's called Marksmith. The PDF version is free, and the Word export is a one-time fee. Just wanted to share in case anyone else was going crazy fixing AI formatting by hand!
+> It's called Marksmith. The PDF export is free, and the Word export is a one-time purchase. Just wanted to share in case anyone else was going crazy fixing this stuff by hand!
 
 ---
 
 ## X / Twitter thread
 
-1. AI writing is super easy to spot. The weird dashes. The random bold words. The broken math symbols. You know it when you see it. 🧵
-2. It's not a bad thing, but the moment you paste it into a work document, everyone knows exactly where it came from.
-3. So I built Marksmith. You paste in an AI reply, it cleans up all the messy formatting, and gives you a perfect PDF or Word doc. [demo video]
-4. My favorite part: it actually fixes math! Instead of broken text, you get a real, clickable Word equation. [clip]
-5. It also builds a real table of contents and makes sure your tables don't break across pages. It does all the annoying Word formatting for you.
-6. It's on Windows. Free to try, Pro is a one-time A$39. Link below, let me know what you think! 👇
+1. AI writing has a formatting problem. The tell-tale dashes. The citation pips. The broken math symbols. You know it when you see it, and so does your boss. 🧵
+2. The moment you paste an AI reply into a work document, the formatting gives away exactly where it came from. Fixing it by hand takes ten minutes every single time.
+3. So I built Marksmith for Windows 11. You paste in a chat, it cleans up all the messy artifacts, and gives you a professional PDF or Word doc that matches your house style. 
+4. My favorite part: it actually fixes math! Instead of broken raw LaTeX text, you get a real, clickable Word equation. [clip]
+5. It handles diagrams, too. If the AI outputs a Mermaid flowchart, mindmap, or sequence diagram, Marksmith rebuilds it as native, editable shapes in Word. 
+6. Best of all, it becomes editable Word math + diagrams, all offline. Everything happens locally on your machine with zero external network calls, keeping your data completely private.
+7. Free to try for PDFs, and Pro is a one-time purchase for Word export. Link below, let me know what you think! 👇
 
 ---
 
@@ -53,11 +52,11 @@ Reddit hates obvious ads. Post a relatable story first, and mention the tool as 
 
 - **Title:** Show HN: Marksmith – turn AI chat replies into polished PDF/Word docs
 - **Text:**
-  > I built a Windows desktop app that fixes the annoying formatting artifacts you get when copying from ChatGPT or Claude. It normalizes the text and generates a clean PDF or a native Word document.
+  > I built a native Windows 11 desktop app that fixes the formatting artifacts you get when copying from ChatGPT, Gemini, or Claude. It normalizes the text (stripping citation pips and fixing dashes) and generates a clean PDF or a native Word document.
   >
-  > Instead of using basic text converters that break formatting, Marksmith creates a real Word document from scratch. It builds a working table of contents, proper heading links, and actually converts LaTeX math into native, editable Word equations. 
+  > Instead of using standard text converters, Marksmith uses a custom engine to build a real Word document from scratch. It builds a working table of contents, proper heading links, and actually converts LaTeX math into native, editable OMML Word equations. It also parses every Mermaid diagram type and rebuilds them as native, editable shape groups in Word, rather than just inserting an image.
   >
-  > The free tier does PDF; Pro (one-time fee) adds Word export and automation features. Would love any feedback!
+  > It operates 100% locally with zero external network calls. The free tier does PDF; Pro is a one-time purchase for Word export. Would love any feedback!
 
 ---
 
