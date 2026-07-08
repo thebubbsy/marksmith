@@ -94,6 +94,9 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ProBadgeVisibility));
     }
 
+    private readonly PresetsService _presetsService = new();
+    public ObservableCollection<ExportPreset> Presets { get; } = new();
+
     public ObservableCollection<string> ThemeNames { get; }
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
@@ -207,6 +210,56 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; _settingsService.Save(); }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
+
+    // ---- Export presets ----
+
+    public void LoadPresets()
+    {
+        Presets.Clear();
+        foreach (var p in _presetsService.Load()) Presets.Add(p);
+    }
+
+    public void SavePreset(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) return;
+        var preset = ExportPreset.Capture(name, _settingsService.Current);
+        for (int i = Presets.Count - 1; i >= 0; i--)
+            if (string.Equals(Presets[i].Name, name, StringComparison.OrdinalIgnoreCase)) Presets.RemoveAt(i);
+        Presets.Insert(0, preset);
+        _presetsService.Save(Presets);
+    }
+
+    public void DeletePreset(ExportPreset preset)
+    {
+        Presets.Remove(preset);
+        _presetsService.Save(Presets);
+    }
+
+    // Apply through the VM's observable properties so the UI updates live, each change persists to
+    // settings, and the preview refreshes — same as if the user set them by hand.
+    public void ApplyPreset(ExportPreset p)
+    {
+        SelectedThemeName = p.Theme;
+        ContentWidth = p.ContentWidth;
+        A4FixedWidth = p.A4FixedWidth;
+        UnlimitedHeight = p.UnlimitedHeight;
+        IncludeToc = p.IncludeToc;
+        ShowAttribution = p.ShowAttribution;
+        NoEmoji = p.NoEmoji;
+        DashMode = p.DashMode;
+        DashCustom = p.DashCustom;
+        HeadingShift = p.HeadingShift;
+        BoldMode = p.BoldMode;
+        ItalicMode = p.ItalicMode;
+        MermaidDocxMode = p.MermaidDocxMode;
+        OversizedDiagramMode = p.OversizedDiagramMode;
+        BrandCoverPage = p.BrandCoverPage;
+        BrandLogoPath = p.BrandLogoPath;
+        BrandFontFamily = p.BrandFontFamily;
+        StatusText = $"Applied preset: {p.Name}";
+        StatusSeverity = InfoBarSeverity.Success;
+    }
 
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
     public string BuildPreviewHtml(string markdown, bool interactive = false) =>
