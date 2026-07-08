@@ -79,7 +79,8 @@ public sealed class DocxExportService
     // at the top of the document discloses exactly what Marksmith cleaned — transparent, on-brand.
     public Task ExportAsync(string markdown, string docxPath, AppSettings settings,
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
-        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null) =>
+        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
+        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null) =>
         Task.Run(() =>
         {
             markdown = TextNormalizer.Newlines(markdown);
@@ -119,6 +120,7 @@ public sealed class DocxExportService
                 MermaidImages = mermaidImages,
                 MermaidGeometry = mermaidGeometry,
                 MermaidExactLayout = mermaidGeometry is not null, // geometry is only harvested when exact chosen
+                MermaidGenericGeometry = mermaidGenericGeometry,
                 BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
             };
 
@@ -250,6 +252,7 @@ public sealed class DocxExportService
         public IReadOnlyList<byte[]?>? MermaidImages; // pre-rasterized PNGs, one per fence in order
         public IReadOnlyList<Mermaid.HarvestedDiagram?>? MermaidGeometry; // exact mermaid geometry per fence
         public bool MermaidExactLayout; // OversizedDiagramMode==Exact: prefer harvested geometry
+        public IReadOnlyList<Mermaid.GenericDiagram?>? MermaidGenericGeometry; // generic per-fence geometry (any type)
         public int MermaidSeen;           // index of the next mermaid fence encountered
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
@@ -357,6 +360,7 @@ public sealed class DocxExportService
                 var idx = ctx.MermaidSeen++;
                 var png = ctx.MermaidImages is not null && idx < ctx.MermaidImages.Count ? ctx.MermaidImages[idx] : null;
                 var geo = ctx.MermaidGeometry is not null && idx < ctx.MermaidGeometry.Count ? ctx.MermaidGeometry[idx] : null;
+                var gen = ctx.MermaidGenericGeometry is not null && idx < ctx.MermaidGenericGeometry.Count ? ctx.MermaidGenericGeometry[idx] : null;
 
                 // Exact-layout mode: rebuild mermaid's OWN geometry as native shapes (node-for-node,
                 // no reordering) and open the document in Web Layout so a wide diagram scrolls.
@@ -376,6 +380,20 @@ public sealed class DocxExportService
                 {
                     ctx.ForceWebLayout |= oversizedDiagram;
                     target.Append(diagram);
+                }
+                // Generic path (the "no fallback" win): any diagram type a bespoke renderer doesn't
+                // handle — state, C4, block, kanban, packet, sankey, etc. — rebuilt from mermaid's
+                // harvested SVG primitives as native shapes, instead of a flat picture.
+                else if (ctx.MermaidMode == 1 && gen is { IsEmpty: false })
+                {
+                    var md = gen.ToMDiagram(ctx.Theme);
+                    var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversizedGen);
+                    var p = new W.Paragraph { InnerXml = xml };
+                    p.PrependChild(new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { Before = "120", After = "120" },
+                        new W.Justification { Val = W.JustificationValues.Center }));
+                    ctx.ForceWebLayout |= oversizedGen;
+                    target.Append(p);
                 }
                 else if (png is not null)
                     target.Append(SnapshotParagraph(png, ctx));
