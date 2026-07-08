@@ -283,6 +283,28 @@
                 <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Padding="14" Spacing="14">
+                            <!-- Export presets: save the current look, re-apply in one click. -->
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="PresetsCombo" Grid.Column="0" Header="Preset"
+                                          ItemsSource="{Binding Presets}" DisplayMemberPath="Name"
+                                          PlaceholderText="Apply a saved preset…" HorizontalAlignment="Stretch"
+                                          SelectionChanged="OnPresetSelected" />
+                                <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
+                                        ToolTipService.ToolTip="Save current settings as a preset">
+                                    <FontIcon Glyph="&#xE74E;" FontSize="14" />
+                                </Button>
+                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
+                                        ToolTipService.ToolTip="Delete the selected preset">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                </Button>
+                            </Grid>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
                             <ComboBox Header="Theme" ItemsSource="{Binding ThemeNames}"
                                       SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
                                       HorizontalAlignment="Stretch" />
