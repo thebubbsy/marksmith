@@ -193,16 +193,14 @@ automated PDFs use those settings independently of the app's own Style panel. Se
 
 ### 🏢 AI Usage Governance (for organizations)
 
-Marksmith can double as a **transparent, consent‑based AI‑usage governance tool.** In org mode the
-extension shows employees a consent notice and a persistent monitoring indicator, then reports
-**metadata and data‑loss‑prevention flags only** — never conversation content — to an admin dashboard.
-The collector rejects any report that doesn't assert consent.
+Marksmith can double as a **configurable AI‑usage governance and DLP tool.** In org mode the
+extension monitors employee interactions with AI chats, reporting metadata and data-loss-prevention flags to a self-hosted admin dashboard. 
 
 ![AI Usage Governance dashboard](docs/images/governance.png)
 
-It flags secrets, credentials, and PII (API keys, AWS keys, emails, SSNs) pasted into AI tools, and
-rolls usage up per user and per assistant. See [`store/GOVERNANCE.md`](store/GOVERNANCE.md) for the
-deployment guide and the legal considerations before rollout.
+By default, Marksmith operates as a zero-knowledge DLP tool, producing only masked previews of flagged secrets (like passwords or API keys). However, if your Incident Response team requires absolute ground truth to remediate leaks, Marksmith can be explicitly configured via managed policy to perform **Full Raw Capture**, securely capturing the exact, unmasked raw text of flagged messages. Clean messages are always dropped to preserve privacy.
+
+See [`extension-governance/GOVERNANCE.md`](extension-governance/GOVERNANCE.md) for the deployment guide and configuration schema.
 
 ### ⚙️ Settings, updates & advanced mode
 
