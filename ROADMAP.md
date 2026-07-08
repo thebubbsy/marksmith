@@ -42,7 +42,12 @@ product ships when things are ready, and priority follows what users actually as
 - [x] **Branding kit** — cover page (logo, display title, date), document-wide custom typeface.
       (Letterhead/logo in the running header remains a refinement.)
 - [x] **Batch convert a folder** — every .md becomes a themed PDF via the full pipeline (Pro).
-- [ ] **Export presets** — one-click saved output profiles.
+- [x] **Export presets** — save the current look (theme + width + cleanup + formatting + diagram
+      mode + branding) as a named preset, re-apply in one click.
+- [x] **Offline-first** — mermaid, KaTeX (+fonts) and highlight.js are bundled and served locally;
+      the app makes **zero CDN calls**, works without internet, and renders faster.
+- [x] **Export diagram as image** — save any focused diagram as PNG or SVG.
+- [x] **Batch to any format** — batch-convert a folder to PDF, DOCX, PPTX or EPUB.
 
 ## Later — raise the ceiling
 

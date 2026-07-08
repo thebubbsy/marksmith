@@ -85,7 +85,7 @@ public sealed class MarkdownHtmlService
 
         var mermaidEnabled = settings.MermaidEnabled && body.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         var mermaidScript = mermaidEnabled ? $$"""
-            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+            <script src="https://marksmith.assets/mermaid.min.js"></script>
             <script>
             mermaid.initialize({
                 startOnLoad: true,
@@ -248,7 +248,7 @@ public sealed class MarkdownHtmlService
         var sub = string.IsNullOrEmpty(subtitle) ? "" : $"<div id=\"dv-sub\">{subtitle}</div>";
         return $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+            <script src="https://marksmith.assets/mermaid.min.js"></script>
             <style>
             html, body { margin: 0; height: 100%; overflow: hidden; background: {{theme.Background}}; color: {{theme.Text}};
                          font-family: -apple-system, "Segoe UI", sans-serif; }
@@ -280,7 +280,9 @@ public sealed class MarkdownHtmlService
               <div id="dv-controls"><span id="dv-pct">100%</span>
                 <button id="dv-out" title="Zoom out">−</button>
                 <button id="dv-in" title="Zoom in">+</button>
-                <button id="dv-reset">Reset</button></div>
+                <button id="dv-reset">Reset</button>
+                <button id="dv-png" title="Save diagram as PNG">PNG</button>
+                <button id="dv-svg" title="Save diagram as SVG">SVG</button></div>
               <div id="dv-stage"><div id="dv-inner">{{mermaidDiv}}</div></div>
             </div>
             <script>
@@ -324,23 +326,49 @@ public sealed class MarkdownHtmlService
               document.getElementById("dv-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
               document.getElementById("dv-reset").addEventListener("click", () => { fit(); });
               window.addEventListener("resize", () => { if (fitted) fit(); });
+
+              // Export the diagram as a file — the host (C#) shows a save dialog and writes it.
+              const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };
+              function svgText() {
+                const svg = inner.querySelector("svg"); if (!svg) return null;
+                const clone = svg.cloneNode(true);
+                clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+                clone.style.background = "{{theme.Background}}";
+                return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+              }
+              document.getElementById("dv-svg").addEventListener("click", () => {
+                const s = svgText(); if (s) post({ type: "save-diagram", format: "svg", data: s });
+              });
+              document.getElementById("dv-png").addEventListener("click", () => {
+                const svg = inner.querySelector("svg"); if (!svg) return;
+                const w = svg.getBoundingClientRect().width, h = svg.getBoundingClientRect().height;
+                const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText());
+                const img = new Image();
+                img.onload = () => {
+                  const c = document.createElement("canvas"); c.width = Math.ceil(w * 2); c.height = Math.ceil(h * 2);
+                  const g = c.getContext("2d"); g.fillStyle = "{{theme.Background}}"; g.fillRect(0, 0, c.width, c.height);
+                  g.drawImage(img, 0, 0, c.width, c.height);
+                  post({ type: "save-diagram", format: "png", data: c.toDataURL("image/png") });
+                };
+                img.src = url;
+              });
             })();
             </script>
             </body></html>
             """;
     }
 
-    // KaTeX for math and highlight.js for code fences, loaded from CDN only when the rendered
-    // body actually needs them (offline exports of plain documents stay dependency-free).
+    // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
+    // when the rendered body actually needs them (plain documents stay dependency-free).
     private static string BuildExtraHead(string body, bool isDark)
     {
         var head = "";
         if (body.Contains("class=\"math\""))
         {
             head += """
-                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-                <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-                <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+                <link rel="stylesheet" href="https://marksmith.assets/katex.min.css">
+                <script defer src="https://marksmith.assets/katex.min.js"></script>
+                <script defer src="https://marksmith.assets/auto-render.min.js"
                         onload="renderMathInElement(document.body, {delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]});"></script>
                 """;
         }
@@ -348,8 +376,8 @@ public sealed class MarkdownHtmlService
         {
             var hlTheme = isDark ? "github-dark" : "github";
             head += $"""
-                <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/{hlTheme}.min.css">
-                <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
+                <link rel="stylesheet" href="https://marksmith.assets/{hlTheme}.min.css">
+                <script src="https://marksmith.assets/highlight.min.js"></script>
                 <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
                 """;
         }

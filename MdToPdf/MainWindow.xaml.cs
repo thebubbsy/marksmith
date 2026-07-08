@@ -158,6 +158,7 @@ public sealed partial class MainWindow : Window
             _trayIcon?.Dispose();
         };
 
+        ViewModel.LoadPresets();
         _ = InitializePreviewAsync();
         _ = LoadMarkdownFilesAsync(); // scan for real .md files in the background
 
@@ -285,6 +286,41 @@ public sealed partial class MainWindow : Window
     private void SyncAdvancedSection() =>
         AdvancedStyleSection.Visibility =
             (ViewModel.AdvancedMode && App.License.IsPro) ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox { SelectedItem: Models.ExportPreset preset })
+            ViewModel.ApplyPreset(preset);
+    }
+
+    private async void OnSavePresetClick(object sender, RoutedEventArgs e)
+    {
+        var box = new TextBox { PlaceholderText = "e.g. Client report — dark, branded", Margin = new Thickness(0, 12, 0, 0) };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = "Save preset",
+            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Save the current theme, width, cleanup, formatting, diagram mode and branding as a named preset." }, box } },
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        {
+            ViewModel.SavePreset(box.Text);
+            ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
+            ViewModel.StatusSeverity = InfoBarSeverity.Success;
+        }
+    }
+
+    private void OnDeletePresetClick(object sender, RoutedEventArgs e)
+    {
+        if (PresetsCombo.SelectedItem is Models.ExportPreset preset)
+        {
+            ViewModel.DeletePreset(preset);
+            PresetsCombo.SelectedItem = null;
+        }
+    }
 
     private void OnTakeTourClick(object sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
 
@@ -628,7 +664,14 @@ public sealed partial class MainWindow : Window
             ViewModel.StatusSeverity = InfoBarSeverity.Warning;
             return;
         }
-        if (!await EnsurePreviewWebViewAsync())
+
+        // Which format? PDF/DOCX/PPTX/EPUB — the same choice the individual exports offer.
+        var fmt = await AskBatchFormatAsync(files.Length);
+        if (fmt is null) return;
+        var docxGated = fmt is "docx" && !App.License.CanExportDocx;
+        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = InfoBarSeverity.Warning; return; }
+
+        if (fmt == "pdf" && !await EnsurePreviewWebViewAsync())
         {
             ViewModel.StatusText = "Batch failed: the preview engine couldn't start. Try again.";
             ViewModel.StatusSeverity = InfoBarSeverity.Error;
@@ -644,12 +687,25 @@ public sealed partial class MainWindow : Window
             try
             {
                 var md = ViewModel.PrepareMarkdown(await File.ReadAllTextAsync(f));
-                var html = ViewModel.BuildPreviewHtml(md);
-                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + ".pdf");
-                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
-                ViewModel.RecordExport("PDF", outPath, md);
+                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
+                switch (fmt)
+                {
+                    case "pdf":
+                        await new Services.PdfExportService().ExportAsync(PreviewWebView, ViewModel.BuildPreviewHtml(md), outPath, App.Settings.Current);
+                        break;
+                    case "docx":
+                        await new Services.DocxExportService().ExportAsync(md, outPath, App.Settings.Current);
+                        break;
+                    case "pptx":
+                        await new Services.PptxExportService().ExportAsync(md, outPath, App.Settings.Current);
+                        break;
+                    case "epub":
+                        await new Services.EpubExportService().ExportAsync(md, outPath, App.Settings.Current);
+                        break;
+                }
+                ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
                 done++;
-                ViewModel.StatusText = $"Batch converting… {done + failed}/{files.Length}";
+                ViewModel.StatusText = $"Batch converting to {fmt.ToUpperInvariant()}… {done + failed}/{files.Length}";
             }
             catch { failed++; }
             finally { _convertLock.Release(); }
@@ -657,9 +713,30 @@ public sealed partial class MainWindow : Window
 
         await RefreshPreviewAsync(false);
         ViewModel.StatusText = failed == 0
-            ? $"Batch done: {done} PDF{(done == 1 ? "" : "s")} in {outFolder}"
+            ? $"Batch done: {done} {fmt.ToUpperInvariant()} file{(done == 1 ? "" : "s")} in {outFolder}"
             : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
         ViewModel.StatusSeverity = failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+    }
+
+    // Ask which format to batch-convert to; returns "pdf"/"docx"/"pptx"/"epub" or null if cancelled.
+    private async Task<string?> AskBatchFormatAsync(int count)
+    {
+        var combo = new ComboBox { SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0) };
+        combo.Items.Add("PDF");
+        combo.Items.Add("Word (DOCX)");
+        combo.Items.Add("PowerPoint (PPTX)");
+        combo.Items.Add("EPUB");
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = $"Batch convert {count} file{(count == 1 ? "" : "s")}",
+            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Every .md file in the folder is converted to your chosen format, using the current Style settings." }, combo } },
+            PrimaryButtonText = "Convert",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
+        return combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
     }
 
     private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
@@ -901,10 +978,66 @@ public sealed partial class MainWindow : Window
     private async Task InitializePreviewAsync()
     {
         await PreviewWebView.EnsureCoreWebView2Async();
+        MapAssetHost(PreviewWebView.CoreWebView2);
         // The preview auto-refreshes on every change (debounced). Navigation completing satisfies
         // one of the two conditions to hide the spinner; the minimum-time gate satisfies the other.
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _spinNavDone = true;
+        PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessage;
         await RefreshPreviewAsync();
+    }
+
+    // The focused diagram viewer posts {type:"save-diagram", format, data} when the user clicks
+    // PNG/SVG; show a save picker and write the file. Best-effort — a bad message is ignored.
+    private async void OnPreviewWebMessage(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var json = e.TryGetWebMessageAsString();
+            if (string.IsNullOrEmpty(json)) return;
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.GetProperty("type").GetString() != "save-diagram") return;
+
+            var format = root.GetProperty("format").GetString() ?? "png";
+            var data = root.GetProperty("data").GetString() ?? "";
+
+            var picker = new FileSavePicker { SuggestedFileName = "diagram" };
+            picker.FileTypeChoices.Add(format.ToUpperInvariant() + " image", new List<string> { "." + format });
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+            var file = await picker.PickSaveFileAsync();
+            if (file is null) return;
+
+            if (format == "svg")
+                await File.WriteAllTextAsync(file.Path, data);
+            else
+            {
+                var b64 = data.Contains(',') ? data[(data.IndexOf(',') + 1)..] : data;
+                await File.WriteAllBytesAsync(file.Path, Convert.FromBase64String(b64));
+            }
+            ViewModel.StatusText = $"Diagram saved: {file.Path}";
+            ViewModel.StatusSeverity = InfoBarSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Couldn't save the diagram: {ex.Message}";
+            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+        }
+    }
+
+    // Serve the bundled web assets (mermaid, KaTeX, highlight.js) from a real https origin so
+    // NavigateToString pages can load them — no CDN, works offline. Referenced as
+    // https://{Services.WebAssets.Host}/mermaid.min.js etc.
+    private static void MapAssetHost(Microsoft.Web.WebView2.Core.CoreWebView2 core)
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "Assets", "web");
+        if (!Directory.Exists(dir)) return;
+        try
+        {
+            core.SetVirtualHostNameToFolderMapping(
+                Services.WebAssets.Host, dir,
+                Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
+        }
+        catch { /* mapping already set or unavailable — CDN fallback in the HTML still works */ }
     }
 
     // The WebView initializes asynchronously after launch, but headless work (auto-generate on
@@ -1007,7 +1140,7 @@ public sealed partial class MainWindow : Window
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script></head>
+            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
             <body><script>
             window.__pngs = null;
             const sources = {{sourcesJson}};
@@ -1100,7 +1233,7 @@ public sealed partial class MainWindow : Window
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script></head>
+            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
             <body><script>
             window.__geo = null;
             const sources = {{sourcesJson}};

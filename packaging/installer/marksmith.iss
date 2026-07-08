@@ -6,7 +6,7 @@
 ; Chocolatey, and a Microsoft Store EXE/MSI submission.
 
 #define AppName "Marksmith"
-#define AppVersion "1.2.8"
+#define AppVersion "1.3.0"
 #define AppPublisher "thebubbsy"
 #define AppURL "https://github.com/thebubbsy/marksmith"
 #define AppExe "Marksmith.exe"
