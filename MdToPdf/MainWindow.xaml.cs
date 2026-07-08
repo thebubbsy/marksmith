@@ -1342,6 +1342,98 @@ public sealed partial class MainWindow : Window
         return result;
     }
 
+    // The "no fallback" harvester: for ANY mermaid diagram type (state, C4, block, kanban, packet,
+    // sankey, requirement, architecture, …), read every visual primitive — shapes with mermaid's
+    // real colours, curved edge paths, text — from the rendered SVG so ShapeForge can rebuild it as
+    // native Word shapes instead of falling back to a picture. One generic path, all families.
+    public async Task<List<Services.Mermaid.GenericDiagram?>> HarvestGenericGeometryAsync(string markdown, Models.AppSettings settings)
+    {
+        var fences = System.Text.RegularExpressions.Regex.Matches(
+                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
+                System.Text.RegularExpressions.RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value).ToList();
+        if (fences.Count == 0) return new();
+        if (!await EnsurePreviewWebViewAsync()) return new();
+
+        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
+        var html = $$"""
+            <!DOCTYPE html><html><head><meta charset="UTF-8">
+            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
+            <body><script>
+            window.__gen = null;
+            const sources = {{sourcesJson}};
+            mermaid.initialize({ startOnLoad: false, theme: "base",
+              flowchart: { useMaxWidth: false, htmlLabels: true }, securityLevel: "strict" });
+            function harvest(svgEl) {
+              const nodes = [], edges = [], texts = [];
+              const M = el => el.getCTM ? el.getCTM() : null, box = el => { try { return el.getBBox(); } catch(e) { return null; } }, cs = el => getComputedStyle(el);
+              const abs = el => { const b = box(el), m = M(el); if (!b) return null; return { x: m ? m.a*b.x + m.c*b.y + m.e : b.x, y: m ? m.b*b.x + m.d*b.y + m.f : b.y, w: m ? b.width*m.a : b.width, h: m ? b.height*m.d : b.height }; };
+              const closed = new Set(["rect","circle","ellipse","polygon"]);
+              svgEl.querySelectorAll("rect,circle,ellipse,polygon,polyline,path,line").forEach(el => {
+                const st = cs(el), fill = st.fill, stroke = st.stroke, tag = el.tagName.toLowerCase();
+                const isFilled = fill && fill !== "none" && !fill.startsWith("rgba(0, 0, 0, 0)");
+                if (closed.has(tag) || (tag === "path" && isFilled)) {
+                  const a = abs(el); if (!a || a.w < 1 || a.h < 1) return;
+                  let kind = tag === "circle" ? "Circle" : tag === "ellipse" ? "Ellipse" : tag === "polygon" ? "Diamond" : (tag === "rect" && +el.getAttribute("rx") > 0) ? "RoundRect" : "Rect";
+                  nodes.push({ X: +a.x.toFixed(1), Y: +a.y.toFixed(1), W: +a.w.toFixed(1), H: +a.h.toFixed(1), Kind: kind, Fill: fill, Stroke: stroke });
+                } else if (tag === "path" || tag === "line" || tag === "polyline") {
+                  const m = M(el), map = pt => m ? [pt.x*m.a+pt.y*m.c+m.e, pt.x*m.b+pt.y*m.d+m.f] : [pt.x, pt.y]; let pts = [];
+                  try { const L = el.getTotalLength(); const N = Math.max(2, Math.min(30, Math.round(L/16))); for (let k=0;k<=N;k++){ const [x,y] = map(el.getPointAtLength(L*k/N)); pts.push([+x.toFixed(1),+y.toFixed(1)]); } } catch(e){}
+                  const dashed = (cs(el).strokeDasharray || "none") !== "none";
+                  if (pts.length >= 2) edges.push({ Points: pts, Stroke: stroke, Dashed: dashed });
+                }
+              });
+              svgEl.querySelectorAll("foreignObject").forEach(fo => { const a = abs(fo); const t = (fo.textContent||"").trim(); const c = cs(fo.querySelector("*") || fo).color; if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: c }); });
+              svgEl.querySelectorAll("text").forEach(tx => { if (tx.closest("foreignObject")) return; const a = abs(tx); const t = (tx.textContent||"").trim(); if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: cs(tx).fill }); });
+              const vb = (svgEl.getAttribute("viewBox")||"0 0 0 0").split(/\s+/).map(Number);
+              return { W: vb[2], H: vb[3], Nodes: nodes, Edges: edges, Texts: texts };
+            }
+            (async () => {
+              const out = [];
+              for (let i = 0; i < sources.length; i++) {
+                try {
+                  const holder = document.createElement("div");
+                  holder.style.cssText = "position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1";
+                  document.body.appendChild(holder);
+                  const { svg } = await mermaid.render("gg" + i, sources[i]);
+                  holder.innerHTML = svg; const el = holder.querySelector("svg");
+                  void el.getBoundingClientRect();
+                  out.push(harvest(el)); holder.remove();
+                } catch (e) { out.push(null); }
+              }
+              window.__gen = JSON.stringify(out);
+            })();
+            </script></body></html>
+            """;
+
+        var result = new List<Services.Mermaid.GenericDiagram?>();
+        try
+        {
+            _mermaidHarvestActive = true;
+            _previewDebounce.Stop();
+            PreviewWebView.CoreWebView2.NavigateToString(html);
+            for (int i = 0; i < 130; i++)
+            {
+                await Task.Delay(150);
+                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("window.__gen");
+                if (raw is null or "null" or "\"null\"") continue;
+                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
+                if (string.IsNullOrEmpty(json) || json == "null") continue;
+                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                result = System.Text.Json.JsonSerializer.Deserialize<List<Services.Mermaid.GenericDiagram?>>(json, opts) ?? new();
+                break;
+            }
+        }
+        catch { /* best-effort; the exporter falls back to snapshot/code for any fence that fails */ }
+        finally
+        {
+            _mermaidHarvestActive = false;
+            await RefreshPreviewAsync(false);
+        }
+        while (result.Count < fences.Count) result.Add(null);
+        return result;
+    }
+
     private async Task RefreshPreviewAsync(bool heavy = true)
     {
         if (PreviewWebView.CoreWebView2 is null) return;

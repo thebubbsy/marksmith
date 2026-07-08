@@ -410,6 +410,14 @@ public sealed partial class MainViewModel : ObservableObject
                 else layoutNote = "  (large diagram: reflowed to fit the page)";
             }
 
+            // Generic harvest (the "no fallback" path): for any diagram type a bespoke renderer
+            // doesn't handle (state, C4, block, kanban, packet, sankey, …), pull mermaid's own SVG
+            // geometry so ShapeForge rebuilds it as native shapes instead of a picture.
+            List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
+            if (hasMermaid && settings.MermaidDocxMode == 1 && mw is not null
+                && Services.MermaidDocxRenderer.HasUnsupportedFence(markdown))
+                genericGeom = await mw.HarvestGenericGeometryAsync(markdown, settings);
+
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
             // families) — the renderer needs the window's WebView2, so it lives on MainWindow.
             List<byte[]?>? mermaidImgs = null;
@@ -417,7 +425,7 @@ public sealed partial class MainViewModel : ObservableObject
                 mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, settings);
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
-            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry);
+            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
