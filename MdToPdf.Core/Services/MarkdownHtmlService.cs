@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using MdToPdf.Models;
 using Markdig;
@@ -34,6 +35,14 @@ public sealed class MarkdownHtmlService
         ["caution"] = ("#f85149", "🛑"),
     };
 
+    // First token of a backtick-delimited string literal that identifies it as real Mermaid
+    // diagram source (rather than an arbitrary JS/TS template literal), used to find diagrams
+    // embedded inside code EXAMPLES — e.g. a library README's ```typescript block calling
+    // renderMermaid(`graph TD ...`) — that never went through a real ```mermaid fence.
+    private static readonly Regex MermaidDiagramStart = new(
+        @"^(graph\s|flowchart\s|sequenceDiagram\b|classDiagram\b|stateDiagram(-v2)?\b|erDiagram\b|journey\b|gantt\b|pie\b|quadrantChart\b|requirementDiagram\b|gitGraph\b|mindmap\b|timeline\b|C4(Context|Container|Component|Dynamic|Deployment)\b|sankey(-beta)?\b|block-beta\b|packet-beta\b|kanban\b|radar(-beta)?\b|xychart-beta\b|zenuml\b)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
@@ -54,6 +63,48 @@ public sealed class MarkdownHtmlService
             "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>",
             RegexOptions.Singleline);
+
+        // Some Markdown (typically a library's own README showing "here's how to render a
+        // diagram") carries real Mermaid diagram source without a genuine ```mermaid fence:
+        // either the WHOLE block is diagram source under a bare/mislabeled fence (a "Supported
+        // Diagrams" showcase using plain ``` instead of ```mermaid), or the diagram source is a
+        // quoted string-literal argument inside other code — e.g. a ```typescript block calling
+        // renderMermaid(`graph TD ...`), or a plain renderMermaid('graph TD; A-->B') call. The
+        // code block itself is still legitimate, useful example code, so it's left in place; a
+        // live diagram preview is appended right after it whenever the block's full content (or
+        // a backtick/single/double-quoted literal inside it) starts with a known Mermaid
+        // diagram-type keyword — a narrow enough signature (checked against a fixed keyword
+        // list, not just "looks like it might be a diagram") that it doesn't false-positive on
+        // ordinary code/strings elsewhere in the example (same encoding-safety note as above:
+        // the literal is kept HTML-escaped, since mermaid reads .textContent, which the browser
+        // decodes for us).
+        if (settings.MermaidEnabled)
+        {
+            body = Regex.Replace(body,
+                "<pre><code(?: class=\"language-[\\w-]+\")?>(.*?)</code></pre>",
+                m =>
+                {
+                    var codeContent = m.Groups[1].Value;
+                    var extras = new StringBuilder();
+                    var whole = codeContent.Trim();
+                    if (MermaidDiagramStart.IsMatch(whole))
+                    {
+                        extras.Append($"<div class=\"mermaid mermaid-embedded\">{whole}</div>");
+                    }
+                    else
+                    {
+                        foreach (Match lit in Regex.Matches(codeContent, "`([^`]+)`|'([^']+)'|\"([^\"]+)\"", RegexOptions.Singleline))
+                        {
+                            var group = lit.Groups[1].Success ? lit.Groups[1] : lit.Groups[2].Success ? lit.Groups[2] : lit.Groups[3];
+                            var candidate = group.Value.Trim();
+                            if (MermaidDiagramStart.IsMatch(candidate))
+                                extras.Append($"<div class=\"mermaid mermaid-embedded\">{candidate}</div>");
+                        }
+                    }
+                    return extras.Length > 0 ? m.Value + extras : m.Value;
+                },
+                RegexOptions.Singleline);
+        }
 
         // When the whole document is essentially one diagram + a title (and maybe a few words),
         // the live preview becomes a dedicated diagram viewer: title top-left, +/−/Reset, pan/zoom.
@@ -178,6 +229,12 @@ public sealed class MarkdownHtmlService
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
             .mermaid { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
             .mermaid svg { max-width: none !important; }
+            /* Diagrams recovered from a string literal inside a code EXAMPLE (not a real ```mermaid
+               fence) sit directly under that code block instead of floating at the normal 32px
+               diagram margin, and get a small caption so it reads as "this is what the code above
+               renders", not as a second independent diagram. */
+            .mermaid-embedded { margin-top: 8px; }
+            .mermaid-embedded::before { content: "Rendered preview"; display: block; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: {{theme.Text}}; opacity: 0.5; margin-bottom: 10px; }
             #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; user-select: none; -webkit-user-select: none; }
             #mk-lens.open { display: block; }
             #mk-lens.dragging { cursor: grabbing; }
