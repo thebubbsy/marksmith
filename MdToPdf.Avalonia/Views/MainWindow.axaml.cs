@@ -291,12 +291,19 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         }
     }
 
-    private void OnSettingsClick(object? sender, RoutedEventArgs e)
+    private async void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
-        // The full Settings dialog (license/update management) is not yet ported from the WinUI
-        // build — see MdToPdf/Views/SettingsView.xaml. Tracked as follow-up work.
-        ViewModel.StatusText = "Settings dialog isn't ported to the desktop-cross-platform build yet — use the Windows app for license/update management.";
-        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        var dialog = new FAContentDialog
+        {
+            Title = "Settings",
+            Content = new SettingsView(),
+            CloseButtonText = "Close",
+        };
+        await dialog.ShowAsync(this);
+
+        // The license banner reads AppServices.License.State directly, so refresh it in case the
+        // user activated/removed a license or the trial state otherwise changed while the dialog was open.
+        UpdateLicenseBanner();
     }
 
     private async void OnBrowseFolderClick(object? sender, RoutedEventArgs e)
