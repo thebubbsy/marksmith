@@ -1,17 +1,19 @@
 namespace MdToPdf.Services;
 
-// Bundled offline web assets (mermaid, KaTeX, highlight.js) are served to the preview WebView from
-// a virtual host mapped in MainWindow.MapAssetHost. Centralize the host + URLs so every render page
-// references the same origin and there are no stray CDN calls.
+// Bundled offline web assets (mermaid, KaTeX, highlight.js) are served to the preview web host from
+// a local origin each platform sets up once at startup: the WinUI build maps Host as a WebView2
+// virtual host (MainWindow.MapAssetHost); the Avalonia build points Base at a loopback HTTP server
+// (MdToPdf.Avalonia/Services/LocalAssetServer.cs) since Avalonia's NativeWebView has no virtual-host
+// equivalent. Settable (not const) so each platform can override before the first HTML render.
 public static class WebAssets
 {
-    public const string Host = "marksmith.assets";
-    public const string Base = "https://" + Host;
+    public static string Host { get; set; } = "marksmith.assets";
+    public static string Base { get; set; } = "https://marksmith.assets";
 
-    public const string Mermaid = Base + "/mermaid.min.js";
-    public const string KatexCss = Base + "/katex.min.css";
-    public const string KatexJs = Base + "/katex.min.js";
-    public const string KatexAutoRender = Base + "/auto-render.min.js";
-    public const string HighlightJs = Base + "/highlight.min.js";
+    public static string Mermaid => Base + "/mermaid.min.js";
+    public static string KatexCss => Base + "/katex.min.css";
+    public static string KatexJs => Base + "/katex.min.js";
+    public static string KatexAutoRender => Base + "/auto-render.min.js";
+    public static string HighlightJs => Base + "/highlight.min.js";
     public static string HighlightCss(bool dark) => $"{Base}/{(dark ? "github-dark" : "github")}.min.css";
 }

@@ -85,7 +85,7 @@ public sealed class MarkdownHtmlService
 
         var mermaidEnabled = settings.MermaidEnabled && body.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         var mermaidScript = mermaidEnabled ? $$"""
-            <script src="https://marksmith.assets/mermaid.min.js"></script>
+            <script src="{{Services.WebAssets.Mermaid}}"></script>
             <script>
             mermaid.initialize({
                 startOnLoad: true,
@@ -248,7 +248,7 @@ public sealed class MarkdownHtmlService
         var sub = string.IsNullOrEmpty(subtitle) ? "" : $"<div id=\"dv-sub\">{subtitle}</div>";
         return $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script>
+            <script src="{{Services.WebAssets.Mermaid}}"></script>
             <style>
             html, body { margin: 0; height: 100%; overflow: hidden; background: {{theme.Background}}; color: {{theme.Text}};
                          font-family: -apple-system, "Segoe UI", sans-serif; }
@@ -365,10 +365,10 @@ public sealed class MarkdownHtmlService
         var head = "";
         if (body.Contains("class=\"math\""))
         {
-            head += """
-                <link rel="stylesheet" href="https://marksmith.assets/katex.min.css">
-                <script defer src="https://marksmith.assets/katex.min.js"></script>
-                <script defer src="https://marksmith.assets/auto-render.min.js"
+            head += $$"""
+                <link rel="stylesheet" href="{{Services.WebAssets.KatexCss}}">
+                <script defer src="{{Services.WebAssets.KatexJs}}"></script>
+                <script defer src="{{Services.WebAssets.KatexAutoRender}}"
                         onload="renderMathInElement(document.body, {delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]});"></script>
                 """;
         }
@@ -376,8 +376,8 @@ public sealed class MarkdownHtmlService
         {
             var hlTheme = isDark ? "github-dark" : "github";
             head += $"""
-                <link rel="stylesheet" href="https://marksmith.assets/{hlTheme}.min.css">
-                <script src="https://marksmith.assets/highlight.min.js"></script>
+                <link rel="stylesheet" href="{Services.WebAssets.Base}/{hlTheme}.min.css">
+                <script src="{Services.WebAssets.HighlightJs}"></script>
                 <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
                 """;
         }
