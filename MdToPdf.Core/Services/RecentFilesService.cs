@@ -33,7 +33,7 @@ public sealed class RecentFilesService
     {
         var files = Load();
         var full = Path.GetFullPath(filePath);
-        files.RemoveAll(f => string.Equals(f, full, StringComparison.OrdinalIgnoreCase));
+        files.RemoveAll(f => string.Equals(f, full, PathEquality.Comparison));
         files.Insert(0, full);
         files = files.Take(MaxRecentFiles).ToList();
 
