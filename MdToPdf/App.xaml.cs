@@ -6,20 +6,19 @@ namespace MdToPdf;
 
 public partial class App : Application
 {
-    // Small hand-rolled composition root. A DI container (Microsoft.Extensions.DependencyInjection)
-    // is the natural next step once the app grows past a couple of pages/services.
-    public static SettingsService Settings { get; } = new();
-    public static ThemeCatalog Themes { get; } = new();
-    public static RecentFilesService RecentFiles { get; } = new();
-    public static MarkdownHtmlService MarkdownHtml { get; } = new();
-    public static LlmSourceService LlmSource { get; } = new();
-    public static HistoryService History { get; } = new();
-    public static GovernanceService Governance { get; } = new();
-    public static UpdateService Updates { get; } = new();
-    public static LicenseService License { get; } = new();
-
-    // Constructed lazily (after the services above exist) since MainViewModel reads them in its constructor.
-    public static MainViewModel ViewModel { get; } = new();
+    // Thin forwarders to the portable composition root in MdToPdf.Core — kept here (rather than
+    // switching every WinUI call site to `AppServices.X`) so this refactor didn't have to touch
+    // every page in one pass. MainAppWindow is the one genuinely WinUI-only piece.
+    public static SettingsService Settings => AppServices.Settings;
+    public static ThemeCatalog Themes => AppServices.Themes;
+    public static RecentFilesService RecentFiles => AppServices.RecentFiles;
+    public static MarkdownHtmlService MarkdownHtml => AppServices.MarkdownHtml;
+    public static LlmSourceService LlmSource => AppServices.LlmSource;
+    public static HistoryService History => AppServices.History;
+    public static GovernanceService Governance => AppServices.Governance;
+    public static UpdateService Updates => AppServices.Updates;
+    public static LicenseService License => AppServices.License;
+    public static MainViewModel ViewModel => AppServices.ViewModel;
 
     public static Window MainAppWindow { get; private set; } = null!;
 
@@ -47,7 +46,10 @@ public partial class App : Application
             try { Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Register(); }
             catch { /* toasts unavailable (e.g. notifications disabled) — app works without them */ }
 
-            MainAppWindow = new MainWindow();
+            var window = new MainWindow();
+            MainAppWindow = window;
+            ViewModel.Host = window;
+            ViewModel.Prompts = window;
             MainAppWindow.Activate();
         }
         catch (Exception ex)

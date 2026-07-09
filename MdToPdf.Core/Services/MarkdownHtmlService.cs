@@ -74,7 +74,7 @@ public sealed class MarkdownHtmlService
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
         // Free tier stamps a subtle footer on every export/preview; Pro removes it.
-        var footer = MdToPdf.App.License.ShowFooter
+        var footer = AppServices.License.ShowFooter
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
             : "";
 
