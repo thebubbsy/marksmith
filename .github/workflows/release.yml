@@ -224,21 +224,22 @@ jobs:
           mermaid/KaTeX/highlight.js assets — is bundled inside each zip; you do not need .NET
           installed separately on any platform.
 
-          **Known gaps in this preview build (not yet at parity with the Windows app):**
+          **Status versus the Windows app:**
 
-          - **Settings dialog isn't ported yet.** License/Pro-status management and checking for app
-            updates only work in the Windows (WinUI) build right now. Clicking "Settings" in this
-            build shows a message explaining that.
-          - **Automation isn't wired up yet.** The clipboard-watcher, folder-watcher, and local REST
-            API toggles save your preference (the settings file is shared with the Windows app), but
-            this build does not actually run those watchers/services yet. Only the Windows app acts
-            on them today.
-          - **PDF page geometry is best-effort and not yet independently verified.** We've made a
-            change intended to keep PDF margins, page size, and background printing consistent across
-            Windows, Linux, and macOS, and it has been verified to build correctly, but we have not
-            yet visually confirmed a real PDF output on Linux or macOS (no such machine was available
-            this session), and Windows desktop verification was limited too. Treat PDF export from
-            this build as "should work," not confirmed.
+          - Settings (license/update management) and automation (clipboard watcher, folder watcher,
+            local REST API) are both wired up in this build, mirroring the Windows app's behavior —
+            not yet independently tested end-to-end on Linux/macOS.
+          - **PDF page size (A4-lock, continuous-page mode): confirmed working on Windows, not yet
+            verified on Linux/macOS.** The underlying cross-platform web-view package has no native
+            way to set a PDF's page width/height on any platform, so this build injects a CSS `@page`
+            rule before printing instead. A real test on Windows measured the resulting PDF's exact
+            page dimensions and confirmed it matches the configured size (not the browser engine's
+            default) — so it works there. The same hasn't been independently confirmed on macOS/Linux
+            yet, since those use different underlying print engines (WKWebView / WebKitGTK). Custom
+            margins go through the same CSS mechanism, since the native margin API on Windows has a
+            unit-handling bug in the underlying package that would make setting them natively wrong.
+            Background colors are expected to print correctly everywhere (a separate, well-supported
+            CSS mechanism).
 
           BODY
 
