@@ -56,4 +56,9 @@
     <Content Include="Assets\web\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Platform-agnostic engine (Models/Services/ViewModels) shared with the future Avalonia UI. -->
+    <ProjectReference Include="..\MdToPdf.Core\MdToPdf.Core.csproj" />
+  </ItemGroup>
+
 </Project>

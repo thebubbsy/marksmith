@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MdToPdf.Avalonia</RootNamespace>
+    <AssemblyName>Marksmith</AssemblyName>
+    <Version>1.4.1</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
+    <!-- WinUI/Fluent-parity control set (InfoBar, NumberBox, SymbolIcon, ProgressRing) plus a
+         FluentAvaloniaTheme that mirrors WinUI's look, so the port doesn't need to hand-build
+         replacements for controls Avalonia's own theme doesn't ship. -->
+    <PackageReference Include="FluentAvaloniaUI" Version="3.0.1" />
+    <!-- Cross-platform native web view (WebView2/WebKit/WebKitGTK) — MIT, first-party AvaloniaUI.
+         Drives live preview, PDF export (PrintToPdfStreamAsync) and mermaid harvesting, mirroring
+         the WinUI app's WebView2 usage. See MdToPdf.Core/Rendering/IWebRenderHost.cs. -->
+    <PackageReference Include="Avalonia.Controls.WebView" Version="12.0.1" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Platform-agnostic engine (Models/Services/ViewModels) shared with the WinUI app. -->
+    <ProjectReference Include="..\MdToPdf.Core\MdToPdf.Core.csproj" />
+  </ItemGroup>
+</Project>
