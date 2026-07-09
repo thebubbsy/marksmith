@@ -241,6 +241,60 @@ with current Windows; if yours somehow lacks it, grab it
 
 ---
 
+## 🌐 Cross-platform build (preview)
+
+Marksmith is primarily a Windows app, but the conversion engine underneath it — every exporter,
+ShapeForge diagram rendering, licensing, and the governance/DLP layer — lives in a
+platform-agnostic library (`MdToPdf.Core`, net8.0, no WinUI dependency). On top of that,
+`MdToPdf.Avalonia` is a first-pass cross-platform build (Avalonia UI 12 + FluentAvaloniaUI,
+net10.0) that runs on Windows, Linux, and macOS via Avalonia's official
+`Avalonia.Controls.WebView` package (WebView2 on Windows, WKWebView on macOS, WebKitGTK/WPE on
+Linux).
+
+**The WinUI app described above remains the primary, most full‑featured build.** The Avalonia
+build shares the same rendering/export engine, but it's an early pass on the UI side and isn't at
+feature parity yet — see "Known gaps" below before relying on it.
+
+### Build it yourself
+
+```bash
+dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r win-x64 --self-contained true
+dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r linux-x64 --self-contained true
+dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r osx-arm64 --self-contained true
+```
+
+Requires the .NET 10 SDK. Each publish is fully self‑contained — the .NET runtime, every NuGet
+dependency, and the bundled mermaid.js/KaTeX/highlight.js web assets all ship in the output folder,
+so there's nothing else to install for the app itself. What *is* required outside the app, per
+platform:
+
+- **Windows** — the WebView2 Runtime. It ships by default with Windows 10 21H2+ and Windows 11 —
+  the same pre‑existing dependency the WinUI build already has, not a new one. Missing only on
+  older or stripped‑down installs; grab it
+  [here](https://developer.microsoft.com/microsoft-edge/webview2/) if needed.
+- **Linux** — a system WebKit engine (WebKitGTK or WPEWebKit), installed via your distro's package
+  manager, e.g. `sudo apt install libwebkit2gtk-4.1-0` on Debian/Ubuntu (package name varies by
+  distro). Avalonia does not bundle this — it's a genuine external dependency, not guaranteed to be
+  present on a minimal or server Linux install.
+- **macOS** — nothing extra. It uses WKWebView, a framework built into the OS.
+
+> **Known gaps versus the WinUI build** — this is a first pass, not yet at parity:
+> - **The Settings dialog isn't ported.** License/Pro‑status management and checking for app
+>   updates only work in the WinUI build today; clicking **Settings** here shows a message saying
+>   so.
+> - **Automation isn't wired up.** The clipboard‑watcher, folder‑watcher, and local REST API
+>   toggles persist your preference (the settings file is shared with the WinUI build), but this
+>   build doesn't actually run those watchers/services yet — only the WinUI build acts on them.
+> - **PDF page geometry is best‑effort, not yet independently verified.** A fix injects the right
+>   CSS/JS before printing so margins, page size, and background printing should behave
+>   consistently across WebView2/WKWebView/WebKitGTK, but it's only been build‑verified so far —
+>   not yet visually confirmed against a real PDF on Linux or macOS.
+
+Prebuilt portable zips for all three platforms are attached to each
+[release](https://github.com/thebubbsy/marksmith/releases/latest) alongside the Windows installer.
+
+---
+
 ## Architecture
 
 - **UI:** WinUI 3 (Windows App SDK 1.6), MVVM via the CommunityToolkit source generators

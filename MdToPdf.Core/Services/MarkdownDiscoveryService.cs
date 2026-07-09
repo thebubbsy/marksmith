@@ -27,7 +27,7 @@ public static class MarkdownDiscoveryService
             try
             {
                 var dir = Path.GetDirectoryName(Path.GetFullPath(p));
-                if (dir is not null && Directory.Exists(dir) && !roots.Contains(dir, StringComparer.OrdinalIgnoreCase))
+                if (dir is not null && Directory.Exists(dir) && !roots.Contains(dir, PathEquality.Comparer))
                     roots.Add(dir);
             }
             catch { /* skip */ }
@@ -39,7 +39,7 @@ public static class MarkdownDiscoveryService
             Collect(root, MaxDepth, files, budget);
 
         var result = new List<MarkdownFileEntry>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(PathEquality.Comparer);
 
         // Pinned (explicitly-opened) files first, in their existing order, if they still exist.
         foreach (var p in pinnedList)
@@ -76,7 +76,7 @@ public static class MarkdownDiscoveryService
     private static List<string> ScanRoots()
     {
         var roots = new List<string>();
-        void Add(string? p) { if (!string.IsNullOrEmpty(p) && Directory.Exists(p) && !roots.Contains(p, StringComparer.OrdinalIgnoreCase)) roots.Add(p); }
+        void Add(string? p) { if (!string.IsNullOrEmpty(p) && Directory.Exists(p) && !roots.Contains(p, PathEquality.Comparer)) roots.Add(p); }
 
         Add(DownloadsFolder());
         Add(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
