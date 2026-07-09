@@ -46,11 +46,19 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         {
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
             ApplyAutomationSettings();
-            await LoadMarkdownFilesAsync();
             ViewModel.LoadPresets();
             UpdateLicenseBanner();
+            // RefreshPreviewAsync is the one step that actually determines "is the web view ready
+            // to navigate/render" — _loaded (and therefore EnsureReadyAsync) must flip true right
+            // after it, not after the whole handler. LoadMarkdownFilesAsync does a recursive
+            // filesystem scan (Downloads/Documents/Desktop/OneDrive) that can take several seconds;
+            // gating readiness on it too meant a user who pasted and hit "Export DOCX" quickly
+            // after the window appeared could have EnsureReadyAsync still returning false, silently
+            // emptying MermaidHarvestService's results and making every diagram fall back to a
+            // plain code block. That's exactly what happened — moving the flag here fixes it.
             await RefreshPreviewAsync();
             _loaded = true;
+            await LoadMarkdownFilesAsync();
         };
 
         Closed += (_, _) =>
