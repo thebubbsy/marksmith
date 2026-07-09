@@ -38,10 +38,20 @@ public sealed class PdfExportService
             await Task.Delay(300); // layout settle buffer, mirrors the Python app's 500ms buffer
         }
 
-        var pageWidthPx = settings.A4FixedWidth ? 800 : 1200;
         PdfPageSetup setup;
         if (settings.UnlimitedHeight)
         {
+            // Continuous/no-page-breaks mode is meant to be an exact export of the on-screen
+            // preview — one tall page, not a real paper size — so the PDF's page width must equal
+            // the content's actual rendered width, not some other value. #canvas in
+            // MarkdownHtmlService.cs is `max-width: {settings.ContentWidth}px` with
+            // box-sizing:border-box (padding included in that width) inside a zero-padding body,
+            // so the page must be exactly ContentWidth px wide to fill edge-to-edge with no blank
+            // margin. This used to be hardcoded to 800/1200px based on the unrelated A4FixedWidth
+            // toggle, completely ignoring ContentWidth — whenever a user's Page Width setting
+            // wasn't exactly 800 or 1200, the mismatch produced a narrow content column inside a
+            // too-wide (or too-narrow) page.
+            var pageWidthPx = settings.ContentWidth;
             var scrollHeightResult = await host.ExecuteScriptAsync("document.body.scrollHeight");
             var scrollHeightPx = double.TryParse(scrollHeightResult, out var h) ? h : 1000;
             setup = new PdfPageSetup(
@@ -63,15 +73,12 @@ public sealed class PdfExportService
         // (see MdToPdf/MainWindow.xaml.cs's PrintToPdfAsync) and doesn't need this. The Avalonia
         // host has no such lever at all (Avalonia.Controls.WebView's WebViewPrintSettings has no
         // PageWidth/PageHeight) — see the long comment on MdToPdf.Avalonia/Views/MainWindow.xaml.cs's
-        // IWebRenderHost implementation. CONFIRMED WORKING on Windows/WebView2: a real /api/convert
-        // call through the Avalonia build (settings A4FixedWidth+UnlimitedHeight, i.e. 800px page
-        // width) produced a PDF whose MediaBox was exactly 600x324.96pt — 600pt = 800px/96dpi
-        // converted to points precisely, not WebView2's Letter/A4 default (612pt/595pt), so this
-        // @page rule genuinely does control page size on that host despite there being no exposed
-        // "prefer CSS page size" flag. Not yet independently verified on macOS (WKWebView) or Linux
-        // (WebKitGTK/WPE) — different print engines, don't assume the same result without testing.
+        // IWebRenderHost implementation for the current, unresolved status of whether this @page
+        // rule actually controls output page size there: one early test measured an exact match,
+        // repeat testing since has consistently NOT reproduced that (falls back to Letter
+        // landscape). Don't trust page-size control on that host without re-verifying live.
         // print-color-adjust is a separate, well-supported CSS mechanism and should force background
-        // colors to print regardless of platform.
+        // colors to print regardless of platform — that part isn't in question, only page `size`.
         await host.ExecuteScriptAsync($$"""
             (() => {
                 const style = document.createElement('style');

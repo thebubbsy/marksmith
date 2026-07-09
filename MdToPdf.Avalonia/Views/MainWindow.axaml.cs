@@ -302,16 +302,18 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // the adapter never calls them. So page sizing has to come from somewhere else —
     // MdToPdf.Core/Services/PdfExportService.cs injects an `@page` CSS rule before printing instead.
     //
-    // CONFIRMED WORKING on Windows/WebView2: a real /api/convert call through this build (settings
-    // A4FixedWidth+UnlimitedHeight, 800px page width) produced a PDF whose MediaBox measured exactly
-    // 600x324.96pt — 800px/96dpi converted to points precisely, not WebView2's Letter/A4 default
-    // (612pt/595pt) — so the `@page` rule genuinely does control page size here, despite there being
-    // no exposed "prefer CSS page size" flag anywhere in the interop surface (why WebView2 honors it
-    // regardless isn't confirmed, just the outcome). NOT yet independently verified on macOS
-    // (WKWebView) or Linux (WebKitGTK/WPE) — different print engines, don't assume the same result
-    // without testing there too. `print-color-adjust: exact` (also in that CSS block) is a separate,
-    // well-supported mechanism expected to force background colors to print on every platform
-    // regardless of the page-size result.
+    // RETRACTED CLAIM, READ BEFORE TRUSTING ANYTHING ABOUT PAGE SIZE ON THIS HOST: a single earlier
+    // /api/convert test measured a MediaBox that exactly matched the configured @page size
+    // (600x324.96pt for an 800px-wide request) and got written up here as "confirmed working."
+    // Several follow-up tests — fresh app instances, different content-width values, both the
+    // zero-args PrintToPdfStreamAsync() and an explicit Orientation=Portrait settings object —
+    // all instead returned Letter landscape (792x612pt), ignoring @page entirely. The original
+    // measurement was too precise to have been a coincidental default, so *something* made it work
+    // that one time, but it hasn't reproduced since and the actual cause (timing? some now-changed
+    // WebView2 profile state? content-dependent?) is unknown. Bottom line: page size via this host
+    // is NOT reliable — don't re-claim it works without watching it happen, not just reading one
+    // past PDF. `print-color-adjust: exact` (also in that CSS block) is a separate, independently
+    // well-supported mechanism and is not in question here — only the `size` part of `@page` is.
     //
     // Margins are the one part of PdfPageSetup that genuinely can't be passed natively from here:
     // Avalonia's WebViewPrintSettings documents MarginTop/Bottom/Left/Right as pixels, and its GTK
@@ -340,7 +342,14 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     public async Task<bool> PrintToPdfAsync(string outputPath, PdfPageSetup setup)
     {
         // `setup` (page width/height/margins) is intentionally unused — see the comment above this
-        // interface implementation for exactly why nothing here can safely act on it today.
+        // interface implementation. UNRESOLVED: repeat testing (several /api/convert calls against
+        // fresh app instances, both with and without an explicit Orientation=Portrait
+        // WebViewPrintSettings) consistently returned Letter landscape (792x612pt) regardless of
+        // the @page rule's requested size — contradicting an earlier single test that measured
+        // 600x324.96pt matching the configured size exactly. That earlier result was real (too
+        // precise to be a coincidental default), but whatever made it work isn't reproducing now
+        // and the cause hasn't been identified. Treat page-size control via this host as unreliable
+        // until someone can actually watch it happen rather than infer it from one past reading.
         try
         {
             var pdfStream = await PreviewWebView.PrintToPdfStreamAsync();
