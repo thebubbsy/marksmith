@@ -150,6 +150,7 @@
                                                   IsChecked="{Binding ApiEnabled, Mode=TwoWay}" />
                                     <ui:FANumberBox Header="Port" Value="{Binding ApiPort, Mode=TwoWay}"
                                                   Minimum="1024" Maximum="65535" />
+                                    <TextBlock x:Name="ApiUrlText" Text="" Opacity="0.7" FontSize="12" IsVisible="False" />
                                     <ToggleSwitch Content="Keep running in system tray when closed"
                                                   OnContent="Tray mode" OffContent="Off"
                                                   IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
