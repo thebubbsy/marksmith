@@ -509,7 +509,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var full = Path.GetFullPath(path);
             for (int i = MarkdownFiles.Count - 1; i >= 0; i--)
-                if (string.Equals(MarkdownFiles[i].Path, full, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(MarkdownFiles[i].Path, full, Services.PathEquality.Comparison))
                     MarkdownFiles.RemoveAt(i);
             var name = Path.GetFileName(full);
             var folder = Path.GetFileName(Path.GetDirectoryName(full) ?? "");

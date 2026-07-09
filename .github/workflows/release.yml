@@ -1,8 +1,11 @@
 name: Release
 
-# Push a version tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) and this builds the
-# self-contained Windows exe, wraps it in a silent Inno Setup installer, zips the portable
-# build, and publishes a GitHub Release with all assets + their SHA256 checksums.
+# Push a version tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) and this builds:
+#   - the self-contained Windows (WinUI) exe, wrapped in a silent Inno Setup installer, plus a
+#     zipped portable build — this is the primary, full-featured shipping artifact.
+#   - self-contained portable zips of the cross-platform Avalonia preview build for
+#     win-x64/linux-x64/osx-arm64.
+# All assets + their SHA256 checksums are published together as one GitHub Release.
 # Can also be run manually against an existing tag via "Run workflow".
 
 on:
@@ -18,7 +21,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  release-winui:
+    name: Build WinUI app (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -67,14 +71,203 @@ jobs:
             "Paste the installer hash into winget ``InstallerSha256`` and Chocolatey ``checksum64``."
           ) | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
+      - name: Upload WinUI release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: winui-release-assets
+          path: |
+            Marksmith-win-x64.zip
+            dist_installer/Marksmith-Setup-x64.exe
+            checksums.txt
+          if-no-files-found: error
+
+  release-avalonia:
+    name: Build Avalonia preview (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish self-contained (${{ matrix.rid }})
+        run: dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:DebugType=none
+
+      - name: Package portable zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pub = "MdToPdf.Avalonia/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
+          Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
+          Compress-Archive -Path staging/Marksmith -DestinationPath "Marksmith-Avalonia-${{ matrix.rid }}.zip" -Force
+
+      - name: Package portable zip (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pub="MdToPdf.Avalonia/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          mkdir -p staging/Marksmith
+          cp -R "$pub"/. staging/Marksmith/
+          (cd staging && zip -r "../Marksmith-Avalonia-${{ matrix.rid }}.zip" Marksmith)
+
+      - name: Checksum (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash "Marksmith-Avalonia-${{ matrix.rid }}.zip" -Algorithm SHA256).Hash.ToLower()
+          "$h  Marksmith-Avalonia-${{ matrix.rid }}.zip" | Set-Content checksums.txt
+
+      - name: Checksum (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v sha256sum >/dev/null 2>&1; then
+            h=$(sha256sum "Marksmith-Avalonia-${{ matrix.rid }}.zip" | cut -d' ' -f1)
+          else
+            h=$(shasum -a 256 "Marksmith-Avalonia-${{ matrix.rid }}.zip" | cut -d' ' -f1)
+          fi
+          echo "$h  Marksmith-Avalonia-${{ matrix.rid }}.zip" > checksums.txt
+
+      - name: Upload Avalonia release assets (${{ matrix.rid }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: avalonia-${{ matrix.rid }}
+          path: |
+            Marksmith-Avalonia-${{ matrix.rid }}.zip
+            checksums.txt
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [release-winui, release-avalonia]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp artifacts/winui-release-assets/Marksmith-win-x64.zip release-assets/
+          cp artifacts/winui-release-assets/Marksmith-Setup-x64.exe release-assets/
+          cp artifacts/avalonia-win-x64/Marksmith-Avalonia-win-x64.zip release-assets/
+          cp artifacts/avalonia-linux-x64/Marksmith-Avalonia-linux-x64.zip release-assets/
+          cp artifacts/avalonia-osx-arm64/Marksmith-Avalonia-osx-arm64.zip release-assets/
+          cat artifacts/winui-release-assets/checksums.txt \
+              artifacts/avalonia-win-x64/checksums.txt \
+              artifacts/avalonia-linux-x64/checksums.txt \
+              artifacts/avalonia-osx-arm64/checksums.txt \
+              > release-assets/checksums.txt
+
+      - name: Build release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'BODY'
+          ## Cross-platform preview build (Windows / Linux / macOS)
+
+          This release includes the full-featured Windows installer (unchanged) plus a **new preview
+          build of Marksmith for Windows, Linux, and macOS**. The preview build uses a new
+          cross-platform UI (Avalonia) on top of the same Markdown/PDF/DOCX/PPTX/EPUB engine as the
+          Windows app, but it is not yet at full feature parity — see "Known gaps" below.
+
+          ### Windows — full-featured (recommended)
+
+          - `Marksmith-Setup-x64.exe` — installer
+          - `Marksmith-win-x64.zip` — portable, unzip and run
+
+          This is the primary, most complete build of Marksmith. Everything in the app — including
+          Settings, license/Pro management, update checks, and automation (clipboard watcher, folder
+          watcher, local REST API) — works here today.
+
+          ### Cross-platform preview (Avalonia UI) — new
+
+          - `Marksmith-Avalonia-win-x64.zip` — Windows
+          - `Marksmith-Avalonia-linux-x64.zip` — Linux
+          - `Marksmith-Avalonia-osx-arm64.zip` — macOS (Apple Silicon)
+
+          Unzip and run — no installer needed on any platform.
+
+          **What you need installed:**
+
+          - **Windows** — the WebView2 Runtime, which ships by default with Windows 10 21H2+ and
+            Windows 11. This is the same dependency the existing Windows app already has, not
+            something new. If it's missing (older or stripped-down Windows installs), get it from
+            https://developer.microsoft.com/microsoft-edge/webview2/.
+          - **Linux** — a system WebKit engine, which is **not bundled** in the zip and must be
+            installed separately via your distro's package manager, e.g. on Debian/Ubuntu:
+            `sudo apt install libwebkit2gtk-4.1-0` (the exact package name varies by distro).
+          - **macOS** — nothing extra. It uses WKWebView, which is built into the OS.
+
+          Everything else — the .NET runtime, all libraries, and the bundled
+          mermaid/KaTeX/highlight.js assets — is bundled inside each zip; you do not need .NET
+          installed separately on any platform.
+
+          **Known gaps in this preview build (not yet at parity with the Windows app):**
+
+          - **Settings dialog isn't ported yet.** License/Pro-status management and checking for app
+            updates only work in the Windows (WinUI) build right now. Clicking "Settings" in this
+            build shows a message explaining that.
+          - **Automation isn't wired up yet.** The clipboard-watcher, folder-watcher, and local REST
+            API toggles save your preference (the settings file is shared with the Windows app), but
+            this build does not actually run those watchers/services yet. Only the Windows app acts
+            on them today.
+          - **PDF page geometry is best-effort and not yet independently verified.** We've made a
+            change intended to keep PDF margins, page size, and background printing consistent across
+            Windows, Linux, and macOS, and it has been verified to build correctly, but we have not
+            yet visually confirmed a real PDF output on Linux or macOS (no such machine was available
+            this session), and Windows desktop verification was limited too. Treat PDF export from
+            this build as "should work," not confirmed.
+
+          BODY
+
+          {
+            echo "### SHA256 checksums"
+            echo ""
+            echo "| File | SHA256 |"
+            echo "| --- | --- |"
+            while read -r hash file; do
+              echo "| $file | \`$hash\` |"
+            done < release-assets/checksums.txt
+            echo ""
+            echo "Paste the Windows installer hash into winget \`InstallerSha256\` and Chocolatey \`checksum64\`."
+          } >> release-notes.md
+
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: Marksmith ${{ inputs.tag || github.ref_name }}
+          body_path: release-notes.md
           files: |
-            Marksmith-win-x64.zip
-            dist_installer/Marksmith-Setup-x64.exe
-            checksums.txt
+            release-assets/Marksmith-win-x64.zip
+            release-assets/Marksmith-Setup-x64.exe
+            release-assets/Marksmith-Avalonia-win-x64.zip
+            release-assets/Marksmith-Avalonia-linux-x64.zip
+            release-assets/Marksmith-Avalonia-osx-arm64.zip
+            release-assets/checksums.txt
           fail_on_unmatched_files: true
           generate_release_notes: true
