@@ -251,28 +251,45 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // Serves /api/convert: classify/normalize per the caller's output profile, render, and print to
     // a temp PDF using the live preview host (NativeWebView can't render off-tree, same constraint
     // WebView2 has), then return the bytes and clean up.
-    private async Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
+    //
+    // ApiServer.HandleAsync runs this on a raw ThreadPool thread (Task.Run off the HttpListener
+    // loop) — but PreviewWebView is a WebView2-backed control and every one of its members is
+    // apartment-affine (COM STA), so calling straight into it here throws "This method can only be
+    // called from the thread that created the object (0x802A000C)" — confirmed via a real
+    // /api/convert call, which returned exactly that as a 500. The WinUI build (MdToPdf/MainWindow
+    // .xaml.cs's ConvertForApiAsync) already gets this right by wrapping the whole body in
+    // DispatcherQueue.TryEnqueue + a TaskCompletionSource; mirrored here with Avalonia's Dispatcher.
+    private Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
     {
-        await _convertLock.WaitAsync();
-        try
+        var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            var settings = AppServices.Settings.Current.CloneWith(output);
-            var md = markdown;
-            Models.LlmClassification? classification = null;
-            if (settings.NormalizeLlm)
+            await _convertLock.WaitAsync();
+            try
             {
-                classification = AppServices.LlmSource.Classify(md);
-                (md, _) = AppServices.LlmSource.Normalize(md, classification);
+                var settings = AppServices.Settings.Current.CloneWith(output);
+                var md = markdown;
+                Models.LlmClassification? classification = null;
+                if (settings.NormalizeLlm)
+                {
+                    classification = AppServices.LlmSource.Classify(md);
+                    (md, _) = AppServices.LlmSource.Normalize(md, classification);
+                }
+                var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
+                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
+                await new PdfExportService().ExportAsync(this, html, tmp, settings);
+                var bytes = await File.ReadAllBytesAsync(tmp);
+                File.Delete(tmp);
+                tcs.SetResult(bytes);
             }
-            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-            var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
-            var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-            await new PdfExportService().ExportAsync(this, html, tmp, settings);
-            var bytes = await File.ReadAllBytesAsync(tmp);
-            File.Delete(tmp);
-            return bytes;
-        }
-        finally { _convertLock.Release(); }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+            finally { _convertLock.Release(); }
+        });
+        return tcs.Task;
     }
 
     // ---- IWebRenderHost: drives PDF export + mermaid harvesting via NativeWebView instead of
