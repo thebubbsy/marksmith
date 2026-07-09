@@ -26,7 +26,7 @@ public sealed class MermaidHarvestService
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
+            <script src="{{Services.WebAssets.Mermaid}}"></script></head>
             <body><script>
             window.__pngs = null;
             const sources = {{sourcesJson}};
@@ -103,7 +103,7 @@ public sealed class MermaidHarvestService
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
+            <script src="{{Services.WebAssets.Mermaid}}"></script></head>
             <body><script>
             window.__geo = null;
             const sources = {{sourcesJson}};
@@ -213,7 +213,7 @@ public sealed class MermaidHarvestService
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
+            <script src="{{Services.WebAssets.Mermaid}}"></script></head>
             <body><script>
             window.__gen = null;
             const sources = {{sourcesJson}};
