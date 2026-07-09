@@ -1,3 +1,4 @@
+using System.Globalization;
 using MdToPdf.Models;
 
 namespace MdToPdf.Services;
@@ -57,7 +58,25 @@ public sealed class PdfExportService
                 PrintBackgrounds: true);
         }
 
+        // Belt-and-suspenders page sizing: WebView2's native PrintSettings (page width/height,
+        // margins, "print backgrounds") cover WinUI, but Avalonia.Controls.WebView's
+        // WebViewPrintSettings exposes none of those — only Orientation and integer margins — so
+        // there's no native lever there at all. An injected @page rule is honored by every
+        // Chromium/WebKit print pipeline these hosts wrap (WebView2, WKWebView, WebKitGTK/WPE),
+        // so it's the one part of PdfPageSetup guaranteed to reach the printed page regardless of
+        // what the native API on a given platform actually exposes.
+        await host.ExecuteScriptAsync($$"""
+            (() => {
+                const style = document.createElement('style');
+                style.textContent = `@page { size: {{Inches(setup.PageWidthIn)}}in {{Inches(setup.PageHeightIn)}}in; margin-top: {{Inches(setup.MarginTopIn)}}in; margin-right: {{Inches(setup.MarginRightIn)}}in; margin-bottom: {{Inches(setup.MarginBottomIn)}}in; margin-left: {{Inches(setup.MarginLeftIn)}}in; }
+                    html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }`;
+                document.head.appendChild(style);
+            })();
+            """);
+
         var ok = await host.PrintToPdfAsync(pdfPath, setup);
         if (!ok) throw new InvalidOperationException("PDF export failed (the web renderer reported failure).");
     }
+
+    private static string Inches(double value) => value.ToString(CultureInfo.InvariantCulture);
 }
