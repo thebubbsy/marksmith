@@ -298,20 +298,31 @@ public sealed class MarkdownHtmlService
             (function () {
               const stage = document.getElementById("dv-stage"), inner = document.getElementById("dv-inner");
               const pct = document.getElementById("dv-pct");
-              let sc = 1, tx = 0, ty = 0, drag = null, fitted = false;
+              let sc = 1, tx = 0, ty = 0, drag = null, fitted = false, lastW = 0, lastH = 0;
               const apply = () => { inner.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`;
                                     pct.textContent = Math.round(sc * 100) + "%"; };
-              function fit() {
+              function fit(force) {
                 const svg = inner.querySelector("svg"); if (!svg) return false;
                 inner.style.transform = "none";
                 const w = svg.getBoundingClientRect().width, h = svg.getBoundingClientRect().height;
                 if (!w || !h) return false;
+                // Mermaid can report an intermediate size mid-layout (multi-pass text measurement,
+                // font loading) before settling on its final one — fitting to that reads as "zoomed
+                // in wrong" and, since fitted then blocks the poll loop from ever trying again, it
+                // never self-corrects. Require two consecutive identical readings (240ms apart)
+                // before treating a measurement as final, unless force is set (the explicit Reset
+                // button, where "measure once and go" is the whole point).
+                if (!force) {
+                  const stable = w === lastW && h === lastH;
+                  lastW = w; lastH = h;
+                  if (!stable) return false;
+                }
                 sc = Math.min(1.5, Math.min((stage.clientWidth - 48) / w, (stage.clientHeight - 96) / h));
                 tx = (stage.clientWidth - w * sc) / 2; ty = Math.max(70, (stage.clientHeight - h * sc) / 2);
                 apply(); return true;
               }
-              // mermaid renders asynchronously — poll for the SVG, then fit once.
-              const t = setInterval(() => { if (!fitted && fit()) { fitted = true; clearInterval(t); } }, 120);
+              // mermaid renders asynchronously — poll for the SVG, then fit once it's stable.
+              const t = setInterval(() => { if (!fitted && fit(false)) { fitted = true; clearInterval(t); } }, 120);
               setTimeout(() => clearInterval(t), 8000);
               stage.addEventListener("wheel", (e) => { e.preventDefault();
                 const r = stage.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
@@ -324,8 +335,8 @@ public sealed class MarkdownHtmlService
               stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); });
               document.getElementById("dv-in").addEventListener("click", () => { sc = Math.min(12, sc * 1.25); apply(); });
               document.getElementById("dv-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
-              document.getElementById("dv-reset").addEventListener("click", () => { fit(); });
-              window.addEventListener("resize", () => { if (fitted) fit(); });
+              document.getElementById("dv-reset").addEventListener("click", () => { fit(true); });
+              window.addEventListener("resize", () => { if (fitted) fit(true); });
 
               // Export the diagram as a file — the host (C#) shows a save dialog and writes it.
               const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };

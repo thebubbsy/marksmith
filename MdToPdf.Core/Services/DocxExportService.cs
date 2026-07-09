@@ -376,7 +376,8 @@ public sealed class DocxExportService
                     target.Append(p);
                 }
                 else if (ctx.MermaidMode == 1 &&
-                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram))
+                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
+                        forceFit: !ctx.MermaidExactLayout))
                 {
                     ctx.ForceWebLayout |= oversizedDiagram;
                     target.Append(diagram);
