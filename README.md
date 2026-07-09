@@ -279,17 +279,23 @@ platform:
 - **macOS** — nothing extra. It uses WKWebView, a framework built into the OS.
 
 > **Known gaps versus the WinUI build** — this is a first pass, not yet at full parity:
-> - **PDF margins can't be set precisely on Windows, and default to zero.** The cross‑platform
->   web‑view package's native print‑settings API has no page width/height at all, so page *size*
->   (A4‑lock, continuous‑page mode) is instead applied via an injected `@page` CSS rule — confirmed
->   working by measuring a real generated PDF's page size against the configured settings. Margins
->   are a different story: the package's Windows backend has a unit‑handling bug (passes pixels
->   where the underlying API expects inches), so passing a margin value from here would set it
->   wildly wrong rather than just imprecise — this build deliberately requests zero margins on every
->   platform rather than risk that. Background colors print correctly everywhere (forced via a
->   separate, reliable CSS mechanism). See the code comments on `MdToPdf.Avalonia`'s
->   `PrintToPdfAsync` for the full trace through the package's own source, and
->   `MdToPdf.Core/Services/PdfExportService.cs` for the CSS injection itself.
+> - **PDF page size on this build is unreliable — treat it as unresolved, not fixed.** The
+>   cross‑platform web‑view package's native print‑settings API has no page width/height at all,
+>   so page size (A4‑lock, continuous‑page mode) is attempted via an injected `@page` CSS rule
+>   instead. One early test measured a generated PDF whose page size matched the configured value
+>   exactly — but repeat testing since (fresh app instances, several different width values) has
+>   consistently *not* reproduced that; the PDF comes out as Letter landscape regardless of the
+>   `@page` rule. The original measurement was too precise to have been a coincidental default, so
+>   something made it work that one time, but the cause hasn't been identified and it doesn't
+>   reproduce on demand. Margins have a separate, confirmed root cause: the package's Windows
+>   backend has a unit‑handling bug (passes pixels where the underlying API expects inches), so this
+>   build deliberately requests zero margins everywhere rather than risk a wildly wrong value.
+>   Background colors print correctly (a separate, independently reliable CSS mechanism). See the
+>   code comments on `MdToPdf.Avalonia`'s `PrintToPdfAsync` for the full history, and
+>   `MdToPdf.Core/Services/PdfExportService.cs` for the CSS injection itself. Separately, the *content
+>   width* Style setting is now correctly threaded through everywhere it needs to be (it used to be
+>   ignored in favor of a hardcoded 800/1200px) — that part is a real, verified fix; it's specifically
+>   whether the resulting PDF's page dimensions honor it that's unreliable on this build.
 >
 > Settings (license/update management) and automation (clipboard watcher, folder watcher, local
 > REST API) are both wired up in this build now, mirroring the WinUI app.
