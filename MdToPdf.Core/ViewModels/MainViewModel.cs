@@ -3,20 +3,26 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MdToPdf.Models;
 using MdToPdf.Services;
-using Microsoft.UI.Xaml.Controls;
 
 namespace MdToPdf.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private readonly SettingsService _settingsService = App.Settings;
-    private readonly RecentFilesService _recentFilesService = App.RecentFiles;
-    private readonly MarkdownHtmlService _markdownHtml = App.MarkdownHtml;
-    private readonly ThemeCatalog _themes = App.Themes;
+    private readonly SettingsService _settingsService = AppServices.Settings;
+    private readonly RecentFilesService _recentFilesService = AppServices.RecentFiles;
+    private readonly MarkdownHtmlService _markdownHtml = AppServices.MarkdownHtml;
+    private readonly ThemeCatalog _themes = AppServices.Themes;
     private readonly PdfExportService _pdfExport = new();
     private readonly DocxExportService _docxExport = new();
+    private readonly MermaidHarvestService _mermaidHarvest = new();
 
     private CancellationTokenSource? _conversionCts;
+
+    // Set once by each UI project's main window at startup. Replaces the old WinUI-only
+    // `App.MainAppWindow as MainWindow` downcast — the ViewModel now reaches the platform's web
+    // renderer and native prompts only through these portable seams (see IWebRenderHost).
+    public IWebRenderHost? Host { get; set; }
+    public IUiPrompts? Prompts { get; set; }
 
     [ObservableProperty] private string _inputFilePath = string.Empty;
     [ObservableProperty] private string _outputFolder;
@@ -68,7 +74,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
     [ObservableProperty] private string _statusText = "Ready.";
-    [ObservableProperty] private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
+    [ObservableProperty] private StatusSeverity _statusSeverity = StatusSeverity.Informational;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
     private bool _isBusy;
@@ -79,19 +85,18 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsNotBusy => !IsBusy;
     public bool HasOutput => !string.IsNullOrEmpty(LastOutputPath);
 
-    // Licensing (drives the paywall UI). Backed by App.License; kept in sync via its Changed event.
-    public bool IsPro => App.License.IsPro;
-    public bool IsFree => !App.License.IsPro;
-    public string EditionStatus => App.License.State.Status ?? "Free";
-    public Microsoft.UI.Xaml.Visibility ProBadgeVisibility =>
-        IsFree ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    // Licensing (drives the paywall UI). Backed by AppServices.License; kept in sync via its Changed event.
+    public bool IsPro => AppServices.License.IsPro;
+    public bool IsFree => !AppServices.License.IsPro;
+    public string EditionStatus => AppServices.License.State.Status ?? "Free";
+    public bool ShowProBadge => IsFree;
 
     private void OnLicenseChanged()
     {
         OnPropertyChanged(nameof(IsPro));
         OnPropertyChanged(nameof(IsFree));
         OnPropertyChanged(nameof(EditionStatus));
-        OnPropertyChanged(nameof(ProBadgeVisibility));
+        OnPropertyChanged(nameof(ShowProBadge));
     }
 
     private readonly PresetsService _presetsService = new();
@@ -132,7 +137,7 @@ public sealed partial class MainViewModel : ObservableObject
             DocumentTitle = HistoryEntry.ExtractTitle(markdown),
         };
         History.Insert(0, entry);
-        App.History.Add(entry);
+        AppServices.History.Add(entry);
     }
 
     public MainViewModel()
@@ -153,7 +158,7 @@ public sealed partial class MainViewModel : ObservableObject
         _appendToRunningDoc = settings.AppendToRunningDoc;
         _runningDocPath = settings.RunningDocPath;
         _showExtensionTip = settings.ShowExtensionTip;
-        foreach (var h in App.History.All) History.Add(h);
+        foreach (var h in AppServices.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _mermaidDocxMode = settings.MermaidDocxMode;
         _oversizedDiagramMode = settings.OversizedDiagramMode;
@@ -174,7 +179,7 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeNames = new ObservableCollection<string>(_themes.All.Select(t => t.Name));
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
 
-        App.License.Changed += OnLicenseChanged;
+        AppServices.License.Changed += OnLicenseChanged;
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; _settingsService.Save(); }
@@ -258,7 +263,7 @@ public sealed partial class MainViewModel : ObservableObject
         BrandLogoPath = p.BrandLogoPath;
         BrandFontFamily = p.BrandFontFamily;
         StatusText = $"Applied preset: {p.Name}";
-        StatusSeverity = InfoBarSeverity.Success;
+        StatusSeverity = StatusSeverity.Success;
     }
 
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
@@ -273,11 +278,11 @@ public sealed partial class MainViewModel : ObservableObject
     // because most signals were just removed).
     public string PrepareMarkdown(string markdown)
     {
-        var classification = App.LlmSource.Classify(markdown);
+        var classification = AppServices.LlmSource.Classify(markdown);
         if (classification.Source == LlmSource.Generic) return markdown;
 
         if (NormalizeLlm)
-            (markdown, _) = App.LlmSource.Normalize(markdown, classification);
+            (markdown, _) = AppServices.LlmSource.Normalize(markdown, classification);
 
         var better = LastClassification is null
             || classification.Source != LastClassification.Source
@@ -297,10 +302,10 @@ public sealed partial class MainViewModel : ObservableObject
     // the paste editor so the preview updates immediately.
     public void IngestMarkdown(string text, string origin)
     {
-        var classification = App.LlmSource.Classify(text);
+        var classification = AppServices.LlmSource.Classify(text);
         if (NormalizeLlm)
         {
-            (text, _) = App.LlmSource.Normalize(text, classification);
+            (text, _) = AppServices.LlmSource.Normalize(text, classification);
         }
 
         LastClassification = classification;
@@ -314,7 +319,7 @@ public sealed partial class MainViewModel : ObservableObject
             ? $"Ingested Markdown from {origin}."
             : $"Ingested from {origin} — detected {classification.SourceName} formatting" +
               (classification.AppliedFixes.Count > 0 ? $", applied {classification.AppliedFixes.Count} fixes." : ".");
-        StatusSeverity = InfoBarSeverity.Success;
+        StatusSeverity = StatusSeverity.Success;
     }
 
     public void IngestFile(string path)
@@ -327,7 +332,7 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusText = $"Could not ingest {path}: {ex.Message}";
-            StatusSeverity = InfoBarSeverity.Error;
+            StatusSeverity = StatusSeverity.Error;
         }
     }
 
@@ -341,18 +346,20 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CancelConversion()
     {
-        // Best-effort: CoreWebView2.PrintToPdfAsync has no CancellationToken overload, so this
-        // resets the UI immediately rather than truly aborting an in-flight WebView2 call — the
+        // Best-effort: WebView2's PrintToPdfAsync has no CancellationToken overload, so this
+        // resets the UI immediately rather than truly aborting an in-flight render call — the
         // file may still be written a moment later. Good enough for "let me try something else
         // without waiting"; a hard-abort would need dropping to the CDP-level printing API.
         _conversionCts?.Cancel();
         StatusText = "Cancelled.";
-        StatusSeverity = InfoBarSeverity.Warning;
+        StatusSeverity = StatusSeverity.Warning;
         IsBusy = false;
     }
 
-    public async Task ConvertToPdfAsync(WebView2 webView)
+    public async Task ConvertToPdfAsync()
     {
+        if (Host is null) { StatusText = "PDF export failed: preview engine not ready."; StatusSeverity = StatusSeverity.Error; return; }
+
         var (markdown, sourceLabel) = ResolveSource();
         if (markdown is null) return;
 
@@ -360,7 +367,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var html = BuildPreviewHtml(markdown);
             var outPath = ResolveOutputPath(sourceLabel, "pdf");
-            await _pdfExport.ExportAsync(webView, html, outPath, _settingsService.Current);
+            await _pdfExport.ExportAsync(Host, html, outPath, _settingsService.Current);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("PDF", outPath, markdown);
@@ -370,10 +377,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task ConvertToDocxAsync()
     {
-        if (!App.License.CanExportDocx)
+        if (!AppServices.License.CanExportDocx)
         {
             StatusText = "DOCX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
-            StatusSeverity = InfoBarSeverity.Warning;
+            StatusSeverity = StatusSeverity.Warning;
             return;
         }
 
@@ -385,20 +392,19 @@ public sealed partial class MainViewModel : ObservableObject
             var outPath = ResolveOutputPath(sourceLabel, "docx");
             var settings = _settingsService.Current;
             var hasMermaid = markdown.Contains("```mermaid", StringComparison.Ordinal);
-            var mw = App.MainAppWindow as MainWindow;
 
             // Large diagram? Ask (or honor the saved preference): keep mermaid's EXACT layout (Web
             // Layout view) or reflow to fit the printed page.
             List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
             string? layoutNote = null;
-            if (hasMermaid && settings.MermaidDocxMode == 1 && mw is not null
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null && Prompts is not null
                 && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
             {
                 var mode = settings.OversizedDiagramMode;
-                if (mode == 0) mode = await mw.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
+                if (mode == 0) mode = await Prompts.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
                 if (mode == 1)
                 {
-                    geometry = await mw.HarvestMermaidGeometryAsync(markdown, settings);
+                    geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
                     var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
                     if (usable) layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
                     else
@@ -414,15 +420,15 @@ public sealed partial class MainViewModel : ObservableObject
             // doesn't handle (state, C4, block, kanban, packet, sankey, …), pull mermaid's own SVG
             // geometry so ShapeForge rebuilds it as native shapes instead of a picture.
             List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
-            if (hasMermaid && settings.MermaidDocxMode == 1 && mw is not null
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null
                 && Services.MermaidDocxRenderer.HasUnsupportedFence(markdown))
-                genericGeom = await mw.HarvestGenericGeometryAsync(markdown, settings);
+                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings);
 
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
-            // families) — the renderer needs the window's WebView2, so it lives on MainWindow.
+            // families) — the renderer needs the platform's web host, which the caller wires up.
             List<byte[]?>? mermaidImgs = null;
-            if (hasMermaid && mw is not null)
-                mermaidImgs = await mw.RenderMermaidPngsAsync(markdown, settings);
+            if (hasMermaid && Host is not null)
+                mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, settings, CurrentTheme);
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
             await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom);
@@ -438,21 +444,21 @@ public sealed partial class MainViewModel : ObservableObject
         _conversionCts = new CancellationTokenSource();
         IsBusy = true;
         StatusText = $"Converting to {kind}...";
-        StatusSeverity = InfoBarSeverity.Informational;
+        StatusSeverity = StatusSeverity.Informational;
         try
         {
             await work(_conversionCts.Token);
-            StatusSeverity = InfoBarSeverity.Success;
+            StatusSeverity = StatusSeverity.Success;
         }
         catch (OperationCanceledException)
         {
             StatusText = "Cancelled.";
-            StatusSeverity = InfoBarSeverity.Warning;
+            StatusSeverity = StatusSeverity.Warning;
         }
         catch (Exception ex)
         {
             StatusText = $"Error: {ex.Message}";
-            StatusSeverity = InfoBarSeverity.Error;
+            StatusSeverity = StatusSeverity.Error;
         }
         finally
         {
@@ -467,7 +473,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(PastedMarkdown))
             {
                 StatusText = "Paste area is empty.";
-                StatusSeverity = InfoBarSeverity.Warning;
+                StatusSeverity = StatusSeverity.Warning;
                 return (null, string.Empty);
             }
             return (PrepareMarkdown(PastedMarkdown), $"pasted_export_{Guid.NewGuid().ToString()[..8]}");
@@ -476,7 +482,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(InputFilePath) || !File.Exists(InputFilePath))
         {
             StatusText = "Please select a valid Markdown file first.";
-            StatusSeverity = InfoBarSeverity.Warning;
+            StatusSeverity = StatusSeverity.Warning;
             return (null, string.Empty);
         }
 
