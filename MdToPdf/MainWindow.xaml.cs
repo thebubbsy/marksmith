@@ -14,7 +14,7 @@ using WinRT.Interop;
 
 namespace MdToPdf;
 
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, Services.IWebRenderHost, Services.IUiPrompts
 {
     private static readonly HashSet<string> PreviewAffectingProperties = new()
     {
@@ -309,7 +309,7 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.SavePreset(box.Text);
             ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Success;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
     }
 
@@ -428,7 +428,7 @@ public sealed partial class MainWindow : Window
         else
         {
             ViewModel.StatusText = "Hands-free auto-convert is a Marksmith Pro feature. The content is ready — export it manually, or upgrade in Settings ⚙.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
 
@@ -459,7 +459,7 @@ public sealed partial class MainWindow : Window
             if (!await EnsurePreviewWebViewAsync())
             {
                 ViewModel.StatusText = "Auto-generate failed: the preview engine couldn't start. Try the export again.";
-                ViewModel.StatusSeverity = InfoBarSeverity.Error;
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
                 return;
             }
             var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
@@ -479,7 +479,7 @@ public sealed partial class MainWindow : Window
             // ShapeForge's fallback for unsupported diagram types).
             List<byte[]?>? mermaidImgs = null;
             if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
-                mermaidImgs = await RenderMermaidPngsAsync(md, settings);
+                mermaidImgs = await new Services.MermaidHarvestService().RenderMermaidPngsAsync(this, md, settings, App.Themes.GetOrDefault(settings.Theme));
 
             foreach (var fmt in formats)
             {
@@ -491,7 +491,7 @@ public sealed partial class MainWindow : Window
                         case "pdf":
                             var theme = App.Themes.GetOrDefault(settings.Theme);
                             var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
-                            await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, settings);
+                            await new Services.PdfExportService().ExportAsync(this, html, outPath, settings);
                             break;
                         case "docx":
                             if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
@@ -519,13 +519,13 @@ public sealed partial class MainWindow : Window
                 ViewModel.LastOutputPath = produced[^1];
                 ViewModel.StatusText = $"Auto-generated: {string.Join(", ", produced.Select(Path.GetFileName))}"
                     + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "");
-                ViewModel.StatusSeverity = InfoBarSeverity.Success;
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 ShowPdfToast(produced[^1]);
             }
             else if (pending.Count > 0)
             {
                 ViewModel.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
-                ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             }
 
             }
@@ -537,7 +537,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             ViewModel.StatusText = $"Auto-generate failed: {ex.Message}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
         finally
         {
@@ -555,7 +555,7 @@ public sealed partial class MainWindow : Window
         if (!App.License.CanAutomate)
         {
             ViewModel.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
         if (!await EnsurePreviewWebViewAsync()) return; // engine not up yet — file stays ingested in the UI
@@ -570,12 +570,12 @@ public sealed partial class MainWindow : Window
                 var folder = App.Settings.Current.OutputFolder;
                 Directory.CreateDirectory(folder);
                 var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, outPath, App.Settings.Current);
+                await new Services.PdfExportService().ExportAsync(this, html, outPath, App.Settings.Current);
 
                 ViewModel.LastOutputPath = outPath;
                 ViewModel.RecordExport("PDF", outPath, ViewModel.PastedMarkdown);
                 ViewModel.StatusText = $"Auto-converted: {outPath}";
-                ViewModel.StatusSeverity = InfoBarSeverity.Success;
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 ShowPdfToast(outPath);
             }
             finally
@@ -587,7 +587,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             ViewModel.StatusText = $"Auto-convert failed for {Path.GetFileName(path)}: {ex.Message}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
         finally
         {
@@ -627,7 +627,7 @@ public sealed partial class MainWindow : Window
         else
         {
             ViewModel.StatusText = $"File no longer exists: {entry.OutputPath}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
 
@@ -647,7 +647,7 @@ public sealed partial class MainWindow : Window
         if (!App.License.CanAutomate)
         {
             ViewModel.StatusText = "Batch conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
 
@@ -661,7 +661,7 @@ public sealed partial class MainWindow : Window
         if (files.Length == 0)
         {
             ViewModel.StatusText = $"No .md files found in {folder.Path}.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Warning;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
 
@@ -669,12 +669,12 @@ public sealed partial class MainWindow : Window
         var fmt = await AskBatchFormatAsync(files.Length);
         if (fmt is null) return;
         var docxGated = fmt is "docx" && !App.License.CanExportDocx;
-        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = InfoBarSeverity.Warning; return; }
+        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
 
         if (fmt == "pdf" && !await EnsurePreviewWebViewAsync())
         {
             ViewModel.StatusText = "Batch failed: the preview engine couldn't start. Try again.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
             return;
         }
 
@@ -691,7 +691,7 @@ public sealed partial class MainWindow : Window
                 switch (fmt)
                 {
                     case "pdf":
-                        await new Services.PdfExportService().ExportAsync(PreviewWebView, ViewModel.BuildPreviewHtml(md), outPath, App.Settings.Current);
+                        await new Services.PdfExportService().ExportAsync(this, ViewModel.BuildPreviewHtml(md), outPath, App.Settings.Current);
                         break;
                     case "docx":
                         await new Services.DocxExportService().ExportAsync(md, outPath, App.Settings.Current);
@@ -715,7 +715,7 @@ public sealed partial class MainWindow : Window
         ViewModel.StatusText = failed == 0
             ? $"Batch done: {done} {fmt.ToUpperInvariant()} file{(done == 1 ? "" : "s")} in {outFolder}"
             : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
-        ViewModel.StatusSeverity = failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        ViewModel.StatusSeverity = failed == 0 ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
     }
 
     // Ask which format to batch-convert to; returns "pdf"/"docx"/"pptx"/"epub" or null if cancelled.
@@ -787,7 +787,7 @@ public sealed partial class MainWindow : Window
                 var theme = App.Themes.GetOrDefault(settings.Theme);
                 var html = App.MarkdownHtml.Render(md, settings, theme, classification);
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await new Services.PdfExportService().ExportAsync(PreviewWebView, html, tmp, settings);
+                await new Services.PdfExportService().ExportAsync(this, html, tmp, settings);
                 var bytes = await File.ReadAllBytesAsync(tmp);
                 File.Delete(tmp);
                 tcs.SetResult(bytes);
@@ -916,10 +916,10 @@ public sealed partial class MainWindow : Window
         if (!await EnsurePreviewWebViewAsync())
         {
             ViewModel.StatusText = "PDF export failed: the preview engine couldn't start. Try again.";
-            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
             return;
         }
-        await ViewModel.ConvertToPdfAsync(PreviewWebView);
+        await ViewModel.ConvertToPdfAsync();
     }
 
     private async void OnConvertDocxClick(object sender, RoutedEventArgs e)
@@ -1015,12 +1015,12 @@ public sealed partial class MainWindow : Window
                 await File.WriteAllBytesAsync(file.Path, Convert.FromBase64String(b64));
             }
             ViewModel.StatusText = $"Diagram saved: {file.Path}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Success;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
         {
             ViewModel.StatusText = $"Couldn't save the diagram: {ex.Message}";
-            ViewModel.StatusSeverity = InfoBarSeverity.Error;
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
@@ -1122,316 +1122,62 @@ public sealed partial class MainWindow : Window
             "document.body && document.body.classList.remove('ms-loading')");
     }
 
-    // Rasterizes every ```mermaid fence in the markdown to a PNG (2x scale) using the preview
-    // WebView2: navigate to a tiny self-contained render page (mermaid.js + svg→canvas), poll for
-    // completion, then restore the live preview. Returns one entry per fence, null where a diagram
-    // failed to render — DocxExportService then falls back per-diagram. Used by Snapshot mode and as
-    // ShapeForge's fallback for diagram types the shape engine can't parse.
-    public async Task<List<byte[]?>> RenderMermaidPngsAsync(string markdown, Models.AppSettings settings)
+    // ---- IWebRenderHost / IUiPrompts: the portable seam MainViewModel and MermaidHarvestService
+    // (both in MdToPdf.Core) drive PDF export and mermaid harvesting through, instead of reaching
+    // into a WebView2 control directly. See MdToPdf.Core/Rendering/IWebRenderHost.cs.
+
+    public Task<bool> EnsureReadyAsync() => EnsurePreviewWebViewAsync();
+
+    public Task NavigateToStringAsync(string html)
     {
-        var fences = System.Text.RegularExpressions.Regex.Matches(
-                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
-                System.Text.RegularExpressions.RegexOptions.Singleline)
-            .Select(m => m.Groups[1].Value).ToList();
-        if (fences.Count == 0) return new();
-        if (!await EnsurePreviewWebViewAsync()) return new();
-
-        var theme = App.Themes.GetOrDefault(settings.Theme);
-        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
-        var html = $$"""
-            <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
-            <body><script>
-            window.__pngs = null;
-            const sources = {{sourcesJson}};
-            mermaid.initialize({ startOnLoad: false, theme: "base",
-              themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
-                primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
-                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
-              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" },
-              securityLevel: "strict" });
-            (async () => {
-              const out = [];
-              for (let i = 0; i < sources.length; i++) {
-                try { out.push(await toPng((await mermaid.render("m" + i, sources[i])).svg)); }
-                catch (e) { out.push(null); }
-              }
-              window.__pngs = out;
-            })();
-            async function toPng(svgText) {
-              // Give the SVG explicit pixel dimensions from its viewBox so <img> sizes it correctly.
-              const vb = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(svgText);
-              const w = vb ? Math.ceil(parseFloat(vb[1])) : 600, h = vb ? Math.ceil(parseFloat(vb[2])) : 400;
-              // Set explicit dimensions via the DOM (mermaid may already carry width/height attrs —
-              // string-injecting duplicates would make the XML invalid and the <img> reject it).
-              const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
-              if (parsed.querySelector("parsererror")) throw new Error("svg parse failed");
-              const el = parsed.documentElement;
-              el.setAttribute("width", String(w)); el.setAttribute("height", String(h));
-              el.removeAttribute("style");
-              svgText = new XMLSerializer().serializeToString(el);
-              // data: URI, not a blob URL — NavigateToString pages have an opaque origin, where
-              // blob: URLs refuse to load into <img>.
-              const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
-              const img = new Image();
-              await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-              const c = document.createElement("canvas"); c.width = w * 2; c.height = h * 2;
-              const ctx = c.getContext("2d");
-              ctx.fillStyle = "{{theme.Background}}"; ctx.fillRect(0, 0, c.width, c.height);
-              ctx.drawImage(img, 0, 0, c.width, c.height);
-              return c.toDataURL("image/png");
-            }
-            </script></body></html>
-            """;
-
-        var result = new List<byte[]?>();
-        try
+        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
+        var tcs = new TaskCompletionSource();
+        void OnNavigationCompleted(object? s, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
         {
-            _mermaidHarvestActive = true;
-            _previewDebounce.Stop(); // a pending ingest refresh must not wipe the render page
-            PreviewWebView.CoreWebView2.NavigateToString(html);
-            for (int i = 0; i < 60; i++) // up to ~9s (CDN + render)
-            {
-                await Task.Delay(150);
-                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("JSON.stringify(window.__pngs)");
-                if (raw is null or "null" or "\"null\"") continue;
-                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
-                if (string.IsNullOrEmpty(json) || json == "null") continue;
-                var urls = System.Text.Json.JsonSerializer.Deserialize<List<string?>>(json) ?? new();
-                foreach (var u in urls)
-                    result.Add(u is not null && u.StartsWith("data:image/png;base64,")
-                        ? Convert.FromBase64String(u["data:image/png;base64,".Length..])
-                        : null);
-                break;
-            }
+            core.NavigationCompleted -= OnNavigationCompleted;
+            tcs.TrySetResult();
         }
-        catch { /* rendering is best-effort; exporter falls back per-diagram */ }
-        finally
-        {
-            _mermaidHarvestActive = false;
-            await RefreshPreviewAsync(false); // restore the live preview silently
-        }
-        while (result.Count < fences.Count) result.Add(null);
-        return result;
+        core.NavigationCompleted += OnNavigationCompleted;
+        core.NavigateToString(html);
+        return tcs.Task;
     }
 
-    // "Exact layout" harvest: render each flowchart fence with mermaid and read back the geometry
-    // mermaid itself computed (node centres/sizes, edge endpoints, labels) via getCTM/getBBox, so
-    // ShapeForge can rebuild the diagram in Word node-for-node instead of re-laying-it-out. Same
-    // navigate/poll mechanics as RenderMermaidPngsAsync. Returns one entry per fence (null if the
-    // fence isn't a graph/flowchart or couldn't be harvested).
-    public async Task<List<Services.Mermaid.HarvestedDiagram?>> HarvestMermaidGeometryAsync(string markdown, Models.AppSettings settings)
+    public async Task<string?> ExecuteScriptAsync(string javaScript)
     {
-        var fences = System.Text.RegularExpressions.Regex.Matches(
-                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
-                System.Text.RegularExpressions.RegexOptions.Singleline)
-            .Select(m => m.Groups[1].Value).ToList();
-        if (fences.Count == 0) return new();
-        if (!await EnsurePreviewWebViewAsync()) return new();
-
-        var theme = App.Themes.GetOrDefault(settings.Theme);
-        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
-        var html = $$"""
-            <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
-            <body><script>
-            window.__geo = null;
-            const sources = {{sourcesJson}};
-            mermaid.initialize({ startOnLoad: false, theme: "base",
-              flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" }, securityLevel: "strict" });
-            function T(node, root) { // node centre in root coords (getCTM is relative to the svg)
-              const m = node.getCTM ? node.getCTM() : null; return m ? [m.e, m.f] : [0, 0]; }
-            function kindOf(n) {
-              if (n.querySelector("circle")) return "Circle";
-              if (n.querySelector("ellipse")) return "Ellipse";
-              const p = n.querySelector("polygon");
-              if (p) { const pts = (p.getAttribute("points")||"").trim().split(/\s+/).length; return pts >= 6 ? "Hexagon" : "Diamond"; }
-              if (n.querySelector("path") && !n.querySelector("rect")) return "Cylinder";
-              const r = n.querySelector("rect"); if (r && parseFloat(r.getAttribute("rx")) > 0) return "RoundRect";
-              return "Rect";
-            }
-            function lines(n) { // reconstruct wrapped label lines from tspans
-              const ts = [...n.querySelectorAll("tspan")].map(t => t.textContent).filter(s => s && s.trim());
-              return (ts.length ? ts.join("\n") : (n.textContent||"")).trim();
-            }
-            function harvest(svgEl) {
-              const nodes = [...svgEl.querySelectorAll("g.node")].map(n => {
-                const [cx, cy] = T(n); let bb = {width:0,height:0}; try { bb = n.getBBox(); } catch(e) {}
-                const r = n.querySelector("rect");
-                const w = r ? parseFloat(r.getAttribute("width")) : bb.width;
-                const h = r ? parseFloat(r.getAttribute("height")) : bb.height;
-                return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: cx, Cy: cy, W: w||bb.width, H: h||bb.height, Kind: kindOf(n), Label: lines(n) };
-              });
-              const edges = [...svgEl.querySelectorAll("path.flowchart-link, .edgePath path")].map(p => {
-                const dashed = (p.getAttribute("class")||"").includes("dashed") || getComputedStyle(p).strokeDasharray !== "none";
-                // Sample mermaid's actual curved path (getPointAtLength), mapped to root coords via
-                // the path's CTM, so Word can trace the same curve rather than a straight line.
-                const m = p.getCTM ? p.getCTM() : null;
-                const map = pt => m ? [pt.x*m.a + pt.y*m.c + m.e, pt.x*m.b + pt.y*m.d + m.f] : [pt.x, pt.y];
-                let pts = [];
-                try {
-                  const L = p.getTotalLength();
-                  const N = Math.max(6, Math.min(30, Math.round(L / 16)));
-                  for (let k = 0; k <= N; k++) { const [x, y] = map(p.getPointAtLength(L * k / N)); pts.push([+x.toFixed(1), +y.toFixed(1)]); }
-                } catch (e) {
-                  const nums = [...(p.getAttribute("d")||"").matchAll(/[-\d.]+/g)].map(v => +v[0]);
-                  pts = [[nums[0]||0, nums[1]||0], [nums[nums.length-2]||0, nums[nums.length-1]||0]];
-                }
-                return { X1: pts[0][0], Y1: pts[0][1], X2: pts[pts.length-1][0], Y2: pts[pts.length-1][1], Dashed: dashed, Label: null, Lx: 0, Ly: 0, Points: pts };
-              });
-              const labels = [...svgEl.querySelectorAll(".edgeLabels .edgeLabel, .edgeLabel")].map(l => {
-                const g = l.closest("g") || l; const [x, y] = T(g); return { t: (l.textContent||"").trim(), x, y };
-              }).filter(l => l.t);
-              // attach each label to its nearest edge midpoint
-              labels.forEach(lab => {
-                let best = null, bd = 1e9;
-                edges.forEach(e => { const mx=(e.X1+e.X2)/2, my=(e.Y1+e.Y2)/2, dd=(mx-lab.x)**2+(my-lab.y)**2; if (dd<bd && !e.Label) { bd=dd; best=e; } });
-                if (best) { best.Label = lab.t; best.Lx = lab.x; best.Ly = lab.y; }
-              });
-              const vb = (svgEl.getAttribute("viewBox")||"0 0 0 0").split(/\s+/).map(Number);
-              return { W: vb[2], H: vb[3], Nodes: nodes, Edges: edges };
-            }
-            (async () => {
-              const out = [];
-              for (let i = 0; i < sources.length; i++) {
-                try {
-                  const first = (sources[i].trim().split(/\s+/)[0]||"").toLowerCase();
-                  if (first !== "graph" && first !== "flowchart") { out.push(null); continue; }
-                  // In-viewport but invisible: far-offscreen (left:-99999px) content can be skipped
-                  // for layout, making getBBox/getCTM/getPointAtLength return zeros. Keeping it on
-                  // screen at opacity 0 forces a real layout so the harvested geometry is correct.
-                  const holder = document.createElement("div");
-                  holder.style.cssText = "position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1";
-                  document.body.appendChild(holder);
-                  const { svg } = await mermaid.render("mg" + i, sources[i]);
-                  holder.innerHTML = svg; const el = holder.querySelector("svg");
-                  void el.getBoundingClientRect(); // force synchronous layout before measuring
-                  out.push(harvest(el)); holder.remove();
-                } catch (e) { window.__err = (window.__err||"") + " | fence" + i + ": " + (e && e.message); out.push(null); }
-              }
-              window.__geo = JSON.stringify(out);
-            })();
-            </script></body></html>
-            """;
-
-        var result = new List<Services.Mermaid.HarvestedDiagram?>();
-        try
-        {
-            _mermaidHarvestActive = true;
-            _previewDebounce.Stop();
-            PreviewWebView.CoreWebView2.NavigateToString(html);
-            for (int i = 0; i < 130; i++) // up to ~20s (CDN + a large graph's layout + geometry sampling)
-            {
-                await Task.Delay(150);
-                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("window.__geo");
-                if (raw is null or "null" or "\"null\"") continue;
-                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
-                if (string.IsNullOrEmpty(json) || json == "null") continue;
-                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                result = System.Text.Json.JsonSerializer.Deserialize<List<Services.Mermaid.HarvestedDiagram?>>(json, opts) ?? new();
-                break;
-            }
-        }
-        catch { /* best-effort; caller falls back to reflow */ }
-        finally
-        {
-            _mermaidHarvestActive = false;
-            await RefreshPreviewAsync(false);
-        }
-        while (result.Count < fences.Count) result.Add(null);
-        return result;
+        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
+        return await core.ExecuteScriptAsync(javaScript);
     }
 
-    // The "no fallback" harvester: for ANY mermaid diagram type (state, C4, block, kanban, packet,
-    // sankey, requirement, architecture, …), read every visual primitive — shapes with mermaid's
-    // real colours, curved edge paths, text — from the rendered SVG so ShapeForge can rebuild it as
-    // native Word shapes instead of falling back to a picture. One generic path, all families.
-    public async Task<List<Services.Mermaid.GenericDiagram?>> HarvestGenericGeometryAsync(string markdown, Models.AppSettings settings)
+    public async Task<bool> PrintToPdfAsync(string outputPath, Services.PdfPageSetup setup)
     {
-        var fences = System.Text.RegularExpressions.Regex.Matches(
-                Services.TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
-                System.Text.RegularExpressions.RegexOptions.Singleline)
-            .Select(m => m.Groups[1].Value).ToList();
-        if (fences.Count == 0) return new();
-        if (!await EnsurePreviewWebViewAsync()) return new();
+        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
+        var printSettings = core.Environment.CreatePrintSettings();
+        printSettings.ShouldPrintBackgrounds = setup.PrintBackgrounds;
+        printSettings.ShouldPrintHeaderAndFooter = false;
+        printSettings.PageWidth = setup.PageWidthIn;
+        printSettings.PageHeight = setup.PageHeightIn;
+        printSettings.MarginTop = setup.MarginTopIn;
+        printSettings.MarginBottom = setup.MarginBottomIn;
+        printSettings.MarginLeft = setup.MarginLeftIn;
+        printSettings.MarginRight = setup.MarginRightIn;
+        return await core.PrintToPdfAsync(outputPath, printSettings);
+    }
 
-        var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
-        var html = $$"""
-            <!DOCTYPE html><html><head><meta charset="UTF-8">
-            <script src="https://marksmith.assets/mermaid.min.js"></script></head>
-            <body><script>
-            window.__gen = null;
-            const sources = {{sourcesJson}};
-            mermaid.initialize({ startOnLoad: false, theme: "base",
-              flowchart: { useMaxWidth: false, htmlLabels: true }, securityLevel: "strict" });
-            function harvest(svgEl) {
-              const nodes = [], edges = [], texts = [];
-              const M = el => el.getCTM ? el.getCTM() : null, box = el => { try { return el.getBBox(); } catch(e) { return null; } }, cs = el => getComputedStyle(el);
-              const abs = el => { const b = box(el), m = M(el); if (!b) return null; return { x: m ? m.a*b.x + m.c*b.y + m.e : b.x, y: m ? m.b*b.x + m.d*b.y + m.f : b.y, w: m ? b.width*m.a : b.width, h: m ? b.height*m.d : b.height }; };
-              const closed = new Set(["rect","circle","ellipse","polygon"]);
-              svgEl.querySelectorAll("rect,circle,ellipse,polygon,polyline,path,line").forEach(el => {
-                const st = cs(el), fill = st.fill, stroke = st.stroke, tag = el.tagName.toLowerCase();
-                const isFilled = fill && fill !== "none" && !fill.startsWith("rgba(0, 0, 0, 0)");
-                if (closed.has(tag) || (tag === "path" && isFilled)) {
-                  const a = abs(el); if (!a || a.w < 1 || a.h < 1) return;
-                  let kind = tag === "circle" ? "Circle" : tag === "ellipse" ? "Ellipse" : tag === "polygon" ? "Diamond" : (tag === "rect" && +el.getAttribute("rx") > 0) ? "RoundRect" : "Rect";
-                  nodes.push({ X: +a.x.toFixed(1), Y: +a.y.toFixed(1), W: +a.w.toFixed(1), H: +a.h.toFixed(1), Kind: kind, Fill: fill, Stroke: stroke });
-                } else if (tag === "path" || tag === "line" || tag === "polyline") {
-                  const m = M(el), map = pt => m ? [pt.x*m.a+pt.y*m.c+m.e, pt.x*m.b+pt.y*m.d+m.f] : [pt.x, pt.y]; let pts = [];
-                  try { const L = el.getTotalLength(); const N = Math.max(2, Math.min(30, Math.round(L/16))); for (let k=0;k<=N;k++){ const [x,y] = map(el.getPointAtLength(L*k/N)); pts.push([+x.toFixed(1),+y.toFixed(1)]); } } catch(e){}
-                  const dashed = (cs(el).strokeDasharray || "none") !== "none";
-                  if (pts.length >= 2) edges.push({ Points: pts, Stroke: stroke, Dashed: dashed });
-                }
-              });
-              svgEl.querySelectorAll("foreignObject").forEach(fo => { const a = abs(fo); const t = (fo.textContent||"").trim(); const c = cs(fo.querySelector("*") || fo).color; if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: c }); });
-              svgEl.querySelectorAll("text").forEach(tx => { if (tx.closest("foreignObject")) return; const a = abs(tx); const t = (tx.textContent||"").trim(); if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: cs(tx).fill }); });
-              const vb = (svgEl.getAttribute("viewBox")||"0 0 0 0").split(/\s+/).map(Number);
-              return { W: vb[2], H: vb[3], Nodes: nodes, Edges: edges, Texts: texts };
-            }
-            (async () => {
-              const out = [];
-              for (let i = 0; i < sources.length; i++) {
-                try {
-                  const holder = document.createElement("div");
-                  holder.style.cssText = "position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1";
-                  document.body.appendChild(holder);
-                  const { svg } = await mermaid.render("gg" + i, sources[i]);
-                  holder.innerHTML = svg; const el = holder.querySelector("svg");
-                  void el.getBoundingClientRect();
-                  out.push(harvest(el)); holder.remove();
-                } catch (e) { out.push(null); }
-              }
-              window.__gen = JSON.stringify(out);
-            })();
-            </script></body></html>
-            """;
+    // The mermaid render page must not be clobbered by the live preview's debounced auto-refresh
+    // while a harvest is in flight; restore the live preview once the harvest ends. Exactly the
+    // wrapper the three harvest methods used to inline before their bodies moved to
+    // MdToPdf.Core/Services/MermaidHarvestService.cs.
+    public Task BeginHarvestAsync()
+    {
+        _mermaidHarvestActive = true;
+        _previewDebounce.Stop();
+        return Task.CompletedTask;
+    }
 
-        var result = new List<Services.Mermaid.GenericDiagram?>();
-        try
-        {
-            _mermaidHarvestActive = true;
-            _previewDebounce.Stop();
-            PreviewWebView.CoreWebView2.NavigateToString(html);
-            for (int i = 0; i < 130; i++)
-            {
-                await Task.Delay(150);
-                var raw = await PreviewWebView.CoreWebView2.ExecuteScriptAsync("window.__gen");
-                if (raw is null or "null" or "\"null\"") continue;
-                var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
-                if (string.IsNullOrEmpty(json) || json == "null") continue;
-                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                result = System.Text.Json.JsonSerializer.Deserialize<List<Services.Mermaid.GenericDiagram?>>(json, opts) ?? new();
-                break;
-            }
-        }
-        catch { /* best-effort; the exporter falls back to snapshot/code for any fence that fails */ }
-        finally
-        {
-            _mermaidHarvestActive = false;
-            await RefreshPreviewAsync(false);
-        }
-        while (result.Count < fences.Count) result.Add(null);
-        return result;
+    public async Task EndHarvestAsync()
+    {
+        _mermaidHarvestActive = false;
+        await RefreshPreviewAsync(false);
     }
 
     private async Task RefreshPreviewAsync(bool heavy = true)
