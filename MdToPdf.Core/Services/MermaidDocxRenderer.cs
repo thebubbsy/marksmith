@@ -101,7 +101,13 @@ public static class MermaidDocxRenderer
         return false;
     }
 
-    public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph, out bool oversized)
+    // forceFit: true when the caller explicitly chose "reflow to fit the page" (as opposed to
+    // "keep exact layout") — in that case a diagram too big to fit at a readable 75% scale should
+    // shrink as far as it takes to actually fit, not stop at 75% and overflow the page anyway. Only
+    // the flowchart path below currently honors it (the bespoke sequence/class-er/trees/charts
+    // renderers compute `oversized` their own way, via DocxShapeEmitter) — narrower scope than
+    // ideal, but that's not the path the reported overflow came from.
+    public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph, out bool oversized, bool forceFit = false)
     {
         paragraph = null!;
         oversized = false;
@@ -123,7 +129,7 @@ public static class MermaidDocxRenderer
 
             var g = Parse(source);
             if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) return false;
-            Layout(g);
+            Layout(g, forceFit);
             oversized = g.Oversized;
 
             var drawing = new W.Drawing { InnerXml = BuildInlineXml(g, theme, drawingId) };
@@ -285,7 +291,7 @@ public static class MermaidDocxRenderer
 
     // ---------------- layout ----------------
 
-    private static void Layout(Graph g)
+    private static void Layout(Graph g, bool forceFit = false)
     {
         // Layered ranks: relax rank[to] >= rank[from]+1, bounded so cycles can't spin forever.
         for (int pass = 0; pass < g.Nodes.Count; pass++)
@@ -391,8 +397,14 @@ public static class MermaidDocxRenderer
         // Scale uniformly to fit the printable page — but never below 75%, where text stops being
         // readable. A diagram that would need more shrink keeps 75% and is flagged Oversized; the
         // exporter then opens the document in Word's Web Layout view, which scrolls instead of clips.
+        // EXCEPT when the caller explicitly asked for "reflow to fit the page" (forceFit): that
+        // choice's entire point is "prioritize staying on the page over staying big," so the 75%
+        // floor doesn't apply there — it shrinks as far as it takes to actually fit, full stop.
+        // Without this, a large diagram under "reflow" still hit the floor, got marked Oversized,
+        // forced Web Layout view anyway, AND visually overflowed the page — the reflow choice
+        // silently did nothing.
         double s = Math.Min(1, Math.Min(MaxCanvasW / g.W, MaxCanvasH / g.H));
-        if (s < 0.75) { g.Oversized = true; s = 0.75; }
+        if (s < 0.75 && !forceFit) { g.Oversized = true; s = 0.75; }
         if (s < 1)
         {
             foreach (var n in g.Nodes) { n.X *= s; n.Y *= s; n.W *= s; n.H *= s; }
