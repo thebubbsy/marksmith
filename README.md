@@ -278,17 +278,21 @@ platform:
   present on a minimal or server Linux install.
 - **macOS** — nothing extra. It uses WKWebView, a framework built into the OS.
 
-> **Known gaps versus the WinUI build** — this is a first pass, not yet at parity:
-> - **The Settings dialog isn't ported.** License/Pro‑status management and checking for app
->   updates only work in the WinUI build today; clicking **Settings** here shows a message saying
->   so.
-> - **Automation isn't wired up.** The clipboard‑watcher, folder‑watcher, and local REST API
->   toggles persist your preference (the settings file is shared with the WinUI build), but this
->   build doesn't actually run those watchers/services yet — only the WinUI build acts on them.
-> - **PDF page geometry is best‑effort, not yet independently verified.** A fix injects the right
->   CSS/JS before printing so margins, page size, and background printing should behave
->   consistently across WebView2/WKWebView/WebKitGTK, but it's only been build‑verified so far —
->   not yet visually confirmed against a real PDF on Linux or macOS.
+> **Known gaps versus the WinUI build** — this is a first pass, not yet at full parity:
+> - **PDF margins can't be set precisely on Windows, and default to zero.** The cross‑platform
+>   web‑view package's native print‑settings API has no page width/height at all, so page *size*
+>   (A4‑lock, continuous‑page mode) is instead applied via an injected `@page` CSS rule — confirmed
+>   working by measuring a real generated PDF's page size against the configured settings. Margins
+>   are a different story: the package's Windows backend has a unit‑handling bug (passes pixels
+>   where the underlying API expects inches), so passing a margin value from here would set it
+>   wildly wrong rather than just imprecise — this build deliberately requests zero margins on every
+>   platform rather than risk that. Background colors print correctly everywhere (forced via a
+>   separate, reliable CSS mechanism). See the code comments on `MdToPdf.Avalonia`'s
+>   `PrintToPdfAsync` for the full trace through the package's own source, and
+>   `MdToPdf.Core/Services/PdfExportService.cs` for the CSS injection itself.
+>
+> Settings (license/update management) and automation (clipboard watcher, folder watcher, local
+> REST API) are both wired up in this build now, mirroring the WinUI app.
 
 Prebuilt portable zips for all three platforms are attached to each
 [release](https://github.com/thebubbsy/marksmith/releases/latest) alongside the Windows installer.

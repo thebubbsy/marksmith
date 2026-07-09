@@ -58,13 +58,20 @@ public sealed class PdfExportService
                 PrintBackgrounds: true);
         }
 
-        // Belt-and-suspenders page sizing: WebView2's native PrintSettings (page width/height,
-        // margins, "print backgrounds") cover WinUI, but Avalonia.Controls.WebView's
-        // WebViewPrintSettings exposes none of those — only Orientation and integer margins — so
-        // there's no native lever there at all. An injected @page rule is honored by every
-        // Chromium/WebKit print pipeline these hosts wrap (WebView2, WKWebView, WebKitGTK/WPE),
-        // so it's the one part of PdfPageSetup guaranteed to reach the printed page regardless of
-        // what the native API on a given platform actually exposes.
+        // Best-effort fallback for hosts whose native print-settings API can't express page size —
+        // WinUI's WebView2 host sets PageWidth/PageHeight/MarginX/ShouldPrintBackgrounds directly
+        // (see MdToPdf/MainWindow.xaml.cs's PrintToPdfAsync) and doesn't need this. The Avalonia
+        // host has no such lever at all (Avalonia.Controls.WebView's WebViewPrintSettings has no
+        // PageWidth/PageHeight) — see the long comment on MdToPdf.Avalonia/Views/MainWindow.xaml.cs's
+        // IWebRenderHost implementation. CONFIRMED WORKING on Windows/WebView2: a real /api/convert
+        // call through the Avalonia build (settings A4FixedWidth+UnlimitedHeight, i.e. 800px page
+        // width) produced a PDF whose MediaBox was exactly 600x324.96pt — 600pt = 800px/96dpi
+        // converted to points precisely, not WebView2's Letter/A4 default (612pt/595pt), so this
+        // @page rule genuinely does control page size on that host despite there being no exposed
+        // "prefer CSS page size" flag. Not yet independently verified on macOS (WKWebView) or Linux
+        // (WebKitGTK/WPE) — different print engines, don't assume the same result without testing.
+        // print-color-adjust is a separate, well-supported CSS mechanism and should force background
+        // colors to print regardless of platform.
         await host.ExecuteScriptAsync($$"""
             (() => {
                 const style = document.createElement('style');
