@@ -23,6 +23,12 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     private readonly ApiServer _apiServer;
     private readonly SemaphoreSlim _convertLock = new(1, 1);
 
+    // Set once the window's startup sequence (first navigate included) has actually run. Lets
+    // EnsureReadyAsync report real readiness instead of unconditionally claiming true — a request
+    // (e.g. via the REST API) that somehow arrives before Loaded fires would otherwise let
+    // MermaidHarvestService drive PreviewWebView before it's ever navigated anything.
+    private bool _loaded;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -44,6 +50,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             ViewModel.LoadPresets();
             UpdateLicenseBanner();
             await RefreshPreviewAsync();
+            _loaded = true;
         };
 
         Closed += (_, _) =>
@@ -276,7 +283,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // `@page` CSS block already sets margins too, the same way it sets page size — so this isn't a
     // loss, just why the native `settings` parameter below stays unused.
 
-    public Task<bool> EnsureReadyAsync() => Task.FromResult(true);
+    public Task<bool> EnsureReadyAsync() => Task.FromResult(_loaded);
 
     public Task NavigateToStringAsync(string html)
     {
