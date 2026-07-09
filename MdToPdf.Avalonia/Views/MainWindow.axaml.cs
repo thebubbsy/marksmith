@@ -6,6 +6,7 @@ using global::Avalonia.Interactivity;
 using global::Avalonia.Media;
 using global::Avalonia.Platform.Storage;
 using FluentAvalonia.UI.Controls;
+using MdToPdf.Avalonia.Hosting;
 using MdToPdf.Services;
 using MdToPdf.ViewModels;
 
@@ -17,27 +18,263 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private static readonly Uri PreviewBaseUri = new("https://marksmith.local/");
 
+    private readonly ClipboardWatcherService _clipboardWatcher;
+    private readonly FolderWatcherService _folderWatcher;
+    private readonly ApiServer _apiServer;
+    private readonly SemaphoreSlim _convertLock = new(1, 1);
+
     public MainWindow()
     {
         InitializeComponent();
+
+        _clipboardWatcher = new ClipboardWatcherService(Clipboard!, (text, origin) => IngestFromSource(text, origin));
+        _folderWatcher = new FolderWatcherService(path => _ = OnWatchedFileAsync(path));
+        _apiServer = new ApiServer(
+            AppServices.LlmSource,
+            () => ViewModel.ThemeNames.ToList(),
+            (md, origin, ovr) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => IngestFromSource(md, origin, ovr)),
+            ConvertForApiAsync,
+            AppServices.Governance);
+
         Loaded += async (_, _) =>
         {
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            ApplyAutomationSettings();
             await LoadMarkdownFilesAsync();
             ViewModel.LoadPresets();
             UpdateLicenseBanner();
             await RefreshPreviewAsync();
         };
+
+        Closed += (_, _) =>
+        {
+            _clipboardWatcher.Dispose();
+            _folderWatcher.Dispose();
+            _apiServer.Dispose();
+        };
+    }
+
+    // ---- Automation (clipboard watcher / folder watcher / REST API) ----
+    // Portable equivalents of MdToPdf/MainWindow.xaml.cs's ClipboardIngestService/
+    // FolderIngestService/ApiServer wiring — ApiServer itself is already in MdToPdf.Core
+    // (platform-agnostic); only the clipboard/folder watchers needed Avalonia-specific
+    // implementations (see MdToPdf.Avalonia/Hosting).
+
+    private void ApplyAutomationSettings()
+    {
+        var vm = ViewModel;
+
+        if (vm.AutoClipboardIngest && !_clipboardWatcher.IsRunning) _clipboardWatcher.Start();
+        else if (!vm.AutoClipboardIngest && _clipboardWatcher.IsRunning) _clipboardWatcher.Stop();
+
+        if (vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) _folderWatcher.Start(vm.WatchFolder);
+        else _folderWatcher.Stop();
+
+        try
+        {
+            if (vm.ApiEnabled && (!_apiServer.IsRunning || _apiServer.Port != vm.ApiPort)) _apiServer.Start(vm.ApiPort);
+            else if (!vm.ApiEnabled) _apiServer.Stop();
+            ApiUrlText.Text = _apiServer.IsRunning ? $"http://127.0.0.1:{_apiServer.Port}/api/health" : "";
+            ApiUrlText.IsVisible = _apiServer.IsRunning;
+        }
+        catch (Exception ex)
+        {
+            vm.StatusText = $"Local REST API failed to start: {ex.Message}";
+            vm.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    // Every automated ingest path (clipboard, watched folder, REST API) funnels through here: load
+    // the content into the paste editor, then — if "Auto-generate PDF from AI-chat ingests" is on —
+    // also export a PDF, so a conversation sent here at its end produces a finished document hands-free.
+    private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
+    {
+        ViewModel.IngestMarkdown(text, origin);
+        if (!ViewModel.AutoConvertIngests) return;
+        if (AppServices.License.CanAutomate) _ = AutoExportIngestAsync(output);
+        else
+        {
+            ViewModel.StatusText = "Hands-free auto-convert is a Marksmith Pro feature. The content is ready — export it manually, or upgrade in Settings.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+        }
+    }
+
+    // Which file formats an automated export should produce.
+    private static string[] ParseFormats(string? format)
+    {
+        if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
+        if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
+        var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(f => f.ToLowerInvariant())
+            .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
+            .Distinct().ToArray();
+        return fmts.Length > 0 ? fmts : new[] { "pdf" };
+    }
+
+    // The export uses the caller's output profile (theme, layout, formatting, folder) merged over
+    // the app's settings, and produces whichever format(s) the caller asked for. Unlike the WinUI
+    // build, this doesn't do an offscreen-show/hide dance for tray mode — NativeWebView's behavior
+    // while the window is hidden hasn't been characterized on this build yet.
+    private async Task AutoExportIngestAsync(Models.OutputOverride? output)
+    {
+        await _convertLock.WaitAsync();
+        try
+        {
+            var md = ViewModel.PastedMarkdown;
+            if (string.IsNullOrWhiteSpace(md)) return;
+
+            var settings = AppServices.Settings.Current.CloneWith(output);
+            Directory.CreateDirectory(settings.OutputFolder);
+            var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
+            var stem = Path.Combine(settings.OutputFolder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}");
+
+            var produced = new List<string>();
+            var formats = ParseFormats(output?.Format);
+
+            List<byte[]?>? mermaidImgs = null;
+            if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
+                mermaidImgs = await new MermaidHarvestService().RenderMermaidPngsAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
+
+            foreach (var fmt in formats)
+            {
+                var outPath = $"{stem}.{fmt}";
+                try
+                {
+                    switch (fmt)
+                    {
+                        case "pdf":
+                            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                            var html = AppServices.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
+                            await new PdfExportService().ExportAsync(this, html, outPath, settings);
+                            break;
+                        case "docx":
+                            if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
+                            {
+                                await new DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs);
+                                outPath = settings.RunningDocPath;
+                            }
+                            else await new DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs,
+                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null);
+                            break;
+                        case "pptx": await new PptxExportService().ExportAsync(md, outPath, settings); break;
+                        case "epub": await new EpubExportService().ExportAsync(md, outPath, settings); break;
+                    }
+                    produced.Add(outPath);
+                    ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
+                }
+                catch (Exception ex)
+                {
+                    ViewModel.StatusText = $"Auto-export ({fmt.ToUpperInvariant()}) failed: {ex.Message}";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+                    return;
+                }
+            }
+
+            if (produced.Count > 0)
+            {
+                ViewModel.LastOutputPath = produced[^1];
+                ViewModel.StatusText = $"Auto-converted: {string.Join(", ", produced)}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            }
+        }
+        finally { _convertLock.Release(); }
+    }
+
+    // A watched file always ingests into the UI; in auto-convert mode it also goes straight to PDF
+    // in the output folder — the fully hands-off pipeline.
+    private async Task OnWatchedFileAsync(string path)
+    {
+        ViewModel.IngestFile(path);
+        if (!ViewModel.WatchFolderAutoConvert) return;
+        if (!AppServices.License.CanAutomate)
+        {
+            ViewModel.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+
+        await _convertLock.WaitAsync();
+        try
+        {
+            var html = ViewModel.BuildPreviewHtml(ViewModel.PastedMarkdown); // IngestFile already normalized it
+            var folder = AppServices.Settings.Current.OutputFolder;
+            Directory.CreateDirectory(folder);
+            var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
+            await new PdfExportService().ExportAsync(this, html, outPath, AppServices.Settings.Current);
+
+            ViewModel.LastOutputPath = outPath;
+            ViewModel.RecordExport("PDF", outPath, ViewModel.PastedMarkdown);
+            ViewModel.StatusText = $"Auto-converted: {outPath}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Watch-folder auto-convert failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+        finally { _convertLock.Release(); }
+    }
+
+    // Serves /api/convert: classify/normalize per the caller's output profile, render, and print to
+    // a temp PDF using the live preview host (NativeWebView can't render off-tree, same constraint
+    // WebView2 has), then return the bytes and clean up.
+    private async Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
+    {
+        await _convertLock.WaitAsync();
+        try
+        {
+            var settings = AppServices.Settings.Current.CloneWith(output);
+            var md = markdown;
+            Models.LlmClassification? classification = null;
+            if (settings.NormalizeLlm)
+            {
+                classification = AppServices.LlmSource.Classify(md);
+                (md, _) = AppServices.LlmSource.Normalize(md, classification);
+            }
+            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+            var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
+            var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
+            await new PdfExportService().ExportAsync(this, html, tmp, settings);
+            var bytes = await File.ReadAllBytesAsync(tmp);
+            File.Delete(tmp);
+            return bytes;
+        }
+        finally { _convertLock.Release(); }
     }
 
     // ---- IWebRenderHost: drives PDF export + mermaid harvesting via NativeWebView instead of
     // WebView2, mirroring MdToPdf/MainWindow.xaml.cs on the WinUI side. ----
     //
-    // KNOWN GAP: Avalonia.Controls.WebView 12.0.1's WebViewPrintSettings exposes only Orientation
-    // and integer margins — no page width/height and no "print backgrounds" flag. That means the
-    // WinUI build's exact A4-lock / single-continuous-page / forced-background print geometry
-    // (PdfPageSetup) cannot be reproduced here; PDFs print at the engine's default page size. Not
-    // silently glossed over — flagged for the user in the shipping notes.
+    // Avalonia.Controls.WebView's native print-settings API (WebViewPrintSettings) has no
+    // PageWidth/PageHeight at all — confirmed by reading its own source
+    // (github.com/AvaloniaUI/Avalonia.Controls.WebView): even though the underlying WebView2 COM
+    // interface it wraps on Windows (ICoreWebView2PrintSettings) has put_PageWidth/put_PageHeight,
+    // the adapter never calls them. So page sizing has to come from somewhere else —
+    // MdToPdf.Core/Services/PdfExportService.cs injects an `@page` CSS rule before printing instead.
+    //
+    // CONFIRMED WORKING on Windows/WebView2: a real /api/convert call through this build (settings
+    // A4FixedWidth+UnlimitedHeight, 800px page width) produced a PDF whose MediaBox measured exactly
+    // 600x324.96pt — 800px/96dpi converted to points precisely, not WebView2's Letter/A4 default
+    // (612pt/595pt) — so the `@page` rule genuinely does control page size here, despite there being
+    // no exposed "prefer CSS page size" flag anywhere in the interop surface (why WebView2 honors it
+    // regardless isn't confirmed, just the outcome). NOT yet independently verified on macOS
+    // (WKWebView) or Linux (WebKitGTK/WPE) — different print engines, don't assume the same result
+    // without testing there too. `print-color-adjust: exact` (also in that CSS block) is a separate,
+    // well-supported mechanism expected to force background colors to print on every platform
+    // regardless of the page-size result.
+    //
+    // Margins are the one part of PdfPageSetup that genuinely can't be passed natively from here:
+    // Avalonia's WebViewPrintSettings documents MarginTop/Bottom/Left/Right as pixels, and its GTK
+    // backend correctly converts pixels→points — but its Windows/WebView2 backend passes the raw int
+    // straight into put_MarginTop(double), which WebView2 interprets as INCHES. A real pixel value
+    // (e.g. 38, meaning ~0.4in) would set a 38-INCH margin on Windows — wildly wrong, not merely
+    // imprecise. This looks like a genuine unit-handling bug in the third-party package itself
+    // (inconsistent between its own backends), not something fixable from here — so
+    // `PrintToPdfStreamAsync()` below is deliberately called with no settings at all (every backend
+    // defaults to zero margins in that case, "to match GTK and Apple" per the package's own source
+    // comment) rather than risk passing a value that means something different depending on OS. The
+    // `@page` CSS block already sets margins too, the same way it sets page size — so this isn't a
+    // loss, just why the native `settings` parameter below stays unused.
 
     public Task<bool> EnsureReadyAsync() => Task.FromResult(true);
 
@@ -52,6 +289,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     public async Task<bool> PrintToPdfAsync(string outputPath, PdfPageSetup setup)
     {
+        // `setup` (page width/height/margins) is intentionally unused — see the comment above this
+        // interface implementation for exactly why nothing here can safely act on it today.
         try
         {
             var pdfStream = await PreviewWebView.PrintToPdfStreamAsync();
@@ -109,6 +348,15 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         await NavigateToStringAsync(html);
     }
 
+    private static readonly HashSet<string> AutomationProperties = new()
+    {
+        nameof(MainViewModel.AutoClipboardIngest),
+        nameof(MainViewModel.WatchFolderEnabled),
+        nameof(MainViewModel.WatchFolder),
+        nameof(MainViewModel.ApiEnabled),
+        nameof(MainViewModel.ApiPort),
+    };
+
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(MainViewModel.PastedMarkdown) or nameof(MainViewModel.InputFilePath)
@@ -119,6 +367,9 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         {
             _ = RefreshPreviewAsync();
         }
+
+        if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
+            ApplyAutomationSettings();
     }
 
     // ---- License banner ----
