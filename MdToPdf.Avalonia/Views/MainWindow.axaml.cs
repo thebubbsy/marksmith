@@ -29,9 +29,27 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // MermaidHarvestService drive PreviewWebView before it's ever navigated anything.
     private bool _loaded;
 
+    // Coalesces preview refreshes so typing in the paste editor doesn't re-navigate NativeWebView
+    // on every keystroke — the WinUI build has always had this (_previewDebounce there); it never
+    // got ported here, which is why typing normal text could make the preview lag by a minute or
+    // more: PastedMarkdown updates on every character, and each one was triggering an immediate,
+    // un-cancelled full-page NavigateToString (2.5MB mermaid.min.js re-parsed each time content
+    // mentions mermaid, but even without that, WebView2 navigations queue up faster than they
+    // drain when fired every keystroke).
+    private readonly global::Avalonia.Threading.DispatcherTimer _previewDebounce = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(180),
+    };
+
     public MainWindow()
     {
         InitializeComponent();
+
+        _previewDebounce.Tick += (_, _) =>
+        {
+            _previewDebounce.Stop();
+            _ = RefreshPreviewAsync();
+        };
 
         _clipboardWatcher = new ClipboardWatcherService(Clipboard!, (text, origin) => IngestFromSource(text, origin));
         _folderWatcher = new FolderWatcherService(path => _ = OnWatchedFileAsync(path));
@@ -332,6 +350,21 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     // ---- IUiPrompts ----
 
+    // NativeWebView wraps a genuine OS-level window (WebView2 on Windows), which paints in the
+    // Win32 z-order rather than Avalonia's own compositor — so it always renders in front of
+    // Avalonia-drawn overlays like FAContentDialog regardless of visual-tree z-index ("airspace"
+    // problem, a known limitation of hosted native controls in every UI framework that has them).
+    // Hiding it for the dialog's lifetime is the standard workaround: IsVisible=false unmaps the
+    // underlying native window, not just skips Avalonia-side painting, so the dialog is no longer
+    // obscured. The preview reappearing with stale content when the dialog closes is expected and
+    // harmless — nothing navigated away, it was just hidden.
+    private async Task<FAContentDialogResult> ShowDialogAsync(FAContentDialog dialog)
+    {
+        PreviewWebView.IsVisible = false;
+        try { return await dialog.ShowAsync(this); }
+        finally { PreviewWebView.IsVisible = true; }
+    }
+
     public async Task<int> AskOversizedDiagramModeAsync()
     {
         var dialog = new FAContentDialog
@@ -343,7 +376,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             SecondaryButtonText = "Reflow to fit page",
             DefaultButton = FAContentDialogButton.Primary,
         };
-        var result = await dialog.ShowAsync(this);
+        var result = await ShowDialogAsync(dialog);
         return result == FAContentDialogResult.Primary ? 1 : 2;
     }
 
@@ -380,7 +413,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             or nameof(MainViewModel.UnlimitedHeight) or nameof(MainViewModel.IncludeToc)
             or nameof(MainViewModel.ShowAttribution) or nameof(MainViewModel.NoEmoji))
         {
-            _ = RefreshPreviewAsync();
+            _previewDebounce.Stop();
+            _previewDebounce.Start();
         }
 
         if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
@@ -516,7 +550,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             CloseButtonText = "Cancel",
             DefaultButton = FAContentDialogButton.Primary,
         };
-        if (await dialog.ShowAsync(this) == FAContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        if (await ShowDialogAsync(dialog) == FAContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
         {
             ViewModel.SavePreset(box.Text);
             ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
@@ -565,7 +599,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             Content = new SettingsView(),
             CloseButtonText = "Close",
         };
-        await dialog.ShowAsync(this);
+        await ShowDialogAsync(dialog);
 
         // The license banner reads AppServices.License.State directly, so refresh it in case the
         // user activated/removed a license or the trial state otherwise changed while the dialog was open.
