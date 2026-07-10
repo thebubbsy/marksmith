@@ -175,6 +175,22 @@ public sealed class ManifestPlugin : IDiagramPlugin
             if (start < 0 || end < 0) return null;
             var svg = raw.Substring(start, end + "</svg>".Length - start);
 
+            // Some engines (D2) emit a root <svg> with a viewBox but NO width/height. An SVG
+            // without intrinsic dimensions collapses inside a width:fit-content container (the
+            // .plugin-diagram card), rendering as an empty sliver — verified live with D2's
+            // output, which nests the sized svg one level down. Give the root explicit
+            // dimensions from its own viewBox so it lays out like every other engine's output.
+            var rootMatch = Regex.Match(svg, "^<svg\\b[^>]*>", RegexOptions.Singleline);
+            if (rootMatch.Success && !Regex.IsMatch(rootMatch.Value, "\\bwidth\\s*=") )
+            {
+                var vb = Regex.Match(rootMatch.Value, "viewBox\\s*=\\s*\"[-\\d.]+[ ,]+[-\\d.]+[ ,]+([\\d.]+)[ ,]+([\\d.]+)\"");
+                if (vb.Success)
+                {
+                    var sized = rootMatch.Value.Insert("<svg".Length, $" width=\"{vb.Groups[1].Value}\" height=\"{vb.Groups[2].Value}\"");
+                    svg = sized + svg.Substring(rootMatch.Length);
+                }
+            }
+
             // Defensive: plugin output is injected raw into the preview/export HTML — never allow
             // active content through, whatever the tool produced.
             return Regex.Replace(svg, "<script.*?</script>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
