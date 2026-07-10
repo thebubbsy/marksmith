@@ -9,6 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +32,15 @@
          Drives live preview, PDF export (PrintToPdfStreamAsync) and mermaid harvesting, mirroring
          the WinUI app's WebView2 usage. See MdToPdf.Core/Rendering/IWebRenderHost.cs. -->
     <PackageReference Include="Avalonia.Controls.WebView" Version="12.0.1" />
+    <!-- Windows-only escape hatch out of Avalonia.Controls.WebView's page-size-less print API (see
+         the long comment on MainWindow.axaml.cs's PrintToPdfAsync): NativeWebView.TryGetPlatformHandle()
+         hands back the raw native ICoreWebView2 COM pointer on Windows, and
+         CoreWebView2.CreateFromComICoreWebView2(ptr) wraps it in the same managed type WinUI's own
+         MainWindow.xaml.cs already drives directly, with the same PageWidth/PageHeight-capable
+         CreatePrintSettings()/PrintToPdfAsync API. Same version as MdToPdf/MdToPdf.csproj. Purely
+         managed COM-interop code (no Windows-specific TFM needed) — safe to reference unconditionally;
+         it's simply never touched on Linux/macOS thanks to the OperatingSystem.IsWindows() guard. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
