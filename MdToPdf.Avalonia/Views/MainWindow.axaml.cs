@@ -51,7 +51,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             _ = RefreshPreviewAsync();
         };
 
-        _clipboardWatcher = new ClipboardWatcherService(Clipboard!, (text, origin) => IngestFromSource(text, origin));
+        _clipboardWatcher = new ClipboardWatcherService(Clipboard!, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderWatcher = new FolderWatcherService(path => _ = OnWatchedFileAsync(path));
         _apiServer = new ApiServer(
             AppServices.LlmSource,
@@ -122,6 +122,12 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // also export a PDF, so a conversation sent here at its end produces a finished document hands-free.
     private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
+        // A font detected via the "Copy as Markdown" button (clipboard) becomes the live brand
+        // font immediately, not just a one-shot export override — so the preview matches the
+        // source page's font right away, same as any other Style-panel change.
+        if (!string.IsNullOrWhiteSpace(output?.SourceFontFamily))
+            ViewModel.BrandFontFamily = output.SourceFontFamily;
+
         ViewModel.IngestMarkdown(text, origin);
         if (!ViewModel.AutoConvertIngests) return;
         if (AppServices.License.CanAutomate) _ = AutoExportIngestAsync(output);
@@ -437,7 +443,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             or nameof(MainViewModel.UsePasteSource) or nameof(MainViewModel.SelectedThemeName)
             or nameof(MainViewModel.ContentWidth) or nameof(MainViewModel.A4FixedWidth)
             or nameof(MainViewModel.UnlimitedHeight) or nameof(MainViewModel.IncludeToc)
-            or nameof(MainViewModel.ShowAttribution) or nameof(MainViewModel.NoEmoji))
+            or nameof(MainViewModel.ShowAttribution) or nameof(MainViewModel.NoEmoji)
+            or nameof(MainViewModel.BrandFontFamily))
         {
             _previewDebounce.Stop();
             _previewDebounce.Start();
