@@ -36,9 +36,18 @@ public static class AdmonitionNormalizer
     private static readonly Regex Opener = new(@"^\s*:::+\s*([A-Za-z]+)\s*(?:\[(?<t1>[^\]]*)\]|""(?<t2>[^""]*)""|\s+(?<t3>\S.*?))?\s*$");
     private static readonly Regex Closer = new(@"^\s*:::+\s*$");
 
+    // Obsidian's foldable-callout variants: `> [!tip]- Title` (collapsed) / `> [!tip]+ Title`
+    // (expanded). Markdig's alert parser only recognizes the plain `> [!TIP]` form and leaks the
+    // suffixed ones as blockquote text. Rewrite them to a real <details>/<summary> element so the
+    // preview gets genuine browser-native collapse behaviour — folded closed by default for `-`,
+    // open for `+`, and toggled on click — with the body kept as markdown (blank lines around it
+    // so Markdig still parses **bold**, code, math inside). Group 3 captures the fold char.
+    private static readonly Regex FoldedCallout = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]([-+])\s*(.*)$");
+
     public static string Apply(string markdown)
     {
-        if (string.IsNullOrEmpty(markdown) || !markdown.Contains(":::", StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(markdown)) return markdown;
+        if (!markdown.Contains(":::", StringComparison.Ordinal) && !markdown.Contains("[!", StringComparison.Ordinal))
             return markdown;
 
         var lines = markdown.Split('\n');
@@ -63,6 +72,35 @@ public static class AdmonitionNormalizer
             {
                 if (fence is not null && trimmed.StartsWith(fence, StringComparison.Ordinal)) { inCode = false; fence = null; }
                 outLines.Add(line);
+                continue;
+            }
+
+            var folded = FoldedCallout.Match(line);
+            if (folded.Success)
+            {
+                var kind = TypeMap.TryGetValue(folded.Groups[2].Value, out var mapped) ? mapped : folded.Groups[2].Value.ToUpperInvariant();
+                var startOpen = folded.Groups[3].Value == "+";  // `+` = expanded, `-` = collapsed
+                var foldTitle = folded.Groups[4].Value.Trim();
+
+                // Consume the rest of the blockquote as the callout body, stripping the "> " marker.
+                var body = new List<string>();
+                int j = i + 1;
+                while (j < lines.Length && Regex.IsMatch(lines[j], @"^\s*>"))
+                {
+                    body.Add(Regex.Replace(lines[j], @"^\s*>\s?", ""));
+                    j++;
+                }
+                i = j - 1; // the for-loop's i++ lands on the first non-blockquote line
+
+                var summary = string.IsNullOrEmpty(foldTitle) ? kind : $"{kind} · {foldTitle}";
+                if (outLines.Count > 0 && outLines[^1].Length > 0) outLines.Add("");
+                outLines.Add($"<details class=\"md-callout md-callout-{kind.ToLowerInvariant()}\"{(startOpen ? " open" : "")}>");
+                outLines.Add($"<summary>{System.Net.WebUtility.HtmlEncode(summary)}</summary>");
+                outLines.Add("");                     // blank line → body parsed as markdown, not raw HTML
+                foreach (var b in body) outLines.Add(b);
+                outLines.Add("");
+                outLines.Add("</details>");
+                outLines.Add("");
                 continue;
             }
 
