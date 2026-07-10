@@ -1057,10 +1057,22 @@ public sealed class DocxExportService
                 }
 
                 case TaskList task:
-                    // No trailing space — the literal that follows the checkbox already has one.
-                    AddText(target, ctx.NoEmoji
-                        ? (task.Checked ? "[x]" : "[ ]")
-                        : (task.Checked ? "☑" : "☐"), current);
+                    // - [ ] / - [x] → a NATIVE Word checkbox content control (w14:checkbox), the
+                    // same control Word's own Developer ribbon inserts — clickable in Word 2010+,
+                    // toggling ☐/☒ in place — rather than a static glyph pasted as text. The
+                    // display run inside sdtContent must carry the state glyph in MS Gothic (the
+                    // font Word itself uses for these controls) or Word shows a missing-glyph box
+                    // on some systems. No trailing space — the literal that follows already has one.
+                    target.Append(new W.SdtRun(
+                        new W.SdtProperties(
+                            new W14.SdtContentCheckBox(
+                                new W14.Checked { Val = task.Checked ? W14.OnOffValues.One : W14.OnOffValues.Zero },
+                                new W14.CheckedState { Val = "2612", Font = "MS Gothic" },
+                                new W14.UncheckedState { Val = "2610", Font = "MS Gothic" })),
+                        new W.SdtContentRun(
+                            new W.Run(
+                                new W.RunProperties(new W.RunFonts { Ascii = "MS Gothic", HighAnsi = "MS Gothic", EastAsia = "MS Gothic" }),
+                                new W.Text(task.Checked ? "☒" : "☐")))));
                     break;
 
                 case MathInline math:
