@@ -53,6 +53,38 @@
                 </StackPanel>
             </Border>
 
+            <!-- ===== Plugins ===== -->
+            <TextBlock Text="Plugins" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
+            <Border Style="{StaticResource PipelineCardStyle}">
+                <StackPanel Padding="16" Spacing="12">
+                    <TextBlock Text="Optional, separately-downloaded capabilities. Nothing here is bundled with Marksmith — install only what you use."
+                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="PlantUML Diagrams" FontWeight="SemiBold" />
+                            <TextBlock Text="Renders ```plantuml / ```puml code blocks as diagrams. Downloads a private Java runtime + the PlantUML engine (~90 MB), isolated from any Java already on your system."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" MaxWidth="320" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <ProgressRing x:Name="PlantUmlInstallRing" IsActive="False" Width="18" Height="18" />
+                            <Button x:Name="PlantUmlInstallButton" Content="Install" Click="OnInstallPlantUml" />
+                            <Button x:Name="PlantUmlUninstallButton" Content="Remove" Click="OnUninstallPlantUml" Visibility="Collapsed" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" x:Name="PlantUmlStatus" Text="" Style="{StaticResource StepCaptionStyle}"
+                                   TextWrapping="Wrap" IsTextSelectionEnabled="True" Margin="0,8,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- ===== About & updates ===== -->
             <TextBlock Text="About &amp; updates" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
             <Border Style="{StaticResource PipelineCardStyle}">
