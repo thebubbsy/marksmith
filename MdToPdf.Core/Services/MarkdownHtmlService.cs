@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using MdToPdf.Models;
 using Markdig;
+using SkiaSharp;
 
 namespace MdToPdf.Services;
 
@@ -14,6 +15,18 @@ public sealed class MarkdownHtmlService
         .UseYamlFrontMatter()    // mirrors front_matter_plugin
         .UseAlertBlocks()        // GitHub-style > [!NOTE] blocks, mirrors the hand-rolled ALERT_PATTERN parsing
         .UseMathematics()        // $..$ / $$..$$ -> span.math/div.math, rendered by KaTeX (ChatGPT exports carry LaTeX)
+        .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> 🚀 (GitHub/Discord shortcodes, everywhere in AI output); smileys OFF so ":)" in prose isn't rewritten
+        .Build();
+
+    // No-emoji mode: identical pipeline minus the emoji extension — shortcode conversion happens
+    // during the Markdig parse, AFTER EmojiStripper has already run on the raw markdown, so with
+    // the emoji extension active a :rocket: would sneak a 🚀 into a document the user explicitly
+    // asked to keep emoji-free.
+    private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .UseYamlFrontMatter()
+        .UseAlertBlocks()
+        .UseMathematics()
         .Build();
 
     // Same alert accent colors used by the Python app's DOCX alert-box rendering, for visual parity.
@@ -50,10 +63,12 @@ public sealed class MarkdownHtmlService
     {
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
-        var body = Markdown.ToHtml(markdown, Pipeline);
+        var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
+        body = EmbedLocalImages(body);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
         // the content HTML-escaped. Rewrite the fence to a <div class="mermaid">, but KEEP the content
@@ -169,7 +184,23 @@ public sealed class MarkdownHtmlService
             .markdown-alert-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; background: {{theme.Secondary}}; }
             .markdown-alert-{{kv.Key}} .markdown-alert-title { color: {{kv.Value.Color}}; }
             .markdown-alert-{{kv.Key}} .markdown-alert-title::before { content: "{{(settings.NoEmoji ? AlertGlyph(kv.Key) : kv.Value.Icon)}} "; }
+            .md-callout-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; }
+            .md-callout-{{kv.Key}} > summary { color: {{kv.Value.Color}}; }
+            .md-callout-{{kv.Key}} > summary::after { content: " {{(settings.NoEmoji ? AlertGlyph(kv.Key) : kv.Value.Icon)}}"; }
             """));
+
+        // Foldable callouts (Obsidian `> [!tip]-`) render as a real <details> so the preview gets
+        // native collapse-by-default + click-to-toggle. Shared chrome here; per-kind accent above.
+        var calloutCss = $$"""
+            .md-callout { background: {{theme.Secondary}}; border-radius: 6px; margin: 16px 0; overflow: hidden; }
+            .md-callout > summary { cursor: pointer; padding: 10px 16px; font-weight: 700; list-style: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; }
+            .md-callout > summary::-webkit-details-marker { display: none; }
+            .md-callout > summary::before { content: "\25B8"; margin-right: 8px; font-size: 0.8em; transition: transform 0.15s; }
+            .md-callout[open] > summary::before { transform: rotate(90deg); }
+            .md-callout > summary::after { margin-left: auto; opacity: 0.85; }
+            .md-callout > *:not(summary) { margin-left: 16px; margin-right: 16px; }
+            .md-callout > *:last-child { margin-bottom: 12px; }
+            """;
 
         // BrandFontFamily also arrives here from a "Copy as Markdown" clipboard capture (see
         // OutputOverride.SourceFontFamily / AppSettings.CloneWith) so the preview shows the reply in
@@ -275,6 +306,7 @@ public sealed class MarkdownHtmlService
             .markdown-alert { border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; }
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
+            {{calloutCss}}
             /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
                column to the full preview width; anything larger scrolls, and clicking opens the
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
@@ -286,6 +318,16 @@ public sealed class MarkdownHtmlService
                renders", not as a second independent diagram. */
             .mermaid-embedded { margin-top: 8px; }
             .mermaid-embedded::before { content: "Rendered preview"; display: block; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: {{theme.Text}}; opacity: 0.5; margin-bottom: 10px; }
+            /* 2026 dialect elements emitted by DialectNormalizer */
+            .wikilink { color: {{theme.Primary}}; border-bottom: 1px dashed {{theme.Primary}}; cursor: default; }
+            .md-tag { display: inline-block; padding: 1px 9px; border-radius: 999px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Primary}}; font-size: 0.85em; }
+            .code-title { display: inline-block; margin-bottom: -14px; padding: 4px 12px; border: 1px solid {{theme.Border}}; border-bottom: none; border-radius: 6px 6px 0 0; background: {{theme.Code}}; font-family: Consolas, monospace; font-size: 12px; color: {{theme.Text}}; opacity: 0.85; }
+            .tab-label { display: inline-block; margin: 14px 0 6px 0; padding: 4px 14px; border: 1px solid {{theme.Border}}; border-radius: 6px 6px 0 0; border-bottom: 2px solid {{theme.Primary}}; background: {{theme.Secondary}}; font-weight: 700; font-size: 13px; color: {{theme.Primary}}; }
+            .page-break { border: none; border-top: 2px dashed {{theme.Border}}; margin: 26px 0; position: relative; }
+            .page-break::after { content: "page break"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); padding: 0 10px; background: {{theme.Background}}; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: {{theme.Text}}; opacity: 0.55; }
+            @media print { .page-break { page-break-after: always; border: none; } .page-break::after { content: ""; } }
+            img { max-width: 100%; }
+            .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
             #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; user-select: none; -webkit-user-select: none; }
             #mk-lens.open { display: block; }
             #mk-lens.dragging { cursor: grabbing; }
@@ -502,6 +544,128 @@ public sealed class MarkdownHtmlService
             """;
     }
 
+    // Local-disk images can't load in the preview at all: the document is served from a secure
+    // https origin (WebView2 virtual host / loopback server), from which file:-scheme and bare
+    // C:\path subresources are blocked as mixed content. Inline them as data: URIs instead —
+    // works in the preview, prints into the PDF, and keeps the app offline-first. Remote http(s)
+    // images pass through untouched. Also honors Obsidian's `![alt|300](...)` width-hint syntax
+    // for BOTH local and remote images (the |300 arrives glued to the alt text).
+    private static readonly Regex ImgTag = new("<img src=\"([^\"]+)\" alt=\"([^\"]*)\"([^>]*)>", RegexOptions.Compiled);
+    private static readonly Regex AltSizeHint = new(@"^(.*)\|(\d{2,4})$", RegexOptions.Compiled);
+    // CRITICAL: WebView2's NavigateToString (and the Avalonia NativeWebView equivalent) silently
+    // FAILS past roughly 2 MB — the preview then just spins forever. Base64 inflates a file ~1.34x,
+    // so a couple of multi-MB photos inlined here blow that ceiling and take the whole preview down.
+    // Cap it hard: skip any single image over ~900 KB, and stop inlining once the running total of
+    // encoded image data would approach the budget — the doc's own markup plus this must stay well
+    // under 2 MB. An image that's skipped keeps its original src (it just won't show in the preview),
+    // which is strictly better than a preview that never loads. (Serving arbitrary local images
+    // through the host's asset server, with no size limit, is the real fix — a follow-up.)
+    private const long MaxInlineBudgetBytes = 1_200_000;
+
+    private static string EmbedLocalImages(string body)
+    {
+        if (!body.Contains("<img", StringComparison.Ordinal)) return body;
+        long budgetUsed = 0;
+        return ImgTag.Replace(body, m =>
+        {
+            var src = m.Groups[1].Value;
+            var alt = m.Groups[2].Value;
+            var rest = m.Groups[3].Value;
+            // Markdig percent-encodes link destinations (C:\Users\... arrives as C:%5CUsers%5C...),
+            // so DETECT local paths against a decoded copy — but leave a remote URL's src exactly
+            // as written, since decoding could corrupt legitimately-encoded query strings.
+            var decoded = Uri.UnescapeDataString(System.Net.WebUtility.HtmlDecode(src));
+
+            var width = "";
+            var sizeHint = AltSizeHint.Match(alt);
+            if (sizeHint.Success)
+            {
+                alt = sizeHint.Groups[1].Value.Trim();
+                width = $" width=\"{sizeHint.Groups[2].Value}\"";
+            }
+
+            var localPath = decoded.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
+                ? decoded[8..].Replace('/', '\\')
+                : (decoded.Length > 2 && decoded[1] == ':' ? decoded : null);
+            if (localPath is not null)
+            {
+                try
+                {
+                    var info = new FileInfo(localPath);
+                    if (info.Exists)
+                    {
+                        // Large/high-res local images (phone photos, screenshots, 1273px logos) are
+                        // downscaled to a document-sensible size FIRST — a page is only ~800px wide,
+                        // so a bigger source is wasted bytes that (base64-inflated) blow the
+                        // NavigateToString ceiling and take the whole preview down. Downscaling turns
+                        // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
+                        // pass through untouched; SVG is never rasterized.
+                        var (data, mime) = PrepareImageForInline(localPath, info);
+                        if (data is not null && mime is not null &&
+                            budgetUsed + data.Length * 4 / 3 <= MaxInlineBudgetBytes)
+                        {
+                            src = $"data:{mime};base64,{Convert.ToBase64String(data)}";
+                            budgetUsed += data.Length * 4 / 3;
+                        }
+                    }
+                }
+                catch { /* unreadable/undecodable file: leave the original src; alt text still shows */ }
+            }
+
+            return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
+        });
+    }
+
+    private const int MaxImageDimension = 1400; // downscale target: covers 2x the ~800px page width
+
+    // Returns the bytes+mime to inline for a local image: the file as-is when it's already small
+    // and modest-resolution, or a downscaled re-encode when it's oversized. Returns (null, null)
+    // for formats we don't rasterize (SVG) or anything Skia can't decode.
+    private static (byte[]? Data, string? Mime) PrepareImageForInline(string path, FileInfo info)
+    {
+        var ext = info.Extension.ToLowerInvariant();
+        if (ext == ".svg") return (null, null); // vector: inlining raw would need XML, not a raster path
+
+        var raw = File.ReadAllBytes(path);
+
+        // Fast path: already small AND not huge-resolution → inline the original bytes verbatim,
+        // preserving the exact format (and any transparency/animation) with zero re-encoding.
+        if (info.Length <= 350_000)
+        {
+            using var codec = SKCodec.Create(new MemoryStream(raw));
+            if (codec is null) return (null, null); // undecodable — caller leaves original src
+            if (Math.Max(codec.Info.Width, codec.Info.Height) <= MaxImageDimension)
+            {
+                var mime = ext switch
+                {
+                    ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif",
+                    ".webp" => "image/webp", ".bmp" => "image/bmp", _ => "image/png",
+                };
+                return (raw, mime);
+            }
+        }
+
+        using var bitmap = SKBitmap.Decode(raw);
+        if (bitmap is null) return (null, null);
+
+        var scale = (double)MaxImageDimension / Math.Max(bitmap.Width, bitmap.Height);
+        SKBitmap scaled = scale < 1.0
+            ? bitmap.Resize(new SKImageInfo((int)(bitmap.Width * scale), (int)(bitmap.Height * scale)), SKFilterQuality.High)
+            : bitmap;
+        try
+        {
+            using var image = SKImage.FromBitmap(scaled);
+            // PNG keeps sharp edges + transparency for graphics/logos; the size win comes from the
+            // resolution drop, not lossy compression, so text/line art stays crisp.
+            using var encoded = image.Encode(SKEncodedImageFormat.Png, 90);
+            return (encoded.ToArray(), "image/png");
+        }
+        finally
+        {
+            if (!ReferenceEquals(scaled, bitmap)) scaled.Dispose();
+        }
+    }
+
     // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
     // when the rendered body actually needs them (plain documents stay dependency-free).
     private static string BuildExtraHead(string body, bool isDark)
@@ -509,10 +673,16 @@ public sealed class MarkdownHtmlService
         var head = "";
         if (body.Contains("class=\"math\""))
         {
+            // mhchem (KaTeX's official chemistry extension, \ce{}/\pu{}) loads only when the
+            // document actually uses it. Defer-scripts execute in order, so it registers itself
+            // against the katex global after katex.min.js and before auto-render's onload fires.
+            var mhchem = body.Contains("\\ce{") || body.Contains("\\pu{")
+                ? $"""<script defer src="{Services.WebAssets.Base}/mhchem.min.js"></script>{"\n"}"""
+                : "";
             head += $$"""
                 <link rel="stylesheet" href="{{Services.WebAssets.KatexCss}}">
                 <script defer src="{{Services.WebAssets.KatexJs}}"></script>
-                <script defer src="{{Services.WebAssets.KatexAutoRender}}"
+                {{mhchem}}<script defer src="{{Services.WebAssets.KatexAutoRender}}"
                         onload="renderMathInElement(document.body, {
                             delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],
                             // \tag is display-mode-only in KaTeX and hard-errors in inline math,

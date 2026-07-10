@@ -49,6 +49,16 @@ public sealed class DocxExportService
         .UseYamlFrontMatter()
         .UseAlertBlocks()
         .UseMathematics()
+        .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> emoji chars in Word too (same as the HTML pipeline)
+        .Build();
+
+    // See MarkdownHtmlService.PipelineNoEmoji — same rationale: no-emoji mode must not let
+    // shortcode conversion reintroduce emoji after EmojiStripper already ran.
+    private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .UseYamlFrontMatter()
+        .UseAlertBlocks()
+        .UseMathematics()
         .Build();
 
     private static readonly ThemeCatalog Themes = new();
@@ -87,10 +97,11 @@ public sealed class DocxExportService
         {
             markdown = TextNormalizer.Newlines(markdown);
             markdown = AdmonitionNormalizer.Apply(markdown);
+            markdown = DialectNormalizer.Apply(markdown);
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
             markdown = FormattingService.Apply(markdown, settings);
-            var doc = Markdown.Parse(markdown, Pipeline);
+            var doc = Markdown.Parse(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
             var theme = Themes.GetOrDefault(settings.Theme);
             var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
             var title = FirstHeadingText(doc) ?? "Markdown Export";
@@ -179,10 +190,11 @@ public sealed class DocxExportService
 
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
-        var doc = Markdown.Parse(markdown, Pipeline);
+        var doc = Markdown.Parse(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         var theme = Themes.GetOrDefault(settings.Theme);
         var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
 
@@ -806,6 +818,27 @@ public sealed class DocxExportService
         raw = raw.Trim();
         if (raw.Length == 0) return;
 
+        // Page break (from DialectNormalizer's <!-- pagebreak -->/\pagebreak rewrite, or a raw
+        // page-break-after div an AI emitted directly) → a REAL Word page break, the one thing
+        // Word does better than any web renderer.
+        if (raw.Contains("class=\"page-break\"", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(raw, @"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase))
+        {
+            target.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
+            return;
+        }
+
+        // Code-fence filename captions and tab labels (DialectNormalizer output): styled one-liners.
+        var labeled = Regex.Match(raw, "^<div class=\"(code-title|tab-label)\">(.*?)</div>$", RegexOptions.Singleline);
+        if (labeled.Success)
+        {
+            var p = new W.Paragraph();
+            AddText(p, System.Net.WebUtility.HtmlDecode(labeled.Groups[2].Value),
+                new Fmt { Bold = true, Code = labeled.Groups[1].Value == "code-title" });
+            target.Append(p);
+            return;
+        }
+
         // <hr> → a bordered rule paragraph, same look as a Markdown --- thematic break. NOT an
         // exact whole-block match: without a blank line after it, Markdig's HTML block swallows the
         // following text line into the SAME block ("<hr>\nBelow the rule."), so an exact match
@@ -828,6 +861,23 @@ public sealed class DocxExportService
         // <table> → a real Word table (the biggest data-loss fix: whole tables used to disappear).
         var table = Regex.Match(raw, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
+
+        // Foldable-callout <details> whose body was split into following markdown blocks (blank
+        // lines between <summary> and the body — see AdmonitionNormalizer). The opener arrives as a
+        // block with no closing tag; render its summary as a Word-native collapsible heading
+        // (outlineLvl 4 + collapsed) so the body blocks that follow fold under it, matching the
+        // preview's collapsed-<details>. The bare </details> closer that arrives later is dropped.
+        var openDetails = Regex.Match(raw, @"^<details\b[^>]*>\s*<summary\b[^>]*>(.*?)</summary>\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (openDetails.Success)
+        {
+            var head = new W.Paragraph(new W.ParagraphProperties(
+                new W.OutlineLevel { Val = 4 }, new W15.DefaultCollapsed { Val = true }));
+            AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true });
+            target.Append(head);
+            return;
+        }
+        if (Regex.IsMatch(raw, @"^</details>$", RegexOptions.IgnoreCase)) return;
 
         // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
         // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
