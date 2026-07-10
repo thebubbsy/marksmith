@@ -94,6 +94,10 @@ public sealed class PluginRenderSpec
     public string Output { get; set; } = "stdout"; // "stdout" | "file"
     public int TimeoutSeconds { get; set; } = 20;
 
+    // File extension for the {input} temp file (with the dot, e.g. ".typ"). Tools like Typst and
+    // D2 sniff or enforce the input extension, so ".txt" isn't universally safe.
+    public string InputExtension { get; set; } = ".txt";
+
     public PluginSourceWrap? Wrap { get; set; }
 }
 
