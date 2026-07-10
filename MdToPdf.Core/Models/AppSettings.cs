@@ -84,6 +84,7 @@ public sealed class AppSettings
         if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
         if (o.MermaidDocxMode is { } mm) s.MermaidDocxMode = mm;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
+        if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
         return s;
     }
 }

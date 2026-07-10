@@ -28,4 +28,10 @@ public sealed class OutputOverride
     // Which file(s) to produce: any of "pdf", "docx", "pptx", "epub", comma-separated, or "both"
     // (= pdf,docx). Null/blank = pdf.
     public string? Format { get; set; }
+
+    // Font family detected from the source AI-chat page at copy/send time (the "Copy as Markdown"
+    // button reads getComputedStyle on the reply and carries it via the HTML clipboard format, or
+    // the extension can send it directly). Maps onto BrandFontFamily so the preview/export use the
+    // same font the reply was actually shown in, instead of the app's default.
+    public string? SourceFontFamily { get; set; }
 }

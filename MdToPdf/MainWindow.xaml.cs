@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.HeadingShift),
         nameof(ViewModels.MainViewModel.BoldMode),
         nameof(ViewModels.MainViewModel.ItalicMode),
+        nameof(ViewModels.MainViewModel.BrandFontFamily),
     };
 
     private static readonly HashSet<string> AutomationProperties = new()
@@ -122,7 +123,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _spinTimer.IsRepeating = true;
         _spinTimer.Tick += (_, _) => OnSpinTick();
 
-        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin) => IngestFromSource(text, origin));
+        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
         _apiServer = new Services.ApiServer(
             App.LlmSource,
@@ -422,6 +423,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // its end produces a finished document with no clicks.
     private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
+        // A font detected via the "Copy as Markdown" button (clipboard) becomes the live brand
+        // font immediately, not just a one-shot export override — so the preview matches the
+        // source page's font right away, same as any other Style-panel change.
+        if (!string.IsNullOrWhiteSpace(output?.SourceFontFamily))
+            ViewModel.BrandFontFamily = output.SourceFontFamily;
+
         ViewModel.IngestMarkdown(text, origin);
         if (!ViewModel.AutoConvertIngests) return;
         if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);

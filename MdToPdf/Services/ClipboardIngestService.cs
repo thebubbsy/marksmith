@@ -14,13 +14,13 @@ public sealed class ClipboardIngestService : IDisposable
     private static extern uint GetClipboardSequenceNumber();
 
     private readonly DispatcherQueueTimer _timer;
-    private readonly Action<string, string> _onIngest;
+    private readonly Action<string, string, Models.OutputOverride?> _onIngest;
     private uint _lastSequence;
     private string? _lastIngestedText;
 
     public bool IsRunning { get; private set; }
 
-    public ClipboardIngestService(DispatcherQueue dispatcherQueue, Action<string, string> onIngest)
+    public ClipboardIngestService(DispatcherQueue dispatcherQueue, Action<string, string, Models.OutputOverride?> onIngest)
     {
         _onIngest = onIngest;
         _timer = dispatcherQueue.CreateTimer();
@@ -56,7 +56,17 @@ public sealed class ClipboardIngestService : IDisposable
             if (!LooksLikeMarkdown(text) || text == _lastIngestedText) return;
 
             _lastIngestedText = text;
-            _onIngest(text, "clipboard");
+
+            // The "Copy as Markdown" button also writes an HTML clipboard entry carrying the
+            // source page's font (see ClipboardFontMarker) alongside the plain text above.
+            string? font = null;
+            if (content.Contains(StandardDataFormats.Html))
+            {
+                try { font = Services.ClipboardFontMarker.Extract(await content.GetHtmlFormatAsync()); }
+                catch { /* HTML format present but unreadable — font detection is best-effort */ }
+            }
+            var output = font is not null ? new Models.OutputOverride { SourceFontFamily = font } : null;
+            _onIngest(text, "clipboard", output);
         }
         catch
         {
