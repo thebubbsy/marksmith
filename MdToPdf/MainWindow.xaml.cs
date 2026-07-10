@@ -782,12 +782,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 var settings = App.Settings.Current.CloneWith(output);
                 var md = markdown;
-                Models.LlmClassification? classification = null;
+                // Correctness repairs (copy-artifact removal, math/matrix rescue) always run;
+                // stylistic cleanup only when the caller's profile asks for it.
+                var classification = App.LlmSource.Classify(md);
+                (md, _) = App.LlmSource.RepairArtifacts(md, classification);
                 if (settings.NormalizeLlm)
-                {
-                    classification = App.LlmSource.Classify(md);
-                    (md, _) = App.LlmSource.Normalize(md, classification);
-                }
+                    (md, _) = App.LlmSource.NormalizeStyle(md, classification);
                 var theme = App.Themes.GetOrDefault(settings.Theme);
                 var html = App.MarkdownHtml.Render(md, settings, theme, classification);
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");

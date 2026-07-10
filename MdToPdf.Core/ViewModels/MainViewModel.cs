@@ -284,14 +284,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var classification = AppServices.LlmSource.Classify(markdown);
 
-        // Normalization must NOT be gated on recognizing a specific vendor: several of its fixes
-        // (undelimited \frac/\boxed math recovery, excess blank lines, pseudo-headings) apply to
-        // AI-ish text that carries no ChatGPT/Gemini/Claude tells at all — hand-pasted content
-        // classified Generic used to skip normalize entirely, so a pasted bare fraction stayed
-        // literal in both the preview and the export even with the toggle on. Every Normalize fix
-        // is a no-op when its pattern doesn't match, so running it on Generic text is safe.
+        // Correctness repairs (copy-artifact removal, math rescue, matrix recovery) ALWAYS run —
+        // they fix corruption, not style, so a broken matrix or leaked <thinking> tag is cleaned up
+        // whether or not the "Normalize AI quirks" toggle is on. Neither is gated on recognizing a
+        // specific vendor either: they apply to AI-ish text with no ChatGPT/Gemini/Claude tells at
+        // all, and each is a no-op when its pattern doesn't match, so running on Generic text is safe.
+        (markdown, _) = AppServices.LlmSource.RepairArtifacts(markdown, classification);
         if (NormalizeLlm)
-            (markdown, _) = AppServices.LlmSource.Normalize(markdown, classification);
+            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification);
 
         // The source badge, though, only makes sense for a recognized vendor.
         if (classification.Source == LlmSource.Generic) return markdown;
@@ -302,7 +302,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (better)
         {
             LastClassification = classification;
-            DetectedSourceText = NormalizeLlm
+            DetectedSourceText = classification.AppliedFixes.Count > 0
                 ? $"{classification.SourceName} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes"
                 : $"{classification.SourceName} · {classification.Confidence}%";
         }
@@ -352,10 +352,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(meta?.SourceModel))
             classification.Model = meta.SourceModel.Trim();
 
+        // Correctness repairs always run; stylistic cleanup only when the toggle is on.
+        (text, _) = AppServices.LlmSource.RepairArtifacts(text, classification);
         if (NormalizeLlm)
-        {
-            (text, _) = AppServices.LlmSource.Normalize(text, classification);
-        }
+            (text, _) = AppServices.LlmSource.NormalizeStyle(text, classification);
 
         LastClassification = classification;
         DetectedSourceText = classification.Source == LlmSource.Generic

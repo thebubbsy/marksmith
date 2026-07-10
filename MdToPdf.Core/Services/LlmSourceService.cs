@@ -106,10 +106,23 @@ public sealed partial class LlmSourceService
         };
     }
 
-    public (string Cleaned, List<string> Fixes) Normalize(string markdown, LlmClassification classification)
+    // Always-on correctness repairs — NOT gated on the "Normalize AI quirks" toggle, because these
+    // fix corruption, not style: they remove copy/paste garbage that is never real content (dead
+    // citation pips, captured "Copy code" button text, leaked internal control tags) and rescue math
+    // that would otherwise render as literal backslash soup (\( \)/\[ \] delimiters, browser-mangled
+    // \begin…\end matrices, undelimited \frac/\sqrt). A user never WANTS any of these in their
+    // export, and each is a no-op when its pattern doesn't match, so this is safe to run on any text.
+    public (string Cleaned, List<string> Fixes) RepairArtifacts(string markdown, LlmClassification classification)
     {
         var fixes = new List<string>();
-        var text = markdown;
+
+        // Pull fenced code blocks out to placeholders before running any repair, so nothing here
+        // can rewrite a legitimate code sample that happens to contain one of these patterns — a
+        // "Copy code" line, a <thinking> tag in an XML example, a literal \begin{bmatrix}. The
+        // math-recovery passes below also protect inline code / existing $-math internally; this
+        // adds the fenced-block guard the artifact removals would otherwise lack (they run
+        // unconditionally now, so a false positive inside code would be real corruption).
+        var text = ProtectFencedCode(markdown, out var fencedBlocks);
 
         void Apply(Regex rx, string replacement, string description)
         {
@@ -122,7 +135,6 @@ public sealed partial class LlmSourceService
         Apply(OaiCiteArtifacts(), "", "Removed ChatGPT citation artifacts");
         Apply(ChatGptCitations(), "", "Removed 【n†source】 pips");
         Apply(CopyCodeButtons(), "", "Removed copy-button text");
-        Apply(DisclaimerFooters(), "", "Removed assistant disclaimer footer");
         Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
 
         // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.
@@ -136,15 +148,71 @@ public sealed partial class LlmSourceService
 
         text = WrapBareLatexMath(text, fixes);
 
+        text = RestoreFencedCode(text, fencedBlocks).Trim();
+        classification.AppliedFixes.AddRange(fixes);
+        classification.HasMath = classification.HasMath || DollarMath().IsMatch(text);
+        return (text, fixes);
+    }
+
+    // Swap fenced code blocks for inert " MKCODEn " placeholders (which match none of the repair
+    // patterns) so repairs skip them, then swap them back verbatim. The token is space-padded and
+    // numeric so nothing here rewrites it; a real document containing the literal string is a
+    // non-issue (worst case a repair would skip a spurious spot, never corrupt content).
+    [GeneratedRegex(" MKCODE(\\d+) ")] private static partial Regex CodePlaceholder();
+
+    private static string ProtectFencedCode(string text, out List<string> blocks)
+    {
+        var list = new List<string>();
+        var result = FencedCode().Replace(text, m =>
+        {
+            list.Add(m.Value);
+            return $" MKCODE{list.Count - 1} ";
+        });
+        blocks = list;
+        return result;
+    }
+
+    private static string RestoreFencedCode(string text, List<string> blocks) =>
+        blocks.Count == 0 ? text : CodePlaceholder().Replace(text, m => blocks[int.Parse(m.Groups[1].Value)]);
+
+    // Opt-in stylistic cleanup, gated on the "Normalize AI quirks" toggle — these are preferences,
+    // not corrections: stripping vendor boilerplate footers, reshaping bold pseudo-headings into
+    // real headings, and tightening blank-line spacing. A user could legitimately want any of them
+    // left alone. Assumes RepairArtifacts has already run.
+    public (string Cleaned, List<string> Fixes) NormalizeStyle(string markdown, LlmClassification classification)
+    {
+        var fixes = new List<string>();
+        var text = markdown;
+
+        void Apply(Regex rx, string replacement, string description)
+        {
+            var count = rx.Matches(text).Count;
+            if (count == 0) return;
+            text = rx.Replace(text, replacement);
+            fixes.Add($"{description} ({count})");
+        }
+
+        Apply(DisclaimerFooters(), "", "Removed assistant disclaimer footer");
+
         // Gemini loves "**Heading:**" lines instead of real headings — promote them so the
         // document gets a navigable structure (and the TOC has something to index).
         Apply(BoldPseudoHeading(), "### $1", "Promoted bold pseudo-headings");
 
         Apply(ExcessBlankLines(), "\n\n", "Collapsed excess blank lines");
 
-        classification.AppliedFixes = fixes;
-        classification.HasMath = classification.HasMath || DollarMath().IsMatch(text);
-        return (text.Trim(), fixes);
+        text = text.Trim();
+        classification.AppliedFixes.AddRange(fixes);
+        return (text, fixes);
+    }
+
+    // Convenience: always-on repairs followed by stylistic cleanup, in one call — for callers that
+    // have already decided the stylistic toggle is on. Callers that want only the unconditional
+    // corrections call RepairArtifacts directly and skip NormalizeStyle.
+    public (string Cleaned, List<string> Fixes) Normalize(string markdown, LlmClassification classification)
+    {
+        var (repaired, repairFixes) = RepairArtifacts(markdown, classification);
+        var (styled, styleFixes) = NormalizeStyle(repaired, classification);
+        return (styled, repairFixes.Concat(styleFixes).ToList());
     }
 
     // Recovers a LaTeX \begin…\end environment (matrix / aligned system) that arrived as mangled

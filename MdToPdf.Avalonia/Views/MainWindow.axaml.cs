@@ -274,12 +274,12 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             {
                 var settings = AppServices.Settings.Current.CloneWith(output);
                 var md = markdown;
-                Models.LlmClassification? classification = null;
+                // Correctness repairs (copy-artifact removal, math/matrix rescue) always run;
+                // stylistic cleanup only when the caller's profile asks for it.
+                var classification = AppServices.LlmSource.Classify(md);
+                (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
                 if (settings.NormalizeLlm)
-                {
-                    classification = AppServices.LlmSource.Classify(md);
-                    (md, _) = AppServices.LlmSource.Normalize(md, classification);
-                }
+                    (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification);
                 var theme = AppServices.Themes.GetOrDefault(settings.Theme);
                 var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
