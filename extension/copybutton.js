@@ -127,6 +127,41 @@
         return conv(target).replace(/\n{3,}/g, "\n\n").trim();
     }
 
+    // The font the reply is actually rendered in on this site, read straight off the same element
+    // toMarkdown() converts — so "same font" means what the user is looking at, not some guess.
+    function detectFont(root) {
+        const target = site.content ? root.querySelector(site.content) || root : root;
+        return getComputedStyle(target).fontFamily || "";
+    }
+
+    function escapeHtml(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Writes plain Markdown as text/plain (unchanged behavior for every paste target), plus a
+    // text/html alternative carrying the source font in a leading HTML comment
+    // (<!--marksmith-font:...-->) that only Marksmith looks for — see
+    // MdToPdf.Services.ClipboardFontMarker. Falls back to a plain-text-only copy if the rich
+    // write isn't available or is rejected, so "Copy as Markdown" never breaks over this.
+    async function copyWithFont(md, font) {
+        if (font && window.ClipboardItem) {
+            const html = `<!--marksmith-font:${encodeURIComponent(font)}-->` +
+                `<pre style="font-family:${escapeHtml(font)};white-space:pre-wrap;">${escapeHtml(md)}</pre>`;
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        "text/plain": new Blob([md], { type: "text/plain" }),
+                        "text/html": new Blob([html], { type: "text/html" }),
+                    }),
+                ]);
+                return;
+            } catch {
+                // Some browsers/contexts reject multi-format writes — fall through to plain text.
+            }
+        }
+        await navigator.clipboard.writeText(md);
+    }
+
     // ---------- injection ----------
     function makeButton(root) {
         const wrap = document.createElement("div");
@@ -142,7 +177,7 @@
             const md = toMarkdown(root);
             if (!md) return flashText(btn, "Nothing to copy");
             try {
-                await navigator.clipboard.writeText(md);
+                await copyWithFont(md, detectFont(root));
                 flashText(btn, "✓ Copied as Markdown");
             } catch {
                 flashText(btn, "Copy failed");

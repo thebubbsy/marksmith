@@ -13,14 +13,14 @@ public sealed class ClipboardWatcherService : IDisposable
 {
     private readonly IClipboard _clipboard;
     private readonly DispatcherTimer _timer;
-    private readonly Action<string, string> _onIngest;
+    private readonly Action<string, string, MdToPdf.Models.OutputOverride?> _onIngest;
     private string? _lastSeenText;
     private string? _lastIngestedText;
     private bool _primed;
 
     public bool IsRunning { get; private set; }
 
-    public ClipboardWatcherService(IClipboard clipboard, Action<string, string> onIngest)
+    public ClipboardWatcherService(IClipboard clipboard, Action<string, string, MdToPdf.Models.OutputOverride?> onIngest)
     {
         _clipboard = clipboard;
         _onIngest = onIngest;
@@ -53,7 +53,42 @@ public sealed class ClipboardWatcherService : IDisposable
 
         if (text is null || !LooksLikeMarkdown(text) || text == _lastIngestedText) return;
         _lastIngestedText = text;
-        _onIngest(text, "clipboard");
+
+        // The "Copy as Markdown" button also writes an HTML clipboard entry carrying the source
+        // page's font (see MdToPdf.Services.ClipboardFontMarker) alongside the plain text above.
+        // Avalonia's IClipboard has no fixed "Html" format constant (only Text/Bitmap/File are
+        // universal) — discover whichever advertised format looks like HTML instead of guessing
+        // the platform's exact native format name.
+        var font = await TryGetHtmlFontAsync();
+        var output = font is not null ? new MdToPdf.Models.OutputOverride { SourceFontFamily = font } : null;
+        _onIngest(text, "clipboard", output);
+    }
+
+    private async Task<string?> TryGetHtmlFontAsync()
+    {
+        try
+        {
+            var transfer = await _clipboard.TryGetDataAsync();
+            if (transfer is null) return null;
+            foreach (var item in transfer.Items)
+            {
+                foreach (var format in item.Formats)
+                {
+                    if (format.Identifier is not { } id || !id.Contains("html", StringComparison.OrdinalIgnoreCase)) continue;
+                    var raw = await item.TryGetRawAsync(format);
+                    var html = raw switch
+                    {
+                        string s => s,
+                        byte[] b => System.Text.Encoding.UTF8.GetString(b),
+                        _ => null,
+                    };
+                    var font = MdToPdf.Services.ClipboardFontMarker.Extract(html);
+                    if (font is not null) return font;
+                }
+            }
+        }
+        catch { /* best-effort — font detection never blocks the actual ingest */ }
+        return null;
     }
 
     // Cheap heuristic: long enough to be a real document and carrying at least one Markdown construct.
