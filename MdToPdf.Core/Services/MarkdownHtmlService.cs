@@ -106,6 +106,34 @@ public sealed class MarkdownHtmlService
                 RegexOptions.Singleline);
         }
 
+        // Plugin-provided diagram languages (e.g. ```plantuml via the optional PlantUML plugin) —
+        // a generalization of the ```mermaid handling above for fence languages the core pipeline
+        // doesn't know how to render itself. Unlike Mermaid (rendered client-side by mermaid.min.js
+        // inside the WebView), a diagram plugin renders out-of-process, synchronously, right here —
+        // by the time this HTML reaches the browser the SVG already exists. See
+        // MdToPdf.Plugins.IDiagramPlugin / PluginManager.
+        body = Regex.Replace(body,
+            "<pre><code class=\"language-([\\w-]+)\">(.*?)</code></pre>",
+            m =>
+            {
+                var language = m.Groups[1].Value;
+                var installed = AppServices.Plugins.FindDiagramRenderer(language);
+                if (installed != null)
+                {
+                    var decoded = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value);
+                    var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded);
+                    if (svg != null) return $"<div class=\"plugin-diagram\">{svg}</div>";
+                    return m.Value + "<div class=\"plugin-diagram-error\">⚠ " + installed.Name + " couldn't render this diagram — check the syntax.</div>";
+                }
+
+                var known = AppServices.Plugins.FindAnyDiagramPlugin(language);
+                if (known != null)
+                    return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{known.Name}</b> plugin (Settings → Plugins) to render this diagram.</div>";
+
+                return m.Value;
+            },
+            RegexOptions.Singleline);
+
         // When the whole document is essentially one diagram + a title (and maybe a few words),
         // the live preview becomes a dedicated diagram viewer: title top-left, +/−/Reset, pan/zoom.
         if (interactive && settings.MermaidEnabled)
@@ -133,6 +161,13 @@ public sealed class MarkdownHtmlService
             .markdown-alert-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; background: {{theme.Secondary}}; }
             .markdown-alert-{{kv.Key}} .markdown-alert-title { color: {{kv.Value.Color}}; }
             """));
+
+        // BrandFontFamily also arrives here from a "Copy as Markdown" clipboard capture (see
+        // OutputOverride.SourceFontFamily / AppSettings.CloneWith) so the preview shows the reply in
+        // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
+        var bodyFontFamily = string.IsNullOrWhiteSpace(settings.BrandFontFamily)
+            ? "-apple-system, \"Segoe UI\", sans-serif"
+            : $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
 
         var mermaidEnabled = settings.MermaidEnabled && body.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         var mermaidScript = mermaidEnabled ? $$"""
@@ -213,7 +248,7 @@ public sealed class MarkdownHtmlService
             {{mermaidScript}}
             {{extraHead}}
             <style>
-            body { background: {{theme.Background}}; color: {{theme.Text}}; font-family: -apple-system, "Segoe UI", sans-serif; line-height: 1.6; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
+            body { background: {{theme.Background}}; color: {{theme.Text}}; font-family: {{bodyFontFamily}}; line-height: 1.6; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
             #canvas { padding: 60px 40px; width: 100%; max-width: {{settings.ContentWidth}}px; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
@@ -250,6 +285,15 @@ public sealed class MarkdownHtmlService
             .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect { stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
             .mermaid .label { color: {{theme.Primary}} !important; }
+            /* Plugin-rendered diagrams (e.g. PlantUML): same card treatment as .mermaid, but the SVG
+               already carries its own colors from the plugin's own renderer, so no node/edge color
+               overrides here. */
+            .plugin-diagram { width: fit-content; max-width: calc(100vw - 48px); margin: 32px auto; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; }
+            .plugin-diagram-missing, .plugin-diagram-error { margin: 8px 0 24px; padding: 10px 14px; border-radius: 6px; font-size: 13px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; }
+            @media print {
+              .plugin-diagram { max-width: 100%; }
+              .plugin-diagram-missing, .plugin-diagram-error { display: none; }
+            }
             .attribution { display: flex; align-items: center; gap: 10px; font-size: 12.5px; border: 1px solid {{theme.Border}}; border-left: 4px solid {{theme.Heading}}; background: {{theme.Secondary}}; border-radius: 8px; padding: 10px 14px; margin-bottom: 28px; opacity: 0.92; }
             .attribution .badge { font-weight: 700; color: {{theme.Heading}}; }
             .mark-footer { margin-top: 34px; padding-top: 14px; border-top: 1px solid {{theme.Border}}; text-align: center; font-size: 12px; color: {{theme.Text}}; opacity: 0.62; }
