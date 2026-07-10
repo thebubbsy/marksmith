@@ -279,23 +279,23 @@ platform:
 - **macOS** — nothing extra. It uses WKWebView, a framework built into the OS.
 
 > **Known gaps versus the WinUI build** — this is a first pass, not yet at full parity:
-> - **PDF page size on this build is unreliable — treat it as unresolved, not fixed.** The
->   cross‑platform web‑view package's native print‑settings API has no page width/height at all,
->   so page size (A4‑lock, continuous‑page mode) is attempted via an injected `@page` CSS rule
->   instead. One early test measured a generated PDF whose page size matched the configured value
->   exactly — but repeat testing since (fresh app instances, several different width values) has
->   consistently *not* reproduced that; the PDF comes out as Letter landscape regardless of the
->   `@page` rule. The original measurement was too precise to have been a coincidental default, so
->   something made it work that one time, but the cause hasn't been identified and it doesn't
->   reproduce on demand. Margins have a separate, confirmed root cause: the package's Windows
->   backend has a unit‑handling bug (passes pixels where the underlying API expects inches), so this
->   build deliberately requests zero margins everywhere rather than risk a wildly wrong value.
->   Background colors print correctly (a separate, independently reliable CSS mechanism). See the
->   code comments on `MdToPdf.Avalonia`'s `PrintToPdfAsync` for the full history, and
->   `MdToPdf.Core/Services/PdfExportService.cs` for the CSS injection itself. Separately, the *content
->   width* Style setting is now correctly threaded through everywhere it needs to be (it used to be
->   ignored in favor of a hardcoded 800/1200px) — that part is a real, verified fix; it's specifically
->   whether the resulting PDF's page dimensions honor it that's unreliable on this build.
+> - **PDF page size on Windows is solid; on Linux/macOS it's still unverified.** The
+>   cross‑platform web‑view package's own print‑settings API has no page width/height at all, and an
+>   earlier attempt to work around that with an injected `@page` CSS rule proved unreliable (matched
+>   once, then consistently didn't reproduce). Rather than keep debugging the CSS, the Windows build
+>   now bridges past that package entirely: `NativeWebView.TryGetPlatformHandle()` hands back the raw
+>   native `ICoreWebView2` COM pointer, which gets wrapped in the same managed `CoreWebView2` type
+>   WinUI already drives directly — so page width/height/margins are set through the real WebView2
+>   print API, the same mechanism the original Python TUI relied on via Playwright's
+>   `page.pdf(width=, height=)`. Verified with an isolated test harness requesting two different page
+>   widths (777px and 1500px): both produced PDFs matching the requested size to within WebView2's own
+>   rounding. Linux (WebKitGTK) and macOS (WKWebView) have no equivalent bridge wired up yet, so they
+>   still fall back to the `@page` CSS rule as a best‑effort — genuinely untested on those platforms,
+>   not confirmed broken, just unverified. See the code comments on `MdToPdf.Avalonia`'s
+>   `PrintToPdfAsync` for the full history, and `MdToPdf.Core/Services/PdfExportService.cs` for the
+>   CSS fallback. Separately, the *content width* Style setting is correctly threaded through
+>   everywhere it needs to be (it used to be ignored in favor of a hardcoded 800/1200px) — that's a
+>   real, verified fix, and on Windows the PDF's page now genuinely honors it end‑to‑end.
 >
 > Settings (license/update management) and automation (clipboard watcher, folder watcher, local
 > REST API) are both wired up in this build now, mirroring the WinUI app.
