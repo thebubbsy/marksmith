@@ -12,7 +12,7 @@ public sealed partial class SettingsView : UserControl
         DataContext = App.ViewModel;
         VersionText.Text = $"Version {App.Updates.CurrentVersion}";
         RefreshLicenseUi();
-        RefreshPlantUmlUi();
+        BuildPluginCards();
     }
 
     private void RefreshLicenseUi()
@@ -47,55 +47,6 @@ public sealed partial class SettingsView : UserControl
         RefreshLicenseUi();
     }
 
-    private static IMarksmithPlugin PlantUml => App.Plugins.All.First(p => p.Id == "plantuml");
-
-    private void RefreshPlantUmlUi()
-    {
-        var installed = PlantUml.State == PluginInstallState.Installed;
-        PlantUmlInstallButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
-        PlantUmlUninstallButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-        PlantUmlStatus.Text = installed ? "Installed." : "";
-    }
-
-    private async void OnInstallPlantUml(object sender, RoutedEventArgs e)
-    {
-        PlantUmlInstallButton.IsEnabled = false;
-        PlantUmlInstallRing.IsActive = true;
-        PlantUmlStatus.Text = "Downloading…";
-
-        // Install downloads ~50MB in a tight loop that reports progress far faster than the UI
-        // needs — throttle to whole-percent updates so this doesn't flood the dispatcher.
-        var lastPercent = -1;
-        var progress = new Progress<double>(p =>
-        {
-            var percent = (int)(p * 100);
-            if (percent == lastPercent) return;
-            lastPercent = percent;
-            DispatcherQueue.TryEnqueue(() => PlantUmlStatus.Text = $"Downloading… {percent}%");
-        });
-
-        try
-        {
-            await PlantUml.InstallAsync(progress, CancellationToken.None);
-            PlantUmlStatus.Text = "Installed.";
-        }
-        catch (Exception ex)
-        {
-            PlantUmlStatus.Text = $"Install failed: {ex.Message}";
-        }
-
-        PlantUmlInstallRing.IsActive = false;
-        PlantUmlInstallButton.IsEnabled = true;
-        RefreshPlantUmlUi();
-    }
-
-    private void OnUninstallPlantUml(object sender, RoutedEventArgs e)
-    {
-        PlantUml.Uninstall();
-        PlantUmlStatus.Text = "Removed.";
-        RefreshPlantUmlUi();
-    }
-
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
         CheckButton.IsEnabled = false;
@@ -115,5 +66,125 @@ public sealed partial class SettingsView : UserControl
 
         CheckRing.IsActive = false;
         CheckButton.IsEnabled = true;
+    }
+
+    // ---- Plugins tab ----
+    // One card per registered plugin (built-ins + any plugin.json dropped into
+    // %LOCALAPPDATA%\MdToPdf\Plugins\<id>\), generated in code rather than a DataTemplate so this
+    // and the Avalonia SettingsView share one obvious pattern for the install/remove/progress wiring.
+
+    private void BuildPluginCards()
+    {
+        PluginsPanel.Children.Clear();
+        foreach (var plugin in App.Plugins.All)
+            PluginsPanel.Children.Add(BuildPluginCard(plugin));
+
+        if (App.Plugins.LoadWarnings.Count > 0)
+        {
+            PluginWarnings.Text = "Some plugin folders were skipped:\n" + string.Join("\n", App.Plugins.LoadWarnings);
+            PluginWarnings.Visibility = Visibility.Visible;
+        }
+    }
+
+    private UIElement BuildPluginCard(IMarksmithPlugin plugin)
+    {
+        var title = new TextBlock { Text = plugin.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        var description = new TextBlock
+        {
+            Text = plugin.Description,
+            Opacity = 0.7, FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var fences = plugin is IDiagramPlugin diagram
+            ? new TextBlock
+            {
+                Text = "Code blocks: " + string.Join(", ", diagram.FenceLanguages.Select(l => "```" + l)),
+                Opacity = 0.55, FontSize = 11,
+            }
+            : null;
+
+        var status = new TextBlock { Text = "", Opacity = 0.7, FontSize = 12, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+        var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18 };
+        var installButton = new Button { Content = "Install" };
+        var removeButton = new Button { Content = "Remove" };
+
+        void Refresh()
+        {
+            var installed = plugin.State == PluginInstallState.Installed;
+            installButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
+            removeButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
+            if (installed && string.IsNullOrEmpty(status.Text)) status.Text = "Installed.";
+        }
+
+        installButton.Click += async (_, _) =>
+        {
+            installButton.IsEnabled = false;
+            ring.IsActive = true;
+            status.Text = "Downloading…";
+
+            // Install downloads tens of MB in a tight loop that reports progress far faster than
+            // the UI needs — throttle to whole-percent updates so this doesn't flood the dispatcher.
+            var lastPercent = -1;
+            var progress = new Progress<double>(p =>
+            {
+                var percent = (int)(p * 100);
+                if (percent == lastPercent) return;
+                lastPercent = percent;
+                DispatcherQueue.TryEnqueue(() => status.Text = $"Downloading… {percent}%");
+            });
+
+            try
+            {
+                await plugin.InstallAsync(progress, CancellationToken.None);
+                status.Text = "Installed.";
+            }
+            catch (Exception ex)
+            {
+                status.Text = $"Install failed: {ex.Message}";
+            }
+
+            ring.IsActive = false;
+            installButton.IsEnabled = true;
+            Refresh();
+        };
+
+        removeButton.Click += (_, _) =>
+        {
+            plugin.Uninstall();
+            status.Text = "Removed.";
+            Refresh();
+        };
+
+        Refresh();
+
+        var text = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(title);
+        text.Children.Add(description);
+        if (fences != null) text.Children.Add(fences);
+        text.Children.Add(status);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 0, 0, 0),
+        };
+        buttons.Children.Add(ring);
+        buttons.Children.Add(installButton);
+        buttons.Children.Add(removeButton);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(text, 0);
+        Grid.SetColumn(buttons, 1);
+        grid.Children.Add(text);
+        grid.Children.Add(buttons);
+
+        return new Border
+        {
+            Style = (Style)Application.Current.Resources["PipelineCardStyle"],
+            Padding = new Thickness(16, 12, 16, 12),
+            Child = grid,
+        };
     }
 }
