@@ -158,9 +158,17 @@ public sealed class MarkdownHtmlService
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
             : "";
 
+        // Callout titles get a leading icon via CSS ::before — the emoji from the style table
+        // normally, or a plain geometric glyph (text-presentation Unicode, colored by the title's
+        // accent) when the user has emoji stripped. Mirrors DocxExportService.RenderAlert.
+        string AlertGlyph(string kind) => kind switch
+        {
+            "note" => "●", "tip" => "◆", "important" => "■", "warning" => "▲", "caution" => "✕", _ => "●",
+        };
         var alertCss = string.Join("\n", alertStyles.Select(kv => $$"""
             .markdown-alert-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; background: {{theme.Secondary}}; }
             .markdown-alert-{{kv.Key}} .markdown-alert-title { color: {{kv.Value.Color}}; }
+            .markdown-alert-{{kv.Key}} .markdown-alert-title::before { content: "{{(settings.NoEmoji ? AlertGlyph(kv.Key) : kv.Value.Icon)}} "; }
             """));
 
         // BrandFontFamily also arrives here from a "Copy as Markdown" clipboard capture (see
@@ -482,7 +490,16 @@ public sealed class MarkdownHtmlService
                 <link rel="stylesheet" href="{{Services.WebAssets.KatexCss}}">
                 <script defer src="{{Services.WebAssets.KatexJs}}"></script>
                 <script defer src="{{Services.WebAssets.KatexAutoRender}}"
-                        onload="renderMathInElement(document.body, {delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]});"></script>
+                        onload="renderMathInElement(document.body, {
+                            delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],
+                            // \tag is display-mode-only in KaTeX and hard-errors in inline math,
+                            // which used to leave the WHOLE span as raw text. Override it to render
+                            // as an inline '(label)' — matching how the DOCX exporter emits it.
+                            macros: {'\\tag': '\\;\\;(\\text{#1})'},
+                            // Any other unsupported command degrades to red text instead of
+                            // aborting the span and dumping raw source at the reader.
+                            throwOnError: false
+                        });"></script>
                 """;
         }
         if (body.Contains("language-"))

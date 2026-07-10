@@ -14,6 +14,7 @@ using Markdig.Syntax.Inlines;
 using MdToPdf.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W14 = DocumentFormat.OpenXml.Office2010.Word;
+using W15 = DocumentFormat.OpenXml.Office2013.Word;
 using MdTable = Markdig.Extensions.Tables.Table;
 using MdTableRow = Markdig.Extensions.Tables.TableRow;
 using MdTableCell = Markdig.Extensions.Tables.TableCell;
@@ -747,7 +748,13 @@ public sealed class DocxExportService
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex }));
 
         var title = new W.Paragraph();
-        var titleText = ctx.NoEmoji ? kind.ToUpperInvariant() : $"{icon} {kind.ToUpperInvariant()}";
+        // No-emoji mode still gets a marker — a plain geometric glyph (text-presentation Unicode,
+        // not emoji) that picks up the accent color from the title run, reading as a colored badge.
+        var textGlyph = kind.ToLowerInvariant() switch
+        {
+            "note" => "●", "tip" => "◆", "important" => "■", "warning" => "▲", "caution" => "✕", _ => "●",
+        };
+        var titleText = $"{(ctx.NoEmoji ? textGlyph : icon)} {kind.ToUpperInvariant()}";
         AddText(title, titleText, new Fmt { Bold = true, Color = accentHex });
         cell.Append(title);
 
@@ -799,11 +806,22 @@ public sealed class DocxExportService
         raw = raw.Trim();
         if (raw.Length == 0) return;
 
-        // <hr> → a bottom-bordered empty paragraph (same visual weight as a Markdown --- rule).
-        if (Regex.IsMatch(raw, @"^<hr\s*/?>$", RegexOptions.IgnoreCase))
+        // <hr> → a bordered rule paragraph, same look as a Markdown --- thematic break. NOT an
+        // exact whole-block match: without a blank line after it, Markdig's HTML block swallows the
+        // following text line into the SAME block ("<hr>\nBelow the rule."), so an exact match
+        // missed the tag and the rule silently vanished while the text survived via the catch-all.
+        // Split on every <hr> and render the segments around it instead.
+        if (Regex.IsMatch(raw, @"<hr\s*/?>", RegexOptions.IgnoreCase))
         {
-            target.Append(new W.Paragraph(new W.ParagraphProperties(new W.ParagraphBorders(
-                new W.BottomBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex }))));
+            var segments = Regex.Split(raw, @"<hr\s*/?>", RegexOptions.IgnoreCase);
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (i > 0) // a rule between (and after) segments — one per <hr> that split them
+                    target.Append(new W.Paragraph(new W.ParagraphProperties(new W.ParagraphBorders(
+                        new W.BottomBorder { Val = W.BorderValues.Wave, Size = 6, Space = 1, Color = ctx.BorderHex }))));
+                var segText = StripHtmlToText(segments[i]);
+                if (segText.Length > 0) { var sp = new W.Paragraph(); AddText(sp, segText, default); target.Append(sp); }
+            }
             return;
         }
 
@@ -811,8 +829,13 @@ public sealed class DocxExportService
         var table = Regex.Match(raw, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
 
-        // <details><summary>…</summary>…</details> → summary as a bold line, body flattened beneath
-        // (a static document can't be collapsible, so the useful move is to just show both).
+        // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
+        // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
+        // triangle and fold the following body under it) plus w15:collapsed so it starts folded,
+        // matching <details>'s default-closed semantics. Outline level 4 keeps it out of the
+        // document's TOC field (which collects levels 1–3 only) so a summary line never pollutes
+        // the table of contents. No literal "▸" glyph — Word draws its own toggle, and a fake one
+        // next to the real one reads as a control that does nothing.
         var details = Regex.Match(raw, @"<details\b[^>]*>(.*?)</details>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (details.Success)
         {
@@ -821,8 +844,10 @@ public sealed class DocxExportService
             var summaryText = summary.Success ? StripHtmlToText(summary.Groups[1].Value) : "Details";
             var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
 
-            var head = new W.Paragraph();
-            AddText(head, "▸ " + summaryText, new Fmt { Bold = true });
+            var head = new W.Paragraph(new W.ParagraphProperties(
+                new W.OutlineLevel { Val = 4 },
+                new W15.DefaultCollapsed { Val = true }));
+            AddText(head, summaryText, new Fmt { Bold = true });
             target.Append(head);
 
             var nestedTable = Regex.Match(body, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);

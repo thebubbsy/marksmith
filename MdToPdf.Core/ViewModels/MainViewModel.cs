@@ -279,10 +279,18 @@ public sealed partial class MainViewModel : ObservableObject
     public string PrepareMarkdown(string markdown)
     {
         var classification = AppServices.LlmSource.Classify(markdown);
-        if (classification.Source == LlmSource.Generic) return markdown;
 
+        // Normalization must NOT be gated on recognizing a specific vendor: several of its fixes
+        // (undelimited \frac/\boxed math recovery, excess blank lines, pseudo-headings) apply to
+        // AI-ish text that carries no ChatGPT/Gemini/Claude tells at all — hand-pasted content
+        // classified Generic used to skip normalize entirely, so a pasted bare fraction stayed
+        // literal in both the preview and the export even with the toggle on. Every Normalize fix
+        // is a no-op when its pattern doesn't match, so running it on Generic text is safe.
         if (NormalizeLlm)
             (markdown, _) = AppServices.LlmSource.Normalize(markdown, classification);
+
+        // The source badge, though, only makes sense for a recognized vendor.
+        if (classification.Source == LlmSource.Generic) return markdown;
 
         var better = LastClassification is null
             || classification.Source != LastClassification.Source
