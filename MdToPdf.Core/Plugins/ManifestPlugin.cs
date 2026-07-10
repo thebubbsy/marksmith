@@ -120,7 +120,8 @@ public sealed class ManifestPlugin : IDiagramPlugin
             }
             if (spec.Input == "file")
             {
-                inputFile = Path.Combine(Path.GetTempPath(), $"marksmith-{Id}-{Guid.NewGuid():N}.txt");
+                var ext = string.IsNullOrWhiteSpace(spec.InputExtension) ? ".txt" : spec.InputExtension;
+                inputFile = Path.Combine(Path.GetTempPath(), $"marksmith-{Id}-{Guid.NewGuid():N}{ext}");
                 File.WriteAllText(inputFile, diagramSource);
             }
             if (spec.Output == "file")

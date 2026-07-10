@@ -164,18 +164,34 @@ internal static class PluginInstall
                 ZipFile.ExtractToDirectory(archivePath, tempDir);
             }
 
+            // macOS-built tarballs (e.g. D2's releases) carry AppleDouble "._name" companions and
+            // .DS_Store at every level — pure metadata junk. Ignore it both when deciding whether
+            // there's a single wrapping root to strip and when copying files out.
+            static bool IsAppleJunk(string path)
+            {
+                var name = Path.GetFileName(path);
+                return name.StartsWith("._", StringComparison.Ordinal) || name == ".DS_Store";
+            }
+
             var sourceRoot = tempDir;
             if (stripRoot)
             {
-                var topLevel = Directory.GetDirectories(tempDir);
-                if (topLevel.Length == 1 && Directory.GetFiles(tempDir).Length == 0) sourceRoot = topLevel[0];
+                var topLevel = Directory.GetDirectories(tempDir).Where(d => !IsAppleJunk(d)).ToArray();
+                if (topLevel.Length == 1 && !Directory.GetFiles(tempDir).Any(f => !IsAppleJunk(f)))
+                    sourceRoot = topLevel[0];
             }
 
             Directory.CreateDirectory(destDir);
             foreach (var dir in Directory.GetDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+            {
+                if (IsAppleJunk(dir)) continue;
                 Directory.CreateDirectory(Path.Combine(destDir, Path.GetRelativePath(sourceRoot, dir)));
+            }
             foreach (var file in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories))
+            {
+                if (IsAppleJunk(file)) continue;
                 File.Copy(file, Path.Combine(destDir, Path.GetRelativePath(sourceRoot, file)), overwrite: true);
+            }
         }
         finally
         {
