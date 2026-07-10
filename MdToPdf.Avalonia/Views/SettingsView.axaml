@@ -46,6 +46,30 @@
                 </StackPanel>
             </Border>
 
+            <!-- ===== Plugins ===== -->
+            <TextBlock Text="Plugins" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
+            <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Optional, separately-downloaded capabilities. Nothing here is bundled with Marksmith — install only what you use."
+                               Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="PlantUML Diagrams" FontWeight="SemiBold" />
+                            <TextBlock Text="Renders ```plantuml / ```puml code blocks as diagrams. Downloads a private Java runtime + the PlantUML engine (~90 MB), isolated from any Java already on your system."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" MaxWidth="320" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <ui:FAProgressRing x:Name="PlantUmlInstallRing" IsActive="False" Width="18" Height="18" />
+                            <Button x:Name="PlantUmlInstallButton" Content="Install" Click="OnInstallPlantUml" />
+                            <Button x:Name="PlantUmlUninstallButton" Content="Remove" Click="OnUninstallPlantUml" IsVisible="False" />
+                        </StackPanel>
+                        <SelectableTextBlock Grid.Row="1" Grid.ColumnSpan="2" x:Name="PlantUmlStatus" Text="" Opacity="0.7" FontSize="12"
+                                             TextWrapping="Wrap" Margin="0,8,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- ===== About & updates ===== -->
             <TextBlock Text="About &amp; updates" FontWeight="SemiBold" Opacity="0.7" Margin="0,6,0,0" />
             <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="16">
