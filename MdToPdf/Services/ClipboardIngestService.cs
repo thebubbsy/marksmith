@@ -58,14 +58,14 @@ public sealed class ClipboardIngestService : IDisposable
             _lastIngestedText = text;
 
             // The "Copy as Markdown" button also writes an HTML clipboard entry carrying the
-            // source page's font (see ClipboardFontMarker) alongside the plain text above.
-            string? font = null;
+            // source page's metadata (font, source, model, title, language/direction, accent —
+            // see ClipboardSourceMeta) alongside the plain text above.
+            Models.OutputOverride? output = null;
             if (content.Contains(StandardDataFormats.Html))
             {
-                try { font = Services.ClipboardFontMarker.Extract(await content.GetHtmlFormatAsync()); }
-                catch { /* HTML format present but unreadable — font detection is best-effort */ }
+                try { output = Services.ClipboardSourceMeta.Extract(await content.GetHtmlFormatAsync()); }
+                catch { /* HTML format present but unreadable — metadata capture is best-effort */ }
             }
-            var output = font is not null ? new Models.OutputOverride { SourceFontFamily = font } : null;
             _onIngest(text, "clipboard", output);
         }
         catch

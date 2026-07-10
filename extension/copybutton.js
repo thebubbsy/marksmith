@@ -14,31 +14,45 @@
     const BTN_CLASS = "mk-copy-md-btn";
     const WRAP_CLASS = "mk-copy-md-wrap";
 
-    // Per-site: how to find assistant replies, and what corner radius feels native.
+    // Per-site: how to find assistant replies, what corner radius feels native, the canonical
+    // source id + brand accent Marksmith maps to a theme, and a best-effort selector for the
+    // current model label (fragile — sites rename these constantly — so a miss just omits it).
     const SITES = [
         {
             host: /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$/,
             messages: '[data-message-author-role="assistant"]',
             content: ".markdown, .prose",
             radius: "8px",
+            id: "chatgpt",
+            accent: "#10a37f",
+            model: '[data-testid="model-switcher-dropdown-button"], [data-testid^="model-switcher"]',
         },
         {
             host: /(^|\.)gemini\.google\.com$/,
             messages: "model-response, message-content",
             content: ".markdown",
             radius: "16px",
+            id: "gemini",
+            accent: "#1a73e8",
+            model: '[data-test-id="bard-mode-menu-button"], .logo-pill-label-container, .current-mode-title',
         },
         {
             host: /(^|\.)claude\.ai$/,
             messages: '[data-testid="assistant-message"], .font-claude-message',
             content: null,
             radius: "8px",
+            id: "claude",
+            accent: "#d97757",
+            model: '[data-testid="model-selector-dropdown"], button[aria-haspopup="menu"] [data-testid="model-name"]',
         },
         {
             host: /(^|\.)copilot\.microsoft\.com$/,
             messages: '[data-content="ai-message"], [data-testid="ai-message"], [class*="ai-message"]',
             content: null,
             radius: "4px",
+            id: "copilot",
+            accent: "#0f6cbd",
+            model: null,
         },
     ];
 
@@ -127,11 +141,40 @@
         return conv(target).replace(/\n{3,}/g, "\n\n").trim();
     }
 
-    // The font the reply is actually rendered in on this site, read straight off the same element
-    // toMarkdown() converts — so "same font" means what the user is looking at, not some guess.
-    function detectFont(root) {
+    // Everything Marksmith can learn about where this reply came from, read off the live page at
+    // copy time — the context that's lost the instant the reply becomes plain Markdown. Shape
+    // matches ClipboardSourceMeta.Wire on the app side (short keys keep the clipboard marker small).
+    function collectMeta(root) {
         const target = site.content ? root.querySelector(site.content) || root : root;
-        return getComputedStyle(target).fontFamily || "";
+        const cs = getComputedStyle(target);
+        return {
+            font: cs.fontFamily || "",              // the exact font the user is looking at
+            source: site.id,                        // canonical, from the hostname — ground truth
+            model: readModel(),                     // best-effort; "" when the page hides it
+            title: readTitle(),                     // conversation title -> export filename
+            lang: (document.documentElement.lang || "").trim(),
+            dir: cs.direction || "",                // "ltr" | "rtl" — real RTL layout on export
+            accent: site.accent,                    // brand color -> nearest Marksmith theme
+        };
+    }
+
+    function readModel() {
+        if (!site.model) return "";
+        const el = document.querySelector(site.model);
+        const t = (el?.textContent || "").replace(/\s+/g, " ").trim();
+        // Guard against a selector accidentally grabbing a whole paragraph.
+        return t.length > 0 && t.length <= 40 ? t : "";
+    }
+
+    function readTitle() {
+        // The tab title is the conversation title on every supported site, minus the site suffix
+        // (" - ChatGPT", " | Gemini", etc.) and any leading unread-count "(3) ".
+        let t = (document.title || "").replace(/^\(\d+\)\s*/, "");
+        t = t.replace(/\s*[-–|]\s*(ChatGPT|OpenAI|Gemini|Google Gemini|Claude|Copilot|Microsoft Copilot)\s*$/i, "");
+        t = t.trim();
+        // Generic landing titles carry no real conversation name — skip them.
+        if (/^(chatgpt|gemini|claude|copilot|new chat|new conversation)$/i.test(t)) return "";
+        return t.length <= 200 ? t : t.slice(0, 200);
     }
 
     function escapeHtml(s) {
@@ -139,14 +182,16 @@
     }
 
     // Writes plain Markdown as text/plain (unchanged behavior for every paste target), plus a
-    // text/html alternative carrying the source font in a leading HTML comment
-    // (<!--marksmith-font:...-->) that only Marksmith looks for — see
-    // MdToPdf.Services.ClipboardFontMarker. Falls back to a plain-text-only copy if the rich
-    // write isn't available or is rejected, so "Copy as Markdown" never breaks over this.
-    async function copyWithFont(md, font) {
-        if (font && window.ClipboardItem) {
-            const html = `<!--marksmith-font:${encodeURIComponent(font)}-->` +
-                `<pre style="font-family:${escapeHtml(font)};white-space:pre-wrap;">${escapeHtml(md)}</pre>`;
+    // text/html alternative carrying the source metadata in a leading HTML comment
+    // (<!--marksmith-meta:{json}-->) that only Marksmith looks for — see
+    // MdToPdf.Services.ClipboardSourceMeta. Falls back to a plain-text-only copy if the rich write
+    // isn't available or is rejected, so "Copy as Markdown" never breaks over this.
+    async function copyWithMeta(md, meta) {
+        const hasMeta = meta && Object.values(meta).some((v) => v);
+        if (hasMeta && window.ClipboardItem) {
+            const marker = `<!--marksmith-meta:${encodeURIComponent(JSON.stringify(meta))}-->`;
+            const fontStyle = meta.font ? `font-family:${escapeHtml(meta.font)};` : "";
+            const html = `${marker}<pre style="${fontStyle}white-space:pre-wrap;">${escapeHtml(md)}</pre>`;
             try {
                 await navigator.clipboard.write([
                     new ClipboardItem({
@@ -177,7 +222,7 @@
             const md = toMarkdown(root);
             if (!md) return flashText(btn, "Nothing to copy");
             try {
-                await copyWithFont(md, detectFont(root));
+                await copyWithMeta(md, collectMeta(root));
                 flashText(btn, "✓ Copied as Markdown");
             } catch {
                 flashText(btn, "Copy failed");

@@ -39,6 +39,19 @@ public sealed partial class LlmSourceService
         ["boxed"] = 1, ["sqrt"] = 1,
     };
 
+    // Maps the extension's canonical hostname-derived source id to the enum. Ground truth — the
+    // extension knows for certain which site a reply came from — so callers use this to REPLACE the
+    // content-pattern guess in Classify() rather than merge with it. Returns null for anything
+    // unrecognized (falls back to the heuristic).
+    public static LlmSource? ParseSourceId(string? id) => id?.Trim().ToLowerInvariant() switch
+    {
+        "chatgpt" or "openai" => LlmSource.ChatGpt,
+        "gemini" or "bard" => LlmSource.Gemini,
+        "claude" or "anthropic" => LlmSource.Claude,
+        "copilot" => LlmSource.Copilot,
+        _ => null,
+    };
+
     public LlmClassification Classify(string markdown)
     {
         markdown = TextNormalizer.Newlines(markdown);

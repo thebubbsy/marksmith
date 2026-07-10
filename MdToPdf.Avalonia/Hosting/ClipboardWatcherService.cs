@@ -55,16 +55,16 @@ public sealed class ClipboardWatcherService : IDisposable
         _lastIngestedText = text;
 
         // The "Copy as Markdown" button also writes an HTML clipboard entry carrying the source
-        // page's font (see MdToPdf.Services.ClipboardFontMarker) alongside the plain text above.
-        // Avalonia's IClipboard has no fixed "Html" format constant (only Text/Bitmap/File are
-        // universal) — discover whichever advertised format looks like HTML instead of guessing
-        // the platform's exact native format name.
-        var font = await TryGetHtmlFontAsync();
-        var output = font is not null ? new MdToPdf.Models.OutputOverride { SourceFontFamily = font } : null;
+        // page's metadata (font, source, model, title, language/direction, accent — see
+        // MdToPdf.Services.ClipboardSourceMeta) alongside the plain text above. Avalonia's
+        // IClipboard has no fixed "Html" format constant (only Text/Bitmap/File are universal) —
+        // discover whichever advertised format looks like HTML instead of guessing the platform's
+        // exact native format name.
+        var output = await TryGetSourceMetaAsync();
         _onIngest(text, "clipboard", output);
     }
 
-    private async Task<string?> TryGetHtmlFontAsync()
+    private async Task<MdToPdf.Models.OutputOverride?> TryGetSourceMetaAsync()
     {
         try
         {
@@ -82,12 +82,12 @@ public sealed class ClipboardWatcherService : IDisposable
                         byte[] b => System.Text.Encoding.UTF8.GetString(b),
                         _ => null,
                     };
-                    var font = MdToPdf.Services.ClipboardFontMarker.Extract(html);
-                    if (font is not null) return font;
+                    var meta = MdToPdf.Services.ClipboardSourceMeta.Extract(html);
+                    if (meta is not null) return meta;
                 }
             }
         }
-        catch { /* best-effort — font detection never blocks the actual ingest */ }
+        catch { /* best-effort — metadata capture never blocks the actual ingest */ }
         return null;
     }
 
