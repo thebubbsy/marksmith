@@ -70,13 +70,14 @@ public sealed class PdfExportService
 
         // Best-effort fallback for hosts whose native print-settings API can't express page size —
         // WinUI's WebView2 host sets PageWidth/PageHeight/MarginX/ShouldPrintBackgrounds directly
-        // (see MdToPdf/MainWindow.xaml.cs's PrintToPdfAsync) and doesn't need this. The Avalonia
-        // host has no such lever at all (Avalonia.Controls.WebView's WebViewPrintSettings has no
-        // PageWidth/PageHeight) — see the long comment on MdToPdf.Avalonia/Views/MainWindow.xaml.cs's
-        // IWebRenderHost implementation for the current, unresolved status of whether this @page
-        // rule actually controls output page size there: one early test measured an exact match,
-        // repeat testing since has consistently NOT reproduced that (falls back to Letter
-        // landscape). Don't trust page-size control on that host without re-verifying live.
+        // (see MdToPdf/MainWindow.xaml.cs's PrintToPdfAsync) and doesn't need this. On Windows the
+        // Avalonia host now also sets those natively (it bridges past Avalonia.Controls.WebView's
+        // PageWidth/PageHeight-less WebViewPrintSettings straight to the underlying WebView2's own
+        // CoreWebView2PrintSettings — see the long comment on
+        // MdToPdf.Avalonia/Views/MainWindow.xaml.cs's IWebRenderHost implementation) and doesn't rely
+        // on this either. Only Linux (WebKitGTK) and macOS (WKWebView) — which have no such bridge
+        // wired up — still depend on this `@page` rule for page size, and it remains unverified
+        // (not confirmed broken, just never tested) on those two platforms specifically.
         // print-color-adjust is a separate, well-supported CSS mechanism and should force background
         // colors to print regardless of platform — that part isn't in question, only page `size`.
         await host.ExecuteScriptAsync($$"""

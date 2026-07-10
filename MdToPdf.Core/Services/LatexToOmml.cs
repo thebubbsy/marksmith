@@ -265,6 +265,91 @@ internal static class LatexToOmml
                 }
                 case "limits": return new(); // just skip \limits, we assume under/over behavior based on command
                 case "left.": return new();
+                case "boxed":
+                {
+                    // \boxed{X} highlights a final answer with a real border box — common in AI-chat
+                    // math for "here's the answer". OMML's exact equivalent is <m:borderBox>; without
+                    // this case it fell through to the "unknown command" fallback below, which would
+                    // have emitted the literal word "boxed" as text next to the (otherwise fine)
+                    // content, instead of an actual box around it. Default border-box properties (no
+                    // BorderBoxProperties supplied) show all four sides, matching \boxed's plain box.
+                    var body = ParseGroupArg();
+                    return new() { new M.BorderBox(Base(body)) };
+                }
+                case "overset":
+                case "stackrel":
+                {
+                    // \overset{above}{base} / \stackrel{above}{base}: `above` set over `base`, no bar.
+                    // OMML m:limUpp (limit-upper) is the faithful mapping — a base with material above.
+                    var above = ParseGroupArg();
+                    var overBase = ParseGroupArg();
+                    return new() { new M.LimitUpper(Base(overBase), Arg<M.Limit>(above)) };
+                }
+                case "underset":
+                {
+                    var below = ParseGroupArg();
+                    var underBase = ParseGroupArg();
+                    return new() { new M.LimitLower(Base(underBase), Arg<M.Limit>(below)) };
+                }
+                case "xrightarrow":
+                case "xleftarrow":
+                {
+                    // Labeled arrow (reactions, mappings): optional [below] then {above}. OMML has no
+                    // stretchy-arrow-with-label primitive, so stack the label(s) over/under a plain
+                    // arrow glyph via limUpp/limLow — reads correctly even if the arrow doesn't grow.
+                    List<OpenXmlElement>? below = null;
+                    if (More && Cur.Kind == Kind.LBracket) { _i++; below = ParseSequence(SeqStop.Bracket); }
+                    var above = ParseGroupArg();
+                    var arrowRun = TextRun(cmd == "xrightarrow" ? "→" : "←");
+                    OpenXmlElement stacked = new M.LimitUpper(Base(new OpenXmlElement[] { arrowRun }), Arg<M.Limit>(above));
+                    if (below is not null)
+                        stacked = new M.LimitLower(Base(new[] { stacked }), Arg<M.Limit>(below));
+                    return new() { stacked };
+                }
+                case "cancel":
+                case "bcancel":
+                case "xcancel":
+                {
+                    // OMML has no diagonal-strike primitive. Overlay a combining long solidus (U+0338)
+                    // on each visible char of the argument — the standard TeX→text approximation —
+                    // so a worked-solution cancellation reads as "crossed out" without losing content.
+                    var raw = ParseBracedRaw();
+                    var sb = new System.Text.StringBuilder();
+                    foreach (var ch in raw)
+                    {
+                        sb.Append(ch);
+                        if (!char.IsWhiteSpace(ch)) sb.Append('̸');
+                    }
+                    return new() { TextRun(sb.ToString()) };
+                }
+                case "substack":
+                    // Multi-line material (typically under \sum): \\-separated lines as a 1-column stack.
+                    return new() { ParseBracedStack() };
+                case "pmod":
+                {
+                    var n = ParseGroupArg();
+                    var res = new List<OpenXmlElement> { TextRun(" (mod ", upright: true) };
+                    res.AddRange(n);
+                    res.Add(TextRun(")", upright: true));
+                    return res;
+                }
+                case "bmod":
+                    return new() { TextRun(" mod ", upright: true) };
+                case "pod":
+                {
+                    var n = ParseGroupArg();
+                    var res = new List<OpenXmlElement> { TextRun(" (", upright: true) };
+                    res.AddRange(n);
+                    res.Add(TextRun(")", upright: true));
+                    return res;
+                }
+                case "tag":
+                {
+                    // Equation tag/number, e.g. \tag{3.1}. Rendered inline as " (3.1)" — Word doesn't
+                    // carry LaTeX's right-flush equation numbering, but the label itself is preserved.
+                    var n = ParseBracedRaw();
+                    return new() { TextRun(" (" + n + ")") };
+                }
             }
 
             if (Nary.TryGetValue(cmd, out var nary))
@@ -288,6 +373,34 @@ internal static class LatexToOmml
 
             // Unknown command — emit its name so nothing silently disappears.
             return new() { TextRun(cmd) };
+        }
+
+        // Reads a {...} group whose content is \\-separated lines and stacks them as a single-column
+        // matrix — used by \substack (and a reasonable fallback for any "lines stacked vertically").
+        private M.Matrix ParseBracedStack()
+        {
+            if (More && Cur.Kind == Kind.LBrace) _i++; // opening {
+            var rows = new List<M.MatrixRow>();
+            var curCol = new List<OpenXmlElement>();
+            void EndRow()
+            {
+                var r = new M.MatrixRow();
+                r.Append(Base(curCol));
+                rows.Add(r);
+                curCol = new List<OpenXmlElement>();
+            }
+            while (More && Cur.Kind != Kind.RBrace)
+            {
+                if (Cur.Kind == Kind.Cmd && (Cur.Text == "\\" || Cur.Text == "\\\\")) { _i++; EndRow(); continue; }
+                curCol.AddRange(ParseAtomWithScripts());
+            }
+            if (More && Cur.Kind == Kind.RBrace) _i++; // closing }
+            if (curCol.Count > 0 || rows.Count == 0) EndRow();
+
+            var mat = new M.Matrix();
+            mat.Append(new M.MatrixProperties(new M.HidePlaceholder { Val = M.BooleanValues.One }));
+            foreach (var r in rows) mat.Append(r);
+            return mat;
         }
 
         private List<OpenXmlElement> ParseEnvironment(string envName)

@@ -49,6 +49,7 @@ public sealed class MarkdownHtmlService
         LlmClassification? classification = null, bool interactive = false)
     {
         markdown = TextNormalizer.Newlines(markdown);
+        markdown = AdmonitionNormalizer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
