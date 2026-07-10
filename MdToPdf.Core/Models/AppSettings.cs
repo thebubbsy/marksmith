@@ -56,6 +56,13 @@ public sealed class AppSettings
     public int BoldMode { get; set; }     // 0 keep, 1 remove, 2 to italic
     public int ItalicMode { get; set; }   // 0 keep, 1 remove
 
+    // Content language + text direction of the current document (BCP-47 tag + "ltr"/"rtl"), set from
+    // the source page's metadata on ingest so RTL replies render right-to-left. Session-only in
+    // practice (rewritten on each ingest, defaults reapplied for plain content); "" = the render
+    // default (no explicit lang, ltr). Emitted onto the <html> element by MarkdownHtmlService.
+    public string ContentLanguage { get; set; } = "";
+    public string ContentDirection { get; set; } = "";
+
     // Local REST API
     public bool ApiEnabled { get; set; }
     public int ApiPort { get; set; } = 47821;
@@ -85,6 +92,8 @@ public sealed class AppSettings
         if (o.MermaidDocxMode is { } mm) s.MermaidDocxMode = mm;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
+        if (!string.IsNullOrWhiteSpace(o.SourceLanguage)) s.ContentLanguage = o.SourceLanguage;
+        if (!string.IsNullOrWhiteSpace(o.SourceDirection)) s.ContentDirection = o.SourceDirection;
         return s;
     }
 }

@@ -423,13 +423,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // its end produces a finished document with no clicks.
     private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
-        // A font detected via the "Copy as Markdown" button (clipboard) becomes the live brand
-        // font immediately, not just a one-shot export override — so the preview matches the
-        // source page's font right away, same as any other Style-panel change.
-        if (!string.IsNullOrWhiteSpace(output?.SourceFontFamily))
-            ViewModel.BrandFontFamily = output.SourceFontFamily;
-
-        ViewModel.IngestMarkdown(text, origin);
+        // Source-page metadata (font, definitive source, model, title, language/direction, brand
+        // accent) is applied inside IngestMarkdown so the live preview reflects it immediately —
+        // see MainViewModel.IngestMarkdown.
+        ViewModel.IngestMarkdown(text, origin, output);
         if (!ViewModel.AutoConvertIngests) return;
         if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);
         else

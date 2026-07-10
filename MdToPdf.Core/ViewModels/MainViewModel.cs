@@ -59,6 +59,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
+    // The originating conversation's title (from source-page metadata on ingest), used as the
+    // default export filename + document title. Empty for hand-typed / plain content.
+    [ObservableProperty] private string _suggestedTitle = string.Empty;
+
     // Classification of the last ingested document; feeds the preview badge and export attribution strip.
     public LlmClassification? LastClassification { get; private set; }
     [ObservableProperty]
@@ -306,11 +310,48 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // Entry point for all automated ingest paths (clipboard watcher, watched folder, REST API).
-    // Classifies the text, optionally normalizes assistant-specific quirks, and loads it into
-    // the paste editor so the preview updates immediately.
-    public void IngestMarkdown(string text, string origin)
+    // Classifies the text, optionally normalizes assistant-specific quirks, applies any source
+    // metadata captured from the originating page (font, definitive source, model, title, language/
+    // direction, brand accent -> theme), and loads it into the paste editor so the preview updates
+    // immediately. `meta` is null for paths with no page context (a watched .md file).
+    public void IngestMarkdown(string text, string origin, OutputOverride? meta = null)
     {
+        // --- Apply page metadata BEFORE setting PastedMarkdown, so the single preview refresh that
+        //     the PastedMarkdown setter triggers already reflects the font/theme/direction. ---
+
+        // Font the reply was shown in -> live brand font (also drives the HTML preview/PDF now).
+        if (!string.IsNullOrWhiteSpace(meta?.SourceFontFamily))
+            BrandFontFamily = meta.SourceFontFamily;
+
+        // Brand accent -> nearest built-in theme, so the export palette echoes the source.
+        if (!string.IsNullOrWhiteSpace(meta?.SourceAccentColor) &&
+            _themes.NearestByAccent(meta.SourceAccentColor) is { } themeName)
+            SelectedThemeName = themeName;
+
+        // Language + direction of the reply -> render as <html lang dir>. Session-only: rewritten on
+        // every ingest (defaults reapplied for plain content) so RTL never sticks to a later doc.
+        _settingsService.Current.ContentLanguage = meta?.SourceLanguage?.Trim() ?? "";
+        _settingsService.Current.ContentDirection = meta?.SourceDirection?.Trim() ?? "";
+
+        // Conversation title -> default export filename / document title.
+        SuggestedTitle = meta?.SourceTitle?.Trim() ?? "";
+
         var classification = AppServices.LlmSource.Classify(text);
+
+        // A definitive source id from the extension is ground truth — replace the content guess.
+        if (LlmSourceService.ParseSourceId(meta?.SourceId) is { } reported)
+        {
+            classification = new LlmClassification
+            {
+                Source = reported,
+                Confidence = 100,
+                Signals = new List<string> { "reported by browser extension" },
+                HasMath = classification.HasMath,
+            };
+        }
+        if (!string.IsNullOrWhiteSpace(meta?.SourceModel))
+            classification.Model = meta.SourceModel.Trim();
+
         if (NormalizeLlm)
         {
             (text, _) = AppServices.LlmSource.Normalize(text, classification);
@@ -319,13 +360,13 @@ public sealed partial class MainViewModel : ObservableObject
         LastClassification = classification;
         DetectedSourceText = classification.Source == LlmSource.Generic
             ? $"Ingested from {origin}"
-            : $"{classification.SourceName} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes";
+            : $"{classification.SourceDescription} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes";
 
         PastedMarkdown = text;
         UsePasteSource = true;
         StatusText = classification.Source == LlmSource.Generic
             ? $"Ingested Markdown from {origin}."
-            : $"Ingested from {origin} — detected {classification.SourceName} formatting" +
+            : $"Ingested from {origin} — detected {classification.SourceDescription} formatting" +
               (classification.AppliedFixes.Count > 0 ? $", applied {classification.AppliedFixes.Count} fixes." : ".");
         StatusSeverity = StatusSeverity.Success;
     }
@@ -474,6 +515,17 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    // Turn an arbitrary conversation title into a safe filename base: strip characters illegal on
+    // any OS, collapse whitespace, and cap the length so a very long title can't blow up the path.
+    private static string SanitizeFileName(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "";
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(title.Select(c => invalid.Contains(c) ? ' ' : c).ToArray());
+        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.');
+        return cleaned.Length > 80 ? cleaned[..80].Trim() : cleaned;
+    }
+
     private (string? Markdown, string SourceLabel) ResolveSource()
     {
         if (UsePasteSource)
@@ -484,7 +536,15 @@ public sealed partial class MainViewModel : ObservableObject
                 StatusSeverity = StatusSeverity.Warning;
                 return (null, string.Empty);
             }
-            return (PrepareMarkdown(PastedMarkdown), $"pasted_export_{Guid.NewGuid().ToString()[..8]}");
+            // Prefer the captured conversation title as the filename base; fall back to the first
+            // heading in the content, then to a random label if the content has no title either.
+            var titleBase = SanitizeFileName(SuggestedTitle);
+            if (string.IsNullOrEmpty(titleBase))
+                titleBase = SanitizeFileName(HistoryEntry.ExtractTitle(PastedMarkdown) ?? "");
+            var label = string.IsNullOrEmpty(titleBase)
+                ? $"pasted_export_{Guid.NewGuid().ToString()[..8]}"
+                : titleBase;
+            return (PrepareMarkdown(PastedMarkdown), label);
         }
 
         if (string.IsNullOrWhiteSpace(InputFilePath) || !File.Exists(InputFilePath))

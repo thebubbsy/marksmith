@@ -69,10 +69,25 @@ async function grabAndSend(tab, mode) {
 
     try {
         const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: null });
+        // Fold the captured source metadata into the output profile so the app applies it on
+        // ingest (definitive source, model, title, font, language/direction, brand accent). The
+        // user's saved output profile keeps priority for any field it explicitly sets.
+        const m = extracted.meta || {};
+        const merged = {
+            ...(output || {}),
+            sourceFontFamily: m.font || undefined,
+            sourceId: m.source || undefined,
+            sourceModel: m.model || undefined,
+            sourceTitle: m.title || undefined,
+            sourceLanguage: m.lang || undefined,
+            sourceDirection: m.dir || undefined,
+            sourceAccentColor: m.accent || undefined,
+        };
+        const hasAny = Object.values(merged).some((v) => v !== undefined && v !== null);
         const resp = await fetch(`http://127.0.0.1:${port}/api/ingest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ markdown: extracted.markdown, output: output || undefined }),
+            body: JSON.stringify({ markdown: extracted.markdown, output: hasAny ? merged : undefined }),
         });
         if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
         notify("Sent to Marksmith ✓", `${extracted.markdown.length.toLocaleString()} chars ingested — check the preview.`);
@@ -143,13 +158,53 @@ function extractMarkdown(mode) {
 
     const clean = (md) => md.replace(/\n{3,}/g, "\n\n").trim();
 
+    const host = location.hostname;
+
+    // Per-site canonical id + brand accent + best-effort model selector — the same data
+    // copybutton.js's SITES carries, inlined here because this function is injected standalone.
+    const SITE_META = [
+        { test: (h) => h.includes("chatgpt.com") || h.includes("chat.openai.com"), id: "chatgpt", accent: "#10a37f", model: '[data-testid="model-switcher-dropdown-button"], [data-testid^="model-switcher"]' },
+        { test: (h) => h.includes("gemini.google.com"), id: "gemini", accent: "#1a73e8", model: '[data-test-id="bard-mode-menu-button"], .logo-pill-label-container, .current-mode-title' },
+        { test: (h) => h.includes("claude.ai"), id: "claude", accent: "#d97757", model: '[data-testid="model-selector-dropdown"]' },
+        { test: (h) => h.includes("copilot.microsoft.com"), id: "copilot", accent: "#0f6cbd", model: null },
+    ];
+
+    // Source context Marksmith applies on ingest — captured off the live page here, since it's all
+    // gone once the reply is plain Markdown. `root` (the reply element) supplies font + direction;
+    // the rest comes from the page/tab. Shape matches ClipboardSourceMeta.Wire on the app side.
+    function buildMeta(root) {
+        const sm = SITE_META.find((s) => s.test(host)) || {};
+        const cs = root ? getComputedStyle(root) : null;
+        let title = (document.title || "").replace(/^\(\d+\)\s*/, "")
+            .replace(/\s*[-–|]\s*(ChatGPT|OpenAI|Gemini|Google Gemini|Claude|Copilot|Microsoft Copilot)\s*$/i, "").trim();
+        if (/^(chatgpt|gemini|claude|copilot|new chat|new conversation)$/i.test(title)) title = "";
+        let model = "";
+        if (sm.model) {
+            const el = document.querySelector(sm.model);
+            const t = (el?.textContent || "").replace(/\s+/g, " ").trim();
+            if (t && t.length <= 40) model = t;
+        }
+        return {
+            font: cs?.fontFamily || "",
+            source: sm.id || "",
+            model,
+            title: title.slice(0, 200),
+            lang: (document.documentElement.lang || "").trim(),
+            dir: cs?.direction || "",
+            accent: sm.accent || "",
+        };
+    }
+
     if (mode === "selection") {
-        const sel = getSelection()?.toString();
-        if (sel?.trim()) return { ok: true, markdown: sel.trim() };
+        const sel = getSelection();
+        const selText = sel?.toString();
+        if (selText?.trim()) {
+            const anchor = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
+            return { ok: true, markdown: selText.trim(), meta: buildMeta(anchor || document.body) };
+        }
         return { ok: false, error: "Nothing selected." };
     }
 
-    const host = location.hostname;
     let roots = [];
     if (host.includes("chatgpt.com") || host.includes("chat.openai.com")) {
         roots = [...document.querySelectorAll('[data-message-author-role="assistant"] .markdown, [data-message-author-role="assistant"] .prose')];
@@ -166,10 +221,10 @@ function extractMarkdown(mode) {
 
     if (!roots.length) {
         const sel = getSelection()?.toString();
-        if (sel?.trim()) return { ok: true, markdown: sel.trim() };
+        if (sel?.trim()) return { ok: true, markdown: sel.trim(), meta: buildMeta(null) };
         return { ok: false, error: "No assistant message found — select text and use the right-click menu instead." };
     }
 
     if (mode === "latest") roots = roots.slice(-1);
-    return { ok: true, markdown: clean(roots.map(conv).join("\n\n---\n\n")) };
+    return { ok: true, markdown: clean(roots.map(conv).join("\n\n---\n\n")), meta: buildMeta(roots[0]) };
 }
