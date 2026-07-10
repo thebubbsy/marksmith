@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MdToPdf.Models;
+using MdToPdf.Plugins;
 
 namespace MdToPdf.Avalonia.Views;
 
@@ -16,6 +18,7 @@ public partial class SettingsView : UserControl
         DataContext = AppServices.ViewModel;
         VersionText.Text = $"Version {AppServices.Updates.CurrentVersion}";
         RefreshLicenseUi();
+        RefreshPlantUmlUi();
 
         // Keep the "Remove license" button in sync if entitlement state changes while this dialog
         // is open (e.g. a trial expiring), same intent as the WinUI SettingsView's license refresh.
@@ -56,6 +59,55 @@ public partial class SettingsView : UserControl
         LicenseStatus.Text = "License removed from this device.";
         LicenseStatus.IsVisible = true;
         RefreshLicenseUi();
+    }
+
+    private static IMarksmithPlugin PlantUml => AppServices.Plugins.All.First(p => p.Id == "plantuml");
+
+    private void RefreshPlantUmlUi()
+    {
+        var installed = PlantUml.State == PluginInstallState.Installed;
+        PlantUmlInstallButton.IsVisible = !installed;
+        PlantUmlUninstallButton.IsVisible = installed;
+        PlantUmlStatus.Text = installed ? "Installed." : "";
+    }
+
+    private async void OnInstallPlantUml(object? sender, RoutedEventArgs e)
+    {
+        PlantUmlInstallButton.IsEnabled = false;
+        PlantUmlInstallRing.IsActive = true;
+        PlantUmlStatus.Text = "Downloading…";
+
+        // Install downloads ~50MB in a tight loop that reports progress far faster than the UI
+        // needs — throttle to whole-percent updates so this doesn't flood the dispatcher.
+        var lastPercent = -1;
+        var progress = new Progress<double>(p =>
+        {
+            var percent = (int)(p * 100);
+            if (percent == lastPercent) return;
+            lastPercent = percent;
+            Dispatcher.UIThread.Post(() => PlantUmlStatus.Text = $"Downloading… {percent}%");
+        });
+
+        try
+        {
+            await PlantUml.InstallAsync(progress, CancellationToken.None);
+            PlantUmlStatus.Text = "Installed.";
+        }
+        catch (Exception ex)
+        {
+            PlantUmlStatus.Text = $"Install failed: {ex.Message}";
+        }
+
+        PlantUmlInstallRing.IsActive = false;
+        PlantUmlInstallButton.IsEnabled = true;
+        RefreshPlantUmlUi();
+    }
+
+    private void OnUninstallPlantUml(object? sender, RoutedEventArgs e)
+    {
+        PlantUml.Uninstall();
+        PlantUmlStatus.Text = "Removed.";
+        RefreshPlantUmlUi();
     }
 
     private async void OnCheckForUpdates(object? sender, RoutedEventArgs e)
