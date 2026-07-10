@@ -2,15 +2,22 @@ using System.Collections.Concurrent;
 
 namespace MdToPdf.Plugins;
 
-// Registry of optional plugins. Static list for now (one entry: PlantUML) — the natural next step
-// if this grows is a catalog fetched over HTTP, same spirit as AppServices being a hand-rolled
-// composition root until the app outgrows it (see AppServices.cs's own comment to that effect).
+// Registry of optional plugins: built-in manifests (BuiltinPlugins.cs) plus user/community
+// plugins discovered from %LOCALAPPDATA%\MdToPdf\Plugins\<id>\plugin.json — drop a manifest
+// folder there and it appears in Settings -> Plugins on next launch. Authoring spec + examples:
+// the marksmith-plugins repo.
 public sealed class PluginManager
 {
-    public static string PluginsRoot(string pluginId) => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "Plugins", pluginId);
+    public static string PluginsBaseDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "Plugins");
+
+    public static string PluginsRoot(string pluginId) => Path.Combine(PluginsBaseDir, pluginId);
 
     public IReadOnlyList<IMarksmithPlugin> All { get; }
+
+    // Non-fatal problems found while loading user manifests ("<folder>: <why it was skipped>"),
+    // surfaced in Settings -> Plugins so a typo'd plugin.json fails visibly, not silently.
+    public IReadOnlyList<string> LoadWarnings { get; }
 
     // Content hash -> rendered SVG (or null for "failed"). Diagram plugins render out-of-process,
     // which costs real wall-clock time (subprocess round-trip); the live preview re-renders on
@@ -19,7 +26,45 @@ public sealed class PluginManager
 
     public PluginManager()
     {
-        All = new IMarksmithPlugin[] { new PlantUml.PlantUmlPlugin() };
+        var plugins = new List<IMarksmithPlugin>();
+        var warnings = new List<string>();
+
+        foreach (var json in BuiltinPlugins.ManifestJson)
+            plugins.Add(new ManifestPlugin(PluginManifest.Parse(json)));
+
+        // Built-in ids win over same-id user manifests: a dropped-in plugin.json must not be able
+        // to silently replace how a first-party plugin installs or what it executes.
+        var seenIds = new HashSet<string>(plugins.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(PluginsBaseDir))
+        {
+            foreach (var dir in Directory.GetDirectories(PluginsBaseDir))
+            {
+                var manifestPath = Path.Combine(dir, "plugin.json");
+                if (!File.Exists(manifestPath)) continue; // payload-only folder (e.g. a built-in's install dir)
+                try
+                {
+                    var manifest = PluginManifest.Parse(File.ReadAllText(manifestPath));
+                    if (!seenIds.Add(manifest.Id))
+                    {
+                        warnings.Add($"{Path.GetFileName(dir)}: id '{manifest.Id}' is already taken — skipped.");
+                        continue;
+                    }
+                    if (!string.Equals(Path.GetFileName(dir), manifest.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        warnings.Add($"{Path.GetFileName(dir)}: folder name must match the manifest id '{manifest.Id}' — skipped.");
+                        continue;
+                    }
+                    plugins.Add(new ManifestPlugin(manifest));
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add($"{Path.GetFileName(dir)}: {ex.Message}");
+                }
+            }
+        }
+
+        All = plugins;
+        LoadWarnings = warnings;
     }
 
     public IDiagramPlugin? FindDiagramRenderer(string fenceLanguage)
