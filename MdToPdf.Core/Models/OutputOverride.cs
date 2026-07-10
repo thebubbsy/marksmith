@@ -29,9 +29,36 @@ public sealed class OutputOverride
     // (= pdf,docx). Null/blank = pdf.
     public string? Format { get; set; }
 
-    // Font family detected from the source AI-chat page at copy/send time (the "Copy as Markdown"
-    // button reads getComputedStyle on the reply and carries it via the HTML clipboard format, or
-    // the extension can send it directly). Maps onto BrandFontFamily so the preview/export use the
-    // same font the reply was actually shown in, instead of the app's default.
+    // ---- Source metadata captured from the originating AI-chat page ----------------------------
+    // All optional. Carried two ways, both landing here: the browser extension's API sends them as
+    // JSON fields inside `output`; the "Copy as Markdown" button embeds the same fields in a hidden
+    // clipboard-HTML marker that ClipboardSourceMeta parses back into this object. The point is to
+    // preserve the context an AI reply loses the moment it becomes plain Markdown — so the export
+    // reflects where it actually came from instead of a generic guess.
+
+    // Font family the reply was rendered in on the source page (getComputedStyle). -> BrandFontFamily.
     public string? SourceFontFamily { get; set; }
+
+    // Canonical originating site, known for certain by the extension from the page's hostname:
+    // "chatgpt" | "gemini" | "claude" | "copilot". Replaces LlmSourceService's text-pattern GUESS
+    // with ground truth (100% confidence) when present.
+    public string? SourceId { get; set; }
+
+    // Model label if the page exposes one (e.g. "GPT-4o", "Claude Opus 4.1"). Best-effort — sites
+    // don't always surface it in stable markup — so it enriches attribution but never gates it.
+    public string? SourceModel { get; set; }
+
+    // The conversation's title (page/tab title or sidebar heading), used as the default export
+    // filename + document title instead of a throwaway "pasted_export_ab12cd34".
+    public string? SourceTitle { get; set; }
+
+    // BCP-47 language tag (document.documentElement.lang) and text direction ("ltr" | "rtl") of the
+    // reply. -> AppSettings.ContentLanguage/ContentDirection, so RTL content lays out correctly in
+    // the preview and PDF instead of being forced left-to-right.
+    public string? SourceLanguage { get; set; }
+    public string? SourceDirection { get; set; }
+
+    // The source site's brand accent (hex). -> nearest built-in theme (ThemeCatalog.NearestByAccent),
+    // so the exported document's palette echoes where the content came from.
+    public string? SourceAccentColor { get; set; }
 }

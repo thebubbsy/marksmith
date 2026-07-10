@@ -21,4 +21,52 @@ public sealed class ThemeCatalog
 
     public ThemeDefinition GetOrDefault(string name) =>
         All.FirstOrDefault(t => t.Name == name) ?? All[0];
+
+    // Picks the built-in theme whose Heading (its accent-like color) is closest to `hex` in RGB
+    // space, so a source site's brand accent maps to the nearest existing palette rather than
+    // requiring a bespoke theme. Also weighs the theme's Background lightness against the accent's
+    // own lightness a little, so a dark-brand accent tends toward a dark theme and vice-versa —
+    // otherwise pure hue-distance can land a bright accent on a jarringly dark page. Returns null
+    // for an unparseable color so the caller can leave the current theme untouched.
+    public string? NearestByAccent(string? hex)
+    {
+        if (!TryParseHex(hex, out var ar, out var ag, out var ab)) return null;
+        var accentLum = Luminance(ar, ag, ab);
+
+        string? best = null;
+        double bestScore = double.MaxValue;
+        foreach (var t in All)
+        {
+            if (!TryParseHex(t.Heading, out var hr, out var hg, out var hb)) continue;
+            var hueDist = Math.Sqrt(Sq(ar - hr) + Sq(ag - hg) + Sq(ab - hb));
+
+            TryParseHex(t.Background, out var br, out var bg, out var bb);
+            // Small nudge (0..~110) so a light accent leans light-themed and a dark one dark-themed.
+            var lumPenalty = Math.Abs(accentLum - Luminance(br, bg, bb)) * 0.35;
+
+            var score = hueDist + lumPenalty;
+            if (score < bestScore) { bestScore = score; best = t.Name; }
+        }
+        return best;
+    }
+
+    private static double Sq(double v) => v * v;
+    private static double Luminance(int r, int g, int b) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+    private static bool TryParseHex(string? hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        if (string.IsNullOrWhiteSpace(hex)) return false;
+        var s = hex.Trim().TrimStart('#');
+        if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
+        if (s.Length != 6) return false;
+        try
+        {
+            r = Convert.ToInt32(s.Substring(0, 2), 16);
+            g = Convert.ToInt32(s.Substring(2, 2), 16);
+            b = Convert.ToInt32(s.Substring(4, 2), 16);
+            return true;
+        }
+        catch { return false; }
+    }
 }

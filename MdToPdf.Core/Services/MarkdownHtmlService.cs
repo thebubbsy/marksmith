@@ -178,6 +178,13 @@ public sealed class MarkdownHtmlService
             ? "-apple-system, \"Segoe UI\", sans-serif"
             : $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
 
+        // lang/dir come from the source page's metadata on ingest (see AppSettings.ContentLanguage/
+        // ContentDirection). Emitting dir="rtl" on <html> makes the whole document lay out
+        // right-to-left in the preview AND the PDF, instead of forcing Arabic/Hebrew/etc. content
+        // left-to-right. Values are sanitized to a strict allow-list so nothing from the page can
+        // inject attributes into the tag.
+        var htmlAttrs = BuildHtmlRootAttrs(settings.ContentLanguage, settings.ContentDirection);
+
         var mermaidEnabled = settings.MermaidEnabled && body.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         var mermaidScript = mermaidEnabled ? $$"""
             <script src="{{Services.WebAssets.Mermaid}}"></script>
@@ -253,7 +260,7 @@ public sealed class MarkdownHtmlService
             """ : "";
 
         return $$"""
-            <!DOCTYPE html><html><head><meta charset="UTF-8">
+            <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
             {{mermaidScript}}
             {{extraHead}}
             <style>
@@ -349,6 +356,22 @@ public sealed class MarkdownHtmlService
 
     private static string StripInline(string s) =>
         System.Net.WebUtility.HtmlEncode(Regex.Replace(s, @"[*_`~]", "").Trim());
+
+    // Builds the ` lang="…" dir="…"` suffix for the <html> tag from source-page metadata. Both
+    // values are page-derived, so they're strictly validated rather than interpolated raw: lang
+    // must look like a BCP-47 tag (letters/digits/hyphen), dir must be exactly ltr/rtl/auto —
+    // anything else is dropped, so the page can't smuggle extra attributes into the tag.
+    private static string BuildHtmlRootAttrs(string? language, string? direction)
+    {
+        var attrs = "";
+        var lang = (language ?? "").Trim();
+        if (lang.Length is > 0 and <= 35 && Regex.IsMatch(lang, "^[A-Za-z0-9-]+$"))
+            attrs += $" lang=\"{lang}\"";
+        var dir = (direction ?? "").Trim().ToLowerInvariant();
+        if (dir is "ltr" or "rtl" or "auto")
+            attrs += $" dir=\"{dir}\"";
+        return attrs;
+    }
 
     // The focused diagram viewer (live preview only): a full-viewport pan/zoom stage holding a
     // single Mermaid diagram, with the title top-left and +/−/Reset controls. No Close — this IS
