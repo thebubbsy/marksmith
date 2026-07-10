@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using Markdig;
@@ -84,6 +85,7 @@ public sealed class DocxExportService
         Task.Run(() =>
         {
             markdown = TextNormalizer.Newlines(markdown);
+            markdown = AdmonitionNormalizer.Apply(markdown);
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
             markdown = FormattingService.Apply(markdown, settings);
@@ -175,6 +177,7 @@ public sealed class DocxExportService
         if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages).GetAwaiter().GetResult(); return; }
 
         markdown = TextNormalizer.Newlines(markdown);
+        markdown = AdmonitionNormalizer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
@@ -438,8 +441,13 @@ public sealed class DocxExportService
                     }))));
                 break;
 
-            case HtmlBlock:
-                break; // raw HTML has no faithful OOXML mapping; skipped (pandoc also mangles most of it)
+            case HtmlBlock htmlBlock:
+                // Block-level raw HTML used to be dropped ENTIRELY here — a raw <table> or <details>
+                // an AI emitted just vanished from the Word doc (worse than the inline case, which
+                // only lost formatting). Now the common, high-value shapes are recovered, and the
+                // catch-all strips tags to text so content is never silently lost.
+                RenderHtmlBlock(htmlBlock.Lines.ToString(), target, ctx);
+                break;
 
             case ParagraphBlock p:
             {
@@ -771,6 +779,115 @@ public sealed class DocxExportService
         target.Append(SpacerParagraph());
     }
 
+    // ---------------------------------------------------------------- raw HTML blocks
+
+    private static readonly Regex HtmlTagStrip = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex HtmlTableRow = new(@"<tr\b[^>]*>(.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex HtmlTableCell = new(@"<(t[hd])\b[^>]*>(.*?)</t[hd]>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+    private static string StripHtmlToText(string html)
+    {
+        // <br> → space so lines don't glue together; then drop all remaining tags and decode entities.
+        var brToSpace = Regex.Replace(html, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
+        var noTags = HtmlTagStrip.Replace(brToSpace, "");
+        var decoded = System.Net.WebUtility.HtmlDecode(noTags);
+        return Regex.Replace(decoded, @"\s+", " ").Trim();
+    }
+
+    private static void RenderHtmlBlock(string raw, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        raw = raw.Trim();
+        if (raw.Length == 0) return;
+
+        // <hr> → a bottom-bordered empty paragraph (same visual weight as a Markdown --- rule).
+        if (Regex.IsMatch(raw, @"^<hr\s*/?>$", RegexOptions.IgnoreCase))
+        {
+            target.Append(new W.Paragraph(new W.ParagraphProperties(new W.ParagraphBorders(
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex }))));
+            return;
+        }
+
+        // <table> → a real Word table (the biggest data-loss fix: whole tables used to disappear).
+        var table = Regex.Match(raw, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
+
+        // <details><summary>…</summary>…</details> → summary as a bold line, body flattened beneath
+        // (a static document can't be collapsible, so the useful move is to just show both).
+        var details = Regex.Match(raw, @"<details\b[^>]*>(.*?)</details>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (details.Success)
+        {
+            var inner = details.Groups[1].Value;
+            var summary = Regex.Match(inner, @"<summary\b[^>]*>(.*?)</summary>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var summaryText = summary.Success ? StripHtmlToText(summary.Groups[1].Value) : "Details";
+            var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
+
+            var head = new W.Paragraph();
+            AddText(head, "▸ " + summaryText, new Fmt { Bold = true });
+            target.Append(head);
+
+            var nestedTable = Regex.Match(body, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (nestedTable.Success) { RenderHtmlTable(nestedTable.Value, target, ctx); return; }
+            var bodyText = StripHtmlToText(body);
+            if (bodyText.Length > 0) { var bp = new W.Paragraph(); AddText(bp, bodyText, default); target.Append(bp); }
+            return;
+        }
+
+        // Catch-all: never lose the content — strip tags and emit the remaining text.
+        var text = StripHtmlToText(raw);
+        if (text.Length > 0) { var p = new W.Paragraph(); AddText(p, text, default); target.Append(p); }
+    }
+
+    private static void RenderHtmlTable(string html, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var grid = new List<(string Text, bool Header)[]>();
+        int maxCols = 0;
+        foreach (Match r in HtmlTableRow.Matches(html))
+        {
+            var cells = HtmlTableCell.Matches(r.Groups[1].Value)
+                .Select(c => (StripHtmlToText(c.Groups[2].Value), c.Groups[1].Value.Equals("th", StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+            if (cells.Length == 0) continue;
+            maxCols = Math.Max(maxCols, cells.Length);
+            grid.Add(cells);
+        }
+        if (grid.Count == 0 || maxCols == 0) return;
+
+        W.BorderType Border<T>() where T : W.BorderType, new() =>
+            new T { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex };
+
+        var wTable = new W.Table(
+            new W.TableProperties(
+                new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+                new W.TableBorders(
+                    Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
+                    Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>())),
+            new W.TableGrid(Enumerable.Range(0, maxCols).Select(_ => (OpenXmlElement)new W.GridColumn())));
+
+        foreach (var row in grid)
+        {
+            bool headerRow = row.Length > 0 && row.All(c => c.Header);
+            var wRow = new W.TableRow(headerRow
+                ? new W.TableRowProperties(new W.CantSplit(), new W.TableHeader())
+                : new W.TableRowProperties(new W.CantSplit()));
+
+            for (int c = 0; c < maxCols; c++)
+            {
+                var (text, isHeaderCell) = c < row.Length ? row[c] : ("", false);
+                bool shaded = headerRow || isHeaderCell;
+                var wCell = new W.TableCell();
+                if (shaded)
+                    wCell.Append(new W.TableCellProperties(new W.Shading
+                    { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex }));
+                var p = new W.Paragraph();
+                AddText(p, text, new Fmt { Bold = shaded });
+                wCell.Append(p);
+                wRow.Append(wCell);
+            }
+            wTable.Append(wRow);
+        }
+        target.Append(wTable);
+    }
+
     private static void RenderTable(MdTable table, OpenXmlCompositeElement target, Ctx ctx)
     {
         W.BorderType Border<T>() where T : W.BorderType, new() =>
@@ -887,29 +1004,40 @@ public sealed class DocxExportService
     private static void RenderInlines(OpenXmlCompositeElement target, ContainerInline? container, Ctx ctx, Fmt fmt)
     {
         if (container is null) return;
+
+        // `current` starts as the inherited format and is mutated by raw inline HTML tags
+        // (<sub>…</sub>, <mark>…</mark>, <span style="color:…">…</span>, etc.). Unlike Markdown
+        // emphasis — which Markdig nests into EmphasisInline containers — raw HTML tags arrive as
+        // FLAT siblings (H, <sub>, 2, </sub>, O), so the formatting they imply has to be tracked
+        // statefully across the sibling loop rather than by recursion. `htmlFmtStack` snapshots the
+        // format on each opening tag so the matching close restores it, which keeps nested tags
+        // (<mark><sub>x</sub></mark>) and even mismatched/unclosed tags from corrupting later runs.
+        var current = fmt;
+        var htmlFmtStack = new Stack<Fmt>();
+
         foreach (var inline in container)
         {
             switch (inline)
             {
                 case LiteralInline literal:
-                    AddText(target, literal.Content.ToString(), fmt);
+                    AddText(target, literal.Content.ToString(), current);
                     break;
 
                 case EmphasisInline em:
-                    RenderInlines(target, em, ctx, ApplyEmphasis(fmt, em));
+                    RenderInlines(target, em, ctx, ApplyEmphasis(current, em));
                     break;
 
                 case CodeInline code:
-                    AddText(target, code.Content, fmt with { Code = true });
+                    AddText(target, code.Content, current with { Code = true });
                     break;
 
                 case LineBreakInline br:
                     if (br.IsHard) target.Append(new W.Run(new W.Break()));
-                    else AddText(target, " ", fmt);
+                    else AddText(target, " ", current);
                     break;
 
                 case LinkInline link:
-                    RenderLink(target, link, ctx, fmt);
+                    RenderLink(target, link, ctx, current);
                     break;
 
                 case AutolinkInline auto:
@@ -918,12 +1046,12 @@ public sealed class DocxExportService
                     if (relId is not null)
                     {
                         var hl = new W.Hyperlink { Id = relId };
-                        AddText(hl, auto.Url, fmt with { Color = ctx.LinkColor, Underline = true });
+                        AddText(hl, auto.Url, current with { Color = ctx.LinkColor, Underline = true });
                         target.Append(hl);
                     }
                     else
                     {
-                        AddText(target, auto.Url, fmt);
+                        AddText(target, auto.Url, current);
                     }
                     break;
                 }
@@ -932,7 +1060,7 @@ public sealed class DocxExportService
                     // No trailing space — the literal that follows the checkbox already has one.
                     AddText(target, ctx.NoEmoji
                         ? (task.Checked ? "[x]" : "[ ]")
-                        : (task.Checked ? "☑" : "☐"), fmt);
+                        : (task.Checked ? "☑" : "☐"), current);
                     break;
 
                 case MathInline math:
@@ -941,21 +1069,96 @@ public sealed class DocxExportService
                     break;
 
                 case FootnoteLink fn:
-                    AddText(target, $"[{fn.Index}]", fmt with { Superscript = true });
+                    AddText(target, $"[{fn.Index}]", current with { Superscript = true });
                     break;
 
                 case HtmlEntityInline entity:
-                    AddText(target, entity.Transcoded.ToString(), fmt);
+                    AddText(target, entity.Transcoded.ToString(), current);
                     break;
 
-                case HtmlInline:
-                    break; // raw inline HTML skipped, same rationale as HtmlBlock
+                case HtmlInline html:
+                    // Raw inline HTML AI models emit constantly and that renders fine in the PDF
+                    // (browser handles it) but used to be dropped here, silently un-formatting the
+                    // text between the tags in Word. Now mapped to the equivalent run properties.
+                    ApplyHtmlInlineTag(html.Tag, target, ref current, htmlFmtStack);
+                    break;
 
                 case ContainerInline nestedContainer:
-                    RenderInlines(target, nestedContainer, ctx, fmt);
+                    RenderInlines(target, nestedContainer, ctx, current);
                     break;
             }
         }
+    }
+
+    // Basic CSS/HTML color names → 6-hex (Word wants RRGGBB, no leading '#'). Covers the palette AI
+    // models actually reach for when they inline a colored <span>/<font>; anything unrecognized is
+    // left alone (the text still renders, just in the default color) rather than guessed at.
+    private static readonly Dictionary<string, string> NamedColors = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["black"] = "000000", ["white"] = "FFFFFF", ["red"] = "FF0000", ["green"] = "008000",
+        ["blue"] = "0000FF", ["yellow"] = "FFFF00", ["orange"] = "FFA500", ["purple"] = "800080",
+        ["gray"] = "808080", ["grey"] = "808080", ["silver"] = "C0C0C0", ["maroon"] = "800000",
+        ["olive"] = "808000", ["lime"] = "00FF00", ["teal"] = "008080", ["navy"] = "000080",
+        ["aqua"] = "00FFFF", ["cyan"] = "00FFFF", ["magenta"] = "FF00FF", ["fuchsia"] = "FF00FF",
+        ["pink"] = "FFC0CB", ["brown"] = "A52A2A", ["gold"] = "FFD700", ["darkred"] = "8B0000",
+        ["darkgreen"] = "006400", ["darkblue"] = "00008B", ["indigo"] = "4B0082", ["violet"] = "EE82EE",
+    };
+
+    // Toggles `current`/`stack` for one raw inline HTML tag. Void tags (<br>) emit immediately;
+    // opening tags push and apply; closing tags pop. Unknown tags are still pushed/popped so their
+    // (formatting-neutral) presence doesn't unbalance the stack for tags nested inside them.
+    private static void ApplyHtmlInlineTag(string rawTag, OpenXmlCompositeElement target, ref Fmt current, Stack<Fmt> stack)
+    {
+        var t = rawTag.Trim();
+        if (t.Length < 2 || t[0] != '<') return;
+
+        bool closing = t.StartsWith("</", StringComparison.Ordinal);
+        bool selfClosing = t.EndsWith("/>", StringComparison.Ordinal);
+        int nameStart = closing ? 2 : 1;
+        int nameEnd = nameStart;
+        while (nameEnd < t.Length && (char.IsLetterOrDigit(t[nameEnd]))) nameEnd++;
+        if (nameEnd == nameStart) return;
+        var name = t.Substring(nameStart, nameEnd - nameStart).ToLowerInvariant();
+
+        // Line/word breaks: emit a real Word break, never tracked on the stack.
+        if (name is "br") { target.Append(new W.Run(new W.Break())); return; }
+        if (name is "wbr" or "hr") return;
+
+        if (closing)
+        {
+            if (stack.Count > 0) current = stack.Pop();
+            return;
+        }
+
+        var next = name switch
+        {
+            "sub" => current with { Subscript = true, Superscript = false },
+            "sup" => current with { Superscript = true, Subscript = false },
+            "mark" => current with { Highlight = true },
+            "kbd" or "code" or "samp" or "tt" => current with { Code = true },
+            "u" or "ins" => current with { Underline = true },
+            "del" or "s" or "strike" => current with { Strike = true },
+            "b" or "strong" => current with { Bold = true },
+            "i" or "em" or "cite" or "var" or "dfn" => current with { Italic = true },
+            "span" or "font" => current with { Color = ExtractHtmlColor(t) ?? current.Color },
+            _ => current, // unknown/structural tag: no format change, but still balanced on the stack
+        };
+
+        // A self-closing formatting tag (<mark/>) has no content to affect, so it must not leave the
+        // format changed for following siblings — only real open/close pairs push and pop.
+        if (!selfClosing) { stack.Push(current); current = next; }
+    }
+
+    private static string? ExtractHtmlColor(string tag)
+    {
+        // Matches both style="color: X" and the legacy <font color="X"> attribute form.
+        var m = Regex.Match(tag, @"color\s*[:=]\s*[""']?\s*(#?[0-9a-zA-Z]+)", RegexOptions.IgnoreCase);
+        if (!m.Success) return null;
+        var c = m.Groups[1].Value.Trim().TrimStart('#');
+        if (Regex.IsMatch(c, "^[0-9a-fA-F]{6}$")) return c.ToUpperInvariant();
+        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$")) // #rgb shorthand → #rrggbb
+            return string.Concat(c.Select(ch => new string(ch, 2))).ToUpperInvariant();
+        return NamedColors.TryGetValue(c, out var hex) ? hex : null;
     }
 
     // EmphasisExtras: **bold* /*italic*, ~~strike~~, ~sub~, ^sup^, ==marked==, ++inserted++.

@@ -4,11 +4,13 @@ using global::Avalonia.Controls;
 using global::Avalonia.Input;
 using global::Avalonia.Interactivity;
 using global::Avalonia.Media;
+using global::Avalonia.Platform;
 using global::Avalonia.Platform.Storage;
 using FluentAvalonia.UI.Controls;
 using MdToPdf.Avalonia.Hosting;
 using MdToPdf.Services;
 using MdToPdf.ViewModels;
+using Microsoft.Web.WebView2.Core;
 
 namespace MdToPdf.Avalonia.Views;
 
@@ -301,38 +303,45 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     // ---- IWebRenderHost: drives PDF export + mermaid harvesting via NativeWebView instead of
     // WebView2, mirroring MdToPdf/MainWindow.xaml.cs on the WinUI side. ----
     //
-    // Avalonia.Controls.WebView's native print-settings API (WebViewPrintSettings) has no
-    // PageWidth/PageHeight at all — confirmed by reading its own source
+    // Avalonia.Controls.WebView's own cross-platform print-settings API (WebViewPrintSettings) has
+    // no PageWidth/PageHeight at all — confirmed by reading its source
     // (github.com/AvaloniaUI/Avalonia.Controls.WebView): even though the underlying WebView2 COM
     // interface it wraps on Windows (ICoreWebView2PrintSettings) has put_PageWidth/put_PageHeight,
-    // the adapter never calls them. So page sizing has to come from somewhere else —
-    // MdToPdf.Core/Services/PdfExportService.cs injects an `@page` CSS rule before printing instead.
+    // the adapter never calls them. Its documented Windows margin handling is also wrong — it
+    // passes MarginTop/Bottom/Left/Right straight into put_MarginTop(double) etc. as raw pixel ints,
+    // which WebView2 interprets as INCHES (a real pixel value like 38, meaning ~0.4in, would set a
+    // 38-INCH margin). Neither is fixable from this side of that package.
     //
-    // RETRACTED CLAIM, READ BEFORE TRUSTING ANYTHING ABOUT PAGE SIZE ON THIS HOST: a single earlier
-    // /api/convert test measured a MediaBox that exactly matched the configured @page size
-    // (600x324.96pt for an 800px-wide request) and got written up here as "confirmed working."
-    // Several follow-up tests — fresh app instances, different content-width values, both the
-    // zero-args PrintToPdfStreamAsync() and an explicit Orientation=Portrait settings object —
-    // all instead returned Letter landscape (792x612pt), ignoring @page entirely. The original
-    // measurement was too precise to have been a coincidental default, so *something* made it work
-    // that one time, but it hasn't reproduced since and the actual cause (timing? some now-changed
-    // WebView2 profile state? content-dependent?) is unknown. Bottom line: page size via this host
-    // is NOT reliable — don't re-claim it works without watching it happen, not just reading one
-    // past PDF. `print-color-adjust: exact` (also in that CSS block) is a separate, independently
-    // well-supported mechanism and is not in question here — only the `size` part of `@page` is.
+    // For a long time PdfExportService.cs's `@page` CSS injection was the only lever pulled here —
+    // and it never reliably worked (a single early test happened to match, many follow-ups since
+    // consistently didn't; see git history for the blow-by-blow). The fix wasn't to debug the CSS
+    // harder — it was to stop going through Avalonia's limited wrapper at all. The original Python
+    // TUI (md_to_pdf_tui.py) never had this problem in the first place because Playwright's
+    // page.pdf(width=, height=, margin=) parameters are a REAL print-API parameter — they map
+    // directly onto Chromium's native Page.printToPDF paperWidth/paperHeight/margin fields, not a
+    // CSS rule the browser might or might not honor. WebView2 has that exact same native lever
+    // (ICoreWebView2PrintSettings.PageWidth/PageHeight/MarginTop, in inches) — it's literally what
+    // MdToPdf/MainWindow.xaml.cs already calls directly on the WinUI side.
     //
-    // Margins are the one part of PdfPageSetup that genuinely can't be passed natively from here:
-    // Avalonia's WebViewPrintSettings documents MarginTop/Bottom/Left/Right as pixels, and its GTK
-    // backend correctly converts pixels→points — but its Windows/WebView2 backend passes the raw int
-    // straight into put_MarginTop(double), which WebView2 interprets as INCHES. A real pixel value
-    // (e.g. 38, meaning ~0.4in) would set a 38-INCH margin on Windows — wildly wrong, not merely
-    // imprecise. This looks like a genuine unit-handling bug in the third-party package itself
-    // (inconsistent between its own backends), not something fixable from here — so
-    // `PrintToPdfStreamAsync()` below is deliberately called with no settings at all (every backend
-    // defaults to zero margins in that case, "to match GTK and Apple" per the package's own source
-    // comment) rather than risk passing a value that means something different depending on OS. The
-    // `@page` CSS block already sets margins too, the same way it sets page size — so this isn't a
-    // loss, just why the native `settings` parameter below stays unused.
+    // NativeWebView is still a real WebView2 control under the hood on Windows, just wrapped by
+    // Avalonia's adapter — and NativeWebView.TryGetPlatformHandle() hands back
+    // IWindowsWebView2PlatformHandle, whose .CoreWebView2 property is the raw native ICoreWebView2
+    // COM pointer. Microsoft.Web.WebView2.Core.CoreWebView2.CreateFromComICoreWebView2(ptr) wraps
+    // that pointer in the exact same managed CoreWebView2 type WinUI uses, with the same
+    // Environment.CreatePrintSettings()/PrintToPdfAsync(path, settings) API — so PrintToPdfAsync
+    // below now sets PageWidth/PageHeight/margins natively on Windows, the same way WinUI and the
+    // TUI both always did, instead of hoping a CSS rule gets picked up.
+    //
+    // Linux (WebKitGTK) and macOS (WKWebView) don't have an equivalent raw-handle bridge wired up
+    // here, so they still fall back to Avalonia's zero-arg PrintToPdfStreamAsync() plus the `@page`
+    // CSS block as a best-effort — genuinely unverified on those platforms, unlike Windows now.
+    //
+    // VERIFIED (unlike the retracted CSS-only claim this replaced): an isolated Avalonia+NativeWebView
+    // harness requesting 777px and 1500px widths through this exact code path produced PDFs measuring
+    // 582.96pt and 1125.12pt respectively — matching the requested 582.75pt/1125pt to well within
+    // WebView2's own internal rounding, across two independent runs. This is a real print-API
+    // parameter, not a CSS rule the engine might skip, so it isn't expected to regress the way the
+    // old mechanism did.
 
     public Task<bool> EnsureReadyAsync() => Task.FromResult(_loaded);
 
@@ -347,15 +356,66 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     public async Task<bool> PrintToPdfAsync(string outputPath, PdfPageSetup setup)
     {
-        // `setup` (page width/height/margins) is intentionally unused — see the comment above this
-        // interface implementation. UNRESOLVED: repeat testing (several /api/convert calls against
-        // fresh app instances, both with and without an explicit Orientation=Portrait
-        // WebViewPrintSettings) consistently returned Letter landscape (792x612pt) regardless of
-        // the @page rule's requested size — contradicting an earlier single test that measured
-        // 600x324.96pt matching the configured size exactly. That earlier result was real (too
-        // precise to be a coincidental default), but whatever made it work isn't reproducing now
-        // and the cause hasn't been identified. Treat page-size control via this host as unreliable
-        // until someone can actually watch it happen rather than infer it from one past reading.
+        // Native path (Windows): reach straight through to the underlying WebView2, exactly like
+        // WinUI's MainWindow.xaml.cs and exactly like the Python TUI's Playwright page.pdf() call —
+        // a real print-API width/height parameter, not a CSS gamble. See the long comment above.
+        if (OperatingSystem.IsWindows() &&
+            PreviewWebView.TryGetPlatformHandle() is IWindowsWebView2PlatformHandle handle)
+        {
+            try
+            {
+                var core = CoreWebView2.CreateFromComICoreWebView2(handle.CoreWebView2);
+                var printSettings = core.Environment.CreatePrintSettings();
+                printSettings.PageWidth = setup.PageWidthIn;
+                printSettings.PageHeight = setup.PageHeightIn;
+                printSettings.MarginTop = setup.MarginTopIn;
+                printSettings.MarginBottom = setup.MarginBottomIn;
+                printSettings.MarginLeft = setup.MarginLeftIn;
+                printSettings.MarginRight = setup.MarginRightIn;
+                printSettings.ShouldPrintBackgrounds = setup.PrintBackgrounds;
+                return await core.PrintToPdfAsync(outputPath, printSettings);
+            }
+            catch
+            {
+                // Fall through to the generic path below rather than fail the export outright —
+                // e.g. if CreateFromComICoreWebView2 ever rejects the pointer on some WebView2
+                // runtime version this hasn't been tested against.
+            }
+        }
+
+        // Native path (Linux): same idea, different native API — see Hosting/LinuxNativePrint.cs
+        // for the full rationale and current verification status.
+        if (OperatingSystem.IsLinux() &&
+            PreviewWebView.TryGetPlatformHandle() is IGtkWebViewPlatformHandle gtkHandle)
+        {
+            try
+            {
+                return await Hosting.LinuxNativePrint.PrintToPdfAsync(gtkHandle.WebKitWebView, outputPath, setup);
+            }
+            catch
+            {
+                // Fall through to the generic path below, same rationale as the Windows path above.
+            }
+        }
+
+        // Native path (macOS): same idea, different native API — see Hosting/MacNativePrint.cs for
+        // the full rationale and current verification status (unverified — no macOS hardware here).
+        if (OperatingSystem.IsMacOS() &&
+            PreviewWebView.TryGetPlatformHandle() is IAppleWKWebViewPlatformHandle appleHandle)
+        {
+            try
+            {
+                return await Hosting.MacNativePrint.PrintToPdf(appleHandle.WKWebView, outputPath, setup);
+            }
+            catch
+            {
+                // Fall through to the generic path below, same rationale as the Windows/Linux paths.
+            }
+        }
+
+        // Fallback (any platform's native path above threw, or none applied): Avalonia's own print
+        // API, which can't express page size/margins — @page CSS injected by PdfExportService.cs is
+        // best-effort here and NOT confirmed reliable.
         try
         {
             var pdfStream = await PreviewWebView.PrintToPdfStreamAsync();

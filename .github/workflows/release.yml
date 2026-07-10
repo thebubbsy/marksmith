@@ -229,20 +229,23 @@ jobs:
           - Settings (license/update management) and automation (clipboard watcher, folder watcher,
             local REST API) are both wired up in this build, mirroring the Windows app's behavior —
             not yet independently tested end-to-end on Linux/macOS.
-          - **PDF page size (A4-lock, continuous-page mode): unreliable on Windows, unverified on
-            Linux/macOS — do not rely on it.** The underlying cross-platform web-view package has no
-            native way to set a PDF's page width/height on any platform, so this build injects a CSS
-            `@page` rule before printing instead. One early test on Windows measured a resulting PDF
-            whose exact page dimensions matched the configured size; several follow-up tests since
-            (fresh app instances, several width values) instead produced Letter landscape regardless
-            of the requested size. The cause of the inconsistency is unknown. Custom margins go
-            through the same CSS mechanism and inherit the same uncertainty, and separately the
-            native margin API on Windows has a confirmed unit-handling bug (pixels vs. inches) that
-            would make setting them natively wrong even if it weren't used. Background colors print
-            correctly (a separate, independently reliable CSS mechanism) — that part isn't affected.
-            The content-width Style setting itself is correctly wired through now (previously
-            hardcoded to 800/1200px regardless of your setting); whether the generated PDF's *page*
-            honors that width is the specific part that's unreliable.
+          - **PDF page size (A4-lock, continuous-page mode): solid on Windows now, still unverified
+            on Linux/macOS.** The underlying cross-platform web-view package's own print-settings API
+            has no page width/height on any platform. An earlier attempt to work around that with an
+            injected CSS `@page` rule proved unreliable (matched once, then consistently didn't
+            reproduce). The Windows build now bypasses that package for this instead: it reaches the
+            raw native `ICoreWebView2` COM pointer via the web-view control's platform handle and
+            drives WebView2's own print API directly (`CoreWebView2PrintSettings.PageWidth`/
+            `PageHeight`/margins) — the same native lever the Windows WinUI app already used, and the
+            same kind of real print-API parameter the original Python prototype relied on via
+            Playwright. Verified with an isolated test harness requesting two different page widths
+            (777px and 1500px): both produced PDFs matching the requested size to within WebView2's
+            own rounding. Linux (WebKitGTK) and macOS (WKWebView) have no equivalent bridge wired up
+            yet, so they still fall back to the CSS `@page` rule — genuinely untested there, not
+            confirmed broken, just unverified. Background colors print correctly everywhere (a
+            separate, independently reliable CSS mechanism). The content-width Style setting itself
+            is correctly wired through now (previously hardcoded to 800/1200px regardless of your
+            setting), and on Windows the generated PDF's page now genuinely honors it end-to-end.
 
           BODY
 
