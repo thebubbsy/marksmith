@@ -33,6 +33,20 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"```.*?```", RegexOptions.Singleline)] private static partial Regex FencedCode();
     [GeneratedRegex(@"`[^`\n]+`")] private static partial Regex InlineCode();
 
+    // A LaTeX \begin…\end environment that arrived as plain text from a browser copy of RENDERED
+    // math (a matrix, a system of equations, an aligned block). KaTeX/MathJax copy handlers mangle
+    // these badly: the environment NAME is dropped (\begin{bmatrix} -> \begin), the \\ row breaks
+    // collapse to single \, and the rendered glyphs get glued on as flat digit runs before and
+    // after — e.g. "[123456789]\begin 1 & 2 & 3\ 4 & 5 & 6\ 7 & 8 & 9 \end147258369" for a 3x3
+    // matrix. Captures the optional flattened-reading runs (lead/trail) so they can be dropped, and
+    // the body/env so it can be rebuilt. Requires the body to contain '&' (a cell separator) to
+    // qualify, checked in code, so a stray \begin{itemize}…\end{itemize} in prose is never touched.
+    [GeneratedRegex(@"(?<lead>\[\d+\])?\\begin\s*(?<env>\{[A-Za-z*]+\})?(?<body>.*?)\\end\s*(?<env2>\{[A-Za-z*]+\})?(?<trail>\d+)?", RegexOptions.Singleline)]
+    private static partial Regex MatrixEnvArtifact();
+    // A run of one or more backslashes NOT followed by a letter — i.e. mangled \\ row separators
+    // (a lone "\" or "\ " between cells), as opposed to a real command like \frac. Normalized to \\.
+    [GeneratedRegex(@"\\+(?![A-Za-z])")] private static partial Regex MangledRowBreak();
+
     private static readonly Dictionary<string, int> SeedArgCount = new()
     {
         ["frac"] = 2, ["dfrac"] = 2, ["tfrac"] = 2, ["binom"] = 2, ["dbinom"] = 2, ["tbinom"] = 2,
@@ -115,6 +129,11 @@ public sealed partial class LlmSourceService
         Apply(LatexBlock(), "\n$$$$\n$1\n$$$$\n", "Converted LaTeX display math to $$");
         Apply(LatexInline(), "$$$1$$", "Converted LaTeX inline math to $");
 
+        // Rebuild browser-copied \begin…\end environments (matrices, aligned blocks) into clean,
+        // $$-delimited LaTeX BEFORE WrapBareLatexMath, so the $$ it produces is protected from the
+        // bare-command wrapper below.
+        text = RecoverMatrixEnvironments(text, fixes);
+
         text = WrapBareLatexMath(text, fixes);
 
         // Gemini loves "**Heading:**" lines instead of real headings — promote them so the
@@ -127,6 +146,49 @@ public sealed partial class LlmSourceService
         classification.HasMath = classification.HasMath || DollarMath().IsMatch(text);
         return (text.Trim(), fixes);
     }
+
+    // Recovers a LaTeX \begin…\end environment (matrix / aligned system) that arrived as mangled
+    // plain text from a browser copy of the RENDERED math — see MatrixEnvArtifact for the exact
+    // shape. Rebuilds a clean, $$-delimited environment: re-injects the dropped environment name
+    // (defaulting to bmatrix, matching the bracket the flattened reading was wrapped in), restores
+    // \\ row separators, and drops the glued-on flattened-glyph digit runs. Scoped to bodies
+    // containing '&' and skipped inside code / existing $-math, so it only fires on genuine copied
+    // matrices, never on prose or a code sample that happens to show \begin{…}.
+    private string RecoverMatrixEnvironments(string text, List<string> fixes)
+    {
+        var protectedRanges = new List<(int Start, int End)>();
+        void Collect(Regex rx) { foreach (Match m in rx.Matches(text)) protectedRanges.Add((m.Index, m.Index + m.Length)); }
+        Collect(FencedCode());
+        Collect(InlineCode());
+        Collect(DollarMath());
+        bool IsProtected(int index) => protectedRanges.Any(r => index >= r.Start && index < r.End);
+
+        int count = 0;
+        var result = MatrixEnvArtifact().Replace(text, m =>
+        {
+            if (IsProtected(m.Index)) return m.Value;
+
+            var body = m.Groups["body"].Value;
+            if (!body.Contains('&')) return m.Value; // not a matrix/aligned env — leave untouched
+
+            var envName = EnvName(m.Groups["env"].Value) ?? EnvName(m.Groups["env2"].Value) ?? "bmatrix";
+
+            // Collapse mangled row breaks (\, \ , \\) -> \\, then tidy internal whitespace so the
+            // rebuilt source reads cleanly. Cell contents (e.g. a real \frac) are left intact.
+            var cleanBody = MangledRowBreak().Replace(body, @"\\");
+            cleanBody = Regex.Replace(cleanBody, @"[ \t]+", " ").Trim();
+
+            count++;
+            return $"\n\n$$\\begin{{{envName}}} {cleanBody} \\end{{{envName}}}$$\n\n";
+        });
+
+        if (count > 0) fixes.Add($"Recovered browser-copied matrix/LaTeX environments ({count})");
+        return result;
+    }
+
+    // "{bmatrix}" -> "bmatrix"; null/empty -> null.
+    private static string? EnvName(string braced) =>
+        string.IsNullOrEmpty(braced) ? null : braced.Trim('{', '}');
 
     // Recovers real math that arrives with NO delimiters at all — a common artifact of copying
     // *rendered* math out of a browser-based AI chat UI (as opposed to a clean "Copy as Markdown"
