@@ -7,6 +7,25 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
+        <ResourceDictionary>
+            <!-- Give the tour its own accent so the primary button is a deliberate Marksmith green
+                 in BOTH themes, instead of the machine's system accent (which on some setups renders
+                 as a near-white/near-black slab that reads as "broken"). Overriding the Accent* fill
+                 brushes here keeps AccentButtonStyle's real hover/pressed states — just recoloured. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#107C41" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#0E6E39" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#0C5F31" />
+                    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#2EA043" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#2C9740" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#278C3A" />
+                    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         <!-- One feature line: accent glyph + title + caption -->
         <Style x:Key="TourGlyph" TargetType="FontIcon">
             <Setter Property="FontSize" Value="18" />
@@ -40,9 +59,14 @@
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Width="540" RowSpacing="14">
+    <!-- Right padding keeps the content (and the right-aligned Next button) clear of the hosting
+         ContentDialog's overlay scrollbar, which draws at the dialog's right edge when a short
+         window forces the content to scroll. Without it the scrollbar thumb sits on top of the
+         Next button and reads as a stray white sliver. -->
+    <Grid Width="540" RowSpacing="14" Padding="0,0,16,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -250,13 +274,10 @@
                 <FontIcon Glyph="&#xE73E;" Style="{StaticResource TourHero}" />
                 <TextBlock Text="You're all set" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}"
-                           Text="Learn fastest by doing — pick what happens when you hit Get started:" />
+                           Text="Learn fastest by doing — load a ready-made sample and start playing:" />
                 <StackPanel Spacing="10">
                     <CheckBox x:Name="LoadSampleCheck" IsChecked="True" MaxWidth="500" HorizontalContentAlignment="Left">
                         <TextBlock TextWrapping="Wrap" Text="Load a sample document — headings, a table, math, and live diagrams, ready to restyle and export" />
-                    </CheckBox>
-                    <CheckBox x:Name="GuidedCheck" IsChecked="True" MaxWidth="500" HorizontalContentAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Text="Point out the controls — a quick tip-by-tip walk around the real window" />
                     </CheckBox>
                     <Grid ColumnSpacing="12" Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
@@ -279,10 +300,10 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" />
+            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" MinWidth="88" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" />
-                <Button x:Name="NextButton" Content="Next" Click="OnNext" Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" MinWidth="88" />
+                <Button x:Name="NextButton" Content="Next" Click="OnNext" Style="{StaticResource AccentButtonStyle}" MinWidth="112" />
             </StackPanel>
         </Grid>
     </Grid>

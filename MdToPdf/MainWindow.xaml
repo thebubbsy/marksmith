@@ -483,6 +483,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0">
@@ -540,7 +541,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
+                <Border x:Name="PreviewCard" Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
                     <Grid>
                         <WebView2 x:Name="PreviewWebView" Margin="1" />
 
@@ -561,10 +562,28 @@
                     </Grid>
                 </Border>
 
-                <InfoBar Grid.Row="2" IsOpen="True" IsClosable="False"
+                <!-- Live width ruler for the preview pane: a hairline spanning the column with end
+                     ticks and the current CSS-pixel width in a centred chip. PreviewWidthText is
+                     updated from code-behind on the WebView's SizeChanged. Lets the user see exactly
+                     how wide the rendered document is as they resize. -->
+                <Grid Grid.Row="2" Height="18" Margin="2,-4,2,-2" ToolTipService.ToolTip="Width of the live preview">
+                    <Rectangle Height="1" VerticalAlignment="Center"
+                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.35" />
+                    <Rectangle Width="1" Height="7" HorizontalAlignment="Left" VerticalAlignment="Center"
+                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
+                    <Rectangle Width="1" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
+                    <Border HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,0"
+                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                        <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Border>
+                </Grid>
+
+                <InfoBar Grid.Row="3" IsOpen="True" IsClosable="False"
                          Severity="{Binding StatusSeverity, Converter={StaticResource StatusSeverityConverter}}" Message="{Binding StatusText}" />
 
-                <Grid Grid.Row="3" ColumnSpacing="8">
+                <Grid Grid.Row="4" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -589,7 +608,7 @@
                     </Button>
                 </Grid>
 
-                <Grid Grid.Row="4" ColumnSpacing="8">
+                <Grid Grid.Row="5" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -625,11 +644,5 @@
             </Grid>
         </Grid>
 
-        <!-- One reusable tip for the guided walkthrough (retargeted step by step in
-             StartGuidedTourAsync). Lives here so it's in the visual tree; never opens on its own. -->
-        <TeachingTip x:Name="TourTip"
-                     ActionButtonClick="OnTourTipNext"
-                     CloseButtonContent="End tour"
-                     PreferredPlacement="Auto" />
     </Grid>
 </Window>
