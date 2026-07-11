@@ -454,6 +454,98 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         finally { PreviewWebView.IsVisible = true; }
     }
 
+    // "Create a theme": a color-wheel picker per theme element, prefilled from whatever theme is
+    // currently selected so users start from something coherent and nudge, rather than facing eight
+    // black swatches. Selecting an existing CUSTOM theme first turns this into its editor (same
+    // name prefilled, Delete offered). Saved themes persist via CustomThemeStore and are usable
+    // everywhere a built-in is — preview, PDF, DOCX, presets.
+    private async void OnCreateThemeClick(object? sender, RoutedEventArgs e)
+    {
+        var baseTheme = AppServices.Themes.GetOrDefault(ViewModel.SelectedThemeName);
+        var editingCustom = !AppServices.Themes.IsBuiltin(baseTheme.Name);
+
+        var nameBox = new TextBox
+        {
+            Watermark = "Theme name",
+            Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
+        };
+
+        (string Label, string Hint, string Hex)[] elements =
+        {
+            ("Background", "the page itself", baseTheme.Background),
+            ("Text", "body copy", baseTheme.Text),
+            ("Headings", "titles + accent", baseTheme.Heading),
+            ("Code blocks", "code + callout fill", baseTheme.Code),
+            ("Borders", "tables, rules, boxes", baseTheme.Border),
+            ("Primary", "labels inside diagrams", baseTheme.Primary),
+            ("Panels", "quote/alert backgrounds", baseTheme.Secondary),
+            ("Lines", "diagram connectors", baseTheme.Line),
+        };
+
+        var pickers = new ColorPicker[elements.Length];
+        var rows = new StackPanel { Spacing = 8 };
+        rows.Children.Add(nameBox);
+        for (int i = 0; i < elements.Length; i++)
+        {
+            pickers[i] = new ColorPicker
+            {
+                Color = Color.Parse(elements[i].Hex),
+                IsAlphaEnabled = false,
+                HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
+                MinWidth = 90,
+            };
+            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+            var label = new StackPanel { VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
+            label.Children.Add(new TextBlock { Text = elements[i].Label });
+            label.Children.Add(new TextBlock { Text = elements[i].Hint, FontSize = 11, Opacity = 0.6 });
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(pickers[i], 1);
+            grid.Children.Add(label);
+            grid.Children.Add(pickers[i]);
+            rows.Children.Add(grid);
+        }
+
+        var dialog = new FAContentDialog
+        {
+            Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
+            Content = new ScrollViewer { Content = rows, MaxHeight = 520 },
+            PrimaryButtonText = "Save theme",
+            SecondaryButtonText = editingCustom ? "Delete" : null,
+            CloseButtonText = "Cancel",
+            DefaultButton = FAContentDialogButton.Primary,
+        };
+
+        var result = await ShowDialogAsync(dialog);
+
+        if (result == FAContentDialogResult.Secondary && editingCustom)
+        {
+            CustomThemeStore.Remove(baseTheme.Name);
+            RefreshThemeNames(select: AppServices.Themes.All[0].Name);
+            return;
+        }
+        if (result != FAContentDialogResult.Primary) return;
+
+        var name = (nameBox.Text ?? "").Trim();
+        if (name.Length == 0) name = "My theme";
+        // Never shadow a built-in: saving under a stock name would make GetOrDefault ambiguous.
+        if (AppServices.Themes.IsBuiltin(name)) name += " (custom)";
+
+        static string Hex(Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
+        CustomThemeStore.AddOrUpdate(new Models.ThemeDefinition(
+            name,
+            Hex(pickers[0].Color), Hex(pickers[1].Color), Hex(pickers[2].Color), Hex(pickers[3].Color),
+            Hex(pickers[4].Color), Hex(pickers[5].Color), Hex(pickers[6].Color), Hex(pickers[7].Color)));
+        RefreshThemeNames(select: name);
+    }
+
+    private void RefreshThemeNames(string select)
+    {
+        var vm = ViewModel;
+        vm.ThemeNames.Clear();
+        foreach (var t in AppServices.Themes.All) vm.ThemeNames.Add(t.Name);
+        vm.SelectedThemeName = select; // triggers the debounced preview refresh
+    }
+
     public async Task<int> AskOversizedDiagramModeAsync()
     {
         var dialog = new FAContentDialog

@@ -23,8 +23,10 @@ public static class DialectNormalizer
 {
     private static readonly Regex WikiLink = new(@"\[\[([^\[\]|\n]+)(?:\|([^\[\]\n]+))?\]\]", RegexOptions.Compiled);
     // #tag: after whitespace/line start, a letter first (never matches "# heading" — that has a
-    // space after #), no URLs (#fragment follows non-space).
-    private static readonly Regex HashTag = new(@"(?<=^|\s)#([a-zA-Z][\w/-]{1,49})\b", RegexOptions.Compiled);
+    // space after #), no URLs (#fragment follows non-space), and never a hex color — "#FF5733" in
+    // prose is a color someone is talking about, not a tag (the lookahead rejects 3/4/6/8-digit
+    // pure-hex tokens; a real tag like #q3-plan has non-hex characters and passes).
+    private static readonly Regex HashTag = new(@"(?<=^|\s)#(?![0-9a-fA-F]{3,8}\b(?![\w/-]))([a-zA-Z][\w/-]{1,49})\b", RegexOptions.Compiled);
     private static readonly Regex FenceTitle = new("^(`{3,}|~{3,})\\s*([\\w+#-]+)?(?::([\\w./\\\\ -]+))?((?:\\s+\\w+=(?:\"[^\"]*\"|\\S+))*)\\s*$", RegexOptions.Compiled);
     private static readonly Regex TitleAttr = new("title=\"([^\"]*)\"", RegexOptions.Compiled);
     private static readonly Regex TabHeader = new("^===\\s+\"([^\"]+)\"\\s*$", RegexOptions.Compiled);

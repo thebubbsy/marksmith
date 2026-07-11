@@ -196,7 +196,11 @@
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Theme" FontSize="12" Opacity="0.7" />
-                                <ComboBox ItemsSource="{Binding ThemeNames}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <ComboBox Grid.Column="0" ItemsSource="{Binding ThemeNames}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                    <Button Grid.Column="1" Content="🎨" Click="OnCreateThemeClick"
+                                            ToolTip.Tip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
+                                </Grid>
                             </StackPanel>
 
                             <ui:FANumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
