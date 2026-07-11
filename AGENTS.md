@@ -105,6 +105,11 @@ tests/MdToPdf.Core.Tests/  net8.0  xunit accuracy suite — 167 tests. THE gate.
 - **Plugins** (`MdToPdf.Core/Plugins/`): manifest-driven (`plugin.json`) external renderers
   (Graphviz, D2, PlantUML, Typst, Vega-Lite). They shell out and return SVG. The *other agent*
   has been the primary author here — coordinate, don't refactor unilaterally.
+- **Plugins have a sister repo**: `github.com/thebubbsy/marksmith-plugins` (private) holds the
+  authoring spec (`SPEC.md`), the JSON schema, and the canonical copies of every built-in
+  manifest. `BuiltinPlugins.cs` and that repo must not drift: change a manifest or add a
+  `render`-spec field (e.g. `inputExtension`) in one place → mirror it in the other in the same
+  work cycle. The Settings → Plugins tab links users straight to that repo.
 
 ### The normalizer chain — ORDER IS LOAD-BEARING
 
@@ -216,6 +221,33 @@ as executable documentation.
   A page of prose as 500 letter-shaped polygons is worse than a picture; don't "fix" that.
 - Plugin availability is machine-dependent. Tests must tolerate both installed and
   not-installed (`plugin-diagram` OR `plugin-diagram-missing`).
+- **Some engines emit a root `<svg>` with a `viewBox` but no width/height** (D2 does — the sized
+  svg is nested one level down). An SVG without intrinsic dimensions collapses to an empty
+  sliver inside the `width:fit-content` `.plugin-diagram` card — every D2 diagram rendered as a
+  blank box in real PDFs until `ManifestPlugin.RenderToSvg` learned to inject width/height from
+  the root's own viewBox. That injection is a load-bearing invariant, not cleanup fodder. A new
+  engine whose diagrams come out blank-but-present? Check the root element's sizing attrs first.
+- macOS-built release tarballs (D2's included) carry **AppleDouble `._*` junk files** at every
+  level, including a root-level `._toolname-x.y.z` that defeats naive "exactly one top-level
+  dir" stripRoot logic. `PluginInstall.ExtractArchive` filters them; keep it that way.
+
+### WinUI XAML truths (the dead-"?" story)
+
+- **A `FlipView` inside a UserControl constructed detached** (i.e. `new SomeControl()` before
+  it's in a visual tree — exactly what hosting it in a `ContentDialog` does) makes
+  `Application.LoadComponent` throw `XamlParseException` on WASDK 1.6. Bisected live: a
+  FlipView-only skeleton fails, the identical file without it parses. The welcome tour uses
+  visibility-switched panels instead; don't "modernize" it back to a FlipView without proving
+  the parse on this SDK.
+- **`XamlParseException.Message` carries zero location info** ("XAML parsing failed", the end).
+  The working diagnosis recipe: a `#if DEBUG` self-test in the MainWindow ctor that constructs
+  the suspect control in try/catch and writes `ex.ToString()` to a temp log — then bisect the
+  XAML file build-by-build, and construct a trivial probe UserControl alongside it to split
+  "this file is broken" from "all new XAML files are broken" in one run. No clicking, no user.
+- **Never `catch { }` a UI entry point.** The tour shipped with a silent catch around
+  `ShowWelcomeTourAsync`; the XAML had never parsed, so the "?" button was dead from day one
+  and nobody could tell why. Failures there now surface via `ViewModel.StatusText` — follow
+  that pattern for any handler where "nothing happened" would otherwise be the only symptom.
 
 ---
 
@@ -246,7 +278,13 @@ and nothing is "confirmed" from one observation.**
    exercises ingest→normalize→render→print end-to-end. Beware: the port may be owned by a
    *different* running instance than the build you think you're testing — check
    `Get-Process Marksmith | Select Path` and `netstat -ano` first. This produced a
-   wrong-conclusion incident once.
+   wrong-conclusion incident once. **Relaunching via computer-use's `open_application` spawns a
+   brand-new instance every time** rather than focusing an existing window — it is not the
+   single-instance-locked behavior you'd assume from a normal desktop app. Duplicate instances
+   then race for port 47821; only the first bind wins, and a *later* instance can fail to bind
+   entirely while still running and `Responding: True`. `/api/health` succeeding only proves
+   *some* Marksmith answered, not which build. Always `Get-Process Marksmith | Select Id,Path`
+   and kill every instance except the one you mean to test before trusting an API response.
 
 ---
 
@@ -261,9 +299,28 @@ and nothing is "confirmed" from one observation.**
   **NoEmoji=true** and MermaidDocxMode=1/ShapeForge — two past "bugs" were actually these
   settings). Custom themes: `custom-themes.json` beside it. Plugins:
   `%LOCALAPPDATA%\MdToPdf\Plugins\<id>\`.
+- **Elevated (admin) windows defeat computer-use screenshots entirely, for ANY app, not just
+  Marksmith.** This machine routinely has Task Manager, admin `cmd`/Windows Terminal windows, and
+  "Everything [Administrator]" open. None of these can be controlled by non-elevated automation
+  (Windows blocks it outright), and no `SetForegroundWindow` / `HWND_TOPMOST` / z-order trick from
+  a script makes a normal window visually paint above them — screenshots come back solid black
+  even while the target process is alive and `Responding: True`. Don't burn cycles minimizing or
+  reordering windows to fight this; confirm via `Get-Process` that the app itself is fine, then
+  ask the user to close the elevated window or bring the target app forward themselves.
 - WSL exists but its network/sudo state is unreliable; don't build verification plans on it.
 - Known pre-existing warnings that are NOT yours: `System.IO.Packaging` NU1903 vulnerability
   advisories, `WindowsBase` MSB3277 conflicts, CA1416 in `MarkdownDiscoveryService`.
+- **Desktop screenshots lie in two more ways** beyond the Avalonia-WebView-paints-black one:
+  (1) the machine is sometimes at the **Windows lock screen** (`LockApp` owns the foreground) —
+  screenshots silently freeze on the last frame and identical captures across actions are the
+  tell; check the foreground process before concluding "nothing changed"; (2) the desktop is
+  crowded with unrelated always-on-top windows, so position your own app's window explicitly
+  (Win32 `SetWindowPos`, topmost) rather than clicking taskbar roulette. Raw screen-capture
+  workarounds (PrintWindow, CopyFromScreen) are off-limits — they bypass the user's
+  screenshot-masking permission system; the sanctioned screenshot tool only, or verify without
+  the screen (API/harness/log-based recipes in §5).
+- `HasSeenWelcome` in settings.json gates the first-run tour auto-show. Reset it to test the
+  first-run path; remember the flag is consumed (set true) even when the tour errors out.
 
 ---
 
