@@ -13,9 +13,8 @@ public sealed partial class WelcomeTour : UserControl
     public event EventHandler? Completed;
 
     // What the user opted into on the final page. Only honored when they finish with
-    // "Get started" — Skip means "leave me alone", so both stay false on that path.
+    // "Get started" — Skip means "leave me alone", so it stays false on that path.
     public bool LoadSampleRequested { get; private set; }
-    public bool GuidedTourRequested { get; private set; }
 
     private StackPanel[] _pages = Array.Empty<StackPanel>();
     private int _index;
@@ -56,7 +55,6 @@ public sealed partial class WelcomeTour : UserControl
         else
         {
             LoadSampleRequested = LoadSampleCheck.IsChecked == true;
-            GuidedTourRequested = GuidedCheck.IsChecked == true;
             Completed?.Invoke(this, EventArgs.Empty);
         }
     }
