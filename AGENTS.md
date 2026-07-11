@@ -127,9 +127,43 @@ EmojiStripper (if NoEmoji) → DashReplacer → FormattingService
 
 If you add a normalizer, add it to **all three call sites** (Render, ExportAsync,
 ExportAppendAsync) in the same position, and guard fenced-code regions like the others do.
-`LlmSourceService.Normalize` (vendor cleanup + **bare-LaTeX recovery**) is separate: it runs on
-ingest/`PrepareMarkdown` when the "Normalize AI formatting quirks" toggle is on — and it must
-NOT be gated on vendor detection (that was a real bug: generic text skipped normalization).
+`LlmSourceService` is separate from the normalizer chain and is split in two ON PURPOSE — do not
+re-merge them or re-gate the repairs:
+
+- **`RepairArtifacts` — ALWAYS runs, ungated.** Corruption, not preferences: strips copy/paste
+  garbage that is never content (`:contentReference`, `【n†source】` pips, captured "Copy code"
+  text, leaked `<thinking>`/`<artifact>` tags) and rescues math that would otherwise render as
+  literal backslash soup (`\( \)`/`\[ \]` → `$`/`$$`, **browser-mangled `\begin…\end` matrix
+  recovery**, bare-LaTeX `$`-wrapping). A broken matrix is not a "quirk" — it's fixed whether or
+  not the toggle is on, on every ingest/preview/export/API path. It placeholder-protects fenced
+  code FIRST, so a code sample literally containing `Copy code`/`<thinking>`/`\begin{bmatrix}` is
+  never rewritten.
+- **`NormalizeStyle` — gated on the "Normalize AI formatting quirks" toggle.** Genuine
+  preferences: disclaimer-footer strip, `**bold:**`→`### heading` promotion, blank-line collapse.
+- `Normalize` still exists (repairs + style in one call) for callers that already know the toggle
+  is on. Neither is gated on vendor detection — generic text must still be repaired (that was a
+  real bug: generic text skipped normalization).
+
+### Source-metadata ingest — the extension→app context carrier
+
+An AI reply loses its context the instant it becomes plain Markdown. Two capture paths carry it
+back, and both deserialize into the **same `OutputOverride`** — which is therefore NOT just
+"export settings", it's the universal ingest-metadata carrier:
+
+- The "Copy as Markdown" button (`extension/copybutton.js`) embeds a JSON blob in a hidden
+  clipboard-HTML comment `<!--marksmith-meta:{…}-->`; `ClipboardSourceMeta.Extract` parses it
+  (legacy `<!--marksmith-font:…-->` still read). The clipboard watchers pick it up.
+- The extension's toolbar/context-menu send (`background.js`) folds the same fields into the
+  `/api/ingest` `output`.
+
+`MainViewModel.IngestMarkdown(text, origin, meta)` APPLIES it — and yes, ingest now **mutates**
+`BrandFontFamily` (source font → also drives preview/PDF now, not just DOCX),
+`SelectedThemeName` (accent → `ThemeCatalog.NearestByAccent`), the classification source
+(definitive `sourceId` overrides the text-pattern guess at 100% conf; **Copilot is now a real
+`LlmSource`**), `AppSettings.ContentLanguage`/`ContentDirection` → `<html lang dir>` (RTL actually
+lays out), and the export filename (`SuggestedTitle`). The JS `Wire` shape and the C#
+`OutputOverride` field names **must stay in sync** — that's the kind of split contract that
+silently rots.
 
 ---
 
@@ -342,7 +376,9 @@ and nothing is "confirmed" from one observation.**
 - Real Word **footnotes** (`footnotes.xml` part) — currently inline `[n]` superscript.
 - **KaTeX copy-duplication dedup** — browser-copied math arrives as
   `[rendered][TeX][rendered]` triplets; the middle now renders, the flanking duplicates remain.
-  Genuinely hard heuristic; needs many tests before trusting.
+  Genuinely hard heuristic; needs many tests before trusting. (The `\begin…\end` **matrix** case IS
+  handled now — `RepairArtifacts`/`RecoverMatrixEnvironments` rebuilds the env and strips the
+  flanking flat digit-readings; the unsolved part is the inline `$…$` prose triplets.)
 - **Landscape-section rung** between "fits portrait" and "Web Layout" for medium diagrams.
 - Serving arbitrary local images through each host's asset server (removes the inline budget
   entirely); both servers are currently locked to one root dir — that lock is a security
