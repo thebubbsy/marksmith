@@ -177,7 +177,7 @@
                         </Grid>
 
                         <!-- Automated ingest: clipboard watcher, watched folder, local REST API -->
-                        <Expander Grid.Row="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander x:Name="AutomationExpander" Grid.Row="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE945;" FontSize="14" />
@@ -286,7 +286,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Border Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
+                <Border x:Name="StyleCard" Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Padding="14" Spacing="14">
                             <!-- Export presets: save the current look, re-apply in one click. -->
@@ -311,9 +311,17 @@
                             </Grid>
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
 
-                            <ComboBox Header="Theme" ItemsSource="{Binding ThemeNames}"
-                                      SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch" />
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" Header="Theme" ItemsSource="{Binding ThemeNames}"
+                                          SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" />
+                                <Button Grid.Column="1" Content="🎨" Click="OnCreateThemeClick"
+                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
+                            </Grid>
 
                             <NumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
                                        SpinButtonPlacementMode="Inline" Minimum="400" Maximum="2400" SmallChange="50" />
@@ -523,10 +531,10 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
-                        <Button Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour">
+                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour">
                             <FontIcon Glyph="&#xE897;" FontSize="14" />
                         </Button>
-                        <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
+                        <Button x:Name="SettingsButton" Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
                             <FontIcon Glyph="&#xE713;" FontSize="14" />
                         </Button>
                     </StackPanel>
@@ -589,7 +597,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" Height="40" Style="{StaticResource AccentButtonStyle}"
+                    <Button x:Name="GeneratePdfButton" Grid.Column="0" Height="40" Style="{StaticResource AccentButtonStyle}"
                             Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE749;" FontSize="16" />
@@ -597,7 +605,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="1" Height="40" Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}">
+                    <Button x:Name="ExportDocxButton" Grid.Column="1" Height="40" Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE74E;" FontSize="14" />
                             <TextBlock Text="Export DOCX" />
@@ -616,5 +624,12 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- One reusable tip for the guided walkthrough (retargeted step by step in
+             StartGuidedTourAsync). Lives here so it's in the visual tree; never opens on its own. -->
+        <TeachingTip x:Name="TourTip"
+                     ActionButtonClick="OnTourTipNext"
+                     CloseButtonContent="End tour"
+                     PreferredPlacement="Auto" />
     </Grid>
 </Window>
