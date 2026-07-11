@@ -106,6 +106,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         RootGrid.DataContext = ViewModel;
 
+        // Live preview-width ruler (the hairline under the preview): report the pane's width in CSS
+        // pixels as the user resizes. WebView2 maps 1 CSS px to 1 DIP at zoom 1, so ActualWidth is
+        // the same number the rendered document sees for its own px-based page width.
+        PreviewWebView.SizeChanged += (_, e) =>
+            PreviewWidthText.Text = $"{(int)Math.Round(e.NewSize.Width)} px";
+
         // Typing in the paste editor fires PropertyChanged per keystroke; coalesce preview
         // reloads so WebView2 isn't re-navigated on every character.
         _previewDebounce = DispatcherQueue.CreateTimer();
@@ -457,6 +463,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 XamlRoot = Content.XamlRoot,
                 Padding = new Thickness(0),
             };
+            // The tour card is 540 wide; the ContentDialog's default ContentDialogMaxWidth (~548)
+            // leaves no room for the dialog's own chrome, so the right edge — the Next / Get started
+            // button — was being clipped. Give it generous headroom in both dimensions so nothing
+            // clips and no scrollbar appears to overlap the buttons.
+            dialog.Resources["ContentDialogMaxWidth"] = 760.0;
+            dialog.Resources["ContentDialogMinWidth"] = 560.0;
+            dialog.Resources["ContentDialogMaxHeight"] = 940.0;
             tour.Completed += (_, _) => dialog.Hide();
             await dialog.ShowAsync();
         }
@@ -474,7 +487,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         if (tour?.LoadSampleRequested == true) LoadSampleDocument();
-        if (tour?.GuidedTourRequested == true) StartGuidedTour();
     }
 
     // A showcase document for the tour: something in every direction the app is good at —
@@ -527,64 +539,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown)) return;
         ViewModel.UsePasteSource = true;
         ViewModel.PastedMarkdown = SampleMarkdown;
-    }
-
-    // ---- Guided walkthrough: one reusable TeachingTip (TourTip in MainWindow.xaml) retargeted
-    // across the real controls, so new users see where things ARE, not just what they're called.
-
-    private sealed record TourStep(FrameworkElement Target, string Title, string Subtitle);
-    private List<TourStep>? _tourSteps;
-    private int _tourIndex;
-
-    private void StartGuidedTour()
-    {
-        _tourSteps = new List<TourStep>
-        {
-            new(SourceSelector, "1 · Source",
-                "Paste Markdown here, or switch to File to pick one — Marksmith finds real .md files across Downloads, Documents and OneDrive. It detects which AI wrote the text and cleans its quirks."),
-            new(StyleCard, "2 · Style",
-                "Theme, page width, table of contents, cleanup switches — the preview re-renders live as you change them. Save a look you like as a preset at the top."),
-            new(PreviewWebView, "3 · Live preview",
-                "Exactly what exports. Diagrams render right here — click one to open a full-screen pan-and-zoom view."),
-            new(GeneratePdfButton, "Export · PDF",
-                "Pixel-perfect PDF via the Chromium print pipeline. The output lands next to your input file unless you pick a folder above."),
-            new(ExportDocxButton, "Export · Word",
-                "A real DOCX: editable equations, diagrams as native Word shapes, a self-updating table of contents. This one's part of Pro (14-day trial included)."),
-            new(AutomationExpander, "Hands-free",
-                "Watch the clipboard or a folder and convert automatically, or drive Marksmith from scripts with the local REST API."),
-            new(SettingsButton, "Settings & plugins",
-                "Advanced mode, your license, and the Plugins tab — one-click installs for the PlantUML, Graphviz, D2, Typst and Vega-Lite diagram engines."),
-            new(TourButton, "That's the lot",
-                "Replay the tour from this button anytime. Now paste something real and make it look like you wrote it."),
-        };
-        _tourIndex = 0;
-        ShowTourStep();
-    }
-
-    private void ShowTourStep()
-    {
-        if (_tourSteps is null || _tourIndex >= _tourSteps.Count) { EndGuidedTour(); return; }
-        var step = _tourSteps[_tourIndex];
-        TourTip.IsOpen = false;
-        TourTip.Target = step.Target;
-        TourTip.Title = step.Title;
-        TourTip.Subtitle = step.Subtitle;
-        TourTip.ActionButtonContent = _tourIndex == _tourSteps.Count - 1 ? "Finish" : $"Next ({_tourIndex + 1}/{_tourSteps.Count})";
-        TourTip.IsOpen = true;
-    }
-
-    private void OnTourTipNext(TeachingTip sender, object args)
-    {
-        _tourIndex++;
-        if (_tourSteps is not null && _tourIndex < _tourSteps.Count) ShowTourStep();
-        else EndGuidedTour();
-    }
-
-    private void EndGuidedTour()
-    {
-        TourTip.IsOpen = false;
-        _tourSteps = null;
-        _tourIndex = 0;
     }
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
