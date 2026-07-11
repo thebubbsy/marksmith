@@ -19,13 +19,26 @@
             <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
             <Setter Property="HorizontalAlignment" Value="Left" />
         </Style>
-        <Style x:Key="TourTitle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
+        <!-- Plain setters, not BasedOn a system text style — see the FlipView note below for why
+             this file trusts nothing that can't be proven to parse detached. -->
+        <Style x:Key="TourTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,10,0,2" />
         </Style>
         <Style x:Key="TourLead" TargetType="TextBlock">
             <Setter Property="Opacity" Value="0.75" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <!-- The body text of a feature row. It sits in the * column of a 2-column Grid (see
+             FeatureRow below), which is the ONLY layout that actually wraps it: a horizontal
+             StackPanel hands its children unbounded width, so TextWrapping never fires and long
+             lines clip off the card. This was a real bug — every feature line ran off the edge. -->
+        <Style x:Key="TourFeatureText" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Resources>
 
@@ -36,166 +49,229 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <FlipView x:Name="Pages" Grid.Row="0" Height="340"
-                  SelectionChanged="OnPageChanged"
-                  Background="Transparent" BorderThickness="0">
+        <!-- NOT a FlipView: Application.LoadComponent on a detached UserControl containing a
+             FlipView throws XamlParseException in WASDK 1.6 (bisected live — a FlipView-only
+             skeleton fails, the identical skeleton without it parses). Pages are stacked panels
+             visibility-switched from code-behind; Back/Next/pips still navigate. -->
+        <Grid Grid.Row="0" Height="340">
 
             <!-- 1 · Welcome -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE8A5;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="Welcome to Marksmith" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}"
-                               Text="Turn messy AI-chat replies — ChatGPT, Gemini, Claude, Copilot — into polished, professional documents. Here's a 60-second tour of everything it can do." />
-                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
-                        <FontIcon Glyph="&#xE8A1;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock TextWrapping="Wrap" Text="A left-to-right pipeline: Source → Style → Preview &amp; Export. Everything updates live." />
-                    </StackPanel>
-                </StackPanel>
-            </FlipViewItem>
+            <StackPanel x:Name="Page0" Padding="8,4,8,4">
+                <FontIcon Glyph="&#xE8A5;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="Welcome to Marksmith" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}"
+                           Text="Turn messy AI-chat replies — ChatGPT, Gemini, Claude, Copilot — into polished, professional documents. Here's a 60-second tour of everything it can do." />
+                <Grid ColumnSpacing="12" Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8A1;" Style="{StaticResource TourGlyph}" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}"
+                               Text="A left-to-right pipeline: Source → Style → Preview &amp; Export. Everything updates live." />
+                </Grid>
+            </StackPanel>
 
             <!-- 2 · Source -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="1 · Source" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}" Text="Get your content in — however you have it." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE77F;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Paste Markdown straight in, or drop / browse a .md file." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8B7;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="The file picker finds real .md files across your Downloads, Documents, Desktop and OneDrive — newest first." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Marksmith detects which assistant wrote it and cleans the tell-tale quirks — LaTeX delimiters, citation pips, pseudo-headings." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE71B;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="The browser extension adds a &quot;Copy as Markdown&quot; button to each chat and sends it here in one click." />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page1" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="1 · Source" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}" Text="Get your content in — however you have it." />
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE77F;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Paste Markdown straight in, or drop / browse a .md file." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8B7;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="The file picker finds real .md files across your Downloads, Documents, Desktop and OneDrive — newest first." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Marksmith detects which assistant wrote it and cleans the tell-tale quirks — LaTeX delimiters, citation pips, pseudo-headings." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE71B;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="The browser extension adds a &quot;Copy as Markdown&quot; button to each chat and sends it here in one click." />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
+            </StackPanel>
 
             <!-- 3 · Style -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE790;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="2 · Style" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}" Text="Make the output yours, not the model's default." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE2B1;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Ten themes, page width, A4 lock, and a single-continuous-page mode for PDF." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE75C;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Cleanup switches: em-dash handling, strip emoji, and the AI-quirk normalizer — all code-block-safe." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8D2;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Personalize the structure: shift every heading at once, and keep, remove or convert bold / italic. (Turn on Advanced mode in Settings to see these.)" />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page2" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xE790;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="2 · Style" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}" Text="Make the output yours, not the model's default." />
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE2B1;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Ten themes — or build your own with the 🎨 palette editor — plus page width, A4 lock, and a single-continuous-page mode for PDF." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE75C;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Cleanup switches: em-dash handling, strip emoji, and the AI-quirk normalizer — all code-block-safe." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8D2;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Personalize the structure: shift every heading at once, and keep, remove or convert bold / italic. (Turn on Advanced mode in Settings to see these.)" />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
+            </StackPanel>
 
             <!-- 4 · Diagrams & math -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE9D9;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="Diagrams &amp; math" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}" Text="The features nobody else bothers with." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8B1;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Mermaid diagrams become native, editable Word shapes (ShapeForge™) — not a flat picture." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE12B;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Big diagrams can keep Mermaid's exact layout and curves — the Word doc opens in Web Layout so nothing clips." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE943;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="LaTeX / KaTeX math becomes real, clickable Word equations (OMML) — editable, not an image." />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page3" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xE9D9;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="Diagrams &amp; math" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}" Text="The features nobody else bothers with." />
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE9F5;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Six diagram engines from one code fence each: Mermaid ships built in; PlantUML, Graphviz, D2, Typst and Vega-Lite install as one-click plugins (Settings → Plugins) and render offline." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8B1;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Every diagram engine becomes native, editable Word shapes (ShapeForge™) — not a flat picture. Big ones keep their exact layout via Web Layout." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE943;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="LaTeX / KaTeX math becomes real, clickable Word equations (OMML) — editable, not an image." />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
+            </StackPanel>
 
             <!-- 5 · Export -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xEDE1;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="3 · Preview &amp; Export" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}" Text="See the finished page live, then export." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xEA90;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Pixel-perfect PDF, or a proprietary MD-to-Word DOCX with a self-updating table of contents and tables that survive page breaks." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8FD;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Also exports PowerPoint (PPTX) and EPUB." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Branding kit: a cover page with your logo and a document-wide font, so a chat lands as a client-ready deliverable." />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page4" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xEDE1;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="3 · Preview &amp; Export" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}" Text="See the finished page live, then export." />
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xEA90;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Pixel-perfect PDF, or a proprietary MD-to-Word DOCX with a self-updating table of contents and tables that survive page breaks." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8FD;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Also exports PowerPoint (PPTX) and EPUB." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Branding kit: a cover page with your logo and a document-wide font, so a chat lands as a client-ready deliverable." />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
+            </StackPanel>
 
             <!-- 6 · Automate & Pro -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE945;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="Automate &amp; Pro" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}" Text="Hands-free conversion, and what Pro unlocks." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE8B7;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Watch a folder or the clipboard and convert automatically; batch-convert a whole folder to PDF." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE968;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Drive it from scripts via the local REST API." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE734;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Free exports PDF. Marksmith Pro adds Word export, automation and branding — with a 14-day trial." />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page5" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xE945;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="Automate &amp; Pro" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}" Text="Hands-free conversion, and what Pro unlocks." />
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE8B7;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Watch a folder or the clipboard and convert automatically; batch-convert a whole folder to PDF." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE968;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Drive it from scripts via the local REST API — the same one both the Windows and cross-platform builds expose." />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE734;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF. Marksmith Pro adds Word export, automation and branding — with a 14-day trial." />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
+            </StackPanel>
 
             <!-- 7 · Done -->
-            <FlipViewItem>
-                <StackPanel Padding="8,4,8,4">
-                    <FontIcon Glyph="&#xE73E;" Style="{StaticResource TourHero}" />
-                    <TextBlock Text="You're all set" Style="{StaticResource TourTitle}" />
-                    <TextBlock Style="{StaticResource TourLead}"
-                               Text="Try it now: paste something into Step 1 and hit Generate PDF." />
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE713;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Every option lives in Settings (the gear, top-right)." />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <FontIcon Glyph="&#xE897;" Style="{StaticResource TourGlyph}" />
-                            <TextBlock TextWrapping="Wrap" Text="Replay this tour anytime from the tour button next to Settings." />
-                        </StackPanel>
-                    </StackPanel>
+            <StackPanel x:Name="Page6" Padding="8,4,8,4" Visibility="Collapsed">
+                <FontIcon Glyph="&#xE73E;" Style="{StaticResource TourHero}" />
+                <TextBlock Text="You're all set" Style="{StaticResource TourTitle}" />
+                <TextBlock Style="{StaticResource TourLead}"
+                           Text="Learn fastest by doing — pick what happens when you hit Get started:" />
+                <StackPanel Spacing="10">
+                    <CheckBox x:Name="LoadSampleCheck" IsChecked="True" MaxWidth="500" HorizontalContentAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Text="Load a sample document — headings, a table, math, and live diagrams, ready to restyle and export" />
+                    </CheckBox>
+                    <CheckBox x:Name="GuidedCheck" IsChecked="True" MaxWidth="500" HorizontalContentAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Text="Point out the controls — a quick tip-by-tip walk around the real window" />
+                    </CheckBox>
+                    <Grid ColumnSpacing="12" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE897;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Opacity="0.75" Text="Replay this anytime from the ? button next to Settings." />
+                    </Grid>
                 </StackPanel>
-            </FlipViewItem>
-        </FlipView>
+            </StackPanel>
+        </Grid>
 
         <PipsPager x:Name="Pips" Grid.Row="1" HorizontalAlignment="Center"
-                   NumberOfPages="7" SelectedPageIndex="{x:Bind Pages.SelectedIndex, Mode=TwoWay}" />
+                   NumberOfPages="7" SelectedIndexChanged="OnPipSelected" />
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
