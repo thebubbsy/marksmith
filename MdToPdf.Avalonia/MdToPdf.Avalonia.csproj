@@ -24,6 +24,8 @@
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
+    <!-- Color-wheel pickers for the in-app "Create a theme" editor. -->
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="12.0.0" />
     <!-- WinUI/Fluent-parity control set (InfoBar, NumberBox, SymbolIcon, ProgressRing) plus a
          FluentAvaloniaTheme that mirrors WinUI's look, so the port doesn't need to hand-build
          replacements for controls Avalonia's own theme doesn't ship. -->
