@@ -87,6 +87,24 @@ public sealed class PluginManager
         return null;
     }
 
+    // `extension` with or without the dot, any case.
+    public IImporterPlugin? FindImporter(string extension)
+    {
+        var ext = extension.TrimStart('.').ToLowerInvariant();
+        foreach (var plugin in All)
+        {
+            if (plugin is IImporterPlugin importer && plugin.State == PluginInstallState.Installed &&
+                importer.ImportExtensions.Contains(ext))
+                return importer;
+        }
+        return null;
+    }
+
+    // Every extension any registered importer claims (installed or not) — the shells use this to
+    // widen file pickers/drop filters so users can discover the capability.
+    public IReadOnlyList<string> AllImporterExtensions =>
+        All.OfType<IImporterPlugin>().SelectMany(p => p.ImportExtensions).Distinct().ToList();
+
     public string? RenderToSvgCached(IDiagramPlugin plugin, string diagramSource)
     {
         var key = plugin.Id + ":" + diagramSource.GetHashCode();

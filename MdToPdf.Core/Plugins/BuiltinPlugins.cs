@@ -164,15 +164,15 @@ internal static class BuiltinPlugins
         }
         """,
 
-        // Typst: single-binary modern typesetting — math/tables/figures without LaTeX. Windows
-        // only until the installer learns .tar.xz (Linux/macOS release format).
+        // Typst: single-binary modern typesetting — math/tables/figures without LaTeX. All
+        // platforms now that the installer extracts .tar.xz (SharpCompress XZStream).
         """
         {
           "manifestVersion": 1,
           "id": "typst",
           "name": "Typst Snippets",
-          "description": "Renders ```typst code blocks — beautifully typeset math, tables, and figures without a LaTeX install. Downloads the official single-binary Typst release (~20 MB) on install. Windows only for now (Linux/macOS releases ship as .tar.xz, which the installer can't extract yet).",
-          "version": "1.0.0",
+          "description": "Renders ```typst code blocks — beautifully typeset math, tables, and figures without a LaTeX install. Downloads the official single-binary Typst release (~20 MB) on install.",
+          "version": "1.1.0",
           "homepage": "https://typst.app",
           "license": "Apache-2.0",
           "type": "diagram",
@@ -195,6 +195,46 @@ internal static class BuiltinPlugins
               "source": "github-latest",
               "repo": "typst/typst",
               "assetPattern": "^typst-aarch64-pc-windows-msvc\\.zip$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "typst.tar.xz",
+              "os": "linux",
+              "arch": "x64",
+              "source": "github-latest",
+              "repo": "typst/typst",
+              "assetPattern": "^typst-x86_64-unknown-linux-musl\\.tar\\.xz$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "typst.tar.xz",
+              "os": "linux",
+              "arch": "aarch64",
+              "source": "github-latest",
+              "repo": "typst/typst",
+              "assetPattern": "^typst-aarch64-unknown-linux-musl\\.tar\\.xz$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "typst.tar.xz",
+              "os": "mac",
+              "arch": "aarch64",
+              "source": "github-latest",
+              "repo": "typst/typst",
+              "assetPattern": "^typst-aarch64-apple-darwin\\.tar\\.xz$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "typst.tar.xz",
+              "os": "mac",
+              "arch": "x64",
+              "source": "github-latest",
+              "repo": "typst/typst",
+              "assetPattern": "^typst-x86_64-apple-darwin\\.tar\\.xz$",
               "extract": true,
               "stripRoot": true
             }
@@ -281,6 +321,184 @@ internal static class BuiltinPlugins
             "inputExtension": ".vl.json",
             "output": "file",
             "timeoutSeconds": 30
+          }
+        }
+        """,
+        // LilyPond: engraved sheet music; 2.24.4 pinned (2.26.0 mingw build hard-crashes
+        // with STATUS_STACK_BUFFER_OVERRUN on compile — empirically verified). Exit code is
+        // nonzero even on success (SVG backend rejects the default pdf format) — harmless,
+        // since the engine reads the output file, not the exit code.
+        """
+        {
+          "manifestVersion": 1,
+          "id": "lilypond",
+          "name": "LilyPond Sheet Music",
+          "description": "Renders ```lilypond code blocks as engraved sheet music with GNU LilyPond. Downloads the official LilyPond 2.24.4 release (~40 MB, checksum-pinned) on install.",
+          "version": "1.0.0",
+          "homepage": "https://lilypond.org",
+          "license": "GPL-3.0",
+          "type": "diagram",
+          "fenceLanguages": ["lilypond", "ly"],
+          "artifacts": [
+            {
+              "name": "lilypond.zip",
+              "os": "windows",
+              "arch": "x64",
+              "source": "url",
+              "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-mingw-x86_64.zip",
+              "sha256": "e238f5a33ebde7466fe03d0fbcaa155a44536ca582951972482e0b00ceb0fbf1",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "lilypond.tar.gz",
+              "os": "linux",
+              "arch": "x64",
+              "source": "url",
+              "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-linux-x86_64.tar.gz",
+              "sha256": "53bc1df875ee56dabe56ae1f0b4550237e0c9acc837b60f0ef8c42fc35a68641",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "lilypond.tar.gz",
+              "os": "mac",
+              "arch": "aarch64",
+              "source": "url",
+              "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-darwin-arm64.tar.gz",
+              "sha256": "9491d4737000e80bcbdd7a39e9dc13c2178ff865beff7d800d6159bfc395e8fa",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "lilypond.tar.gz",
+              "os": "mac",
+              "arch": "x64",
+              "source": "url",
+              "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-darwin-x86_64.tar.gz",
+              "sha256": "84a1e6173afd8f1eda1e39c610a498c41aa20975b4ffaad2e2b2810a52da90b8",
+              "extract": true,
+              "stripRoot": true
+            }
+          ],
+          "render": {
+            "command": "{dir}/bin/lilypond",
+            "args": ["-dbackend=svg", "-dno-point-and-click", "-o", "{outputBase}", "{input}"],
+            "input": "file",
+            "inputExtension": ".ly",
+            "output": "file",
+            "timeoutSeconds": 60,
+            "wrap": { "prefix": "\\version \"2.24.4\"\n\\header { tagline = ##f }\n", "suffix": "", "unlessContains": "\\version" }
+          }
+        }
+        """,
+
+        // WaveDrom: digital timing diagrams. First plugin using the node runtime + npm
+        // artifact source (upstream's "single file" release is not actually self-contained).
+        """
+        {
+          "manifestVersion": 1,
+          "id": "wavedrom",
+          "name": "WaveDrom Timing Diagrams",
+          "description": "Renders ```wavedrom code blocks (JSON signal descriptions) as digital timing diagrams. Downloads a private Node.js LTS runtime (~30 MB) plus wavedrom-cli from npm on install — isolated from any Node already on your system.",
+          "version": "1.0.0",
+          "homepage": "https://wavedrom.com",
+          "license": "MIT",
+          "type": "diagram",
+          "fenceLanguages": ["wavedrom"],
+          "runtime": { "kind": "node" },
+          "artifacts": [
+            {
+              "name": "wavedrom-cli",
+              "source": "npm",
+              "package": "wavedrom-cli",
+              "packageVersion": "3.2.0"
+            }
+          ],
+          "render": {
+            "command": "{node}",
+            "args": ["{dir}/npm/node_modules/wavedrom-cli/wavedrom-cli.js", "-i", "{input}", "-s", "{output}"],
+            "input": "file",
+            "inputExtension": ".json5",
+            "output": "file",
+            "timeoutSeconds": 30
+          }
+        }
+        """,
+        // Pandoc importer: the first non-diagram plugin type — converts .rst/.org/.docx/… files
+        // to Markdown on open/drop (see PluginFileReader). Pandoc infers the input format from
+        // the file's own extension, so one args list covers every claimed extension. Archive
+        // layouts differ per OS (pandoc.exe at the zip root on Windows, bin/pandoc in the
+        // Linux/macOS tarballs) — hence the per-OS command overrides.
+        """
+        {
+          "manifestVersion": 1,
+          "id": "pandoc-import",
+          "name": "Pandoc File Importer",
+          "description": "Open or drop reStructuredText, Org-mode, MediaWiki, Textile, DOCX, ODT, RTF, and EPUB files — Pandoc converts them to Markdown on the way in. Downloads the official Pandoc release (~40 MB) on install.",
+          "version": "1.0.0",
+          "homepage": "https://pandoc.org",
+          "license": "GPL-2.0-or-later",
+          "type": "importer",
+          "artifacts": [
+            {
+              "name": "pandoc.zip",
+              "os": "windows",
+              "arch": "x64",
+              "source": "github-latest",
+              "repo": "jgm/pandoc",
+              "assetPattern": "^pandoc-[\\d.]+-windows-x86_64\\.zip$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "pandoc.tar.gz",
+              "os": "linux",
+              "arch": "x64",
+              "source": "github-latest",
+              "repo": "jgm/pandoc",
+              "assetPattern": "^pandoc-[\\d.]+-linux-amd64\\.tar\\.gz$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "pandoc.tar.gz",
+              "os": "linux",
+              "arch": "aarch64",
+              "source": "github-latest",
+              "repo": "jgm/pandoc",
+              "assetPattern": "^pandoc-[\\d.]+-linux-arm64\\.tar\\.gz$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "pandoc.zip",
+              "os": "mac",
+              "arch": "aarch64",
+              "source": "github-latest",
+              "repo": "jgm/pandoc",
+              "assetPattern": "^pandoc-[\\d.]+-arm64-macOS\\.zip$",
+              "extract": true,
+              "stripRoot": true
+            },
+            {
+              "name": "pandoc.zip",
+              "os": "mac",
+              "arch": "x64",
+              "source": "github-latest",
+              "repo": "jgm/pandoc",
+              "assetPattern": "^pandoc-[\\d.]+-x86_64-macOS\\.zip$",
+              "extract": true,
+              "stripRoot": true
+            }
+          ],
+          "import": {
+            "extensions": ["rst", "org", "mediawiki", "wiki", "textile", "docx", "odt", "rtf", "epub"],
+            "command": "{dir}/pandoc",
+            "commandLinux": "{dir}/bin/pandoc",
+            "commandMac": "{dir}/bin/pandoc",
+            "args": ["{input}", "-t", "gfm", "--wrap=none", "--markdown-headings=atx"],
+            "timeoutSeconds": 120
           }
         }
         """,
