@@ -37,15 +37,18 @@ product promise, not a nice-to-have.
 - Distribution: GitHub Releases via `.github/workflows/release.yml` (WinUI installer + portable,
   Avalonia portable for win/linux/mac), with winget/Chocolatey checksums prepared in the
   release notes. A browser extension ("Copy as Markdown") feeds the ingest pipeline.
-- **One-year picture** the current owners are steering toward: the Avalonia build reaches
-  parity and ships as the GA cross-platform app; a plugin registry grows beyond the five
-  built-in diagram engines (the manifest system in `MdToPdf.Core/Plugins/` is designed for
-  third-party `plugin.json` drops); Pro pricing lands on automation + ShapeForge-quality
-  exports; the extension funnels chat-→-document conversions from every major AI web UI. The
-  realistic buyer is the professional who pastes AI output into status reports, design docs,
-  and boardroom material daily and needs it to look hand-made. Every fidelity bug undermines
-  the entire value proposition — a document that looks 95% right is a document the user has to
-  fix, which is the product failing at its only job.
+- **One-year picture** the current owners are steering toward: the **WinUI app deepens its lead
+  as the flagship** — it is Windows-native, full-featured, and stays that way indefinitely (see
+  §7: WinUI is king). The Avalonia build remains a compatibility concession so Linux/macOS users
+  aren't turned away empty-handed, nothing more — it is not expected to surpass the flagship and
+  is not the platform bet. Meanwhile: a plugin registry grows beyond the five built-in diagram
+  engines (the manifest system in `MdToPdf.Core/Plugins/` is designed for third-party
+  `plugin.json` drops); Pro pricing lands on automation + ShapeForge-quality exports; the
+  extension funnels chat-→-document conversions from every major AI web UI. The realistic buyer
+  is the professional — overwhelmingly on Windows, where Word lives — who pastes AI output into
+  status reports, design docs, and boardroom material daily and needs it to look hand-made.
+  Every fidelity bug undermines the entire value proposition — a document that looks 95% right
+  is a document the user has to fix, which is the product failing at its only job.
 - See `ROADMAP.md` / `FIVE-YEAR-PLAN.md` for the owners' longer arc. Do not contradict them.
 
 ---
@@ -81,7 +84,7 @@ Hard rules:
 ```
 MdToPdf.Core/        net8.0   THE ENGINE. Platform-agnostic. Everything important lives here.
 MdToPdf/             net8.0-windows  WinUI 3 app (the original, full-featured shipping app)
-MdToPdf.Avalonia/    net10.0  Cross-platform app (preview build; the future GA)
+MdToPdf.Avalonia/    net10.0  Cross-platform build — a Linux/macOS compatibility afterthought, NOT the future
 tests/MdToPdf.Core.Tests/  net8.0  xunit accuracy suite — 167 tests. THE gate. Keep it green.
 ```
 
@@ -266,10 +269,19 @@ and nothing is "confirmed" from one observation.**
 
 ## 7. Current parity debts and the near-term backlog (don't duplicate, don't silently drop)
 
-- **WinUI parity**: the theme-editor button currently exists in the **Avalonia app only**. The
-  WinUI app reads the same `CustomThemeStore`, so themes work there, but it has no creation UI
-  yet. The user's stated direction: WinUI stays primary until Avalonia reaches parity, THEN the
-  WinUI cleanup happens — **do not delete WinUI code** until told.
+- **WinUI is king, and stays king.** Owner's explicit direction: the WinUI app is the flagship
+  **indefinitely** — not "until Avalonia catches up." Avalonia exists as an afterthought, a
+  compatibility concession for the comparatively tiny Linux/macOS audience, and it is considered
+  unlikely to ever surpass the WinUI build. Practical consequences for you:
+  - **Always launch, demo, and verify against the WinUI app first.** Avalonia gets checked
+    second, as a "does it still build/run" concern, not as the primary target.
+  - New UI features land in **WinUI first** (or simultaneously). The theme-editor button is
+    currently Avalonia-only — that is a **parity bug against the flagship**, backwards from the
+    intended order; port it to WinUI rather than treating Avalonia as the lead.
+  - Engine work in `MdToPdf.Core` serves both automatically — that's the right layer for most
+    features precisely so WinUI never waits on cross-platform plumbing.
+  - **Never delete or de-prioritize WinUI code.** Any earlier note suggesting a future "WinUI
+    cleanup once Avalonia reaches parity" is obsolete — disregard it.
 - Real Word **footnotes** (`footnotes.xml` part) — currently inline `[n]` superscript.
 - **KaTeX copy-duplication dedup** — browser-copied math arrives as
   `[rendered][TeX][rendered]` triplets; the middle now renders, the flanking duplicates remain.
@@ -295,5 +307,8 @@ and nothing is "confirmed" from one observation.**
    of their subsystems (plugins, WinUI shell, extension).
 5. **Keep the tests green and growing.** 167 today. If you found a bug the suite missed, the
    fix isn't done until the suite would have caught it.
-6. **Never push without the user's explicit word.** Commit locally with detailed messages;
+6. **WinUI first, always.** Launch it first, verify against it first, land UI features in it
+   first. Avalonia is the Linux/macOS compatibility afterthought — build-check it, don't lead
+   with it.
+7. **Never push without the user's explicit word.** Commit locally with detailed messages;
    the user says "push" when they mean it.
