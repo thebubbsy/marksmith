@@ -26,6 +26,12 @@ public sealed class GEdge
     public List<double[]> Points { get; set; } = new(); // sampled along the path, px
     public string? Stroke { get; set; }
     public bool Dashed { get; set; }
+
+    // Whether this edge ends in an arrowhead. Defaults true (the mermaid harvest never sets it and
+    // its edges are overwhelmingly directed). SvgShapeForge sets it precisely: only edges whose
+    // endpoint coincides with an arrowhead polygon the source SVG actually drew get one — so a
+    // vega-lite axis tick doesn't sprout a triangle, while a graphviz edge keeps its arrow.
+    public bool Arrow { get; set; } = true;
 }
 
 public sealed class GText
@@ -80,7 +86,8 @@ public sealed class GenericDiagram
                 X1 = e.Points[0][0], Y1 = e.Points[0][1],
                 X2 = e.Points[^1][0], Y2 = e.Points[^1][1],
                 Points = e.Points.Select(p => (p[0], p[1])).ToList(),
-                Stroke = Css(e.Stroke), Dashed = e.Dashed, EndHead = ArrowHead.Triangle,
+                Stroke = Css(e.Stroke), Dashed = e.Dashed,
+                EndHead = e.Arrow ? ArrowHead.Triangle : ArrowHead.None,
             });
         }
 

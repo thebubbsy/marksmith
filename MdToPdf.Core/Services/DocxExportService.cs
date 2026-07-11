@@ -98,6 +98,7 @@ public sealed class DocxExportService
             markdown = TextNormalizer.Newlines(markdown);
             markdown = AdmonitionNormalizer.Apply(markdown);
             markdown = DialectNormalizer.Apply(markdown);
+            markdown = DiagramFenceSniffer.Apply(markdown);
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
             markdown = FormattingService.Apply(markdown, settings);
@@ -191,6 +192,7 @@ public sealed class DocxExportService
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
+        markdown = DiagramFenceSniffer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
@@ -419,6 +421,43 @@ public sealed class DocxExportService
                 break;
             }
 
+            // Diagram-plugin fences (```dot / ```plantuml / ```d2 / ```vega-lite / …, including the
+            // ones DiagramFenceSniffer relabelled from a bare fence). The plugin renders the source
+            // to SVG out-of-process; before this case existed the source dumped out as plain text
+            // (it fell through to the CodeBlock case below). Same mode ladder as mermaid:
+            //   ShapeForge (1) — parse the SVG's primitives (SvgShapeForge) and rebuild them as
+            //                    native, editable Word shapes via the same GenericDiagram →
+            //                    DocxShapeEmitter pipeline the mermaid generic harvest uses.
+            //   Snapshot  (0) — or if the parse recovers too little — embed the SVG as a real
+            //                    picture (crisp SVG for Word 2016+, rasterized PNG fallback).
+            // Floor either way: the plain code block, never nothing.
+            case FencedCodeBlock pluginFence when PluginDiagramLanguage(pluginFence.Info) is { } pluginLang:
+            {
+                var plugin = AppServices.Plugins.FindDiagramRenderer(pluginLang);
+                var svg = plugin is not null ? AppServices.Plugins.RenderToSvgCached(plugin, pluginFence.Lines.ToString()) : null;
+
+                if (svg is not null && ctx.MermaidMode == 1 &&
+                    Mermaid.SvgShapeForge.Parse(svg) is { IsEmpty: false } forged)
+                {
+                    var md = forged.ToMDiagram(ctx.Theme);
+                    var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversized);
+                    var p = new W.Paragraph { InnerXml = xml };
+                    p.PrependChild(new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { Before = "120", After = "120" },
+                        new W.Justification { Val = W.JustificationValues.Center }));
+                    ctx.ForceWebLayout |= oversized;
+                    target.Append(p);
+                }
+                else if (svg is not null && SvgDiagramParagraph(svg, ctx) is { } para)
+                {
+                    ctx.ForceWebLayout = true; // wide network/graph diagrams need Word's Web Layout to not clip
+                    target.Append(para);
+                }
+                else
+                    target.Append(CodeParagraph(pluginFence.Lines.ToString(), ctx));
+                break;
+            }
+
             case CodeBlock code: // other fenced/indented code renders as a code block
                 target.Append(CodeParagraph(code.Lines.ToString(), ctx));
                 break;
@@ -605,6 +644,88 @@ public sealed class DocxExportService
 
     // Snapshot mode: embed the pre-rasterized diagram PNG as a centered inline picture, scaled to
     // the printable width (the PNGs are rendered at 2x, so half their pixel size in points).
+    // The fence language iff an installed diagram plugin claims it (never "mermaid" — that has its
+    // own case). Returns null so the `when` guard falls through to the next case otherwise.
+    private static string? PluginDiagramLanguage(string? info)
+    {
+        if (string.IsNullOrWhiteSpace(info)) return null;
+        var lang = info.Trim().Split(' ', '\t')[0].ToLowerInvariant();
+        if (lang is "mermaid" or "") return null;
+        return AppServices.Plugins.FindDiagramRenderer(lang) is not null ? lang : null;
+    }
+
+    // Embeds a diagram plugin's SVG as a Word picture: the SVG itself (Word 2016+ renders it
+    // crisply at any zoom) plus a rasterized PNG fallback (older Word, and thumbnails/print). The
+    // <asvg:svgBlip> ext under the PNG blip is exactly what Word writes when you Insert > Picture an
+    // .svg — so the round-trip is native, not a hack. Returns null if the SVG can't be rasterized
+    // (caller then falls back to the code block).
+    private static W.Paragraph? SvgDiagramParagraph(string svg, Ctx ctx)
+    {
+        var png = SvgRasterizer.ToPng(svg);
+        if (png is null) return null;
+
+        var (svgW, svgH) = SvgRasterizer.Dimensions(svg);
+
+        var pngPart = ctx.MainPart.AddImagePart(ImagePartType.Png);
+        using (var ms = new MemoryStream(png)) pngPart.FeedData(ms);
+        var pngRel = ctx.MainPart.GetIdOfPart(pngPart);
+
+        var svgPart = ctx.MainPart.AddNewPart<ImagePart>("image/svg+xml", null);
+        using (var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg))) svgPart.FeedData(ms);
+        var svgRel = ctx.MainPart.GetIdOfPart(svgPart);
+
+        // Size the frame in points (SVG px ≈ pt at 96dpi → *0.75), capped to the text column width.
+        double ptW = Math.Max(40, svgW * 0.75), ptH = Math.Max(20, svgH * 0.75);
+        if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+        long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
+        var id = ctx.NextDrawingId++;
+
+        // GUID braces as plain strings so they don't collide with raw-string interpolation escaping.
+        const string dpiExtUri = "{28A0092B-C50C-407E-A947-70E740481C1C}"; // a14:useLocalDpi ext
+        const string svgExtUri = "{96DAC541-7B7A-43D3-8B76-37F632A7BC16}"; // asvg:svgBlip ext
+
+        var drawing = new W.Drawing
+        {
+            InnerXml = $"""
+                <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <wp:extent cx="{cx}" cy="{cy}"/>
+                  <wp:effectExtent l="0" t="0" r="0" b="0"/>
+                  <wp:docPr id="{id}" name="Diagram" descr="Diagram rendered by a Marksmith plugin"/>
+                  <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                  <a:graphic>
+                    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                      <pic:pic>
+                        <pic:nvPicPr><pic:cNvPr id="{id}" name="diagram.svg"/><pic:cNvPicPr/></pic:nvPicPr>
+                        <pic:blipFill>
+                          <a:blip r:embed="{pngRel}">
+                            <a:extLst>
+                              <a:ext uri="{dpiExtUri}">
+                                <a14:useLocalDpi xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" val="0"/>
+                              </a:ext>
+                              <a:ext uri="{svgExtUri}">
+                                <asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="{svgRel}"/>
+                              </a:ext>
+                            </a:extLst>
+                          </a:blip>
+                          <a:stretch><a:fillRect/></a:stretch>
+                        </pic:blipFill>
+                        <pic:spPr>
+                          <a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
+                          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                        </pic:spPr>
+                      </pic:pic>
+                    </a:graphicData>
+                  </a:graphic>
+                </wp:inline>
+                """
+        };
+        return new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.SpacingBetweenLines { Before = "120", After = "120" },
+                new W.Justification { Val = W.JustificationValues.Center }),
+            new W.Run(drawing));
+    }
+
     private static W.Paragraph SnapshotParagraph(byte[] png, Ctx ctx)
     {
         var part = ctx.MainPart.AddImagePart(ImagePartType.Png);
@@ -804,8 +925,82 @@ public sealed class DocxExportService
     private static readonly Regex HtmlTableRow = new(@"<tr\b[^>]*>(.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HtmlTableCell = new(@"<(t[hd])\b[^>]*>(.*?)</t[hd]>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
+    // Local markdown image -> a real embedded picture. Returns false (caller falls back to the
+    // labeled-link text) for remote URLs, missing files, or anything Skia can't decode.
+    private static bool TryEmbedLocalImage(OpenXmlCompositeElement target, LinkInline link, Ctx ctx)
+    {
+        try
+        {
+            var raw = Uri.UnescapeDataString(link.GetDynamicUrl?.Invoke() ?? link.Url ?? "");
+            var path = raw.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
+                ? raw[8..].Replace('/', '\\')
+                : (raw.Length > 2 && raw[1] == ':' ? raw : null);
+            if (path is null || !File.Exists(path)) return false;
+
+            using var bitmap = SkiaSharp.SKBitmap.Decode(path);
+            if (bitmap is null) return false;
+
+            // Obsidian width hint arrives glued to the alt text: ![diagram|300](...)
+            var alt = GetPlainText(link);
+            double? hintW = null;
+            var hint = Regex.Match(alt, @"\|(\d{2,4})$");
+            if (hint.Success) { hintW = double.Parse(hint.Groups[1].Value); alt = alt[..hint.Index].Trim(); }
+
+            byte[] png;
+            int pxW = bitmap.Width, pxH = bitmap.Height;
+            const int maxDim = 1400;
+            if (Math.Max(pxW, pxH) > maxDim)
+            {
+                var scale = (double)maxDim / Math.Max(pxW, pxH);
+                pxW = (int)(pxW * scale); pxH = (int)(pxH * scale);
+                using var resized = bitmap.Resize(new SkiaSharp.SKImageInfo(pxW, pxH), SkiaSharp.SKFilterQuality.High);
+                using var img = SkiaSharp.SKImage.FromBitmap(resized);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                png = data.ToArray();
+            }
+            else
+            {
+                using var img = SkiaSharp.SKImage.FromBitmap(bitmap);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                png = data.ToArray();
+            }
+
+            var part = ctx.MainPart.AddImagePart(ImagePartType.Png);
+            using (var ms = new MemoryStream(png)) part.FeedData(ms);
+            var relId = ctx.MainPart.GetIdOfPart(part);
+
+            double ptW = hintW ?? pxW * 0.75, ptH = pxH * 0.75 * (hintW is { } hw ? hw / pxW : 1);
+            if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
+            long cx = (long)(ptW * 12700), cy = (long)(Math.Max(8, ptH) * 12700);
+            var id = ctx.NextDrawingId++;
+            var altEsc = System.Security.SecurityElement.Escape(alt) ?? "";
+
+            target.Append(new W.Run(new W.Drawing
+            {
+                InnerXml = $"""
+                    <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                      <wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>
+                      <wp:docPr id="{id}" name="Image" descr="{altEsc}"/>
+                      <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                        <pic:pic><pic:nvPicPr><pic:cNvPr id="{id}" name="image.png"/><pic:cNvPicPr/></pic:nvPicPr>
+                        <pic:blipFill><a:blip r:embed="{relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                        <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
+                        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                        </pic:pic></a:graphicData></a:graphic>
+                    </wp:inline>
+                    """
+            }));
+            return true;
+        }
+        catch { return false; }
+    }
+
     private static string StripHtmlToText(string html)
     {
+        // script/style CONTENT is code, not prose — drop it whole, or "alert(1)" from a pasted
+        // <script> block would land in the document as body text.
+        html = Regex.Replace(html, @"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>", "", RegexOptions.IgnoreCase);
         // <br> → space so lines don't glue together; then drop all remaining tags and decode entities.
         var brToSpace = Regex.Replace(html, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
         var noTags = HtmlTagStrip.Replace(brToSpace, "");
@@ -1265,8 +1460,11 @@ public sealed class DocxExportService
 
         if (link.IsImage)
         {
-            // Images aren't embedded (would need dimension probing + local files only); the alt
-            // text survives, linked to the source when the URL is resolvable.
+            // LOCAL images embed as real Word pictures (dimensions probed via SkiaSharp, downscaled
+            // like the preview does, Obsidian ![alt|width] honored). Remote URLs stay a labeled
+            // hyperlink — the exporter is offline-first and never fetches the network.
+            if (TryEmbedLocalImage(target, link, ctx)) return;
+
             var alt = GetPlainText(link);
             var label = string.IsNullOrWhiteSpace(alt) ? "[Image]" : $"[Image: {alt}]";
             var relId = TryAddHyperlinkRel(ctx, url);

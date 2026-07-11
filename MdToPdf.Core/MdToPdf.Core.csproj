@@ -20,6 +20,10 @@
          they're inlined into the preview/export HTML (see MarkdownHtmlService.EmbedLocalImages).
          Avalonia already renders on SkiaSharp, so it's in the app's dependency graph regardless. -->
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
+    <!-- SVG rasterizer (on top of SkiaSharp): renders a diagram plugin's SVG output to a PNG so it
+         can be embedded into DOCX as the raster fallback beside the crisp SVG (see
+         DocxExportService's plugin-diagram FencedCodeBlock case). -->
+    <PackageReference Include="Svg.Skia" Version="2.0.0.5" />
   </ItemGroup>
 
 </Project>
