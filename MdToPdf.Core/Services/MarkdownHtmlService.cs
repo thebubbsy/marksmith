@@ -64,10 +64,14 @@ public sealed class MarkdownHtmlService
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
+        markdown = DiagramFenceSniffer.Apply(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
+        // Sanitize the markdig output FIRST — everything appended after this point (mermaid init,
+        // KaTeX, the lens, plugin SVGs) is our own, trusted markup and must not be filtered.
+        body = HtmlSanitizer.Apply(body);
         body = EmbedLocalImages(body);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
@@ -250,7 +254,16 @@ public sealed class MarkdownHtmlService
                 gitGraph: { useMaxWidth: false },
                 securityLevel: "strict"
             });
-            // Click-to-expand lens: wheel zooms about the cursor, drag pans, Esc / ✕ closes.
+            </script>
+            """ : "";
+
+        // Click-to-expand zoom lens — works for BOTH Mermaid and plugin (Graphviz/D2/Typst/…)
+        // diagrams, so it lives in its own script gated on either being present, NOT bundled with
+        // mermaid.js's loader (a Graphviz-only document must still get the lens without pulling in
+        // 2.5 MB of mermaid.js it never uses).
+        var hasZoomable = mermaidEnabled || body.Contains("plugin-diagram", StringComparison.Ordinal);
+        var lensScript = hasZoomable ? """
+            <script>
             window.addEventListener("DOMContentLoaded", () => {
                 const lens = document.createElement("div"); lens.id = "mk-lens";
                 lens.innerHTML = '<div id="mk-lens-stage"></div>';
@@ -270,7 +283,7 @@ public sealed class MarkdownHtmlService
                     lens.classList.add("open"); bar.style.display = "flex"; apply();
                 };
                 const closeLens = () => { lens.classList.remove("open"); bar.style.display = "none"; };
-                document.querySelectorAll(".mermaid").forEach(m =>
+                document.querySelectorAll(".mermaid, .plugin-diagram").forEach(m =>
                     m.addEventListener("click", () => { const s = m.querySelector("svg"); if (s) openLens(s); }));
                 lens.addEventListener("wheel", (e) => {
                     e.preventDefault();
@@ -293,6 +306,7 @@ public sealed class MarkdownHtmlService
         return $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
             {{mermaidScript}}
+            {{lensScript}}
             {{extraHead}}
             <style>
             body { background: {{theme.Background}}; color: {{theme.Text}}; font-family: {{bodyFontFamily}}; line-height: 1.6; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
@@ -346,7 +360,7 @@ public sealed class MarkdownHtmlService
             /* Plugin-rendered diagrams (e.g. PlantUML): same card treatment as .mermaid, but the SVG
                already carries its own colors from the plugin's own renderer, so no node/edge color
                overrides here. */
-            .plugin-diagram { width: fit-content; max-width: calc(100vw - 48px); margin: 32px auto; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; }
+            .plugin-diagram { width: fit-content; max-width: calc(100vw - 48px); margin: 32px auto; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
             .plugin-diagram-missing, .plugin-diagram-error { margin: 8px 0 24px; padding: 10px 14px; border-radius: 6px; font-size: 13px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; }
             @media print {
               .plugin-diagram { max-width: 100%; }

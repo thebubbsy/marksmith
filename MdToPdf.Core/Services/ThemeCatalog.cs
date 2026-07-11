@@ -2,10 +2,17 @@ using MdToPdf.Models;
 
 namespace MdToPdf.Services;
 
-// 1:1 port of the THEMES dict in md_to_pdf_tui.py — same hex values, same 10 themes.
+// 1:1 port of the THEMES dict in md_to_pdf_tui.py — same hex values, same 10 themes — plus any
+// user-created themes from the in-app theme editor. Customs are read live from CustomThemeStore on
+// every access, so a theme saved mid-session appears in every catalog instance at once (several
+// services keep their own long-lived ThemeCatalog).
 public sealed class ThemeCatalog
 {
-    public IReadOnlyList<ThemeDefinition> All { get; } = new List<ThemeDefinition>
+    public IReadOnlyList<ThemeDefinition> All => Builtin.Concat(CustomThemeStore.All).ToList();
+
+    public bool IsBuiltin(string name) => Builtin.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly List<ThemeDefinition> Builtin = new()
     {
         new("GitHub Light",    "#ffffff", "#1b1f23", "#000000", "#f6f8fa", "#d1d5da", "#000000", "#f6f8fa", "#333333"),
         new("GitHub Dark",     "#0d1117", "#c9d1d9", "#58a6ff", "#161b22", "#30363d", "#c9d1d9", "#161b22", "#8b949e"),
