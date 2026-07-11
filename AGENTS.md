@@ -405,3 +405,52 @@ and nothing is "confirmed" from one observation.**
    with it.
 7. **Never push without the user's explicit word.** Commit locally with detailed messages;
    the user says "push" when they mean it.
+
+---
+
+## 9. Plugins subsystem field notes (from the agent who built it)
+
+Everything below was learned building the eight shipped plugins; each line is a landmine that
+already went off once.
+
+- **The manifest format is a public contract with three synchronized copies**:
+  `MdToPdf.Core/Plugins/PluginManifest.cs` (the parser), `SPEC.md` + `schema/plugin.schema.json`
+  in the **marksmith-plugins repo** (github.com/thebubbsy/marksmith-plugins, private), and the
+  embedded manifests in `BuiltinPlugins.cs`. Change one -> update all three in the same sitting.
+  Pushing plugin work to that repo is user-sanctioned (it was created at their request); the
+  main marksmith repo still follows directive 7.
+- **NOTHING ships as a verified plugin without a live end-to-end run**: real download of the real
+  artifact, real subprocess, inspect the actual SVG/Markdown output (not just "non-null"). The
+  harness pattern: a scratchpad console project referencing `MdToPdf.Core.csproj`, dropping a
+  test manifest into `%LOCALAPPDATA%\MdToPdf\Plugins\<id>\`. Three real bugs were only caught
+  this way: D2's tarballs carry macOS AppleDouble `._*` junk that broke stripRoot; SharpCompress's
+  `XZStream` doesn't dispose its inner FileStream (locked archive -> delete failed); LilyPond
+  **2.26.0's** mingw build hard-crashes on compile (STATUS_STACK_BUFFER_OVERRUN) while
+  `--version` works fine — which is why the manifest pins **2.24.4**. Don't "upgrade" it without
+  compiling an actual .ly file first.
+- **LilyPond exits nonzero even on success** (SVG backend rejects the default pdf format). The
+  engine deliberately reads the output file and ignores exit codes for diagram renders — don't
+  "fix" that by failing on nonzero exit.
+- **Backslashes in embedded manifests**: writing `BuiltinPlugins.cs` via Bash-heredoc'd scripts
+  mangles `\d` -> `\d` (invalid JSON escape, crashes every PluginManager consumer at startup).
+  Use the Write/Edit tools for that file, never heredocs. The pre-existing heredoc landmine in a
+  new costume; it claimed another victim here.
+- **Download-source approvals are per-source**: the user approved Adoptium + the specific
+  upstream release channels used today (GitHub releases of the named projects, GitLab for
+  Graphviz/LilyPond, nodejs.org, npm for pinned wavedrom-cli). A plugin pulling from a *new*
+  domain needs the user's OK — the permission classifier will block the test run anyway.
+- **Checksum policy**: direct-`url` artifacts must carry `sha256` (compute it yourself by
+  downloading each platform's artifact once). `github-latest`/npm/node float by design.
+- **Where things live at runtime**: payloads + user manifests under
+  `%LOCALAPPDATA%\MdToPdf\Plugins\<id>\`. Folder name must equal manifest id; built-in ids can't
+  be overridden by drop-ins (hijack guard, tested). Malformed drop-ins surface in Settings ->
+  Plugins as warnings, not silence.
+- **Importers** (`type: "importer"`, first one: pandoc-import) hook file open/drop via
+  `PluginFileReader.ReadAsMarkdownAsync` — the ONLY place shells should read input files.
+  `.md/.markdown/.txt` always read raw; conversion failure falls back to raw read.
+- **Remaining known gaps** (deliberate, documented in the plugins repo's IDEAS.md): TikZ needs a
+  network-at-render policy decision + `renderPipeline`; Kroki needs a server-mode lifecycle and
+  its standalone jar unlocks less than it appears (mostly duplicates shipped languages).
+- **O:\ NuGet outage workaround**: `NUGET_PACKAGES=%LOCALAPPDATA%\marksmith-local-nuget` gets
+  builds going while the mapped drive is missing — set it per-command, don't change machine
+  config.

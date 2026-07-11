@@ -570,7 +570,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         string markdown;
         if (vm.UsePasteSource) markdown = vm.PastedMarkdown;
         else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-            markdown = await File.ReadAllTextAsync(vm.InputFilePath);
+            markdown = await MdToPdf.Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
         else markdown = "# Marksmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
 
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
@@ -648,10 +648,14 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private void OnSourceDrop(object? sender, DragEventArgs e)
     {
+        // Importer plugins (e.g. Pandoc) widen what "a droppable document" means — see
+        // MdToPdf.Core/Plugins/PluginFileReader for where the conversion happens on read.
+        var importerExts = AppServices.Plugins.AllImporterExtensions;
         var file = e.DataTransfer.Items
             .Select(i => i.TryGetFile())
             .Select(f => f?.TryGetLocalPath())
-            .FirstOrDefault(p => p is not null && Path.GetExtension(p) is ".md" or ".markdown" or ".txt");
+            .FirstOrDefault(p => p is not null && (Path.GetExtension(p) is ".md" or ".markdown" or ".txt"
+                || importerExts.Contains(Path.GetExtension(p).TrimStart('.').ToLowerInvariant())));
         if (file is not null)
         {
             ViewModel.InputFilePath = file;
@@ -664,7 +668,14 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             AllowMultiple = false,
-            FileTypeFilter = new[] { new FilePickerFileType("Markdown") { Patterns = new[] { "*.md", "*.markdown" } } },
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Markdown") { Patterns = new[] { "*.md", "*.markdown" } },
+                new FilePickerFileType("Importable documents")
+                {
+                    Patterns = AppServices.Plugins.AllImporterExtensions.Select(x => "*." + x).ToArray(),
+                },
+            },
         });
         var file = files.FirstOrDefault();
         if (file?.TryGetLocalPath() is { } path)

@@ -543,10 +543,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
+        var settingsView = new Views.SettingsView();
+        // Installing/removing a diagram engine changes what the open document can render, so re-run
+        // the live preview (heavy path re-invokes the plugin renderers) as soon as it happens —
+        // even while the Settings dialog is still open, so the change is visible the moment it closes.
+        settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(() => _ = RefreshPreviewAsync(heavy: true));
         var dialog = new ContentDialog
         {
             Title = "Settings",
-            Content = new Views.SettingsView(),
+            Content = settingsView,
             CloseButtonText = "Close",
             XamlRoot = Content.XamlRoot,
         };
@@ -880,7 +885,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             await _convertLock.WaitAsync();
             try
             {
-                var md = ViewModel.PrepareMarkdown(await File.ReadAllTextAsync(f));
+                var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
                 var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
                 switch (fmt)
                 {
@@ -1032,8 +1037,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
 
         var items = await e.DataView.GetStorageItemsAsync();
+        // Importer plugins (e.g. Pandoc) widen what "a droppable document" means — see
+        // MdToPdf.Core/Plugins/PluginFileReader for where the conversion happens on read.
+        var importerExts = App.Plugins.AllImporterExtensions;
         var file = items.OfType<StorageFile>()
-            .FirstOrDefault(f => f.FileType is ".md" or ".markdown" or ".txt");
+            .FirstOrDefault(f => f.FileType is ".md" or ".markdown" or ".txt"
+                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()));
         if (file is not null)
         {
             ViewModel.InputFilePath = file.Path;
@@ -1047,6 +1056,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
         picker.FileTypeFilter.Add(".md");
         picker.FileTypeFilter.Add(".markdown");
+        foreach (var ext in App.Plugins.AllImporterExtensions) picker.FileTypeFilter.Add("." + ext);
         var file = await picker.PickSingleFileAsync();
         if (file is not null)
         {
@@ -1389,7 +1399,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
         {
-            markdown = await File.ReadAllTextAsync(vm.InputFilePath);
+            markdown = await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
         }
         else
         {
