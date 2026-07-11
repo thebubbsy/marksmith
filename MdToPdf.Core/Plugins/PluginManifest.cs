@@ -19,8 +19,8 @@ public sealed class PluginManifest
     public string Homepage { get; set; } = "";
     public string License { get; set; } = "";
 
-    // "diagram" is the only type today (fenced code block -> SVG). The field exists so future
-    // types (importers, exporters, themes) can share the same manifest/install machinery.
+    // "diagram": fenced code block -> SVG (render spec). "importer": non-Markdown file ->
+    // Markdown on open/drop (import spec). Both share the same install machinery.
     public string Type { get; set; } = "diagram";
 
     public List<string> FenceLanguages { get; set; } = new();
@@ -28,6 +28,7 @@ public sealed class PluginManifest
     public PluginRuntime? Runtime { get; set; }
     public List<PluginArtifact> Artifacts { get; set; } = new();
     public PluginRenderSpec Render { get; set; } = new();
+    public PluginImportSpec? Import { get; set; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -44,17 +45,20 @@ public sealed class PluginManifest
         if (string.IsNullOrWhiteSpace(manifest.Id)) throw new InvalidOperationException("plugin.json is missing \"id\".");
         if (manifest.Type == "diagram" && manifest.FenceLanguages.Count == 0)
             throw new InvalidOperationException($"Plugin '{manifest.Id}': diagram plugins must declare fenceLanguages.");
+        if (manifest.Type == "importer" && (manifest.Import == null || manifest.Import.Extensions.Count == 0))
+            throw new InvalidOperationException($"Plugin '{manifest.Id}': importer plugins must declare import.extensions.");
         return manifest;
     }
 }
 
 // A managed runtime dependency the host knows how to provision. "jre" downloads a private
-// Eclipse Temurin JRE (via Adoptium's official API) into the plugin's folder — plugins must not
-// assume anything is on the user's PATH.
+// Eclipse Temurin JRE (via Adoptium's official API); "node" downloads the current Node.js LTS
+// (via nodejs.org's official dist index). Both land inside the plugin's folder — plugins must
+// not assume anything is on the user's PATH.
 public sealed class PluginRuntime
 {
-    public string Kind { get; set; } = "jre";
-    public int MajorVersion { get; set; } = 17;
+    public string Kind { get; set; } = "jre"; // "jre" | "node"
+    public int MajorVersion { get; set; } = 17; // jre only; node always provisions current LTS
 }
 
 // One downloadable file. os/arch null = applies everywhere; otherwise filtered to the current
@@ -69,11 +73,17 @@ public sealed class PluginArtifact
     // "url": direct download (pair with sha256 — required for registry-listed plugins).
     // "github-latest": resolve the newest release asset of `repo` matching `assetPattern`
     // (floating version, so no pin — the tradeoff for auto-tracking upstream releases).
+    // "npm": `npm install <package>` into <plugin>/npm using the plugin's provisioned Node
+    // runtime (requires runtime.kind=node) — for JS tools that aren't distributed as a
+    // self-contained bundle. The installed entry point lives at
+    // {dir}/npm/node_modules/<package>/..., and `name` is ignored.
     public string Source { get; set; } = "url";
     public string? Url { get; set; }
     public string? Sha256 { get; set; }
     public string? Repo { get; set; }
     public string? AssetPattern { get; set; }
+    public string? Package { get; set; }      // npm: package name
+    public string? PackageVersion { get; set; } // npm: exact version (recommended — pins the tree)
 
     // Archives (.zip / .tar.gz) are extracted into the plugin folder; stripRoot removes a single
     // top-level wrapper directory (the common "toolname-1.2.3/" layout).
@@ -99,6 +109,28 @@ public sealed class PluginRenderSpec
     public string InputExtension { get; set; } = ".txt";
 
     public PluginSourceWrap? Wrap { get; set; }
+}
+
+// How an importer plugin turns a non-Markdown file into Markdown. The user's real file path
+// replaces {input}; the tool prints Markdown to stdout. (No temp copies — tools like Pandoc
+// infer the input format from the file's own extension.)
+public sealed class PluginImportSpec
+{
+    // Extensions claimed, lowercase, no dot (e.g. ["rst", "org", "docx"]).
+    public List<string> Extensions { get; set; } = new();
+    public string Command { get; set; } = "";
+    // Per-OS overrides for tools whose archive layout differs by platform (e.g. Pandoc:
+    // pandoc.exe at the archive root on Windows, bin/pandoc inside the Linux/macOS tarballs).
+    public string? CommandWindows { get; set; }
+    public string? CommandLinux { get; set; }
+    public string? CommandMac { get; set; }
+    public List<string> Args { get; set; } = new();
+    public int TimeoutSeconds { get; set; } = 60;
+
+    public string EffectiveCommand =>
+        (OperatingSystem.IsWindows() ? CommandWindows
+        : OperatingSystem.IsMacOS() ? CommandMac
+        : CommandLinux) ?? Command;
 }
 
 // Optional convenience wrapper around the user's fence content before it reaches the tool — e.g.

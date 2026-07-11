@@ -1,11 +1,20 @@
+using System;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using Windows.UI;
 using MdToPdf.Plugins;
 
 namespace MdToPdf.Views;
 
 public sealed partial class SettingsView : UserControl
 {
+    // Raised after a plugin is installed or removed so the host (MainWindow) can re-render the live
+    // preview — a freshly installed diagram engine changes what the current document can render.
+    public event Action? PluginsChanged;
+
     public SettingsView()
     {
         InitializeComponent();
@@ -105,6 +114,18 @@ public sealed partial class SettingsView : UserControl
 
         var status = new TextBlock { Text = "", Opacity = 0.7, FontSize = 12, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
         var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18 };
+        // Green success tick shown once download hits 100% — animated in by ShowTick, replacing the
+        // "Downloading… 100%" spinner/text so completion reads as a clear, finished state.
+        var tick = new FontIcon
+        {
+            Glyph = "", // CheckMark
+            FontSize = 16,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0x2E, 0xA0, 0x43)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+        };
         var installButton = new Button { Content = "Install" };
         var removeButton = new Button { Content = "Remove" };
 
@@ -119,6 +140,8 @@ public sealed partial class SettingsView : UserControl
         installButton.Click += async (_, _) =>
         {
             installButton.IsEnabled = false;
+            tick.Visibility = Visibility.Collapsed;
+            tick.Opacity = 0;
             ring.IsActive = true;
             status.Text = "Downloading…";
 
@@ -133,10 +156,12 @@ public sealed partial class SettingsView : UserControl
                 DispatcherQueue.TryEnqueue(() => status.Text = $"Downloading… {percent}%");
             });
 
+            var ok = false;
             try
             {
                 await plugin.InstallAsync(progress, CancellationToken.None);
-                status.Text = "Installed.";
+                status.Text = "Downloading… 100%";
+                ok = true;
             }
             catch (Exception ex)
             {
@@ -146,13 +171,23 @@ public sealed partial class SettingsView : UserControl
             ring.IsActive = false;
             installButton.IsEnabled = true;
             Refresh();
+
+            if (ok)
+            {
+                status.Text = "Done — installed.";
+                ShowTick(tick);
+                // A new engine can change what the current document renders — refresh the preview.
+                PluginsChanged?.Invoke();
+            }
         };
 
         removeButton.Click += (_, _) =>
         {
             plugin.Uninstall();
+            tick.Visibility = Visibility.Collapsed;
             status.Text = "Removed.";
             Refresh();
+            PluginsChanged?.Invoke();
         };
 
         Refresh();
@@ -169,6 +204,7 @@ public sealed partial class SettingsView : UserControl
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 0, 0, 0),
         };
         buttons.Children.Add(ring);
+        buttons.Children.Add(tick);
         buttons.Children.Add(installButton);
         buttons.Children.Add(removeButton);
 
@@ -186,5 +222,38 @@ public sealed partial class SettingsView : UserControl
             Padding = new Thickness(16, 12, 16, 12),
             Child = grid,
         };
+    }
+
+    // Pop the success tick in: fade + a slight overshoot scale so completion feels like a positive
+    // "done", not a control quietly toggling visibility. RenderTransform scale + Opacity are both
+    // composition-independent animations, so this stays smooth without EnableDependentAnimation.
+    private static void ShowTick(FontIcon icon)
+    {
+        var scale = new ScaleTransform { ScaleX = 0.4, ScaleY = 0.4 };
+        icon.RenderTransform = scale;
+        icon.Visibility = Visibility.Visible;
+
+        var ease = new BackEase { Amplitude = 0.7, EasingMode = EasingMode.EaseOut };
+        var sb = new Storyboard();
+
+        var fade = new DoubleAnimation { From = 0, To = 1, Duration = new Duration(TimeSpan.FromMilliseconds(200)) };
+        Storyboard.SetTarget(fade, icon);
+        Storyboard.SetTargetProperty(fade, "Opacity");
+        sb.Children.Add(fade);
+
+        foreach (var axis in new[] { "ScaleX", "ScaleY" })
+        {
+            var grow = new DoubleAnimation
+            {
+                From = 0.4, To = 1,
+                Duration = new Duration(TimeSpan.FromMilliseconds(340)),
+                EasingFunction = ease,
+            };
+            Storyboard.SetTarget(grow, scale);
+            Storyboard.SetTargetProperty(grow, axis);
+            sb.Children.Add(grow);
+        }
+
+        sb.Begin();
     }
 }

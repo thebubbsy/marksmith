@@ -31,6 +31,52 @@ internal static class PluginInstall
     public static string JavaExePath(string pluginDir) =>
         Path.Combine(pluginDir, "jre", "bin", OperatingSystem.IsWindows() ? "java.exe" : "java");
 
+    // Windows zips put node.exe at the archive root; Linux/macOS tarballs put it under bin/.
+    public static string NodeExePath(string pluginDir) => OperatingSystem.IsWindows()
+        ? Path.Combine(pluginDir, "node", "node.exe")
+        : Path.Combine(pluginDir, "node", "bin", "node");
+
+    public static async Task InstallNodeAsync(HttpClient http, string pluginDir,
+        Action<double> onProgress, CancellationToken ct)
+    {
+        // nodejs.org's official dist index; first entry whose lts field isn't false is the
+        // newest LTS. (No pinned version: like the JRE provisioner, runtimes track upstream.)
+        using var indexResponse = await http.GetAsync("https://nodejs.org/dist/index.json", ct);
+        indexResponse.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await indexResponse.Content.ReadAsStreamAsync(ct));
+        string? version = null;
+        foreach (var entry in doc.RootElement.EnumerateArray())
+        {
+            var lts = entry.GetProperty("lts");
+            if (lts.ValueKind != JsonValueKind.False) { version = entry.GetProperty("version").GetString(); break; }
+        }
+        if (version == null) throw new InvalidOperationException("No LTS release found in nodejs.org dist index.");
+
+        var (os, arch) = PlatformIds();
+        var (platform, ext) = os switch
+        {
+            "windows" => ($"win-{(arch == "aarch64" ? "arm64" : "x64")}", ".zip"),
+            "mac" => ($"darwin-{(arch == "aarch64" ? "arm64" : "x64")}", ".tar.gz"),
+            _ => ($"linux-{(arch == "aarch64" ? "arm64" : "x64")}", ".tar.xz"),
+        };
+        var url = $"https://nodejs.org/dist/{version}/node-{version}-{platform}{ext}";
+
+        var archive = Path.Combine(pluginDir, "node-download" + ext);
+        try
+        {
+            await DownloadAsync(http, url, archive, expectedSize: 0, expectedSha256: null, onProgress, ct);
+            var nodeDir = Path.Combine(pluginDir, "node");
+            if (Directory.Exists(nodeDir)) Directory.Delete(nodeDir, recursive: true);
+            ExtractArchive(archive, nodeDir, stripRoot: true);
+            if (!OperatingSystem.IsWindows())
+                MakeExecutable(Path.Combine(nodeDir, "bin", "node"));
+        }
+        finally
+        {
+            if (File.Exists(archive)) File.Delete(archive);
+        }
+    }
+
     public static async Task InstallJreAsync(HttpClient http, string pluginDir, int majorVersion,
         Action<double> onProgress, CancellationToken ct)
     {
@@ -66,6 +112,13 @@ internal static class PluginInstall
     public static async Task InstallArtifactAsync(HttpClient http, string pluginDir, PluginArtifact artifact,
         Action<double> onProgress, CancellationToken ct)
     {
+        if (artifact.Source == "npm")
+        {
+            await InstallNpmPackageAsync(pluginDir, artifact, ct);
+            onProgress(1.0);
+            return;
+        }
+
         var (url, size) = artifact.Source switch
         {
             "github-latest" => await ResolveGithubLatestAsync(http, artifact, ct),
@@ -93,6 +146,49 @@ internal static class PluginInstall
         {
             if (File.Exists(archive)) File.Delete(archive);
         }
+    }
+
+    // npm install via the plugin's own provisioned Node runtime (node ships npm as
+    // node_modules/npm/bin/npm-cli.js inside the dist archive — no global npm assumed). The
+    // package tree lands in <plugin>/npm/node_modules/<package>.
+    public static async Task InstallNpmPackageAsync(string pluginDir, PluginArtifact artifact, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(artifact.Package))
+            throw new InvalidOperationException("npm artifact requires \"package\".");
+        var nodeExe = NodeExePath(pluginDir);
+        if (!File.Exists(nodeExe))
+            throw new InvalidOperationException("npm artifact requires runtime { \"kind\": \"node\" } (declare it before the artifact).");
+
+        var nodeDir = Path.GetDirectoryName(nodeExe)!;
+        var npmCli = OperatingSystem.IsWindows()
+            ? Path.Combine(nodeDir, "node_modules", "npm", "bin", "npm-cli.js")
+            : Path.Combine(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js");
+        if (!File.Exists(npmCli))
+            throw new InvalidOperationException($"npm-cli.js not found in the provisioned Node runtime ({npmCli}).");
+
+        var prefix = Path.Combine(pluginDir, "npm");
+        Directory.CreateDirectory(prefix);
+        var spec = artifact.Package + (string.IsNullOrWhiteSpace(artifact.PackageVersion) ? "" : "@" + artifact.PackageVersion);
+
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = nodeExe,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = prefix,
+        };
+        foreach (var a in new[] { npmCli, "install", spec, "--prefix", prefix, "--no-audit", "--no-fund", "--loglevel", "error" })
+            psi.ArgumentList.Add(a);
+
+        using var process = System.Diagnostics.Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start npm.");
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"npm install {spec} failed: {(await stderrTask).Trim()}");
     }
 
     private static async Task<(string url, long size)> ResolveGithubLatestAsync(HttpClient http, PluginArtifact artifact, CancellationToken ct)
@@ -148,13 +244,26 @@ internal static class PluginInstall
     {
         var isTarGz = archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase) ||
                       (archiveNameHint?.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase) ?? false);
+        var isTarXz = archivePath.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase) ||
+                      (archiveNameHint?.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase) ?? false);
 
         var tempDir = destDir.TrimEnd('/', '\\') + "-extract-tmp";
         if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
         Directory.CreateDirectory(tempDir);
         try
         {
-            if (isTarGz)
+            if (isTarXz)
+            {
+                // .NET has no built-in XZ decoder — SharpCompress supplies the XZStream; the tar
+                // inside is then handled by the same System.Formats.Tar as the .tar.gz path.
+                // Unlocks Typst/Node Linux+macOS releases, which ship exclusively as .tar.xz.
+                // The FileStream needs its own using: XZStream does NOT dispose the wrapped stream,
+                // which left the archive locked and made the post-extract delete fail.
+                using var archiveStream = File.OpenRead(archivePath);
+                using var xz = new SharpCompress.Compressors.Xz.XZStream(archiveStream);
+                TarFile.ExtractToDirectory(xz, tempDir, overwriteFiles: true);
+            }
+            else if (isTarGz)
             {
                 using var gzip = new GZipStream(File.OpenRead(archivePath), CompressionMode.Decompress);
                 TarFile.ExtractToDirectory(gzip, tempDir, overwriteFiles: true);
