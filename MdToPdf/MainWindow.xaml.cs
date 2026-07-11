@@ -166,6 +166,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // First-run: show the guided tour once the visual tree is ready (XamlRoot available).
         if (!App.Settings.Current.HasSeenWelcome)
             RootGrid.Loaded += OnFirstRunLoaded;
+
     }
 
     private void OnFirstRunLoaded(object sender, RoutedEventArgs e)
@@ -323,16 +324,133 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    // "Create a theme": a color picker per theme element, prefilled from the selected theme so users
+    // nudge a coherent starting point rather than eight black swatches. Selecting an existing CUSTOM
+    // theme turns this into its editor (Delete offered). Mirrors the Avalonia build's OnCreateThemeClick;
+    // themes persist via CustomThemeStore (shared engine) and work everywhere a built-in does.
+    private async void OnCreateThemeClick(object sender, RoutedEventArgs e)
+    {
+        var baseTheme = App.Themes.GetOrDefault(ViewModel.SelectedThemeName);
+        var editingCustom = !App.Themes.IsBuiltin(baseTheme.Name);
+
+        var nameBox = new TextBox
+        {
+            PlaceholderText = "Theme name",
+            Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
+        };
+
+        (string Label, string Hint, string Hex)[] elements =
+        {
+            ("Background", "the page itself", baseTheme.Background),
+            ("Text", "body copy", baseTheme.Text),
+            ("Headings", "titles + accent", baseTheme.Heading),
+            ("Code blocks", "code + callout fill", baseTheme.Code),
+            ("Borders", "tables, rules, boxes", baseTheme.Border),
+            ("Primary", "labels inside diagrams", baseTheme.Primary),
+            ("Panels", "quote/alert backgrounds", baseTheme.Secondary),
+            ("Lines", "diagram connectors", baseTheme.Line),
+        };
+
+        static Windows.UI.Color Parse(string hex)
+        {
+            var s = hex.TrimStart('#');
+            if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
+            return Windows.UI.Color.FromArgb(255,
+                Convert.ToByte(s.Substring(0, 2), 16), Convert.ToByte(s.Substring(2, 2), 16), Convert.ToByte(s.Substring(4, 2), 16));
+        }
+        static string Hex(Windows.UI.Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
+
+        var pickers = new ColorPicker[elements.Length];
+        var rows = new StackPanel { Spacing = 8 };
+        rows.Children.Add(nameBox);
+        for (int i = 0; i < elements.Length; i++)
+        {
+            // A full ColorPicker × 8 is a wall of color wheels — use a compact swatch that opens the
+            // picker in a flyout, so the dialog stays scannable.
+            var picker = new ColorPicker
+            {
+                Color = Parse(elements[i].Hex),
+                IsAlphaEnabled = false,
+                IsColorChannelTextInputVisible = false,
+                ColorSpectrumShape = ColorSpectrumShape.Ring,
+            };
+            pickers[i] = picker;
+
+            var swatch = new Button
+            {
+                Width = 92, Height = 30,
+                Background = new SolidColorBrush(picker.Color),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(60, 128, 128, 128)),
+                BorderThickness = new Thickness(1),
+            };
+            picker.ColorChanged += (_, args) => swatch.Background = new SolidColorBrush(args.NewColor);
+            swatch.Flyout = new Flyout { Content = picker };
+
+            var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            label.Children.Add(new TextBlock { Text = elements[i].Label });
+            label.Children.Add(new TextBlock { Text = elements[i].Hint, FontSize = 11, Opacity = 0.6 });
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(swatch, 1);
+            grid.Children.Add(label);
+            grid.Children.Add(swatch);
+            rows.Children.Add(grid);
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
+            Content = new ScrollViewer { Content = rows, MaxHeight = 480 },
+            PrimaryButtonText = "Save theme",
+            SecondaryButtonText = editingCustom ? "Delete" : null,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Secondary && editingCustom)
+        {
+            Services.CustomThemeStore.Remove(baseTheme.Name);
+            RefreshThemeNames(select: App.Themes.All[0].Name);
+            return;
+        }
+        if (result != ContentDialogResult.Primary) return;
+
+        var name = (nameBox.Text ?? "").Trim();
+        if (name.Length == 0) name = "My theme";
+        if (App.Themes.IsBuiltin(name)) name += " (custom)"; // never shadow a stock theme name
+
+        Services.CustomThemeStore.AddOrUpdate(new Models.ThemeDefinition(
+            name,
+            Hex(pickers[0].Color), Hex(pickers[1].Color), Hex(pickers[2].Color), Hex(pickers[3].Color),
+            Hex(pickers[4].Color), Hex(pickers[5].Color), Hex(pickers[6].Color), Hex(pickers[7].Color)));
+        RefreshThemeNames(select: name);
+    }
+
+    private void RefreshThemeNames(string select)
+    {
+        ViewModel.ThemeNames.Clear();
+        foreach (var t in App.Themes.All) ViewModel.ThemeNames.Add(t.Name);
+        ViewModel.SelectedThemeName = select; // triggers preview refresh
+    }
+
     private void OnTakeTourClick(object sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
 
     // The first-run guided tour. Auto-shown once (gated on settings.HasSeenWelcome); the title-bar
     // tour button replays it. A borderless dialog hosting the WelcomeTour control, closed when the
-    // tour raises Completed.
+    // tour raises Completed. Finishing (not skipping) can then load a sample document and hand off
+    // to the TeachingTip walkthrough of the real controls, per the checkboxes on the final page.
     private async Task ShowWelcomeTourAsync()
     {
+        Views.WelcomeTour? tour = null;
         try
         {
-            var tour = new Views.WelcomeTour();
+            tour = new Views.WelcomeTour();
             var dialog = new ContentDialog
             {
                 Content = tour,
@@ -342,13 +460,131 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             tour.Completed += (_, _) => dialog.Hide();
             await dialog.ShowAsync();
         }
-        catch { /* never let the tour crash the app (dialog already open, XAML load, etc.) */ }
+        catch (Exception ex)
+        {
+            // Never let the tour crash the app — but never hide the failure either. A silent
+            // catch here shipped a dead "?" button once already.
+            ViewModel.StatusText = $"Tour failed to open: {ex.GetType().Name}: {ex.Message}";
+        }
 
         if (!App.Settings.Current.HasSeenWelcome)
         {
             App.Settings.Current.HasSeenWelcome = true;
             App.Settings.Save();
         }
+
+        if (tour?.LoadSampleRequested == true) LoadSampleDocument();
+        if (tour?.GuidedTourRequested == true) StartGuidedTour();
+    }
+
+    // A showcase document for the tour: something in every direction the app is good at —
+    // detection-worthy prose, a table, KaTeX math, a Mermaid diagram (built-in), and a PlantUML
+    // fence. If the PlantUML plugin isn't installed the preview shows its "install this plugin"
+    // affordance instead, which is itself worth discovering. Only offered from the tour, and only
+    // replaces the editor when the user hasn't typed anything (never clobber real work).
+    private const string SampleMarkdown = """
+        # Quarterly Review — Sample Document
+
+        This is a **sample** so you can try Marksmith without hunting for a Markdown file.
+        Restyle it on the right, then hit **Generate PDF** below.
+
+        > [!TIP]
+        > Everything here survives export: the table, the math, and the diagrams.
+
+        ## Numbers that hold up
+
+        | Region | Revenue | Change |
+        |--------|---------|--------|
+        | APAC   | $4.2M   | +12%   |
+        | EU     | $3.1M   | +5%    |
+        | US     | $5.5M   | +9%    |
+
+        Reserves follow $R = \sum_{i=1}^{n} p_i \cdot L_i$ — and in Word export this becomes a
+        real, editable equation, not a picture.
+
+        ## A live diagram
+
+        ```mermaid
+        flowchart LR
+          A[Paste a chat] --> B{Marksmith}
+          B --> C[Polished PDF]
+          B --> D[Editable Word]
+        ```
+
+        ## Plugin engines
+
+        ```plantuml
+        You -> Marksmith: paste markdown
+        Marksmith --> You: finished document
+        ```
+
+        Six diagram languages render from plain code fences — Mermaid is built in, and PlantUML,
+        Graphviz, D2, Typst and Vega-Lite are one-click installs in **Settings → Plugins**.
+        """;
+
+    private void LoadSampleDocument()
+    {
+        if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown)) return;
+        ViewModel.UsePasteSource = true;
+        ViewModel.PastedMarkdown = SampleMarkdown;
+    }
+
+    // ---- Guided walkthrough: one reusable TeachingTip (TourTip in MainWindow.xaml) retargeted
+    // across the real controls, so new users see where things ARE, not just what they're called.
+
+    private sealed record TourStep(FrameworkElement Target, string Title, string Subtitle);
+    private List<TourStep>? _tourSteps;
+    private int _tourIndex;
+
+    private void StartGuidedTour()
+    {
+        _tourSteps = new List<TourStep>
+        {
+            new(SourceSelector, "1 · Source",
+                "Paste Markdown here, or switch to File to pick one — Marksmith finds real .md files across Downloads, Documents and OneDrive. It detects which AI wrote the text and cleans its quirks."),
+            new(StyleCard, "2 · Style",
+                "Theme, page width, table of contents, cleanup switches — the preview re-renders live as you change them. Save a look you like as a preset at the top."),
+            new(PreviewWebView, "3 · Live preview",
+                "Exactly what exports. Diagrams render right here — click one to open a full-screen pan-and-zoom view."),
+            new(GeneratePdfButton, "Export · PDF",
+                "Pixel-perfect PDF via the Chromium print pipeline. The output lands next to your input file unless you pick a folder above."),
+            new(ExportDocxButton, "Export · Word",
+                "A real DOCX: editable equations, diagrams as native Word shapes, a self-updating table of contents. This one's part of Pro (14-day trial included)."),
+            new(AutomationExpander, "Hands-free",
+                "Watch the clipboard or a folder and convert automatically, or drive Marksmith from scripts with the local REST API."),
+            new(SettingsButton, "Settings & plugins",
+                "Advanced mode, your license, and the Plugins tab — one-click installs for the PlantUML, Graphviz, D2, Typst and Vega-Lite diagram engines."),
+            new(TourButton, "That's the lot",
+                "Replay the tour from this button anytime. Now paste something real and make it look like you wrote it."),
+        };
+        _tourIndex = 0;
+        ShowTourStep();
+    }
+
+    private void ShowTourStep()
+    {
+        if (_tourSteps is null || _tourIndex >= _tourSteps.Count) { EndGuidedTour(); return; }
+        var step = _tourSteps[_tourIndex];
+        TourTip.IsOpen = false;
+        TourTip.Target = step.Target;
+        TourTip.Title = step.Title;
+        TourTip.Subtitle = step.Subtitle;
+        TourTip.ActionButtonContent = _tourIndex == _tourSteps.Count - 1 ? "Finish" : $"Next ({_tourIndex + 1}/{_tourSteps.Count})";
+        TourTip.IsOpen = true;
+    }
+
+    private void OnTourTipNext(TeachingTip sender, object args)
+    {
+        _tourIndex++;
+        if (_tourSteps is not null && _tourIndex < _tourSteps.Count) ShowTourStep();
+        else EndGuidedTour();
+    }
+
+    private void EndGuidedTour()
+    {
+        TourTip.IsOpen = false;
+        _tourSteps = null;
+        _tourIndex = 0;
     }
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
