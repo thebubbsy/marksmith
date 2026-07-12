@@ -21,8 +21,13 @@ public sealed class PluginManager
 
     // Content hash -> rendered SVG (or null for "failed"). Diagram plugins render out-of-process,
     // which costs real wall-clock time (subprocess round-trip); the live preview re-renders on
-    // every debounced keystroke, so an unchanged fence must be free the second time.
+    // every debounced keystroke, so an unchanged fence must be free the second time. Bounded: the
+    // preview produces a new key on every keystroke (each intermediate diagram source is distinct),
+    // so an unbounded cache leaks monotonically over a long editing session. When it exceeds the
+    // cap, the oldest half is dropped (insertion-ordered by _cacheOrder).
+    private const int RenderCacheCap = 256;
     private readonly ConcurrentDictionary<string, string?> _renderCache = new();
+    private readonly ConcurrentQueue<string> _cacheOrder = new();
 
     public PluginManager()
     {
@@ -132,7 +137,12 @@ public sealed class PluginManager
         var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw)));
         if (_renderCache.TryGetValue(key, out var cached)) return cached;
         var svg = plugin.RenderToSvg(diagramSource, theme);
-        _renderCache[key] = svg;
+        if (_renderCache.TryAdd(key, svg))
+        {
+            _cacheOrder.Enqueue(key);
+            while (_renderCache.Count > RenderCacheCap && _cacheOrder.TryDequeue(out var oldest))
+                _renderCache.TryRemove(oldest, out _);
+        }
         return svg;
     }
 }
