@@ -20,6 +20,10 @@ public sealed class ApiServer : IDisposable
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
+    // Ceiling for a request body (any real document paste fits comfortably). Enforced up front via
+    // Content-Length, and again while reading in case the header lies or is absent (chunked).
+    internal const long MaxBodyBytes = 25 * 1024 * 1024;
+
     private readonly LlmSourceService _llm;
     private readonly Func<IReadOnlyList<string>> _themeNames;
     private readonly Action<string, string, OutputOverride?> _ingest;      // (markdown, origin, output profile)
@@ -103,6 +107,13 @@ public sealed class ApiServer : IDisposable
 
     // Which cross-origin callers may use the local API. Exact-host matching via Uri parsing — a
     // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
+    // A browser-originated request (a web page OR any extension). Used to bar governance reads,
+    // which must not be reachable from a page/extension even though IsAllowedOrigin permits the
+    // extension for its normal ingest/report flow. Empty/"null" (non-browser or opaque) is NOT a
+    // browser origin.
+    private static bool IsBrowserOrigin(string? origin) =>
+        !string.IsNullOrEmpty(origin) && origin != "null";
+
     private static bool IsAllowedOrigin(string? origin)
     {
         // No Origin header: a non-browser client (script, curl, the extension's direct fetch).
@@ -152,6 +163,16 @@ public sealed class ApiServer : IDisposable
             var method = ctx.Request.HttpMethod;
 
             if (method == "OPTIONS") { ctx.Response.StatusCode = 204; return; }
+
+            // Reject oversized bodies before reading them. HttpListener imposes no limit, so a
+            // multi-GB POST to /api/convert would be read into a single string and OOM the process
+            // (the outer catch can't help — the allocation already failed). 25 MB comfortably fits
+            // any real document paste.
+            if (method == "POST" && ctx.Request.ContentLength64 > MaxBodyBytes)
+            {
+                await WriteJsonAsync(ctx, 413, new { error = "request body too large" });
+                return;
+            }
 
             switch (method, path)
             {
@@ -207,8 +228,7 @@ public sealed class ApiServer : IDisposable
 
                 case ("POST", "/api/governance/report"):
                 {
-                    using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
-                    var body = await reader.ReadToEndAsync();
+                    var body = await ReadBoundedBodyAsync(ctx);
                     var r = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<GovReport>(body, JsonOpts);
                     if (r is null) { await WriteJsonAsync(ctx, 400, new { error = "empty report" }); break; }
 
@@ -261,11 +281,18 @@ public sealed class ApiServer : IDisposable
                     break;
                 }
 
+                // Governance READS expose recorded DLP/usage data (redacted context, categories,
+                // URLs). A blanket chrome-extension:// allow (see IsAllowedOrigin) would let ANY
+                // installed browser extension read the org's captured log. These reads are for the
+                // app's own UI (in-process) and local admin tooling, so restrict them to non-browser
+                // callers (no/opaque Origin) — a browser or extension Origin is refused.
                 case ("GET", "/api/governance/events"):
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "governance data is not readable cross-origin" }); break; }
                     await WriteJsonAsync(ctx, 200, _governance.Recent());
                     break;
 
                 case ("GET", "/api/governance/summary"):
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "governance data is not readable cross-origin" }); break; }
                     await WriteJsonAsync(ctx, 200, _governance.Summary());
                     break;
 
@@ -286,10 +313,26 @@ public sealed class ApiServer : IDisposable
 
     private static async Task<ApiRequest?> ReadBodyAsync(HttpListenerContext ctx)
     {
-        using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
-        var body = await reader.ReadToEndAsync();
+        var body = await ReadBoundedBodyAsync(ctx);
         if (string.IsNullOrWhiteSpace(body)) return null;
         return JsonSerializer.Deserialize<ApiRequest>(body, JsonOpts);
+    }
+
+    // Reads the body but stops at MaxBodyBytes even if Content-Length was absent or understated
+    // (chunked transfer-encoding), returning null past the cap so a lying client can't stream an
+    // unbounded body into memory.
+    internal static async Task<string?> ReadBoundedBodyAsync(HttpListenerContext ctx)
+    {
+        var buffer = new char[8192];
+        var sb = new System.Text.StringBuilder();
+        using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
+        int read;
+        while ((read = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            sb.Append(buffer, 0, read);
+            if (sb.Length > MaxBodyBytes) return null;
+        }
+        return sb.ToString();
     }
 
     private static async Task WriteJsonAsync(HttpListenerContext ctx, int status, object payload)

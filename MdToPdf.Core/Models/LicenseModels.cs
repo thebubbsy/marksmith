@@ -27,4 +27,8 @@ public sealed class StoredLicense
     public string? Email { get; set; }
     public string? InstanceId { get; set; }          // Lemon Squeezy activation instance, if used
     public DateTimeOffset? TrialStartUtc { get; set; }
+    // Highest wall-clock time ever observed (monotonic; never decreases). Lets the trial detect a
+    // clock rollback — if the current time is before this, the system clock was moved back and the
+    // trial is evaluated against LastSeenUtc instead, so winding the clock back can't revive it.
+    public DateTimeOffset? LastSeenUtc { get; set; }
 }

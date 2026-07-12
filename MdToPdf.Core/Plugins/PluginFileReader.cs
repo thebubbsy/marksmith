@@ -6,6 +6,12 @@ namespace MdToPdf.Plugins;
 // app's original behavior exactly when no importer is involved.
 public static class PluginFileReader
 {
+    // Caps concurrent importer subprocesses. Without it, a front-end handling several imports at
+    // once (e.g. the local API server, or a multi-file drop) spawns one pandoc process per file
+    // simultaneously — a resource-exhaustion vector. Conversions still all complete; only a bounded
+    // number run at any instant.
+    private static readonly SemaphoreSlim ImportGate = new(Math.Max(2, Environment.ProcessorCount / 2));
+
     public static async Task<string> ReadAsMarkdownAsync(string path)
     {
         var ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
@@ -15,10 +21,15 @@ public static class PluginFileReader
         var importer = AppServices.Plugins.FindImporter(ext);
         if (importer != null)
         {
-            // Conversion is CPU/subprocess-bound; don't block the UI thread that preview refresh
-            // and drag-drop handlers run on.
-            var markdown = await Task.Run(() => importer.ImportToMarkdown(path));
-            if (markdown != null) return markdown;
+            await ImportGate.WaitAsync();
+            try
+            {
+                // Conversion is CPU/subprocess-bound; don't block the UI thread that preview refresh
+                // and drag-drop handlers run on.
+                var markdown = await Task.Run(() => importer.ImportToMarkdown(path));
+                if (markdown != null) return markdown;
+            }
+            finally { ImportGate.Release(); }
         }
 
         return await File.ReadAllTextAsync(path);
