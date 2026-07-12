@@ -38,7 +38,12 @@ public sealed class LicenseService
     public void Load()
     {
         _stored = ReadStored();
-        if (_stored.TrialStartUtc is null) { _stored.TrialStartUtc = DateTimeOffset.UtcNow; WriteStored(); }
+        var now = DateTimeOffset.UtcNow;
+        var dirty = false;
+        if (_stored.TrialStartUtc is null) { _stored.TrialStartUtc = now; dirty = true; }
+        // Advance the monotonic clock anchor to max(seen, now) — it never decreases.
+        if (_stored.LastSeenUtc is not { } seen || now > seen) { _stored.LastSeenUtc = now; dirty = true; }
+        if (dirty) WriteStored();
         Recompute();
     }
 
@@ -118,11 +123,18 @@ public sealed class LicenseService
             return;
         }
 
-        // 2) trial window
-        var trialEnd = (_stored.TrialStartUtc ?? DateTimeOffset.UtcNow).AddDays(TrialDays);
-        if (DateTimeOffset.UtcNow < trialEnd)
+        // 2) trial window. "Effective now" is the LATER of the wall clock and the highest time ever
+        //    seen — so rolling the system clock back can't extend or revive the trial (the audit's
+        //    rollback vector), and a TrialStartUtc that somehow sits in the future (clock was ahead
+        //    at first run) can't grant an unending trial either.
+        var now = DateTimeOffset.UtcNow;
+        var effectiveNow = _stored.LastSeenUtc is { } seen && seen > now ? seen : now;
+        var trialStart = _stored.TrialStartUtc ?? effectiveNow;
+        if (trialStart > effectiveNow) trialStart = effectiveNow; // future start → treat as now
+        var trialEnd = trialStart.AddDays(TrialDays);
+        if (effectiveNow < trialEnd)
         {
-            var daysLeft = Math.Max(1, (int)Math.Ceiling((trialEnd - DateTimeOffset.UtcNow).TotalDays));
+            var daysLeft = Math.Max(1, (int)Math.Ceiling((trialEnd - effectiveNow).TotalDays));
             State = new LicenseState
             {
                 Edition = Edition.Trial,
@@ -158,7 +170,7 @@ public sealed class LicenseService
 
     private void WriteStored()
     {
-        try { File.WriteAllText(_path, JsonSerializer.Serialize(_stored, JsonOpts)); }
+        try { AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_stored, JsonOpts)); }
         catch { /* best-effort persistence */ }
     }
 }

@@ -39,6 +39,6 @@ public sealed class SettingsService
     {
         Directory.CreateDirectory(ConfigDir);
         var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(SettingsPath, json);
+        AtomicFile.WriteAllText(SettingsPath, json);
     }
 }

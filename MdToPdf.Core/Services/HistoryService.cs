@@ -27,7 +27,7 @@ public sealed class HistoryService
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
-            File.WriteAllText(HistoryPath, JsonSerializer.Serialize(_entries));
+            AtomicFile.WriteAllText(HistoryPath, JsonSerializer.Serialize(_entries));
         }
         catch { /* history is best-effort; never fail an export over it */ }
     }

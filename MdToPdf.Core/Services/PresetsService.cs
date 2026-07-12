@@ -27,7 +27,7 @@ public sealed class PresetsService
         try
         {
             Directory.CreateDirectory(Dir);
-            File.WriteAllText(Path_, JsonSerializer.Serialize(presets, Opts));
+            AtomicFile.WriteAllText(Path_, JsonSerializer.Serialize(presets, Opts));
         }
         catch { /* best-effort */ }
     }

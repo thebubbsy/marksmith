@@ -52,22 +52,35 @@ public sealed class UpdateService
     }
 
     // Numeric dotted-version compare; returns >0 if a is newer than b.
-    private static int Compare(string a, string b)
+    // Compares two versions. Handles up to four numeric components (a build-number-only bump like
+    // 1.0.0.9 vs 1.0.0.5 is now detected) and treats a prerelease as LOWER than the same x.y.z
+    // stable (1.2.0-beta < 1.2.0), per SemVer — so a stable release is offered over a prerelease
+    // of the same core version, and the two aren't reported "equal".
+    internal static int Compare(string a, string b)
     {
-        int[] pa = Parse(a), pb = Parse(b);
-        for (var i = 0; i < 3; i++)
+        var (na, pra) = Parse(a);
+        var (nb, prb) = Parse(b);
+        for (var i = 0; i < 4; i++)
         {
-            var c = pa[i].CompareTo(pb[i]);
+            var c = na[i].CompareTo(nb[i]);
             if (c != 0) return c;
         }
+        // Equal numeric core: a prerelease (has a suffix) ranks below a stable (no suffix).
+        if (pra == prb) return 0;
+        if (pra && !prb) return -1;
+        if (!pra && prb) return 1;
         return 0;
     }
 
-    private static int[] Parse(string v)
+    private static (int[] Numbers, bool IsPrerelease) Parse(string v)
     {
-        var parts = v.Split('.', '-');
-        var r = new int[3];
-        for (var i = 0; i < 3 && i < parts.Length; i++) int.TryParse(parts[i], out r[i]);
-        return r;
+        v = v.TrimStart('v', 'V').Trim();
+        var dash = v.IndexOf('-');
+        var isPre = dash >= 0;
+        var core = isPre ? v[..dash] : v;
+        var parts = core.Split('.');
+        var r = new int[4];
+        for (var i = 0; i < 4 && i < parts.Length; i++) int.TryParse(parts[i], out r[i]);
+        return (r, isPre);
     }
 }
