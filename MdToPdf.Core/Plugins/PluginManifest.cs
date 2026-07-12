@@ -109,6 +109,21 @@ public sealed class PluginRenderSpec
     public string InputExtension { get; set; } = ".txt";
 
     public PluginSourceWrap? Wrap { get; set; }
+
+    // Theme-matching: a snippet of the tool's own styling syntax, with
+    // {themeBackground}/{themeText}/{themeLine}/{themeAccent} placeholders, injected into the
+    // diagram source at render time so output matches the document theme (the same colors
+    // Mermaid gets via themeVariables). "afterStartTag" inserts after the first line starting
+    // with the tool's start delimiter (PlantUML's @startuml — skinparams must sit inside the
+    // block); "prepend" puts it before everything (Typst #set rules). The theme placeholders are
+    // also expanded in Args, for CLI-flag theming (Graphviz -Ncolor=...).
+    public PluginThemeInject? ThemeInject { get; set; }
+}
+
+public sealed class PluginThemeInject
+{
+    public string Text { get; set; } = "";
+    public string Mode { get; set; } = "prepend"; // "prepend" | "afterStartTag"
 }
 
 // How an importer plugin turns a non-Markdown file into Markdown. The user's real file path
