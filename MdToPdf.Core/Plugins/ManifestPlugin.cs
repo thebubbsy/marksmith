@@ -168,7 +168,27 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
         return command;
     }
 
-    public string? RenderToSvg(string diagramSource)
+    public bool IsThemeAware => _manifest.Render.ThemeInject != null ||
+        _manifest.Render.Args.Any(a => a.Contains("{theme", StringComparison.Ordinal));
+
+    private static string ExpandTheme(string s, PluginTheme theme) => s
+        .Replace("{themeBackground}", theme.Background)
+        .Replace("{themeText}", theme.Text)
+        .Replace("{themeLine}", theme.Line)
+        .Replace("{themeAccent}", theme.Accent);
+
+    // Insert `styling` right after the diagram's opening directive line (e.g. PlantUML's
+    // "@startuml") — skinparams have to live INSIDE the @startuml/@enduml block. Falls back to
+    // prepending if no start directive is found.
+    private static string InsertAfterStartTag(string source, string styling)
+    {
+        var nl = source.IndexOf('\n');
+        if (nl >= 0 && source.AsSpan(0, nl).Trim().StartsWith("@start", StringComparison.OrdinalIgnoreCase))
+            return source[..(nl + 1)] + styling + "\n" + source[(nl + 1)..];
+        return styling + "\n" + source;
+    }
+
+    public string? RenderToSvg(string diagramSource, PluginTheme? theme = null)
     {
         if (State != PluginInstallState.Installed) return null;
 
@@ -181,6 +201,17 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
             {
                 diagramSource = wrap.Prefix + diagramSource.Trim() + wrap.Suffix;
             }
+
+            // Theme injection: splice the manifest's themed-styling snippet (colors filled from the
+            // document theme) into the diagram source so the engine's own output matches the theme.
+            if (theme != null && spec.ThemeInject is { } inject)
+            {
+                var styling = ExpandTheme(inject.Text, theme);
+                diagramSource = inject.Mode == "afterStartTag"
+                    ? InsertAfterStartTag(diagramSource, styling)
+                    : styling + "\n" + diagramSource;
+            }
+
             if (spec.Input == "file")
             {
                 var ext = string.IsNullOrWhiteSpace(spec.InputExtension) ? ".txt" : spec.InputExtension;
@@ -191,14 +222,19 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
                 outputFile = Path.Combine(Path.GetTempPath(), $"marksmith-{Id}-{Guid.NewGuid():N}.svg");
 
             // {outputBase} = {output} minus its .svg extension, for tools (LilyPond) that take an
-            // output BASENAME and append the extension themselves.
-            string Expand(string s) => s
-                .Replace("{java}", PluginInstall.JavaExePath(RootDir))
-                .Replace("{node}", PluginInstall.NodeExePath(RootDir))
-                .Replace("{dir}", RootDir)
-                .Replace("{input}", inputFile ?? "")
-                .Replace("{outputBase}", outputFile != null ? Path.ChangeExtension(outputFile, null) : "")
-                .Replace("{output}", outputFile ?? "");
+            // output BASENAME and append the extension themselves. Theme placeholders are expanded
+            // in args too, for engines themed via CLI flags rather than injected source.
+            string Expand(string s)
+            {
+                s = s
+                    .Replace("{java}", PluginInstall.JavaExePath(RootDir))
+                    .Replace("{node}", PluginInstall.NodeExePath(RootDir))
+                    .Replace("{dir}", RootDir)
+                    .Replace("{input}", inputFile ?? "")
+                    .Replace("{outputBase}", outputFile != null ? Path.ChangeExtension(outputFile, null) : "")
+                    .Replace("{output}", outputFile ?? "");
+                return theme != null ? ExpandTheme(s, theme) : s;
+            }
 
             var psi = new ProcessStartInfo
             {
@@ -206,6 +242,10 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
                 RedirectStandardInput = spec.Input == "stdin",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // Match the UTF-8 output encoding on input too — without this, stdin uses the
+                // console's OEM/ANSI code page and mangles non-ASCII diagram text (é, →, 日本語)
+                // before the tool (which the manifests tell to read UTF-8) ever sees it.
+                StandardInputEncoding = spec.Input == "stdin" ? new System.Text.UTF8Encoding(false) : null,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -258,9 +298,10 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
                 }
             }
 
-            // Defensive: plugin output is injected raw into the preview/export HTML — never allow
-            // active content through, whatever the tool produced.
-            return Regex.Replace(svg, "<script.*?</script>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            // Plugin output is injected raw into the preview/export HTML — never allow active
+            // content through, whatever the tool produced. Full SVG sanitize (script elements,
+            // on* handlers, javascript: hrefs, foreignObject), not just <script> stripping.
+            return SvgSanitizer.Sanitize(svg);
         }
         catch
         {

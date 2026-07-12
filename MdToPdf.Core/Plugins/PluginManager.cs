@@ -37,7 +37,10 @@ public sealed class PluginManager
         var seenIds = new HashSet<string>(plugins.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
         if (Directory.Exists(PluginsBaseDir))
         {
-            foreach (var dir in Directory.GetDirectories(PluginsBaseDir))
+            // Sort so plugin precedence (which of two same-language plugins is authoritative) is
+            // deterministic across machines — Directory.GetDirectories order is filesystem-defined.
+            foreach (var dir in Directory.GetDirectories(PluginsBaseDir)
+                         .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
             {
                 var manifestPath = Path.Combine(dir, "plugin.json");
                 if (!File.Exists(manifestPath)) continue; // payload-only folder (e.g. a built-in's install dir)
@@ -67,10 +70,23 @@ public sealed class PluginManager
         LoadWarnings = warnings;
     }
 
+    // The INSTALLED renderer for this language, if any. Scans all claimants and returns the first
+    // installed one — an earlier-enumerated but uninstalled plugin claiming the same language must
+    // not mask a later installed one (which would show "install the plugin" for a plugin the user
+    // already has).
     public IDiagramPlugin? FindDiagramRenderer(string fenceLanguage)
     {
-        var plugin = FindAnyDiagramPlugin(fenceLanguage);
-        return plugin?.State == PluginInstallState.Installed ? plugin : null;
+        IDiagramPlugin? firstClaimant = null;
+        foreach (var plugin in All)
+        {
+            if (plugin is IDiagramPlugin diagram &&
+                diagram.FenceLanguages.Contains(fenceLanguage, StringComparer.OrdinalIgnoreCase))
+            {
+                if (plugin.State == PluginInstallState.Installed) return diagram;
+                firstClaimant ??= diagram;
+            }
+        }
+        return null;
     }
 
     // Matches by fence language regardless of install state — lets callers distinguish "no plugin
@@ -105,11 +121,17 @@ public sealed class PluginManager
     public IReadOnlyList<string> AllImporterExtensions =>
         All.OfType<IImporterPlugin>().SelectMany(p => p.ImportExtensions).Distinct().ToList();
 
-    public string? RenderToSvgCached(IDiagramPlugin plugin, string diagramSource)
+    public string? RenderToSvgCached(IDiagramPlugin plugin, string diagramSource, PluginTheme? theme = null)
     {
-        var key = plugin.Id + ":" + diagramSource.GetHashCode();
+        // Content-addressed key: SHA256 of id + source (+ theme colors, since the same source
+        // renders differently under a different theme). string.GetHashCode() was a 32-bit,
+        // collidable hash — two different diagrams could collide and the second would silently
+        // render as the first (wrong-diagram bug, the worst kind for a document tool).
+        var themeKey = theme is null ? "" : $"{theme.Background}|{theme.Text}|{theme.Line}|{theme.Accent}";
+        var raw = plugin.Id + "\0" + themeKey + "\0" + diagramSource;
+        var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw)));
         if (_renderCache.TryGetValue(key, out var cached)) return cached;
-        var svg = plugin.RenderToSvg(diagramSource);
+        var svg = plugin.RenderToSvg(diagramSource, theme);
         _renderCache[key] = svg;
         return svg;
     }

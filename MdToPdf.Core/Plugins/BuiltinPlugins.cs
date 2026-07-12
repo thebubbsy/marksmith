@@ -39,7 +39,11 @@ internal static class BuiltinPlugins
             "input": "stdin",
             "output": "stdout",
             "timeoutSeconds": 20,
-            "wrap": { "prefix": "@startuml\n", "suffix": "\n@enduml", "unlessContains": "@start" }
+            "wrap": { "prefix": "@startuml\n", "suffix": "\n@enduml", "unlessContains": "@start" },
+            "themeInject": {
+              "mode": "afterStartTag",
+              "text": "skinparam backgroundColor transparent\nskinparam defaultFontColor {themeText}\nskinparam ArrowColor {themeLine}\nskinparam ArrowFontColor {themeText}\nskinparam SequenceLifeLineBorderColor {themeLine}\nskinparam ParticipantBackgroundColor {themeBackground}\nskinparam ParticipantBorderColor {themeLine}\nskinparam ParticipantFontColor {themeText}\nskinparam ActorBackgroundColor {themeBackground}\nskinparam ActorBorderColor {themeLine}\nskinparam ActorFontColor {themeText}\nskinparam NoteBackgroundColor {themeBackground}\nskinparam NoteBorderColor {themeLine}\nskinparam NoteFontColor {themeText}\nskinparam ClassBackgroundColor {themeBackground}\nskinparam ClassBorderColor {themeLine}\nskinparam ClassFontColor {themeText}\nskinparam ClassAttributeFontColor {themeText}\nskinparam StateBackgroundColor {themeBackground}\nskinparam StateBorderColor {themeLine}\nskinparam StateFontColor {themeText}\nskinparam ActivityBackgroundColor {themeBackground}\nskinparam ActivityBorderColor {themeLine}\nskinparam ActivityFontColor {themeText}\nskinparam EntityBackgroundColor {themeBackground}\nskinparam EntityBorderColor {themeLine}\nskinparam EntityFontColor {themeText}"
+            }
           }
         }
         """,
@@ -156,7 +160,7 @@ internal static class BuiltinPlugins
           ],
           "render": {
             "command": "{dir}/bin/dot",
-            "args": ["-Tsvg"],
+            "args": ["-Tsvg", "-Gbgcolor=transparent", "-Ncolor={themeLine}", "-Nfontcolor={themeText}", "-Ecolor={themeLine}", "-Efontcolor={themeText}", "-Gfontcolor={themeText}"],
             "input": "stdin",
             "output": "stdout",
             "timeoutSeconds": 20

@@ -132,6 +132,7 @@ public sealed class MarkdownHtmlService
         // inside the WebView), a diagram plugin renders out-of-process, synchronously, right here —
         // by the time this HTML reaches the browser the SVG already exists. See
         // MdToPdf.Plugins.IDiagramPlugin / PluginManager.
+        var pluginTheme = Plugins.PluginTheme.From(theme);
         body = Regex.Replace(body,
             "<pre><code class=\"language-([\\w-]+)\">(.*?)</code></pre>",
             m =>
@@ -141,14 +142,25 @@ public sealed class MarkdownHtmlService
                 if (installed != null)
                 {
                     var decoded = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value);
-                    var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded);
-                    if (svg != null) return $"<div class=\"plugin-diagram\">{svg}</div>";
-                    return m.Value + "<div class=\"plugin-diagram-error\">⚠ " + installed.Name + " couldn't render this diagram — check the syntax.</div>";
+                    var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded, pluginTheme);
+                    if (svg != null)
+                    {
+                        // Theme-aware engines (PlantUML skinparams, Graphviz flags) already rendered
+                        // on-theme, so their SVG must NOT be filtered. Non-theme-aware engines emit
+                        // artwork assuming a light page (black strokes, transparent bg) which is
+                        // invisible on a dark theme (the PlantUML-arrows-on-black bug) — those get
+                        // the auto-invert treatment on dark themes so they stay legible.
+                        var cls = installed.IsThemeAware ? "plugin-diagram" : "plugin-diagram plugin-diagram-autoinvert";
+                        return $"<div class=\"{cls}\">{svg}</div>";
+                    }
+                    // installed.Name is author-controlled (a dropped-in plugin.json) and lands in the
+                    // WebView DOM — escape it (same for the missing-plugin hint below).
+                    return m.Value + "<div class=\"plugin-diagram-error\">⚠ " + System.Net.WebUtility.HtmlEncode(installed.Name) + " couldn't render this diagram — check the syntax.</div>";
                 }
 
                 var known = AppServices.Plugins.FindAnyDiagramPlugin(language);
                 if (known != null)
-                    return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{known.Name}</b> plugin (Settings → Plugins) to render this diagram.</div>";
+                    return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{System.Net.WebUtility.HtmlEncode(known.Name)}</b> plugin (Settings → Plugins) to render this diagram.</div>";
 
                 return m.Value;
             },
@@ -168,6 +180,12 @@ public sealed class MarkdownHtmlService
 
         var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
+
+        // Plugin diagrams (PlantUML, Graphviz, D2, …) emit their own SVG with fixed dark-on-white
+        // line art, so on a dark theme that white slab jars against the page. Flip the art to light
+        // with the canonical invert + hue-rotate trick (keeps real colours roughly hue-correct);
+        // light themes leave it untouched. The frame around it is themed in CSS below, like .mermaid.
+        var pluginDiagramSvgFilter = isDark ? "filter: invert(1) hue-rotate(180deg);" : "";
 
         var extraHead = BuildExtraHead(body, isDark);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -326,6 +344,14 @@ public sealed class MarkdownHtmlService
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
             .mermaid { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
             .mermaid svg { max-width: none !important; }
+            /* Plugin diagrams get the same themed frame as .mermaid so they belong to the page.
+               Theme-aware engines (see IsThemeAware) render on-theme and are shown as-is; engines
+               that don't theme their own output get .plugin-diagram-autoinvert, whose line art is
+               inverted on dark themes for legibility (pluginDiagramSvgFilter). */
+            .plugin-diagram { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
+            .plugin-diagram svg { max-width: 100%; height: auto; }
+            .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
+            .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
             /* Diagrams recovered from a string literal inside a code EXAMPLE (not a real ```mermaid
                fence) sit directly under that code block instead of floating at the normal 32px
                diagram margin, and get a small caption so it reads as "this is what the code above
@@ -357,11 +383,6 @@ public sealed class MarkdownHtmlService
             .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect { stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
             .mermaid .label { color: {{theme.Primary}} !important; }
-            /* Plugin-rendered diagrams (e.g. PlantUML): same card treatment as .mermaid, but the SVG
-               already carries its own colors from the plugin's own renderer, so no node/edge color
-               overrides here. */
-            .plugin-diagram { width: fit-content; max-width: calc(100vw - 48px); margin: 32px auto; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
-            .plugin-diagram-missing, .plugin-diagram-error { margin: 8px 0 24px; padding: 10px 14px; border-radius: 6px; font-size: 13px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; }
             @media print {
               .plugin-diagram { max-width: 100%; }
               .plugin-diagram-missing, .plugin-diagram-error { display: none; }
