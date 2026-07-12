@@ -37,8 +37,11 @@ public sealed class RecentFilesService
         files.Insert(0, full);
         files = files.Take(MaxRecentFiles).ToList();
 
-        Directory.CreateDirectory(ConfigDir);
-        File.WriteAllText(RecentFilesPath, JsonSerializer.Serialize(files));
+        // Persisting the recent list must never break the file-open flow it's part of — a
+        // read-only/full/locked config dir should degrade to "recents not saved", not throw out of
+        // the caller's open-document path. (Load is already guarded the same way.)
+        try { AtomicFile.WriteAllText(RecentFilesPath, JsonSerializer.Serialize(files)); }
+        catch { /* non-critical feature; keep the in-memory list */ }
         return files;
     }
 }

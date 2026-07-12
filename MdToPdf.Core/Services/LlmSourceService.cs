@@ -19,7 +19,10 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"\\\[(.+?)\\\]", RegexOptions.Singleline)] private static partial Regex LatexBlock();
     [GeneratedRegex(@"\\\((.+?)\\\)", RegexOptions.Singleline)] private static partial Regex LatexInline();
     [GeneratedRegex(@"^\*\*([^*\n]{3,80})\*\*:?\s*$", RegexOptions.Multiline)] private static partial Regex BoldPseudoHeading();
-    [GeneratedRegex(@"^(Copy code|Copy)\s*$", RegexOptions.Multiline)] private static partial Regex CopyCodeButtons();
+    // "Copy code" is an unambiguous ChatGPT copy-button artifact — always strip it. A BARE "Copy"
+    // line is only stripped when it sits directly above a code fence (the button's position), so a
+    // legitimate standalone "Copy" in prose (a UI walkthrough step, a one-word list item) survives.
+    [GeneratedRegex(@"^Copy code[ \t]*$|^Copy[ \t]*$(?=\r?\n[ \t]*```)", RegexOptions.Multiline)] private static partial Regex CopyCodeButtons();
     [GeneratedRegex(@"^(ChatGPT can make mistakes\..*|Gemini can make mistakes.*|Claude can make mistakes.*)$", RegexOptions.Multiline)] private static partial Regex DisclaimerFooters();
     [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();

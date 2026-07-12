@@ -454,7 +454,18 @@ public sealed class DocxExportService
                     target.Append(para);
                 }
                 else
+                {
+                    // The plugin DID render an SVG but Word can't embed it (SvgShapeForge couldn't
+                    // parse it AND rasterization failed — e.g. an SVG using a filter/foreignObject
+                    // Svg.Skia chokes on). PDF/preview show the diagram, so silently dumping the raw
+                    // @startuml source here as if it were meant to be code is the pipeline-divergence
+                    // trap. Prefix a caption so the source reads as "diagram source (rendered in the
+                    // preview/PDF)", not as an intended code listing. When svg is null (plugin not
+                    // installed or render failed) the plain code block is correct and gets no caption.
+                    if (svg is not null)
+                        target.Append(DiagramSourceCaption(plugin!.Name, ctx));
                     target.Append(CodeParagraph(pluginFence.Lines.ToString(), ctx));
+                }
                 break;
             }
 
@@ -506,6 +517,23 @@ public sealed class DocxExportService
                 var para = new W.Paragraph();
                 RenderInlines(para, p.Inline, ctx, default);
                 target.Append(para);
+                break;
+            }
+
+            case Markdig.Extensions.Footnotes.Footnote footnote:
+            {
+                // Render the footnote's own content, then tie it to the body's [n] superscript by
+                // prefixing the first paragraph with its "[order] " label. Without this the
+                // definition renders as an unlabeled orphan paragraph at the end of the document.
+                var before = target.ChildElements.Count;
+                foreach (var child in footnote)
+                    RenderBlock(child, target, ctx, -1);
+                if (target.ChildElements.Count > before && target.ChildElements[before] is W.Paragraph first)
+                {
+                    var label = new W.Run(new W.Text($"[{footnote.Order}] ") { Space = SpaceProcessingModeValues.Preserve });
+                    if (first.ParagraphProperties is { } pp) pp.InsertAfterSelf(label);
+                    else first.PrependChild(label);
+                }
                 break;
             }
 
@@ -775,6 +803,18 @@ public sealed class DocxExportService
         int w = (png[16] << 24) | (png[17] << 16) | (png[18] << 8) | png[19];
         int h = (png[20] << 24) | (png[21] << 16) | (png[22] << 8) | png[23];
         return w > 0 && h > 0 ? (w, h) : (600, 400);
+    }
+
+    // An italic caption shown above diagram SOURCE that Word couldn't embed as a picture/shapes,
+    // so the reader understands the code block below is the source of a diagram they can see in the
+    // preview/PDF, not an ordinary code listing (prevents the silent PDF↔DOCX divergence).
+    private static W.Paragraph DiagramSourceCaption(string pluginName, Ctx ctx)
+    {
+        var para = new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "120", After = "40" }));
+        AddText(para, $"{pluginName} diagram — shown in the preview and PDF; source below:",
+            new Fmt { Italic = true, Color = ctx.TextHex });
+        return para;
     }
 
     private static W.Paragraph CodeParagraph(string text, Ctx ctx)
