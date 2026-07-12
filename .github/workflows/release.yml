@@ -72,7 +72,7 @@ jobs:
           ) | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       - name: Upload WinUI release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: winui-release-assets
           path: |
@@ -146,7 +146,7 @@ jobs:
           echo "$h  Marksmith-Avalonia-${{ matrix.rid }}.zip" > checksums.txt
 
       - name: Upload Avalonia release assets (${{ matrix.rid }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: avalonia-${{ matrix.rid }}
           path: |
