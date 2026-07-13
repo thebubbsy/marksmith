@@ -465,7 +465,7 @@ public static class DocxShapeEmitter
         }
 
         return
-            "<wps:cxnSp>" +
+            "<wps:wsp>" +
             $"<wps:cNvPr id=\"{id}\" name=\"Edge {id}\"/>" +
             cxnAttr +
             "<wps:spPr>" +
@@ -475,7 +475,8 @@ public static class DocxShapeEmitter
             "<a:noFill/>" +
             $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{head}{tail}</a:ln>" +
             "</wps:spPr>" +
-            "</wps:cxnSp>";
+            "<wps:bodyPr/>" +
+            "</wps:wsp>";
     }
 
     private static string ConnectorXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
