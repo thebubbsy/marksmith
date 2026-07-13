@@ -27,6 +27,7 @@ public enum ArrowHead { None, Triangle, Open, Diamond, Oval, Stealth }
 
 public sealed class MShape
 {
+    public uint Id { get; set; }               // unique XML ID (wps:cNvPr) assigned during emission
     public ShapeKind Kind { get; set; } = ShapeKind.Rect;
     public double X { get; set; }              // pt, top-left
     public double Y { get; set; }
@@ -61,6 +62,12 @@ public sealed class MConnector
     public double LabelY { get; set; }
     public double LabelW { get; set; } = 80;
     public double LabelH { get; set; } = 14;
+
+    // Smart Connectors (anchored edges)
+    public uint? FromShapeId { get; set; }
+    public int FromConnectionSite { get; set; }
+    public uint? ToShapeId { get; set; }
+    public int ToConnectionSite { get; set; }
 
     // When set (>= 2 points, absolute pt), the connector is drawn as a freeform curve following
     // exactly these points instead of a straight/bent line — used by the exact-layout path to

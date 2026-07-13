@@ -137,6 +137,9 @@ public sealed class DocxExportService
                 MermaidExactLayout = mermaidGeometry is not null, // geometry is only harvested when exact chosen
                 MermaidGenericGeometry = mermaidGenericGeometry,
                 BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
+                OversizedDiagramMode = settings.OversizedDiagramMode,
+                DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
+                SmartConnectors = settings.SmartConnectors,
             };
 
             AddStyles(main, ctx);
@@ -274,6 +277,9 @@ public sealed class DocxExportService
         public int MermaidSeen;           // index of the next mermaid fence encountered
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
+        public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
+        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2×2, 3=3×3)
+        public bool SmartConnectors = true;
 
         public string TextHex => Hex(Theme.Text);
         public string HeadingHex => Hex(Theme.Heading);
@@ -385,13 +391,33 @@ public sealed class DocxExportService
                 if (ctx.MermaidMode == 1 && ctx.MermaidExactLayout && geo is { IsEmpty: false })
                 {
                     var md = geo.ToMDiagram(ctx.Theme);
-                    var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out _);
-                    var p = new W.Paragraph { InnerXml = xml };
-                    p.PrependChild(new W.ParagraphProperties(
-                        new W.SpacingBetweenLines { Before = "120", After = "120" },
-                        new W.Justification { Val = W.JustificationValues.Center }));
-                    ctx.ForceWebLayout = true;
-                    target.Append(p);
+                    if (ctx.OversizedDiagramMode == 3) // multi-page vertical
+                    {
+                        var drawId = ctx.NextDrawingId;
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        ctx.NextDrawingId = drawId;
+                        foreach (var bandXml in bands)
+                        {
+                            var bp = new W.Paragraph { InnerXml = bandXml };
+                            bp.PrependChild(new W.ParagraphProperties(
+                                new W.SpacingBetweenLines { Before = "60", After = "60" },
+                                new W.Justification { Val = W.JustificationValues.Center }));
+                            target.Append(bp);
+                        }
+                    }
+                    else
+                    {
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out _,
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                        var p = new W.Paragraph { InnerXml = xml };
+                        p.PrependChild(new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { Before = "120", After = "120" },
+                            new W.Justification { Val = W.JustificationValues.Center }));
+                        // Exact mode (1) and Grid mode (4) force Web Layout; ShrinkToFit (5) does not.
+                        if (ctx.OversizedDiagramMode is 1 or 4)
+                            ctx.ForceWebLayout = true;
+                        target.Append(p);
+                    }
                 }
                 else if (ctx.MermaidMode == 1 &&
                     MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
@@ -406,13 +432,32 @@ public sealed class DocxExportService
                 else if (ctx.MermaidMode == 1 && gen is { IsEmpty: false })
                 {
                     var md = gen.ToMDiagram(ctx.Theme);
-                    var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversizedGen);
-                    var p = new W.Paragraph { InnerXml = xml };
-                    p.PrependChild(new W.ParagraphProperties(
-                        new W.SpacingBetweenLines { Before = "120", After = "120" },
-                        new W.Justification { Val = W.JustificationValues.Center }));
-                    ctx.ForceWebLayout |= oversizedGen;
-                    target.Append(p);
+                    if (ctx.OversizedDiagramMode == 3) // multi-page vertical
+                    {
+                        var drawId = ctx.NextDrawingId;
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        ctx.NextDrawingId = drawId;
+                        foreach (var bandXml in bands)
+                        {
+                            var bp = new W.Paragraph { InnerXml = bandXml };
+                            bp.PrependChild(new W.ParagraphProperties(
+                                new W.SpacingBetweenLines { Before = "60", After = "60" },
+                                new W.Justification { Val = W.JustificationValues.Center }));
+                            target.Append(bp);
+                        }
+                    }
+                    else
+                    {
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversizedGen,
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                        var p = new W.Paragraph { InnerXml = xml };
+                        p.PrependChild(new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { Before = "120", After = "120" },
+                            new W.Justification { Val = W.JustificationValues.Center }));
+                        ctx.ForceWebLayout |= oversizedGen;
+                        if (ctx.OversizedDiagramMode == 4) ctx.ForceWebLayout = true;
+                        target.Append(p);
+                    }
                 }
                 else if (png is not null)
                     target.Append(SnapshotParagraph(png, ctx));
@@ -440,13 +485,32 @@ public sealed class DocxExportService
                     Mermaid.SvgShapeForge.Parse(svg) is { IsEmpty: false } forged)
                 {
                     var md = forged.ToMDiagram(ctx.Theme);
-                    var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversized);
-                    var p = new W.Paragraph { InnerXml = xml };
-                    p.PrependChild(new W.ParagraphProperties(
-                        new W.SpacingBetweenLines { Before = "120", After = "120" },
-                        new W.Justification { Val = W.JustificationValues.Center }));
-                    ctx.ForceWebLayout |= oversized;
-                    target.Append(p);
+                    if (ctx.OversizedDiagramMode == 3) // multi-page vertical
+                    {
+                        var drawId = ctx.NextDrawingId;
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        ctx.NextDrawingId = drawId;
+                        foreach (var bandXml in bands)
+                        {
+                            var bp = new W.Paragraph { InnerXml = bandXml };
+                            bp.PrependChild(new W.ParagraphProperties(
+                                new W.SpacingBetweenLines { Before = "60", After = "60" },
+                                new W.Justification { Val = W.JustificationValues.Center }));
+                            target.Append(bp);
+                        }
+                    }
+                    else
+                    {
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversized,
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                        var p = new W.Paragraph { InnerXml = xml };
+                        p.PrependChild(new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { Before = "120", After = "120" },
+                            new W.Justification { Val = W.JustificationValues.Center }));
+                        ctx.ForceWebLayout |= oversized;
+                        if (ctx.OversizedDiagramMode == 4) ctx.ForceWebLayout = true;
+                        target.Append(p);
+                    }
                 }
                 else if (svg is not null && SvgDiagramParagraph(svg, ctx) is { } para)
                 {

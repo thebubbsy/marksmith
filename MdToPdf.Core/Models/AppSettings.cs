@@ -34,7 +34,20 @@ public sealed class AppSettings
     //   0 = Ask — prompt at export time (the "call to user")
     //   1 = Exact — keep mermaid's exact layout/order; document opens in Word's Web Layout view
     //   2 = Reflow — re-wrap and re-order the diagram to fit the page width (fully printable)
+    //   3 = MultiPageVertical — reflow to page width, split into page-height bands that span
+    //       multiple pages downward in Print Layout (never Web Layout)
+    //   4 = Grid — set document page size to N× normal (poster page); diagram at full scale,
+    //       Web Layout view.  DiagramGridSize controls N (2 = 2×2, 3 = 3×3).
+    //   5 = ShrinkToFit — scale uniformly below the 75% floor (down to 30% minimum) to squeeze
+    //       the diagram onto one page in Print Layout.
     public int OversizedDiagramMode { get; set; } = 0;
+
+    // Grid size for OversizedDiagramMode 4 (Grid).  2 = 2×2 poster (4 pages), 3 = 3×3 (9 pages).
+    public int DiagramGridSize { get; set; } = 2;
+
+    // Use native Word connection sites (Smart Connectors) instead of static lines.
+    // When enabled, lines stay glued to shapes when dragged in Word.
+    public bool SmartConnectors { get; set; } = true;
 
     // First-run guided tour: shown once automatically, replayable from the title-bar tour button.
     public bool HasSeenWelcome { get; set; }
