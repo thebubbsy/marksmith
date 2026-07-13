@@ -114,6 +114,7 @@ public static class DocxShapeEmitter
 
         // Pre-assign XML IDs so connectors can reference them for smart anchoring.
         foreach (var s in d.Shapes) s.Id = ++id;
+        if (smartConnectors) AssignTopologyHeuristics(d);
 
         // Connectors first so nodes draw on top of lines.
         foreach (var c in d.Connectors)
@@ -153,6 +154,7 @@ public static class DocxShapeEmitter
         // Pre-assign IDs for smart connectors
         uint globalId = 1;
         foreach (var s in d.Shapes) s.Id = ++globalId;
+        if (smartConnectors) AssignTopologyHeuristics(d);
 
         int bandCount = Math.Max(1, (int)Math.Ceiling(d.Height / MaxCanvasH));
         double bandH = bandCount == 1 ? d.Height : MaxCanvasH;
@@ -247,6 +249,56 @@ public static class DocxShapeEmitter
         if (s == null) return false;
         double centerY = s.Y + s.H / 2;
         return centerY >= yStart && centerY < yEnd;
+    }
+
+    private static void AssignTopologyHeuristics(MDiagram d)
+    {
+        foreach (var c in d.Connectors)
+        {
+            if (c.FromShapeId.HasValue && c.ToShapeId.HasValue) continue;
+            if (c.Points == null || c.Points.Count < 2) continue;
+
+            var start = c.Points[0];
+            var end = c.Points[^1];
+
+            c.FromShapeId = FindClosestShape(d, start.X, start.Y, out int fromSite);
+            if (c.FromShapeId.HasValue) c.FromConnectionSite = fromSite;
+
+            c.ToShapeId = FindClosestShape(d, end.X, end.Y, out int toSite);
+            if (c.ToShapeId.HasValue) c.ToConnectionSite = toSite;
+        }
+    }
+
+    private static uint? FindClosestShape(MDiagram d, double x, double y, out int site)
+    {
+        site = 0;
+        uint? bestId = null;
+        double bestDist = 20; // 20pt max tolerance for topological snapping
+
+        foreach (var s in d.Shapes)
+        {
+            if (s.Kind == ShapeKind.Text) continue;
+
+            double cx = s.X + s.W / 2;
+            double cy = s.Y + s.H / 2;
+
+            double dTop = Math.Abs(x - cx) + Math.Abs(y - s.Y);
+            double dBottom = Math.Abs(x - cx) + Math.Abs(y - (s.Y + s.H));
+            double dLeft = Math.Abs(x - s.X) + Math.Abs(y - cy);
+            double dRight = Math.Abs(x - (s.X + s.W)) + Math.Abs(y - cy);
+
+            double minLocal = Math.Min(Math.Min(dTop, dBottom), Math.Min(dLeft, dRight));
+            if (minLocal < bestDist)
+            {
+                bestDist = minLocal;
+                bestId = s.Id;
+                if (minLocal == dTop) site = 0;
+                else if (minLocal == dLeft) site = 1;
+                else if (minLocal == dBottom) site = 2;
+                else if (minLocal == dRight) site = 3;
+            }
+        }
+        return bestId;
     }
 
     // Does any part of the connector fall within the vertical band [yStart, yEnd)?
@@ -385,7 +437,7 @@ public static class DocxShapeEmitter
 
     // Freeform curved connector: a custGeom path following the harvested points, so a Word edge
     // traces mermaid's exact curve. Emitted as a shape (sp) with no fill and an arrow tail end.
-    private static string CurveXml(MConnector c, ThemeDefinition t, uint id)
+    private static string CurveXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
     {
         var pts = c.Points!;
         double minX = pts.Min(p => p.X), minY = pts.Min(p => p.Y);
@@ -404,10 +456,18 @@ public static class DocxShapeEmitter
         var head = HeadXml("headEnd", c.StartHead);
         var tail = HeadXml("tailEnd", c.EndHead);
 
+        string cxnAttr = "<wps:cNvCnPr/>";
+        if (smartConnectors && (c.FromShapeId.HasValue || c.ToShapeId.HasValue))
+        {
+            var st = c.FromShapeId.HasValue ? $"<a:stCxn id=\"{c.FromShapeId.Value}\" idx=\"{c.FromConnectionSite}\"/>" : "";
+            var en = c.ToShapeId.HasValue ? $"<a:endCxn id=\"{c.ToShapeId.Value}\" idx=\"{c.ToConnectionSite}\"/>" : "";
+            cxnAttr = $"<wps:cNvCnPr>{st}{en}</wps:cNvCnPr>";
+        }
+
         return
-            "<wps:wsp>" +
+            "<wps:cxnSp>" +
             $"<wps:cNvPr id=\"{id}\" name=\"Edge {id}\"/>" +
-            "<wps:cNvSpPr/>" +
+            cxnAttr +
             "<wps:spPr>" +
             $"<a:xfrm><a:off x=\"{ox}\" y=\"{oy}\"/><a:ext cx=\"{w}\" cy=\"{h}\"/></a:xfrm>" +
             $"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=\"0\" t=\"0\" r=\"{w}\" b=\"{h}\"/>" +
@@ -415,13 +475,12 @@ public static class DocxShapeEmitter
             "<a:noFill/>" +
             $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{head}{tail}</a:ln>" +
             "</wps:spPr>" +
-            "<wps:bodyPr/>" +
-            "</wps:wsp>";
+            "</wps:cxnSp>";
     }
 
     private static string ConnectorXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
     {
-        if (c.Points is { Count: >= 2 }) return CurveXml(c, t, ++id);
+        if (c.Points is { Count: >= 2 }) return CurveXml(c, t, ++id, smartConnectors);
 
         // Degenerate elbows (both endpoints on one axis) can't be drawn by bentConnector3 — a
         // zero-width/height box renders as a straight line. These are loops (a sequence
