@@ -417,7 +417,7 @@ public sealed class DocxExportService
                 else if (png is not null)
                     target.Append(SnapshotParagraph(png, ctx));
                 else
-                    target.Append(CodeParagraph(fence.Lines.ToString(), ctx));
+                    target.Append(CodeParagraph(fence.Lines.ToString(), fence.Info, ctx));
                 break;
             }
 
@@ -464,13 +464,14 @@ public sealed class DocxExportService
                     // installed or render failed) the plain code block is correct and gets no caption.
                     if (svg is not null)
                         target.Append(DiagramSourceCaption(plugin!.Name, ctx));
-                    target.Append(CodeParagraph(pluginFence.Lines.ToString(), ctx));
+                    target.Append(CodeParagraph(pluginFence.Lines.ToString(), pluginFence.Info, ctx));
                 }
                 break;
             }
 
             case CodeBlock code: // other fenced/indented code renders as a code block
-                target.Append(CodeParagraph(code.Lines.ToString(), ctx));
+                var info = (code as FencedCodeBlock)?.Info;
+                target.Append(CodeParagraph(code.Lines.ToString(), info, ctx));
                 break;
 
             case AlertBlock alert:
@@ -817,8 +818,9 @@ public sealed class DocxExportService
         return para;
     }
 
-    private static W.Paragraph CodeParagraph(string text, Ctx ctx)
+    private static W.Paragraph CodeParagraph(string text, string info, Ctx ctx)
     {
+        var isDiff = info?.Trim().Equals("diff", StringComparison.OrdinalIgnoreCase) == true;
         var para = new W.Paragraph(new W.ParagraphProperties(
             new W.KeepLines(), // don't let a page break shear a code block in half
             new W.ParagraphBorders(
@@ -833,7 +835,15 @@ public sealed class DocxExportService
         {
             if (!first) para.Append(new W.Run(new W.Break()));
             first = false;
-            AddText(para, line, new Fmt { Code = true, Color = ctx.TextHex });
+            
+            var color = ctx.TextHex;
+            if (isDiff)
+            {
+                if (line.StartsWith("+")) color = "008000";
+                else if (line.StartsWith("-")) color = "FF0000";
+                else if (line.StartsWith("@")) color = "808080";
+            }
+            AddText(para, line, new Fmt { Code = true, Color = color });
         }
         return para;
     }
@@ -847,7 +857,13 @@ public sealed class DocxExportService
         {
             Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex
         };
-        p.ParagraphProperties.Indentation = new W.Indentation { Left = "360" };
+        
+        int leftIndent = 360;
+        if (p.ParagraphProperties.Indentation?.Left?.Value != null && int.TryParse(p.ParagraphProperties.Indentation.Left.Value, out int existing))
+        {
+            leftIndent += existing;
+        }
+        p.ParagraphProperties.Indentation = new W.Indentation { Left = leftIndent.ToString() };
     }
 
     private static void RenderList(ListBlock list, OpenXmlCompositeElement target, Ctx ctx, int parentLevel)
@@ -1443,7 +1459,14 @@ public sealed class DocxExportService
         var name = t.Substring(nameStart, nameEnd - nameStart).ToLowerInvariant();
 
         // Line/word breaks: emit a real Word break, never tracked on the stack.
-        if (name is "br") { target.Append(new W.Run(new W.Break())); return; }
+        if (name is "br")
+        {
+            var r = new W.Run(new W.Break());
+            var rPr = BuildRunProperties(current);
+            if (rPr != null && rPr.HasChildren) r.Append(rPr);
+            target.Append(r);
+            return;
+        }
         if (name is "wbr" or "hr") return;
 
         if (closing)
@@ -1576,13 +1599,27 @@ public sealed class DocxExportService
         }
     }
 
+    private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
+
     private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt)
     {
-        var run = new W.Run();
-        var rPr = BuildRunProperties(fmt);
-        if (rPr is not null) run.Append(rPr);
-        run.Append(new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
-        target.Append(run);
+        if (string.IsNullOrEmpty(text)) return;
+        var parts = EmojiRegex.Split(text);
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrEmpty(part)) continue;
+            var run = new W.Run();
+            var rPr = BuildRunProperties(fmt);
+            if (EmojiRegex.IsMatch(part))
+            {
+                rPr ??= new W.RunProperties();
+                rPr.RemoveAllChildren<W.Color>();
+                rPr.Append(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
+            }
+            if (rPr != null && rPr.HasChildren) run.Append(rPr);
+            run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
+            target.Append(run);
+        }
     }
 
     private static W.RunProperties BuildRunProperties(Fmt fmt)
@@ -1596,6 +1633,7 @@ public sealed class DocxExportService
         if (fmt.Highlight) rPr.Append(new W.Color { Val = "000000" });
         else if (fmt.Color is not null) rPr.Append(new W.Color { Val = fmt.Color });
         if (fmt.Code) rPr.Append(new W.FontSize { Val = "20" }); // 10pt for code
+        if (fmt.Code) rPr.Append(new W.NoProof()); // disables spellcheck and auto-hyphenation
         if (fmt.Highlight) rPr.Append(new W.Highlight { Val = W.HighlightColorValues.Yellow });
         if (fmt.Underline) rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
         if (fmt.Code) // character border + shading: the rarely-touched w:bdr, boxing inline code

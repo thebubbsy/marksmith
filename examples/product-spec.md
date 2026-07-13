@@ -92,6 +92,39 @@ graph TD
 }
 ```
 
+### Flow Sequence
+
+The following sequence details a successful payment capture, including caching, authorization, and asynchronous webhook dispatch:
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as Payments API
+    participant Cache as Redis Cache
+    participant Auth as Auth Service
+    participant Stripe as Stripe Processor
+    participant DB as Ledger DB
+    participant Q as Kafka Bus
+
+    C->>API: POST /charge (idempotency_key)
+    API->>Cache: Check idempotency_key
+    alt Already processed
+        Cache-->>API: Return cached response
+        API-->>C: 200 OK (cached)
+    else New request
+        Cache-->>API: Key not found
+        API->>Auth: Request Authorization
+        Auth->>Stripe: Process Payment
+        Stripe-->>Auth: 200 OK (Authorized)
+        Auth->>DB: Append state: AUTHORIZED
+        DB-->>Auth: ACK
+        Auth->>Q: Emit event: Payment.Authorized
+        Auth-->>API: Authorization Success
+        API->>Cache: Store response (TTL 24h)
+        API-->>C: 201 Created
+    end
+```
+
 ## State machine
 
 | State | Next | Trigger |
@@ -103,3 +136,57 @@ graph TD
 
 > [!WARNING]
 > Idempotency keys expire after 24h. Re-using an expired key starts a **new** charge.
+
+### State Diagram
+
+Below is the state transition logic for any given transaction inside the core engine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: POST /charge
+    Created --> Authorized: Processor Approves
+    Created --> Failed: Fraud / Denied
+    
+    Authorized --> Captured: Merchant Captures
+    Authorized --> Voided: Auth Timeout (7 days)
+    Authorized --> Voided: Merchant Cancels
+    
+    Captured --> Refunded: Full Refund
+    Captured --> PartiallyRefunded: Partial Refund
+    PartiallyRefunded --> Refunded: Full Refund Reached
+    
+    Failed --> [*]
+    Voided --> [*]
+    Refunded --> [*]
+```
+
+## Data Schema
+
+The underlying database uses an append-only architecture to maintain the `Ledger`. This requires specific mappings.
+
+```mermaid
+erDiagram
+    MERCHANT ||--o{ TRANSACTION : processes
+    TRANSACTION ||--o{ LEDGER_ENTRY : contains
+    TRANSACTION {
+        uuid id PK
+        string idempotency_key UK
+        int amount
+        string currency
+        string status
+        timestamp created_at
+    }
+    LEDGER_ENTRY {
+        uuid id PK
+        uuid transaction_id FK
+        string previous_state
+        string new_state
+        timestamp recorded_at
+    }
+    MERCHANT {
+        uuid id PK
+        string name
+        string webhook_url
+        boolean is_active
+    }
+```
