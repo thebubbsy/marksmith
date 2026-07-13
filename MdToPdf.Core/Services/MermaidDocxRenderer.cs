@@ -27,6 +27,7 @@ public static class MermaidDocxRenderer
         public string Shape = "rect"; // rect | round | ellipse | diamond | parallelogram | hexagon
         public int Rank;
         public double X, Y, W, H;
+        public uint XmlId;
     }
 
     private sealed record Edge(Node From, Node To, string? Label, bool Dashed, bool Thick, bool Arrow);
@@ -427,8 +428,11 @@ public static class MermaidDocxRenderer
         var sb = new StringBuilder();
         uint id = drawingId * 100;
 
-        foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id));
-        foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, ++id, g.Scale));
+        // Pre-assign XML IDs so connectors can anchor to them.
+        foreach (var n in g.Nodes) n.XmlId = ++id;
+
+        foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id, t));
+        foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, n.XmlId, g.Scale));
         foreach (var e in g.Edges)
             if (e.Label is not null) sb.Append(EdgeLabelXml(e, g, bg, text, ++id, g.Scale));
 
@@ -482,23 +486,44 @@ public static class MermaidDocxRenderer
             """;
     }
 
-    private static string ConnectorXml(Edge e, Graph g, string line, uint id)
+    private static string ConnectorXml(Edge e, Graph g, string line, uint id, ThemeDefinition t)
     {
         double x1, y1, x2, y2;
+        int stIdx, endIdx;
         if (!g.LeftRight)
         {
             // bottom-centre of source → top-centre of target (or sideways for same-rank edges)
             if (e.To.Rank > e.From.Rank)
-            { x1 = e.From.X + e.From.W / 2; y1 = e.From.Y + e.From.H; x2 = e.To.X + e.To.W / 2; y2 = e.To.Y; }
+            {
+                x1 = e.From.X + e.From.W / 2; y1 = e.From.Y + e.From.H;
+                x2 = e.To.X + e.To.W / 2; y2 = e.To.Y;
+                stIdx = 2; // Bottom
+                endIdx = 0; // Top
+            }
             else
-            { x1 = e.From.X + e.From.W / 2; y1 = e.From.Y; x2 = e.To.X + e.To.W / 2; y2 = e.To.Y + e.To.H; }
+            {
+                x1 = e.From.X + e.From.W / 2; y1 = e.From.Y;
+                x2 = e.To.X + e.To.W / 2; y2 = e.To.Y + e.To.H;
+                stIdx = 0; // Top
+                endIdx = 2; // Bottom
+            }
         }
         else
         {
             if (e.To.Rank > e.From.Rank)
-            { x1 = e.From.X + e.From.W; y1 = e.From.Y + e.From.H / 2; x2 = e.To.X; y2 = e.To.Y + e.To.H / 2; }
+            {
+                x1 = e.From.X + e.From.W; y1 = e.From.Y + e.From.H / 2;
+                x2 = e.To.X; y2 = e.To.Y + e.To.H / 2;
+                stIdx = 3; // Right
+                endIdx = 1; // Left
+            }
             else
-            { x1 = e.From.X; y1 = e.From.Y + e.From.H / 2; x2 = e.To.X + e.To.W; y2 = e.To.Y + e.To.H / 2; }
+            {
+                x1 = e.From.X; y1 = e.From.Y + e.From.H / 2;
+                x2 = e.To.X + e.To.W; y2 = e.To.Y + e.To.H / 2;
+                stIdx = 1; // Left
+                endIdx = 3; // Right
+            }
         }
 
         long ox = Emu(Math.Min(x1, x2)), oy = Emu(Math.Min(y1, y2));
@@ -507,11 +532,19 @@ public static class MermaidDocxRenderer
         string dash = e.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
         string head = e.Arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
         long weight = e.Thick ? 28575 : 12700;
+        
+        string cxnAttr = "";
+        // If the theme/settings disable smart connectors, we'd skip this, but flowchart
+        // renders always glue for now because they're fully internal.
+        if (e.From.XmlId > 0 && e.To.XmlId > 0)
+        {
+            cxnAttr = $"<a:stCxn id=\"{e.From.XmlId}\" idx=\"{stIdx}\"/><a:endCxn id=\"{e.To.XmlId}\" idx=\"{endIdx}\"/>";
+        }
 
         return $"""
             <wps:wsp>
               <wps:cNvPr id="{id}" name="edge"/>
-              <wps:cNvCnPr/>
+              <wps:cNvCnPr>{cxnAttr}</wps:cNvCnPr>
               <wps:spPr>
                 <a:xfrm{flips}><a:off x="{ox}" y="{oy}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
                 <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>

@@ -14,15 +14,52 @@ public static class DocxShapeEmitter
 {
     private const long EmuPerPt = 12700;
 
-    // Returns true when the diagram is too large for print layout even at the 75% floor — the
+    // Returns true when the diagram is too large for print layout even at the floor — the
     // caller opens the document in Word's Web Layout view (scrolls instead of clipping).
-    private static bool ScaleToFit(MDiagram d)
+    // oversizedMode: 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
+    private static bool ScaleToFit(MDiagram d, int oversizedMode = 0, int gridSize = 1)
     {
+        double canvasW = MaxCanvasW, canvasH = MaxCanvasH;
+
+        // Grid mode: enlarge the canvas by the grid multiplier so the diagram has N× the room.
+        if (oversizedMode == 4 && gridSize >= 2)
+        {
+            canvasW *= gridSize;
+            canvasH *= gridSize;
+        }
+
+        // Multi-page vertical: only constrain width — height is unlimited (will be split into
+        // page-height bands by ToMultiPageParagraphXml).
+        if (oversizedMode == 3)
+        {
+            double sw = Math.Min(1, canvasW / Math.Max(1, d.Width));
+            if (sw < 1)
+            {
+                foreach (var sh in d.Shapes)
+                {
+                    sh.X *= sw; sh.Y *= sw; sh.W *= sw; sh.H *= sw;
+                    sh.FontSize = Math.Max(6, sh.FontSize * sw);
+                }
+                foreach (var c in d.Connectors)
+                {
+                    c.X1 *= sw; c.Y1 *= sw; c.X2 *= sw; c.Y2 *= sw;
+                    c.LabelX *= sw; c.LabelY *= sw; c.LabelW *= sw; c.LabelH *= sw;
+                    if (c.Points is { Count: > 0 })
+                        c.Points = c.Points.Select(p => (p.X * sw, p.Y * sw)).ToList();
+                }
+                d.Width *= sw; d.Height *= sw;
+            }
+            return false; // never Web Layout — the caller splits into bands
+        }
+
         double s = Math.Min(1, Math.Min(
-            MaxCanvasW / Math.Max(1, d.Width),
-            MaxCanvasH / Math.Max(1, d.Height)));
-        bool oversized = s < 0.75;
-        if (oversized) s = 0.75;
+            canvasW / Math.Max(1, d.Width),
+            canvasH / Math.Max(1, d.Height)));
+
+        // ShrinkToFit (mode 5): floor drops to 30% — the whole point is to squeeze onto one page.
+        double floor = oversizedMode == 5 ? 0.30 : 0.75;
+        bool oversized = s < floor;
+        if (oversized) s = floor;
         if (s >= 1) return d.Height > 480;
 
         foreach (var sh in d.Shapes)
@@ -38,6 +75,10 @@ public static class DocxShapeEmitter
                 c.Points = c.Points.Select(p => (p.X * s, p.Y * s)).ToList();
         }
         d.Width *= s; d.Height *= s;
+
+        // ShrinkToFit: it fits on one page by definition — never trigger Web Layout.
+        if (oversizedMode == 5) return false;
+
         return oversized || d.Height > 480; // page-dominating diagrams read better in Web Layout
     }
 
@@ -45,9 +86,10 @@ public static class DocxShapeEmitter
     // uniformly so no renderer ever runs a bar or box past the page edge.
     private const double MaxCanvasW = 460, MaxCanvasH = 640;
 
-    public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId, out bool oversized)
+    public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId, out bool oversized,
+        int oversizedMode = 0, int gridSize = 1, bool smartConnectors = true)
     {
-        oversized = ScaleToFit(d);
+        oversized = ScaleToFit(d, oversizedMode, gridSize);
 
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
                  "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
@@ -70,10 +112,13 @@ public static class DocxShapeEmitter
         sb.Append($"<wpg:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/>" +
                   $"<a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:noFill/></wpg:grpSpPr>");
 
+        // Pre-assign XML IDs so connectors can reference them for smart anchoring.
+        foreach (var s in d.Shapes) s.Id = ++id;
+
         // Connectors first so nodes draw on top of lines.
         foreach (var c in d.Connectors)
         {
-            sb.Append(ConnectorXml(c, theme, ref id));
+            sb.Append(ConnectorXml(c, theme, ++id, smartConnectors));
             if (!string.IsNullOrWhiteSpace(c.Label))
             {
                 id++;
@@ -87,12 +132,156 @@ public static class DocxShapeEmitter
         }
         foreach (var s in d.Shapes)
         {
-            id++;
-            sb.Append(ShapeXml(s, theme, id));
+            sb.Append(ShapeXml(s, theme, s.Id));
         }
 
         sb.Append("</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Multi-page vertical mode (OversizedDiagramMode 3): splits the diagram into page-height
+    /// bands, each emitted as a separate inline drawing paragraph.  The diagram is scaled to fit
+    /// page width (MaxCanvasW) but height is unconstrained — each band is at most MaxCanvasH tall.
+    /// Returns one paragraph XML string per band (callers append all of them to the document body).
+    /// </summary>
+    public static List<string> ToMultiPageParagraphXml(MDiagram d, ThemeDefinition theme, ref uint docPrId, bool smartConnectors = true)
+    {
+        // Scale width only — ScaleToFit with mode 3 handles this.
+        ScaleToFit(d, oversizedMode: 3);
+
+        // Pre-assign IDs for smart connectors
+        uint globalId = 1;
+        foreach (var s in d.Shapes) s.Id = ++globalId;
+
+        int bandCount = Math.Max(1, (int)Math.Ceiling(d.Height / MaxCanvasH));
+        double bandH = bandCount == 1 ? d.Height : MaxCanvasH;
+        var results = new List<string>(bandCount);
+
+        var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
+                 "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
+                 "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" " +
+                 "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" " +
+                 "xmlns:wpg=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\"";
+
+        for (int band = 0; band < bandCount; band++)
+        {
+            double yStart = band * bandH;
+            double yEnd = Math.Min(yStart + bandH, d.Height);
+            double thisBandH = yEnd - yStart;
+
+            long cx = Emu(Math.Max(1, d.Width)), cy = Emu(Math.Max(1, thisBandH));
+            var sb = new StringBuilder();
+            uint id = 1;
+
+            sb.Append($"<w:r {ns}><w:drawing>");
+            sb.Append($"<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">");
+            sb.Append($"<wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:effectExtent l=\"0\" t=\"0\" r=\"0\" b=\"0\"/>");
+            sb.Append($"<wp:docPr id=\"{docPrId}\" name=\"ShapeForge diagram {docPrId} band {band + 1}\" descr=\"Mermaid diagram band {band + 1} of {bandCount}\"/>");
+            sb.Append("<wp:cNvGraphicFramePr/>");
+            sb.Append("<a:graphic><a:graphicData uri=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\">");
+            sb.Append("<wpg:wgp>");
+            sb.Append($"<wpg:cNvGrpSpPr/>");
+            sb.Append($"<wpg:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/>" +
+                      $"<a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:noFill/></wpg:grpSpPr>");
+
+            // Emit connectors that overlap this band (at least one endpoint within the band,
+            // or the connector spans across it).  Y coordinates are offset by -yStart.
+            foreach (var c in d.Connectors)
+            {
+                if (!ConnectorOverlapsBand(c, yStart, yEnd)) continue;
+                // A smart connector must link to a shape in the SAME DrawingML canvas.
+                // If the source or target shape is outside this page's band, break the link.
+                if (smartConnectors)
+                {
+                    if (c.FromShapeId.HasValue && !ShapeInBand(d, c.FromShapeId.Value, yStart, yEnd))
+                        c.FromShapeId = null;
+                    if (c.ToShapeId.HasValue && !ShapeInBand(d, c.ToShapeId.Value, yStart, yEnd))
+                        c.ToShapeId = null;
+                }
+
+                var shifted = ShiftConnector(c, yStart, thisBandH);
+                sb.Append(ConnectorXml(shifted, theme, ++id, smartConnectors));
+                if (!string.IsNullOrWhiteSpace(c.Label) &&
+                    c.LabelY + c.LabelH > yStart && c.LabelY < yEnd)
+                {
+                    id++;
+                    sb.Append(ShapeXml(new MShape
+                    {
+                        Kind = ShapeKind.Text,
+                        X = c.LabelX, Y = Math.Max(0, c.LabelY - yStart),
+                        W = c.LabelW, H = c.LabelH,
+                        Text = c.Label, FontSize = 8.5, TextColor = null,
+                    }, theme, id));
+                }
+            }
+
+            // Emit shapes whose vertical center falls within this band.
+            foreach (var s in d.Shapes)
+            {
+                double centerY = s.Y + s.H / 2;
+                if (centerY < yStart || centerY >= yEnd) continue;
+                id++;
+                var shifted = new MShape
+                {
+                    Kind = s.Kind, X = s.X, Y = s.Y - yStart, W = s.W, H = s.H,
+                    Text = s.Text, FontSize = s.FontSize, Bold = s.Bold,
+                    Fill = s.Fill, Stroke = s.Stroke, StrokeWidth = s.StrokeWidth,
+                    Dashed = s.Dashed, TextColor = s.TextColor,
+                    AdjStartDeg = s.AdjStartDeg, AdjEndDeg = s.AdjEndDeg,
+                };
+                sb.Append(ShapeXml(shifted, theme, s.Id));
+            }
+
+            sb.Append("</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>");
+            results.Add(sb.ToString());
+            docPrId++;
+        }
+
+        return results;
+    }
+
+    private static bool ShapeInBand(MDiagram d, uint shapeId, double yStart, double yEnd)
+    {
+        var s = d.Shapes.FirstOrDefault(x => x.Id == shapeId);
+        if (s == null) return false;
+        double centerY = s.Y + s.H / 2;
+        return centerY >= yStart && centerY < yEnd;
+    }
+
+    // Does any part of the connector fall within the vertical band [yStart, yEnd)?
+    private static bool ConnectorOverlapsBand(MConnector c, double yStart, double yEnd)
+    {
+        if (c.Points is { Count: >= 2 })
+        {
+            double minY = c.Points.Min(p => p.Y), maxY = c.Points.Max(p => p.Y);
+            return maxY > yStart && minY < yEnd;
+        }
+        double lo = Math.Min(c.Y1, c.Y2), hi = Math.Max(c.Y1, c.Y2);
+        return hi > yStart && lo < yEnd;
+    }
+
+    // Create a copy of the connector with Y coordinates shifted into the band's local space
+    // and clamped to [0, bandH].
+    private static MConnector ShiftConnector(MConnector c, double yStart, double bandH)
+    {
+        var shifted = new MConnector
+        {
+            X1 = c.X1, Y1 = Math.Clamp(c.Y1 - yStart, 0, bandH),
+            X2 = c.X2, Y2 = Math.Clamp(c.Y2 - yStart, 0, bandH),
+            Elbow = c.Elbow, Dashed = c.Dashed, Stroke = c.Stroke,
+            StrokeWidth = c.StrokeWidth, Label = c.Label,
+            LabelX = c.LabelX, LabelY = Math.Clamp(c.LabelY - yStart, 0, bandH),
+            LabelW = c.LabelW, LabelH = c.LabelH,
+            StartHead = c.StartHead, EndHead = c.EndHead,
+            FromShapeId = c.FromShapeId, FromConnectionSite = c.FromConnectionSite,
+            ToShapeId = c.ToShapeId, ToConnectionSite = c.ToConnectionSite,
+        };
+        if (c.Points is { Count: >= 2 })
+            shifted.Points = c.Points
+                .Select(p => (p.X, Y: Math.Clamp(p.Y - yStart, 0, bandH)))
+                .ToList();
+        return shifted;
     }
 
     // ---- shapes -------------------------------------------------------------------------------
@@ -311,7 +500,7 @@ public static class DocxShapeEmitter
             $"<a:xfrm{flips}><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(w)}\" cy=\"{Emu(h)}\"/></a:xfrm>" +
             "<a:prstGeom prst=\"straightConnector1\"><a:avLst/></a:prstGeom>" +
             "<a:noFill/>" +
-            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{HeadXml("headEnd", c.StartHead)}{HeadXml("tailEnd", c.EndHead)}</a:ln>" +
+            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{HeadXml(\"headEnd\", c.StartHead)}{HeadXml(\"tailEnd\", c.EndHead)}</a:ln>" +
             "</wps:spPr>" +
             "<wps:bodyPr/>" +
             "</wps:wsp>";
