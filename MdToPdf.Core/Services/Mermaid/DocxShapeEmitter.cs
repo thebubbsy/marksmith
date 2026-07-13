@@ -419,7 +419,7 @@ public static class DocxShapeEmitter
             "</wps:wsp>";
     }
 
-    private static string ConnectorXml(MConnector c, ThemeDefinition t, ref uint id)
+    private static string ConnectorXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
     {
         if (c.Points is { Count: >= 2 }) return CurveXml(c, t, ++id);
 
@@ -443,8 +443,6 @@ public static class DocxShapeEmitter
             return StraightXml(s1, t, ++id) + StraightXml(s2, t, ++id) + StraightXml(s3, t, ++id);
         }
 
-        id++;
-
         // A straight/bent connector draws from the top-left to the bottom-right of its box; encode
         // direction with flipH/flipV so any orientation works.
         double x = Math.Min(c.X1, c.X2), y = Math.Min(c.Y1, c.Y2);
@@ -459,10 +457,18 @@ public static class DocxShapeEmitter
         var tail = HeadXml("tailEnd", c.EndHead);
         var flips = (flipH ? " flipH=\"1\"" : "") + (flipV ? " flipV=\"1\"" : "");
 
+        string cxnAttr = "";
+        if (smartConnectors && (c.FromShapeId.HasValue || c.ToShapeId.HasValue))
+        {
+            var st = c.FromShapeId.HasValue ? $"<a:stCxn id=\"{c.FromShapeId.Value}\" idx=\"{c.FromConnectionSite}\"/>" : "";
+            var en = c.ToShapeId.HasValue ? $"<a:endCxn id=\"{c.ToShapeId.Value}\" idx=\"{c.ToConnectionSite}\"/>" : "";
+            cxnAttr = st + en;
+        }
+
         return
             "<wps:wsp>" +
             $"<wps:cNvPr id=\"{id}\" name=\"Connector {id}\"/>" +
-            "<wps:cNvCnPr/>" +
+            $"<wps:cNvCnPr>{cxnAttr}</wps:cNvCnPr>" +
             "<wps:spPr>" +
             $"<a:xfrm{flips}><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(w)}\" cy=\"{Emu(h)}\"/></a:xfrm>" +
             $"<a:prstGeom prst=\"{prst}\"><a:avLst/></a:prstGeom>" +
@@ -500,7 +506,7 @@ public static class DocxShapeEmitter
             $"<a:xfrm{flips}><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(w)}\" cy=\"{Emu(h)}\"/></a:xfrm>" +
             "<a:prstGeom prst=\"straightConnector1\"><a:avLst/></a:prstGeom>" +
             "<a:noFill/>" +
-            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{HeadXml(\"headEnd\", c.StartHead)}{HeadXml(\"tailEnd\", c.EndHead)}</a:ln>" +
+            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{HeadXml("headEnd", c.StartHead)}{HeadXml("tailEnd", c.EndHead)}</a:ln>" +
             "</wps:spPr>" +
             "<wps:bodyPr/>" +
             "</wps:wsp>";
