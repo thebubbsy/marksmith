@@ -29,6 +29,7 @@ public sealed class ApiServer : IDisposable
     private readonly Action<string, string, OutputOverride?> _ingest;      // (markdown, origin, output profile)
     private readonly Func<string, OutputOverride?, Task<byte[]>> _convert; // (markdown, output profile) -> pdf bytes
     private readonly GovernanceService _governance;
+    private readonly Func<string> _allowedExtensionId;
 
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -67,13 +68,15 @@ public sealed class ApiServer : IDisposable
         Func<IReadOnlyList<string>> themeNames,
         Action<string, string, OutputOverride?> ingest,
         Func<string, OutputOverride?, Task<byte[]>> convert,
-        GovernanceService governance)
+        GovernanceService governance,
+        Func<string> allowedExtensionId)
     {
         _llm = llm;
         _themeNames = themeNames;
         _ingest = ingest;
         _convert = convert;
         _governance = governance;
+        _allowedExtensionId = allowedExtensionId;
     }
 
     public void Start(int port)
@@ -111,20 +114,24 @@ public sealed class ApiServer : IDisposable
     // which must not be reachable from a page/extension even though IsAllowedOrigin permits the
     // extension for its normal ingest/report flow. Empty/"null" (non-browser or opaque) is NOT a
     // browser origin.
-    private static bool IsBrowserOrigin(string? origin) =>
+    private bool IsBrowserOrigin(string? origin) =>
         !string.IsNullOrEmpty(origin) && origin != "null";
 
-    private static bool IsAllowedOrigin(string? origin)
+    private bool IsAllowedOrigin(string? origin)
     {
         // No Origin header: a non-browser client (script, curl, the extension's direct fetch).
         // "null": file:// pages and sandboxed/opaque contexts (a locally-opened dashboard).
         if (string.IsNullOrEmpty(origin) || origin == "null") return true;
 
-        // Browser extensions (Chrome/Edge, Firefox, Safari) — the Marksmith Connector.
-        if (origin.StartsWith("chrome-extension://", StringComparison.Ordinal) ||
-            origin.StartsWith("moz-extension://", StringComparison.Ordinal) ||
-            origin.StartsWith("safari-web-extension://", StringComparison.Ordinal))
+        // Browser extensions — specifically matching the configured AllowedExtensionId.
+        var allowedId = _allowedExtensionId?.Invoke();
+        if (!string.IsNullOrWhiteSpace(allowedId) &&
+            (origin.Equals($"chrome-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+             origin.Equals($"moz-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+             origin.Equals($"safari-web-extension://{allowedId}", StringComparison.OrdinalIgnoreCase)))
+        {
             return true;
+        }
 
         // Loopback only, matched on the exact host so look-alike public hosts can't slip through.
         if (Uri.TryCreate(origin, UriKind.Absolute, out var u) &&
