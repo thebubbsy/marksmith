@@ -355,13 +355,18 @@
                             <TextBlock Text="ShapeForge rebuilds Mermaid diagrams from Word's own shapes — flowcharts, sequence, class/ER, pie, gantt, mindmap, timeline, quadrant — every box and arrow editable. Anything it can't parse falls back to the snapshot."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
+                            <ToggleSwitch Header="Use Smart Connectors (Glued Edges)"
+                                          IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
+                            <TextBlock Text="When enabled, lines stay glued to shapes when dragged in Word."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
                             <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
                                       SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}">
                                 <x:String>Ask me each time</x:String>
                                 <x:String>Keep exact layout (Web Layout view)</x:String>
                                 <x:String>Reflow to fit the page</x:String>
                                 <x:String>Multi-page vertical downward (Print Layout)</x:String>
-                                <x:String>2x2 Grid poster (Web Layout view)</x:String>
+                                <x:String>2x2 Grid poster (Print Layout)</x:String>
                                 <x:String>Shrink to fit one page (Print Layout)</x:String>
                             </ComboBox>
                             <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let Marksmith re-wrap it to fit standard pages."
