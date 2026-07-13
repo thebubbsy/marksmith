@@ -60,7 +60,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             () => ViewModel.ThemeNames.ToList(),
             (md, origin, ovr) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => IngestFromSource(md, origin, ovr)),
             ConvertForApiAsync,
-            AppServices.Governance);
+            AppServices.Governance,
+            () => AppServices.Settings.Current.AllowedExtensionId);
 
         Loaded += async (_, _) =>
         {

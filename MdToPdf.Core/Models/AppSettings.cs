@@ -70,6 +70,9 @@ public sealed class AppSettings
     // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
     public bool AdvancedMode { get; set; }
 
+    // Security: Specific extension ID allowed to call the local API (resolves SAST warning)
+    public string AllowedExtensionId { get; set; } = "";
+
     // Returns a copy with any non-null override fields applied — used so an API/extension caller can
     // export with its own output profile without mutating the app's persistent settings.
     public AppSettings CloneWith(OutputOverride? o)

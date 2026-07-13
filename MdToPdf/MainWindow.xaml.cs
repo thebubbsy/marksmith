@@ -136,7 +136,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             () => ViewModel.ThemeNames.ToList(),
             (md, origin, ovr) => DispatcherQueue.TryEnqueue(() => IngestFromSource(md, origin, ovr)),
             ConvertForApiAsync,
-            App.Governance);
+            App.Governance,
+            () => App.Settings.Current.AllowedExtensionId);
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         App.License.Changed += () => DispatcherQueue.TryEnqueue(() => { SyncAdvancedSection(); UpdateLicenseBanner(); });
@@ -821,7 +822,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.ClickedItem is not Models.HistoryEntry entry) return;
         if (File.Exists(entry.OutputPath))
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+            var ext = System.IO.Path.GetExtension(entry.OutputPath).ToLowerInvariant();
+            if (ext is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md")
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+            }
+            else
+            {
+                ViewModel.StatusText = $"Blocked opening untrusted file type: {ext}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            }
         }
         else
         {
@@ -1173,7 +1183,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (ViewModel.LastOutputPath is { } path && File.Exists(path))
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            if (ext is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md")
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            }
         }
     }
 

@@ -239,71 +239,7 @@ Runs on Windows 11 (x64). The WebView2 runtime it uses for rendering ships
 with current Windows; if yours somehow lacks it, grab it
 [here](https://developer.microsoft.com/microsoft-edge/webview2/).
 
----
 
-## 🌐 Cross-platform build (preview)
-
-Marksmith is primarily a Windows app, but the conversion engine underneath it — every exporter,
-ShapeForge diagram rendering, licensing, and the governance/DLP layer — lives in a
-platform-agnostic library (`MdToPdf.Core`, net8.0, no WinUI dependency). On top of that,
-`MdToPdf.Avalonia` is a first-pass cross-platform build (Avalonia UI 12 + FluentAvaloniaUI,
-net10.0) that runs on Windows, Linux, and macOS via Avalonia's official
-`Avalonia.Controls.WebView` package (WebView2 on Windows, WKWebView on macOS, WebKitGTK/WPE on
-Linux).
-
-**The WinUI app described above remains the primary, most full‑featured build.** The Avalonia
-build shares the same rendering/export engine, but it's an early pass on the UI side and isn't at
-feature parity yet — see "Known gaps" below before relying on it.
-
-### Build it yourself
-
-```bash
-dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r win-x64 --self-contained true
-dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r linux-x64 --self-contained true
-dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r osx-arm64 --self-contained true
-```
-
-Requires the .NET 10 SDK. Each publish is fully self‑contained — the .NET runtime, every NuGet
-dependency, and the bundled mermaid.js/KaTeX/highlight.js web assets all ship in the output folder,
-so there's nothing else to install for the app itself. What *is* required outside the app, per
-platform:
-
-- **Windows** — the WebView2 Runtime. It ships by default with Windows 10 21H2+ and Windows 11 —
-  the same pre‑existing dependency the WinUI build already has, not a new one. Missing only on
-  older or stripped‑down installs; grab it
-  [here](https://developer.microsoft.com/microsoft-edge/webview2/) if needed.
-- **Linux** — a system WebKit engine (WebKitGTK or WPEWebKit), installed via your distro's package
-  manager, e.g. `sudo apt install libwebkit2gtk-4.1-0` on Debian/Ubuntu (package name varies by
-  distro). Avalonia does not bundle this — it's a genuine external dependency, not guaranteed to be
-  present on a minimal or server Linux install.
-- **macOS** — nothing extra. It uses WKWebView, a framework built into the OS.
-
-> **Known gaps versus the WinUI build** — this is a first pass, not yet at full parity:
-> - **PDF page size on Windows is solid; on Linux/macOS it's still unverified.** The
->   cross‑platform web‑view package's own print‑settings API has no page width/height at all, and an
->   earlier attempt to work around that with an injected `@page` CSS rule proved unreliable (matched
->   once, then consistently didn't reproduce). Rather than keep debugging the CSS, the Windows build
->   now bridges past that package entirely: `NativeWebView.TryGetPlatformHandle()` hands back the raw
->   native `ICoreWebView2` COM pointer, which gets wrapped in the same managed `CoreWebView2` type
->   WinUI already drives directly — so page width/height/margins are set through the real WebView2
->   print API, the same mechanism the original Python TUI relied on via Playwright's
->   `page.pdf(width=, height=)`. Verified with an isolated test harness requesting two different page
->   widths (777px and 1500px): both produced PDFs matching the requested size to within WebView2's own
->   rounding. Linux (WebKitGTK) and macOS (WKWebView) have no equivalent bridge wired up yet, so they
->   still fall back to the `@page` CSS rule as a best‑effort — genuinely untested on those platforms,
->   not confirmed broken, just unverified. See the code comments on `MdToPdf.Avalonia`'s
->   `PrintToPdfAsync` for the full history, and `MdToPdf.Core/Services/PdfExportService.cs` for the
->   CSS fallback. Separately, the *content width* Style setting is correctly threaded through
->   everywhere it needs to be (it used to be ignored in favor of a hardcoded 800/1200px) — that's a
->   real, verified fix, and on Windows the PDF's page now genuinely honors it end‑to‑end.
->
-> Settings (license/update management) and automation (clipboard watcher, folder watcher, local
-> REST API) are both wired up in this build now, mirroring the WinUI app.
-
-Prebuilt portable zips for all three platforms are attached to each
-[release](https://github.com/thebubbsy/marksmith/releases/latest) alongside the Windows installer.
-
----
 
 ## Architecture
 
