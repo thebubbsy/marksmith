@@ -455,7 +455,6 @@ public sealed class DocxExportService
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
                             new W.Justification { Val = W.JustificationValues.Center }));
                         ctx.ForceWebLayout |= oversizedGen;
-                        if (ctx.OversizedDiagramMode == 4) ctx.ForceWebLayout = true;
                         target.Append(p);
                     }
                 }
@@ -508,7 +507,6 @@ public sealed class DocxExportService
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
                             new W.Justification { Val = W.JustificationValues.Center }));
                         ctx.ForceWebLayout |= oversized;
-                        if (ctx.OversizedDiagramMode == 4) ctx.ForceWebLayout = true;
                         target.Append(p);
                     }
                 }
@@ -1860,6 +1858,12 @@ public sealed class DocxExportService
 
         // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
         var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
+        
+        if (ctx.OversizedDiagramMode == 4)
+        {
+            width = (uint)(width * ctx.DiagramGridSize);
+            height = (uint)(height * ctx.DiagramGridSize);
+        }
 
         W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
