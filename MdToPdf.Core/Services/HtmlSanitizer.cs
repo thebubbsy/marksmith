@@ -27,14 +27,14 @@ public static partial class HtmlSanitizer
     private static partial Regex TagAware();
 
     // on*="…" / on*='…' / on*=bare inside a tag. Applied only within a correctly-delimited tag.
-    [GeneratedRegex(@"\son\w+\s*=\s*(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"[\s/]on\w+\s*=\s*(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
     private static partial Regex EventHandlers();
 
     // A url-bearing attribute (href/src, optionally xlink:/xml: prefixed), capturing name+`=`
     // (group 1) and the value (group 2: double-quoted, single-quoted, or bare). Whether the value
     // is a javascript: URL is decided in code (IsJavascriptUrl), because a single regex can't both
     // respect the value's own delimiter and skip a foreign inner quote — the two-quote-styles bug.
-    [GeneratedRegex(@"(\s(?:xlink:|xml:)?(?:href|src)\s*=\s*)(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"([\s/](?:xlink:|xml:)?(?:href|src)\s*=\s*)(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
     private static partial Regex UrlAttr();
 
     // A URL value is a javascript: link if, after HTML-decoding and removing ALL whitespace/control

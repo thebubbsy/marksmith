@@ -1,0 +1,4 @@
+## 2024-07-14 - [XSS Bypass via Missing Slashes in Tag Regexes]
+**Vulnerability:** `HtmlSanitizer.cs` used `\s` to match whitespace preceding `on*=` event handlers and URL attributes. This allowed attackers to bypass the sanitizer by using a slash `/` instead of a space, like `<img/onerror=alert(1)>` or `<a/href="javascript:alert(1)">`.
+**Learning:** `\s` does not match `/`. In HTML, a slash `/` before an attribute is often interpreted as a delimiter similar to a space by browser parsers. Because the Regex only checked for `\s`, these tags evaded stripping while still executing the XSS payload.
+**Prevention:** When writing regexes to sanitize HTML attributes, always match both whitespace and `/` using `[\s/]` rather than just `\s` before the attribute name.
