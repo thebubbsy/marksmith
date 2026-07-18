@@ -454,3 +454,4 @@ already went off once.
 - **O:\ NuGet outage workaround**: `NUGET_PACKAGES=%LOCALAPPDATA%\marksmith-local-nuget` gets
   builds going while the mapped drive is missing — set it per-command, don't change machine
   config.
+
