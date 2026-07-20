@@ -1,0 +1,190 @@
+flowchart TB
+
+%% ===========================
+%% INTERNET
+%% ===========================
+
+subgraph Internet
+U1[Remote Users]
+U2[Employees]
+U3[Partners]
+U4[Mobile Apps]
+U5[IoT Devices]
+U6[APIs]
+DNS[Public DNS]
+ISP[ISPs]
+end
+
+%% ===========================
+%% EDGE
+%% ===========================
+
+subgraph Edge
+CDN[CDN]
+WAF[WAF]
+DDoS[DDoS Protection]
+LB1[Global Load Balancer]
+VPN[VPN Gateway]
+ZTNA[ZTNA]
+FW1[Firewall A]
+FW2[Firewall B]
+end
+
+%% ===========================
+%% CORE
+%% ===========================
+
+subgraph Core
+CR1[Core Router 1]
+CR2[Core Router 2]
+CR3[Core Router 3]
+SW1[Core Switch 1]
+SW2[Core Switch 2]
+SW3[Core Switch 3]
+end
+
+%% ===========================
+%% DMZ
+%% ===========================
+
+subgraph DMZ
+WEB1[Web 01]
+WEB2[Web 02]
+WEB3[Web 03]
+WEB4[Web 04]
+API1[API Gateway]
+MQ1[MQ Broker]
+MAIL[Mail Relay]
+BASTION[Bastion]
+end
+
+%% ===========================
+%% APP
+%% ===========================
+
+subgraph Application
+APP1[App 01]
+APP2[App 02]
+APP3[App 03]
+APP4[App 04]
+APP5[App 05]
+APP6[App 06]
+APP7[App 07]
+APP8[App 08]
+CACHE1[Redis Cache]
+CACHE2[Memcached]
+end
+
+%% ===========================
+%% DATABASE
+%% ===========================
+
+subgraph Database
+DB1[(Primary DB)]
+DB2[(Replica DB)]
+DB3[(Analytics DB)]
+NOSQL1[(MongoDB)]
+NOSQL2[(Cassandra)]
+TS1[(TimescaleDB)]
+end
+
+%% ===========================
+%% STORAGE
+%% ===========================
+
+subgraph Storage
+NAS1[NAS 01]
+NAS2[NAS 02]
+SAN1[SAN]
+OBJ1[Object Storage]
+BACKUP1[Backup Server]
+end
+
+%% ===========================
+%% MONITORING
+%% ===========================
+
+subgraph Monitoring
+MON1[Prometheus]
+MON2[Grafana]
+LOG1[ELK Stack]
+SIEM1[SIEM]
+end
+
+%% ===========================
+%% CONNECTIONS
+%% ===========================
+
+U1 --> DNS
+U2 --> VPN
+U3 --> ZTNA
+U4 --> CDN
+U5 --> ISP
+U6 --> API1
+DNS --> CDN
+ISP --> DDoS
+CDN --> WAF
+DDoS --> WAF
+WAF --> LB1
+VPN --> FW1
+ZTNA --> FW2
+LB1 --> FW1
+LB1 --> FW2
+FW1 --> CR1
+FW1 --> CR2
+FW2 --> CR2
+FW2 --> CR3
+CR1 --> SW1
+CR2 --> SW2
+CR3 --> SW3
+SW1 --> WEB1
+SW1 --> WEB2
+SW2 --> WEB3
+SW2 --> WEB4
+SW3 --> API1
+SW3 --> MQ1
+WEB1 --> APP1
+WEB2 --> APP2
+WEB3 --> APP3
+WEB4 --> APP4
+API1 --> APP5
+API1 --> APP6
+MQ1 --> APP7
+MQ1 --> APP8
+APP1 --> CACHE1
+APP2 --> CACHE1
+APP3 --> CACHE2
+APP4 --> CACHE2
+APP5 --> DB1
+APP6 --> DB1
+APP7 --> NOSQL1
+APP8 --> NOSQL2
+CACHE1 --> DB1
+CACHE2 --> DB2
+DB1 --> DB2
+DB1 --> DB3
+DB3 --> TS1
+NOSQL1 --> NOSQL2
+DB1 --> SAN1
+DB2 --> SAN1
+NOSQL1 --> NAS1
+NOSQL2 --> NAS2
+SAN1 --> BACKUP1
+NAS1 --> BACKUP1
+NAS2 --> BACKUP1
+OBJ1 --> BACKUP1
+MON1 --> APP1
+MON1 --> APP2
+MON1 --> APP3
+MON1 --> APP4
+MON2 --> MON1
+LOG1 --> SW1
+LOG1 --> SW2
+LOG1 --> SW3
+SIEM1 --> FW1
+SIEM1 --> FW2
+SIEM1 --> LOG1
+BASTION --> SW1
+BASTION --> SW2
+BASTION --> SW3
+MAIL --> SW2

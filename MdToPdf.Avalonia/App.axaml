@@ -6,7 +6,7 @@
     <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.Styles>
-        <theme:FluentAvaloniaTheme />
+        <FluentTheme />
     </Application.Styles>
 
     <TrayIcon.Icons>

@@ -27,6 +27,7 @@ public sealed class MarkdownHtmlService
         .UseYamlFrontMatter()
         .UseAlertBlocks()
         .UseMathematics()
+        .UseEmojiAndSmiley(enableSmileys: false)
         .Build();
 
     // Same alert accent colors used by the Python app's DOCX alert-box rendering, for visual parity.
@@ -61,14 +62,31 @@ public sealed class MarkdownHtmlService
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
         LlmClassification? classification = null, bool interactive = false)
     {
+        if (settings.TargetFormat == "docx")
+        {
+            theme = new ThemeDefinition(
+                Name: "Word Document",
+                Background: interactive ? "#f3f2f1" : "#ffffff", // Grey background in interactive preview to show "page"
+                Text: "#000000",
+                Heading: "#2f5496",
+                Code: "#f4f4f4",
+                Border: "#dddddd",
+                Primary: "#2f5496",
+                Secondary: "#f4f4f4",
+                Line: "#dddddd"
+            );
+        }
+
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
         markdown = DiagramFenceSniffer.Apply(markdown);
-        if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
+        
+        if (settings.NoEmoji) body = EmojiStripper.Strip(body);
+        
         // Sanitize the markdig output FIRST — everything appended after this point (mermaid init,
         // KaTeX, the lens, plugin SVGs) is our own, trusted markup and must not be filtered.
         body = HtmlSanitizer.Apply(body);
@@ -227,8 +245,9 @@ public sealed class MarkdownHtmlService
         // BrandFontFamily also arrives here from a "Copy as Markdown" clipboard capture (see
         // OutputOverride.SourceFontFamily / AppSettings.CloneWith) so the preview shows the reply in
         // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
+        // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
         var bodyFontFamily = string.IsNullOrWhiteSpace(settings.BrandFontFamily)
-            ? "-apple-system, \"Segoe UI\", sans-serif"
+            ? (settings.TargetFormat == "docx" ? "\"Calibri\", \"Cambria\", sans-serif" : "-apple-system, \"Segoe UI\", sans-serif")
             : $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
 
         // lang/dir come from the source page's metadata on ingest (see AppSettings.ContentLanguage/
@@ -327,13 +346,14 @@ public sealed class MarkdownHtmlService
             {{lensScript}}
             {{extraHead}}
             <style>
-            body { background: {{theme.Background}}; color: {{theme.Text}}; font-family: {{bodyFontFamily}}; line-height: 1.6; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; width: 100%; }
-            #canvas { padding: 60px 40px; width: 100%; max-width: {{settings.ContentWidth}}px; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; }
+            body { margin: 0; padding: 0; background-color: {{theme.Background}}; color: {{theme.Text}}; 
+                   font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto; }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(settings.TargetFormat == "docx" && interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(settings.TargetFormat == "docx" && interactive ? "background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" : "")}} }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; }
-            table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; }
-            th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; }
+            table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
+            th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
             th { background: {{theme.Code}}; font-weight: bold; }
             .markdown-alert { border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; }
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
@@ -368,6 +388,8 @@ public sealed class MarkdownHtmlService
             @media print { .page-break { page-break-after: always; border: none; } .page-break::after { content: ""; } }
             img { max-width: 100%; }
             .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
+            /* --- Capability-Aware Preview CSS --- */
+            /* If the output format is DOCX and Mermaid ShapeForge mode is off, non-supported items could be dimmed here, but for now we rely on the backend. */
             #mk-lens { position: fixed; inset: 0; z-index: 99; display: none; background: {{theme.Background}}f2; cursor: grab; overflow: hidden; user-select: none; -webkit-user-select: none; }
             #mk-lens.open { display: block; }
             #mk-lens.dragging { cursor: grabbing; }

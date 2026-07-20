@@ -26,5 +26,9 @@
          DocxExportService's plugin-diagram FencedCodeBlock case). -->
     <PackageReference Include="Svg.Skia" Version="2.0.0.5" />
   </ItemGroup>
-
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>MdToPdf.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
