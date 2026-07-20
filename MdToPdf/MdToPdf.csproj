@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <!-- Windows App SDK: WinUI 3 controls, XAML compiler, Mica/Acrylic backdrops -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
     <!-- Chromium rendering engine used for live preview + PDF export (CoreWebView2.PrintToPdfAsync) -->

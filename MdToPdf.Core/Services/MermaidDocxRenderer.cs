@@ -30,7 +30,7 @@ public static class MermaidDocxRenderer
         public uint XmlId;
     }
 
-    private sealed record Edge(Node From, Node To, string? Label, bool Dashed, bool Thick, bool Arrow);
+    private sealed record Edge(Node From, Node To, string? Label, bool Dashed, bool Thick, bool StartArrow, bool EndArrow);
 
     private sealed class Graph
     {
@@ -129,7 +129,10 @@ public static class MermaidDocxRenderer
             }
 
             var g = Parse(source);
-            if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) return false;
+            if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) {
+                Console.WriteLine($"Parse returned null? {g is null}");
+                return false;
+            }
             Layout(g, forceFit);
             oversized = g.Oversized;
 
@@ -141,8 +144,10 @@ public static class MermaidDocxRenderer
                 new W.Run(drawing));
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"TryRender exception: {ex}");
+            Console.WriteLine($"TryRender exception: {ex}");
             return false; // any surprise → snapshot/code-block fallback, never a broken document
         }
     }
@@ -156,7 +161,11 @@ public static class MermaidDocxRenderer
             var line = raw.Trim();
             if (line.Length == 0 || line.StartsWith("%%")) continue;
             var m = Regex.Match(line, @"^([A-Za-z][A-Za-z0-9-]*)");
-            return m.Success ? m.Groups[1].Value.ToLowerInvariant() : "";
+            if (m.Success)
+            {
+                var word = m.Groups[1].Value.ToLowerInvariant();
+                if (word is "graph" or "flowchart" || BespokeTypes.Contains(word)) return word;
+            }
         }
         return "";
     }
@@ -174,13 +183,16 @@ public static class MermaidDocxRenderer
             if (dir is null)
             {
                 var m = Regex.Match(line, @"^(?:graph|flowchart)\s+(TD|TB|LR|RL|BT)\b", RegexOptions.IgnoreCase);
-                if (!m.Success) return null; // not a flowchart — unsupported diagram type
+                if (!m.Success) continue; // not a flowchart declaration yet, keep looking
                 dir = m.Groups[1].Value.ToUpperInvariant();
                 continue;
             }
             // Grouping/styling lines don't affect the shape graph; skip them.
             if (Regex.IsMatch(line, @"^(subgraph\b|end\b|direction\b|classDef\b|class\b|style\b|linkStyle\b|click\b|accTitle\b|accDescr\b)")) continue;
-            if (!ParseLine(line, g)) return null; // partially-understood line → refuse (fallback)
+            if (!ParseLine(line, g)) {
+                Console.WriteLine($"ParseLine failed on: '{line}'");
+                return null; // partially-understood line → refuse (fallback)
+            }
         }
         if (dir is null) return null;
         g.LeftRight = dir is "LR" or "RL";
@@ -192,20 +204,20 @@ public static class MermaidDocxRenderer
         line = line.TrimEnd(';').Trim();
         int i = 0;
         var left = ReadNodeGroup(line, ref i, g);
-        if (left is null) return false;
+        if (left is null) { Console.WriteLine("ReadNodeGroup returned null"); return false; }
         while (true)
         {
             if (SkipWs(line, ref i)) return true; // clean end of line
             var arrow = ReadArrow(line, ref i);
-            if (arrow is null) return false;
+            if (arrow is null) { Console.WriteLine("ReadArrow returned null"); return false; }
             var right = ReadNodeGroup(line, ref i, g);
-            if (right is null) return false;
+            if (right is null) { Console.WriteLine("ReadNodeGroup (right) returned null"); return false; }
             bool first = true;
             foreach (var u in left)
                 foreach (var v in right)
                 {
                     g.Edges.Add(new Edge(u, v, first ? arrow.Value.Label : null,
-                        arrow.Value.Dashed, arrow.Value.Thick, arrow.Value.Head));
+                        arrow.Value.Dashed, arrow.Value.Thick, arrow.Value.StartHead, arrow.Value.EndHead));
                     first = false;
                 }
             left = right;
@@ -219,19 +231,19 @@ public static class MermaidDocxRenderer
     }
 
     private static readonly Regex ArrowRe = new(
-        @"\G\s*(-\.+->|-{2,3}>|={2,3}>|-{3}|={3})\s*(?:\|([^|]*)\|)?\s*", RegexOptions.Compiled);
+        @"\G\s*(<)?(-\.+->?|-{2,3}>?|={2,3}>?)\s*(?:\|([^|]*)\|)?\s*", RegexOptions.Compiled);
 
-    private static (string? Label, bool Dashed, bool Thick, bool Head)? ReadArrow(string s, ref int i)
+    private static (string? Label, bool Dashed, bool Thick, bool StartHead, bool EndHead)? ReadArrow(string s, ref int i)
     {
         var m = ArrowRe.Match(s, i);
         if (!m.Success || m.Index != i) return null;
         i = m.Index + m.Length;
-        var tok = m.Groups[1].Value;
-        var label = m.Groups[2].Success ? Clean(m.Groups[2].Value) : null;
-        return (string.IsNullOrWhiteSpace(label) ? null : label, tok.Contains('.'), tok.StartsWith('='), tok.EndsWith('>'));
+        var tok = m.Groups[2].Value;
+        var label = m.Groups[3].Success ? Clean(m.Groups[3].Value) : null;
+        return (string.IsNullOrWhiteSpace(label) ? null : label, tok.Contains('.'), tok.StartsWith('='), m.Groups[1].Success, tok.EndsWith('>'));
     }
 
-    private static readonly Regex IdRe = new(@"\G\s*([A-Za-z0-9_][A-Za-z0-9_.:-]*)", RegexOptions.Compiled);
+    private static readonly Regex IdRe = new(@"\G\s*([A-Za-z0-9_](?:(?!--|-\.)[A-Za-z0-9_.:-])*)", RegexOptions.Compiled);
     private static readonly Regex AmpRe = new(@"\G\s*&\s*", RegexOptions.Compiled);
 
     // Bracket pairs, longest openers first, mapped to Word preset geometries.
@@ -239,7 +251,8 @@ public static class MermaidDocxRenderer
     {
         ("((", "))", "ellipse"), ("([", "])", "round"), ("[[", "]]", "rect"),
         ("[/", "/]", "parallelogram"), ("[\\", "\\]", "parallelogram"), ("{{", "}}", "hexagon"),
-        ("[", "]", "rect"), ("(", ")", "round"), ("{", "}", "diamond"),
+        ("[(", ")]", "database"),
+        ("[", "]", "rect"), ("(", ")", "round"), ("{", "}", "diamond"), (">", "]", "rect"),
     };
 
     private static List<Node>? ReadNodeGroup(string s, ref int i, Graph g)
@@ -320,6 +333,7 @@ public static class MermaidDocxRenderer
                 "diamond" => baseW * 1.45,
                 "ellipse" => baseW * 1.35, // text region of an ellipse is ~70% of its width
                 "hexagon" => baseW * 1.25,
+                "database" => baseW * 1.15,
                 _ => baseW,
             };
 
@@ -462,7 +476,7 @@ public static class MermaidDocxRenderer
         var prst = n.Shape switch
         {
             "round" => "roundRect", "ellipse" => "ellipse", "diamond" => "diamond",
-            "parallelogram" => "parallelogram", "hexagon" => "hexagon", _ => "rect",
+            "parallelogram" => "parallelogram", "hexagon" => "hexagon", "database" => "can", _ => "rect",
         };
         return $"""
             <wps:wsp>
@@ -530,7 +544,8 @@ public static class MermaidDocxRenderer
         long cx = Math.Abs(Emu(x2) - Emu(x1)), cy = Math.Abs(Emu(y2) - Emu(y1));
         string flips = (x2 < x1 ? " flipH=\"1\"" : "") + (y2 < y1 ? " flipV=\"1\"" : "");
         string dash = e.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
-        string head = e.Arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
+        string startHead = e.StartArrow ? "<a:headEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
+        string endHead = e.EndArrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
         long weight = e.Thick ? 28575 : 12700;
         
         string cxnAttr = "";
@@ -549,7 +564,7 @@ public static class MermaidDocxRenderer
                 <a:xfrm{flips}><a:off x="{ox}" y="{oy}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
                 <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
                 <a:noFill/>
-                <a:ln w="{weight}"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill>{dash}{head}</a:ln>
+                <a:ln w="{weight}"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill>{dash}{startHead}{endHead}</a:ln>
               </wps:spPr>
               <wps:bodyPr/>
             </wps:wsp>

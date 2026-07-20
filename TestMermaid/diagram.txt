@@ -1,0 +1,411 @@
+flowchart TB
+
+%% ===========================
+%% INTERNET
+%% ===========================
+
+subgraph Internet
+U1[Remote Users]
+U2[Employees]
+U3[Partners]
+U4[Mobile Apps]
+U5[IoT Devices]
+U6[APIs]
+DNS[Public DNS]
+ISP[ISPs]
+end
+
+%% ===========================
+%% EDGE
+%% ===========================
+
+subgraph Edge
+CDN[CDN]
+WAF[WAF]
+DDoS[DDoS Protection]
+LB1[Global Load Balancer]
+VPN[VPN Gateway]
+ZTNA[ZTNA]
+FW1[Firewall A]
+FW2[Firewall B]
+end
+
+%% ===========================
+%% CORE
+%% ===========================
+
+subgraph Core
+CR1[Core Router 1]
+CR2[Core Router 2]
+CR3[Core Router 3]
+SW1[Core Switch 1]
+SW2[Core Switch 2]
+SW3[Core Switch 3]
+end
+
+%% ===========================
+%% DMZ
+%% ===========================
+
+subgraph DMZ
+WEB1[Web 01]
+WEB2[Web 02]
+WEB3[Web 03]
+WEB4[Web 04]
+API1[API Gateway]
+MQ1[MQ Broker]
+MAIL[Mail Relay]
+BASTION[Bastion]
+end
+
+%% ===========================
+%% APP
+%% ===========================
+
+subgraph Application
+APP1[App 01]
+APP2[App 02]
+APP3[App 03]
+APP4[App 04]
+APP5[App 05]
+APP6[App 06]
+AUTH[Auth]
+CACHE[Redis]
+SEARCH[Elastic]
+QUEUE[RabbitMQ]
+end
+
+%% ===========================
+%% DATABASE
+%% ===========================
+
+subgraph Databases
+DB1[(Primary)]
+DB2[(Replica)]
+DB3[(Analytics)]
+DB4[(Archive)]
+DB5[(Warehouse)]
+end
+
+%% ===========================
+%% STORAGE
+%% ===========================
+
+subgraph Storage
+NAS[NAS]
+SAN[SAN]
+OBJ[S3 Storage]
+BACKUP[Backup]
+TAPE[Tape Vault]
+end
+
+%% ===========================
+%% KUBERNETES
+%% ===========================
+
+subgraph Kubernetes
+KM1[Master 1]
+KM2[Master 2]
+KM3[Master 3]
+
+KN1[Worker 1]
+KN2[Worker 2]
+KN3[Worker 3]
+KN4[Worker 4]
+KN5[Worker 5]
+KN6[Worker 6]
+KN7[Worker 7]
+KN8[Worker 8]
+KN9[Worker 9]
+KN10[Worker 10]
+
+ING[Ingress]
+PROM[Prometheus]
+GRAF[Grafana]
+ARGO[ArgoCD]
+end
+
+%% ===========================
+%% CLOUD
+%% ===========================
+
+subgraph Cloud
+ALB[ALB]
+LAMBDA[Lambda]
+SQS[SQS]
+SNS[SNS]
+EKS[EKS]
+RDS[RDS]
+S3[S3]
+CF[CloudFront]
+IAM[IAM]
+end
+
+%% ===========================
+%% SECURITY
+%% ===========================
+
+subgraph Security
+SIEM[SIEM]
+IDS[IDS]
+IPS[IPS]
+SOC[SOC]
+PKI[PKI]
+KMS[KMS]
+VAULT[Vault]
+end
+
+%% ===========================
+%% MONITORING
+%% ===========================
+
+subgraph Monitoring
+LOG[Logs]
+TRACE[Tracing]
+METRIC[Metrics]
+ALERT[Alertmanager]
+NOC[NOC]
+end
+
+%% ===========================
+%% DEVOPS
+%% ===========================
+
+subgraph DevOps
+DEV[Developers]
+GIT[Git]
+CI[Jenkins]
+REG[Registry]
+SCAN[Scanner]
+CD[Deployment]
+end
+
+%% ===========================
+%% BRANCHES
+%% ===========================
+
+subgraph Branch01
+B1R[Router]
+B1S[Switch]
+B1PC1[PC1]
+B1PC2[PC2]
+B1AP[WiFi]
+end
+
+subgraph Branch02
+B2R[Router]
+B2S[Switch]
+B2PC1[PC1]
+B2PC2[PC2]
+B2AP[WiFi]
+end
+
+subgraph Branch03
+B3R[Router]
+B3S[Switch]
+B3PC1[PC1]
+B3PC2[PC2]
+B3AP[WiFi]
+end
+
+subgraph Branch04
+B4R[Router]
+B4S[Switch]
+B4PC1[PC1]
+B4PC2[PC2]
+B4AP[WiFi]
+end
+
+%% INTERNET
+
+U1-->ISP
+U2-->ISP
+U3-->ISP
+U4-->ISP
+U5-->ISP
+U6-->ISP
+
+ISP-->DNS
+DNS-->CDN
+CDN-->WAF
+WAF-->DDoS
+DDoS-->LB1
+
+LB1-->FW1
+LB1-->FW2
+
+VPN-->FW1
+ZTNA-->FW2
+
+FW1-->CR1
+FW2-->CR2
+
+CR1---CR2
+CR2---CR3
+CR3---CR1
+
+CR1-->SW1
+CR2-->SW2
+CR3-->SW3
+
+SW1-->WEB1
+SW1-->WEB2
+SW2-->WEB3
+SW2-->WEB4
+SW3-->API1
+SW3-->MAIL
+SW3-->MQ1
+SW3-->BASTION
+
+WEB1-->APP1
+WEB2-->APP2
+WEB3-->APP3
+WEB4-->APP4
+API1-->APP5
+API1-->APP6
+
+APP1-->AUTH
+APP2-->AUTH
+APP3-->AUTH
+APP4-->AUTH
+APP5-->AUTH
+APP6-->AUTH
+
+APP1-->CACHE
+APP2-->CACHE
+APP3-->CACHE
+APP4-->CACHE
+APP5-->CACHE
+APP6-->CACHE
+
+APP1-->QUEUE
+APP2-->QUEUE
+APP3-->QUEUE
+APP4-->QUEUE
+APP5-->QUEUE
+APP6-->QUEUE
+
+APP1-->SEARCH
+APP2-->SEARCH
+APP3-->SEARCH
+APP4-->SEARCH
+
+APP1-->DB1
+APP2-->DB1
+APP3-->DB2
+APP4-->DB2
+APP5-->DB3
+APP6-->DB5
+
+DB1-->DB2
+DB1-->DB4
+DB3-->DB5
+
+DB1-->SAN
+DB2-->SAN
+DB3-->NAS
+DB4-->OBJ
+DB5-->OBJ
+
+SAN-->BACKUP
+NAS-->BACKUP
+OBJ-->BACKUP
+BACKUP-->TAPE
+
+ING-->KM1
+ING-->KM2
+ING-->KM3
+
+KM1-->KN1
+KM1-->KN2
+KM1-->KN3
+KM2-->KN4
+KM2-->KN5
+KM2-->KN6
+KM3-->KN7
+KM3-->KN8
+KM3-->KN9
+KM3-->KN10
+
+KN1-->PROM
+KN2-->PROM
+KN3-->PROM
+KN4-->PROM
+KN5-->PROM
+KN6-->PROM
+KN7-->PROM
+KN8-->PROM
+KN9-->PROM
+KN10-->PROM
+
+PROM-->GRAF
+ARGO-->EKS
+
+ALB-->EKS
+LAMBDA-->SQS
+SQS-->SNS
+EKS-->RDS
+EKS-->S3
+CF-->ALB
+IAM-->EKS
+
+FW1-->IDS
+FW2-->IPS
+IDS-->SIEM
+IPS-->SIEM
+SIEM-->SOC
+SOC-->KMS
+KMS-->VAULT
+PKI-->FW1
+PKI-->FW2
+
+LOG-->SIEM
+TRACE-->LOG
+METRIC-->PROM
+PROM-->ALERT
+ALERT-->NOC
+
+DEV-->GIT
+GIT-->CI
+CI-->SCAN
+SCAN-->REG
+REG-->CD
+CD-->ARGO
+
+B1PC1-->B1S
+B1PC2-->B1S
+B1AP-->B1S
+B1S-->B1R
+B1R-->VPN
+
+B2PC1-->B2S
+B2PC2-->B2S
+B2AP-->B2S
+B2S-->B2R
+B2R-->VPN
+
+B3PC1-->B3S
+B3PC2-->B3S
+B3AP-->B3S
+B3S-->B3R
+B3R-->VPN
+
+B4PC1-->B4S
+B4PC2-->B4S
+B4AP-->B4S
+B4S-->B4R
+B4R-->VPN
+
+KN1-->APP1
+KN2-->APP2
+KN3-->APP3
+KN4-->APP4
+KN5-->APP5
+KN6-->APP6
+KN7-->CACHE
+KN8-->SEARCH
+KN9-->QUEUE
+KN10-->AUTH
+
+RDS-->DB3
+S3-->OBJ

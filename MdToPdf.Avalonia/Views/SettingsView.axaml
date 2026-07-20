@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:MdToPdf.ViewModels"
-             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:ui="using:MdToPdf.Avalonia.Controls"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="560"
@@ -21,7 +21,7 @@
     <TabControl MinWidth="500" MaxWidth="500" Height="480">
 
         <!-- ===== General ===== -->
-        <TabItem Header="General">
+        <TabItem ToolTip.Tip="General">
             <StackPanel Spacing="14" Margin="2,12,2,2">
                 <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="16,12">
                     <Grid ColumnDefinitions="*,Auto">
@@ -37,7 +37,7 @@
         </TabItem>
 
         <!-- ===== License ===== -->
-        <TabItem Header="License">
+        <TabItem ToolTip.Tip="License">
             <StackPanel Spacing="14" Margin="2,12,2,2">
                 <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="16">
                     <StackPanel Spacing="12">
@@ -62,7 +62,7 @@
         </TabItem>
 
         <!-- ===== Plugins ===== -->
-        <TabItem Header="Plugins">
+        <TabItem ToolTip.Tip="Plugins">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="14" Margin="2,12,10,2">
                     <TextBlock Text="Optional, separately-downloaded capabilities. Nothing here is bundled with Marksmith — install only what you use."
@@ -79,7 +79,7 @@
         </TabItem>
 
         <!-- ===== About ===== -->
-        <TabItem Header="About">
+        <TabItem ToolTip.Tip="About">
             <StackPanel Spacing="14" Margin="2,12,2,2">
                 <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="16">
                     <StackPanel Spacing="12">
@@ -95,7 +95,7 @@
 
                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                             <Button x:Name="CheckButton" Content="Check for updates" Click="OnCheckForUpdates" />
-                            <ui:FAProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" />
+                            <ui:ProgressRing x:Name="CheckRing" IsActive="False" Width="18" Height="18" />
                         </StackPanel>
                         <SelectableTextBlock x:Name="UpdateStatus" Text="" Opacity="0.7" FontSize="12"
                                              IsVisible="False" TextWrapping="Wrap" />

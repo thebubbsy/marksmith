@@ -2,6 +2,7 @@ namespace MdToPdf.Models;
 
 public sealed class AppSettings
 {
+    public string TargetFormat { get; set; } = "pdf";
     public string Theme { get; set; } = "GitHub Light";
     public int ContentWidth { get; set; } = 800;
     public bool MermaidEnabled { get; set; } = true;
