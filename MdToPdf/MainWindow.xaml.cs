@@ -256,11 +256,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return true;
     }
 
-    private async void OnGetExtensionClick(object sender, RoutedEventArgs e)
-    {
-        try { await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
-        catch { /* no browser */ }
-    }
+
 
     // Shows the upgrade banner only when the Pro trial is nearly up (<= 5 days) or has ended.
     private void UpdateLicenseBanner()
@@ -613,7 +609,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnExtensionTipClosed(InfoBar sender, object args) => ViewModel.ShowExtensionTip = false;
+    private void OnExtensionTipClosed(object sender, object args) => ViewModel.ShowExtensionTip = false;
 
     // Clipboard / API / extension ingests land here. Always update the UI; when "auto-generate PDF
     // from AI-chat ingests" is on, also export a PDF — so the extension sending a conversation at
