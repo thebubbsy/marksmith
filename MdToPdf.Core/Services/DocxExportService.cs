@@ -11,6 +11,7 @@ using Markdig.Extensions.TaskLists;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using MdToPdf.Core.AdvancedFeatures;
 using MdToPdf.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W14 = DocumentFormat.OpenXml.Office2010.Word;
@@ -101,6 +102,19 @@ public sealed class DocxExportService
             markdown = AdmonitionNormalizer.Apply(markdown);
             markdown = DialectNormalizer.Apply(markdown);
             markdown = DiagramFenceSniffer.Apply(markdown);
+            
+            var pipelineFeatures = new AdvancedFeaturePipeline();
+            var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
+            var featureNodes = pipelineFeatures.Process(markdown, docId);
+            
+            foreach (var node in featureNodes.OrderByDescending(n => n.Block.Start))
+            {
+                var before = markdown.Substring(0, node.Block.Start);
+                var after = markdown.Substring(node.Block.End);
+                markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
+            }
+            var featureDict = featureNodes.ToDictionary(n => n.StableId);
+
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
             markdown = FormattingService.Apply(markdown, settings);
@@ -142,6 +156,7 @@ public sealed class DocxExportService
                 OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
                 DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
                 SmartConnectors = settings.SmartConnectors,
+                AdvancedFeatures = featureDict,
             };
 
             AddStyles(main, ctx);
@@ -201,6 +216,19 @@ public sealed class DocxExportService
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
         markdown = DiagramFenceSniffer.Apply(markdown);
+
+        var pipelineFeatures = new AdvancedFeaturePipeline();
+        var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
+        var featureNodes = pipelineFeatures.Process(markdown, docId);
+        
+        foreach (var node in featureNodes.OrderByDescending(n => n.Block.Start))
+        {
+            var before = markdown.Substring(0, node.Block.Start);
+            var after = markdown.Substring(node.Block.End);
+            markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
+        }
+        var featureDict = featureNodes.ToDictionary(n => n.StableId);
+
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
@@ -240,6 +268,7 @@ public sealed class DocxExportService
             OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
             DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
             SmartConnectors = settings.SmartConnectors,
+            AdvancedFeatures = featureDict,
         };
 
         CollectAnchors(doc, ctx);
@@ -292,6 +321,8 @@ public sealed class DocxExportService
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
         public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2×2, 3=3×3)
         public bool SmartConnectors = true;
+        
+        public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
 
         public string TextHex => Hex(Theme.Text);
         public string HeadingHex => Hex(Theme.Heading);
@@ -998,6 +1029,57 @@ public sealed class DocxExportService
         p.ParagraphProperties.Indentation = new W.Indentation { Left = leftIndent.ToString() };
     }
 
+    private static void RenderAdvancedFeature(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        switch (node.Detector.FeatureName)
+        {
+            case "Columns":
+                RenderColumns(node, target, ctx);
+                break;
+            default:
+                // Placeholder for features not yet implemented — red bold label in the Word doc.
+                var p = new W.Paragraph(new W.ParagraphProperties(
+                    new W.SpacingBetweenLines { After = "120" }));
+                AddText(p, $"[Advanced Feature Reserved: {node.Detector.FeatureName}]",
+                    new Fmt { Bold = true, Color = "d73a49" });
+                target.Append(p);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Renders a :::columns block as native Word multi-column layout using continuous section breaks.
+    /// The content between the two section breaks is rendered into N equal-width columns.
+    /// </summary>
+    private static void RenderColumns(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        // Parse column count from attributes (default 2)
+        int count = 2;
+        if (node.Attributes.TryGetValue("count", out var countStr) && int.TryParse(countStr, out var parsed))
+            count = Math.Clamp(parsed, 2, 6);
+
+        // --- Opening continuous section break with column definition ---
+        var openSect = new W.Paragraph(new W.ParagraphProperties(
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.Continuous },
+                new W.Columns { ColumnCount = (Int16Value)(short)count, EqualWidth = true, Space = "720" })));
+        target.Append(openSect);
+
+        // --- Render the inner markdown content as standard paragraphs ---
+        // We re-parse the inner content through Markdig and render it inline.
+        var innerDoc = Markdig.Markdown.Parse(node.InnerContent,
+            ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+        foreach (var block in innerDoc)
+            RenderBlock(block, target, ctx, listLevel: -1);
+
+        // --- Closing continuous section break that resets to single column ---
+        var closeSect = new W.Paragraph(new W.ParagraphProperties(
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.Continuous },
+                new W.Columns { ColumnCount = (Int16Value)(short)1, EqualWidth = true })));
+        target.Append(closeSect);
+    }
+
     private static void RenderList(ListBlock list, OpenXmlCompositeElement target, Ctx ctx, int parentLevel)
     {
         var level = Math.Min(parentLevel + 1, 8);
@@ -1200,6 +1282,17 @@ public sealed class DocxExportService
     {
         raw = raw.Trim();
         if (raw.Length == 0) return;
+        
+        var advancedMatch = Regex.Match(raw, @"^<!-- MARKSMITH_FEATURE:(?<id>[a-f0-9\-]+) -->$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (advancedMatch.Success)
+        {
+            var id = advancedMatch.Groups["id"].Value;
+            if (ctx.AdvancedFeatures.TryGetValue(id, out var featureNode))
+            {
+                RenderAdvancedFeature(featureNode, target, ctx);
+                return;
+            }
+        }
 
         // Page break (from DialectNormalizer's <!-- pagebreak -->/\pagebreak rewrite, or a raw
         // page-break-after div an AI emitted directly) → a REAL Word page break, the one thing
