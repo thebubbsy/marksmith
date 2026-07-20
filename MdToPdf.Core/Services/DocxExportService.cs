@@ -1559,7 +1559,15 @@ public sealed class DocxExportService
             var path = raw.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
                 ? raw[8..].Replace('/', '\\')
                 : (raw.Length > 2 && raw[1] == ':' ? raw : null);
-            if (path is null || !File.Exists(path)) return false;
+            if (path is null || !File.Exists(path))
+            {
+                var relative = raw.Replace('/', '\\');
+                var altPath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relative);
+                var altPath2 = Path.Combine(Directory.GetCurrentDirectory(), relative);
+                if (File.Exists(altPath1)) path = altPath1;
+                else if (File.Exists(altPath2)) path = altPath2;
+                else return false;
+            }
 
             using var bitmap = SkiaSharp.SKBitmap.Decode(path);
             if (bitmap is null) return false;
