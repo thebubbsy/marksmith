@@ -62,7 +62,10 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             (md, origin, ovr) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => IngestFromSource(md, origin, ovr)),
             ConvertForApiAsync,
             AppServices.Governance,
-            () => AppServices.Settings.Current.AllowedExtensionId);
+            () => AppServices.Settings.Current.AllowedExtensionId,
+            () => AppServices.Settings.Current,
+            settings => { AppServices.Settings.Current.UpdateFrom(settings); AppServices.Settings.Save(); },
+            BatchConvertForApiAsync);
 
         Loaded += async (_, _) =>
         {
@@ -276,27 +279,185 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             {
                 var settings = AppServices.Settings.Current.CloneWith(output);
                 var md = markdown;
-                // Correctness repairs (copy-artifact removal, math/matrix rescue) always run;
-                // stylistic cleanup only when the caller's profile asks for it.
                 var classification = AppServices.LlmSource.Classify(md);
                 (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
                 if (settings.NormalizeLlm)
                     (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification);
                 var theme = AppServices.Themes.GetOrDefault(settings.Theme);
                 var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await new PdfExportService().ExportAsync(this, html, tmp, settings);
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                File.Delete(tmp);
-                tcs.SetResult(bytes);
+
+                var fmt = settings.TargetFormat.ToLowerInvariant();
+                if (output?.Format is { Length: > 0 } outputFmt)
+                    fmt = outputFmt.ToLowerInvariant();
+
+                if (fmt == "docx")
+                {
+                    IReadOnlyList<byte[]?>? mermaidImgs = null;
+                    IReadOnlyList<MdToPdf.Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
+                    IReadOnlyList<MdToPdf.Services.Mermaid.GenericDiagram?>? mermaidGen = null;
+                    if (md.Contains("```mermaid", System.StringComparison.Ordinal))
+                    {
+                        var harvester = new MermaidHarvestService();
+                        mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
+                        if (settings.MermaidDocxMode == 1)
+                        {
+                            mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
+                            mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
+                        }
+                    }
+
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.docx");
+                    if (settings.AppendToRunningDoc && !System.String.IsNullOrWhiteSpace(settings.RunningDocPath))
+                    {
+                        await new DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
+                        tmp = settings.RunningDocPath;
+                    }
+                    else
+                    {
+                        await new DocxExportService().ExportAsync(md, tmp, settings, mermaidImgs,
+                            settings.NormalizeLlm ? classification.AppliedFixes : null, mermaidGeo, mermaidGen);
+                    }
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    if (tmp != settings.RunningDocPath) File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
+                else if (fmt == "pptx")
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.pptx");
+                    await new PptxExportService().ExportAsync(md, tmp, settings);
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
+                else if (fmt == "epub")
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.epub");
+                    await new EpubExportService().ExportAsync(md, tmp, settings);
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
+                else
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.pdf");
+                    await new PdfExportService().ExportAsync(this, html, tmp, settings);
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 tcs.SetException(ex);
             }
-            finally { _convertLock.Release(); }
+            finally
+            {
+                _convertLock.Release();
+                await RefreshPreviewAsync();
+            }
         });
         return tcs.Task;
+    }
+
+    private async Task<object> BatchConvertForApiAsync(string folderPath, string format, Models.OutputOverride? ovr)
+    {
+        var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                if (!System.IO.Directory.Exists(folderPath))
+                {
+                    tcs.TrySetException(new System.IO.DirectoryNotFoundException($"Folder not found: {folderPath}"));
+                    return;
+                }
+                var files = System.IO.Directory.GetFiles(folderPath, "*.md", System.IO.SearchOption.TopDirectoryOnly);
+                if (files.Length == 0)
+                {
+                    tcs.SetResult(new { done = 0, failed = 0, message = "No .md files found." });
+                    return;
+                }
+
+                var settings = AppServices.Settings.Current.CloneWith(ovr);
+                var fmt = format.ToLowerInvariant();
+                var outFolder = settings.OutputFolder;
+                System.IO.Directory.CreateDirectory(outFolder);
+
+                if (fmt == "pdf")
+                {
+                    if (!await EnsureReadyAsync())
+                    {
+                        tcs.TrySetException(new System.InvalidOperationException("Preview WebView is not ready."));
+                        return;
+                    }
+                }
+
+                int done = 0, failed = 0;
+                var processedFiles = new System.Collections.Generic.List<string>();
+
+                foreach (var f in files)
+                {
+                    await _convertLock.WaitAsync();
+                    try
+                    {
+                        var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
+                        var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
+
+                        switch (fmt)
+                        {
+                            case "pdf":
+                                var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                                var html = AppServices.MarkdownHtml.Render(md, settings, theme, null);
+                                await new PdfExportService().ExportAsync(this, html, outPath, settings);
+                                break;
+                            case "docx":
+                                System.Collections.Generic.IReadOnlyList<byte[]?>? mermaidImgs = null;
+                                System.Collections.Generic.IReadOnlyList<MdToPdf.Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
+                                System.Collections.Generic.IReadOnlyList<MdToPdf.Services.Mermaid.GenericDiagram?>? mermaidGen = null;
+                                if (md.Contains("```mermaid", System.StringComparison.Ordinal))
+                                {
+                                    var harvester = new MermaidHarvestService();
+                                    mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
+                                    if (settings.MermaidDocxMode == 1)
+                                    {
+                                        mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
+                                        mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
+                                    }
+                                }
+                                await new DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);
+                                break;
+                            case "pptx":
+                                await new PptxExportService().ExportAsync(md, outPath, settings);
+                                break;
+                            case "epub":
+                                await new EpubExportService().ExportAsync(md, outPath, settings);
+                                break;
+                        }
+                        ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
+                        processedFiles.Add(outPath);
+                        done++;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Batch convert failed for {f}: {ex}");
+                        failed++;
+                    }
+                    finally
+                    {
+                        _convertLock.Release();
+                    }
+                }
+
+                await RefreshPreviewAsync();
+
+                tcs.SetResult(new { done, failed, outputFolder = outFolder, files = processedFiles });
+            }
+            catch (System.Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        });
+        return await tcs.Task;
     }
 
     // ---- IWebRenderHost: drives PDF export + mermaid harvesting via NativeWebView instead of

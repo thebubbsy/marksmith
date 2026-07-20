@@ -30,6 +30,9 @@ public sealed class ApiServer : IDisposable
     private readonly Func<string, OutputOverride?, Task<byte[]>> _convert; // (markdown, output profile) -> pdf bytes
     private readonly GovernanceService _governance;
     private readonly Func<string> _allowedExtensionId;
+    private readonly Func<AppSettings> _getSettings;
+    private readonly Action<AppSettings> _saveSettings;
+    private readonly Func<string, string, OutputOverride?, Task<object>> _batchConvert;
 
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -39,7 +42,7 @@ public sealed class ApiServer : IDisposable
 
     // `output` carries the full output profile (extension/automation). `theme`/`normalize` are kept
     // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
-    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output);
+    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output, string? Folder);
 
     // Governance report from a managed extension. 
     private sealed record GovDlpMatch(string? Category, string? Masked, string? Remediation);
@@ -69,7 +72,10 @@ public sealed class ApiServer : IDisposable
         Action<string, string, OutputOverride?> ingest,
         Func<string, OutputOverride?, Task<byte[]>> convert,
         GovernanceService governance,
-        Func<string> allowedExtensionId)
+        Func<string> allowedExtensionId,
+        Func<AppSettings> getSettings,
+        Action<AppSettings> saveSettings,
+        Func<string, string, OutputOverride?, Task<object>> batchConvert)
     {
         _llm = llm;
         _themeNames = themeNames;
@@ -77,6 +83,9 @@ public sealed class ApiServer : IDisposable
         _convert = convert;
         _governance = governance;
         _allowedExtensionId = allowedExtensionId;
+        _getSettings = getSettings;
+        _saveSettings = saveSettings;
+        _batchConvert = batchConvert;
     }
 
     public void Start(int port)
@@ -188,7 +197,7 @@ public sealed class ApiServer : IDisposable
                     {
                         status = "ok",
                         app = "Marksmith",
-                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary" },
+                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary", "GET /api/settings", "POST /api/settings", "POST /api/batch" },
                     });
                     break;
 
@@ -231,6 +240,16 @@ public sealed class ApiServer : IDisposable
                     {
                         ctx.Response.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
                         ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.docx");
+                    }
+                    else if (ovr.Format?.Equals("pptx", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        ctx.Response.ContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pptx");
+                    }
+                    else if (ovr.Format?.Equals("epub", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        ctx.Response.ContentType = "application/epub+zip";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.epub");
                     }
                     else
                     {
@@ -310,6 +329,30 @@ public sealed class ApiServer : IDisposable
                     if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "governance data is not readable cross-origin" }); break; }
                     await WriteJsonAsync(ctx, 200, _governance.Summary());
                     break;
+
+                case ("GET", "/api/settings"):
+                    await WriteJsonAsync(ctx, 200, _getSettings());
+                    break;
+
+                case ("POST", "/api/settings"):
+                {
+                    var body = await ReadBoundedBodyAsync(ctx);
+                    var newSettings = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<AppSettings>(body, JsonOpts);
+                    if (newSettings is null) { await WriteJsonAsync(ctx, 400, new { error = "invalid settings payload" }); break; }
+                    _saveSettings(newSettings);
+                    await WriteJsonAsync(ctx, 200, new { ok = true });
+                    break;
+                }
+
+                case ("POST", "/api/batch"):
+                {
+                    var req = await ReadBodyAsync(ctx);
+                    if (req?.Folder is not { Length: > 0 } folder) { await WriteJsonAsync(ctx, 400, new { error = "folder is required" }); break; }
+                    var format = req.Format ?? "pdf";
+                    var result = await _batchConvert(folder, format, req.Output);
+                    await WriteJsonAsync(ctx, 200, result);
+                    break;
+                }
 
                 default:
                     await WriteJsonAsync(ctx, 404, new { error = "unknown endpoint", hint = "GET /api/health" });
