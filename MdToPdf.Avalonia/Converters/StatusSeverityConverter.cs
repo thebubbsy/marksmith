@@ -1,18 +1,29 @@
-using System.Globalization;
 using Avalonia.Data.Converters;
-using FluentAvalonia.UI.Controls;
+using System;
+using System.Globalization;
+using MdToPdf.Avalonia.Controls;
 
-namespace MdToPdf.Avalonia.Converters;
-
-// Bridges MainViewModel.StatusSeverity (MdToPdf.Models.StatusSeverity, portable) to FluentAvalonia's
-// InfoBar severity enum, mirroring the WinUI build's StatusSeverityConverter.
-public sealed class StatusSeverityConverter : IValueConverter
+namespace MdToPdf.Avalonia.Converters
 {
-    public static readonly StatusSeverityConverter Instance = new();
+    public class StatusSeverityConverter : IValueConverter
+    {
+        public static readonly StatusSeverityConverter Instance = new();
 
-    public object Convert(object? value, System.Type targetType, object? parameter, CultureInfo culture) =>
-        value is MdToPdf.Models.StatusSeverity s ? (FAInfoBarSeverity)(int)s : FAInfoBarSeverity.Informational;
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string status)
+            {
+                if (status.StartsWith("Success"))
+                    return InfoBarSeverity.Success;
+                if (status.StartsWith("Error"))
+                    return InfoBarSeverity.Error;
+            }
+            return InfoBarSeverity.Informational;
+        }
 
-    public object ConvertBack(object? value, System.Type targetType, object? parameter, CultureInfo culture) =>
-        throw new System.NotSupportedException();
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

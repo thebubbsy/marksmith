@@ -1,7 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="using:MdToPdf.Avalonia.Controls"
         xmlns:core="using:MdToPdf.ViewModels"
-        xmlns:ui="using:FluentAvalonia.UI.Controls"
         xmlns:webview="using:Avalonia.Controls"
         xmlns:conv="using:MdToPdf.Avalonia.Converters"
         xmlns:models="using:MdToPdf.Models"
@@ -32,18 +31,25 @@
 
         <StackPanel Grid.Row="1" Spacing="6" Margin="16,8,16,0">
             <!-- Trial / upgrade banner -->
-            <ui:FAInfoBar x:Name="LicenseBanner" IsOpen="False" IsClosable="True">
-                <ui:FAInfoBar.ActionButton>
+            <ui:InfoBar x:Name="LicenseBanner" IsOpen="False" IsClosable="True">
+                <ui:InfoBar.ActionButton>
                     <Button Content="Upgrade to Pro" Click="OnUpgradeClick" />
-                </ui:FAInfoBar.ActionButton>
-            </ui:FAInfoBar>
+                </ui:InfoBar.ActionButton>
+            </ui:InfoBar>
+            <ui:InfoBar x:Name="ExtensionHintBar" IsOpen="False" IsClosable="True"
+                          Severity="Informational" Title="That paste looks like plain text"
+                          Message="Headings, tables and code were probably lost on the way. In your AI chat, use the Marksmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting.">
+                <ui:InfoBar.ActionButton>
+                    <Button Content="Get the extension" Click="OnGetExtensionClick" />
+                </ui:InfoBar.ActionButton>
+            </ui:InfoBar>
         </StackPanel>
 
         <!-- Left-to-right pipeline: 1 Source -> 2 Style -> 3 Preview & Export -->
         <Grid Grid.Row="2" Margin="16,6,16,16" ColumnDefinitions="380,Auto,300,Auto,*">
 
             <!-- ============ 1 · SOURCE ============ -->
-            <Grid Grid.Column="0" RowDefinitions="Auto,*">
+            <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
                     <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource SystemAccentColor}">
                         <TextBlock Text="1" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -54,7 +60,18 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Border Grid.Row="1" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                <!-- One-time tip: the browser extension lets users send AI chats here in one click. -->
+                <ui:InfoBar Grid.Row="1" x:Name="ExtensionTip" Severity="Informational" IsOpen="True"
+                              IsClosable="True" CloseButtonClick="OnExtensionTipClosed" Margin="0,0,0,10"
+                              Title="Work in your AI chat as normal"
+                              Message="Install the Marksmith Connector browser extension to send ChatGPT, Gemini and Claude replies straight here — then export a polished PDF whenever you're ready.">
+                    <ui:InfoBar.ActionButton>
+                        <Button Content="Get the extension"
+                                Click="OnGetExtensionClick" />
+                    </ui:InfoBar.ActionButton>
+                </ui:InfoBar>
+
+                <Border Grid.Row="2" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                         DragDrop.AllowDrop="True" DragDrop.DragOver="OnSourceDragOver" DragDrop.Drop="OnSourceDrop">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="14" Spacing="12">
@@ -119,7 +136,7 @@
                             <!-- Automation: settings are shared with the desktop app's clipboard/folder/API watchers.
                                  NOTE: this Avalonia build does not yet run those watchers itself — the toggles persist
                                  the setting but only the WinUI build currently acts on it. -->
-                            <Expander Header="Automation" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <Expander ToolTip.Tip="Automation" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                 <StackPanel Spacing="10">
                                     <ToggleSwitch Content="Auto-ingest AI chats from clipboard"
                                                   OnContent="Watching" OffContent="Off"
@@ -146,9 +163,13 @@
                                                  PlaceholderText="e.g. your Downloads folder" />
                                         <Button Grid.Column="1" Click="OnBrowseWatchFolderClick" Content="…" />
                                     </Grid>
+                                    <Button Click="OnBatchConvertClick" Name="BatchConvertButton" HorizontalAlignment="Stretch" 
+                                            Content="Batch convert a folder to PDF…" />
+                                    <TextBlock Text="Every .md file in the folder becomes a themed PDF in your output folder — detection and cleanup applied to each."
+                                               TextWrapping="Wrap" Opacity="0.7" FontSize="12" Margin="0,-6,0,0" />
                                     <ToggleSwitch Content="Local REST API" OnContent="Running" OffContent="Off"
                                                   IsChecked="{Binding ApiEnabled, Mode=TwoWay}" />
-                                    <ui:FANumberBox Header="Port" Value="{Binding ApiPort, Mode=TwoWay}"
+                                    <NumericUpDown ToolTip.Tip="Port" Value="{Binding ApiPort, Mode=TwoWay}"
                                                   Minimum="1024" Maximum="65535" />
                                     <TextBlock x:Name="ApiUrlText" Text="" Opacity="0.7" FontSize="12" IsVisible="False" />
                                     <ToggleSwitch Content="Keep running in system tray when closed"
@@ -203,8 +224,8 @@
                                 </Grid>
                             </StackPanel>
 
-                            <ui:FANumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
-                                          SpinButtonPlacementMode="Inline" Minimum="400" Maximum="2400" SmallChange="50" />
+                            <NumericUpDown ToolTip.Tip="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
+                                           Minimum="400" Maximum="2400" Increment="50" />
 
                             <Rectangle Height="1" Fill="{DynamicResource CardStrokeColorDefaultBrush}" />
 
@@ -229,11 +250,20 @@
                             </StackPanel>
 
                             <StackPanel Spacing="4">
+                                <Border IsVisible="{Binding HasMermaidDiagram}" Background="#190078D7" BorderBrush="#0078D7" BorderThickness="1" CornerRadius="4" Padding="8">
+                                    <TextBlock Text="{Binding DiagramHintText}" TextWrapping="Wrap" FontSize="12" />
+                                </Border>
                                 <TextBlock Text="Large diagrams (won't fit a page)" FontSize="12" Opacity="0.7" />
                                 <ComboBox SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                     <ComboBoxItem Content="Ask me each time" />
-                                    <ComboBoxItem Content="Keep exact layout (Web Layout view)" />
-                                    <ComboBoxItem Content="Reflow to fit the page" />
+                                    <ComboBoxItem Content="Keep Original Size (Web Layout)" />
+                                    <ComboBoxItem Content="Gentle Shrink (Max 75%, Web Layout if needed)" />
+                                    <ComboBoxItem Content="Slice Vertically (Multiple pages)" />
+                                    <ComboBoxItem Content="Enlarge Page Size (2x2 Poster)" />
+                                    <ComboBoxItem Content="Aggressive Shrink (Force to 1 page)" />
+                                    <ComboBoxItem Content="Compress Gaps (ShapeForge native shapes)" />
+                                    <ComboBoxItem Content="Compress Nodes (ShapeForge native shapes)" />
+                                    <ComboBoxItem Content="Compress Both (ShapeForge native shapes)" />
                                 </ComboBox>
                             </StackPanel>
 
@@ -264,7 +294,7 @@
                                 </StackPanel>
                             </Expander>
 
-                            <Expander Header="Advanced" HorizontalAlignment="Stretch" Margin="0,4,0,0">
+                            <Expander ToolTip.Tip="Advanced" HorizontalAlignment="Stretch" Margin="0,4,0,0">
                                 <StackPanel Spacing="14">
                                     <CheckBox Content="No emoji mode" IsChecked="{Binding NoEmoji, Mode=TwoWay}" />
                                     <StackPanel Spacing="4">
@@ -282,8 +312,8 @@
                                     <Rectangle Height="1" Fill="{DynamicResource CardStrokeColorDefaultBrush}" />
                                     <TextBlock Text="Formatting" FontWeight="SemiBold" />
 
-                                    <ui:FANumberBox Header="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
-                                                  SpinButtonPlacementMode="Inline" Minimum="-5" Maximum="5" SmallChange="1" />
+                                    <NumericUpDown ToolTip.Tip="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
+                                                   Minimum="-5" Maximum="5" Increment="1" />
 
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="Bold" FontSize="12" Opacity="0.7" />
@@ -348,6 +378,7 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
+                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTip.Tip="Take a quick tour" Content="?" />
                         <Button Click="OnSettingsClick" ToolTip.Tip="Settings" Content="Settings" />
                     </StackPanel>
                 </Grid>
@@ -356,7 +387,7 @@
                     <webview:NativeWebView x:Name="PreviewWebView" Margin="1" />
                 </Border>
 
-                <ui:FAInfoBar Grid.Row="2" IsOpen="True" IsClosable="False"
+                <ui:InfoBar Grid.Row="2" IsOpen="True" IsClosable="False"
                             Severity="{Binding StatusSeverity, Converter={x:Static conv:StatusSeverityConverter.Instance}}"
                             Message="{Binding StatusText}" />
 
@@ -384,7 +415,7 @@
                     </Button>
                     <Button Grid.Column="2" Height="40" Content="Cancel" Margin="8,0,0,0"
                             Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}" />
-                    <ui:FAProgressRing Grid.Column="3" IsActive="{Binding IsBusy}" Width="22" Height="22"
+                    <ui:ProgressRing Grid.Column="3" IsActive="{Binding IsBusy}" Width="22" Height="22"
                                   VerticalAlignment="Center" Margin="8,0,0,0" />
                 </Grid>
             </Grid>

@@ -1,4 +1,5 @@
 using MdToPdf.Models;
+using Markdig.Syntax;
 
 namespace MdToPdf.Services;
 
@@ -9,11 +10,19 @@ namespace MdToPdf.Services;
 // methods sandwiched in that wrapper — see MainWindow.xaml.cs's RenderMermaidPngsAsync etc.
 public sealed class MermaidHarvestService
 {
-    private static List<string> ExtractFences(string markdown) =>
-        System.Text.RegularExpressions.Regex.Matches(
-                TextNormalizer.Newlines(markdown), "```mermaid[ \\t]*\\n(.*?)```",
-                System.Text.RegularExpressions.RegexOptions.Singleline)
-            .Select(m => m.Groups[1].Value).ToList();
+    private static List<string> ExtractFences(string markdown)
+    {
+        var doc = Markdig.Markdown.Parse(TextNormalizer.Newlines(markdown));
+        var fences = new List<string>();
+        foreach (var block in doc.Descendants<Markdig.Syntax.FencedCodeBlock>())
+        {
+            if (block.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                fences.Add(block.Lines.ToString());
+            }
+        }
+        return fences;
+    }
 
     // Rasterizes every ```mermaid fence to a PNG (2x scale). Returns one entry per fence, null
     // where a diagram failed to render — DocxExportService falls back per-diagram.
@@ -170,6 +179,7 @@ public sealed class MermaidHarvestService
                   const { svg } = await mermaid.render("mg" + i, sources[i]);
                   holder.innerHTML = svg; const el = holder.querySelector("svg");
                   void el.getBoundingClientRect(); // force synchronous layout before measuring
+                  window.__svg = svg; // DUMP FOR DIAGNOSTICS
                   out.push(harvest(el)); holder.remove();
                 } catch (e) { window.__err = (window.__err||"") + " | fence" + i + ": " + (e && e.message); out.push(null); }
               }
@@ -187,6 +197,15 @@ public sealed class MermaidHarvestService
             {
                 await Task.Delay(150);
                 var raw = await host.ExecuteScriptAsync("window.__geo");
+                var err = await host.ExecuteScriptAsync("window.__err");
+                var svg = await host.ExecuteScriptAsync("window.__svg");
+                if (svg != null && svg != "null") {
+                    try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "msvg.txt"), System.Text.Json.JsonSerializer.Deserialize<string>(svg)); } catch {}
+                }
+                if (err != null && err != "null") {
+                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "merr.txt"), $"\n[JS_ERR] {err}\n"); } catch {}
+                }
+                
                 if (raw is null or "null" or "\"null\"") continue;
                 var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
                 if (string.IsNullOrEmpty(json) || json == "null") continue;
@@ -195,7 +214,11 @@ public sealed class MermaidHarvestService
                 break;
             }
         }
-        catch { /* best-effort; caller falls back to reflow */ }
+        catch (Exception ex)
+        {
+            try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "merr.txt"), $"[MERMAID-HARVEST-CS] {ex}\n"); } catch {}
+            System.Diagnostics.Debug.WriteLine($"[MERMAID-HARVEST] Exception: {ex}");
+        }
         finally { await host.EndHarvestAsync(); }
         while (result.Count < fences.Count) result.Add(null);
         return result;

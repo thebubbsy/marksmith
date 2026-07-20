@@ -1,3 +1,4 @@
+using MdToPdf.Avalonia.Controls;
 using System.Linq;
 using global::Avalonia;
 using global::Avalonia.Controls;
@@ -6,7 +7,7 @@ using global::Avalonia.Interactivity;
 using global::Avalonia.Media;
 using global::Avalonia.Platform;
 using global::Avalonia.Platform.Storage;
-using FluentAvalonia.UI.Controls;
+
 using MdToPdf.Avalonia.Hosting;
 using MdToPdf.Services;
 using MdToPdf.ViewModels;
@@ -442,16 +443,16 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     // NativeWebView wraps a genuine OS-level window (WebView2 on Windows), which paints in the
     // Win32 z-order rather than Avalonia's own compositor — so it always renders in front of
-    // Avalonia-drawn overlays like FAContentDialog regardless of visual-tree z-index ("airspace"
+    // Avalonia-drawn overlays like ContentDialog regardless of visual-tree z-index ("airspace"
     // problem, a known limitation of hosted native controls in every UI framework that has them).
     // Hiding it for the dialog's lifetime is the standard workaround: IsVisible=false unmaps the
     // underlying native window, not just skips Avalonia-side painting, so the dialog is no longer
     // obscured. The preview reappearing with stale content when the dialog closes is expected and
     // harmless — nothing navigated away, it was just hidden.
-    private async Task<FAContentDialogResult> ShowDialogAsync(FAContentDialog dialog)
+    private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
     {
         PreviewWebView.IsVisible = false;
-        try { return await dialog.ShowAsync(this); }
+        try { return await dialog.ShowAsync(); }
         finally { PreviewWebView.IsVisible = true; }
     }
 
@@ -506,25 +507,25 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             rows.Children.Add(grid);
         }
 
-        var dialog = new FAContentDialog
+        var dialog = new ContentDialog
         {
             Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
             Content = new ScrollViewer { Content = rows, MaxHeight = 520 },
             PrimaryButtonText = "Save theme",
             SecondaryButtonText = editingCustom ? "Delete" : null,
             CloseButtonText = "Cancel",
-            DefaultButton = FAContentDialogButton.Primary,
+            DefaultButton = ContentDialogButton.Primary,
         };
 
         var result = await ShowDialogAsync(dialog);
 
-        if (result == FAContentDialogResult.Secondary && editingCustom)
+        if (result == ContentDialogResult.Secondary && editingCustom)
         {
             CustomThemeStore.Remove(baseTheme.Name);
             RefreshThemeNames(select: AppServices.Themes.All[0].Name);
             return;
         }
-        if (result != FAContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary) return;
 
         var name = (nameBox.Text ?? "").Trim();
         if (name.Length == 0) name = "My theme";
@@ -549,17 +550,44 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     public async Task<int> AskOversizedDiagramModeAsync()
     {
-        var dialog = new FAContentDialog
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock
+        {
+            TextWrapping = global::Avalonia.Media.TextWrapping.Wrap,
+            Text = "This document has a large diagram that won't fit a printed page. How should Marksmith put it into Word?"
+        });
+
+        var rbGroup = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+        var rbExact = new RadioButton { Content = "Keep exact layout (Opens in Web Layout view)", IsChecked = true, Tag = 1 };
+        var rbReflow = new RadioButton { Content = "Reflow to fit page (Uniform scale)", Tag = 2 };
+        var rbCompactSpace = new RadioButton { Content = "Compact spacing (Shrink gaps first)", Tag = 6 };
+        var rbCompactShapes = new RadioButton { Content = "Compact shapes (Shrink shapes first)", Tag = 7 };
+        var rbUltraCompact = new RadioButton { Content = "Ultra compact (Shrink both equally)", Tag = 8 };
+
+        rbGroup.Children.Add(rbExact);
+        rbGroup.Children.Add(rbReflow);
+        rbGroup.Children.Add(rbCompactSpace);
+        rbGroup.Children.Add(rbCompactShapes);
+        rbGroup.Children.Add(rbUltraCompact);
+        body.Children.Add(rbGroup);
+
+        var dialog = new ContentDialog
         {
             Title = "Large diagram",
-            Content = "This document has a large diagram that won't fit a printed page. Keep Mermaid's " +
-                      "exact layout (opens in Word's Web Layout view) or reflow it to fit standard pages?",
-            PrimaryButtonText = "Keep exact layout",
-            SecondaryButtonText = "Reflow to fit page",
-            DefaultButton = FAContentDialogButton.Primary,
+            Content = body,
+            PrimaryButtonText = "OK",
+            SecondaryButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
         };
+        
         var result = await ShowDialogAsync(dialog);
-        return result == FAContentDialogResult.Primary ? 1 : 2;
+        if (result != ContentDialogResult.Primary) return 1;
+
+        if (rbReflow.IsChecked == true) return 2;
+        if (rbCompactSpace.IsChecked == true) return 6;
+        if (rbCompactShapes.IsChecked == true) return 7;
+        if (rbUltraCompact.IsChecked == true) return 8;
+        return 1;
     }
 
     // ---- Preview ----
@@ -587,9 +615,46 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         nameof(MainViewModel.ApiPort),
     };
 
+    private bool _plainPasteHintShown;
+    private int _lastMarkdownLen;
+    private const int HeavyChangeThreshold = 250;
+
+    private void MaybeShowPlainPasteHint(string text)
+    {
+        if (_plainPasteHintShown || text.Length < 250) return;
+        if (!LooksLikePlainText(text)) return;
+        _plainPasteHintShown = true;
+        ExtensionHintBar.IsVisible = true;
+        Services.ApiServer.AttentionTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    private static bool LooksLikePlainText(string t)
+    {
+        return true;
+    }
+
+    private async void OnGetExtensionClick(object? sender, RoutedEventArgs e)
+    {
+        try { await global::Avalonia.Controls.TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
+        catch { /* no browser */ }
+    }
+
+    private void OnExtensionTipClosed(object sender, global::Avalonia.Interactivity.RoutedEventArgs args) => ViewModel.ShowExtensionTip = false;
+
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MainViewModel.PastedMarkdown) or nameof(MainViewModel.InputFilePath)
+        if (e.PropertyName == nameof(MainViewModel.PastedMarkdown))
+        {
+            var len = ViewModel.PastedMarkdown?.Length ?? 0;
+            if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
+            {
+                MaybeShowPlainPasteHint(ViewModel.PastedMarkdown ?? "");
+            }
+            _lastMarkdownLen = len;
+            _previewDebounce.Stop();
+            _previewDebounce.Start();
+        }
+        else if (e.PropertyName is nameof(MainViewModel.InputFilePath)
             or nameof(MainViewModel.UsePasteSource) or nameof(MainViewModel.SelectedThemeName)
             or nameof(MainViewModel.ContentWidth) or nameof(MainViewModel.A4FixedWidth)
             or nameof(MainViewModel.UnlimitedHeight) or nameof(MainViewModel.IncludeToc)
@@ -602,6 +667,93 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
         if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
             ApplyAutomationSettings();
+            
+        if (e.PropertyName == nameof(MainViewModel.ShowExtensionTip))
+            ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
+    }
+
+    private void OnTakeTourClick(object? sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
+
+    private async Task ShowWelcomeTourAsync()
+    {
+        WelcomeTour? tour = null;
+        try
+        {
+            tour = new WelcomeTour();
+            var dialog = new ContentDialog
+            {
+                Content = tour,
+                Padding = new Thickness(0),
+            };
+            // The tour card is 540 wide; the ContentDialog's default ContentDialogMaxWidth (~548)
+            // leaves no room for the dialog's own chrome, so the right edge — the Next / Get started
+            // button — was being clipped.
+            // In FluentAvalonia, ContentDialog max width can be controlled, or we just rely on standard bounds.
+            dialog.Resources["ContentDialogMaxWidth"] = 760.0;
+            dialog.Resources["ContentDialogMinWidth"] = 560.0;
+            dialog.Resources["ContentDialogMaxHeight"] = 940.0;
+            tour.Completed += (_, _) => dialog.Hide();
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Tour failed to open: {ex.GetType().Name}: {ex.Message}";
+        }
+
+        if (!AppServices.Settings.Current.HasSeenWelcome)
+        {
+            AppServices.Settings.Current.HasSeenWelcome = true;
+            AppServices.Settings.Save();
+        }
+
+        if (tour?.LoadSampleRequested == true) LoadSampleDocument();
+    }
+
+    private const string SampleMarkdown = """
+        # Quarterly Review — Sample Document
+
+        This is a **sample** so you can try Marksmith without hunting for a Markdown file.
+        Restyle it on the right, then hit **Generate PDF** below.
+
+        > [!TIP]
+        > Everything here survives export: the table, the math, and the diagrams.
+
+        ## Numbers that hold up
+
+        | Region | Revenue | Change |
+        |--------|---------|--------|
+        | APAC   | $4.2M   | +12%   |
+        | EU     | $3.1M   | +5%    |
+        | US     | $5.5M   | +9%    |
+
+        Reserves follow $R = \sum_{i=1}^{n} p_i \cdot L_i$ — and in Word export this becomes a
+        real, editable equation, not a picture.
+
+        ## A live diagram
+
+        ```mermaid
+        flowchart LR
+          A[Paste a chat] --> B{Marksmith}
+          B --> C[Polished PDF]
+          B --> D[Editable Word]
+        ```
+
+        ## Plugin engines
+
+        ```plantuml
+        You -> Marksmith: paste markdown
+        Marksmith --> You: finished document
+        ```
+
+        Six diagram languages render from plain code fences — Mermaid is built in, and PlantUML,
+        Graphviz, D2, Typst and Vega-Lite are one-click installs in **Settings → Plugins**.
+        """;
+
+    private void LoadSampleDocument()
+    {
+        if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown)) return;
+        ViewModel.UsePasteSource = true;
+        ViewModel.PastedMarkdown = SampleMarkdown;
     }
 
     // ---- License banner ----
@@ -615,13 +767,13 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         {
             var daysLeft = st.ExpiresUtc is { } exp ? Math.Max(0, (int)Math.Ceiling((exp - DateTimeOffset.UtcNow).TotalDays)) : 0;
             if (daysLeft > 5) { LicenseBanner.IsOpen = false; return; }
-            LicenseBanner.Severity = FAInfoBarSeverity.Informational;
+            LicenseBanner.Severity = InfoBarSeverity.Informational;
             LicenseBanner.Title = $"Pro trial — {daysLeft} day{(daysLeft == 1 ? "" : "s")} left";
             LicenseBanner.Message = "Keep DOCX export, editable equations, automation, and footer-free exports.";
         }
         else
         {
-            LicenseBanner.Severity = FAInfoBarSeverity.Warning;
+            LicenseBanner.Severity = InfoBarSeverity.Warning;
             LicenseBanner.Title = "Your Pro trial has ended";
             LicenseBanner.Message = "Upgrade to unlock DOCX export, editable equations, automation, and remove the footer.";
         }
@@ -713,6 +865,100 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         if (file?.TryGetLocalPath() is { } path) ViewModel.RunningDocPath = path;
     }
 
+    private async void OnBatchConvertClick(object? sender, RoutedEventArgs e)
+    {
+        if (!AppServices.License.CanAutomate)
+        {
+            ViewModel.StatusText = "Batch conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select folder to batch convert",
+            AllowMultiple = false
+        });
+        if (folders.Count == 0) return;
+        var folderPath = folders[0].Path.LocalPath;
+
+        var files = System.IO.Directory.GetFiles(folderPath, "*.md", System.IO.SearchOption.TopDirectoryOnly);
+        if (files.Length == 0)
+        {
+            ViewModel.StatusText = $"No .md files found in {folderPath}.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+
+        var fmt = await AskBatchFormatAsync(files.Length);
+        if (fmt is null) return;
+        var docxGated = fmt is "docx" && !AppServices.License.CanExportDocx;
+        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
+
+        if (fmt == "pdf" && !await EnsureReadyAsync())
+        {
+            ViewModel.StatusText = "Batch failed: the preview engine couldn't start. Try again.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            return;
+        }
+
+        int done = 0, failed = 0;
+        var outFolder = AppServices.Settings.Current.OutputFolder;
+        System.IO.Directory.CreateDirectory(outFolder);
+        foreach (var fPath in files)
+        {
+            await _convertLock.WaitAsync();
+            try
+            {
+                var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(fPath));
+                var outPath = System.IO.Path.Combine(outFolder, System.IO.Path.GetFileNameWithoutExtension(fPath) + "." + fmt);
+                switch (fmt)
+                {
+                    case "pdf":
+                        await new Services.PdfExportService().ExportAsync(this, ViewModel.BuildPreviewHtml(md), outPath, AppServices.Settings.Current);
+                        break;
+                    case "docx":
+                        await new Services.DocxExportService().ExportAsync(md, outPath, AppServices.Settings.Current);
+                        break;
+                    case "pptx":
+                        await new Services.PptxExportService().ExportAsync(md, outPath, AppServices.Settings.Current);
+                        break;
+                    case "epub":
+                        await new Services.EpubExportService().ExportAsync(md, outPath, AppServices.Settings.Current);
+                        break;
+                }
+                done++;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Batch convert failed on {fPath}: {ex}");
+                failed++;
+            }
+            finally
+            {
+                _convertLock.Release();
+            }
+        }
+        ViewModel.StatusText = $"Batch converted {done} file{(done == 1 ? "" : "s")} to {fmt.ToUpper()}" + (failed > 0 ? $" ({failed} failed)." : ".");
+        ViewModel.StatusSeverity = failed > 0 ? Models.StatusSeverity.Warning : Models.StatusSeverity.Success;
+    }
+
+    private async Task<string?> AskBatchFormatAsync(int count)
+    {
+        var combo = new ComboBox { SelectedIndex = 0, HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0) };
+        combo.ItemsSource = new[] { "PDF", "Word (DOCX)", "PowerPoint (PPTX)", "EPUB" };
+        var dialog = new ContentDialog
+        {
+            Title = $"Batch convert {count} file{(count == 1 ? "" : "s")}",
+            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Every .md file in the folder is converted to your chosen format, using the current Style settings." }, combo } },
+            PrimaryButtonText = "Convert",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
+        return combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
+    }
+
     private async void OnBrowseWatchFolderClick(object? sender, RoutedEventArgs e)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false });
@@ -729,7 +975,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     private async void OnSavePresetClick(object? sender, RoutedEventArgs e)
     {
         var box = new TextBox { PlaceholderText = "e.g. Client report — dark, branded", Margin = new Thickness(0, 12, 0, 0) };
-        var dialog = new FAContentDialog
+        var dialog = new ContentDialog
         {
             Title = "Save preset",
             Content = new StackPanel
@@ -742,9 +988,9 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             },
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
-            DefaultButton = FAContentDialogButton.Primary,
+            DefaultButton = ContentDialogButton.Primary,
         };
-        if (await ShowDialogAsync(dialog) == FAContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        if (await ShowDialogAsync(dialog) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
         {
             ViewModel.SavePreset(box.Text);
             ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
@@ -787,7 +1033,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private async void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
-        var dialog = new FAContentDialog
+        var dialog = new ContentDialog
         {
             Title = "Settings",
             Content = new SettingsView(),
