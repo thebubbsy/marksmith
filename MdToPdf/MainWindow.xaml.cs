@@ -173,7 +173,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // First-run: show the guided tour once the visual tree is ready (XamlRoot available).
         if (!App.Settings.Current.HasSeenWelcome)
             RootGrid.Loaded += OnFirstRunLoaded;
-
     }
 
     private void OnFirstRunLoaded(object sender, RoutedEventArgs e)
@@ -182,7 +181,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         DispatcherQueue.TryEnqueue(() => _ = ShowWelcomeTourAsync());
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
         {
@@ -207,14 +206,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (e.PropertyName is not null && PreviewAffectingProperties.Contains(e.PropertyName))
         {
-            if (e.PropertyName == nameof(ViewModels.MainViewModel.PastedMarkdown))
+            if (e.PropertyName == nameof(ViewModels.MainViewModel.CurrentMarkdown))
             {
+                if (!ViewModel.UsePasteSource) ViewModel.UsePasteSource = true; // Auto-switch to editor mode when typing
+
                 // Small per-keystroke delta = typing (light); a big jump = paste (heavy).
-                var len = ViewModel.PastedMarkdown?.Length ?? 0;
+                var len = ViewModel.CurrentMarkdown?.Length ?? 0;
                 if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
                 {
                     _nextRefreshHeavy = true;
-                    MaybeShowPlainPasteHint(ViewModel.PastedMarkdown ?? "");
+                    MaybeShowPlainPasteHint(ViewModel.CurrentMarkdown ?? "");
                 }
                 _lastMarkdownLen = len;
             }
@@ -293,7 +294,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Advanced formatting personalization is a Pro feature: the section shows only when Advanced mode
     // is on AND the user is Pro (or on trial). Re-synced whenever either changes.
     private void SyncAdvancedSection() =>
-        AdvancedStyleSection.Visibility =
+        AdvancedStyleExpander.Visibility =
             (ViewModel.AdvancedMode && App.License.IsPro) ? Visibility.Visible : Visibility.Collapsed;
 
     private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
@@ -677,9 +678,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             // Pre-rasterize mermaid diagrams once if a DOCX will need them (Snapshot mode, or as
             // ShapeForge's fallback for unsupported diagram types).
-            List<byte[]?>? mermaidImgs = null;
+            IReadOnlyList<byte[]?>? mermaidImgs = null;
+            IReadOnlyList<Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
+            IReadOnlyList<Services.Mermaid.GenericDiagram?>? mermaidGen = null;
             if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
-                mermaidImgs = await new Services.MermaidHarvestService().RenderMermaidPngsAsync(this, md, settings, App.Themes.GetOrDefault(settings.Theme));
+            {
+                var harvester = new Services.MermaidHarvestService();
+                var theme = App.Themes.GetOrDefault(settings.Theme);
+                mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
+                if (settings.MermaidDocxMode == 1) // ShapeForge native shapes
+                {
+                    mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
+                    mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
+                    // Diagnostic: write harvest results to merr.txt for troubleshooting
+                    try
+                    {
+                        var logPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "merr.txt");
+                        var sb = new System.Text.StringBuilder();
+                        sb.AppendLine($"[{DateTime.Now:HH:mm:ss}] Harvest complete");
+                        sb.AppendLine($"  MermaidDocxMode={settings.MermaidDocxMode}");
+                        sb.AppendLine($"  OversizedDiagramMode={settings.OversizedDiagramMode}");
+                        sb.AppendLine($"  mermaidGeo: {(mermaidGeo is null ? "NULL" : $"Count={mermaidGeo.Count}")}");
+                        if (mermaidGeo is not null)
+                            for (int gi = 0; gi < mermaidGeo.Count; gi++)
+                                sb.AppendLine($"    geo[{gi}]: {(mermaidGeo[gi] is null ? "NULL" : $"Nodes={mermaidGeo[gi]!.Nodes.Count}, Edges={mermaidGeo[gi]!.Edges.Count}, W={mermaidGeo[gi]!.W:F0}, H={mermaidGeo[gi]!.H:F0}, IsEmpty={mermaidGeo[gi]!.IsEmpty}")}");
+                        sb.AppendLine($"  mermaidGen: {(mermaidGen is null ? "NULL" : $"Count={mermaidGen.Count}")}");
+                        if (mermaidGen is not null)
+                            for (int gi = 0; gi < mermaidGen.Count; gi++)
+                                sb.AppendLine($"    gen[{gi}]: {(mermaidGen[gi] is null ? "NULL" : $"IsEmpty={mermaidGen[gi]!.IsEmpty}")}");
+                        sb.AppendLine($"  mermaidImgs: {(mermaidImgs is null ? "NULL" : $"Count={mermaidImgs.Count}")}");
+                        if (mermaidImgs is not null)
+                            for (int gi = 0; gi < mermaidImgs.Count; gi++)
+                                sb.AppendLine($"    img[{gi}]: {(mermaidImgs[gi] is null ? "NULL" : $"{mermaidImgs[gi]!.Length} bytes")}");
+                        System.IO.File.AppendAllText(logPath, sb.ToString());
+                    }
+                    catch { }
+                }
+            }
 
             foreach (var fmt in formats)
             {
@@ -696,11 +731,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                         case "docx":
                             if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
                             {
-                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs);
+                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
                                 outPath = settings.RunningDocPath;
                             }
                             else await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs,
-                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null);
+                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null, mermaidGeo, mermaidGen);
                             break;
                         case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
                         case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
@@ -1019,15 +1054,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnSourceSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        ViewModel.UsePasteSource = sender.SelectedItem == PasteTab;
+        // ViewModel.UsePasteSource = sender.SelectedItem == PasteTab;
     }
 
     private void SyncSourcePanels()
     {
-        var paste = ViewModel.UsePasteSource;
-        SourceSelector.SelectedItem = paste ? PasteTab : FileTab;
-        FilePanel.Visibility = paste ? Visibility.Collapsed : Visibility.Visible;
-        PastePanel.Visibility = paste ? Visibility.Visible : Visibility.Collapsed;
+        // var paste = ViewModel.UsePasteSource;
+        // SourceSelector.SelectedItem = paste ? PasteTab : FileTab;
+        // FilePanel.Visibility = paste ? Visibility.Collapsed : Visibility.Visible;
+        // PastePanel.Visibility = paste ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSourceDragOver(object sender, DragEventArgs e)
@@ -1125,22 +1160,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (folder is not null) ViewModel.OutputFolder = folder.Path;
     }
 
-    private async void OnConvertPdfClick(object sender, RoutedEventArgs e)
-    {
-        if (!await EnsurePreviewWebViewAsync())
-        {
-            ViewModel.StatusText = "PDF export failed: the preview engine couldn't start. Try again.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-            return;
-        }
-        await ViewModel.ConvertToPdfAsync();
-    }
-
-    private async void OnConvertDocxClick(object sender, RoutedEventArgs e)
-    {
-        await ViewModel.ConvertToDocxAsync();
-    }
-
     // The "call to user" for a page-dominating diagram: keep mermaid's exact layout (Web Layout view)
     // or reflow it to fit the printed page. Returns 1 = exact, 2 = reflow. Persists if "remember".
     public async Task<int> AskOversizedDiagramModeAsync()
@@ -1152,11 +1171,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             TextWrapping = TextWrapping.Wrap,
             Text = "This document has a large diagram that won't fit a printed page. How should Marksmith put it into Word?"
         });
-        body.Children.Add(new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap, Opacity = 0.75, Margin = new Thickness(0, 8, 0, 0),
-            Text = "• Keep exact layout — identical to the preview, nothing moved; the document opens in Word's Web Layout view (scrolls, not paginated).\n• Reflow to fit the page — Marksmith re-wraps and re-orders the diagram so it prints on standard pages."
-        });
+
+        var rbGroup = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+        var rbExact = new RadioButton { Content = "Keep exact layout (Opens in Web Layout view)", IsChecked = true, Tag = 1 };
+        var rbReflow = new RadioButton { Content = "Reflow to fit page (Uniform scale)", Tag = 2 };
+        var rbCompactSpace = new RadioButton { Content = "Compact spacing (Shrink gaps first)", Tag = 6 };
+        var rbCompactShapes = new RadioButton { Content = "Compact shapes (Shrink shapes first)", Tag = 7 };
+        var rbUltraCompact = new RadioButton { Content = "Ultra compact (Shrink both equally)", Tag = 8 };
+
+        rbGroup.Children.Add(rbExact);
+        rbGroup.Children.Add(rbReflow);
+        rbGroup.Children.Add(rbCompactSpace);
+        rbGroup.Children.Add(rbCompactShapes);
+        rbGroup.Children.Add(rbUltraCompact);
+
+        body.Children.Add(rbGroup);
         body.Children.Add(remember);
 
         var dialog = new ContentDialog
@@ -1164,12 +1193,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             XamlRoot = Content.XamlRoot,
             Title = "Large diagram",
             Content = body,
-            PrimaryButtonText = "Keep exact layout",
-            SecondaryButtonText = "Reflow to fit page",
+            PrimaryButtonText = "OK",
+            SecondaryButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
+
         var result = await dialog.ShowAsync();
-        int mode = result == ContentDialogResult.Primary ? 1 : 2;
+        if (result != ContentDialogResult.Primary) return 1; // default to exact on cancel
+
+        int mode = 1;
+        if (rbReflow.IsChecked == true) mode = 2;
+        else if (rbCompactSpace.IsChecked == true) mode = 6;
+        else if (rbCompactShapes.IsChecked == true) mode = 7;
+        else if (rbUltraCompact.IsChecked == true) mode = 8;
+
         if (remember.IsChecked == true)
         {
             App.Settings.Current.OversizedDiagramMode = mode;
@@ -1426,5 +1463,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
         if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
         PreviewWebView.CoreWebView2.NavigateToString(html);
+    }
+
+    private async void OnConvertPdfClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToPdfAsync();
+    }
+
+    private async void OnConvertDocxClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToDocxAsync();
+    }
+
+    private void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (ViewPreviewTab == null) return;
+        var isPreview = sender.SelectedItem == ViewPreviewTab;
+        if (PastePanel != null) PastePanel.Visibility = isPreview ? Visibility.Collapsed : Visibility.Visible;
+        if (PreviewCard != null) PreviewCard.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
+        if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
+        if (isPreview)
+        {
+            _ = RefreshPreviewAsync(heavy: true);
+        }
     }
 }

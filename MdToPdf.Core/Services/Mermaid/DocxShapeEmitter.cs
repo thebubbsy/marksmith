@@ -17,7 +17,7 @@ public static class DocxShapeEmitter
     // Returns true when the diagram is too large for print layout even at the floor — the
     // caller opens the document in Word's Web Layout view (scrolls instead of clipping).
     // oversizedMode: 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
-    private static bool ScaleToFit(MDiagram d, int oversizedMode = 0, int gridSize = 1)
+    internal static bool ScaleToFit(MDiagram d, int oversizedMode = 0, int gridSize = 1)
     {
         double canvasW = MaxCanvasW, canvasH = MaxCanvasH;
 
@@ -52,6 +52,13 @@ public static class DocxShapeEmitter
             return false; // never Web Layout — the caller splits into bands
         }
 
+        // Exact Layout (mode 1): never scale. Preserve exactly what Mermaid computed, 
+        // triggering Web Layout if it exceeds the page bounds.
+        if (oversizedMode == 1)
+        {
+            return d.Width > canvasW || d.Height > canvasH;
+        }
+
         double s = Math.Min(1, Math.Min(
             canvasW / Math.Max(1, d.Width),
             canvasH / Math.Max(1, d.Height)));
@@ -60,6 +67,115 @@ public static class DocxShapeEmitter
         double floor = oversizedMode == 5 ? 0.30 : 0.75;
         bool oversized = s < floor;
         if (oversized) s = floor;
+
+        // Modes 6, 7, 8: Always shrink to fit page (down to 30%), but selectively shrink spacing/shapes
+        if (oversizedMode is 6 or 7 or 8)
+        {
+            oversized = false; // It fits, no Web Layout needed
+            
+            // Re-center around diagram's center point
+            double cx = d.Width / 2;
+            double cy = d.Height / 2;
+
+            double sSpace = 1;
+            double sShape = 1;
+
+            if (d.Shapes.Count > 0)
+            {
+                var shapeL = d.Shapes.MinBy(s => s.X)!;
+                var shapeR = d.Shapes.MaxBy(s => s.X + s.W)!;
+                var shapeT = d.Shapes.MinBy(s => s.Y)!;
+                var shapeB = d.Shapes.MaxBy(s => s.Y + s.H)!;
+
+                if (oversizedMode == 8) 
+                {
+                    sSpace = Math.Max(0.30, Math.Min(1, Math.Min(canvasW / d.Width, canvasH / d.Height)));
+                    sShape = sSpace;
+                }
+                else if (oversizedMode == 6) // Shrink Spacing
+                {
+                    double spanX = shapeR.X - shapeL.X;
+                    double spanY = shapeB.Y - shapeT.Y;
+                    double sX = spanX > 0 ? (canvasW - shapeR.W) / spanX : 1;
+                    double sY = spanY > 0 ? (canvasH - shapeB.H) / spanY : 1;
+                    sSpace = Math.Max(0.30, Math.Min(1, Math.Min(sX, sY)));
+                    
+                    // Fallback to shrinking shapes if spacing alone cannot geometrically fit it
+                    if (sX < 0.30 || sY < 0.30)
+                    {
+                        double reqShapeX = shapeR.W > 0 ? (canvasW - spanX * 0.30) / shapeR.W : 1;
+                        double reqShapeY = shapeB.H > 0 ? (canvasH - spanY * 0.30) / shapeB.H : 1;
+                        sShape = Math.Max(0.30, Math.Min(1, Math.Min(reqShapeX, reqShapeY)));
+                    }
+                }
+                else if (oversizedMode == 7) // Shrink Shapes
+                {
+                    double spanCentersX = (shapeR.X + shapeR.W/2) - (shapeL.X + shapeL.W/2);
+                    double spanCentersY = (shapeB.Y + shapeB.H/2) - (shapeT.Y + shapeT.H/2);
+                    double sumHalfWidths = shapeR.W/2 + shapeL.W/2;
+                    double sumHalfHeights = shapeB.H/2 + shapeT.H/2;
+                    
+                    double sX = sumHalfWidths > 0 ? (canvasW - spanCentersX) / sumHalfWidths : 1;
+                    double sY = sumHalfHeights > 0 ? (canvasH - spanCentersY) / sumHalfHeights : 1;
+                    sShape = Math.Max(0.30, Math.Min(1, Math.Min(sX, sY)));
+                    
+                    // Fallback to shrinking spacing if shapes alone cannot geometrically fit it
+                    if (sX < 0.30 || sY < 0.30)
+                    {
+                        double reqSpaceX = spanCentersX > 0 ? (canvasW - sumHalfWidths * 0.30) / spanCentersX : 1;
+                        double reqSpaceY = spanCentersY > 0 ? (canvasH - sumHalfHeights * 0.30) / spanCentersY : 1;
+                        sSpace = Math.Max(0.30, Math.Min(1, Math.Min(reqSpaceX, reqSpaceY)));
+                    }
+                }
+            }
+
+            foreach (var sh in d.Shapes)
+            {
+                // 1. Spacing transformation
+                sh.X = cx + (sh.X - cx) * sSpace;
+                sh.Y = cy + (sh.Y - cy) * sSpace;
+                
+                // 2. Shape transformation
+                double hw = sh.W / 2;
+                double hh = sh.H / 2;
+                sh.X = (sh.X + hw) - (hw * sShape); // keep center fixed
+                sh.Y = (sh.Y + hh) - (hh * sShape);
+                sh.W *= sShape;
+                sh.H *= sShape;
+                sh.FontSize = Math.Max(6, sh.FontSize * sShape);
+            }
+
+            foreach (var c in d.Connectors)
+            {
+                c.X1 = cx + (c.X1 - cx) * sSpace;
+                c.Y1 = cy + (c.Y1 - cy) * sSpace;
+                c.X2 = cx + (c.X2 - cx) * sSpace;
+                c.Y2 = cy + (c.Y2 - cy) * sSpace;
+                c.LabelX = cx + (c.LabelX - cx) * sSpace;
+                c.LabelY = cy + (c.LabelY - cy) * sSpace;
+
+                c.LabelW *= sShape;
+                c.LabelH *= sShape;
+                
+                // Clear explicit curved path so Smart Connectors take over
+                c.Points = null;
+            }
+
+            // Recompute bounding box
+            double minX = d.Shapes.Count > 0 ? d.Shapes.Min(x => x.X) : 0;
+            double minY = d.Shapes.Count > 0 ? d.Shapes.Min(x => x.Y) : 0;
+            double maxX = d.Shapes.Count > 0 ? d.Shapes.Max(x => x.X + x.W) : 0;
+            double maxY = d.Shapes.Count > 0 ? d.Shapes.Max(x => x.Y + x.H) : 0;
+            
+            // Normalize so minX/minY is 0
+            foreach (var sh in d.Shapes) { sh.X -= minX; sh.Y -= minY; }
+            foreach (var c in d.Connectors) { c.X1 -= minX; c.Y1 -= minY; c.X2 -= minX; c.Y2 -= minY; c.LabelX -= minX; c.LabelY -= minY; }
+
+            d.Width = Math.Max(1, maxX - minX);
+            d.Height = Math.Max(1, maxY - minY);
+            return false;
+        }
+
         if (s >= 1) return d.Height > 480;
 
         foreach (var sh in d.Shapes)

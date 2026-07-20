@@ -24,20 +24,50 @@ public sealed partial class MainViewModel : ObservableObject
     public IWebRenderHost? Host { get; set; }
     public IUiPrompts? Prompts { get; set; }
 
-    [ObservableProperty] private string _inputFilePath = string.Empty;
+    [ObservableProperty] private string _targetFormat = "pdf";
+    public bool IsPdfFormat => TargetFormat == "pdf";
+    public bool IsDocxFormat => TargetFormat == "docx";
+    public int TargetFormatIndex
+    {
+        get => TargetFormat == "docx" ? 1 : 0;
+        set { TargetFormat = value == 1 ? "docx" : "pdf"; OnPropertyChanged(); }
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
+    private string _inputFilePath = string.Empty;
+
     [ObservableProperty] private string _outputFolder;
     [ObservableProperty] private string _selectedThemeName;
     [ObservableProperty] private int _contentWidth;
     [ObservableProperty] private bool _a4FixedWidth;
     [ObservableProperty] private bool _unlimitedHeight;
-    [ObservableProperty] private bool _usePasteSource;
-    [ObservableProperty] private bool _normalizeLlm;
-    [ObservableProperty] private bool _autoClipboardIngest;
-    [ObservableProperty] private bool _watchFolderEnabled;
-    [ObservableProperty] private string _watchFolder;
-    [ObservableProperty] private bool _watchFolderAutoConvert;
-    [ObservableProperty] private bool _minimizeToTray;
-    [ObservableProperty] private bool _autoConvertIngests;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
+    private bool _usePasteSource;
+
+    [ObservableProperty]
+    private bool _normalizeLlm;
+
+    [ObservableProperty]
+    private bool _autoClipboardIngest;
+
+    [ObservableProperty]
+    private bool _watchFolderEnabled;
+
+    [ObservableProperty]
+    private string _watchFolder = string.Empty;
+
+    [ObservableProperty]
+    private bool _watchFolderAutoConvert;
+
+    [ObservableProperty]
+    private bool _minimizeToTray;
+
+    [ObservableProperty]
+    private bool _autoConvertIngests;
+
     [ObservableProperty] private bool _appendToRunningDoc;
     [ObservableProperty] private string _runningDocPath = "";
     [ObservableProperty] private bool _showExtensionTip;
@@ -63,11 +93,35 @@ public sealed partial class MainViewModel : ObservableObject
     // default export filename + document title. Empty for hand-typed / plain content.
     [ObservableProperty] private string _suggestedTitle = string.Empty;
 
+    [ObservableProperty] private bool _hasMermaidDiagram;
+    [ObservableProperty] private bool _hasOversizedDiagram;
+    [ObservableProperty] private string _diagramHintText = string.Empty;
+    [ObservableProperty] private StatusSeverity _diagramHintSeverity = StatusSeverity.Informational;
+
     // Classification of the last ingested document; feeds the preview badge and export attribution strip.
     public LlmClassification? LastClassification { get; private set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(WordCountText))]
+    [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
     private string _pastedMarkdown = string.Empty;
+
+    public string CurrentMarkdown
+    {
+        get
+        {
+            if (UsePasteSource) return PastedMarkdown;
+            if (!string.IsNullOrWhiteSpace(InputFilePath) && File.Exists(InputFilePath))
+            {
+                try { return File.ReadAllText(InputFilePath); } catch { return string.Empty; }
+            }
+            return string.Empty;
+        }
+        set
+        {
+            PastedMarkdown = value;
+            if (!UsePasteSource) UsePasteSource = true;
+        }
+    }
 
     public string WordCountText
     {
@@ -75,6 +129,29 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var words = PastedMarkdown.Split(new[] { ' ', '\n', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
             return $"{words} words · {PastedMarkdown.Length} chars";
+        }
+    }
+
+    partial void OnPastedMarkdownChanged(string value)
+    {
+        HasMermaidDiagram = value?.Contains("```mermaid", StringComparison.Ordinal) == true;
+        if (HasMermaidDiagram)
+        {
+            HasOversizedDiagram = Services.MermaidDocxRenderer.AnyWouldOverflow(value!);
+            if (HasOversizedDiagram)
+            {
+                DiagramHintText = "Oversized Diagram Detected! A diagram is too large to fit on a standard page. Please review your layout strategy below.";
+                DiagramHintSeverity = StatusSeverity.Warning;
+            }
+            else
+            {
+                DiagramHintText = "Your diagrams fit on a standard page. You may still apply a compression strategy below if you wish to shrink them further.";
+                DiagramHintSeverity = StatusSeverity.Informational;
+            }
+        }
+        else
+        {
+            HasOversizedDiagram = false;
         }
     }
     [ObservableProperty] private string _statusText = "Ready.";
@@ -179,6 +256,7 @@ public sealed partial class MainViewModel : ObservableObject
         _advancedMode = settings.AdvancedMode;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
+        _targetFormat = settings.TargetFormat;
 
         ThemeNames = new ObservableCollection<string>(_themes.All.Select(t => t.Name));
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
@@ -188,8 +266,19 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; _settingsService.Save(); }
     partial void OnSelectedThemeNameChanged(string value) { _settingsService.Current.Theme = value; _settingsService.Save(); }
+    partial void OnTargetFormatChanged(string value) { 
+        _settingsService.Current.TargetFormat = value; 
+        _settingsService.Save(); 
+        OnPropertyChanged(nameof(IsPdfFormat));
+        OnPropertyChanged(nameof(IsDocxFormat));
+        OnPropertyChanged(nameof(TargetFormatIndex));
+    }
     partial void OnContentWidthChanged(int value) { _settingsService.Current.ContentWidth = value; _settingsService.Save(); }
-    partial void OnA4FixedWidthChanged(bool value) { _settingsService.Current.A4FixedWidth = value; _settingsService.Save(); }
+    partial void OnA4FixedWidthChanged(bool value) { 
+        _settingsService.Current.A4FixedWidth = value; 
+        _settingsService.Save(); 
+        if (value) ContentWidth = 794;
+    }
     partial void OnUnlimitedHeightChanged(bool value) { _settingsService.Current.UnlimitedHeight = value; _settingsService.Save(); }
     partial void OnNormalizeLlmChanged(bool value) { _settingsService.Current.NormalizeLlm = value; _settingsService.Save(); }
     partial void OnAutoClipboardIngestChanged(bool value) { _settingsService.Current.AutoClipboardIngest = value; _settingsService.Save(); }
@@ -393,6 +482,19 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ExportDocumentAsync()
+    {
+        if (TargetFormat == "docx")
+        {
+            await ConvertToDocxAsync();
+        }
+        else
+        {
+            await ConvertToPdfAsync();
+        }
+    }
+
+    [RelayCommand]
     private void CancelConversion()
     {
         // Best-effort: WebView2's PrintToPdfAsync has no CancellationToken overload, so this
@@ -446,31 +548,43 @@ public sealed partial class MainViewModel : ObservableObject
             // Layout view) or reflow to fit the printed page.
             List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
             string? layoutNote = null;
-            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null && Prompts is not null
-                && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
+            int? overrideMode = null;
+            
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
             {
+                // When the user has a saved preference (mode >= 1), always harvest — don't rely on
+                // AnyWouldOverflow which uses the bespoke parser and can fail on complex diagrams.
                 var mode = settings.OversizedDiagramMode;
-                if (mode == 0) mode = await Prompts.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
-                if (mode == 1)
+                if (mode == 0 && Prompts is not null && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
+                    mode = await Prompts.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
+                overrideMode = mode;
+                if (mode == 1 || (mode >= 3 && mode <= 8)) // any exact/multi-page/grid/shrink/compact mode
                 {
                     geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
                     var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
-                    if (usable) layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
+                    if (usable)
+                    {
+                        if (mode == 1 || mode == 4)
+                            layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
+                        else if (mode is 6 or 7 or 8)
+                            layoutNote = "  (large diagram: compact mode, fits on single page)";
+                        else
+                            layoutNote = "  (large diagram: fits on printed pages)";
+                    }
                     else
                     {
                         geometry = null; // couldn't read exact geometry — reflow instead, and say so
                         layoutNote = "  (couldn't read exact layout — reflowed to fit the page)";
                     }
                 }
-                else layoutNote = "  (large diagram: reflowed to fit the page)";
+                else if (mode == 2) layoutNote = "  (large diagram: reflowed to fit the page)";
             }
 
-            // Generic harvest (the "no fallback" path): for any diagram type a bespoke renderer
-            // doesn't handle (state, C4, block, kanban, packet, sankey, …), pull mermaid's own SVG
-            // geometry so ShapeForge rebuilds it as native shapes instead of a picture.
+            // Generic harvest: always harvest as a universal fallback for any mermaid fence.
+            // Even "bespoke" types (flowchart, sequence, etc.) can fail the bespoke parser on
+            // complex inputs — the generic SVG-primitive path guarantees native shapes, never a picture.
             List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
-            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null
-                && Services.MermaidDocxRenderer.HasUnsupportedFence(markdown))
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
                 genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings);
 
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
@@ -480,7 +594,7 @@ public sealed partial class MainViewModel : ObservableObject
                 mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, settings, CurrentTheme);
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
-            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom);
+            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom, overrideMode);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);

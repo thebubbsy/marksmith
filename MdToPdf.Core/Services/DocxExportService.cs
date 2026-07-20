@@ -59,6 +59,7 @@ public sealed class DocxExportService
         .UseYamlFrontMatter()
         .UseAlertBlocks()
         .UseMathematics()
+        .UseEmojiAndSmiley(enableSmileys: false)
         .Build();
 
     private static readonly ThemeCatalog Themes = new();
@@ -92,7 +93,8 @@ public sealed class DocxExportService
     public Task ExportAsync(string markdown, string docxPath, AppSettings settings,
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
-        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null) =>
+        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
+        int? oversizedDiagramModeOverride = null) =>
         Task.Run(() =>
         {
             markdown = TextNormalizer.Newlines(markdown);
@@ -137,7 +139,7 @@ public sealed class DocxExportService
                 MermaidExactLayout = mermaidGeometry is not null, // geometry is only harvested when exact chosen
                 MermaidGenericGeometry = mermaidGenericGeometry,
                 BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
-                OversizedDiagramMode = settings.OversizedDiagramMode,
+                OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
                 DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
                 SmartConnectors = settings.SmartConnectors,
             };
@@ -188,9 +190,12 @@ public sealed class DocxExportService
     // Append mode: add the content as a dated section to an existing running document instead of
     // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
     public Task ExportAppendAsync(string markdown, string docxPath, AppSettings settings,
-        IReadOnlyList<byte[]?>? mermaidImages = null) => Task.Run(() =>
+        IReadOnlyList<byte[]?>? mermaidImages = null,
+        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
+        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
+        int? oversizedDiagramModeOverride = null) => Task.Run(() =>
     {
-        if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages).GetAwaiter().GetResult(); return; }
+        if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages, null, mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride).GetAwaiter().GetResult(); return; }
 
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
@@ -228,6 +233,13 @@ public sealed class DocxExportService
             DropCapPending = false, // no drop cap on appended sections
             MermaidMode = settings.MermaidDocxMode,
             MermaidImages = mermaidImages,
+            MermaidGeometry = mermaidGeometry,
+            MermaidExactLayout = mermaidGeometry is not null,
+            MermaidGenericGeometry = mermaidGenericGeometry,
+            BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
+            OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
+            DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
+            SmartConnectors = settings.SmartConnectors,
         };
 
         CollectAnchors(doc, ctx);
@@ -386,6 +398,9 @@ public sealed class DocxExportService
                 var geo = ctx.MermaidGeometry is not null && idx < ctx.MermaidGeometry.Count ? ctx.MermaidGeometry[idx] : null;
                 var gen = ctx.MermaidGenericGeometry is not null && idx < ctx.MermaidGenericGeometry.Count ? ctx.MermaidGenericGeometry[idx] : null;
 
+                System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: MermaidMode={ctx.MermaidMode}, ExactLayout={ctx.MermaidExactLayout}, geo={(geo is null ? "null" : $"Nodes={geo.Nodes.Count},Edges={geo.Edges.Count},IsEmpty={geo.IsEmpty}")}, gen={(gen is null ? "null" : $"IsEmpty={gen.IsEmpty}")}, png={(png is null ? "null" : $"{png.Length}B")}");
+                Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: MermaidMode={ctx.MermaidMode}, ExactLayout={ctx.MermaidExactLayout}, geo={(geo is null ? "null" : $"Nodes={geo.Nodes.Count},Edges={geo.Edges.Count},IsEmpty={geo.IsEmpty}")}, gen={(gen is null ? "null" : $"IsEmpty={gen.IsEmpty}")}, png={(png is null ? "null" : $"{png.Length}B")}");
+
                 // Exact-layout mode: rebuild mermaid's OWN geometry as native shapes (node-for-node,
                 // no reordering) and open the document in Web Layout so a wide diagram scrolls.
                 if (ctx.MermaidMode == 1 && ctx.MermaidExactLayout && geo is { IsEmpty: false })
@@ -423,6 +438,8 @@ public sealed class DocxExportService
                     MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
                         forceFit: !ctx.MermaidExactLayout))
                 {
+                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: TryRender succeeded");
+                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: TryRender succeeded");
                     ctx.ForceWebLayout |= oversizedDiagram;
                     target.Append(diagram);
                 }
@@ -459,9 +476,17 @@ public sealed class DocxExportService
                     }
                 }
                 else if (png is not null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to snapshot image ({png.Length} bytes)");
+                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to snapshot image ({png.Length} bytes)");
                     target.Append(SnapshotParagraph(png, ctx));
+                }
                 else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png either)");
+                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png either)");
                     target.Append(CodeParagraph(fence.Lines.ToString(), fence.Info, ctx));
+                }
                 break;
             }
 
@@ -526,14 +551,14 @@ public sealed class DocxExportService
                     // installed or render failed) the plain code block is correct and gets no caption.
                     if (svg is not null)
                         target.Append(DiagramSourceCaption(plugin!.Name, ctx));
-                    target.Append(CodeParagraph(pluginFence.Lines.ToString(), pluginFence.Info, ctx));
+                    target.Append(CodeParagraph(pluginFence.Lines.ToString(), pluginFence.Info ?? "", ctx));
                 }
                 break;
             }
 
             case CodeBlock code: // other fenced/indented code renders as a code block
                 var info = (code as FencedCodeBlock)?.Info;
-                target.Append(CodeParagraph(code.Lines.ToString(), info, ctx));
+                target.Append(CodeParagraph(code.Lines.ToString(), info ?? "", ctx));
                 break;
 
             case AlertBlock alert:
@@ -892,20 +917,65 @@ public sealed class DocxExportService
                 new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex }),
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex }));
 
+        var regex = new Regex(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase);
+        var colorStack = new Stack<string>();
+
         var first = true;
         foreach (var line in text.Replace("\r", "").Split('\n'))
         {
             if (!first) para.Append(new W.Run(new W.Break()));
             first = false;
             
-            var color = ctx.TextHex;
+            var baseColor = ctx.TextHex;
             if (isDiff)
             {
-                if (line.StartsWith("+")) color = "008000";
-                else if (line.StartsWith("-")) color = "FF0000";
-                else if (line.StartsWith("@")) color = "808080";
+                if (line.StartsWith("+")) baseColor = "008000";
+                else if (line.StartsWith("-")) baseColor = "FF0000";
+                else if (line.StartsWith("@")) baseColor = "808080";
             }
-            AddText(para, line, new Fmt { Code = true, Color = color });
+            
+            if (colorStack.Count == 0) colorStack.Push(baseColor);
+            else {
+                var currentTop = colorStack.Pop();
+                colorStack.Push(baseColor);
+                colorStack.Push(currentTop);
+            }
+
+            int lastPos = 0;
+            foreach (Match m in regex.Matches(line))
+            {
+                if (m.Index > lastPos)
+                {
+                    AddText(para, line.Substring(lastPos, m.Index - lastPos), new Fmt { Code = true, Color = colorStack.Peek() });
+                }
+
+                if (m.Groups[3].Success) // closing tag
+                {
+                    if (colorStack.Count > 1) colorStack.Pop();
+                }
+                else
+                {
+                    string cVal = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+                    if (cVal.StartsWith("#")) cVal = cVal.Substring(1);
+                    else if (NamedColors.TryGetValue(cVal, out var hex)) cVal = hex;
+                    colorStack.Push(cVal);
+                }
+                lastPos = m.Index + m.Length;
+            }
+
+            if (lastPos < line.Length)
+            {
+                AddText(para, line.Substring(lastPos), new Fmt { Code = true, Color = colorStack.Peek() });
+            }
+            
+            // Clean up base color for next line
+            if (colorStack.Count > 0) {
+                var tops = new Stack<string>();
+                while (colorStack.Count > 1) tops.Push(colorStack.Pop());
+                colorStack.Pop(); // remove baseColor
+                colorStack.Push(ctx.TextHex); // push next default (doesn't matter much)
+                while (tops.Count > 0) colorStack.Push(tops.Pop());
+            }
         }
         return para;
     }
@@ -1407,6 +1477,10 @@ public sealed class DocxExportService
         {
             switch (inline)
             {
+                case Markdig.Extensions.Emoji.EmojiInline emoji:
+                    if (!ctx.NoEmoji) AddText(target, emoji.Content.ToString(), current);
+                    break;
+
                 case LiteralInline literal:
                     AddText(target, literal.Content.ToString(), current);
                     break;
