@@ -319,9 +319,9 @@
                                      ScrollViewer.VerticalScrollBarVisibility="Auto" />
                             
                             <!-- Editor Toolbar Down Bottom -->
-                            <StackPanel Grid.Row="1" Spacing="4">
+                            <StackPanel Grid.Row="1" Spacing="6" HorizontalAlignment="Center">
                                 <!-- Row 1: Basic Markdown Elements -->
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
                                     <Button ToolTipService.ToolTip="Bold" Width="32" Height="32" Padding="0">
                                         <FontIcon Glyph="&#xE19B;" FontSize="14" />
                                     </Button>
@@ -381,46 +381,46 @@
                                 </StackPanel>
 
                                 <!-- Row 2: Advanced Marksmith Components -->
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="Insert:" VerticalAlignment="Center" FontSize="11" Opacity="0.5" Margin="4,0,8,0" />
+                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                                    <TextBlock Text="Insert:" VerticalAlignment="Center" FontSize="11" Opacity="0.6" Margin="4,0,8,0" FontWeight="SemiBold" />
                                     
-                                    <Button ToolTipService.ToolTip="Insert Tab Group" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Tab Group" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xF7ED;" FontSize="12" />
                                             <TextBlock Text="Tabs" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Web Embed" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Web Embed" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xEE7A;" FontSize="12" />
                                             <TextBlock Text="Embed" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Native Chart" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Native Chart" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE99A;" FontSize="12" />
                                             <TextBlock Text="Chart" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Data Grid" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Data Grid" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xF0E2;" FontSize="12" />
                                             <TextBlock Text="Datagrid" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Multi-column Section" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Multi-column Section" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE8F1;" FontSize="12" />
                                             <TextBlock Text="Columns" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Drawing Canvas" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Drawing Canvas" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xEE56;" FontSize="12" />
                                             <TextBlock Text="Canvas" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <DropDownButton ToolTipService.ToolTip="Insert Diagram" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <DropDownButton ToolTipService.ToolTip="Insert Diagram" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE8DA;" FontSize="12" />
                                             <TextBlock Text="Diagram" FontSize="11" />
@@ -433,13 +433,13 @@
                                             </MenuFlyout>
                                         </DropDownButton.Flyout>
                                     </DropDownButton>
-                                    <Button ToolTipService.ToolTip="Insert Bibliography / References" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert Bibliography / References" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE113;" FontSize="12" />
                                             <TextBlock Text="References" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert AI Context metadata" Height="32" Padding="8,0" Background="Transparent" BorderThickness="0">
+                                    <Button ToolTipService.ToolTip="Insert AI Context metadata" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE945;" FontSize="12" />
                                             <TextBlock Text="AI Context" FontSize="11" />
