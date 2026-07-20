@@ -602,6 +602,19 @@ public sealed partial class MainViewModel : ObservableObject
         });
     }
 
+    public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
+    {
+        await RunConversionAsync($"Batch {targetFormat.ToUpper()}", async ct =>
+        {
+            var settings = _settingsService.Current;
+            await AppServices.BatchConvert.ConvertDirectoryAsync(Host, sourceDir, outputDir, targetFormat, settings, msg =>
+            {
+                StatusText = msg;
+            });
+            StatusText = $"Batch conversion to {targetFormat.ToUpper()} finished in {outputDir}";
+        });
+    }
+
     private async Task RunConversionAsync(string kind, Func<CancellationToken, Task> work)
     {
         _conversionCts = new CancellationTokenSource();

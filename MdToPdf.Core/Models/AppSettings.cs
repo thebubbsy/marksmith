@@ -50,6 +50,10 @@ public sealed class AppSettings
     // When enabled, lines stay glued to shapes when dragged in Word.
     public bool SmartConnectors { get; set; } = true;
 
+    // Fallback connector styles when not explicitly defined in the diagram
+    public string ConnectorRouting { get; set; } = "default"; // "default", "straight", "elbow", "curved"
+    public string ConnectorArrowhead { get; set; } = "default"; // "default", "triangle", "open", "diamond", "oval", "stealth", "none"
+
     // First-run guided tour: shown once automatically, replayable from the title-bar tour button.
     public bool HasSeenWelcome { get; set; }
 

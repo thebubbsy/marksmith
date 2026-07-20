@@ -17,6 +17,7 @@ public static class AppServices
     public static Services.GovernanceService Governance { get; } = new();
     public static Services.UpdateService Updates { get; } = new();
     public static Services.LicenseService License { get; } = new();
+    public static Services.BatchConvertService BatchConvert { get; } = new();
     public static Plugins.PluginManager Plugins { get; } = new();
 
     // Constructed lazily (after the services above exist) since MainViewModel reads them in its

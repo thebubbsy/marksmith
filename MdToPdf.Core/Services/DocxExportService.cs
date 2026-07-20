@@ -148,6 +148,7 @@ public sealed class DocxExportService
 
             var ctx = new Ctx
             {
+                Settings = settings,
                 MainPart = main,
                 Numbering = AddNumbering(main),
                 Theme = theme,
@@ -257,6 +258,7 @@ public sealed class DocxExportService
 
         var ctx = new Ctx
         {
+            Settings = settings,
             MainPart = main,
             Numbering = numbering,
             Theme = theme,
@@ -308,6 +310,7 @@ public sealed class DocxExportService
     {
         public required MainDocumentPart MainPart { get; init; }
         public required W.Numbering Numbering { get; init; }
+        public required AppSettings Settings { get; init; }
         public required ThemeDefinition Theme { get; init; }
         public required Dictionary<string, (string Color, string Icon)> Alerts { get; init; }
         public required string LinkColor { get; init; }
@@ -473,7 +476,7 @@ public sealed class DocxExportService
                     }
                 }
                 else if (ctx.MermaidMode == 1 &&
-                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
+                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.Settings, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
                         forceFit: !ctx.MermaidExactLayout))
                 {
                     System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: TryRender succeeded");
