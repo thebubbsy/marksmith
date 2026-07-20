@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using MdToPdf.Models;
+using MdToPdf.Services.Mermaid;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace MdToPdf.Services;
@@ -30,7 +31,7 @@ public static class MermaidDocxRenderer
         public uint XmlId;
     }
 
-    private sealed record Edge(Node From, Node To, string? Label, bool Dashed, bool Thick, bool StartArrow, bool EndArrow);
+    private sealed record Edge(Node From, Node To, string? Label, bool Dashed, bool Thick, ArrowHead StartHead, ArrowHead EndHead);
 
     private sealed class Graph
     {
@@ -108,7 +109,7 @@ public static class MermaidDocxRenderer
     // the flowchart path below currently honors it (the bespoke sequence/class-er/trees/charts
     // renderers compute `oversized` their own way, via DocxShapeEmitter) — narrower scope than
     // ideal, but that's not the path the reported overflow came from.
-    public static bool TryRender(string source, ThemeDefinition theme, uint drawingId, out W.Paragraph paragraph, out bool oversized, bool forceFit = false)
+    public static bool TryRender(string source, ThemeDefinition theme, AppSettings settings, uint drawingId, out W.Paragraph paragraph, out bool oversized, bool forceFit = false)
     {
         paragraph = null!;
         oversized = false;
@@ -121,7 +122,8 @@ public static class MermaidDocxRenderer
                 if (renderer is null) return false; // unknown family → snapshot/code fallback
                 var d = renderer.Render(source, theme); // MermaidParseException → catch below
                 if (d.Shapes.Count == 0 && d.Connectors.Count == 0) return false;
-                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized) };
+                
+                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized, smartConnectors: settings.SmartConnectors) };
                 paragraph.PrependChild(new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
                     new W.Justification { Val = W.JustificationValues.Center }));
@@ -136,7 +138,7 @@ public static class MermaidDocxRenderer
             Layout(g, forceFit);
             oversized = g.Oversized;
 
-            var drawing = new W.Drawing { InnerXml = BuildInlineXml(g, theme, drawingId) };
+            var drawing = new W.Drawing { InnerXml = BuildInlineXml(g, theme, settings, drawingId) };
             paragraph = new W.Paragraph(
                 new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
@@ -231,16 +233,24 @@ public static class MermaidDocxRenderer
     }
 
     private static readonly Regex ArrowRe = new(
-        @"\G\s*(<)?(-\.+->?|-{2,3}>?|={2,3}>?)\s*(?:\|([^|]*)\|)?\s*", RegexOptions.Compiled);
+        @"\G\s*(<|o|x|X|O)?(-\.+-[>oxXO]?|-{2,3}[>oxXO]?|={2,3}[>oxXO]?)\s*(?:\|([^|]*)\|)?\s*", RegexOptions.Compiled);
 
-    private static (string? Label, bool Dashed, bool Thick, bool StartHead, bool EndHead)? ReadArrow(string s, ref int i)
+    private static (string? Label, bool Dashed, bool Thick, ArrowHead StartHead, ArrowHead EndHead)? ReadArrow(string s, ref int i)
     {
         var m = ArrowRe.Match(s, i);
         if (!m.Success || m.Index != i) return null;
         i = m.Index + m.Length;
-        var tok = m.Groups[2].Value;
+        var startChar = m.Groups[1].Value.ToLowerInvariant();
+        var tok = m.Groups[2].Value.ToLowerInvariant();
         var label = m.Groups[3].Success ? Clean(m.Groups[3].Value) : null;
-        return (string.IsNullOrWhiteSpace(label) ? null : label, tok.Contains('.'), tok.StartsWith('='), m.Groups[1].Success, tok.EndsWith('>'));
+        
+        ArrowHead startHead = startChar switch { "<" => ArrowHead.Triangle, "o" => ArrowHead.Oval, "x" => ArrowHead.Diamond, _ => ArrowHead.None };
+        ArrowHead endHead = ArrowHead.None;
+        if (tok.EndsWith('>')) endHead = ArrowHead.Triangle;
+        else if (tok.EndsWith('o')) endHead = ArrowHead.Oval;
+        else if (tok.EndsWith('x')) endHead = ArrowHead.Diamond;
+
+        return (string.IsNullOrWhiteSpace(label) ? null : label, tok.Contains('.'), tok.StartsWith('='), startHead, endHead);
     }
 
     private static readonly Regex IdRe = new(@"\G\s*([A-Za-z0-9_](?:(?!--|-\.)[A-Za-z0-9_.:-])*)", RegexOptions.Compiled);
@@ -433,7 +443,7 @@ public static class MermaidDocxRenderer
 
     // ---------------- DrawingML emit ----------------
 
-    private static string BuildInlineXml(Graph g, ThemeDefinition t, uint drawingId)
+    private static string BuildInlineXml(Graph g, ThemeDefinition t, AppSettings settings, uint drawingId)
     {
         long CX = Emu(g.W), CY = Emu(g.H);
         string fill = Hex(t.Background), border = Hex(t.Line), text = Hex(t.Primary),
@@ -445,7 +455,7 @@ public static class MermaidDocxRenderer
         // Pre-assign XML IDs so connectors can anchor to them.
         foreach (var n in g.Nodes) n.XmlId = ++id;
 
-        foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id, t));
+        foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id, t, settings));
         foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, n.XmlId, g.Scale));
         foreach (var e in g.Edges)
             if (e.Label is not null) sb.Append(EdgeLabelXml(e, g, bg, text, ++id, g.Scale));
@@ -500,7 +510,7 @@ public static class MermaidDocxRenderer
             """;
     }
 
-    private static string ConnectorXml(Edge e, Graph g, string line, uint id, ThemeDefinition t)
+    private static string ConnectorXml(Edge e, Graph g, string line, uint id, ThemeDefinition t, AppSettings settings)
     {
         double x1, y1, x2, y2;
         int stIdx, endIdx;
@@ -544,17 +554,28 @@ public static class MermaidDocxRenderer
         long cx = Math.Abs(Emu(x2) - Emu(x1)), cy = Math.Abs(Emu(y2) - Emu(y1));
         string flips = (x2 < x1 ? " flipH=\"1\"" : "") + (y2 < y1 ? " flipV=\"1\"" : "");
         string dash = e.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
-        string startHead = e.StartArrow ? "<a:headEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
-        string endHead = e.EndArrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : "";
+        
+        ArrowHead sHead = e.StartHead;
+        ArrowHead eHead = e.EndHead;
+        
+        // Apply Fallbacks if ArrowHead.None and setting is something else
+        if (sHead == ArrowHead.None && settings.ConnectorArrowhead is not "default" and not "none")
+            sHead = ParseArrowHeadSetting(settings.ConnectorArrowhead, isStart: true);
+        if (eHead == ArrowHead.None && settings.ConnectorArrowhead is not "default" and not "none")
+            eHead = ParseArrowHeadSetting(settings.ConnectorArrowhead, isStart: false);
+
+        string startHead = HeadXml("headEnd", sHead);
+        string endHead = HeadXml("tailEnd", eHead);
         long weight = e.Thick ? 28575 : 12700;
         
         string cxnAttr = "";
-        // If the theme/settings disable smart connectors, we'd skip this, but flowchart
-        // renders always glue for now because they're fully internal.
-        if (e.From.XmlId > 0 && e.To.XmlId > 0)
+        // If the theme/settings disable smart connectors, we skip this
+        if (settings.SmartConnectors && e.From.XmlId > 0 && e.To.XmlId > 0)
         {
             cxnAttr = $"<a:stCxn id=\"{e.From.XmlId}\" idx=\"{stIdx}\"/><a:endCxn id=\"{e.To.XmlId}\" idx=\"{endIdx}\"/>";
         }
+        
+        string prst = settings.ConnectorRouting == "elbow" ? "bentConnector3" : "straightConnector1";
 
         return $"""
             <wps:wsp>
@@ -562,7 +583,7 @@ public static class MermaidDocxRenderer
               <wps:cNvCnPr>{cxnAttr}</wps:cNvCnPr>
               <wps:spPr>
                 <a:xfrm{flips}><a:off x="{ox}" y="{oy}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
-                <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                <a:prstGeom prst="{prst}"><a:avLst/></a:prstGeom>
                 <a:noFill/>
                 <a:ln w="{weight}"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill>{dash}{startHead}{endHead}</a:ln>
               </wps:spPr>
@@ -570,6 +591,27 @@ public static class MermaidDocxRenderer
             </wps:wsp>
             """;
     }
+
+    private static string HeadXml(string el, ArrowHead h) => h switch
+    {
+        ArrowHead.None => $"<a:{el} type=\"none\"/>",
+        ArrowHead.Triangle => $"<a:{el} type=\"triangle\" w=\"med\" len=\"med\"/>",
+        ArrowHead.Open => $"<a:{el} type=\"arrow\" w=\"med\" len=\"med\"/>",
+        ArrowHead.Diamond => $"<a:{el} type=\"diamond\" w=\"med\" len=\"med\"/>",
+        ArrowHead.Oval => $"<a:{el} type=\"oval\" w=\"med\" len=\"med\"/>",
+        ArrowHead.Stealth => $"<a:{el} type=\"stealth\" w=\"med\" len=\"med\"/>",
+        _ => $"<a:{el} type=\"none\"/>",
+    };
+    
+    private static ArrowHead ParseArrowHeadSetting(string setting, bool isStart) => setting.ToLowerInvariant() switch
+    {
+        "triangle" => ArrowHead.Triangle,
+        "open" => ArrowHead.Open,
+        "diamond" => ArrowHead.Diamond,
+        "oval" => ArrowHead.Oval,
+        "stealth" => ArrowHead.Stealth,
+        _ => ArrowHead.None
+    };
 
     private static string EdgeLabelXml(Edge e, Graph g, string bg, string text, uint id, double scale)
     {
