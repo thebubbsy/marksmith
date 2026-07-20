@@ -1484,4 +1484,163 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _ = RefreshPreviewAsync(heavy: true);
         }
     }
+
+    private void InsertMarkdown(string prefix, string suffix = "")
+    {
+        var tb = PasteTextBox;
+        if (tb == null) return;
+        try
+        {
+            var selected = tb.SelectedText;
+            tb.SelectedText = prefix + selected + suffix;
+            if (string.IsNullOrEmpty(selected))
+            {
+                tb.SelectionStart = tb.SelectionStart - suffix.Length;
+                tb.SelectionLength = 0;
+            }
+            tb.Focus(FocusState.Programmatic);
+        }
+        catch
+        {
+            int selStart = tb.SelectionStart;
+            int selLen = tb.SelectionLength;
+            string text = tb.Text ?? "";
+            string sel = text.Substring(selStart, selLen);
+            string rep = prefix + sel + suffix;
+            tb.Text = text.Remove(selStart, selLen).Insert(selStart, rep);
+            tb.SelectionStart = selStart + prefix.Length;
+            tb.SelectionLength = sel.Length;
+            tb.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void OnBoldClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("**", "**");
+    }
+
+    private void OnItalicClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("*", "*");
+    }
+
+    private void OnStrikethroughClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("~~", "~~");
+    }
+
+    private void OnCodeBlockClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n```\n", "\n```\n");
+    }
+
+    private void OnBlockquoteClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("> ", "");
+    }
+
+    private void OnInsertWorkflowClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::workflow\n- Step 1\n- Step 2\n- Step 3\n:::\n");
+    }
+
+    private void OnInsertTimelineClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::timeline\n- 2020: Started\n- 2023: Progress\n- 2026: Done\n:::\n");
+    }
+
+    private void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::smartart type=\"process\"\n- Step 1\n- Step 2\n:::\n");
+    }
+
+    private void OnInsertTabsClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::tabs\n=== Tab 1\nContent 1\n=== Tab 2\nContent 2\n:::\n");
+    }
+
+    private void OnInsertColumnsClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::columns count=\"2\"\nColumn 1 content\n===\nColumn 2 content\n:::\n");
+    }
+
+    private void OnInsertCanvasClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::canvas\n<svg viewBox=\"0 0 100 100\" width=\"200\" height=\"200\">\n  <circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n</svg>\n:::\n");
+    }
+
+    private void OnBulletListClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("- ", "");
+    }
+
+    private void OnNumberedListClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("1. ", "");
+    }
+
+    private void OnTaskListClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("- [ ] ", "");
+    }
+
+    private void OnH1Click(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("# ", "");
+    }
+
+    private void OnH2Click(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("## ", "");
+    }
+
+    private void OnH3Click(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("### ", "");
+    }
+
+        private void OnH4Click(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("#### ", "");
+    }
+
+    private void OnLinkClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("[", "](url)");
+    }
+
+    private void OnImageClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("![", "](image.png)");
+    }
+
+    private void OnTableClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
+    }
+
+    private void OnInsertEmbedClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n");
+    }
+
+    private void OnInsertChartClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::chart type=\"bar\"\nQ1,10\nQ2,25\nQ3,15\n:::\n");
+    }
+
+    private void OnInsertDatagridClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::datagrid\nlabel,value\nQ1,10\nQ2,25\n:::\n");
+    }
+
+    private void OnInsertReferencesClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::references\n@paper-id\nauthor: Author Name\ntitle: Publication Title\nyear: 2026\n:::\n");
+    }
+
+    private void OnInsertAiContextClick(object sender, RoutedEventArgs e)
+    {
+        InsertMarkdown("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
+    }
 }
