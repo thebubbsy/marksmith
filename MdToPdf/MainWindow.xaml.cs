@@ -100,6 +100,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Unpackaged app: the exe icon covers Explorer/taskbar, but the title bar needs an
         // explicit runtime assignment (relative paths resolve against the CWD, so anchor to base).
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1220, 800));
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
