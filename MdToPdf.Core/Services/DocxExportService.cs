@@ -2879,7 +2879,7 @@ public sealed class DocxExportService
         {
             AbstractNumberId = 0
         };
-        string[] glyphs = { "â€¢", "â—‹", "â–ª" };
+        string[] glyphs = { "•", "○", "▪" };
         for (var i = 0; i < 9; i++)
             bullet.Append(new W.Level(
                 new W.StartNumberingValue { Val = 1 },

@@ -39,7 +39,7 @@ public sealed class ApiServer : IDisposable
 
     // `output` carries the full output profile (extension/automation). `theme`/`normalize` are kept
     // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
-    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, OutputOverride? Output);
+    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output);
 
     // Governance report from a managed extension. 
     private sealed record GovDlpMatch(string? Category, string? Masked, string? Remediation);
@@ -224,12 +224,20 @@ public sealed class ApiServer : IDisposable
                 {
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
-                    var ovr = req.Output ?? new OutputOverride { Theme = req.Theme, NormalizeLlm = req.Normalize };
-                    var pdf = await _convert(md, ovr);
+                    var ovr = req.Output ?? new OutputOverride { Theme = req.Theme, NormalizeLlm = req.Normalize, Format = req.Format };
+                    var bytes = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
-                    ctx.Response.ContentType = "application/pdf";
-                    ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pdf");
-                    await ctx.Response.OutputStream.WriteAsync(pdf);
+                    if (ovr.Format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        ctx.Response.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.docx");
+                    }
+                    else
+                    {
+                        ctx.Response.ContentType = "application/pdf";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pdf");
+                    }
+                    await ctx.Response.OutputStream.WriteAsync(bytes);
                     break;
                 }
 
@@ -332,7 +340,12 @@ public sealed class ApiServer : IDisposable
     {
         var buffer = new char[8192];
         var sb = new System.Text.StringBuilder();
-        using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
+        var enc = ctx.Request.ContentEncoding;
+        if (ctx.Request.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            enc = Encoding.UTF8;
+        }
+        using var reader = new StreamReader(ctx.Request.InputStream, enc ?? Encoding.UTF8);
         int read;
         while ((read = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
