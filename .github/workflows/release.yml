@@ -21,16 +21,31 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    name: Create Draft Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          # Create a draft release so we can upload files to it.
+          # If it already exists, this command might fail, so we handle it gracefully.
+          gh release create "$tag" --draft --title "Marksmith $tag" --notes "Release in progress..." || true
+
   release-winui:
     name: Build WinUI app (Windows)
+    needs: create-release
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/checkout@v4
 
       - name: Set up .NET 8
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
@@ -53,36 +68,17 @@ jobs:
           & $iscc "packaging\installer\marksmith.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
-      - name: Checksums
+      - name: Upload WinUI release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $exe = "dist_installer/Marksmith-Setup-x64.exe"
-          $he = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $hz = (Get-FileHash "Marksmith-win-x64.zip" -Algorithm SHA256).Hash.ToLower()
-          "$he  Marksmith-Setup-x64.exe`n$hz  Marksmith-win-x64.zip" | Set-Content checksums.txt
-          @(
-            "### SHA256 checksums",
-            "",
-            "| File | SHA256 |",
-            "| --- | --- |",
-            "| Marksmith-Setup-x64.exe | ``$he`` |",
-            "| Marksmith-win-x64.zip | ``$hz`` |",
-            "",
-            "Paste the installer hash into winget ``InstallerSha256`` and Chocolatey ``checksum64``."
-          ) | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-
-      - name: Upload WinUI release assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: winui-release-assets
-          path: |
-            Marksmith-win-x64.zip
-            dist_installer/Marksmith-Setup-x64.exe
-            checksums.txt
-          if-no-files-found: error
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          gh release upload $tag Marksmith-win-x64.zip dist_installer/Marksmith-Setup-x64.exe --clobber
 
   release-avalonia:
     name: Build Avalonia preview (${{ matrix.rid }})
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -95,14 +91,12 @@ jobs:
             rid: osx-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/checkout@v4
 
-      - name: Set up .NET 10
-        uses: actions/setup-dotnet@v5
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
 
       - name: Publish self-contained (${{ matrix.rid }})
         run: dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:DebugType=none
@@ -111,7 +105,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $pub = "MdToPdf.Avalonia/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          $pub = "MdToPdf.Avalonia/bin/Release/net8.0/${{ matrix.rid }}/publish"
           New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
           Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
           Compress-Archive -Path staging/Marksmith -DestinationPath "Marksmith-Avalonia-${{ matrix.rid }}.zip" -Force
@@ -121,70 +115,48 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pub="MdToPdf.Avalonia/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          pub="MdToPdf.Avalonia/bin/Release/net8.0/${{ matrix.rid }}/publish"
           mkdir -p staging/Marksmith
           cp -R "$pub"/. staging/Marksmith/
           (cd staging && zip -r "../Marksmith-Avalonia-${{ matrix.rid }}.zip" Marksmith)
 
-      - name: Checksum (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $h = (Get-FileHash "Marksmith-Avalonia-${{ matrix.rid }}.zip" -Algorithm SHA256).Hash.ToLower()
-          "$h  Marksmith-Avalonia-${{ matrix.rid }}.zip" | Set-Content checksums.txt
-
-      - name: Checksum (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Upload Avalonia release assets (${{ matrix.rid }})
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          set -euo pipefail
-          if command -v sha256sum >/dev/null 2>&1; then
-            h=$(sha256sum "Marksmith-Avalonia-${{ matrix.rid }}.zip" | cut -d' ' -f1)
-          else
-            h=$(shasum -a 256 "Marksmith-Avalonia-${{ matrix.rid }}.zip" | cut -d' ' -f1)
-          fi
-          echo "$h  Marksmith-Avalonia-${{ matrix.rid }}.zip" > checksums.txt
-
-      - name: Upload Avalonia release assets (${{ matrix.rid }})
-        uses: actions/upload-artifact@v4
-        with:
-          name: avalonia-${{ matrix.rid }}
-          path: |
-            Marksmith-Avalonia-${{ matrix.rid }}.zip
-            checksums.txt
-          if-no-files-found: error
+          tag="${{ inputs.tag || github.ref_name }}"
+          gh release upload "$tag" "Marksmith-Avalonia-${{ matrix.rid }}.zip" --clobber
 
   publish-release:
     name: Publish GitHub Release
     needs: [release-winui, release-avalonia]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Assemble release assets
-        shell: bash
+      - name: Consolidate and Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          
           mkdir -p release-assets
-          cp artifacts/winui-release-assets/Marksmith-win-x64.zip release-assets/
-          cp artifacts/winui-release-assets/Marksmith-Setup-x64.exe release-assets/
-          cp artifacts/avalonia-win-x64/Marksmith-Avalonia-win-x64.zip release-assets/
-          cp artifacts/avalonia-linux-x64/Marksmith-Avalonia-linux-x64.zip release-assets/
-          cp artifacts/avalonia-osx-arm64/Marksmith-Avalonia-osx-arm64.zip release-assets/
-          cat artifacts/winui-release-assets/checksums.txt \
-              artifacts/avalonia-win-x64/checksums.txt \
-              artifacts/avalonia-linux-x64/checksums.txt \
-              artifacts/avalonia-osx-arm64/checksums.txt \
-              > release-assets/checksums.txt
-
-      - name: Build release notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > release-notes.md <<'BODY'
+          cd release-assets
+          
+          # Download all assets
+          gh release download "$tag"
+          
+          # Calculate checksums
+          sha256sum Marksmith-win-x64.zip Marksmith-Setup-x64.exe Marksmith-Avalonia-win-x64.zip Marksmith-Avalonia-linux-x64.zip Marksmith-Avalonia-osx-arm64.zip > checksums.txt
+          
+          # Upload checksums file to release
+          gh release upload "$tag" checksums.txt --clobber
+          
+          # Build release notes
+          cat > ../release-notes.md <<'BODY'
           ## Cross-platform preview build (Windows / Linux / macOS)
 
           This release includes the full-featured Windows installer (unchanged) plus a **new preview
@@ -255,26 +227,15 @@ jobs:
             echo "| File | SHA256 |"
             echo "| --- | --- |"
             while read -r hash file; do
-              echo "| $file | \`$hash\` |"
-            done < release-assets/checksums.txt
+              filename=$(basename "$file")
+              echo "| $filename | \`$hash\` |"
+            done < checksums.txt
             echo ""
             echo "Paste the Windows installer hash into winget \`InstallerSha256\` and Chocolatey \`checksum64\`."
-          } >> release-notes.md
+          } >> ../release-notes.md
 
+          cd ..
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          name: Marksmith ${{ inputs.tag || github.ref_name }}
-          body_path: release-notes.md
-          files: |
-            release-assets/Marksmith-win-x64.zip
-            release-assets/Marksmith-Setup-x64.exe
-            release-assets/Marksmith-Avalonia-win-x64.zip
-            release-assets/Marksmith-Avalonia-linux-x64.zip
-            release-assets/Marksmith-Avalonia-osx-arm64.zip
-            release-assets/checksums.txt
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+          
+          # Undraft and update notes
+          gh release edit "$tag" --draft=false --notes-file release-notes.md
