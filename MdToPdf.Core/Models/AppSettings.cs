@@ -81,6 +81,11 @@ public sealed class AppSettings
     public string ContentLanguage { get; set; } = "";
     public string ContentDirection { get; set; } = "";
 
+    public AppSettings()
+    {
+        ApiEnabled = true;
+    }
+
     // Local REST API
     public bool ApiEnabled { get; set; }
     public int ApiPort { get; set; } = 47821;
