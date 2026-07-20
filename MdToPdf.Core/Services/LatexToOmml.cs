@@ -473,6 +473,8 @@ internal static class LatexToOmml
                 if (isSup) sup = arg; else sub = arg;
             }
             var baseEls = More && Cur.Kind != Kind.RBrace ? ParseAtomWithScripts() : new List<OpenXmlElement>();
+            if (baseEls.Count == 0) baseEls.Add(TextRun("\u200B")); // Hide dotted placeholder box for empty base
+
 
             var np = new M.NaryProperties(
                 new M.AccentChar { Val = chr },
