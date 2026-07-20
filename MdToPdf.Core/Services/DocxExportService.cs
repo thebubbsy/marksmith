@@ -16,10 +16,17 @@ using MdToPdf.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W14 = DocumentFormat.OpenXml.Office2010.Word;
 using W15 = DocumentFormat.OpenXml.Office2013.Word;
+using System.Text.Json;
+using System.Globalization;
+using System.Xml.Linq;
 using MdTable = Markdig.Extensions.Tables.Table;
 using MdTableRow = Markdig.Extensions.Tables.TableRow;
 using MdTableCell = Markdig.Extensions.Tables.TableCell;
-
+using C = DocumentFormat.OpenXml.Drawing.Charts;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using S = DocumentFormat.OpenXml.Spreadsheet;
+using Wps = DocumentFormat.OpenXml.Office2010.Word.DrawingShape;
 namespace MdToPdf.Services;
 
 // Native DOCX export via DocumentFormat.OpenXml (option 2 of the design decision that used to live
@@ -32,16 +39,16 @@ namespace MdToPdf.Services;
 //     numerals, contextual alternates (w14:* run extensions)
 //   - a dropped capital (w:framePr dropCap) on the first body paragraph
 //   - real Word fields: PAGE/NUMPAGES in the footer, and a self-updating TOC field (w:updateFields)
-//     when "Include TOC" is on — plus bookmarks on every heading so #anchor links navigate in Word
+//     when "Include TOC" is on â€” plus bookmarks on every heading so #anchor links navigate in Word
 //   - w:pgBorders page frame, A4 vs Letter geometry from the A4FixedWidth setting, auto-hyphenation
 //   - tables get repeating header rows (w:tblHeader), unsplittable rows, zebra banding, and
 //     accessibility alt text (w:tblCaption/w:tblDescription)
-//   - LaTeX/KaTeX math becomes real, *editable* Word equations (OMML) via LatexToOmml — fractions,
-//     roots, n-ary sum/integral with proper limits, delimiters, Greek and upright function names —
+//   - LaTeX/KaTeX math becomes real, *editable* Word equations (OMML) via LatexToOmml â€” fractions,
+//     roots, n-ary sum/integral with proper limits, delimiters, Greek and upright function names â€”
 //     not flat text (inline $..$ flows in the run; display $$..$$ is a centered equation paragraph)
 // GitHub alerts render as single-cell tables with the same theme accent palette the Python DOCX
 // path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
-// MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
+// MermaidDocxRenderer â€” editable in Word, no browser needed; unsupported diagram types keep the
 // code-block fallback.
 public sealed class DocxExportService
 {
@@ -53,7 +60,7 @@ public sealed class DocxExportService
         .UseEmojiAndSmiley(enableSmileys: false) // :rocket: -> emoji chars in Word too (same as the HTML pipeline)
         .Build();
 
-    // See MarkdownHtmlService.PipelineNoEmoji — same rationale: no-emoji mode must not let
+    // See MarkdownHtmlService.PipelineNoEmoji â€” same rationale: no-emoji mode must not let
     // shortcode conversion reintroduce emoji after EmojiStripper already ran.
     private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -69,28 +76,28 @@ public sealed class DocxExportService
     private static readonly Dictionary<string, (string Color, string Icon)> AlertStyles =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["note"] = ("#0969da", "ℹ️"),
-            ["tip"] = ("#1f883d", "💡"),
-            ["important"] = ("#8250df", "📢"),
-            ["warning"] = ("#bf8700", "⚠️"),
-            ["caution"] = ("#cf222e", "🛑"),
+            ["note"] = ("#0969da", "â„¹ï¸"),
+            ["tip"] = ("#1f883d", "ðŸ’¡"),
+            ["important"] = ("#8250df", "ðŸ“¢"),
+            ["warning"] = ("#bf8700", "âš ï¸"),
+            ["caution"] = ("#cf222e", "ðŸ›‘"),
         };
 
     private static readonly Dictionary<string, (string Color, string Icon)> AlertStylesDark =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["note"] = ("#58a6ff", "ℹ️"),
-            ["tip"] = ("#3fb950", "💡"),
-            ["important"] = ("#a371f7", "📢"),
-            ["warning"] = ("#d29922", "⚠️"),
-            ["caution"] = ("#f85149", "🛑"),
+            ["note"] = ("#58a6ff", "â„¹ï¸"),
+            ["tip"] = ("#3fb950", "ðŸ’¡"),
+            ["important"] = ("#a371f7", "ðŸ“¢"),
+            ["warning"] = ("#d29922", "âš ï¸"),
+            ["caution"] = ("#f85149", "ðŸ›‘"),
         };
 
     // mermaidImages: optional pre-rasterized PNGs of the document's mermaid fences (in order),
     // supplied by MainWindow's snapshot renderer. Used directly in Snapshot mode, and as the
     // fallback in ShapeForge mode for diagram types the shape engine can't fully parse.
     // cleanupNotes: the normalizer's applied-fix list; when present, a real Word comment anchored
-    // at the top of the document discloses exactly what Marksmith cleaned — transparent, on-brand.
+    // at the top of the document discloses exactly what Marksmith cleaned â€” transparent, on-brand.
     public Task ExportAsync(string markdown, string docxPath, AppSettings settings,
         IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
@@ -190,7 +197,7 @@ public sealed class DocxExportService
         comment.Append(new W.Paragraph(new W.Run(new W.Text(
             $"Marksmith normalized {notes.Count} AI formatting quirk{(notes.Count == 1 ? "" : "s")} in this document:"))));
         foreach (var n in notes)
-            comment.Append(new W.Paragraph(new W.Run(new W.Text("• " + n) { Space = SpaceProcessingModeValues.Preserve })));
+            comment.Append(new W.Paragraph(new W.Run(new W.Text("â€¢ " + n) { Space = SpaceProcessingModeValues.Preserve })));
         part.Comments.Append(comment);
         part.Comments.Save();
 
@@ -203,7 +210,7 @@ public sealed class DocxExportService
     }
 
     // Append mode: add the content as a dated section to an existing running document instead of
-    // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
+    // creating a new file â€” a growing compendium of your AI work. Creates the file fresh if missing.
     public Task ExportAppendAsync(string markdown, string docxPath, AppSettings settings,
         IReadOnlyList<byte[]?>? mermaidImages = null,
         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
@@ -319,7 +326,7 @@ public sealed class DocxExportService
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
-        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2×2, 3=3×3)
+        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2Ã—2, 3=3Ã—3)
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
@@ -371,7 +378,7 @@ public sealed class DocxExportService
 
     private static void RenderBlock(Block block, OpenXmlCompositeElement target, Ctx ctx, int listLevel)
     {
-        // The very first body paragraph gets a dropped capital — once any other body-level content
+        // The very first body paragraph gets a dropped capital â€” once any other body-level content
         // has rendered, the window closes.
         if (target is W.Body && block is not HeadingBlock && block is not Markdig.Extensions.Yaml.YamlFrontMatterBlock)
         {
@@ -408,7 +415,7 @@ public sealed class DocxExportService
 
             case MathBlock math:
             {
-                // Display math → a centered paragraph holding a real, editable Word equation (OMML).
+                // Display math â†’ a centered paragraph holding a real, editable Word equation (OMML).
                 var mp = new W.Paragraph(new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
                     new W.Justification { Val = W.JustificationValues.Center }));
@@ -420,9 +427,9 @@ public sealed class DocxExportService
             case FencedCodeBlock fence when fence.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
             {
                 // Two user-selectable methods (settings.MermaidDocxMode):
-                //   ShapeForge (1) — rebuild the diagram as native, editable Word shapes; if the shape
+                //   ShapeForge (1) â€” rebuild the diagram as native, editable Word shapes; if the shape
                 //                    engine can't fully parse it, fall back to the snapshot picture.
-                //   Snapshot  (0) — embed a picture of the rendered diagram.
+                //   Snapshot  (0) â€” embed a picture of the rendered diagram.
                 // Last resort either way: the plain code block (never a half-understood diagram).
                 var idx = ctx.MermaidSeen++;
                 var png = ctx.MermaidImages is not null && idx < ctx.MermaidImages.Count ? ctx.MermaidImages[idx] : null;
@@ -475,7 +482,7 @@ public sealed class DocxExportService
                     target.Append(diagram);
                 }
                 // Generic path (the "no fallback" win): any diagram type a bespoke renderer doesn't
-                // handle — state, C4, block, kanban, packet, sankey, etc. — rebuilt from mermaid's
+                // handle â€” state, C4, block, kanban, packet, sankey, etc. â€” rebuilt from mermaid's
                 // harvested SVG primitives as native shapes, instead of a flat picture.
                 else if (ctx.MermaidMode == 1 && gen is { IsEmpty: false })
                 {
@@ -521,14 +528,14 @@ public sealed class DocxExportService
                 break;
             }
 
-            // Diagram-plugin fences (```dot / ```plantuml / ```d2 / ```vega-lite / …, including the
+            // Diagram-plugin fences (```dot / ```plantuml / ```d2 / ```vega-lite / â€¦, including the
             // ones DiagramFenceSniffer relabelled from a bare fence). The plugin renders the source
             // to SVG out-of-process; before this case existed the source dumped out as plain text
             // (it fell through to the CodeBlock case below). Same mode ladder as mermaid:
-            //   ShapeForge (1) — parse the SVG's primitives (SvgShapeForge) and rebuild them as
-            //                    native, editable Word shapes via the same GenericDiagram →
+            //   ShapeForge (1) â€” parse the SVG's primitives (SvgShapeForge) and rebuild them as
+            //                    native, editable Word shapes via the same GenericDiagram â†’
             //                    DocxShapeEmitter pipeline the mermaid generic harvest uses.
-            //   Snapshot  (0) — or if the parse recovers too little — embed the SVG as a real
+            //   Snapshot  (0) â€” or if the parse recovers too little â€” embed the SVG as a real
             //                    picture (crisp SVG for Word 2016+, rasterized PNG fallback).
             // Floor either way: the plain code block, never nothing.
             case FencedCodeBlock pluginFence when PluginDiagramLanguage(pluginFence.Info) is { } pluginLang:
@@ -574,7 +581,7 @@ public sealed class DocxExportService
                 else
                 {
                     // The plugin DID render an SVG but Word can't embed it (SvgShapeForge couldn't
-                    // parse it AND rasterization failed — e.g. an SVG using a filter/foreignObject
+                    // parse it AND rasterization failed â€” e.g. an SVG using a filter/foreignObject
                     // Svg.Skia chokes on). PDF/preview show the diagram, so silently dumping the raw
                     // @startuml source here as if it were meant to be code is the pipeline-divergence
                     // trap. Prefix a caption so the source reads as "diagram source (rendered in the
@@ -624,7 +631,7 @@ public sealed class DocxExportService
                 break;
 
             case HtmlBlock htmlBlock:
-                // Block-level raw HTML used to be dropped ENTIRELY here — a raw <table> or <details>
+                // Block-level raw HTML used to be dropped ENTIRELY here â€” a raw <table> or <details>
                 // an AI emitted just vanished from the Word doc (worse than the inline case, which
                 // only lost formatting). Now the common, high-value shapes are recovered, and the
                 // catch-all strips tags to text so content is never silently lost.
@@ -707,8 +714,8 @@ public sealed class DocxExportService
         return true;
     }
 
-    // Branding kit: a title cover page — optional logo, the document title in display size, a date
-    // line — followed by a page break, so the content proper starts on page 2.
+    // Branding kit: a title cover page â€” optional logo, the document title in display size, a date
+    // line â€” followed by a page break, so the content proper starts on page 2.
     private static void AppendCoverPage(W.Body body, Ctx ctx, AppSettings settings, string title)
     {
         // breathing room from the top of the page
@@ -748,7 +755,7 @@ public sealed class DocxExportService
                         new W.Justification { Val = W.JustificationValues.Center }),
                     new W.Run(drawing)));
             }
-            catch { /* unreadable logo — cover continues without it */ }
+            catch { /* unreadable logo â€” cover continues without it */ }
         }
 
         var titlePara = new W.Paragraph(new W.ParagraphProperties(
@@ -766,7 +773,7 @@ public sealed class DocxExportService
             new W.SpacingBetweenLines { Before = "0", After = "0" },
             new W.Justification { Val = W.JustificationValues.Center }));
         var dateRun = new W.Run(new W.Text($"{DateTime.Now:d MMMM yyyy}"));
-        dateRun.PrependChild(new W.RunProperties(new W.Color { Val = ctx.TextHex }, new W.FontSize { Val = "24" }));
+        dateRun.PrependChild(new W.RunProperties(new W.Color { Val = ctx.Theme.Text.TrimStart('#') }, new W.FontSize { Val = "24" }));
         datePara.Append(dateRun);
         body.Append(datePara);
 
@@ -791,7 +798,7 @@ public sealed class DocxExportService
 
     // Snapshot mode: embed the pre-rasterized diagram PNG as a centered inline picture, scaled to
     // the printable width (the PNGs are rendered at 2x, so half their pixel size in points).
-    // The fence language iff an installed diagram plugin claims it (never "mermaid" — that has its
+    // The fence language iff an installed diagram plugin claims it (never "mermaid" â€” that has its
     // own case). Returns null so the `when` guard falls through to the next case otherwise.
     private static string? PluginDiagramLanguage(string? info)
     {
@@ -804,7 +811,7 @@ public sealed class DocxExportService
     // Embeds a diagram plugin's SVG as a Word picture: the SVG itself (Word 2016+ renders it
     // crisply at any zoom) plus a rasterized PNG fallback (older Word, and thumbnails/print). The
     // <asvg:svgBlip> ext under the PNG blip is exactly what Word writes when you Insert > Picture an
-    // .svg — so the round-trip is native, not a hack. Returns null if the SVG can't be rasterized
+    // .svg â€” so the round-trip is native, not a hack. Returns null if the SVG can't be rasterized
     // (caller then falls back to the code block).
     private static W.Paragraph? SvgDiagramParagraph(string svg, Ctx ctx)
     {
@@ -821,7 +828,7 @@ public sealed class DocxExportService
         using (var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg))) svgPart.FeedData(ms);
         var svgRel = ctx.MainPart.GetIdOfPart(svgPart);
 
-        // Size the frame in points (SVG px ≈ pt at 96dpi → *0.75), capped to the text column width.
+        // Size the frame in points (SVG px â‰ˆ pt at 96dpi â†’ *0.75), capped to the text column width.
         double ptW = Math.Max(40, svgW * 0.75), ptH = Math.Max(20, svgH * 0.75);
         if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
         long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
@@ -880,7 +887,7 @@ public sealed class DocxExportService
         var relId = ctx.MainPart.GetIdOfPart(part);
 
         var (pxW, pxH) = PngDimensions(png);
-        double ptW = Math.Max(40, pxW * 0.375), ptH = Math.Max(20, pxH * 0.375); // 2x render → 72/96/2
+        double ptW = Math.Max(40, pxW * 0.375), ptH = Math.Max(20, pxH * 0.375); // 2x render â†’ 72/96/2
         if (ptW > 460) { ptH *= 460 / ptW; ptW = 460; }
         long cx = (long)(ptW * 12700), cy = (long)(ptH * 12700);
         var id = ctx.NextDrawingId++;
@@ -926,13 +933,13 @@ public sealed class DocxExportService
 
     // An italic caption shown above diagram SOURCE that Word couldn't embed as a picture/shapes,
     // so the reader understands the code block below is the source of a diagram they can see in the
-    // preview/PDF, not an ordinary code listing (prevents the silent PDF↔DOCX divergence).
+    // preview/PDF, not an ordinary code listing (prevents the silent PDFâ†”DOCX divergence).
     private static W.Paragraph DiagramSourceCaption(string pluginName, Ctx ctx)
     {
         var para = new W.Paragraph(new W.ParagraphProperties(
             new W.SpacingBetweenLines { Before = "120", After = "40" }));
-        AddText(para, $"{pluginName} diagram — shown in the preview and PDF; source below:",
-            new Fmt { Italic = true, Color = ctx.TextHex });
+        AddText(para, $"{pluginName} diagram â€” shown in the preview and PDF; source below:",
+            new Fmt { Italic = true, Color = ctx.Theme.Text.TrimStart('#') });
         return para;
     }
 
@@ -957,7 +964,7 @@ public sealed class DocxExportService
             if (!first) para.Append(new W.Run(new W.Break()));
             first = false;
             
-            var baseColor = ctx.TextHex;
+            var baseColor = ctx.Theme.Text.TrimStart('#');
             if (isDiff)
             {
                 if (line.StartsWith("+")) baseColor = "008000";
@@ -1004,7 +1011,7 @@ public sealed class DocxExportService
                 var tops = new Stack<string>();
                 while (colorStack.Count > 1) tops.Push(colorStack.Pop());
                 colorStack.Pop(); // remove baseColor
-                colorStack.Push(ctx.TextHex); // push next default (doesn't matter much)
+                colorStack.Push(ctx.Theme.Text.TrimStart('#')); // push next default (doesn't matter much)
                 while (tops.Count > 0) colorStack.Push(tops.Pop());
             }
         }
@@ -1053,8 +1060,17 @@ public sealed class DocxExportService
             case "Embed":
                 RenderEmbed(node, target, ctx);
                 break;
+            case "Datagrid":
+                RenderDatagrid(node, target, ctx);
+                break;
+            case "Chart":
+                RenderChart(node, target, ctx);
+                break;
+            case "Canvas":
+                RenderCanvas(node, target, ctx);
+                break;
             default:
-                // Placeholder for features not yet implemented — red bold label in the Word doc.
+                // Placeholder for features not yet implemented â€” red bold label in the Word doc.
                 var p = new W.Paragraph(new W.ParagraphProperties(
                     new W.SpacingBetweenLines { After = "120" }));
                 AddText(p, $"[Advanced Feature Reserved: {node.Detector.FeatureName}]",
@@ -1098,7 +1114,7 @@ public sealed class DocxExportService
     }
 
     /// <summary>
-    /// Renders a :::tabs block as native Word heading sections — one per :::tab.
+    /// Renders a :::tabs block as native Word heading sections â€” one per :::tab.
     /// Each tab becomes a Heading 3 with a shaded background (tab bar effect), followed by
     /// its content rendered as standard paragraphs. In Word's Navigation Pane, each tab
     /// appears as a navigable section so the user can jump between them.
@@ -1128,7 +1144,7 @@ public sealed class DocxExportService
                     new W.ParagraphBorders(
                         new W.BottomBorder { Val = W.BorderValues.Single, Size = 8, Space = 4, Color = ctx.BorderHex }
                     )));
-            AddText(heading, $"📑 {title}", new Fmt { Bold = true });
+            AddText(heading, $"ðŸ“‘ {title}", new Fmt { Bold = true });
             target.Append(heading);
 
             // --- Tab content (re-parsed through Markdig) ---
@@ -1192,7 +1208,7 @@ public sealed class DocxExportService
                 new W.ParagraphBorders(
                     new W.LeftBorder { Val = W.BorderValues.Single, Size = 18, Space = 8, Color = ctx.BorderHex }
                 )));
-        AddText(header, "🤖 AI Context", new Fmt { Bold = true });
+        AddText(header, "ðŸ¤– AI Context", new Fmt { Bold = true });
         target.Append(header);
 
         // Key-value rows
@@ -1231,9 +1247,9 @@ public sealed class DocxExportService
 
         var icon = node.Detector.FeatureName switch
         {
-            "Timeline" => "📅",
-            "Workflow" => "⚙️",
-            _ => "▶️"
+            "Timeline" => "ðŸ“…",
+            "Workflow" => "âš™ï¸",
+            _ => "â–¶ï¸"
         };
 
         var table = new W.Table();
@@ -1346,7 +1362,7 @@ public sealed class DocxExportService
         var heading = new W.Paragraph(new W.ParagraphProperties(
             new W.ParagraphStyleId { Val = "Heading2" },
             new W.SpacingBetweenLines { Before = "240", After = "120" }));
-        AddText(heading, "📚 Bibliography", new Fmt { Bold = true });
+        AddText(heading, "ðŸ“š Bibliography", new Fmt { Bold = true });
         target.Append(heading);
 
         var bibPara = new W.Paragraph();
@@ -1354,7 +1370,7 @@ public sealed class DocxExportService
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }),
             new W.Run(new W.FieldCode(" BIBLIOGRAPHY \\l 1033 ") { Space = SpaceProcessingModeValues.Preserve }),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
-            new W.Run(new W.Text($"[{parsedTags.Count} sources — update fields to render bibliography]")),
+            new W.Run(new W.Text($"[{parsedTags.Count} sources â€” update fields to render bibliography]")),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End }));
         target.Append(bibPara);
     }
@@ -1379,11 +1395,11 @@ public sealed class DocxExportService
         var rel = ctx.MainPart.AddHyperlinkRelationship(new Uri(src), true);
         var providerIcon = provider.ToLowerInvariant() switch
         {
-            "youtube" => "🎬",
-            "vimeo" => "🎥",
-            "loom" => "📹",
-            "figma" => "🎨",
-            _ => "🔗"
+            "youtube" => "ðŸŽ¬",
+            "vimeo" => "ðŸŽ¥",
+            "loom" => "ðŸ“¹",
+            "figma" => "ðŸŽ¨",
+            _ => "ðŸ”—"
         };
 
         var linkPara = new W.Paragraph(new W.ParagraphProperties(
@@ -1486,11 +1502,11 @@ public sealed class DocxExportService
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex }));
 
         var title = new W.Paragraph();
-        // No-emoji mode still gets a marker — a plain geometric glyph (text-presentation Unicode,
+        // No-emoji mode still gets a marker â€” a plain geometric glyph (text-presentation Unicode,
         // not emoji) that picks up the accent color from the title run, reading as a colored badge.
         var textGlyph = kind.ToLowerInvariant() switch
         {
-            "note" => "●", "tip" => "◆", "important" => "■", "warning" => "▲", "caution" => "✕", _ => "●",
+            "note" => "â—", "tip" => "â—†", "important" => "â– ", "warning" => "â–²", "caution" => "âœ•", _ => "â—",
         };
         var titleText = $"{(ctx.NoEmoji ? textGlyph : icon)} {kind.ToUpperInvariant()}";
         AddText(title, titleText, new Fmt { Bold = true, Color = accentHex });
@@ -1501,12 +1517,12 @@ public sealed class DocxExportService
         if (!cell.Elements<W.Paragraph>().Any())
             cell.Append(new W.Paragraph());
 
-        // The cell background is the theme secondary color, which is dark for dark themes — force
+        // The cell background is the theme secondary color, which is dark for dark themes â€” force
         // the theme text color onto runs that don't already carry one so content stays readable.
         foreach (var run in cell.Descendants<W.Run>())
         {
             run.RunProperties ??= new W.RunProperties();
-            run.RunProperties.Color ??= new W.Color { Val = ctx.TextHex };
+            run.RunProperties.Color ??= new W.Color { Val = ctx.Theme.Text.TrimStart('#') };
         }
 
         target.Append(new W.Table(
@@ -1603,10 +1619,10 @@ public sealed class DocxExportService
 
     private static string StripHtmlToText(string html)
     {
-        // script/style CONTENT is code, not prose — drop it whole, or "alert(1)" from a pasted
+        // script/style CONTENT is code, not prose â€” drop it whole, or "alert(1)" from a pasted
         // <script> block would land in the document as body text.
         html = Regex.Replace(html, @"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>", "", RegexOptions.IgnoreCase);
-        // <br> → space so lines don't glue together; then drop all remaining tags and decode entities.
+        // <br> â†’ space so lines don't glue together; then drop all remaining tags and decode entities.
         var brToSpace = Regex.Replace(html, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
         var noTags = HtmlTagStrip.Replace(brToSpace, "");
         var decoded = System.Net.WebUtility.HtmlDecode(noTags);
@@ -1630,7 +1646,7 @@ public sealed class DocxExportService
         }
 
         // Page break (from DialectNormalizer's <!-- pagebreak -->/\pagebreak rewrite, or a raw
-        // page-break-after div an AI emitted directly) → a REAL Word page break, the one thing
+        // page-break-after div an AI emitted directly) â†’ a REAL Word page break, the one thing
         // Word does better than any web renderer.
         if (raw.Contains("class=\"page-break\"", StringComparison.OrdinalIgnoreCase) ||
             Regex.IsMatch(raw, @"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase))
@@ -1650,7 +1666,7 @@ public sealed class DocxExportService
             return;
         }
 
-        // <hr> → a bordered rule paragraph, same look as a Markdown --- thematic break. NOT an
+        // <hr> â†’ a bordered rule paragraph, same look as a Markdown --- thematic break. NOT an
         // exact whole-block match: without a blank line after it, Markdig's HTML block swallows the
         // following text line into the SAME block ("<hr>\nBelow the rule."), so an exact match
         // missed the tag and the rule silently vanished while the text survived via the catch-all.
@@ -1660,7 +1676,7 @@ public sealed class DocxExportService
             var segments = Regex.Split(raw, @"<hr\s*/?>", RegexOptions.IgnoreCase);
             for (int i = 0; i < segments.Length; i++)
             {
-                if (i > 0) // a rule between (and after) segments — one per <hr> that split them
+                if (i > 0) // a rule between (and after) segments â€” one per <hr> that split them
                     target.Append(new W.Paragraph(new W.ParagraphProperties(new W.ParagraphBorders(
                         new W.BottomBorder { Val = W.BorderValues.Wave, Size = 6, Space = 1, Color = ctx.BorderHex }))));
                 var segText = StripHtmlToText(segments[i]);
@@ -1669,12 +1685,12 @@ public sealed class DocxExportService
             return;
         }
 
-        // <table> → a real Word table (the biggest data-loss fix: whole tables used to disappear).
+        // <table> â†’ a real Word table (the biggest data-loss fix: whole tables used to disappear).
         var table = Regex.Match(raw, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
 
         // Foldable-callout <details> whose body was split into following markdown blocks (blank
-        // lines between <summary> and the body — see AdmonitionNormalizer). The opener arrives as a
+        // lines between <summary> and the body â€” see AdmonitionNormalizer). The opener arrives as a
         // block with no closing tag; render its summary as a Word-native collapsible heading
         // (outlineLvl 4 + collapsed) so the body blocks that follow fold under it, matching the
         // preview's collapsed-<details>. The bare </details> closer that arrives later is dropped.
@@ -1690,12 +1706,12 @@ public sealed class DocxExportService
         }
         if (Regex.IsMatch(raw, @"^</details>$", RegexOptions.IgnoreCase)) return;
 
-        // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
-        // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
+        // <details><summary>â€¦</summary>â€¦</details> â†’ a GENUINELY collapsible section: the summary
+        // paragraph carries an outline level (which is all Word needs to draw its native â–¸ collapse
         // triangle and fold the following body under it) plus w15:collapsed so it starts folded,
         // matching <details>'s default-closed semantics. Outline level 4 keeps it out of the
-        // document's TOC field (which collects levels 1–3 only) so a summary line never pollutes
-        // the table of contents. No literal "▸" glyph — Word draws its own toggle, and a fake one
+        // document's TOC field (which collects levels 1â€“3 only) so a summary line never pollutes
+        // the table of contents. No literal "â–¸" glyph â€” Word draws its own toggle, and a fake one
         // next to the real one reads as a control that does nothing.
         var details = Regex.Match(raw, @"<details\b[^>]*>(.*?)</details>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (details.Success)
@@ -1718,7 +1734,7 @@ public sealed class DocxExportService
             return;
         }
 
-        // Catch-all: never lose the content — strip tags and emit the remaining text.
+        // Catch-all: never lose the content â€” strip tags and emit the remaining text.
         var text = StripHtmlToText(raw);
         if (text.Length > 0) { var p = new W.Paragraph(); AddText(p, text, default); target.Append(p); }
     }
@@ -1785,7 +1801,7 @@ public sealed class DocxExportService
                 new W.TableBorders(
                     Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
                     Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>()),
-                // Accessibility alt text — the w:tbl equivalent of an <img alt>, almost nobody sets it.
+                // Accessibility alt text â€” the w:tbl equivalent of an <img alt>, almost nobody sets it.
                 new W.TableCaption { Val = "Table exported from Markdown" },
                 new W.TableDescription { Val = "Table exported from Markdown by Marksmith" }),
             new W.TableGrid(table.ColumnDefinitions.Select(_ => (OpenXmlElement)new W.GridColumn())));
@@ -1844,13 +1860,13 @@ public sealed class DocxExportService
 
                 if (row.IsHeader)
                 {
-                    // Header fill is the theme code color (dark on dark themes) — bold the text and
+                    // Header fill is the theme code color (dark on dark themes) â€” bold the text and
                     // give it the theme text color, matching the HTML th styling.
                     foreach (var run in wCell.Descendants<W.Run>())
                     {
                         run.RunProperties ??= new W.RunProperties();
                         run.RunProperties.Bold ??= new W.Bold();
-                        run.RunProperties.Color ??= new W.Color { Val = ctx.TextHex };
+                        run.RunProperties.Color ??= new W.Color { Val = ctx.Theme.Text.TrimStart('#') };
                     }
                 }
 
@@ -1868,7 +1884,7 @@ public sealed class DocxExportService
         new W.SpacingBetweenLines { Before = "0", After = "0" },
         new W.ParagraphMarkRunProperties(new W.FontSize { Val = "8" })));
 
-    // Real TOC field over Heading1-3 with hyperlinks (\h) — combined with w:updateFields, Word
+    // Real TOC field over Heading1-3 with hyperlinks (\h) â€” combined with w:updateFields, Word
     // rebuilds it (page numbers and all) the moment the document opens.
     private static void AppendTocField(W.Body body, Ctx ctx)
     {
@@ -1881,7 +1897,7 @@ public sealed class DocxExportService
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin, Dirty = true }),
             new W.Run(new W.FieldCode(" TOC \\o \"1-3\" \\h \\z \\u ") { Space = SpaceProcessingModeValues.Preserve }),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
-            new W.Run(new W.Text("Table of contents — Word fills this in when the document opens.")),
+            new W.Run(new W.Text("Table of contents â€” Word fills this in when the document opens.")),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End })));
     }
 
@@ -1892,8 +1908,8 @@ public sealed class DocxExportService
         if (container is null) return;
 
         // `current` starts as the inherited format and is mutated by raw inline HTML tags
-        // (<sub>…</sub>, <mark>…</mark>, <span style="color:…">…</span>, etc.). Unlike Markdown
-        // emphasis — which Markdig nests into EmphasisInline containers — raw HTML tags arrive as
+        // (<sub>â€¦</sub>, <mark>â€¦</mark>, <span style="color:â€¦">â€¦</span>, etc.). Unlike Markdown
+        // emphasis â€” which Markdig nests into EmphasisInline containers â€” raw HTML tags arrive as
         // FLAT siblings (H, <sub>, 2, </sub>, O), so the formatting they imply has to be tracked
         // statefully across the sibling loop rather than by recursion. `htmlFmtStack` snapshots the
         // format on each opening tag so the matching close restores it, which keeps nested tags
@@ -1947,12 +1963,12 @@ public sealed class DocxExportService
                 }
 
                 case TaskList task:
-                    // - [ ] / - [x] → a NATIVE Word checkbox content control (w14:checkbox), the
-                    // same control Word's own Developer ribbon inserts — clickable in Word 2010+,
-                    // toggling ☐/☒ in place — rather than a static glyph pasted as text. The
+                    // - [ ] / - [x] â†’ a NATIVE Word checkbox content control (w14:checkbox), the
+                    // same control Word's own Developer ribbon inserts â€” clickable in Word 2010+,
+                    // toggling â˜/â˜’ in place â€” rather than a static glyph pasted as text. The
                     // display run inside sdtContent must carry the state glyph in MS Gothic (the
                     // font Word itself uses for these controls) or Word shows a missing-glyph box
-                    // on some systems. No trailing space — the literal that follows already has one.
+                    // on some systems. No trailing space â€” the literal that follows already has one.
                     target.Append(new W.SdtRun(
                         new W.SdtProperties(
                             new W14.SdtContentCheckBox(
@@ -1962,11 +1978,11 @@ public sealed class DocxExportService
                         new W.SdtContentRun(
                             new W.Run(
                                 new W.RunProperties(new W.RunFonts { Ascii = "MS Gothic", HighAnsi = "MS Gothic", EastAsia = "MS Gothic" }),
-                                new W.Text(task.Checked ? "☒" : "☐")))));
+                                new W.Text(task.Checked ? "â˜’" : "â˜")))));
                     break;
 
                 case MathInline math:
-                    // Inline math → an editable Word equation (OMML) dropped into the run flow.
+                    // Inline math â†’ an editable Word equation (OMML) dropped into the run flow.
                     target.Append(LatexToOmml.Build(math.Content.ToString()));
                     break;
 
@@ -1992,7 +2008,7 @@ public sealed class DocxExportService
         }
     }
 
-    // Basic CSS/HTML color names → 6-hex (Word wants RRGGBB, no leading '#'). Covers the palette AI
+    // Basic CSS/HTML color names â†’ 6-hex (Word wants RRGGBB, no leading '#'). Covers the palette AI
     // models actually reach for when they inline a colored <span>/<font>; anything unrecognized is
     // left alone (the text still renders, just in the default color) rather than guessed at.
     private static readonly Dictionary<string, string> NamedColors = new(StringComparer.OrdinalIgnoreCase)
@@ -2054,7 +2070,7 @@ public sealed class DocxExportService
         };
 
         // A self-closing formatting tag (<mark/>) has no content to affect, so it must not leave the
-        // format changed for following siblings — only real open/close pairs push and pop.
+        // format changed for following siblings â€” only real open/close pairs push and pop.
         if (!selfClosing) { stack.Push(current); current = next; }
     }
 
@@ -2065,7 +2081,7 @@ public sealed class DocxExportService
         if (!m.Success) return null;
         var c = m.Groups[1].Value.Trim().TrimStart('#');
         if (Regex.IsMatch(c, "^[0-9a-fA-F]{6}$")) return c.ToUpperInvariant();
-        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$")) // #rgb shorthand → #rrggbb
+        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$")) // #rgb shorthand â†’ #rrggbb
             return string.Concat(c.Select(ch => new string(ch, 2))).ToUpperInvariant();
         return NamedColors.TryGetValue(c, out var hex) ? hex : null;
     }
@@ -2089,7 +2105,7 @@ public sealed class DocxExportService
         {
             // LOCAL images embed as real Word pictures (dimensions probed via SkiaSharp, downscaled
             // like the preview does, Obsidian ![alt|width] honored). Remote URLs stay a labeled
-            // hyperlink — the exporter is offline-first and never fetches the network.
+            // hyperlink â€” the exporter is offline-first and never fetches the network.
             if (TryEmbedLocalImage(target, link, ctx)) return;
 
             var alt = GetPlainText(link);
@@ -2234,7 +2250,7 @@ public sealed class DocxExportService
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
                 new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont },
-                new W.Color { Val = ctx.TextHex },
+                new W.Color { Val = ctx.Theme.Text.TrimStart('#') },
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },
                 new W.FontSizeComplexScript { Val = "22" })),
@@ -2248,7 +2264,7 @@ public sealed class DocxExportService
             Default = true,
         });
 
-        // (size half-points, gray color for h6) — roughly GitHub's heading scale on an 11pt base.
+        // (size half-points, gray color for h6) â€” roughly GitHub's heading scale on an 11pt base.
         (string Size, string? Color)[] headings =
         {
             ("40", ctx.HeadingHex), ("32", ctx.HeadingHex), ("28", ctx.HeadingHex),
@@ -2271,7 +2287,7 @@ public sealed class DocxExportService
             rPr.Append(new W.Bold());
             if (level == 1)
             {
-                // Small caps + letterspacing on H1 — the kind of title treatment people do by hand.
+                // Small caps + letterspacing on H1 â€” the kind of title treatment people do by hand.
                 rPr.Append(new W.SmallCaps());
             }
             if (color is not null) rPr.Append(new W.Color { Val = color });
@@ -2309,12 +2325,12 @@ public sealed class DocxExportService
         var part = main.AddNewPart<DocumentSettingsPart>();
         var settings = new W.Settings();
         // "Single continuous page" is a PDF-only layout. Word has no page-less print layout, but Web
-        // Layout view is the closest equivalent — one continuous flow with no page breaks (and, like
+        // Layout view is the closest equivalent â€” one continuous flow with no page breaks (and, like
         // the continuous PDF, not meant for printing). w:view must precede w:zoom in the schema order.
         if (webLayout)
             settings.Append(new W.View { Val = W.ViewValues.Web });
         settings.Append(new W.Zoom { Percent = "110" });
-        // Without this Word ignores w:background entirely — the pair is the whole trick.
+        // Without this Word ignores w:background entirely â€” the pair is the whole trick.
         settings.Append(new W.DisplayBackgroundShape());
         settings.Append(new W.AutoHyphenation());
         if (updateFieldsOnOpen)
@@ -2356,7 +2372,7 @@ public sealed class DocxExportService
                 new W.SpacingBetweenLines { After = "0" },
                 new W.Justification { Val = W.JustificationValues.Center }),
             FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
-            FooterRun("  ·  Marksmith")));
+            FooterRun("  Â·  Marksmith")));
 
         // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
         var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
@@ -2379,7 +2395,7 @@ public sealed class DocxExportService
                 Top = 1440, Right = 1440, Bottom = 1440, Left = 1440,
                 Header = 576, Footer = 576, Gutter = 0,
             },
-            // w:pgBorders — a full page frame in the theme border color, measured from the page edge.
+            // w:pgBorders â€” a full page frame in the theme border color, measured from the page edge.
             new W.PageBorders(
                 PageBorder<W.TopBorder>(), PageBorder<W.LeftBorder>(),
                 PageBorder<W.BottomBorder>(), PageBorder<W.RightBorder>())
@@ -2387,6 +2403,469 @@ public sealed class DocxExportService
                 OffsetFrom = W.PageBorderOffsetValues.Page,
                 Display = W.PageBorderDisplayValues.AllPages,
             });
+    }
+    private static void RenderDatagrid(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var lines = (node.InnerContent ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length == 0) return;
+
+        var table = new W.Table(
+            new W.TableProperties(
+                new W.TableStyle { Val = "TableGrid" },
+                new W.TableWidth { Width = "5000", Type = W.TableWidthUnitValues.Pct },
+                new W.TableLook { Val = "04A0", FirstRow = true, LastRow = false, FirstColumn = true, LastColumn = false, NoHorizontalBand = false, NoVerticalBand = true }
+            ));
+        
+        bool isHeader = true;
+        foreach (var line in lines)
+        {
+            var cells = line.Split(new[] { ',', '\t' });
+            var row = new W.TableRow();
+            foreach (var cellText in cells)
+            {
+                var tc = new W.TableCell(
+                    new W.TableCellProperties(
+                        new W.TableCellWidth { Width = "0", Type = W.TableWidthUnitValues.Auto },
+                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = isHeader ? (ctx.Theme.Primary.TrimStart('#') ?? "F3F4F6") : "FFFFFF" }
+                    ),
+                    new W.Paragraph(
+                        new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }),
+                        new W.Run(
+                            new W.RunProperties(
+                                new W.Color { Val = isHeader ? "FFFFFF" : (ctx.Theme.Text.TrimStart('#') ?? "000000") },
+                                new W.Bold { Val = isHeader ? new DocumentFormat.OpenXml.OnOffValue(true) : new DocumentFormat.OpenXml.OnOffValue(false) }
+                            ),
+                            new W.Text(cellText.Trim())
+                        )
+                    )
+                );
+                row.Append(tc);
+            }
+            table.Append(row);
+            isHeader = false;
+        }
+
+        target.Append(table);
+        target.Append(new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" })));
+    }
+
+    private static void RenderChart(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var labels = new List<string>();
+        var values = new List<double>();
+        
+        if (node.InnerContent != null && node.InnerContent.TrimStart().StartsWith("{"))
+        {
+            try 
+            {
+                var j = JsonDocument.Parse(node.InnerContent);
+                var data = j.RootElement.GetProperty("data");
+                foreach (var l in data.GetProperty("labels").EnumerateArray()) labels.Add(l.GetString());
+                foreach (var v in data.GetProperty("values").EnumerateArray()) values.Add(v.GetDouble());
+            } 
+            catch { }
+        }
+        else if (node.InnerContent != null)
+        {
+            var lines = node.InnerContent.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+            bool first = true;
+            foreach(var line in lines)
+            {
+                if (first) { first = false; continue; } // Skip header
+                var parts = line.Split(',');
+                if (parts.Length >= 2 && double.TryParse(parts[1], out double val))
+                {
+                    labels.Add(parts[0]);
+                    values.Add(val);
+                }
+            }
+        }
+
+        if (labels.Count == 0 || labels.Count != values.Count) return;
+
+        string chartType = node.Attributes.ContainsKey("type") ? node.Attributes["type"].ToLower() : "bar";
+
+        var chartPart = ctx.MainPart.AddNewPart<ChartPart>();
+        string chartRelId = ctx.MainPart.GetIdOfPart(chartPart);
+        
+        var packagePart = chartPart.AddNewPart<EmbeddedPackagePart>(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            "rId1"
+        );
+
+        using (var stream = packagePart.GetStream())
+        using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
+        {
+            var workbookPart = doc.AddWorkbookPart();
+            workbookPart.Workbook = new S.Workbook(new S.Sheets(new S.Sheet() { Id = "rId1", SheetId = 1, Name = "Sheet1" }));
+            
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>("rId1");
+            var sheetData = new S.SheetData();
+            worksheetPart.Worksheet = new S.Worksheet(sheetData);
+
+            var header = new S.Row() { RowIndex = 1 };
+            header.Append(
+                new S.Cell() { CellReference = "A1", DataType = S.CellValues.String, CellValue = new S.CellValue("Category") },
+                new S.Cell() { CellReference = "B1", DataType = S.CellValues.String, CellValue = new S.CellValue("Value") }
+            );
+            sheetData.Append(header);
+
+            for (int i = 0; i < labels.Count; i++)
+            {
+                uint rowIdx = (uint)(i + 2);
+                var row = new S.Row() { RowIndex = rowIdx };
+                row.Append(
+                    new S.Cell() { CellReference = "A" + rowIdx, DataType = S.CellValues.String, CellValue = new S.CellValue(labels[i]) },
+                    new S.Cell() { CellReference = "B" + rowIdx, DataType = S.CellValues.Number, CellValue = new S.CellValue(values[i].ToString(CultureInfo.InvariantCulture)) }
+                );
+                sheetData.Append(row);
+            }
+        }
+
+        var categoryRef = new C.CategoryAxisData();
+        var stringRef = new C.StringReference() { Formula = new C.Formula($"Sheet1!$A$2:$A${labels.Count + 1}") };
+        var stringCache = new C.StringCache();
+        stringCache.Append(new C.PointCount() { Val = (uint)labels.Count });
+        for (int i = 0; i < labels.Count; i++)
+        {
+            stringCache.Append(new C.StringPoint() { Index = (uint)i, NumericValue = new C.NumericValue(labels[i]) });
+        }
+        stringRef.Append(stringCache);
+        categoryRef.Append(stringRef);
+
+        var valuesRef = new C.Values();
+        var numRef = new C.NumberReference() { Formula = new C.Formula($"Sheet1!$B$2:$B${labels.Count + 1}") };
+        var numCache = new C.NumberingCache();
+        numCache.Append(new C.FormatCode("General"));
+        numCache.Append(new C.PointCount() { Val = (uint)labels.Count });
+        for (int i = 0; i < values.Count; i++)
+        {
+            numCache.Append(new C.NumericPoint() { Index = (uint)i, NumericValue = new C.NumericValue(values[i].ToString(CultureInfo.InvariantCulture)) });
+        }
+        numRef.Append(numCache);
+        valuesRef.Append(numRef);
+
+        var chartSpace = new C.ChartSpace();
+        var chart = new C.Chart();
+        var plotArea = new C.PlotArea();
+        
+        chart.Append(new C.AutoTitleDeleted() { Val = new DocumentFormat.OpenXml.BooleanValue(true) });
+
+        if (chartType == "line")
+        {
+            var lineChart = new C.LineChart(new C.Grouping() { Val = C.GroupingValues.Standard });
+            var series = new C.LineChartSeries(
+                new C.Index() { Val = 0 },
+                new C.Order() { Val = 0 },
+                (C.CategoryAxisData)categoryRef.CloneNode(true),
+                (C.Values)valuesRef.CloneNode(true)
+            );
+            lineChart.Append(series);
+            lineChart.Append(new C.AxisId() { Val = 10000000 });
+            lineChart.Append(new C.AxisId() { Val = 10000001 });
+            plotArea.Append(lineChart);
+        }
+        else if (chartType == "pie")
+        {
+            var pieChart = new C.PieChart();
+            var series = new C.PieChartSeries(
+                new C.Index() { Val = 0 },
+                new C.Order() { Val = 0 },
+                (C.CategoryAxisData)categoryRef.CloneNode(true),
+                (C.Values)valuesRef.CloneNode(true)
+            );
+            pieChart.Append(series);
+            plotArea.Append(pieChart);
+        }
+        else
+        {
+            var barChart = new C.BarChart(
+                new C.BarDirection() { Val = C.BarDirectionValues.Column },
+                new C.BarGrouping() { Val = C.BarGroupingValues.Clustered }
+            );
+            var series = new C.BarChartSeries(
+                new C.Index() { Val = 0 },
+                new C.Order() { Val = 0 },
+                (C.CategoryAxisData)categoryRef.CloneNode(true),
+                (C.Values)valuesRef.CloneNode(true)
+            );
+            barChart.Append(series);
+            barChart.Append(new C.AxisId() { Val = 10000000 });
+            barChart.Append(new C.AxisId() { Val = 10000001 });
+            plotArea.Append(barChart);
+        }
+
+        if (chartType != "pie")
+        {
+            plotArea.Append(new C.CategoryAxis(
+                new C.AxisId() { Val = 10000000 },
+                new C.Scaling(new C.Orientation() { Val = C.OrientationValues.MinMax }),
+                new C.AxisPosition() { Val = C.AxisPositionValues.Bottom },
+                new C.TickLabelPosition() { Val = C.TickLabelPositionValues.NextTo },
+                new C.CrossingAxis() { Val = 10000001 },
+                new C.Crosses() { Val = C.CrossesValues.AutoZero }
+            ));
+            plotArea.Append(new C.ValueAxis(
+                new C.AxisId() { Val = 10000001 },
+                new C.Scaling(new C.Orientation() { Val = C.OrientationValues.MinMax }),
+                new C.AxisPosition() { Val = C.AxisPositionValues.Left },
+                new C.MajorGridlines(),
+                new C.TickLabelPosition() { Val = C.TickLabelPositionValues.NextTo },
+                new C.CrossingAxis() { Val = 10000000 },
+                new C.Crosses() { Val = C.CrossesValues.AutoZero },
+                new C.CrossBetween() { Val = C.CrossBetweenValues.Between }
+            ));
+        }
+
+        chart.Append(plotArea);
+        chartSpace.Append(chart);
+        
+        chartSpace.Append(new C.ExternalData(new C.AutoUpdate() { Val = new DocumentFormat.OpenXml.BooleanValue(false) }) { Id = "rId1" });
+        chartPart.ChartSpace = chartSpace;
+
+        var drawing = new W.Drawing(
+            new DW.Inline(
+                new DW.Extent() { Cx = 5486400, Cy = 3200400 },
+                new DW.EffectExtent() { LeftEdge = 0, TopEdge = 0, RightEdge = 0, BottomEdge = 0 },
+                new DW.DocProperties() { Id = 1, Name = "Chart 1" },
+                new DW.NonVisualGraphicFrameDrawingProperties(
+                    new A.GraphicFrameLocks() { NoChangeAspect = true }
+                ),
+                new A.Graphic(
+                    new A.GraphicData(
+                        new C.ChartReference() { Id = chartRelId }
+                    ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/chart" }
+                )
+            )
+        );
+
+        target.Append(new W.Paragraph(new W.Run(drawing)));
+    }
+
+    private static void RenderCanvas(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        string svgContent = node.InnerContent?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(svgContent)) return;
+
+        List<string> paths = new List<string>();
+        double vBoxW = 100, vBoxH = 100;
+        
+        if (svgContent.StartsWith("<svg", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var xDoc = XDocument.Parse(svgContent);
+                var svgElement = xDoc.Root;
+
+                var viewBox = svgElement.Attribute("viewBox")?.Value;
+                if (!string.IsNullOrEmpty(viewBox))
+                {
+                    var parts = viewBox.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 4 && double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out double w) &&
+                        double.TryParse(parts[3], NumberStyles.Any, CultureInfo.InvariantCulture, out double h))
+                    {
+                        vBoxW = w;
+                        vBoxH = h;
+                    }
+                }
+                
+                foreach (var el in svgElement.Descendants())
+                {
+                    var localName = el.Name.LocalName.ToLowerInvariant();
+                    if (localName == "path")
+                    {
+                        var d = el.Attribute("d")?.Value;
+                        if (!string.IsNullOrEmpty(d)) paths.Add(d);
+                    }
+                    else if (localName == "rect")
+                    {
+                        var x = el.Attribute("x")?.Value ?? "0";
+                        var y = el.Attribute("y")?.Value ?? "0";
+                        var w = el.Attribute("width")?.Value ?? "0";
+                        var h = el.Attribute("height")?.Value ?? "0";
+                        paths.Add($"M {x} {y} h {w} v {h} h -{w} Z");
+                    }
+                    else if (localName == "circle")
+                    {
+                        var cx = double.Parse(el.Attribute("cx")?.Value ?? "0", CultureInfo.InvariantCulture);
+                        var cy = double.Parse(el.Attribute("cy")?.Value ?? "0", CultureInfo.InvariantCulture);
+                        var r = double.Parse(el.Attribute("r")?.Value ?? "0", CultureInfo.InvariantCulture);
+                        var kappa = 0.552284749831 * r;
+                        paths.Add(
+                            $"M {cx} {cy - r} " +
+                            $"C {cx + kappa} {cy - r}, {cx + r} {cy - kappa}, {cx + r} {cy} " +
+                            $"C {cx + r} {cy + kappa}, {cx + kappa} {cy + r}, {cx} {cy + r} " +
+                            $"C {cx - kappa} {cy + r}, {cx - r} {cy + kappa}, {cx - r} {cy} " +
+                            $"C {cx - r} {cy - kappa}, {cx - kappa} {cy - r}, {cx} {cy - r} Z"
+                        );
+                    }
+                    else if (localName == "line")
+                    {
+                        var x1 = el.Attribute("x1")?.Value ?? "0";
+                        var y1 = el.Attribute("y1")?.Value ?? "0";
+                        var x2 = el.Attribute("x2")?.Value ?? "0";
+                        var y2 = el.Attribute("y2")?.Value ?? "0";
+                        paths.Add($"M {x1} {y1} L {x2} {y2}");
+                    }
+                    else if (localName == "polyline" || localName == "polygon")
+                    {
+                        var pts = el.Attribute("points")?.Value;
+                        if (!string.IsNullOrEmpty(pts))
+                        {
+                            var coords = pts.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (coords.Length >= 2)
+                            {
+                                var sb = new System.Text.StringBuilder();
+                                sb.Append($"M {coords[0]} {coords[1]} ");
+                                for (int i = 2; i < coords.Length - 1; i += 2)
+                                {
+                                    sb.Append($"L {coords[i]} {coords[i + 1]} ");
+                                }
+                                if (localName == "polygon") sb.Append("Z");
+                                paths.Add(sb.ToString());
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+        else
+        {
+            paths.Add(svgContent);
+        }
+
+        if (paths.Count == 0) return;
+
+        long emuPerUnit = 9525;
+        long shapeWidthEmu = (long)(vBoxW * emuPerUnit);
+        long shapeHeightEmu = (long)(vBoxH * emuPerUnit);
+
+        var pathList = new A.PathList();
+
+        foreach (var d in paths)
+        {
+            var tokens = Regex.Matches(d, @"[a-zA-Z]|[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?").Cast<Match>().Select(m => m.Value).ToList();
+            var aPath = new A.Path() { Width = shapeWidthEmu, Height = shapeHeightEmu };
+            
+            char currentCommand = 'M';
+            int index = 0;
+            double currentX = 0, currentY = 0;
+
+            while (index < tokens.Count)
+            {
+                string token = tokens[index];
+                if (char.IsLetter(token[0]))
+                {
+                    currentCommand = token[0];
+                    index++;
+                }
+
+                bool isRelative = char.IsLower(currentCommand);
+                char cmd = char.ToUpperInvariant(currentCommand);
+
+                double ReadNext() => double.Parse(tokens[index++], CultureInfo.InvariantCulture);
+                
+                A.Point P(double x, double y) => new A.Point 
+                { 
+                    X = new StringValue(((long)(x * emuPerUnit)).ToString()), 
+                    Y = new StringValue(((long)(y * emuPerUnit)).ToString()) 
+                };
+
+                switch (cmd)
+                {
+                    case 'M':
+                    case 'L':
+                    case 'T':
+                        if (index + 1 >= tokens.Count) break;
+                        double mx = ReadNext(), my = ReadNext();
+                        currentX = isRelative ? currentX + mx : mx;
+                        currentY = isRelative ? currentY + my : my;
+                        
+                        if (cmd == 'M') aPath.Append(new A.MoveTo() { Point = P(currentX, currentY) });
+                        else aPath.Append(new A.LineTo() { Point = P(currentX, currentY) });
+                        
+                        if (cmd == 'M') currentCommand = isRelative ? 'l' : 'L';
+                        break;
+                    case 'H':
+                        if (index >= tokens.Count) break;
+                        double hx = ReadNext();
+                        currentX = isRelative ? currentX + hx : hx;
+                        aPath.Append(new A.LineTo() { Point = P(currentX, currentY) });
+                        break;
+                    case 'V':
+                        if (index >= tokens.Count) break;
+                        double vy = ReadNext();
+                        currentY = isRelative ? currentY + vy : vy;
+                        aPath.Append(new A.LineTo() { Point = P(currentX, currentY) });
+                        break;
+                    case 'C':
+                        if (index + 5 >= tokens.Count) break;
+                        double cx1 = ReadNext(), cy1 = ReadNext();
+                        double cx2 = ReadNext(), cy2 = ReadNext();
+                        double cx3 = ReadNext(), cy3 = ReadNext();
+
+                        if (isRelative)
+                        {
+                            cx1 += currentX; cy1 += currentY;
+                            cx2 += currentX; cy2 += currentY;
+                            cx3 += currentX; cy3 += currentY;
+                        }
+
+                        aPath.Append(new A.CubicBezierCurveTo(
+                            new A.Point() { X = ((long)(cx1 * emuPerUnit)).ToString(), Y = ((long)(cy1 * emuPerUnit)).ToString() },
+                            new A.Point() { X = ((long)(cx2 * emuPerUnit)).ToString(), Y = ((long)(cy2 * emuPerUnit)).ToString() },
+                            new A.Point() { X = ((long)(cx3 * emuPerUnit)).ToString(), Y = ((long)(cy3 * emuPerUnit)).ToString() }
+                        ));
+                        currentX = cx3;
+                        currentY = cy3;
+                        break;
+                    case 'Z':
+                        aPath.Append(new A.CloseShapePath());
+                        break;
+                }
+            }
+            pathList.Append(aPath);
+        }
+
+        var customGeom = new A.CustomGeometry(pathList);
+
+        var solidFill = new A.SolidFill(new A.RgbColorModelHex() { Val = ctx.Theme.Text.TrimStart('#') ?? "000000" });
+        var outline = new A.Outline(new A.SolidFill(new A.RgbColorModelHex() { Val = ctx.Theme.Text.TrimStart('#') ?? "000000" })) { Width = 12700 };
+
+        var wpsShape = new Wps.WordprocessingShape(
+            new Wps.NonVisualDrawingProperties() { Id = 1U, Name = "SVG Shape" },
+            new Wps.NonVisualDrawingShapeProperties(new A.ShapeLocks() { NoGrouping = true }),
+            new Wps.ShapeProperties(
+                new A.Transform2D(
+                    new A.Offset() { X = 0L, Y = 0L },
+                    new A.Extents() { Cx = shapeWidthEmu, Cy = shapeHeightEmu }),
+                customGeom,
+                solidFill,
+                outline
+            )
+        );
+
+        var inline = new DW.Inline(
+            new DW.Extent() { Cx = shapeWidthEmu, Cy = shapeHeightEmu },
+            new DW.EffectExtent() { LeftEdge = 0L, TopEdge = 0L, RightEdge = 0L, BottomEdge = 0L },
+            new DW.DocProperties() { Id = 1U, Name = "Picture" },
+            new DW.NonVisualGraphicFrameDrawingProperties(),
+            new A.Graphic(
+                new A.GraphicData(wpsShape) { Uri = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape" }
+            )
+        );
+
+        var run = new W.Run(new W.Drawing(inline));
+        
+        if (target is W.Paragraph p)
+        {
+            p.Append(run);
+        }
+        else
+        {
+            target.Append(new W.Paragraph(run));
+        }
     }
 
     private static W.Numbering AddNumbering(MainDocumentPart main)
@@ -2397,7 +2876,7 @@ public sealed class DocxExportService
         {
             AbstractNumberId = 0
         };
-        string[] glyphs = { "•", "○", "▪" };
+        string[] glyphs = { "â€¢", "â—‹", "â–ª" };
         for (var i = 0; i < 9; i++)
             bullet.Append(new W.Level(
                 new W.StartNumberingValue { Val = 1 },
@@ -2432,3 +2911,4 @@ public sealed class DocxExportService
         return numbering;
     }
 }
+
