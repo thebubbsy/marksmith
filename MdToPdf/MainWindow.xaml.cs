@@ -1029,8 +1029,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var html = App.MarkdownHtml.Render(md, settings, theme, classification);
                 if (output?.Format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true)
                 {
+                    IReadOnlyList<byte[]?>? mermaidImgs = null;
+                    IReadOnlyList<Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
+                    IReadOnlyList<Services.Mermaid.GenericDiagram?>? mermaidGen = null;
+                    if (md.Contains("```mermaid", StringComparison.Ordinal))
+                    {
+                        var harvester = new Services.MermaidHarvestService();
+                        mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
+                        if (settings.MermaidDocxMode == 1)
+                        {
+                            mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
+                            mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
+                        }
+                    }
+
                     var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.docx");
-                    await new Services.DocxExportService().ExportAsync(md, tmp, settings);
+                    await new Services.DocxExportService().ExportAsync(md, tmp, settings, mermaidImgs,
+                        settings.NormalizeLlm ? classification.AppliedFixes : null, mermaidGeo, mermaidGen);
                     var bytes = await File.ReadAllBytesAsync(tmp);
                     File.Delete(tmp);
                     tcs.SetResult(bytes);
