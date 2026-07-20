@@ -41,7 +41,7 @@ public sealed class AppSettings
     //       Web Layout view.  DiagramGridSize controls N (2 = 2×2, 3 = 3×3).
     //   5 = ShrinkToFit — scale uniformly below the 75% floor (down to 30% minimum) to squeeze
     //       the diagram onto one page in Print Layout.
-    public int OversizedDiagramMode { get; set; } = 0;
+    public int OversizedDiagramMode { get; set; } = 1;
 
     // Grid size for OversizedDiagramMode 4 (Grid).  2 = 2×2 poster (4 pages), 3 = 3×3 (9 pages).
     public int DiagramGridSize { get; set; } = 2;
