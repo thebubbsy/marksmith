@@ -1036,6 +1036,23 @@ public sealed class DocxExportService
             case "Columns":
                 RenderColumns(node, target, ctx);
                 break;
+            case "Tabs":
+                RenderTabs(node, target, ctx);
+                break;
+            case "AI Context":
+                RenderAiContext(node, target, ctx);
+                break;
+            case "SmartArt":
+            case "Workflow":
+            case "Timeline":
+                RenderSmartArtFallback(node, target, ctx);
+                break;
+            case "References":
+                RenderReferences(node, target, ctx);
+                break;
+            case "Embed":
+                RenderEmbed(node, target, ctx);
+                break;
             default:
                 // Placeholder for features not yet implemented — red bold label in the Word doc.
                 var p = new W.Paragraph(new W.ParagraphProperties(
@@ -1078,6 +1095,324 @@ public sealed class DocxExportService
                 new W.SectionType { Val = W.SectionMarkValues.Continuous },
                 new W.Columns { ColumnCount = (Int16Value)(short)1, EqualWidth = true })));
         target.Append(closeSect);
+    }
+
+    /// <summary>
+    /// Renders a :::tabs block as native Word heading sections — one per :::tab.
+    /// Each tab becomes a Heading 3 with a shaded background (tab bar effect), followed by
+    /// its content rendered as standard paragraphs. In Word's Navigation Pane, each tab
+    /// appears as a navigable section so the user can jump between them.
+    /// </summary>
+    private static void RenderTabs(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        // Split inner content on :::tab markers
+        var parts = Regex.Split(node.InnerContent, @"^:::tab\b[^\n]*", RegexOptions.Multiline);
+        var titles = Regex.Matches(node.InnerContent, @"^:::tab\s+title=""?([^""\n]+)""?", RegexOptions.Multiline);
+
+        for (int i = 0; i < titles.Count; i++)
+        {
+            var title = titles[i].Groups[1].Value.Trim();
+            // The content for this tab is in parts[i+1] (parts[0] is anything before the first :::tab)
+            var content = i + 1 < parts.Length ? parts[i + 1].Trim() : "";
+
+            // --- Tab heading (styled as Heading 3 with accent shading) ---
+            var heading = new W.Paragraph(
+                new W.ParagraphProperties(
+                    new W.ParagraphStyleId { Val = "Heading3" },
+                    new W.SpacingBetweenLines { Before = "240", After = "80" },
+                    new W.Shading
+                    {
+                        Val = W.ShadingPatternValues.Clear, Color = "auto",
+                        Fill = ctx.SecondaryHex
+                    },
+                    new W.ParagraphBorders(
+                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 8, Space = 4, Color = ctx.BorderHex }
+                    )));
+            AddText(heading, $"📑 {title}", new Fmt { Bold = true });
+            target.Append(heading);
+
+            // --- Tab content (re-parsed through Markdig) ---
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                var innerDoc = Markdig.Markdown.Parse(content,
+                    ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                foreach (var block in innerDoc)
+                    RenderBlock(block, target, ctx, listLevel: -1);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Renders a :::ai-context block by injecting metadata as Word Document Variables
+    /// and displaying a styled compact metadata panel in the document body.
+    /// </summary>
+    private static void RenderAiContext(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        // Parse key: value pairs from inner content
+        var kvPairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in node.InnerContent.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            var colonIdx = trimmed.IndexOf(':');
+            if (colonIdx > 0)
+            {
+                var key = trimmed[..colonIdx].Trim();
+                var val = trimmed[(colonIdx + 1)..].Trim();
+                kvPairs[key] = val;
+            }
+        }
+
+        // --- Inject as Document Variables into the Settings part ---
+        var settingsPart = ctx.MainPart.DocumentSettingsPart;
+        if (settingsPart == null)
+        {
+            settingsPart = ctx.MainPart.AddNewPart<DocumentSettingsPart>();
+            settingsPart.Settings = new W.Settings();
+        }
+        var settings = settingsPart.Settings;
+        var docVars = settings.GetFirstChild<W.DocumentVariables>() ?? settings.AppendChild(new W.DocumentVariables());
+
+        foreach (var kv in kvPairs)
+        {
+            var varName = $"MARKSMITH_AI_{kv.Key.ToUpperInvariant().Replace(' ', '_')}";
+            var existing = docVars.Elements<W.DocumentVariable>()
+                .FirstOrDefault(v => v.Name?.Value == varName);
+            if (existing != null)
+                existing.Val = kv.Value;
+            else
+                docVars.AppendChild(new W.DocumentVariable { Name = varName, Val = kv.Value });
+        }
+
+        // --- Render a styled metadata panel in the document body ---
+        // Header bar
+        var header = new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.SpacingBetweenLines { Before = "200", After = "60" },
+                new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
+                new W.ParagraphBorders(
+                    new W.LeftBorder { Val = W.BorderValues.Single, Size = 18, Space = 8, Color = ctx.BorderHex }
+                )));
+        AddText(header, "🤖 AI Context", new Fmt { Bold = true });
+        target.Append(header);
+
+        // Key-value rows
+        foreach (var kv in kvPairs)
+        {
+            var row = new W.Paragraph(
+                new W.ParagraphProperties(
+                    new W.SpacingBetweenLines { After = "40" },
+                    new W.Indentation { Left = "360" }));
+            AddText(row, $"{kv.Key}: ", new Fmt { Bold = true, Code = true });
+            AddText(row, kv.Value, new Fmt { Code = true });
+            target.Append(row);
+        }
+
+        // Closing spacer
+        target.Append(new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { After = "120" })));
+    }
+
+    /// <summary>
+    /// Renders :::smartart, :::workflow, and :::timeline as a styled numbered step-table.
+    /// True SmartArt (DiagramDataPart) requires complex layout-to-data mapping that causes
+    /// file corruption if not perfectly aligned, so we use a clean table fallback.
+    /// </summary>
+    private static void RenderSmartArtFallback(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var items = node.InnerContent
+            .Split('\n')
+            .Select(l => l.Trim().TrimEnd('\r'))
+            .Where(l => l.StartsWith("-") || l.StartsWith("*"))
+            .Select(l => l.TrimStart('-', '*').Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
+
+        if (items.Count == 0) return;
+
+        var icon = node.Detector.FeatureName switch
+        {
+            "Timeline" => "📅",
+            "Workflow" => "⚙️",
+            _ => "▶️"
+        };
+
+        var table = new W.Table();
+        var tblPr = new W.TableProperties(
+            new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+            new W.TableBorders(
+                new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Size = 2, Color = ctx.SecondaryHex }
+            ),
+            new W.TableCellMarginDefault(
+                new W.TopMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
+                new W.TableCellLeftMargin { Width = 120, Type = W.TableWidthValues.Dxa },
+                new W.TableCellRightMargin { Width = 120, Type = W.TableWidthValues.Dxa }));
+        table.AppendChild(tblPr);
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var row = new W.TableRow();
+            var numCell = new W.TableCell(
+                new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = "720" },
+                    new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.HeadingHex },
+                    new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Center }));
+            var numPara = new W.Paragraph(new W.ParagraphProperties(
+                new W.Justification { Val = W.JustificationValues.Center }));
+            AddText(numPara, $"{icon} {i + 1}", new Fmt { Bold = true, Color = "FFFFFF" });
+            numCell.Append(numPara);
+
+            var contentCell = new W.TableCell(
+                new W.TableCellProperties(
+                    new W.TableCellVerticalAlignment { Val = W.TableVerticalAlignmentValues.Center }));
+            var contentPara = new W.Paragraph();
+            AddText(contentPara, items[i], default);
+            contentCell.Append(contentPara);
+
+            row.Append(numCell, contentCell);
+            table.Append(row);
+        }
+
+        target.Append(table);
+        target.Append(new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { After = "120" })));
+    }
+
+    /// <summary>
+    /// Renders :::references as a native Word Bibliography by injecting b:Sources
+    /// into a CustomXmlPart and inserting a BIBLIOGRAPHY field code.
+    /// </summary>
+    private static void RenderReferences(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        const string bNs = "http://schemas.openxmlformats.org/officeDocument/2006/bibliography";
+        var xBns = System.Xml.Linq.XNamespace.Get(bNs);
+        var sources = new System.Xml.Linq.XElement(xBns + "Sources",
+            new System.Xml.Linq.XAttribute(System.Xml.Linq.XNamespace.Xmlns + "b", bNs),
+            new System.Xml.Linq.XAttribute("SelectedStyle", "\\APA.XSL"),
+            new System.Xml.Linq.XAttribute("StyleName", "APA"));
+
+        var blocks = node.InnerContent.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
+        var parsedTags = new List<string>();
+
+        foreach (var block in blocks)
+        {
+            var lines = block.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Trim().Length > 0).ToArray();
+            if (lines.Length == 0 || !lines[0].TrimStart().StartsWith("@")) continue;
+            var tag = lines[0].TrimStart().TrimStart('@').Trim();
+            parsedTags.Add(tag);
+
+            var source = new System.Xml.Linq.XElement(xBns + "Source");
+            source.Add(new System.Xml.Linq.XElement(xBns + "Tag", tag));
+            source.Add(new System.Xml.Linq.XElement(xBns + "SourceType", "JournalArticle"));
+
+            foreach (var line in lines.Skip(1))
+            {
+                var colon = line.IndexOf(':');
+                if (colon < 0) continue;
+                var key = line[..colon].Trim().ToLowerInvariant();
+                var value = line[(colon + 1)..].Trim();
+                switch (key)
+                {
+                    case "author":
+                        source.Add(new System.Xml.Linq.XElement(xBns + "Author",
+                            new System.Xml.Linq.XElement(xBns + "Author",
+                                new System.Xml.Linq.XElement(xBns + "NameList",
+                                    new System.Xml.Linq.XElement(xBns + "Person",
+                                        new System.Xml.Linq.XElement(xBns + "Last", value))))));
+                        break;
+                    case "title":
+                        source.Add(new System.Xml.Linq.XElement(xBns + "Title", value));
+                        break;
+                    case "year":
+                        source.Add(new System.Xml.Linq.XElement(xBns + "Year", value));
+                        break;
+                    case "journal":
+                        source.Add(new System.Xml.Linq.XElement(xBns + "JournalName", value));
+                        break;
+                }
+            }
+            sources.Add(source);
+        }
+
+        var customPart = ctx.MainPart.AddCustomXmlPart(CustomXmlPartType.CustomXml);
+        using (var stream = customPart.GetStream(System.IO.FileMode.Create, System.IO.FileAccess.Write))
+        using (var writer = new System.IO.StreamWriter(stream))
+            writer.Write(sources.ToString(System.Xml.Linq.SaveOptions.DisableFormatting));
+
+        var heading = new W.Paragraph(new W.ParagraphProperties(
+            new W.ParagraphStyleId { Val = "Heading2" },
+            new W.SpacingBetweenLines { Before = "240", After = "120" }));
+        AddText(heading, "📚 Bibliography", new Fmt { Bold = true });
+        target.Append(heading);
+
+        var bibPara = new W.Paragraph();
+        bibPara.Append(
+            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin }),
+            new W.Run(new W.FieldCode(" BIBLIOGRAPHY \\l 1033 ") { Space = SpaceProcessingModeValues.Preserve }),
+            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
+            new W.Run(new W.Text($"[{parsedTags.Count} sources — update fields to render bibliography]")),
+            new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End }));
+        target.Append(bibPara);
+    }
+
+    /// <summary>
+    /// Renders :::embed as a styled hyperlink panel with provider badge and optional caption.
+    /// </summary>
+    private static void RenderEmbed(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var src = node.Attributes.GetValueOrDefault("src", "");
+        var caption = node.InnerContent?.Trim();
+        var provider = node.Attributes.GetValueOrDefault("provider", "video");
+
+        if (string.IsNullOrWhiteSpace(src))
+        {
+            var errP = new W.Paragraph();
+            AddText(errP, "[Embed Error: No src URL provided]", new Fmt { Bold = true, Color = "d73a49" });
+            target.Append(errP);
+            return;
+        }
+
+        var rel = ctx.MainPart.AddHyperlinkRelationship(new Uri(src), true);
+        var providerIcon = provider.ToLowerInvariant() switch
+        {
+            "youtube" => "🎬",
+            "vimeo" => "🎥",
+            "loom" => "📹",
+            "figma" => "🎨",
+            _ => "🔗"
+        };
+
+        var linkPara = new W.Paragraph(new W.ParagraphProperties(
+            new W.Justification { Val = W.JustificationValues.Center },
+            new W.SpacingBetweenLines { Before = "200", After = "60" },
+            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
+            new W.ParagraphBorders(
+                new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex })));
+
+        var hyperlink = new W.Hyperlink { Id = rel.Id };
+        hyperlink.Append(new W.Run(
+            new W.RunProperties(
+                new W.RunStyle { Val = "Hyperlink" },
+                new W.Color { Val = ctx.LinkColor },
+                new W.Underline { Val = W.UnderlineValues.Single },
+                new W.Bold()),
+            new W.Text($"{providerIcon} {provider.ToUpperInvariant()}: {src}") { Space = SpaceProcessingModeValues.Preserve }));
+        linkPara.Append(hyperlink);
+        target.Append(linkPara);
+
+        if (!string.IsNullOrWhiteSpace(caption))
+        {
+            var captionPara = new W.Paragraph(new W.ParagraphProperties(
+                new W.Justification { Val = W.JustificationValues.Center },
+                new W.SpacingBetweenLines { After = "120" }));
+            AddText(captionPara, caption, new Fmt { Italic = true });
+            target.Append(captionPara);
+        }
     }
 
     private static void RenderList(ListBlock list, OpenXmlCompositeElement target, Ctx ctx, int parentLevel)
