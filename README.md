@@ -152,6 +152,16 @@ bothers with — the file is schema‑valid and built to feel hand‑made in Wor
   character‑level border, thematic breaks render as a wave rule, and the extended emphasis syntax maps
   through: `~sub~`, `^sup^`, `==highlight==`, `++inserted++`.
 
+#### 🌟 Advanced OpenXML Features
+- **Dynamic Tabbed Sections (`:::tabs`)** — Styled Heading 3 sections with interactive shaded tab bars.
+- **Embedded Link Panels (`:::embed`)** — Hyperlink panels with automatic provider icon badges.
+- **Interactive OpenXML Charts (`:::chart`)** — Native Word Bar, Line, and Pie charts powered by embedded `.xlsx` data sheets.
+- **Data Grids (`:::datagrid`)** — Native, professional Word tables parsed directly from CSV/TSV data.
+- **Multi-Column Layouts (`:::columns`)** — True native page multi-column section breaks.
+- **Native Canvas & Diagrams (`:::canvas`)** — SVG path translation into native DrawingML `<a:custGeom>` shapes.
+- **Smart References (`:::references`)** — Native Word Bibliography generated from custom citation tags (`b:Sources` + `BIBLIOGRAPHY` fields).
+- **Smart Timeline & Workflows (`:::timeline` / `:::workflow`)** — Styled flow structures mapped to editable shape fallbacks.
+
 ### 🤖 Automation
 
 Marksmith can run hands‑free:
@@ -178,6 +188,10 @@ curl -X POST http://127.0.0.1:47821/api/convert \
      -d '{"markdown":"# Hello\n\nFrom **Marksmith**.","format":"docx"}' \
      -o out.docx
 ```
+
+Here is a side-by-side look at the REST API converting the README file and opening it in Word:
+
+![REST API Conversion Process and Outputs](docs/images/api-conversion-process.png)
 
 | Endpoint | Purpose |
 | --- | --- |
