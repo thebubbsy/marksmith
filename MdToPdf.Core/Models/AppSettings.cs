@@ -122,4 +122,50 @@ public sealed class AppSettings
         if (!string.IsNullOrWhiteSpace(o.SourceDirection)) s.ContentDirection = o.SourceDirection;
         return s;
     }
+
+    public void UpdateFrom(AppSettings? other)
+    {
+        if (other is null) return;
+        TargetFormat = other.TargetFormat;
+        Theme = other.Theme;
+        ContentWidth = other.ContentWidth;
+        MermaidEnabled = other.MermaidEnabled;
+        OutputFolder = other.OutputFolder;
+        UnlimitedHeight = other.UnlimitedHeight;
+        A4FixedWidth = other.A4FixedWidth;
+        NormalizeLlm = other.NormalizeLlm;
+        AutoClipboardIngest = other.AutoClipboardIngest;
+        WatchFolderEnabled = other.WatchFolderEnabled;
+        WatchFolder = other.WatchFolder;
+        WatchFolderAutoConvert = other.WatchFolderAutoConvert;
+        MinimizeToTray = other.MinimizeToTray;
+        AutoConvertIngests = other.AutoConvertIngests;
+        AppendToRunningDoc = other.AppendToRunningDoc;
+        RunningDocPath = other.RunningDocPath;
+        ShowExtensionTip = other.ShowExtensionTip;
+        MermaidDocxMode = other.MermaidDocxMode;
+        OversizedDiagramMode = other.OversizedDiagramMode;
+        DiagramGridSize = other.DiagramGridSize;
+        SmartConnectors = other.SmartConnectors;
+        ConnectorRouting = other.ConnectorRouting;
+        ConnectorArrowhead = other.ConnectorArrowhead;
+        HasSeenWelcome = other.HasSeenWelcome;
+        BrandCoverPage = other.BrandCoverPage;
+        BrandLogoPath = other.BrandLogoPath;
+        BrandFontFamily = other.BrandFontFamily;
+        IncludeToc = other.IncludeToc;
+        ShowAttribution = other.ShowAttribution;
+        NoEmoji = other.NoEmoji;
+        DashMode = other.DashMode;
+        DashCustom = other.DashCustom;
+        HeadingShift = other.HeadingShift;
+        BoldMode = other.BoldMode;
+        ItalicMode = other.ItalicMode;
+        ContentLanguage = other.ContentLanguage;
+        ContentDirection = other.ContentDirection;
+        ApiEnabled = other.ApiEnabled;
+        ApiPort = other.ApiPort;
+        AdvancedMode = other.AdvancedMode;
+        AllowedExtensionId = other.AllowedExtensionId;
+    }
 }
