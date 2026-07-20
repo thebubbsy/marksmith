@@ -1027,11 +1027,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     (md, _) = App.LlmSource.NormalizeStyle(md, classification);
                 var theme = App.Themes.GetOrDefault(settings.Theme);
                 var html = App.MarkdownHtml.Render(md, settings, theme, classification);
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await new Services.PdfExportService().ExportAsync(this, html, tmp, settings);
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                File.Delete(tmp);
-                tcs.SetResult(bytes);
+                if (output?.Format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.docx");
+                    await new Services.DocxExportService().ExportAsync(md, tmp, settings);
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
+                else
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
+                    await new Services.PdfExportService().ExportAsync(this, html, tmp, settings);
+                    var bytes = await File.ReadAllBytesAsync(tmp);
+                    File.Delete(tmp);
+                    tcs.SetResult(bytes);
+                }
             }
             catch (Exception ex)
             {
