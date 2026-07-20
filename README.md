@@ -46,8 +46,6 @@ Every keystroke re-renders the document on the right, so you're always looking a
 page, not the source. When it looks right, hit **Generate PDF** (or **Export DOCX**) and it lands in
 your output folder.
 
-- **Visual Markdown Toolbar** — The bottom of the editor now features a fully functional visual toolbar. Click any button to format text (bold, italic, headings, lists, tables) or quickly inject advanced Marksmith elements (tabs, columns, charts, DrawingML canvas elements) directly at your cursor.
-
 ![Typing Markdown into Marksmith with the preview updating live, then exporting a PDF](docs/images/editor-demo.gif)
 
 ### 🧠 AI source detection & normalization
@@ -98,9 +96,12 @@ labels all recolor to match, across **every** built‑in theme. Here's the same 
 
 ![The same Mermaid diagram recolored to match four of the built-in themes](docs/images/mermaid-themes.png)
 
-And it scales: here's a single diagram of a **global datacenter network** opened directly in Microsoft Word. Because Marksmith's **ShapeForge™ engine** reconstructs the flowchart using **native Word shapes (DrawingML)** instead of flat images, every single box, line, and connector is a separate, fully editable vector element. You can drag shapes, move connectors, or change styling directly inside Word:
+And it scales: here's a single diagram of a **global datacenter network** — an AS8075 backbone
+fanning out to four regions, each a Clos spine‑leaf fabric, all the way down through top‑of‑rack
+switches and servers to individual **HDD bays**, with real‑world addressing throughout. It's rendered
+at full resolution — **right‑click → "Open image in new tab"** to read the IP addressing:
 
-![Massive Mermaid network topology rendered as native editable shapes in Microsoft Word](docs/images/mermaid-network.png)
+![Massive Mermaid network topology](docs/images/mermaid-network.png)
 
 ### 📤 Export
 
@@ -152,16 +153,6 @@ bothers with — the file is schema‑valid and built to feel hand‑made in Wor
   character‑level border, thematic breaks render as a wave rule, and the extended emphasis syntax maps
   through: `~sub~`, `^sup^`, `==highlight==`, `++inserted++`.
 
-#### 🌟 Advanced OpenXML Features
-- **Dynamic Tabbed Sections (`:::tabs`)** — Styled Heading 3 sections with interactive shaded tab bars.
-- **Embedded Link Panels (`:::embed`)** — Hyperlink panels with automatic provider icon badges.
-- **Interactive OpenXML Charts (`:::chart`)** — Native Word Bar, Line, and Pie charts powered by embedded `.xlsx` data sheets.
-- **Data Grids (`:::datagrid`)** — Native, professional Word tables parsed directly from CSV/TSV data.
-- **Multi-Column Layouts (`:::columns`)** — True native page multi-column section breaks.
-- **Native Canvas & Diagrams (`:::canvas`)** — SVG path translation into native DrawingML `<a:custGeom>` shapes.
-- **Smart References (`:::references`)** — Native Word Bibliography generated from custom citation tags (`b:Sources` + `BIBLIOGRAPHY` fields).
-- **Smart Timeline & Workflows (`:::timeline` / `:::workflow`)** — Styled flow structures mapped to editable shape fallbacks.
-
 ### 🤖 Automation
 
 Marksmith can run hands‑free:
@@ -181,17 +172,7 @@ curl -X POST http://127.0.0.1:47821/api/convert \
      -H "Content-Type: application/json" \
      -d '{"markdown":"# Hello\n\nFrom **Marksmith**.","theme":"GitHub Dark"}' \
      -o out.pdf
-
-# Convert Markdown to an editable DOCX over HTTP
-curl -X POST http://127.0.0.1:47821/api/convert \
-     -H "Content-Type: application/json" \
-     -d '{"markdown":"# Hello\n\nFrom **Marksmith**.","format":"docx"}' \
-     -o out.docx
 ```
-
-Here is a side-by-side look at the REST API converting the README file and opening it in Word:
-
-![REST API Conversion Process and Outputs](docs/images/api-conversion-process.png)
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -199,7 +180,7 @@ Here is a side-by-side look at the REST API converting the README file and openi
 | `GET  /api/themes` | Available theme names |
 | `POST /api/classify` | Detect the AI source of a Markdown blob |
 | `POST /api/ingest` | Push Markdown into the app UI |
-| `POST /api/convert` | Return a rendered PDF or DOCX |
+| `POST /api/convert` | Return a rendered PDF |
 
 ### 🧩 Browser extension
 
