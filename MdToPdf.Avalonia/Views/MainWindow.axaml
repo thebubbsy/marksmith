@@ -350,6 +350,10 @@
                             <TextBlock Text="Preview &amp; export" FontWeight="SemiBold" />
                             <TextBlock Text="Live preview of the final document" Opacity="0.6" FontSize="12" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="0" Margin="14,0,0,0" VerticalAlignment="Center">
+                            <ToggleButton Content="PDF" IsChecked="{Binding IsPdfFormat, Mode=OneWay}" Command="{Binding SetTargetFormatPdfCommand}" CornerRadius="4,0,0,4" Padding="12,5" />
+                            <ToggleButton Content="Word DOCX" IsChecked="{Binding IsDocxFormat, Mode=OneWay}" Command="{Binding SetTargetFormatDocxCommand}" CornerRadius="0,4,4,0" Padding="12,5" />
+                        </StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Border CornerRadius="12" Padding="10,4" Background="{DynamicResource AccentFillColorSecondaryBrush}"
@@ -402,19 +406,18 @@
 
                 <Grid Grid.Row="4" ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="0,8,0,0">
                     <Button Grid.Column="0" Height="40" Classes="accent"
-                            Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}" Content="Generate PDF" FontWeight="SemiBold" />
-                    <Button Grid.Column="1" Height="40" Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}" Margin="8,0,0,0">
+                            Command="{Binding ExportDocumentCommand}" IsEnabled="{Binding IsNotBusy}" FontWeight="SemiBold">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Export DOCX" />
+                            <TextBlock Text="{Binding TargetFormat, StringFormat='Export {0}'}" />
                             <Border Background="{DynamicResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
-                                    VerticalAlignment="Center" IsVisible="{Binding ShowProBadge}">
+                                    VerticalAlignment="Center" IsVisible="{Binding IsDocxFormat}">
                                 <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="White" />
                             </Border>
                         </StackPanel>
                     </Button>
-                    <Button Grid.Column="2" Height="40" Content="Cancel" Margin="8,0,0,0"
+                    <Button Grid.Column="1" Height="40" Content="Cancel" Margin="8,0,0,0"
                             Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}" />
-                    <ui:ProgressRing Grid.Column="3" IsActive="{Binding IsBusy}" Width="22" Height="22"
+                    <ui:ProgressRing Grid.Column="2" IsActive="{Binding IsBusy}" Width="22" Height="22"
                                   VerticalAlignment="Center" Margin="8,0,0,0" />
                 </Grid>
             </Grid>

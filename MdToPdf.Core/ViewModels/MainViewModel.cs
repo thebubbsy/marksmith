@@ -24,14 +24,23 @@ public sealed partial class MainViewModel : ObservableObject
     public IWebRenderHost? Host { get; set; }
     public IUiPrompts? Prompts { get; set; }
 
-    [ObservableProperty] private string _targetFormat = "pdf";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPdfFormat))]
+    [NotifyPropertyChangedFor(nameof(IsDocxFormat))]
+    private string _targetFormat = "pdf";
     public bool IsPdfFormat => TargetFormat == "pdf";
     public bool IsDocxFormat => TargetFormat == "docx";
     public int TargetFormatIndex
     {
         get => TargetFormat == "docx" ? 1 : 0;
-        set { TargetFormat = value == 1 ? "docx" : "pdf"; OnPropertyChanged(); }
+        set { TargetFormat = value == 1 ? "docx" : "pdf"; OnPropertyChanged(); OnPropertyChanged(nameof(IsPdfFormat)); OnPropertyChanged(nameof(IsDocxFormat)); }
     }
+
+    [RelayCommand]
+    private void SetTargetFormatPdf() => TargetFormat = "pdf";
+
+    [RelayCommand]
+    private void SetTargetFormatDocx() => TargetFormat = "docx";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
