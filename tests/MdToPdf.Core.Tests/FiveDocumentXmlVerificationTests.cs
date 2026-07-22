@@ -42,6 +42,22 @@ public class FiveDocumentXmlVerificationTests
             var scratchDir = Path.GetDirectoryName(outputXmlPath);
             if (!string.IsNullOrEmpty(scratchDir)) Directory.CreateDirectory(scratchDir);
             File.WriteAllText(outputXmlPath, xmlText);
+
+            var explicitDocx = @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\scratch\doc4.docx";
+            Directory.CreateDirectory(Path.GetDirectoryName(explicitDocx)!);
+            File.Copy(docxPath, explicitDocx, true);
+
+            var targetPaths = new[]
+            {
+                @"C:\Users\Tony\.gemini\antigravity\scratch\Doc4_AlertCalloutsAndInlineColor_document.xml",
+                @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\scratch\Doc4_AlertCalloutsAndInlineColor_document.xml",
+                @"C:\Users\Tony\.gemini\antigravity\brain\a1ea3baf-c243-49fa-be62-b0a81382b5ef\scratch\Doc4_AlertCalloutsAndInlineColor_document.xml"
+            };
+            foreach (var p in targetPaths)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(p)!);
+                File.WriteAllText(p, xmlText);
+            }
         }
         catch { }
 

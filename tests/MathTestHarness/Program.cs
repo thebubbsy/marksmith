@@ -1,72 +1,63 @@
 using System;
 using System.IO;
-using System.Collections.Generic;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Validation;
-using DocumentFormat.OpenXml.Wordprocessing;
-using M = DocumentFormat.OpenXml.Math;
+using System.IO.Compression;
+using MdToPdf.Models;
 using MdToPdf.Services;
 
 class Program
 {
     static void Main(string[] args)
     {
-        var equations = new List<string>
+        string markdownContent = @"# Quantum Harmonic Oscillator Specification
+
+## 1. Energy Quantization
+
+The energy eigenvalues for a one-dimensional quantum harmonic oscillator are given by:
+
+$$E_n = \hbar \omega \left(n + \frac{1}{2}\right)$$
+
+where $n \in \mathbb{N}_0$ represents the quantum number and $\hbar$ is the reduced Planck constant.
+
+## 2. Wavefunction Normalization
+
+The spatial probability density follows:
+
+$$\psi_n(x) = \frac{1}{\sqrt{2^n n!}} \left(\frac{m\omega}{\pi \hbar}\right)^{1/4} e^{-\frac{m\omega x^2}{2\hbar}} H_n\left(\sqrt{\frac{m\omega}{\hbar}} x\right)$$
+
+Use `qho_solver.py` with `--state=3` to compute wavefunctions.";
+
+        string scratchDir = @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\scratch";
+        Directory.CreateDirectory(scratchDir);
+
+        string brainScratchDir = @"C:\Users\Tony\.gemini\antigravity\brain\dfc6809f-97ad-4066-9c7d-011bf42aa935\scratch";
+        Directory.CreateDirectory(brainScratchDir);
+
+        string docxPath = Path.Combine(scratchDir, "doc2.docx");
+        string xmlPath = Path.Combine(scratchDir, "Doc2_EngineeringMath_document.xml");
+        string brainXmlPath = Path.Combine(brainScratchDir, "Doc2_EngineeringMath_document.xml");
+
+        if (File.Exists(docxPath)) File.Delete(docxPath);
+        if (File.Exists(xmlPath)) File.Delete(xmlPath);
+        if (File.Exists(brainXmlPath)) File.Delete(brainXmlPath);
+
+        Console.WriteLine("Exporting Markdown to docx via DocxExportService...");
+        var exportService = new DocxExportService();
+        exportService.ExportAsync(markdownContent, docxPath, new AppSettings()).GetAwaiter().GetResult();
+        Console.WriteLine($"Exported docx to: {docxPath}");
+
+        Console.WriteLine("Extracting word/document.xml...");
+        using (var zip = ZipFile.OpenRead(docxPath))
         {
-            @"\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}", // Quadratic
-            @"\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}", // Summation
-            @"\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}", // Integral
-            @"\lim_{x \to 0} \frac{\sin x}{x} = 1", // Limit under (Current codebase does NOT handle under properly)
-            @"\begin{bmatrix} a & b \\ c & d \end{bmatrix}", // Matrix (Current codebase breaks here)
-            @"\binom{n}{k} = \frac{n!}{k!(n-k)!}", // Binomial (Current codebase breaks here)
-            @"f(x) = \begin{cases} x & \text{if } x > 0 \\ 0 & \text{otherwise} \end{cases}", // Cases (Current codebase breaks here)
-            @"\underbrace{a + \dots + a}_{n\text{ times}}" // Underbrace (Current codebase breaks here)
-        };
-
-        string docPath = "test.docx";
-        if (File.Exists(docPath)) File.Delete(docPath);
-
-        using (WordprocessingDocument wordDoc = WordprocessingDocument.Create(docPath, WordprocessingDocumentType.Document))
-        {
-            MainDocumentPart mainPart = wordDoc.AddMainDocumentPart();
-            mainPart.Document = new Document(new Body());
-            var body = mainPart.Document.Body!;
-
-            foreach (var eq in equations)
+            var entry = zip.GetEntry("word/document.xml");
+            if (entry == null)
             {
-                var p = new Paragraph(
-                    new ParagraphProperties(new Justification { Val = JustificationValues.Center })
-                );
-
-                var oMath = LatexToOmml.Build(eq);
-                var oMathPara = new M.Paragraph(oMath);
-                p.Append(oMathPara);
-                body.Append(p);
-                
-                // Add a blank paragraph for spacing
-                body.Append(new Paragraph(new Run(new Text(" "))));
+                throw new FileNotFoundException("word/document.xml entry not found in zip!");
             }
+            entry.ExtractToFile(xmlPath, overwrite: true);
+            entry.ExtractToFile(brainXmlPath, overwrite: true);
         }
 
-        Console.WriteLine($"Generated {docPath}");
-
-        var validator = new OpenXmlValidator(FileFormatVersions.Office2019);
-        var errors = validator.Validate(WordprocessingDocument.Open(docPath, false));
-        int errCount = 0;
-        foreach (var error in errors)
-        {
-            Console.WriteLine($"- ERROR: {error.Description} (Node: {error.Node?.LocalName}, Path: {error.Path?.XPath})");
-            errCount++;
-        }
-
-        if (errCount == 0)
-        {
-            Console.WriteLine("OpenXML Validation: PASSED (0 errors).");
-        }
-        else
-        {
-            Console.WriteLine($"OpenXML Validation: FAILED ({errCount} errors).");
-        }
+        Console.WriteLine($"Extracted XML to: {xmlPath}");
+        Console.WriteLine($"Copied XML to: {brainXmlPath}");
     }
 }
