@@ -76,21 +76,21 @@ public sealed class DocxExportService
     private static readonly Dictionary<string, (string Color, string Icon)> AlertStyles =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["note"] = ("#0969da", "â„¹ï¸"),
-            ["tip"] = ("#1f883d", "ðŸ’¡"),
-            ["important"] = ("#8250df", "ðŸ“¢"),
-            ["warning"] = ("#bf8700", "âš ï¸"),
-            ["caution"] = ("#cf222e", "ðŸ›‘"),
+            ["note"] = ("#0969da", "ℹ️"),
+            ["tip"] = ("#1f883d", "💡"),
+            ["important"] = ("#8250df", "📌"),
+            ["warning"] = ("#bf8700", "⚠️"),
+            ["caution"] = ("#cf222e", "🛑"),
         };
 
     private static readonly Dictionary<string, (string Color, string Icon)> AlertStylesDark =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["note"] = ("#58a6ff", "â„¹ï¸"),
-            ["tip"] = ("#3fb950", "ðŸ’¡"),
-            ["important"] = ("#a371f7", "ðŸ“¢"),
-            ["warning"] = ("#d29922", "âš ï¸"),
-            ["caution"] = ("#f85149", "ðŸ›‘"),
+            ["note"] = ("#58a6ff", "ℹ️"),
+            ["tip"] = ("#3fb950", "💡"),
+            ["important"] = ("#a371f7", "📌"),
+            ["warning"] = ("#d29922", "⚠️"),
+            ["caution"] = ("#f85149", "🛑"),
         };
 
     // mermaidImages: optional pre-rasterized PNGs of the document's mermaid fences (in order),
