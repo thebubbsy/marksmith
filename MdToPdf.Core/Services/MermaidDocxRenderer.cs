@@ -468,8 +468,13 @@ public static class MermaidDocxRenderer
     private static string BuildInlineXml(Graph g, ThemeDefinition t, AppSettings settings, uint drawingId)
     {
         long CX = Emu(g.W), CY = Emu(g.H);
-        string fill = Hex(t.Background), border = Hex(t.Line), text = Hex(t.Primary),
-               line = Hex(t.Line), bg = Hex(t.Background);
+        bool isDarkDoc = !ThemeDefinition.IsLight(t.Background);
+        string nodeFill = Hex(t.Secondary);
+        if (isDarkDoc && ThemeDefinition.IsLight("#" + nodeFill)) nodeFill = "2B303B";
+        string border = Hex(t.Border ?? t.Line);
+        string text = ContrastGuard.EnsureLegibleText(Hex(t.Text ?? t.Primary), nodeFill);
+        string line = Hex(t.Line);
+        string bg = Hex(t.Background);
 
         var sb = new StringBuilder();
         uint id = drawingId * 100;
@@ -478,7 +483,7 @@ public static class MermaidDocxRenderer
         foreach (var n in g.Nodes) n.XmlId = ++id;
 
         foreach (var e in g.Edges) sb.Append(ConnectorXml(e, g, line, ++id, t, settings));
-        foreach (var n in g.Nodes) sb.Append(NodeXml(n, fill, border, text, n.XmlId, g.Scale));
+        foreach (var n in g.Nodes) sb.Append(NodeXml(n, nodeFill, border, text, n.XmlId, g.Scale));
         foreach (var e in g.Edges)
             if (e.Label is not null) sb.Append(EdgeLabelXml(e, g, bg, text, ++id, g.Scale));
 
