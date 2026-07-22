@@ -439,8 +439,7 @@ public sealed class MarkdownHtmlService
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
-            font[color] { color: attr(color); }
-            span[style*="color"] { color: inherit; }
+            font[color] { color: revert; }
             pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Mono", Consolas, monospace; }
             code { font-family: "Cascadia Mono", Consolas, monospace; }
             table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }

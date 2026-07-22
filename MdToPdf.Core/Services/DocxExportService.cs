@@ -2130,20 +2130,20 @@ public sealed class DocxExportService
             return;
         }
 
+        var htmlColor = ExtractHtmlColor(t);
         var next = name switch
         {
-            "sub" => current with { Subscript = true, Superscript = false },
-            "sup" => current with { Superscript = true, Subscript = false },
-            "mark" => current with { Highlight = true },
-            "kbd" or "code" or "samp" or "tt" => current with { Code = true },
-            "u" or "ins" => current with { Underline = true },
-            "del" or "s" or "strike" => current with { Strike = true },
-            "b" or "strong" => current with { Bold = true },
-            "i" or "em" or "cite" or "var" or "dfn" => current with { Italic = true },
+            "sub" => current with { Subscript = true, Superscript = false, Color = htmlColor ?? current.Color },
+            "sup" => current with { Superscript = true, Subscript = false, Color = htmlColor ?? current.Color },
+            "mark" => current with { Highlight = true, Color = htmlColor ?? current.Color },
+            "kbd" or "code" or "samp" or "tt" => current with { Code = true, Color = htmlColor ?? current.Color },
+            "u" or "ins" => current with { Underline = true, Color = htmlColor ?? current.Color },
+            "del" or "s" or "strike" => current with { Strike = true, Color = htmlColor ?? current.Color },
+            "b" or "strong" => current with { Bold = true, Color = htmlColor ?? current.Color },
+            "i" or "em" or "cite" or "var" or "dfn" => current with { Italic = true, Color = htmlColor ?? current.Color },
             "span" when t.Contains("wikilink", StringComparison.OrdinalIgnoreCase) => current with { WikiLink = true, UnderlineDash = true, NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
             "span" when t.Contains("md-tag", StringComparison.OrdinalIgnoreCase) => current with { NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
-            "span" or "font" => current with { Color = ExtractHtmlColor(t) ?? current.Color },
-            _ => current, // unknown/structural tag: no format change, but still balanced on the stack
+            _ => htmlColor is not null ? current with { Color = htmlColor } : current,
         };
 
         // A self-closing formatting tag (<mark/>) has no content to affect, so it must not leave the
