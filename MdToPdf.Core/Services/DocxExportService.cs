@@ -181,7 +181,7 @@ public sealed class DocxExportService
             // Written after rendering: an oversized ShapeForge diagram flips the doc to Web Layout,
             // where a wider-than-page drawing scrolls instead of clipping (the user's own idea).
             AddSettings(main, updateFieldsOnOpen: settings.IncludeToc,
-                webLayout: settings.UnlimitedHeight || ctx.ForceWebLayout);
+                webLayout: settings.UnlimitedHeight || ctx.ForceWebLayout || !ThemeDefinition.IsLight(ctx.Theme.Background));
 
             body.Append(BuildSectionProperties(main, ctx, settings, title));
             main.Document.Save();
