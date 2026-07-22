@@ -39,6 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _outputFolder;
     [ObservableProperty] private string _selectedThemeName;
+    [ObservableProperty] private bool _themeLightInfluence;
     [ObservableProperty] private int _contentWidth;
     [ObservableProperty] private bool _a4FixedWidth;
     [ObservableProperty] private bool _unlimitedHeight;
@@ -105,16 +106,68 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
     private string _pastedMarkdown = string.Empty;
 
+    private string _cachedFileMarkdown = string.Empty;
+    private CancellationTokenSource? _fileReadCts;
+
+    partial void OnInputFilePathChanged(string value)
+    {
+        _fileReadCts?.Cancel();
+        _fileReadCts?.Dispose();
+        _fileReadCts = new CancellationTokenSource();
+        var token = _fileReadCts.Token;
+
+        if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
+        {
+            var syncContext = SynchronizationContext.Current;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var text = await File.ReadAllTextAsync(value, token);
+                    if (!token.IsCancellationRequested)
+                    {
+                        _cachedFileMarkdown = text;
+                        if (syncContext != null)
+                        {
+                            syncContext.Post(_ =>
+                            {
+                                if (!token.IsCancellationRequested)
+                                {
+                                    PastedMarkdown = text;
+                                    OnPropertyChanged(nameof(CurrentMarkdown));
+                                }
+                            }, null);
+                        }
+                        else
+                        {
+                            PastedMarkdown = text;
+                            OnPropertyChanged(nameof(CurrentMarkdown));
+                        }
+                    }
+                }
+                catch
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        _cachedFileMarkdown = string.Empty;
+                        OnPropertyChanged(nameof(CurrentMarkdown));
+                    }
+                }
+            });
+        }
+        else
+        {
+            _cachedFileMarkdown = string.Empty;
+            OnPropertyChanged(nameof(CurrentMarkdown));
+        }
+    }
+
     public string CurrentMarkdown
     {
         get
         {
             if (UsePasteSource) return PastedMarkdown;
-            if (!string.IsNullOrWhiteSpace(InputFilePath) && File.Exists(InputFilePath))
-            {
-                try { return File.ReadAllText(InputFilePath); } catch { return string.Empty; }
-            }
-            return string.Empty;
+            return _cachedFileMarkdown;
         }
         set
         {
@@ -226,6 +279,7 @@ public sealed partial class MainViewModel : ObservableObject
         var settings = _settingsService.Current;
         _outputFolder = settings.OutputFolder;
         _selectedThemeName = settings.Theme;
+        _themeLightInfluence = settings.ThemeLightInfluence;
         _contentWidth = settings.ContentWidth;
         _a4FixedWidth = settings.A4FixedWidth;
         _unlimitedHeight = settings.UnlimitedHeight;
@@ -264,48 +318,72 @@ public sealed partial class MainViewModel : ObservableObject
         AppServices.License.Changed += OnLicenseChanged;
     }
 
-    partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; _settingsService.Save(); }
-    partial void OnSelectedThemeNameChanged(string value) { _settingsService.Current.Theme = value; _settingsService.Save(); }
+    private CancellationTokenSource? _saveSettingsCts;
+
+    private void SaveSettingsDebounced()
+    {
+        _saveSettingsCts?.Cancel();
+        _saveSettingsCts?.Dispose();
+        _saveSettingsCts = new CancellationTokenSource();
+        var token = _saveSettingsCts.Token;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(200, token);
+                if (!token.IsCancellationRequested)
+                {
+                    _settingsService.Save();
+                }
+            }
+            catch (OperationCanceledException) { }
+        });
+    }
+
+    partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
+    partial void OnSelectedThemeNameChanged(string value) { _settingsService.Current.Theme = value; SaveSettingsDebounced(); }
+    partial void OnThemeLightInfluenceChanged(bool value) { _settingsService.Current.ThemeLightInfluence = value; SaveSettingsDebounced(); }
     partial void OnTargetFormatChanged(string value) { 
         _settingsService.Current.TargetFormat = value; 
-        _settingsService.Save(); 
+        SaveSettingsDebounced(); 
         OnPropertyChanged(nameof(IsPdfFormat));
         OnPropertyChanged(nameof(IsDocxFormat));
         OnPropertyChanged(nameof(TargetFormatIndex));
     }
-    partial void OnContentWidthChanged(int value) { _settingsService.Current.ContentWidth = value; _settingsService.Save(); }
+    partial void OnContentWidthChanged(int value) { _settingsService.Current.ContentWidth = value; SaveSettingsDebounced(); }
     partial void OnA4FixedWidthChanged(bool value) { 
         _settingsService.Current.A4FixedWidth = value; 
-        _settingsService.Save(); 
+        SaveSettingsDebounced(); 
         if (value) ContentWidth = 794;
     }
-    partial void OnUnlimitedHeightChanged(bool value) { _settingsService.Current.UnlimitedHeight = value; _settingsService.Save(); }
-    partial void OnNormalizeLlmChanged(bool value) { _settingsService.Current.NormalizeLlm = value; _settingsService.Save(); }
-    partial void OnAutoClipboardIngestChanged(bool value) { _settingsService.Current.AutoClipboardIngest = value; _settingsService.Save(); }
-    partial void OnWatchFolderEnabledChanged(bool value) { _settingsService.Current.WatchFolderEnabled = value; _settingsService.Save(); }
-    partial void OnWatchFolderChanged(string value) { _settingsService.Current.WatchFolder = value; _settingsService.Save(); }
-    partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; _settingsService.Save(); }
-    partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; _settingsService.Save(); }
-    partial void OnAutoConvertIngestsChanged(bool value) { _settingsService.Current.AutoConvertIngests = value; _settingsService.Save(); }
-    partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; _settingsService.Save(); }
-    partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; _settingsService.Save(); }
-    partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; _settingsService.Save(); }
-    partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; _settingsService.Save(); }
-    partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; _settingsService.Save(); }
-    partial void OnOversizedDiagramModeChanged(int value) { _settingsService.Current.OversizedDiagramMode = value; _settingsService.Save(); }
-    partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; _settingsService.Save(); }
-    partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; _settingsService.Save(); }
-    partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; _settingsService.Save(); }
-    partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; _settingsService.Save(); }
-    partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; _settingsService.Save(); }
-    partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; _settingsService.Save(); }
-    partial void OnDashCustomChanged(string value) { _settingsService.Current.DashCustom = value; _settingsService.Save(); }
-    partial void OnHeadingShiftChanged(int value) { _settingsService.Current.HeadingShift = value; _settingsService.Save(); }
-    partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; _settingsService.Save(); }
-    partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; _settingsService.Save(); }
-    partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; _settingsService.Save(); }
-    partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; _settingsService.Save(); }
-    partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; _settingsService.Save(); }
+    partial void OnUnlimitedHeightChanged(bool value) { _settingsService.Current.UnlimitedHeight = value; SaveSettingsDebounced(); }
+    partial void OnNormalizeLlmChanged(bool value) { _settingsService.Current.NormalizeLlm = value; SaveSettingsDebounced(); }
+    partial void OnAutoClipboardIngestChanged(bool value) { _settingsService.Current.AutoClipboardIngest = value; SaveSettingsDebounced(); }
+    partial void OnWatchFolderEnabledChanged(bool value) { _settingsService.Current.WatchFolderEnabled = value; SaveSettingsDebounced(); }
+    partial void OnWatchFolderChanged(string value) { _settingsService.Current.WatchFolder = value; SaveSettingsDebounced(); }
+    partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; SaveSettingsDebounced(); }
+    partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; SaveSettingsDebounced(); }
+    partial void OnAutoConvertIngestsChanged(bool value) { _settingsService.Current.AutoConvertIngests = value; SaveSettingsDebounced(); }
+    partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; SaveSettingsDebounced(); }
+    partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; SaveSettingsDebounced(); }
+    partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; SaveSettingsDebounced(); }
+    partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; SaveSettingsDebounced(); }
+    partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; SaveSettingsDebounced(); }
+    partial void OnOversizedDiagramModeChanged(int value) { _settingsService.Current.OversizedDiagramMode = value; SaveSettingsDebounced(); }
+    partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; SaveSettingsDebounced(); }
+    partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; SaveSettingsDebounced(); }
+    partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; SaveSettingsDebounced(); }
+    partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; SaveSettingsDebounced(); }
+    partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; SaveSettingsDebounced(); }
+    partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; SaveSettingsDebounced(); }
+    partial void OnDashCustomChanged(string value) { _settingsService.Current.DashCustom = value; SaveSettingsDebounced(); }
+    partial void OnHeadingShiftChanged(int value) { _settingsService.Current.HeadingShift = value; SaveSettingsDebounced(); }
+    partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; SaveSettingsDebounced(); }
+    partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; SaveSettingsDebounced(); }
+    partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; SaveSettingsDebounced(); }
+    partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
+    partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
 
@@ -424,6 +502,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Conversation title -> default export filename / document title.
         SuggestedTitle = meta?.SourceTitle?.Trim() ?? "";
+
+        text ??= string.Empty;
 
         var classification = AppServices.LlmSource.Classify(text);
 
@@ -617,6 +697,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async Task RunConversionAsync(string kind, Func<CancellationToken, Task> work)
     {
+        _conversionCts?.Cancel();
+        _conversionCts?.Dispose();
         _conversionCts = new CancellationTokenSource();
         IsBusy = true;
         StatusText = $"Converting to {kind}...";
@@ -684,11 +766,16 @@ public sealed partial class MainViewModel : ObservableObject
         return (PrepareMarkdown(File.ReadAllText(InputFilePath)), Path.GetFileNameWithoutExtension(InputFilePath));
     }
 
-    private string ResolveOutputPath(string sourceLabel, string extension)
+    public string ResolveOutputPath(string sourceLabel, string extension)
     {
+        var inputDir = !string.IsNullOrWhiteSpace(InputFilePath) ? Path.GetDirectoryName(InputFilePath) : null;
         var folder = string.IsNullOrWhiteSpace(OutputFolder)
-            ? (UsePasteSource ? _settingsService.Current.OutputFolder : Path.GetDirectoryName(InputFilePath)!)
+            ? (UsePasteSource || string.IsNullOrWhiteSpace(inputDir) ? _settingsService.Current.OutputFolder : inputDir)
             : OutputFolder;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            folder = AppContext.BaseDirectory;
+        }
         Directory.CreateDirectory(folder);
         return Path.Combine(folder, $"{sourceLabel}.{extension}");
     }
@@ -707,7 +794,8 @@ public sealed partial class MainViewModel : ObservableObject
                 if (string.Equals(MarkdownFiles[i].Path, full, Services.PathEquality.Comparison))
                     MarkdownFiles.RemoveAt(i);
             var name = Path.GetFileName(full);
-            var folder = Path.GetFileName(Path.GetDirectoryName(full) ?? "");
+            var dirName = Path.GetDirectoryName(full);
+            var folder = dirName is not null ? Path.GetFileName(dirName) : "";
             MarkdownFiles.Insert(0, new Services.MarkdownFileEntry(full, name, $"★ {folder} · just now", true));
         }
         catch { /* non-critical */ }

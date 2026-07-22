@@ -1,18 +1,59 @@
-# Build output
+# Build output & artifacts
 [Bb]in/
 [Oo]bj/
 [Dd]ist/
 dist_installer/
 dist_stage/
 staging/
+publish_dir/
 checksums.txt
 *.user
 *.suo
+*.userprefs
 
-# IDE
+# IDE & Editor
 .vs/
 .idea/
-*.userprefs
+.vscode/
+
+# Agent metadata directory
+.agents/
+
+# Transient & Scratch Directories
+scratch/
+wv2debug/
+Wv2DebugApp/
+copy2_unzip/
+copy3_unzip/
+test6_unzip/
+test_unzip/
+test_mermaid/
+AstTest/
+CC_Test/
+CSharpTest/
+DebugApp/
+FixTool/
+GovTest/
+MermaidTest/
+TestMarkdig/
+TestMermaid/
+TestRegex/
+TestTransform/
+site/
+docx_unzip/
+
+# Transient & Scratch Files
+*.bak
+*.tmp
+*.log
+*.csx
+*.original.txt
+*.pyc
+__pycache__/
+msvg.txt
+merr.txt
+fix.py
+test6.md
 
 # Extension packaging (generated)
 store/*.zip
@@ -20,13 +61,10 @@ store/pkg_*/
 # Chrome Web Store API credentials — never commit
 store/store-credentials.json
 
-# OS
+# OS files
 Thumbs.db
 .DS_Store
 
-# Scratch
-spinframes*/
-
-# Licensing — the private signing key and any generated keys must NEVER be committed
+# Licensing — private signing key and generated keys
 tools/licensing/private-key.pem
 tools/licensing/*-key.txt

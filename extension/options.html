@@ -149,6 +149,29 @@
                         <option value="1">ShapeForge&trade; (editable shapes)</option>
                         <option value="0">Snapshot (picture)</option>
                     </select></div>
+                <div class="mini"><label for="o_oversizedDiagramMode">Oversized Diagrams</label>
+                    <select id="o_oversizedDiagramMode">
+                        <option value="1">Exact (Web Layout)</option>
+                        <option value="2">Reflow to fit width</option>
+                        <option value="3">Split vertically</option>
+                        <option value="4">Grid (Poster pages)</option>
+                        <option value="5">Shrink to fit page</option>
+                    </select></div>
+                <div class="mini"><label for="o_connectorRouting">Line Routing</label>
+                    <select id="o_connectorRouting">
+                        <option value="default">Default</option>
+                        <option value="straight">Straight</option>
+                        <option value="elbow">Elbow</option>
+                        <option value="curved">Curved</option>
+                    </select></div>
+                <div class="mini"><label for="o_connectorArrowhead">Line Arrowheads</label>
+                    <select id="o_connectorArrowhead">
+                        <option value="default">Default</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="open">Open</option>
+                        <option value="stealth">Stealth</option>
+                        <option value="none">None</option>
+                    </select></div>
                 <div class="mini"><label for="o_boldMode">Bold</label>
                     <select id="o_boldMode"><option value="0">Keep</option><option value="1">Remove</option><option value="2">To italic</option></select></div>
                 <div class="mini"><label for="o_italicMode">Italic</label>
@@ -161,6 +184,9 @@
             </div>
 
             <div class="grid2" style="margin-top:18px">
+                <label class="toggle-mini"><span>Light influence (Theme)</span><span class="switch"><input type="checkbox" id="o_themeLightInfluence"><span class="slider"></span></span></label>
+                <label class="toggle-mini"><span>Generate Cover Page</span><span class="switch"><input type="checkbox" id="o_brandCoverPage"><span class="slider"></span></span></label>
+                <label class="toggle-mini"><span>Smart Connectors</span><span class="switch"><input type="checkbox" id="o_smartConnectors"><span class="slider"></span></span></label>
                 <label class="toggle-mini"><span>Lock to A4 width</span><span class="switch"><input type="checkbox" id="o_a4FixedWidth"><span class="slider"></span></span></label>
                 <label class="toggle-mini"><span>Single continuous page</span><span class="switch"><input type="checkbox" id="o_unlimitedHeight"><span class="slider"></span></span></label>
                 <label class="toggle-mini"><span>Table of contents</span><span class="switch"><input type="checkbox" id="o_includeToc"><span class="slider"></span></span></label>

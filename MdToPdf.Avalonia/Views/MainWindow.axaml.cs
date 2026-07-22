@@ -13,32 +13,72 @@ using MdToPdf.Services;
 using MdToPdf.ViewModels;
 using Microsoft.Web.WebView2.Core;
 
+using MdToPdf.Avalonia.Controls;
+using System.Linq;
+using global::Avalonia;
+using global::Avalonia.Controls;
+using global::Avalonia.Input;
+using global::Avalonia.Interactivity;
+using global::Avalonia.Media;
+using global::Avalonia.Platform;
+using global::Avalonia.Platform.Storage;
+
+using MdToPdf.Avalonia.Hosting;
+using MdToPdf.Services;
+using MdToPdf.ViewModels;
+using Microsoft.Web.WebView2.Core;
+
 namespace MdToPdf.Avalonia.Views;
 
 public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 {
+    private async void MarkdownEditor_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        try
+        {
+            var pos = MarkdownEditor.GetPositionFromPoint(e.GetPosition(MarkdownEditor));
+            if (pos != null)
+            {
+                int lineNum = pos.Value.Line;
+                var ambiguity = _ambiguityColorizer.GetAmbiguityAtLine(lineNum);
+                if (ambiguity != null)
+                {
+                    e.Handled = true;
+                    var result = await ShowAmbiguityResolverDialogAsync(ambiguity);
+                    if (result != null)
+                    {
+                        var prefs = AppServices.Settings.Current.AmbiguityPreferences;
+                        prefs.RemoveAll(p => p.Kind == ambiguity.Kind);
+                        prefs.Add(new MdToPdf.Models.AmbiguityPreference { Kind = ambiguity.Kind, ChosenLabel = result.Label });
+                        AppServices.Settings.Save();
+                        
+                        var doc = Markdig.Markdown.Parse(MarkdownEditor.Text);
+                        var ambiguities = AmbiguityDetector.Detect(doc, MarkdownEditor.Text);
+                        _ambiguityColorizer.UpdateAmbiguities(ambiguities);
+                        MarkdownEditor.TextArea.TextView.Redraw();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"MarkdownEditor_PointerPressed error: {ex}");
+        }
+    }
+
     private MainViewModel ViewModel => (MainViewModel)DataContext!;
 
     private static readonly Uri PreviewBaseUri = new("https://marksmith.local/");
 
     private readonly ClipboardWatcherService _clipboardWatcher;
     private readonly FolderWatcherService _folderWatcher;
-    private readonly ApiServer _apiServer;
-    private readonly SemaphoreSlim _convertLock = new(1, 1);
+    private readonly AutomationManager _automationManager;
+    private readonly ExportCoordinator _exportCoordinator = AppServices.ExportCoordinator;
 
-    // Set once the window's startup sequence (first navigate included) has actually run. Lets
-    // EnsureReadyAsync report real readiness instead of unconditionally claiming true — a request
-    // (e.g. via the REST API) that somehow arrives before Loaded fires would otherwise let
-    // MermaidHarvestService drive PreviewWebView before it's ever navigated anything.
+    private readonly AmbiguityColorizer _ambiguityColorizer = new();
+    private bool _isUpdatingEditor = false;
     private bool _loaded;
 
-    // Coalesces preview refreshes so typing in the paste editor doesn't re-navigate NativeWebView
-    // on every keystroke — the WinUI build has always had this (_previewDebounce there); it never
-    // got ported here, which is why typing normal text could make the preview lag by a minute or
-    // more: PastedMarkdown updates on every character, and each one was triggering an immediate,
-    // un-cancelled full-page NavigateToString (2.5MB mermaid.min.js re-parsed each time content
-    // mentions mermaid, but even without that, WebView2 navigations queue up faster than they
-    // drain when fired every keystroke).
     private readonly global::Avalonia.Threading.DispatcherTimer _previewDebounce = new()
     {
         Interval = TimeSpan.FromMilliseconds(180),
@@ -48,6 +88,24 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     {
         InitializeComponent();
 
+        MarkdownEditor.TextArea.TextView.LineTransformers.Add(_ambiguityColorizer);
+        MarkdownEditor.TextChanged += (s, e) =>
+        {
+            if (_isUpdatingEditor) return;
+            _isUpdatingEditor = true;
+            ViewModel.PastedMarkdown = MarkdownEditor.Text;
+            _isUpdatingEditor = false;
+
+            try 
+            {
+                var doc = Markdig.Markdown.Parse(MarkdownEditor.Text);
+                var ambiguities = AmbiguityDetector.Detect(doc, MarkdownEditor.Text);
+                _ambiguityColorizer.UpdateAmbiguities(ambiguities);
+                MarkdownEditor.TextArea.TextView.Redraw();
+            }
+            catch { }
+        };
+
         _previewDebounce.Tick += (_, _) =>
         {
             _previewDebounce.Stop();
@@ -56,7 +114,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
         _clipboardWatcher = new ClipboardWatcherService(Clipboard!, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderWatcher = new FolderWatcherService(path => _ = OnWatchedFileAsync(path));
-        _apiServer = new ApiServer(
+        _automationManager = new AutomationManager(
             AppServices.LlmSource,
             () => ViewModel.ThemeNames.ToList(),
             (md, origin, ovr) => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => IngestFromSource(md, origin, ovr)),
@@ -69,69 +127,67 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
         Loaded += async (_, _) =>
         {
-            ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-            ApplyAutomationSettings();
-            ViewModel.LoadPresets();
-            UpdateLicenseBanner();
-            // RefreshPreviewAsync is the one step that actually determines "is the web view ready
-            // to navigate/render" — _loaded (and therefore EnsureReadyAsync) must flip true right
-            // after it, not after the whole handler. LoadMarkdownFilesAsync does a recursive
-            // filesystem scan (Downloads/Documents/Desktop/OneDrive) that can take several seconds;
-            // gating readiness on it too meant a user who pasted and hit "Export DOCX" quickly
-            // after the window appeared could have EnsureReadyAsync still returning false, silently
-            // emptying MermaidHarvestService's results and making every diagram fall back to a
-            // plain code block. That's exactly what happened — moving the flag here fixes it.
-            await RefreshPreviewAsync();
-            _loaded = true;
-            await LoadMarkdownFilesAsync();
+            try
+            {
+                ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+                ApplyAutomationSettings();
+                ViewModel.LoadPresets();
+                UpdateLicenseBanner();
+
+                // Hook WebMessageReceived for Avalonia on Windows
+                if (OperatingSystem.IsWindows() &&
+                    PreviewWebView.TryGetPlatformHandle() is IWindowsWebView2PlatformHandle handle)
+                {
+                    try
+                    {
+                        var core = CoreWebView2.CreateFromComICoreWebView2(handle.CoreWebView2);
+                        core.WebMessageReceived += OnPreviewWebMessage;
+                    }
+                    catch { }
+                }
+
+                await RefreshPreviewAsync();
+                _loaded = true;
+                await LoadMarkdownFilesAsync();
+            }
+            catch (Exception ex)
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.StatusText = $"Startup error: {ex.Message}";
+                    vm.StatusSeverity = Models.StatusSeverity.Error;
+                }
+                System.Diagnostics.Debug.WriteLine($"MainWindow Loaded error: {ex}");
+            }
         };
 
         Closed += (_, _) =>
         {
             _clipboardWatcher.Dispose();
             _folderWatcher.Dispose();
-            _apiServer.Dispose();
+            _automationManager.Dispose();
         };
     }
 
-    // ---- Automation (clipboard watcher / folder watcher / REST API) ----
-    // Portable equivalents of MdToPdf/MainWindow.xaml.cs's ClipboardIngestService/
-    // FolderIngestService/ApiServer wiring — ApiServer itself is already in MdToPdf.Core
-    // (platform-agnostic); only the clipboard/folder watchers needed Avalonia-specific
-    // implementations (see MdToPdf.Avalonia/Hosting).
-
     private void ApplyAutomationSettings()
     {
-        var vm = ViewModel;
-
-        if (vm.AutoClipboardIngest && !_clipboardWatcher.IsRunning) _clipboardWatcher.Start();
-        else if (!vm.AutoClipboardIngest && _clipboardWatcher.IsRunning) _clipboardWatcher.Stop();
-
-        if (vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) _folderWatcher.Start(vm.WatchFolder);
-        else _folderWatcher.Stop();
-
-        try
-        {
-            if (vm.ApiEnabled && (!_apiServer.IsRunning || _apiServer.Port != vm.ApiPort)) _apiServer.Start(vm.ApiPort);
-            else if (!vm.ApiEnabled) _apiServer.Stop();
-            ApiUrlText.Text = _apiServer.IsRunning ? $"http://127.0.0.1:{_apiServer.Port}/api/health" : "";
-            ApiUrlText.IsVisible = _apiServer.IsRunning;
-        }
-        catch (Exception ex)
-        {
-            vm.StatusText = $"Local REST API failed to start: {ex.Message}";
-            vm.StatusSeverity = Models.StatusSeverity.Error;
-        }
+        _automationManager.ApplyAutomationSettings(
+            ViewModel,
+            () => _clipboardWatcher.Start(),
+            () => _clipboardWatcher.Stop(),
+            _clipboardWatcher.IsRunning,
+            folder => _folderWatcher.Start(folder),
+            () => _folderWatcher.Stop(),
+            _folderWatcher.IsRunning,
+            status =>
+            {
+                ApiUrlText.Text = status;
+                ApiUrlText.IsVisible = _automationManager.IsApiRunning;
+            });
     }
 
-    // Every automated ingest path (clipboard, watched folder, REST API) funnels through here: load
-    // the content into the paste editor, then — if "Auto-generate PDF from AI-chat ingests" is on —
-    // also export a PDF, so a conversation sent here at its end produces a finished document hands-free.
     private void IngestFromSource(string text, string origin, Models.OutputOverride? output = null)
     {
-        // Source-page metadata (font, definitive source, model, title, language/direction, brand
-        // accent) is applied inside IngestMarkdown so the live preview reflects it immediately —
-        // see MainViewModel.IngestMarkdown.
         ViewModel.IngestMarkdown(text, origin, output);
         if (!ViewModel.AutoConvertIngests) return;
         if (AppServices.License.CanAutomate) _ = AutoExportIngestAsync(output);
@@ -142,7 +198,6 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         }
     }
 
-    // Which file formats an automated export should produce.
     private static string[] ParseFormats(string? format)
     {
         if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
@@ -154,354 +209,53 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         return fmts.Length > 0 ? fmts : new[] { "pdf" };
     }
 
-    // The export uses the caller's output profile (theme, layout, formatting, folder) merged over
-    // the app's settings, and produces whichever format(s) the caller asked for. Unlike the WinUI
-    // build, this doesn't do an offscreen-show/hide dance for tray mode — NativeWebView's behavior
-    // while the window is hidden hasn't been characterized on this build yet.
-    private async Task AutoExportIngestAsync(Models.OutputOverride? output)
-    {
-        await _convertLock.WaitAsync();
-        try
-        {
-            var md = ViewModel.PastedMarkdown;
-            if (string.IsNullOrWhiteSpace(md)) return;
+    private Task AutoExportIngestAsync(Models.OutputOverride? output) =>
+        _exportCoordinator.AutoExportIngestAsync(
+            ViewModel, output, this, null, null, () => RefreshPreviewAsync());
 
-            var settings = AppServices.Settings.Current.CloneWith(output);
-            Directory.CreateDirectory(settings.OutputFolder);
-            var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
-            var stem = Path.Combine(settings.OutputFolder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}");
+    private Task OnWatchedFileAsync(string path) =>
+        _exportCoordinator.OnWatchedFileAsync(
+            ViewModel, path, this, null, null, () => RefreshPreviewAsync());
 
-            var produced = new List<string>();
-            var formats = ParseFormats(output?.Format);
-
-            List<byte[]?>? mermaidImgs = null;
-            if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
-                mermaidImgs = await new MermaidHarvestService().RenderMermaidPngsAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
-
-            foreach (var fmt in formats)
-            {
-                var outPath = $"{stem}.{fmt}";
-                try
-                {
-                    switch (fmt)
-                    {
-                        case "pdf":
-                            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                            var html = AppServices.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
-                            await new PdfExportService().ExportAsync(this, html, outPath, settings);
-                            break;
-                        case "docx":
-                            if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                            {
-                                await new DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs);
-                                outPath = settings.RunningDocPath;
-                            }
-                            else await new DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs,
-                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null);
-                            break;
-                        case "pptx": await new PptxExportService().ExportAsync(md, outPath, settings); break;
-                        case "epub": await new EpubExportService().ExportAsync(md, outPath, settings); break;
-                    }
-                    produced.Add(outPath);
-                    ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                }
-                catch (Exception ex)
-                {
-                    ViewModel.StatusText = $"Auto-export ({fmt.ToUpperInvariant()}) failed: {ex.Message}";
-                    ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-                    return;
-                }
-            }
-
-            if (produced.Count > 0)
-            {
-                ViewModel.LastOutputPath = produced[^1];
-                ViewModel.StatusText = $"Auto-converted: {string.Join(", ", produced)}";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-            }
-        }
-        finally { _convertLock.Release(); }
-    }
-
-    // A watched file always ingests into the UI; in auto-convert mode it also goes straight to PDF
-    // in the output folder — the fully hands-off pipeline.
-    private async Task OnWatchedFileAsync(string path)
-    {
-        ViewModel.IngestFile(path);
-        if (!ViewModel.WatchFolderAutoConvert) return;
-        if (!AppServices.License.CanAutomate)
-        {
-            ViewModel.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
-            return;
-        }
-
-        await _convertLock.WaitAsync();
-        try
-        {
-            var html = ViewModel.BuildPreviewHtml(ViewModel.PastedMarkdown); // IngestFile already normalized it
-            var folder = AppServices.Settings.Current.OutputFolder;
-            Directory.CreateDirectory(folder);
-            var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-            await new PdfExportService().ExportAsync(this, html, outPath, AppServices.Settings.Current);
-
-            ViewModel.LastOutputPath = outPath;
-            ViewModel.RecordExport("PDF", outPath, ViewModel.PastedMarkdown);
-            ViewModel.StatusText = $"Auto-converted: {outPath}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Watch-folder auto-convert failed: {ex.Message}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-        }
-        finally { _convertLock.Release(); }
-    }
-
-    // Serves /api/convert: classify/normalize per the caller's output profile, render, and print to
-    // a temp PDF using the live preview host (NativeWebView can't render off-tree, same constraint
-    // WebView2 has), then return the bytes and clean up.
-    //
-    // ApiServer.HandleAsync runs this on a raw ThreadPool thread (Task.Run off the HttpListener
-    // loop) — but PreviewWebView is a WebView2-backed control and every one of its members is
-    // apartment-affine (COM STA), so calling straight into it here throws "This method can only be
-    // called from the thread that created the object (0x802A000C)" — confirmed via a real
-    // /api/convert call, which returned exactly that as a 500. The WinUI build (MdToPdf/MainWindow
-    // .xaml.cs's ConvertForApiAsync) already gets this right by wrapping the whole body in
-    // DispatcherQueue.TryEnqueue + a TaskCompletionSource; mirrored here with Avalonia's Dispatcher.
     private Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
     {
         var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            await _convertLock.WaitAsync();
             try
             {
-                var settings = AppServices.Settings.Current.CloneWith(output);
-                var md = markdown;
-                var classification = AppServices.LlmSource.Classify(md);
-                (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
-                if (settings.NormalizeLlm)
-                    (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification);
-                var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
-
-                var fmt = settings.TargetFormat.ToLowerInvariant();
-                if (output?.Format is { Length: > 0 } outputFmt)
-                    fmt = outputFmt.ToLowerInvariant();
-
-                if (fmt == "docx")
-                {
-                    IReadOnlyList<byte[]?>? mermaidImgs = null;
-                    IReadOnlyList<MdToPdf.Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                    IReadOnlyList<MdToPdf.Services.Mermaid.GenericDiagram?>? mermaidGen = null;
-                    if (md.Contains("```mermaid", System.StringComparison.Ordinal))
-                    {
-                        var harvester = new MermaidHarvestService();
-                        mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
-                        if (settings.MermaidDocxMode == 1)
-                        {
-                            mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
-                            mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
-                        }
-                    }
-
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.docx");
-                    if (settings.AppendToRunningDoc && !System.String.IsNullOrWhiteSpace(settings.RunningDocPath))
-                    {
-                        await new DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
-                        tmp = settings.RunningDocPath;
-                    }
-                    else
-                    {
-                        await new DocxExportService().ExportAsync(md, tmp, settings, mermaidImgs,
-                            settings.NormalizeLlm ? classification.AppliedFixes : null, mermaidGeo, mermaidGen);
-                    }
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    if (tmp != settings.RunningDocPath) File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else if (fmt == "pptx")
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.pptx");
-                    await new PptxExportService().ExportAsync(md, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else if (fmt == "epub")
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.epub");
-                    await new EpubExportService().ExportAsync(md, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{System.Guid.NewGuid():N}.pdf");
-                    await new PdfExportService().ExportAsync(this, html, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
+                var bytes = await _exportCoordinator.ConvertForApiAsync(
+                    ViewModel, markdown, output, this, null, () => RefreshPreviewAsync());
+                tcs.SetResult(bytes);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 tcs.SetException(ex);
-            }
-            finally
-            {
-                _convertLock.Release();
-                await RefreshPreviewAsync();
             }
         });
         return tcs.Task;
     }
 
-    private async Task<object> BatchConvertForApiAsync(string folderPath, string format, Models.OutputOverride? ovr)
+    private Task<object> BatchConvertForApiAsync(string folderPath, string format, Models.OutputOverride? ovr)
     {
         var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
         global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
             try
             {
-                if (!System.IO.Directory.Exists(folderPath))
-                {
-                    tcs.TrySetException(new System.IO.DirectoryNotFoundException($"Folder not found: {folderPath}"));
-                    return;
-                }
-                var files = System.IO.Directory.GetFiles(folderPath, "*.md", System.IO.SearchOption.TopDirectoryOnly);
-                if (files.Length == 0)
-                {
-                    tcs.SetResult(new { done = 0, failed = 0, message = "No .md files found." });
-                    return;
-                }
-
-                var settings = AppServices.Settings.Current.CloneWith(ovr);
-                var fmt = format.ToLowerInvariant();
-                var outFolder = settings.OutputFolder;
-                System.IO.Directory.CreateDirectory(outFolder);
-
-                if (fmt == "pdf")
-                {
-                    if (!await EnsureReadyAsync())
-                    {
-                        tcs.TrySetException(new System.InvalidOperationException("Preview WebView is not ready."));
-                        return;
-                    }
-                }
-
-                int done = 0, failed = 0;
-                var processedFiles = new System.Collections.Generic.List<string>();
-
-                foreach (var f in files)
-                {
-                    await _convertLock.WaitAsync();
-                    try
-                    {
-                        var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                        var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
-
-                        switch (fmt)
-                        {
-                            case "pdf":
-                                var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                                var html = AppServices.MarkdownHtml.Render(md, settings, theme, null);
-                                await new PdfExportService().ExportAsync(this, html, outPath, settings);
-                                break;
-                            case "docx":
-                                System.Collections.Generic.IReadOnlyList<byte[]?>? mermaidImgs = null;
-                                System.Collections.Generic.IReadOnlyList<MdToPdf.Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                                System.Collections.Generic.IReadOnlyList<MdToPdf.Services.Mermaid.GenericDiagram?>? mermaidGen = null;
-                                if (md.Contains("```mermaid", System.StringComparison.Ordinal))
-                                {
-                                    var harvester = new MermaidHarvestService();
-                                    mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
-                                    if (settings.MermaidDocxMode == 1)
-                                    {
-                                        mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
-                                        mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
-                                    }
-                                }
-                                await new DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);
-                                break;
-                            case "pptx":
-                                await new PptxExportService().ExportAsync(md, outPath, settings);
-                                break;
-                            case "epub":
-                                await new EpubExportService().ExportAsync(md, outPath, settings);
-                                break;
-                        }
-                        ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                        processedFiles.Add(outPath);
-                        done++;
-                    }
-                    catch (System.Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Batch convert failed for {f}: {ex}");
-                        failed++;
-                    }
-                    finally
-                    {
-                        _convertLock.Release();
-                    }
-                }
-
-                await RefreshPreviewAsync();
-
-                tcs.SetResult(new { done, failed, outputFolder = outFolder, files = processedFiles });
+                var res = await _exportCoordinator.BatchConvertForApiAsync(
+                    ViewModel, folderPath, format, ovr, this, null, () => RefreshPreviewAsync());
+                tcs.SetResult(res);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                tcs.TrySetException(ex);
+                tcs.SetException(ex);
             }
         });
-        return await tcs.Task;
+        return tcs.Task;
     }
 
-    // ---- IWebRenderHost: drives PDF export + mermaid harvesting via NativeWebView instead of
-    // WebView2, mirroring MdToPdf/MainWindow.xaml.cs on the WinUI side. ----
-    //
-    // Avalonia.Controls.WebView's own cross-platform print-settings API (WebViewPrintSettings) has
-    // no PageWidth/PageHeight at all — confirmed by reading its source
-    // (github.com/AvaloniaUI/Avalonia.Controls.WebView): even though the underlying WebView2 COM
-    // interface it wraps on Windows (ICoreWebView2PrintSettings) has put_PageWidth/put_PageHeight,
-    // the adapter never calls them. Its documented Windows margin handling is also wrong — it
-    // passes MarginTop/Bottom/Left/Right straight into put_MarginTop(double) etc. as raw pixel ints,
-    // which WebView2 interprets as INCHES (a real pixel value like 38, meaning ~0.4in, would set a
-    // 38-INCH margin). Neither is fixable from this side of that package.
-    //
-    // For a long time PdfExportService.cs's `@page` CSS injection was the only lever pulled here —
-    // and it never reliably worked (a single early test happened to match, many follow-ups since
-    // consistently didn't; see git history for the blow-by-blow). The fix wasn't to debug the CSS
-    // harder — it was to stop going through Avalonia's limited wrapper at all. The original Python
-    // TUI (md_to_pdf_tui.py) never had this problem in the first place because Playwright's
-    // page.pdf(width=, height=, margin=) parameters are a REAL print-API parameter — they map
-    // directly onto Chromium's native Page.printToPDF paperWidth/paperHeight/margin fields, not a
-    // CSS rule the browser might or might not honor. WebView2 has that exact same native lever
-    // (ICoreWebView2PrintSettings.PageWidth/PageHeight/MarginTop, in inches) — it's literally what
-    // MdToPdf/MainWindow.xaml.cs already calls directly on the WinUI side.
-    //
-    // NativeWebView is still a real WebView2 control under the hood on Windows, just wrapped by
-    // Avalonia's adapter — and NativeWebView.TryGetPlatformHandle() hands back
-    // IWindowsWebView2PlatformHandle, whose .CoreWebView2 property is the raw native ICoreWebView2
-    // COM pointer. Microsoft.Web.WebView2.Core.CoreWebView2.CreateFromComICoreWebView2(ptr) wraps
-    // that pointer in the exact same managed CoreWebView2 type WinUI uses, with the same
-    // Environment.CreatePrintSettings()/PrintToPdfAsync(path, settings) API — so PrintToPdfAsync
-    // below now sets PageWidth/PageHeight/margins natively on Windows, the same way WinUI and the
-    // TUI both always did, instead of hoping a CSS rule gets picked up.
-    //
-    // Linux (WebKitGTK) and macOS (WKWebView) don't have an equivalent raw-handle bridge wired up
-    // here, so they still fall back to Avalonia's zero-arg PrintToPdfStreamAsync() plus the `@page`
-    // CSS block as a best-effort — genuinely unverified on those platforms, unlike Windows now.
-    //
-    // VERIFIED (unlike the retracted CSS-only claim this replaced): an isolated Avalonia+NativeWebView
-    // harness requesting 777px and 1500px widths through this exact code path produced PDFs measuring
-    // 582.96pt and 1125.12pt respectively — matching the requested 582.75pt/1125pt to well within
-    // WebView2's own internal rounding, across two independent runs. This is a real print-API
-    // parameter, not a CSS rule the engine might skip, so it isn't expected to regress the way the
-    // old mechanism did.
+    // ---- IWebRenderHost ----
 
     public Task<bool> EnsureReadyAsync() => Task.FromResult(_loaded);
 
@@ -516,9 +270,6 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     public async Task<bool> PrintToPdfAsync(string outputPath, PdfPageSetup setup)
     {
-        // Native path (Windows): reach straight through to the underlying WebView2, exactly like
-        // WinUI's MainWindow.xaml.cs and exactly like the Python TUI's Playwright page.pdf() call —
-        // a real print-API width/height parameter, not a CSS gamble. See the long comment above.
         if (OperatingSystem.IsWindows() &&
             PreviewWebView.TryGetPlatformHandle() is IWindowsWebView2PlatformHandle handle)
         {
@@ -537,14 +288,10 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             }
             catch
             {
-                // Fall through to the generic path below rather than fail the export outright —
-                // e.g. if CreateFromComICoreWebView2 ever rejects the pointer on some WebView2
-                // runtime version this hasn't been tested against.
+                // Fall through to generic path.
             }
         }
 
-        // Native path (Linux): same idea, different native API — see Hosting/LinuxNativePrint.cs
-        // for the full rationale and current verification status.
         if (OperatingSystem.IsLinux() &&
             PreviewWebView.TryGetPlatformHandle() is IGtkWebViewPlatformHandle gtkHandle)
         {
@@ -554,12 +301,10 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             }
             catch
             {
-                // Fall through to the generic path below, same rationale as the Windows path above.
+                // Fall through to generic path.
             }
         }
 
-        // Native path (macOS): same idea, different native API — see Hosting/MacNativePrint.cs for
-        // the full rationale and current verification status (unverified — no macOS hardware here).
         if (OperatingSystem.IsMacOS() &&
             PreviewWebView.TryGetPlatformHandle() is IAppleWKWebViewPlatformHandle appleHandle)
         {
@@ -569,13 +314,10 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             }
             catch
             {
-                // Fall through to the generic path below, same rationale as the Windows/Linux paths.
+                // Fall through to generic path.
             }
         }
 
-        // Fallback (any platform's native path above threw, or none applied): Avalonia's own print
-        // API, which can't express page size/margins — @page CSS injected by PdfExportService.cs is
-        // best-effort here and NOT confirmed reliable.
         try
         {
             var pdfStream = await PreviewWebView.PrintToPdfStreamAsync();
@@ -602,14 +344,6 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     // ---- IUiPrompts ----
 
-    // NativeWebView wraps a genuine OS-level window (WebView2 on Windows), which paints in the
-    // Win32 z-order rather than Avalonia's own compositor — so it always renders in front of
-    // Avalonia-drawn overlays like ContentDialog regardless of visual-tree z-index ("airspace"
-    // problem, a known limitation of hosted native controls in every UI framework that has them).
-    // Hiding it for the dialog's lifetime is the standard workaround: IsVisible=false unmaps the
-    // underlying native window, not just skips Avalonia-side painting, so the dialog is no longer
-    // obscured. The preview reappearing with stale content when the dialog closes is expected and
-    // harmless — nothing navigated away, it was just hidden.
     private async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
     {
         PreviewWebView.IsVisible = false;
@@ -617,88 +351,90 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         finally { PreviewWebView.IsVisible = true; }
     }
 
-    // "Create a theme": a color-wheel picker per theme element, prefilled from whatever theme is
-    // currently selected so users start from something coherent and nudge, rather than facing eight
-    // black swatches. Selecting an existing CUSTOM theme first turns this into its editor (same
-    // name prefilled, Delete offered). Saved themes persist via CustomThemeStore and are usable
-    // everywhere a built-in is — preview, PDF, DOCX, presets.
     private async void OnCreateThemeClick(object? sender, RoutedEventArgs e)
     {
-        var baseTheme = AppServices.Themes.GetOrDefault(ViewModel.SelectedThemeName);
-        var editingCustom = !AppServices.Themes.IsBuiltin(baseTheme.Name);
-
-        var nameBox = new TextBox
+        try
         {
-            Watermark = "Theme name",
-            Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
-        };
+            var baseTheme = AppServices.Themes.GetOrDefault(ViewModel.SelectedThemeName);
+            var editingCustom = !AppServices.Themes.IsBuiltin(baseTheme.Name);
 
-        (string Label, string Hint, string Hex)[] elements =
-        {
-            ("Background", "the page itself", baseTheme.Background),
-            ("Text", "body copy", baseTheme.Text),
-            ("Headings", "titles + accent", baseTheme.Heading),
-            ("Code blocks", "code + callout fill", baseTheme.Code),
-            ("Borders", "tables, rules, boxes", baseTheme.Border),
-            ("Primary", "labels inside diagrams", baseTheme.Primary),
-            ("Panels", "quote/alert backgrounds", baseTheme.Secondary),
-            ("Lines", "diagram connectors", baseTheme.Line),
-        };
-
-        var pickers = new ColorPicker[elements.Length];
-        var rows = new StackPanel { Spacing = 8 };
-        rows.Children.Add(nameBox);
-        for (int i = 0; i < elements.Length; i++)
-        {
-            pickers[i] = new ColorPicker
+            var nameBox = new TextBox
             {
-                Color = Color.Parse(elements[i].Hex),
-                IsAlphaEnabled = false,
-                HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
-                MinWidth = 90,
+                Watermark = "Theme name",
+                Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
             };
-            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-            var label = new StackPanel { VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
-            label.Children.Add(new TextBlock { Text = elements[i].Label });
-            label.Children.Add(new TextBlock { Text = elements[i].Hint, FontSize = 11, Opacity = 0.6 });
-            Grid.SetColumn(label, 0);
-            Grid.SetColumn(pickers[i], 1);
-            grid.Children.Add(label);
-            grid.Children.Add(pickers[i]);
-            rows.Children.Add(grid);
+
+            (string Label, string Hint, string Hex)[] elements =
+            {
+                ("Background", "the page itself", baseTheme.Background),
+                ("Text", "body copy", baseTheme.Text),
+                ("Headings", "titles + accent", baseTheme.Heading),
+                ("Code blocks", "code + callout fill", baseTheme.Code),
+                ("Borders", "tables, rules, boxes", baseTheme.Border),
+                ("Primary", "labels inside diagrams", baseTheme.Primary),
+                ("Panels", "quote/alert backgrounds", baseTheme.Secondary),
+                ("Lines", "diagram connectors", baseTheme.Line),
+            };
+
+            var pickers = new ColorPicker[elements.Length];
+            var rows = new StackPanel { Spacing = 8 };
+            rows.Children.Add(nameBox);
+            for (int i = 0; i < elements.Length; i++)
+            {
+                pickers[i] = new ColorPicker
+                {
+                    Color = Color.Parse(elements[i].Hex),
+                    IsAlphaEnabled = false,
+                    HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Right,
+                    MinWidth = 90,
+                };
+                var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+                var label = new StackPanel { VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
+                label.Children.Add(new TextBlock { Text = elements[i].Label });
+                label.Children.Add(new TextBlock { Text = elements[i].Hint, FontSize = 11, Opacity = 0.6 });
+                Grid.SetColumn(label, 0);
+                Grid.SetColumn(pickers[i], 1);
+                grid.Children.Add(label);
+                grid.Children.Add(pickers[i]);
+                rows.Children.Add(grid);
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
+                Content = new ScrollViewer { Content = rows, MaxHeight = 520 },
+                PrimaryButtonText = "Save theme",
+                SecondaryButtonText = editingCustom ? "Delete" : null,
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+            };
+
+            var result = await ShowDialogAsync(dialog);
+
+            if (result == ContentDialogResult.Secondary && editingCustom)
+            {
+                CustomThemeStore.Remove(baseTheme.Name);
+                RefreshThemeNames(select: AppServices.Themes.All[0].Name);
+                return;
+            }
+            if (result != ContentDialogResult.Primary) return;
+
+            var name = (nameBox.Text ?? "").Trim();
+            if (name.Length == 0) name = "My theme";
+            if (AppServices.Themes.IsBuiltin(name)) name += " (custom)";
+
+            static string Hex(Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
+            CustomThemeStore.AddOrUpdate(new Models.ThemeDefinition(
+                name,
+                Hex(pickers[0].Color), Hex(pickers[1].Color), Hex(pickers[2].Color), Hex(pickers[3].Color),
+                Hex(pickers[4].Color), Hex(pickers[5].Color), Hex(pickers[6].Color), Hex(pickers[7].Color)));
+            RefreshThemeNames(select: name);
         }
-
-        var dialog = new ContentDialog
+        catch (Exception ex)
         {
-            Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
-            Content = new ScrollViewer { Content = rows, MaxHeight = 520 },
-            PrimaryButtonText = "Save theme",
-            SecondaryButtonText = editingCustom ? "Delete" : null,
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-        };
-
-        var result = await ShowDialogAsync(dialog);
-
-        if (result == ContentDialogResult.Secondary && editingCustom)
-        {
-            CustomThemeStore.Remove(baseTheme.Name);
-            RefreshThemeNames(select: AppServices.Themes.All[0].Name);
-            return;
+            ViewModel.StatusText = $"Theme creation failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
-        if (result != ContentDialogResult.Primary) return;
-
-        var name = (nameBox.Text ?? "").Trim();
-        if (name.Length == 0) name = "My theme";
-        // Never shadow a built-in: saving under a stock name would make GetOrDefault ambiguous.
-        if (AppServices.Themes.IsBuiltin(name)) name += " (custom)";
-
-        static string Hex(Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
-        CustomThemeStore.AddOrUpdate(new Models.ThemeDefinition(
-            name,
-            Hex(pickers[0].Color), Hex(pickers[1].Color), Hex(pickers[2].Color), Hex(pickers[3].Color),
-            Hex(pickers[4].Color), Hex(pickers[5].Color), Hex(pickers[6].Color), Hex(pickers[7].Color)));
-        RefreshThemeNames(select: name);
     }
 
     private void RefreshThemeNames(string select)
@@ -706,7 +442,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         var vm = ViewModel;
         vm.ThemeNames.Clear();
         foreach (var t in AppServices.Themes.All) vm.ThemeNames.Add(t.Name);
-        vm.SelectedThemeName = select; // triggers the debounced preview refresh
+        vm.SelectedThemeName = select;
     }
 
     public async Task<int> AskOversizedDiagramModeAsync()
@@ -740,7 +476,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             SecondaryButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        
+
         var result = await ShowDialogAsync(dialog);
         if (result != ContentDialogResult.Primary) return 1;
 
@@ -749,6 +485,11 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         if (rbCompactShapes.IsChecked == true) return 7;
         if (rbUltraCompact.IsChecked == true) return 8;
         return 1;
+    }
+
+    public Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity)
+    {
+        return AmbiguityResolverDialog.ShowAsync(this, ambiguity);
     }
 
     // ---- Preview ----
@@ -767,6 +508,14 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         await NavigateToStringAsync(html);
     }
 
+    private async void OnGetExtensionClick(object? sender, RoutedEventArgs e)
+    {
+        try { await global::Avalonia.Controls.TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
+        catch { /* no browser */ }
+    }
+
+    private void OnExtensionTipClosed(object? sender, RoutedEventArgs args) => ViewModel.ShowExtensionTip = false;
+
     private static readonly HashSet<string> AutomationProperties = new()
     {
         nameof(MainViewModel.AutoClipboardIngest),
@@ -776,6 +525,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         nameof(MainViewModel.ApiPort),
     };
 
+    private static SemaphoreSlim _convertLock => AppServices.ExportCoordinator.ConvertLock;
     private bool _plainPasteHintShown;
     private int _lastMarkdownLen;
     private const int HeavyChangeThreshold = 250;
@@ -791,21 +541,23 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private static bool LooksLikePlainText(string t)
     {
+        var lineCount = 0;
+        for (int i = 0; i < t.Length; i++) if (t[i] == '\n') lineCount++;
+        if (lineCount < 5) return false;
+        if (t.Contains('#') || t.Contains("```") || t.Contains("**") || t.Contains("- ")) return false;
         return true;
     }
-
-    private async void OnGetExtensionClick(object? sender, RoutedEventArgs e)
-    {
-        try { await global::Avalonia.Controls.TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
-        catch { /* no browser */ }
-    }
-
-    private void OnExtensionTipClosed(object sender, global::Avalonia.Interactivity.RoutedEventArgs args) => ViewModel.ShowExtensionTip = false;
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.PastedMarkdown))
         {
+            if (!_isUpdatingEditor && MarkdownEditor.Text != ViewModel.PastedMarkdown)
+            {
+                _isUpdatingEditor = true;
+                MarkdownEditor.Text = ViewModel.PastedMarkdown;
+                _isUpdatingEditor = false;
+            }
             var len = ViewModel.PastedMarkdown?.Length ?? 0;
             if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
             {
@@ -813,7 +565,6 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             }
             _lastMarkdownLen = len;
             _previewDebounce.Stop();
-            _previewDebounce.Start();
         }
         else if (e.PropertyName is nameof(MainViewModel.InputFilePath)
             or nameof(MainViewModel.UsePasteSource) or nameof(MainViewModel.SelectedThemeName)
@@ -1224,4 +975,66 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private async void OnConvertDocxClick(object? sender, RoutedEventArgs e) =>
         await ViewModel.ConvertToDocxAsync();
+
+    private async void OnPreviewWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var json = e.TryGetWebMessageAsString();
+            if (string.IsNullOrEmpty(json)) return;
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("type", out var typeProp)) return;
+            var type = typeProp.GetString();
+
+            if (type == "mermaid-error")
+            {
+                var error = root.GetProperty("error").GetString() ?? "Unknown parse error";
+                System.Diagnostics.Debug.WriteLine($"[Mermaid Error] {error}");
+                ViewModel.StatusText = $"Mermaid Syntax Error: {error}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            if (type == "page-overflow")
+            {
+                var elements = root.GetProperty("elements");
+                var desc = string.Join(", ", elements.EnumerateArray().Select(el => el.GetProperty("element").GetString()));
+                System.Diagnostics.Debug.WriteLine($"[Page Overflow] Elements overflow: {desc}");
+                ViewModel.StatusText = $"Page Overflow: {desc} exceed page width.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            if (type != "save-diagram") return;
+
+            var format = root.GetProperty("format").GetString() ?? "png";
+            var data = root.GetProperty("data").GetString() ?? "";
+
+            var topLevel = global::Avalonia.Controls.TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save Diagram",
+                SuggestedFileName = "diagram",
+                DefaultExtension = format,
+                FileTypeChoices = new[] { new FilePickerFileType(format.ToUpperInvariant() + " image") { Patterns = new[] { "*." + format } } }
+            });
+            if (file is null) return;
+
+            var localPath = file.Path.LocalPath;
+            if (format == "svg")
+                await File.WriteAllTextAsync(localPath, data);
+            else
+            {
+                var b64 = data.Contains(',') ? data[(data.IndexOf(',') + 1)..] : data;
+                await File.WriteAllBytesAsync(localPath, Convert.FromBase64String(b64));
+            }
+            ViewModel.StatusText = $"Diagram saved: {localPath}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Error processing message: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
 }

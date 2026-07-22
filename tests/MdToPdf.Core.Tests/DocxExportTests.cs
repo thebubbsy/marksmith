@@ -80,7 +80,9 @@ public class DocxExportTests
     [Fact] public void Admonition_becomes_alert_box() => Assert.Contains("NOTE", Export(":::note\nhello there\n:::"));
     [Fact] public void Fence_caption_lands_bold() => Assert.Contains("train.py", Export("```python title=\"train.py\"\nx=1\n```"));
     [Fact] public void Content_tab_labels_land() { var x = Export("=== \"Windows\"\n    body a\n=== \"macOS\"\n    body b"); Assert.Contains("Windows", x); Assert.DoesNotContain("===", x); }
-    [Fact] public void Wikilink_text_clean_in_docx() { var x = Export("see [[Project Phoenix]] now"); Assert.Contains("Project Phoenix", x); Assert.DoesNotContain("[[", x); }
+    [Fact] public void Wikilink_text_clean_in_docx() { var x = Export("see [[Project Phoenix]] now"); Assert.Contains("Project Phoenix", x); Assert.DoesNotContain("[[", x); Assert.Contains("w:val=\"dash\"", x); Assert.Contains("<w:noProof", x); }
+    [Fact] public void Double_hyphen_converted_in_docx() { var x = Export("hello -- world"); Assert.Contains("hello — world", x); }
+
     [Fact] public void Long_document_exports() { var md = string.Join("\n\n", Enumerable.Range(1, 200).Select(i => $"## Section {i}\n\nParagraph {i} content.")); Assert.Contains("Section 200", Export(md)); }
     [Fact] public void Local_image_embedded_as_picture()
     {

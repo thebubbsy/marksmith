@@ -30,14 +30,14 @@ public sealed class MermaidHarvestService
     {
         var fences = ExtractFences(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) return new();
+        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
             <!DOCTYPE html><html><head><meta charset="UTF-8">
             <script src="{{Services.WebAssets.Mermaid}}"></script></head>
             <body><script>
-            window.__pngs = null;
+            window.__pngs = null; window.__err = null; window.onerror = function(m) { window.__err = m; }; window.onunhandledrejection = function(e) { window.__err = e.reason; };
             const sources = {{sourcesJson}};
             mermaid.initialize({ startOnLoad: false, theme: "base",
               themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
@@ -107,7 +107,7 @@ public sealed class MermaidHarvestService
     {
         var fences = ExtractFences(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) return new();
+        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
@@ -121,6 +121,7 @@ public sealed class MermaidHarvestService
             function T(node, root) { // node centre in root coords (getCTM is relative to the svg)
               const m = node.getCTM ? node.getCTM() : null; return m ? [m.e, m.f] : [0, 0]; }
             function kindOf(n) {
+              if (n.classList && n.classList.contains("cluster")) return "Subgraph";
               if (n.querySelector("circle")) return "Circle";
               if (n.querySelector("ellipse")) return "Ellipse";
               const p = n.querySelector("polygon");
@@ -134,7 +135,7 @@ public sealed class MermaidHarvestService
               return (ts.length ? ts.join("\n") : (n.textContent||"")).trim();
             }
             function harvest(svgEl) {
-              const nodes = [...svgEl.querySelectorAll("g.node")].map(n => {
+              const nodes = [...svgEl.querySelectorAll("g.node, g.cluster")].map(n => {
                 const [cx, cy] = T(n); let bb = {width:0,height:0}; try { bb = n.getBBox(); } catch(e) {}
                 const r = n.querySelector("rect");
                 const w = r ? parseFloat(r.getAttribute("width")) : bb.width;
@@ -181,7 +182,7 @@ public sealed class MermaidHarvestService
                   void el.getBoundingClientRect(); // force synchronous layout before measuring
                   window.__svg = svg; // DUMP FOR DIAGNOSTICS
                   out.push(harvest(el)); holder.remove();
-                } catch (e) { window.__err = (window.__err||"") + " | fence" + i + ": " + (e && e.message); out.push(null); }
+                } catch (e) { window.__geo = "ERROR: " + (e && e.message); return; }
               }
               window.__geo = JSON.stringify(out);
             })();
@@ -200,10 +201,10 @@ public sealed class MermaidHarvestService
                 var err = await host.ExecuteScriptAsync("window.__err");
                 var svg = await host.ExecuteScriptAsync("window.__svg");
                 if (svg != null && svg != "null") {
-                    try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "msvg.txt"), System.Text.Json.JsonSerializer.Deserialize<string>(svg)); } catch {}
+                    try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "msvg.txt"), System.Text.Json.JsonSerializer.Deserialize<string>(svg)); } catch {}
                 }
                 if (err != null && err != "null") {
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "merr.txt"), $"\n[JS_ERR] {err}\n"); } catch {}
+                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "merr.txt"), $"\n[JS_ERR] {err}\n"); } catch {}
                 }
                 
                 if (raw is null or "null" or "\"null\"") continue;
@@ -231,7 +232,7 @@ public sealed class MermaidHarvestService
     {
         var fences = ExtractFences(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) return new();
+        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
@@ -307,3 +308,7 @@ public sealed class MermaidHarvestService
         return result;
     }
 }
+
+
+
+

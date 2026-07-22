@@ -1,0 +1,22 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Binary files
+*.png binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.epub binary
+*.zip binary
+*.jar binary
+*.tar.gz binary
+*.exe binary
+*.dll binary
+
+# Exclusions from git archive / export
+.agents/ export-ignore
+scratch/ export-ignore
+wv2debug/ export-ignore
+publish_dir/ export-ignore
+.gitignore export-ignore

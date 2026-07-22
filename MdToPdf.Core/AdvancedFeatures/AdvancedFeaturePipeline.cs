@@ -168,6 +168,8 @@ namespace MdToPdf.Core.AdvancedFeatures
 
             int charIndex = 0;
 
+            int depth = 0;
+
             for (int i = 0; i < lines.Length; i++)
             {
                 var line = lines[i].TrimEnd('\r');
@@ -197,7 +199,7 @@ namespace MdToPdf.Core.AdvancedFeatures
                 }
 
                 // Outside code fences: detect ::: blocks
-                if (blockStartIndex < 0)
+                if (depth == 0)
                 {
                     // Look for an opening ::: marker (e.g., :::columns count=3)
                     if (Regex.IsMatch(trimmed, @"^:::[a-zA-Z]"))
@@ -205,26 +207,35 @@ namespace MdToPdf.Core.AdvancedFeatures
                         blockStartIndex = charIndex;
                         blockStartLine = i;
                         blockOpenLine = line;
+                        depth = 1;
                     }
                 }
                 else
                 {
-                    // We're inside a ::: block — look for the closing :::
-                    if (trimmed == ":::")
+                    // We're inside a ::: block — track depth for nested ::: containers
+                    if (Regex.IsMatch(trimmed, @"^:::[a-zA-Z]"))
                     {
-                        var endIndex = charIndex + lines[i].Length;
-                        var rawText = markdown.Substring(blockStartIndex, endIndex - blockStartIndex);
-
-                        blocks.Add(new MarkdownBlock
+                        depth++;
+                    }
+                    else if (trimmed == ":::")
+                    {
+                        depth--;
+                        if (depth == 0)
                         {
-                            RawText = rawText,
-                            Start = blockStartIndex,
-                            End = endIndex
-                        });
+                            var endIndex = charIndex + lines[i].Length;
+                            var rawText = markdown.Substring(blockStartIndex, endIndex - blockStartIndex);
 
-                        blockStartIndex = -1;
-                        blockStartLine = -1;
-                        blockOpenLine = null;
+                            blocks.Add(new MarkdownBlock
+                            {
+                                RawText = rawText,
+                                Start = blockStartIndex,
+                                End = endIndex
+                            });
+
+                            blockStartIndex = -1;
+                            blockStartLine = -1;
+                            blockOpenLine = null;
+                        }
                     }
                 }
 

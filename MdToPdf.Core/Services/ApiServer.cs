@@ -170,7 +170,8 @@ public sealed class ApiServer : IDisposable
                 return;
             }
             // Echo the specific caller's origin (never blanket "*"), so only trusted origins can read.
-            ctx.Response.AddHeader("Access-Control-Allow-Origin", string.IsNullOrEmpty(origin) ? "*" : origin);
+            var allowOriginHeader = string.IsNullOrEmpty(origin) ? $"http://127.0.0.1:{Port}" : origin;
+            ctx.Response.AddHeader("Access-Control-Allow-Origin", allowOriginHeader);
             ctx.Response.AddHeader("Vary", "Origin");
             ctx.Response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             ctx.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
