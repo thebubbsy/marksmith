@@ -77,6 +77,10 @@ tools/licensing/*-key.txt
 license.json
 license_keys.json
 store/store-credentials.json
-.env
-.env.*
-
+# AI Agent & Internal Tooling Artifacts — never commit
+AGENTS.md
+AGENTS*.md
+AGENT_LEARNINGS_*.md
+.agents/
+audit_report.md
+*_report.md
