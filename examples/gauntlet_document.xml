@@ -1416,6 +1416,7 @@
           <w:p>
             <w:r>
               <w:rPr>
+                <w:color w:val="1b1f23" />
                 <w:b />
                 <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
                   <mc:Choice Requires="w14">
@@ -1436,6 +1437,7 @@
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
                 <w:noProof />
+                <w:color w:val="1b1f23" />
                 <w:sz w:val="20" />
                 <w:bdr w:val="single" w:color="auto" w:sz="4" w:space="1" />
                 <w:shd w:val="clear" w:color="auto" w:fill="auto" />
@@ -1456,6 +1458,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">Inline math in cells must render: </w:t>
             </w:r>
@@ -1513,6 +1516,7 @@
           <w:p>
             <w:r>
               <w:rPr>
+                <w:color w:val="1b1f23" />
                 <w:b />
                 <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
                   <mc:Choice Requires="w14">
@@ -1542,6 +1546,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">Inline </w:t>
             </w:r>
@@ -1549,6 +1554,7 @@
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
                 <w:noProof />
+                <w:color w:val="1b1f23" />
                 <w:sz w:val="20" />
                 <w:bdr w:val="single" w:color="auto" w:sz="4" w:space="1" />
                 <w:shd w:val="clear" w:color="auto" w:fill="auto" />
@@ -1565,6 +1571,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> and block: </w:t>
             </w:r>
@@ -1579,12 +1586,14 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
                 <w:noProof />
+                <w:color w:val="1b1f23" />
                 <w:sz w:val="20" />
                 <w:bdr w:val="single" w:color="auto" w:sz="4" w:space="1" />
                 <w:shd w:val="clear" w:color="auto" w:fill="auto" />
@@ -1608,6 +1617,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">Code blocks inside tables must not overflow the cell boundary or cause vertical collapse.</w:t>
             </w:r>
@@ -1622,6 +1632,7 @@
           <w:p>
             <w:r>
               <w:rPr>
+                <w:color w:val="1b1f23" />
                 <w:b />
                 <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
                   <mc:Choice Requires="w14">
@@ -1648,6 +1659,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">1. Step A </w:t>
             </w:r>
@@ -1662,6 +1674,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
@@ -1674,19 +1687,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
-              </w:rPr>
-              <w:t xml:space="preserve"> </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
-                  <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                  </mc:Choice>
-                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1700,6 +1701,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1713,6 +1715,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1726,6 +1729,21 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
+              </w:rPr>
+              <w:t xml:space="preserve"> </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                  <mc:Choice Requires="w14">
+                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                  </mc:Choice>
+                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">- Detail 1</w:t>
             </w:r>
@@ -1740,6 +1758,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
@@ -1752,19 +1771,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
-              </w:rPr>
-              <w:t xml:space="preserve"> </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
-                  <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                  </mc:Choice>
-                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1778,6 +1785,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1791,6 +1799,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1804,6 +1813,21 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
+              </w:rPr>
+              <w:t xml:space="preserve"> </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                  <mc:Choice Requires="w14">
+                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                  </mc:Choice>
+                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">- Detail 2</w:t>
             </w:r>
@@ -1821,6 +1845,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">Lists must align inside cells: </w:t>
             </w:r>
@@ -1835,6 +1860,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
@@ -1847,6 +1873,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">- Subitem 1</w:t>
             </w:r>
@@ -1861,6 +1888,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
@@ -1873,6 +1901,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">- Subitem 2</w:t>
             </w:r>
@@ -1890,6 +1919,7 @@
           <w:p>
             <w:r>
               <w:rPr>
+                <w:color w:val="1b1f23" />
                 <w:b />
                 <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
                   <mc:Choice Requires="w14">
@@ -1913,6 +1943,7 @@
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
                 <w:noProof />
+                <w:color w:val="1b1f23" />
                 <w:sz w:val="20" />
                 <w:bdr w:val="single" w:color="auto" w:sz="4" w:space="1" />
                 <w:shd w:val="clear" w:color="auto" w:fill="auto" />
@@ -1929,6 +1960,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve"> </w:t>
             </w:r>
@@ -1943,12 +1975,14 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
             </w:r>
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
                 <w:noProof />
+                <w:color w:val="1b1f23" />
                 <w:sz w:val="20" />
                 <w:bdr w:val="single" w:color="auto" w:sz="4" w:space="1" />
                 <w:shd w:val="clear" w:color="auto" w:fill="auto" />
@@ -1972,6 +2006,7 @@
                     <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
                   </mc:Choice>
                 </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
               </w:rPr>
               <w:t xml:space="preserve">Admonitions should retain their borders and background padding within the grid.</w:t>
             </w:r>
@@ -3640,8 +3675,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="Rf438b1d38d6e407c" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R10a119e82d1d4362" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="Rf0238f98e04743c9" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="R55326e8338a84c21" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
       <w:pgBorders w:display="allPages" w:offsetFrom="page">
