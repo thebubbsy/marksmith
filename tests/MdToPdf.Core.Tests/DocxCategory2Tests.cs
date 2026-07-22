@@ -226,4 +226,43 @@ public class DocxCategory2Tests
         }
         finally { if (File.Exists(docPath)) File.Delete(docPath); }
     }
+
+    [Fact]
+    public async Task M2_Doc5_ListsAndBlockquotes_Export()
+    {
+        var md = @"# Product Launch Task Checklist
+
+## 1. Pre-launch Requirements
+- [x] Code freeze completed and tagged `v1.0.0`
+- [x] Security audit & penetration testing passed
+- [ ] Finalize customer documentation and release notes
+
+## 2. Infrastructure Setup
+1. Provision production clusters
+   - Region 1: US East (N. Virginia)
+   - Region 2: EU West (Ireland)
+2. Configure DNS & Cloudflare CDN
+
+> ""Quality means doing it right when no one is looking.""
+> — *Henry Ford*";
+
+        var outDir1 = @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\scratch";
+        var outDir2 = @"C:\Users\Tony\.gemini\antigravity\brain\9af96a1c-e0cd-4e81-a5b4-2a78e8d0d29f\scratch";
+        Directory.CreateDirectory(outDir1);
+        Directory.CreateDirectory(outDir2);
+
+        var docxPath = Path.Combine(outDir1, "doc5.docx");
+        var service = new DocxExportService();
+        await service.ExportAsync(md, docxPath, new AppSettings());
+
+        using var zip = ZipFile.OpenRead(docxPath);
+        var entry = zip.GetEntry("word/document.xml")!;
+        
+        var xmlPath1 = Path.Combine(outDir1, "Doc5_ListsAndBlockquotes_document.xml");
+        var xmlPath2 = Path.Combine(outDir2, "Doc5_ListsAndBlockquotes_document.xml");
+
+        entry.ExtractToFile(xmlPath1, overwrite: true);
+        File.Copy(xmlPath1, xmlPath2, overwrite: true);
+    }
 }
+

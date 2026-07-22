@@ -91,4 +91,35 @@ public class DocxExportTests
         try { Assert.Contains("<pic:pic", Export($"![shot]({tmp})")); }
         finally { File.Delete(tmp); }
     }
+
+    [Fact]
+    public async Task GenerateDoc3()
+    {
+        var md = @"# Automated Order Processing Architecture
+
+## Pipeline Workflow
+
+```mermaid
+flowchart LR
+  A[Customer Order] --> B{Payment Gateway}
+  B -- Approved --> C[Warehouse Fulfillment]
+  B -- Declined --> D[Notify Customer]
+  C --> E[Carrier Dispatch]
+```
+
+Every stage in this pipeline emits real-time telemetry events to Kafka.";
+
+        var scratchDir = @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\scratch";
+        Directory.CreateDirectory(scratchDir);
+        var docxPath = Path.Combine(scratchDir, "doc3.docx");
+        var xmlPath1 = Path.Combine(scratchDir, "Doc3_MermaidFlowchart_document.xml");
+        var xmlPath2 = @"C:\Users\Tony\.gemini\antigravity\scratch\Doc3_MermaidFlowchart_document.xml";
+
+        await new DocxExportService().ExportAsync(md, docxPath, new AppSettings());
+
+        using var zip = ZipFile.OpenRead(docxPath);
+        var entry = zip.GetEntry("word/document.xml")!;
+        entry.ExtractToFile(xmlPath1, true);
+        File.Copy(xmlPath1, xmlPath2, true);
+    }
 }

@@ -65,6 +65,18 @@ store/store-credentials.json
 Thumbs.db
 .DS_Store
 
-# Licensing — private signing key and generated keys
+# Licensing & Security — private signing keys, credentials, and certificates
 tools/licensing/private-key.pem
 tools/licensing/*-key.txt
+*.pem
+*.key
+*.pfx
+*.p12
+*.snk
+*.license
+license.json
+license_keys.json
+store/store-credentials.json
+.env
+.env.*
+
