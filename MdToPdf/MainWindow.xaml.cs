@@ -501,8 +501,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         > [!TIP]
         > Everything here survives export: the table, the math, and the diagrams.
+        
+        ---
+        
+        # Table of Contents
+        
+        - [Data Tables](#data-tables)
+        - [Math](#math)
+        - [Diagrams](#diagrams)
+        - [Formatting & Code](#formatting--code)
+        - [Definition Lists](#definition-lists)
+        - [Task Lists](#task-lists)
+        - [Admonitions](#admonitions)
 
-        ## Numbers that hold up
+        ---
+
+        ## Data Tables
 
         | Region | Revenue | Change |
         |--------|---------|--------|
@@ -510,10 +524,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         | EU     | $3.1M   | +5%    |
         | US     | $5.5M   | +9%    |
 
+        ---
+        
+        ## Math
+
         Reserves follow $R = \sum_{i=1}^{n} p_i \cdot L_i$ — and in Word export this becomes a
         real, editable equation, not a picture.
+        
+        Block equations work too:
+        $$
+        \begin{bmatrix}
+        1 & 2 & 3 \\
+        4 & 5 & 6 \\
+        7 & 8 & 9
+        \end{bmatrix}
+        $$
 
-        ## A live diagram
+        ---
+        
+        ## Diagrams
+
+        ### Mermaid Flowchart
 
         ```mermaid
         flowchart LR
@@ -522,15 +553,73 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
           B --> D[Editable Word]
         ```
 
-        ## Plugin engines
+        ### PlantUML Sequence
 
         ```plantuml
+        @startuml
         You -> Marksmith: paste markdown
         Marksmith --> You: finished document
+        @enduml
         ```
-
+        
+        ### Graphviz
+        
+        ```graphviz
+        digraph G {
+            A -> B;
+            A -> C;
+            B -> D;
+            C -> D;
+        }
+        ```
+        
         Six diagram languages render from plain code fences — Mermaid is built in, and PlantUML,
         Graphviz, D2, Typst and Vega-Lite are one-click installs in **Settings → Plugins**.
+        
+        ---
+        
+        ## Formatting & Code
+        
+        *Italic*, **Bold**, ***Bold Italic***, ~~Strikethrough~~, ==Highlight==, and `Inline code`.
+        Subscript: H~2~O | Superscript: X^2^
+        
+        ```python
+        def hello_world():
+            print("Syntax highlighting works!")
+        ```
+        
+        ---
+        
+        ## Definition Lists
+        
+        Marksmith
+        : The tool you are using right now.
+        
+        Markdown
+        : A lightweight markup language.
+        
+        ---
+        
+        ## Task Lists
+        
+        - [x] Completed task
+        - [ ] Incomplete task
+        
+        ---
+        
+        ## Admonitions
+        
+        > [!WARNING]
+        > This is a warning admonition.
+        
+        !!! note
+            Python Markdown style admonitions work too!
+            
+        ---
+        
+        ## Try it yourself!
+        
+        Try editing this markdown in the textbox on the left to see the live preview instantly update.
         """;
 
     private void LoadSampleDocument()
