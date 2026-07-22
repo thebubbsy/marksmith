@@ -1550,14 +1550,13 @@ public sealed class DocxExportService
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex }));
 
         var title = new W.Paragraph();
-        // No-emoji mode still gets a marker â€” a plain geometric glyph (text-presentation Unicode,
-        // not emoji) that picks up the accent color from the title run, reading as a colored badge.
         var textGlyph = kind.ToLowerInvariant() switch
         {
-            "note" => "â—", "tip" => "â—†", "important" => "â– ", "warning" => "â–²", "caution" => "âœ•", _ => "â—",
+            "note" => "ℹ️", "tip" => "💡", "important" => "📌", "warning" => "⚠️", "caution" => "🛑", _ => "ℹ️",
         };
         var titleText = $"{(ctx.NoEmoji ? textGlyph : icon)} {kind.ToUpperInvariant()}";
-        AddText(title, titleText, new Fmt { Bold = true, Color = accentHex });
+        var titleColor = ContrastGuard.EnsureLegibleText(accentHex, ctx.SecondaryHex);
+        AddText(title, titleText, new Fmt { Bold = true, Color = titleColor });
         cell.Append(title);
 
         foreach (var child in alert)
@@ -1565,12 +1564,12 @@ public sealed class DocxExportService
         if (cell.LastChild is not W.Paragraph)
             cell.Append(new W.Paragraph());
 
-        // The cell background is the theme secondary color, which is dark for dark themes â€” force
-        // the theme text color onto runs that don't already carry one so content stays readable.
+        // The cell background is the theme secondary color — force high-contrast text color against ctx.SecondaryHex.
         foreach (var run in cell.Descendants<W.Run>())
         {
             run.RunProperties ??= new W.RunProperties();
-            run.RunProperties.Color ??= new W.Color { Val = ctx.Theme.Text.TrimStart('#') };
+            var existingColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
+            run.RunProperties.Color = new W.Color { Val = ContrastGuard.EnsureLegibleText(existingColor, ctx.SecondaryHex) };
         }
 
         target.Append(new W.Table(
@@ -1914,16 +1913,13 @@ public sealed class DocxExportService
                     }
                 }
 
-                if (row.IsHeader)
+                var cellBg = (row.IsHeader ? ctx.CodeHex : (banded ? ctx.SecondaryHex : ctx.Theme.Background)).TrimStart('#');
+                foreach (var run in wCell.Descendants<W.Run>())
                 {
-                    // Header fill is the theme code color (dark on dark themes) â€” bold the text and
-                    // give it the theme text color, matching the HTML th styling.
-                    foreach (var run in wCell.Descendants<W.Run>())
-                    {
-                        run.RunProperties ??= new W.RunProperties();
-                        run.RunProperties.Bold ??= new W.Bold();
-                        run.RunProperties.Color ??= new W.Color { Val = ctx.Theme.Text.TrimStart('#') };
-                    }
+                    run.RunProperties ??= new W.RunProperties();
+                    if (row.IsHeader) run.RunProperties.Bold ??= new W.Bold();
+                    var curColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
+                    run.RunProperties.Color = new W.Color { Val = ContrastGuard.EnsureLegibleText(curColor, cellBg) };
                 }
 
                 wRow.Append(wCell);
@@ -2379,15 +2375,28 @@ public sealed class DocxExportService
             });
         }
 
+        var legibleLink = ContrastGuard.EnsureLegibleText(ctx.LinkColor, ctx.Theme.Background);
         styles.Append(new W.Style(
             new W.StyleName { Val = "Hyperlink" },
             new W.StyleRunProperties(
-                new W.Color { Val = ctx.LinkColor },
+                new W.Color { Val = legibleLink },
                 new W.Underline { Val = W.UnderlineValues.Single }))
         {
             Type = W.StyleValues.Character,
             StyleId = "Hyperlink",
         });
+
+        for (int i = 1; i <= 3; i++)
+        {
+            styles.Append(new W.Style(
+                new W.StyleName { Val = $"toc {i}" },
+                new W.BasedOn { Val = "Normal" },
+                new W.StyleRunProperties(new W.Color { Val = defaultText }))
+            {
+                Type = W.StyleValues.Paragraph,
+                StyleId = $"TOC{i}",
+            });
+        }
 
         part.Styles = styles;
     }
