@@ -413,14 +413,41 @@ public sealed class MarkdownHtmlService
                     banner.style.display = "none";
                 }
             }
+            function updatePageBreaks() {
+                if ({{settings.UnlimitedHeight.ToString().ToLower()}}) return;
+                const canvas = document.getElementById("canvas");
+                if (!canvas) return;
+
+                document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
+
+                // Page height at 96 DPI (A4 = 1123px, printable content block = 1040px)
+                const pageHeight = 1040;
+                const totalHeight = canvas.scrollHeight;
+                if (totalHeight <= pageHeight + 50) return;
+
+                const pageCount = Math.ceil(totalHeight / pageHeight);
+                for (let i = 1; i < pageCount; i++) {
+                    const gap = document.createElement("div");
+                    gap.className = "page-break-gap";
+                    gap.style.top = (i * pageHeight) + "px";
+                    gap.setAttribute("data-page", "Page " + i + " Break · Page " + (i + 1) + " Starts Below");
+                    canvas.appendChild(gap);
+                }
+            }
+
             window.addEventListener("load", () => {
                 setTimeout(checkPageOverflow, 800);
+                setTimeout(updatePageBreaks, 600);
             });
-            window.addEventListener("resize", checkPageOverflow);
+            window.addEventListener("resize", () => {
+                checkPageOverflow();
+                updatePageBreaks();
+            });
             
             // Also monitor DOM mutations in case of dynamically injected content
             const observer = new MutationObserver((mutations) => {
                 setTimeout(checkPageOverflow, 200);
+                setTimeout(updatePageBreaks, 300);
             });
             observer.observe(canvas, { childList: true, subtree: true });
             </script>
@@ -516,6 +543,39 @@ public sealed class MarkdownHtmlService
             .mermaid-error-card pre { background: #fff0f0; border: none; padding: 8px; margin: 8px 0 0 0; color: #9b2c2c; font-family: monospace; font-size: 13px; overflow-x: auto; }
             body.ms-dark .mermaid-error-card { background: #2d1a1a; color: #f5c2c2; border-color: #e53e3e; }
             body.ms-dark .mermaid-error-card pre { background: #3d1f1f; color: #feb2b2; }
+            
+            /* Multi-Page Preview Dividers showing backdrop between pages */
+            #canvas { position: relative; }
+            .page-break-gap {
+                position: absolute;
+                left: -40px;
+                right: -40px;
+                height: 24px;
+                margin-top: -12px;
+                background: {{workspaceBg}};
+                border-top: 1px dashed {{theme.Border}};
+                border-bottom: 1px dashed {{theme.Border}};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                user-select: none;
+                pointer-events: none;
+                z-index: 100;
+            }
+            .page-break-gap::after {
+                content: attr(data-page);
+                background: {{theme.Secondary}};
+                color: {{theme.Text}};
+                border: 1px solid {{theme.Border}};
+                border-radius: 999px;
+                padding: 2px 14px;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                opacity: 0.9;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            }
             
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
