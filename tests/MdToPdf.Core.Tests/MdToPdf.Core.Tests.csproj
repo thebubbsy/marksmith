@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\MdToPdf.Core\MdToPdf.Core.csproj" />
+    <ProjectReference Include="..\..\MdToPdf.Avalonia\MdToPdf.Avalonia.csproj" />
   </ItemGroup>
 </Project>

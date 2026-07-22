@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace MdToPdf.Plugins;
@@ -17,20 +19,32 @@ public static class SvgSanitizer
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // on<name>= followed by a single-, double-, or unquoted value.
-    private static readonly Regex EventHandlerAttr = new("\\son[a-zA-Z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+    private static readonly Regex EventHandlerAttr = new("[\\s/]on[a-zA-Z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)",
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // href / xlink:href whose value (after optional whitespace/entities) begins with javascript:.
-    private static readonly Regex JavascriptHref = new(
-        "\\s(?:xlink:)?href\\s*=\\s*(\"\\s*javascript:[^\"]*\"|'\\s*javascript:[^']*'|\\s*javascript:[^\\s>]+)",
+    // href / xlink:href attribute matcher
+    private static readonly Regex HrefAttr = new(
+        "\\s(?:xlink:)?href\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)",
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static bool IsJavascriptUrl(string value)
+    {
+        var inner = value.Length >= 2 && (value[0] == '"' || value[0] == '\'')
+            ? value[1..^1] : value;
+        var decoded = WebUtility.HtmlDecode(inner);
+        var compact = new string(decoded.Where(c => !char.IsWhiteSpace(c) && !char.IsControl(c)).ToArray());
+        return compact.StartsWith("javascript:", System.StringComparison.OrdinalIgnoreCase)
+            || compact.StartsWith("data:text/html", System.StringComparison.OrdinalIgnoreCase)
+            || compact.StartsWith("vbscript:", System.StringComparison.OrdinalIgnoreCase);
+    }
 
     public static string Sanitize(string svg)
     {
+        if (string.IsNullOrEmpty(svg)) return svg;
         svg = ScriptEl.Replace(svg, "");
         svg = ForeignObjectEl.Replace(svg, "");
         svg = EventHandlerAttr.Replace(svg, "");
-        svg = JavascriptHref.Replace(svg, "");
+        svg = HrefAttr.Replace(svg, m => IsJavascriptUrl(m.Groups[1].Value) ? "" : m.Value);
         return svg;
     }
 }

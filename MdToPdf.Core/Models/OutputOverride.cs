@@ -6,6 +6,7 @@ namespace MdToPdf.Models;
 public sealed class OutputOverride
 {
     public string? Theme { get; set; }
+    public bool? ThemeLightInfluence { get; set; }
     public int? ContentWidth { get; set; }
     public bool? A4FixedWidth { get; set; }
     public bool? UnlimitedHeight { get; set; }
@@ -21,6 +22,16 @@ public sealed class OutputOverride
 
     // Mermaid-in-DOCX method: 0 = Snapshot (embedded picture), 1 = ShapeForge (native Word shapes).
     public int? MermaidDocxMode { get; set; }
+    
+    // ShapeForge and general diagram settings
+    public int? OversizedDiagramMode { get; set; }
+    public int? DiagramGridSize { get; set; }
+    public bool? SmartConnectors { get; set; }
+    public string? ConnectorRouting { get; set; }
+    public string? ConnectorArrowhead { get; set; }
+
+    // Cover Page setting
+    public bool? BrandCoverPage { get; set; }
 
     // Where automated exports are written (folder path). Blank = leave the app's setting.
     public string? OutputFolder { get; set; }

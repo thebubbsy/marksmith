@@ -51,7 +51,7 @@ internal static class LatexToOmml
 
     // ---- tokenizer ---------------------------------------------------------------------------
 
-    private enum Kind { Cmd, LBrace, RBrace, LBracket, RBracket, Sup, Sub, Chr, Amp }
+    private enum Kind { Cmd, LBrace, RBrace, LBracket, RBracket, Sup, Sub, Chr, Amp, Space }
     private readonly record struct Tok(Kind Kind, string Text);
 
     private static List<Tok> Tokenize(string s)
@@ -61,7 +61,12 @@ internal static class LatexToOmml
         while (i < s.Length)
         {
             char c = s[i];
-            if (char.IsWhiteSpace(c) || c == '~') { i++; continue; }
+            if (char.IsWhiteSpace(c) || c == '~')
+            {
+                toks.Add(new Tok(Kind.Space, c == '~' ? "\u00A0" : c.ToString()));
+                i++;
+                continue;
+            }
             if (c == '\\')
             {
                 i++;
@@ -117,6 +122,7 @@ internal static class LatexToOmml
             while (More)
             {
                 var k = Cur.Kind;
+                if (k == Kind.Space) { _i++; continue; }
                 if (stop == SeqStop.Brace && k == Kind.RBrace) { _i++; break; }
                 if (stop == SeqStop.Bracket && k == Kind.RBracket) { _i++; break; }
                 if (stop == SeqStop.Right && k == Kind.Cmd && Cur.Text == "right") break;
@@ -132,12 +138,17 @@ internal static class LatexToOmml
             var baseEls = ParseAtom();
 
             List<OpenXmlElement>? sub = null, sup = null;
-            while (More && (Cur.Kind == Kind.Sup || Cur.Kind == Kind.Sub))
+            while (More)
             {
-                bool isSup = Cur.Kind == Kind.Sup;
-                _i++;
-                var arg = ParseAtom();
-                if (isSup) sup = arg; else sub = arg;
+                if (Cur.Kind == Kind.Space) { _i++; continue; }
+                if (Cur.Kind == Kind.Sup || Cur.Kind == Kind.Sub)
+                {
+                    bool isSup = Cur.Kind == Kind.Sup;
+                    _i++;
+                    var arg = ParseAtom();
+                    if (isSup) sup = arg; else sub = arg;
+                }
+                else break;
             }
 
             if (sub != null && sup != null)
@@ -152,6 +163,7 @@ internal static class LatexToOmml
         // A single atom: a group {...}, a command construct, or one character.
         private List<OpenXmlElement> ParseAtom()
         {
+            while (More && Cur.Kind == Kind.Space) _i++;
             if (!More) return new();
             var t = Cur;
             switch (t.Kind)
@@ -235,6 +247,7 @@ internal static class LatexToOmml
                 case "sqrt":
                 {
                     List<OpenXmlElement>? deg = null;
+                    while (More && Cur.Kind == Kind.Space) _i++;
                     if (More && Cur.Kind == Kind.LBracket) { _i++; deg = ParseSequence(SeqStop.Bracket); }
                     var body = ParseGroupArg();
                     if (deg != null)
@@ -298,6 +311,7 @@ internal static class LatexToOmml
                     // stretchy-arrow-with-label primitive, so stack the label(s) over/under a plain
                     // arrow glyph via limUpp/limLow — reads correctly even if the arrow doesn't grow.
                     List<OpenXmlElement>? below = null;
+                    while (More && Cur.Kind == Kind.Space) _i++;
                     if (More && Cur.Kind == Kind.LBracket) { _i++; below = ParseSequence(SeqStop.Bracket); }
                     var above = ParseGroupArg();
                     var arrowRun = TextRun(cmd == "xrightarrow" ? "→" : "←");
@@ -359,6 +373,7 @@ internal static class LatexToOmml
             if (Functions.Contains(cmd))
             {
                 var run = TextRun(cmd, upright: true);
+                while (More && Cur.Kind == Kind.Space) _i++;
                 if (More && Cur.Kind == Kind.Sub)
                 {
                     _i++;
@@ -391,6 +406,7 @@ internal static class LatexToOmml
             }
             while (More && Cur.Kind != Kind.RBrace)
             {
+                if (Cur.Kind == Kind.Space) { _i++; continue; }
                 if (Cur.Kind == Kind.Cmd && (Cur.Text == "\\" || Cur.Text == "\\\\")) { _i++; EndRow(); continue; }
                 curCol.AddRange(ParseAtomWithScripts());
             }
@@ -419,6 +435,7 @@ internal static class LatexToOmml
 
             while (More)
             {
+                if (Cur.Kind == Kind.Space) { _i++; continue; }
                 if (Cur.Kind == Kind.Cmd && Cur.Text == "end")
                 {
                     _i++;
@@ -466,12 +483,18 @@ internal static class LatexToOmml
         private M.Nary ParseNary(string chr, bool underOver)
         {
             List<OpenXmlElement>? sub = null, sup = null;
-            while (More && (Cur.Kind == Kind.Sup || Cur.Kind == Kind.Sub))
+            while (More)
             {
-                bool isSup = Cur.Kind == Kind.Sup; _i++;
-                var arg = ParseAtom();
-                if (isSup) sup = arg; else sub = arg;
+                if (Cur.Kind == Kind.Space) { _i++; continue; }
+                if (Cur.Kind == Kind.Sup || Cur.Kind == Kind.Sub)
+                {
+                    bool isSup = Cur.Kind == Kind.Sup; _i++;
+                    var arg = ParseAtom();
+                    if (isSup) sup = arg; else sub = arg;
+                }
+                else break;
             }
+            while (More && Cur.Kind == Kind.Space) _i++;
             var baseEls = More && Cur.Kind != Kind.RBrace ? ParseAtomWithScripts() : new List<OpenXmlElement>();
             if (baseEls.Count == 0) baseEls.Add(TextRun("\u200B")); // Hide dotted placeholder box for empty base
 
@@ -490,6 +513,7 @@ internal static class LatexToOmml
         // Resolves the delimiter after \left or \right (a char or a named command).
         private string ReadDelim()
         {
+            while (More && Cur.Kind == Kind.Space) _i++;
             if (!More) return "";
             var t = Cur; _i++;
             if (t.Kind == Kind.Cmd)

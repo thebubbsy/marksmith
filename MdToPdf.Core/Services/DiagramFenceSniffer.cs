@@ -43,7 +43,7 @@ public static class DiagramFenceSniffer
             if (!open.Success) continue;
 
             var indent = open.Groups[1].Value;
-            var marker = open.Groups[2].Value[..3];
+            var marker = open.Groups[2].Value;
 
             // Collect the fence body up to the matching closing marker.
             int close = -1;

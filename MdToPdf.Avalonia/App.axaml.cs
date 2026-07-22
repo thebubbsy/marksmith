@@ -16,7 +16,14 @@ public partial class App : Application
 
     // Application isn't part of the visual tree, so x:Name codegen doesn't reach TrayIcon —
     // fetch it via the TrayIcon.Icons attached-property list set in App.axaml instead.
-    private TrayIcon AppTrayIcon => TrayIcon.GetIcons(this)![0];
+    internal TrayIcon? AppTrayIcon
+    {
+        get
+        {
+            var icons = TrayIcon.GetIcons(this);
+            return (icons != null && icons.Count > 0) ? icons[0] : null;
+        }
+    }
 
     public override void Initialize()
     {
@@ -50,7 +57,7 @@ public partial class App : Application
                 {
                     e.Cancel = true;
                     window.Hide();
-                    AppTrayIcon.IsVisible = true;
+                    if (AppTrayIcon is { } tray) tray.IsVisible = true;
                 }
             };
         }
@@ -63,13 +70,13 @@ public partial class App : Application
         if (_mainWindow is null) return;
         _mainWindow.Show();
         _mainWindow.Activate();
-        AppTrayIcon.IsVisible = false;
+        if (AppTrayIcon is { } tray) tray.IsVisible = false;
     }
 
     private void OnTrayExitClick(object? sender, EventArgs e)
     {
         _exitRequested = true;
-        AppTrayIcon.IsVisible = false;
+        if (AppTrayIcon is { } tray) tray.IsVisible = false;
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
     }
 }

@@ -6,6 +6,7 @@
         xmlns:models="using:MdToPdf.Models"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:AvaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="MdToPdf.Avalonia.Views.MainWindow"
         x:DataType="core:MainViewModel"
@@ -124,12 +125,10 @@
 
                             <!-- Paste mode -->
                             <Grid x:Name="PastePanel" RowDefinitions="*,Auto" IsVisible="{Binding UsePasteSource}" MinHeight="220">
-                                <TextBox Grid.Row="0" MinHeight="180"
-                                         Text="{Binding PastedMarkdown, Mode=TwoWay}"
-                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                <AvaloniaEdit:TextEditor x:Name="MarkdownEditor" Grid.Row="0" MinHeight="180" PointerPressed="MarkdownEditor_PointerPressed"
                                          FontFamily="Cascadia Mono,Consolas,monospace" FontSize="13"
-                                         PlaceholderText="Paste or type Markdown here..."
-                                         VerticalContentAlignment="Top" />
+                                         WordWrap="True"
+                                         ShowLineNumbers="False" />
                                 <TextBlock Grid.Row="1" Text="{Binding WordCountText}" HorizontalAlignment="Right" FontSize="12" Opacity="0.6" />
                             </Grid>
 
@@ -422,3 +421,4 @@
         </Grid>
     </Grid>
 </Window>
+

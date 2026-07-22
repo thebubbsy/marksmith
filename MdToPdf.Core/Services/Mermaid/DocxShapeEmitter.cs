@@ -486,15 +486,18 @@ public static class DocxShapeEmitter
             }
             sb.Append("</w:txbxContent></wps:txbx>");
         }
-        // bodyPr is required (last child). Tight insets; vertical centering.
-        sb.Append("<wps:bodyPr rot=\"0\" wrap=\"square\" lIns=\"12700\" tIns=\"6350\" rIns=\"12700\" bIns=\"6350\" anchor=\"ctr\" anchorCtr=\"0\"><a:noAutofit/></wps:bodyPr>");
+        // bodyPr is required (last child). Tight insets; vertical centering (top for subgraphs).
+        var anchor = s.Kind == ShapeKind.Subgraph ? "t" : "ctr";
+        sb.Append($"<wps:bodyPr rot=\"0\" wrap=\"square\" lIns=\"12700\" tIns=\"6350\" rIns=\"12700\" bIns=\"6350\" anchor=\"{anchor}\" anchorCtr=\"0\"><a:noAutofit/></wps:bodyPr>");
         sb.Append("</wps:wsp>");
         return sb.ToString();
     }
 
     private static string RunProps(MShape s, ThemeDefinition t)
     {
-        var color = Hex(s.TextColor ?? t.Primary);
+        var shapeBg = Hex(s.Fill) ?? Hex(t.Background);
+        var requestedColor = Hex(s.TextColor) ?? Hex(t.Primary);
+        var color = ContrastGuard.EnsureLegibleText(requestedColor, shapeBg, Hex(t.Primary));
         var sz = (int)Math.Round(s.FontSize * 2); // half-points
         return (s.Bold ? "<w:b/>" : "") +
                $"<w:color w:val=\"{color}\"/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
@@ -504,6 +507,7 @@ public static class DocxShapeEmitter
     {
         ShapeKind.Text => "Label",
         ShapeKind.Frame => "Frame",
+        ShapeKind.Subgraph => "Subgraph",
         ShapeKind.Pie => "Pie wedge",
         _ => s.Kind.ToString(),
     };
@@ -512,7 +516,7 @@ public static class DocxShapeEmitter
     {
         switch (s.Kind)
         {
-            case ShapeKind.Rect or ShapeKind.Frame or ShapeKind.Text: return ("rect", "<a:avLst/>");
+            case ShapeKind.Rect or ShapeKind.Frame or ShapeKind.Subgraph or ShapeKind.Text: return ("rect", "<a:avLst/>");
             case ShapeKind.RoundRect: return ("roundRect", "<a:avLst><a:gd name=\"adj\" fmla=\"val 16667\"/></a:avLst>");
             case ShapeKind.Diamond: return ("diamond", "<a:avLst/>");
             case ShapeKind.Ellipse or ShapeKind.Circle: return ("ellipse", "<a:avLst/>");
@@ -536,14 +540,14 @@ public static class DocxShapeEmitter
     private static string FillXml(MShape s, ThemeDefinition t)
     {
         if (s.Kind is ShapeKind.Frame or ShapeKind.Text) return "<a:noFill/>";
-        var fill = s.Fill ?? t.Background;
+        var fill = s.Fill ?? (s.Kind == ShapeKind.Subgraph ? t.Secondary : t.Code);
         return $"<a:solidFill><a:srgbClr val=\"{Hex(fill)}\"/></a:solidFill>";
     }
 
     private static string LineXml(MShape s, ThemeDefinition t)
     {
         if (s.Kind == ShapeKind.Text) return "<a:ln><a:noFill/></a:ln>";
-        var stroke = Hex(s.Stroke ?? t.Line);
+        var stroke = Hex(s.Stroke ?? t.Border);
         long w = (long)Math.Round(s.StrokeWidth * EmuPerPt);
         var dash = s.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
         return $"<a:ln w=\"{w}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}</a:ln>";

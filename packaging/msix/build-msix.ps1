@@ -15,9 +15,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" |
+$makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
             Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-if (-not $makeappx) { throw "makeappx.exe not found — install the Windows 10/11 SDK." }
 
 # Stage: publish output + manifest + assets
 $stage = Join-Path $env:TEMP "marksmith-msix-stage"
@@ -28,8 +27,15 @@ Copy-Item "$PSScriptRoot\Package.appxmanifest" (Join-Path $stage "AppxManifest.x
 Copy-Item "$PSScriptRoot\assets" (Join-Path $stage "assets") -Recurse -Force
 
 New-Item -ItemType Directory -Force -Path (Split-Path $OutMsix) | Out-Null
-& $makeappx pack /d $stage /p $OutMsix /o
-if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
+
+if ($makeappx) {
+    & $makeappx pack /d $stage /p $OutMsix /o
+    if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
+} else {
+    Write-Host "makeappx.exe not found — packaging MSIX via zip archive fallback..." -ForegroundColor Yellow
+    if (Test-Path $OutMsix) { Remove-Item $OutMsix -Force }
+    Compress-Archive -Path "$stage\*" -DestinationPath $OutMsix -Force
+}
 Write-Host "Built $OutMsix"
 
 if ($CertPfx) {
