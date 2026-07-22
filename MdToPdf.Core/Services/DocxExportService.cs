@@ -1619,34 +1619,161 @@ public sealed class DocxExportService
     private static readonly Regex HtmlTableRow = new(@"<tr\b[^>]*>(.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HtmlTableCell = new(@"<(t[hd])\b[^>]*>(.*?)</t[hd]>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
-    // Local markdown image -> a real embedded picture. Returns false (caller falls back to the
-    // labeled-link text) for remote URLs, missing files, or anything Skia can't decode.
-    private static bool TryEmbedLocalImage(OpenXmlCompositeElement target, LinkInline link, Ctx ctx)
+    private static readonly System.Net.Http.HttpClient SharedImageHttpClient = new()
     {
+        Timeout = TimeSpan.FromSeconds(8)
+    };
+
+    private static byte[]? FetchImageBytes(string rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl)) return null;
         try
         {
-            var raw = Uri.UnescapeDataString(link.GetDynamicUrl?.Invoke() ?? link.Url ?? "");
-            var path = raw.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
-                ? raw[8..].Replace('/', '\\')
-                : (raw.Length > 2 && raw[1] == ':' ? raw : null);
+            // 1. Data URI (e.g. data:image/png;base64,... or data:image/svg+xml;utf8,...)
+            if (rawUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                var commaIdx = rawUrl.IndexOf(',');
+                if (commaIdx < 0) return null;
+                var header = rawUrl[..commaIdx];
+                var payload = rawUrl[(commaIdx + 1)..];
+
+                if (header.Contains(";base64", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Convert.FromBase64String(payload);
+                }
+                else
+                {
+                    var unescaped = Uri.UnescapeDataString(payload);
+                    return System.Text.Encoding.UTF8.GetBytes(unescaped);
+                }
+            }
+
+            // 2. HTTP / HTTPS Remote URL
+            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
+                request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Marksmith/1.0");
+                using var response = SharedImageHttpClient.Send(request);
+                if (!response.IsSuccessStatusCode) return null;
+                using var ms = new MemoryStream();
+                response.Content.ReadAsStream().CopyTo(ms);
+                return ms.ToArray();
+            }
+
+            // 3. Local File
+            var path = rawUrl.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
+                ? rawUrl[8..].Replace('/', '\\')
+                : (rawUrl.Length > 2 && rawUrl[1] == ':' ? rawUrl : null);
+
             if (path is null || !File.Exists(path))
             {
-                var relative = raw.Replace('/', '\\');
+                var relative = rawUrl.Replace('/', '\\');
                 var altPath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relative);
                 var altPath2 = Path.Combine(Directory.GetCurrentDirectory(), relative);
                 if (File.Exists(altPath1)) path = altPath1;
                 else if (File.Exists(altPath2)) path = altPath2;
-                else return false;
+                else return null;
             }
 
-            using var bitmap = SkiaSharp.SKBitmap.Decode(path);
-            if (bitmap is null) return false;
+            return File.ReadAllBytes(path);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
-            // Obsidian width hint arrives glued to the alt text: ![diagram|300](...)
+    // Embed local files, remote URLs (PNG/JPG/SVG/WEBP), and base64 Data URIs as real embedded Word pictures.
+    private static bool TryEmbedImage(OpenXmlCompositeElement target, LinkInline link, Ctx ctx)
+    {
+        try
+        {
+            var rawUrl = Uri.UnescapeDataString(link.GetDynamicUrl?.Invoke() ?? link.Url ?? "");
+            var rawBytes = FetchImageBytes(rawUrl);
+            if (rawBytes is null || rawBytes.Length == 0) return false;
+
             var alt = GetPlainText(link);
             double? hintW = null;
             var hint = Regex.Match(alt, @"\|(\d{2,4})$");
             if (hint.Success) { hintW = double.Parse(hint.Groups[1].Value); alt = alt[..hint.Index].Trim(); }
+
+            // Check if payload or URL represents an SVG
+            bool isSvg = rawUrl.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
+                         rawUrl.Contains("image/svg", StringComparison.OrdinalIgnoreCase);
+
+            string? svgString = null;
+            if (isSvg)
+            {
+                try { svgString = System.Text.Encoding.UTF8.GetString(rawBytes); } catch { }
+            }
+            else if (rawBytes.Length > 4)
+            {
+                var head = System.Text.Encoding.UTF8.GetString(rawBytes, 0, Math.Min(rawBytes.Length, 120)).TrimStart();
+                if (head.StartsWith("<svg", StringComparison.OrdinalIgnoreCase) ||
+                    (head.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) && head.Contains("<svg")))
+                {
+                    isSvg = true;
+                    svgString = System.Text.Encoding.UTF8.GetString(rawBytes);
+                }
+            }
+
+            if (isSvg && !string.IsNullOrWhiteSpace(svgString))
+            {
+                var pngBytes = SvgRasterizer.ToPng(svgString);
+                if (pngBytes is not null)
+                {
+                    var (svgW, svgH) = SvgRasterizer.Dimensions(svgString);
+                    var pngPart = ctx.MainPart.AddImagePart(ImagePartType.Png);
+                    using (var ms = new MemoryStream(pngBytes)) pngPart.FeedData(ms);
+                    var pngRel = ctx.MainPart.GetIdOfPart(pngPart);
+
+                    var svgPart = ctx.MainPart.AddNewPart<ImagePart>("image/svg+xml", null);
+                    using (var ms = new MemoryStream(rawBytes)) svgPart.FeedData(ms);
+                    var svgRel = ctx.MainPart.GetIdOfPart(svgPart);
+
+                    double svgPtW = hintW ?? Math.Max(40, svgW * 0.75), svgPtH = Math.Max(20, svgH * 0.75 * (hintW is { } sHw ? sHw / (svgW > 0 ? svgW : 1) : 1));
+                    if (svgPtW > 460) { svgPtH *= 460 / svgPtW; svgPtW = 460; }
+                    long svgCx = (long)(svgPtW * 12700), svgCy = (long)(svgPtH * 12700);
+                    var svgId = ctx.NextDrawingId++;
+                    var svgAltEsc = System.Security.SecurityElement.Escape(alt) ?? "";
+
+                    const string dpiExtUri = "{28A0092B-C50C-407E-A947-70E740481C1C}";
+                    const string svgExtUri = "{96DAC541-7B7A-43D3-8B76-37F632A7BC16}";
+
+                    target.Append(new W.Run(new W.Drawing
+                    {
+                        InnerXml = $"""
+                            <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                              <wp:extent cx="{svgCx}" cy="{svgCy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>
+                              <wp:docPr id="{svgId}" name="Image" descr="{svgAltEsc}"/>
+                              <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                              <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                                <pic:pic>
+                                  <pic:nvPicPr><pic:cNvPr id="{svgId}" name="image.svg"/><pic:cNvPicPr/></pic:nvPicPr>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="{pngRel}">
+                                      <a:extLst>
+                                        <a:ext uri="{dpiExtUri}"><a14:useLocalDpi xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" val="0"/></a:ext>
+                                        <a:ext uri="{svgExtUri}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="{svgRel}"/></a:ext>
+                                      </a:extLst>
+                                    </a:blip>
+                                    <a:stretch><a:fillRect/></a:stretch>
+                                  </pic:blipFill>
+                                  <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{svgCx}" cy="{svgCy}"/></a:xfrm>
+                                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                                </pic:pic>
+                              </a:graphicData></a:graphic>
+                            </wp:inline>
+                            """
+                    }));
+                    return true;
+                }
+            }
+
+            // Bitmap decoding (PNG, JPG, WEBP, GIF, BMP)
+            using var bitmap = SkiaSharp.SKBitmap.Decode(rawBytes);
+            if (bitmap is null) return false;
 
             byte[] png;
             int pxW = bitmap.Width, pxH = bitmap.Height;
@@ -2187,10 +2314,8 @@ public sealed class DocxExportService
 
         if (link.IsImage)
         {
-            // LOCAL images embed as real Word pictures (dimensions probed via SkiaSharp, downscaled
-            // like the preview does, Obsidian ![alt|width] honored). Remote URLs stay a labeled
-            // hyperlink â€” the exporter is offline-first and never fetches the network.
-            if (TryEmbedLocalImage(target, link, ctx)) return;
+            // Embed local files, remote HTTP/HTTPS URLs (PNG/JPG/SVG/WEBP), and base64 Data URIs as real embedded Word pictures
+            if (TryEmbedImage(target, link, ctx)) return;
 
             var alt = GetPlainText(link);
             var label = string.IsNullOrWhiteSpace(alt) ? "[Image]" : $"[Image: {alt}]";
