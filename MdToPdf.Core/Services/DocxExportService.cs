@@ -338,8 +338,26 @@ public sealed class DocxExportService
         public string TextHex => Hex(Theme.Text);
         public string HeadingHex => Hex(Theme.Heading);
         public string BorderHex => Hex(Theme.Border);
-        public string CodeHex => Hex(Theme.Code);
-        public string SecondaryHex => Hex(Theme.Secondary);
+        public string CodeHex
+        {
+            get
+            {
+                var hex = Hex(Theme.Code);
+                bool isDarkDoc = !ThemeDefinition.IsLight(Theme.Background);
+                if (isDarkDoc && ThemeDefinition.IsLight("#" + hex)) return "1E222A";
+                return hex;
+            }
+        }
+        public string SecondaryHex
+        {
+            get
+            {
+                var hex = Hex(Theme.Secondary);
+                bool isDarkDoc = !ThemeDefinition.IsLight(Theme.Background);
+                if (isDarkDoc && ThemeDefinition.IsLight("#" + hex)) return "2B303B";
+                return hex;
+            }
+        }
         public string PrimaryHex => Hex(Theme.Primary);
     }
 
@@ -687,6 +705,7 @@ public sealed class DocxExportService
     // frame-anchored paragraph (w:framePr w:dropCap), the rest of the paragraph flows around it.
     private static bool TryRenderDropCap(ParagraphBlock p, OpenXmlCompositeElement target, Ctx ctx)
     {
+        if (!ctx.Settings.BrandCoverPage) return false; // Only drop-cap opening paragraph when cover page branding is enabled
         if (p.Inline?.FirstChild is not LiteralInline literal) return false;
         var text = literal.Content.ToString();
         if (text.Length == 0 || !char.IsLetter(text[0])) return false;
