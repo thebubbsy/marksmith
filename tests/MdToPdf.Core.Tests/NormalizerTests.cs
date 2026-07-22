@@ -55,6 +55,12 @@ public class NormalizerTests
         Assert.Contains("page-break", DialectNormalizer.Apply("\\pagebreak"));
         Assert.Contains("page-break", DialectNormalizer.Apply("<div style=\"page-break-after:always\"></div>"));
     }
+    [Fact] public void Double_hyphen_converted_to_em_dash() => Assert.Equal("hello — world", DialectNormalizer.Apply("hello -- world"));
+    [Fact] public void Double_hyphen_in_code_block_untouched() => Assert.Contains("a -- b", DialectNormalizer.Apply("```\na -- b\n```"));
+    [Fact] public void Double_hyphen_in_inline_code_untouched() => Assert.Contains("`a -- b`", DialectNormalizer.Apply("use `a -- b` syntax"));
+    [Fact] public void Double_hyphen_in_html_comment_untouched() => Assert.Contains("<!-- comment -- test -->", DialectNormalizer.Apply("<!-- comment -- test -->"));
+    [Fact] public void Triple_hyphens_untouched() => Assert.Contains("---\ntitle: test\n---", DialectNormalizer.Apply("---\ntitle: test\n---"));
+
 
     // ---- sniffer ------------------------------------------------------------------------------
     [Fact] public void Bare_digraph_sniffed_as_dot() => Assert.Contains("```dot", DiagramFenceSniffer.Apply("```\ndigraph G { A -> B }\n```"));

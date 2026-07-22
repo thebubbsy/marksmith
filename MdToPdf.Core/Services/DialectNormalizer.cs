@@ -31,11 +31,20 @@ public static class DialectNormalizer
     private static readonly Regex TitleAttr = new("title=\"([^\"]*)\"", RegexOptions.Compiled);
     private static readonly Regex TabHeader = new("^===\\s+\"([^\"]+)\"\\s*$", RegexOptions.Compiled);
     private static readonly Regex PageBreak = new(@"^\s*(<!--\s*page\s*-?break\s*-->|\\pagebreak|\\newpage|<div[^>]*page-break-after[^>]*>\s*(</div>)?)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex InlineCode = new("`[^`\n]+`", RegexOptions.Compiled);
+    private static readonly Regex InlineCode = new(@"(`+)[^\n]*?\1", RegexOptions.Compiled);
+    private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
+    private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
 
-    public static string Apply(string markdown)
+    public static string Apply(string markdown) => Apply(markdown, -1);
+
+    public static string Apply(string markdown, int dashMode)
     {
         if (string.IsNullOrEmpty(markdown)) return markdown;
+
+        if (dashMode == -1 || dashMode != DashReplacer.Keep)
+        {
+            markdown = DashReplacer.NormalizeDoubleHyphens(markdown);
+        }
 
         var lines = markdown.Split('\n');
         var output = new List<string>(lines.Length + 16);
@@ -121,6 +130,15 @@ public static class DialectNormalizer
                 continue;
             }
 
+            // ---- definition lists ----
+            // Markdig requires 3+ spaces after the colon. AI often outputs 1 space.
+            var dlMatch = DefinitionList.Match(line);
+            if (dlMatch.Success)
+            {
+                output.Add(dlMatch.Groups[1].Value + ":   " + dlMatch.Groups[2].Value);
+                continue;
+            }
+
             // ---- wiki-links and #tags (inline, code-span-guarded) ----
             line = ReplaceOutsideInlineCode(line, WikiLink, m =>
             {
@@ -130,6 +148,12 @@ public static class DialectNormalizer
             });
             line = ReplaceOutsideInlineCode(line, HashTag, m =>
                 $"<span class=\"md-tag\">#{m.Groups[1].Value}</span>");
+
+            // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
+            if (trimmed.StartsWith('|') && Regex.IsMatch(trimmed, @"^\|[\s|:\-]+$"))
+            {
+                line = line.Replace("--:", "---:").Replace(":--", ":---");
+            }
 
             // ---- table tolerance: Markdig (unlike GitHub) rejects a whole pipe table when a
             // non-table text line is glued directly under the last row — separate them ----
@@ -146,25 +170,85 @@ public static class DialectNormalizer
             }
         }
 
+        // ---- clean up orphaned grid borders (+---+) under pipe tables ----
+        for (int i = 1; i < output.Count; i++)
+        {
+            var line = output[i].Trim();
+            if (line.StartsWith('+') && line.EndsWith('+') && (line.Contains('-') || line.Contains('=')))
+            {
+                var prev = output[i - 1].TrimStart();
+                if (prev.StartsWith('|'))
+                {
+                    bool isGridTable = false;
+                    for (int j = i - 1; j >= 0; j--)
+                    {
+                        var pLine = output[j].TrimStart();
+                        if (pLine.StartsWith('+')) { isGridTable = true; break; }
+                        if (!pLine.StartsWith('|')) { break; }
+                    }
+                    if (!isGridTable)
+                    {
+                        output[i] = "";
+                    }
+                }
+            }
+        }
+
         return string.Join("\n", output);
     }
 
-    // Applies `rx` replacements to the parts of a single line NOT inside `inline code` spans.
+    // Applies `rx` replacements to the parts of a single line NOT inside `inline code` spans or HTML tags.
     private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator)
     {
         if (!rx.IsMatch(line)) return line;
+        
         var codeSpans = InlineCode.Matches(line);
-        if (codeSpans.Count == 0) return rx.Replace(line, evaluator);
+        var htmlSpans = HtmlTag.Matches(line);
+        if (codeSpans.Count == 0 && htmlSpans.Count == 0) return rx.Replace(line, evaluator);
+
+        var protectedRanges = new List<(int Start, int End)>();
+        foreach (Match m in codeSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+
+        protectedRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+        var merged = new List<(int Start, int End)>();
+        foreach (var range in protectedRanges)
+        {
+            if (merged.Count == 0)
+            {
+                merged.Add(range);
+            }
+            else
+            {
+                var last = merged[^1];
+                if (range.Start < last.End)
+                {
+                    merged[^1] = (last.Start, Math.Max(last.End, range.End));
+                }
+                else
+                {
+                    merged.Add(range);
+                }
+            }
+        }
 
         var sb = new StringBuilder(line.Length + 32);
         int pos = 0;
-        foreach (Match code in codeSpans)
+        foreach (var range in merged)
         {
-            sb.Append(rx.Replace(line[pos..code.Index], evaluator));
-            sb.Append(code.Value);
-            pos = code.Index + code.Length;
+            if (range.Start > pos)
+            {
+                sb.Append(rx.Replace(line[pos..range.Start], evaluator));
+            }
+            sb.Append(line[range.Start..range.End]);
+            pos = range.End;
         }
-        sb.Append(rx.Replace(line[pos..], evaluator));
+        if (pos < line.Length)
+        {
+            sb.Append(rx.Replace(line[pos..], evaluator));
+        }
+
         return sb.ToString();
     }
 }

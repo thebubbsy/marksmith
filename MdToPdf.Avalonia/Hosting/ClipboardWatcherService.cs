@@ -25,7 +25,17 @@ public sealed class ClipboardWatcherService : IDisposable
         _clipboard = clipboard;
         _onIngest = onIngest;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
-        _timer.Tick += async (_, _) => await PollAsync();
+        _timer.Tick += async (_, _) =>
+        {
+            try
+            {
+                await PollAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ClipboardWatcher tick error: {ex.Message}");
+            }
+        };
     }
 
     public void Start()

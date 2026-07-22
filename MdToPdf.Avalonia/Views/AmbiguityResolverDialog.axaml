@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="using:MdToPdf.Models"
+        x:Class="MdToPdf.Avalonia.Views.AmbiguityResolverDialog"
+        SystemDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <!-- Semi-transparent overlay to dim the background -->
+    <Border Background="#A0000000" Padding="40">
+        <!-- Main panel -->
+        <Border CornerRadius="12" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Padding="32" MaxWidth="900" HorizontalAlignment="Center" VerticalAlignment="Center"
+                BoxShadow="0 8 32 0 #40000000">
+            <StackPanel Spacing="24">
+                
+                <StackPanel Spacing="8">
+                    <TextBlock Text="How should this render?" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" Opacity="0.8" FontSize="14" />
+                </StackPanel>
+
+                <!-- Cards row -->
+                <ItemsControl x:Name="OptionsList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:RenderOption">
+                            <Button Click="OnOptionClick" Tag="{Binding}" Margin="8" Padding="0" Cursor="Hand" Background="Transparent" BorderThickness="0">
+                                <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        Background="{DynamicResource SubtleFillColorSecondaryBrush}" Width="240" Height="300" Padding="16">
+                                    <!-- Transitions for hover effects -->
+                                    <Border.Transitions>
+                                        <Transitions>
+                                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" />
+                                        </Transitions>
+                                    </Border.Transitions>
+                                    <Border.Styles>
+                                        <Style Selector="Border:pointerover">
+                                            <Setter Property="RenderTransform" Value="scale(1.03)" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+                                        </Style>
+                                    </Border.Styles>
+                                    <Grid RowDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Row="0" Text="{Binding Label}" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,12" />
+                                        
+                                        <!-- Visual preview area -->
+                                        <Border Grid.Row="1" CornerRadius="4" Background="#10000000" BorderThickness="1" BorderBrush="#20000000" Padding="8" ClipToBounds="True">
+                                            <TextBlock Text="{Binding PreviewXml}" TextWrapping="Wrap" FontSize="12" Opacity="0.7" FontFamily="Cascadia Mono,Consolas,monospace" />
+                                        </Border>
+                                        
+                                        <TextBlock Grid.Row="2" Text="{Binding Explanation}" TextWrapping="Wrap" FontSize="12" Opacity="0.8" Margin="0,12,0,0" />
+                                    </Grid>
+                                </Border>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Content="Use Default" Click="OnDefaultClick" HorizontalAlignment="Center" Classes="transparent" Margin="0,12,0,0" />
+            </StackPanel>
+        </Border>
+    </Border>
+</Window>

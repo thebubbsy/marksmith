@@ -88,6 +88,16 @@
         if (n.nodeType === Node.TEXT_NODE) return n.textContent;
         if (n.nodeType !== Node.ELEMENT_NODE) return "";
         if (n.classList?.contains(WRAP_CLASS)) return ""; // never copy our own button
+
+        const cls = typeof n.className === "string" ? n.className : (n.className?.baseVal || "");
+        if (cls.includes("katex") || cls.includes("math-inline") || cls.includes("math-display")) {
+            const tex = n.querySelector('annotation[encoding="application/x-tex"], script[type="math/tex"]');
+            if (tex) {
+                const t = tex.textContent.trim();
+                return cls.includes("-display") ? `\n$$${t}$$\n` : `$${t}$`;
+            }
+        }
+
         const tag = n.tagName.toLowerCase();
         const kids = () => [...n.childNodes].map(conv).join("");
         switch (tag) {

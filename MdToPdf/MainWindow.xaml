@@ -589,6 +589,11 @@
                                         VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
                             </Grid>
 
+                            <ToggleSwitch Header="Light Theme Influence"
+                                          IsOn="{Binding ThemeLightInfluence, Mode=TwoWay}" />
+                            <TextBlock Text="When enabled, the page uses a light center gradient with theme colors on the margins, automatically adjusting text for readability."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+
                             <NumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
                                        SpinButtonPlacementMode="Inline" Minimum="400" Maximum="2400" SmallChange="50" />
 

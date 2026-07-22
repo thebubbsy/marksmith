@@ -27,7 +27,6 @@ public sealed class MarkdownHtmlService
         .UseYamlFrontMatter()
         .UseAlertBlocks()
         .UseMathematics()
-        .UseEmojiAndSmiley(enableSmileys: false)
         .Build();
 
     // Same alert accent colors used by the Python app's DOCX alert-box rendering, for visual parity.
@@ -62,24 +61,14 @@ public sealed class MarkdownHtmlService
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
         LlmClassification? classification = null, bool interactive = false)
     {
-        if (settings.TargetFormat == "docx")
+        if (settings.ThemeLightInfluence)
         {
-            theme = new ThemeDefinition(
-                Name: "Word Document",
-                Background: interactive ? "#f3f2f1" : "#ffffff", // Grey background in interactive preview to show "page"
-                Text: "#000000",
-                Heading: "#2f5496",
-                Code: "#f4f4f4",
-                Border: "#dddddd",
-                Primary: "#2f5496",
-                Secondary: "#f4f4f4",
-                Line: "#dddddd"
-            );
+            theme = theme.ApplyLightInfluence();
         }
 
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
-        markdown = DialectNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
         markdown = DiagramFenceSniffer.Apply(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
@@ -136,7 +125,7 @@ public sealed class MarkdownHtmlService
                             var group = lit.Groups[1].Success ? lit.Groups[1] : lit.Groups[2].Success ? lit.Groups[2] : lit.Groups[3];
                             var candidate = group.Value.Trim();
                             if (MermaidDiagramStart.IsMatch(candidate))
-                                extras.Append($"<div class=\"mermaid mermaid-embedded\">{candidate}</div>");
+                                extras.Append($"<div class=\"mermaid mermaid-embedded\">{System.Net.WebUtility.HtmlEncode(candidate)}</div>");
                         }
                     }
                     return extras.Length > 0 ? m.Value + extras : m.Value;
@@ -163,6 +152,7 @@ public sealed class MarkdownHtmlService
                     var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded, pluginTheme);
                     if (svg != null)
                     {
+                        svg = Plugins.SvgSanitizer.Sanitize(svg);
                         // Theme-aware engines (PlantUML skinparams, Graphviz flags) already rendered
                         // on-theme, so their SVG must NOT be filtered. Non-theme-aware engines emit
                         // artwork assuming a light page (black strokes, transparent bg) which is
@@ -196,7 +186,8 @@ public sealed class MarkdownHtmlService
             }
         }
 
-        var isDark = theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro";
+        var isDark = !settings.ThemeLightInfluence && 
+                     (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
 
         // Plugin diagrams (PlantUML, Graphviz, D2, …) emit their own SVG with fixed dark-on-white
@@ -205,7 +196,7 @@ public sealed class MarkdownHtmlService
         // light themes leave it untouched. The frame around it is themed in CSS below, like .mermaid.
         var pluginDiagramSvgFilter = isDark ? "filter: invert(1) hue-rotate(180deg);" : "";
 
-        var extraHead = BuildExtraHead(body, isDark);
+        var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
         // Free tier stamps a subtle footer on every export/preview; Pro removes it.
@@ -340,18 +331,118 @@ public sealed class MarkdownHtmlService
             </script>
             """ : "";
 
+        string effectiveBodyBg = settings.ThemeLightInfluence ? $"radial-gradient(circle at center, #ffffff 40%, {theme.Background} 120%)" : theme.Background;
+        string effectiveText = theme.Text;
+
+        bool isLight = ThemeDefinition.IsLight(theme.Background);
+        string workspaceBg = interactive ? (isLight ? "#eaeaea" : "#141416") : effectiveBodyBg;
+        string pageBg = effectiveBodyBg;
+        string bodyClass = isLight ? "ms-light" : "ms-dark";
+
+        var overflowScript = interactive ? $$"""
+            <script>
+            // Robust Mermaid Parse Error Interception
+            window.mermaidError = null;
+            if (window.mermaid) {
+                const origParseError = mermaid.parseError;
+                mermaid.parseError = function(err, hash) {
+                    window.mermaidError = err;
+                    if (origParseError) origParseError(err, hash);
+                    console.error("Mermaid Parse Error:", err);
+                    try { window.chrome.webview.postMessage(JSON.stringify({ type: "mermaid-error", error: err.toString() })); } catch(e) {}
+                };
+            }
+
+            function escapeHtml(str) {
+                return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
+
+            function checkPageOverflow() {
+                const canvas = document.getElementById("canvas");
+                if (!canvas) return;
+                
+                // Render Mermaid custom error cards if parseError occurred or standard error display was shown
+                document.querySelectorAll(".mermaid").forEach(m => {
+                    if (m.innerText.includes("Syntax error") || m.querySelector(".error-icon") || (window.mermaidError && m.querySelector("svg") === null)) {
+                        m.classList.add("mermaid-render-failed");
+                        const errText = window.mermaidError ? window.mermaidError.toString() : m.innerText;
+                        m.innerHTML = `<div class="mermaid-error-card"><strong>⚠️ Mermaid Render Error</strong><pre>${escapeHtml(errText)}</pre></div>`;
+                    }
+                });
+
+                const canvasRect = canvas.getBoundingClientRect();
+                const overflows = [];
+                
+                // Check elements inside canvas
+                canvas.querySelectorAll("table, pre, img, .mermaid, .plugin-diagram, .math").forEach(el => {
+                    const rect = el.getBoundingClientRect();
+                    // Allow 3px buffer for margins/paddings
+                    if (rect.right > canvasRect.right + 3) {
+                        const amount = Math.round(rect.right - canvasRect.right);
+                        let name = el.tagName.toLowerCase();
+                        if (el.classList.contains("mermaid")) name = "Mermaid Diagram";
+                        else if (el.classList.contains("plugin-diagram")) name = "Plugin Diagram";
+                        else if (name === "pre") name = "Code Block";
+                        
+                        overflows.push({ element: name, amount: amount });
+                        el.style.outline = "2px dashed #e53e3e";
+                        el.title = `Overflowing page boundary by ${amount}px`;
+                    } else {
+                        // Reset outline if it was resolved
+                        if (el.style.outline === "2px dashed rgb(229, 62, 62)") {
+                            el.style.outline = "";
+                        }
+                    }
+                });
+
+                // Display warning banner at the top/bottom if there's any overflow
+                let banner = document.getElementById("overflow-banner");
+                if (overflows.length > 0) {
+                    if (!banner) {
+                        banner = document.createElement("div");
+                        banner.id = "overflow-banner";
+                        document.body.appendChild(banner);
+                    }
+                    const list = overflows.map(o => `${o.element} (+${o.amount}px)`).join(", ");
+                    banner.innerHTML = `⚠️ <strong>Page Width Overflowed:</strong> ${list} exceed page margins. Clicking diagram opens zoom view.`;
+                    banner.style.display = "block";
+
+                    // Post warning to C# host
+                    try { window.chrome.webview.postMessage(JSON.stringify({ type: "page-overflow", elements: overflows })); } catch(e) {}
+                } else if (banner) {
+                    banner.style.display = "none";
+                }
+            }
+            window.addEventListener("load", () => {
+                setTimeout(checkPageOverflow, 800);
+            });
+            window.addEventListener("resize", checkPageOverflow);
+            
+            // Also monitor DOM mutations in case of dynamically injected content
+            const observer = new MutationObserver((mutations) => {
+                setTimeout(checkPageOverflow, 200);
+            });
+            observer.observe(canvas, { childList: true, subtree: true });
+            </script>
+            """ : "";
+
         return $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
             {{mermaidScript}}
             {{lensScript}}
             {{extraHead}}
             <style>
-            body { margin: 0; padding: 0; background-color: {{theme.Background}}; color: {{theme.Text}}; 
-                   font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto; }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(settings.TargetFormat == "docx" && interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(settings.TargetFormat == "docx" && interactive ? "background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" : "")}} }
+            body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
+                   font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
+                   -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
-            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; }
+            /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
+            font[color] { color: attr(color); }
+            span[style*="color"] { color: inherit; }
+            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Mono", Consolas, monospace; }
+            code { font-family: "Cascadia Mono", Consolas, monospace; }
             table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
             th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
             th { background: {{theme.Code}}; font-weight: bold; }
@@ -362,13 +453,13 @@ public sealed class MarkdownHtmlService
             /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
                column to the full preview width; anything larger scrolls, and clicking opens the
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
-            .mermaid { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
+            .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
             .mermaid svg { max-width: none !important; }
             /* Plugin diagrams get the same themed frame as .mermaid so they belong to the page.
                Theme-aware engines (see IsThemeAware) render on-theme and are shown as-is; engines
                that don't theme their own output get .plugin-diagram-autoinvert, whose line art is
                inverted on dark themes for legibility (pluginDiagramSvgFilter). */
-            .plugin-diagram { width: fit-content; min-width: 100%; max-width: calc(100vw - 48px); position: relative; left: 50%; transform: translateX(-50%); margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
+            .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
             .plugin-diagram svg { max-width: 100%; height: auto; }
             .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
             .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
@@ -420,7 +511,17 @@ public sealed class MarkdownHtmlService
             #toc a { color: {{theme.Text}}; text-decoration: none; }
             #toc a:hover { color: {{theme.Heading}}; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
-            </style></head><body><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div></body></html>
+            
+            /* Custom styles for diagram errors and page overflow warnings */
+            .mermaid-error-card { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; padding: 16px; border-radius: 6px; font-family: sans-serif; margin: 10px 0; text-align: left; }
+            .mermaid-error-card pre { background: #fff0f0; border: none; padding: 8px; margin: 8px 0 0 0; color: #9b2c2c; font-family: monospace; font-size: 13px; overflow-x: auto; }
+            body.ms-dark .mermaid-error-card { background: #2d1a1a; color: #f5c2c2; border-color: #e53e3e; }
+            body.ms-dark .mermaid-error-card pre { background: #3d1f1f; color: #feb2b2; }
+            
+            #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
+            @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+            body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
+            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}</body></html>
             """;
     }
 
@@ -706,15 +807,18 @@ public sealed class MarkdownHtmlService
         if (bitmap is null) return (null, null);
 
         var scale = (double)MaxImageDimension / Math.Max(bitmap.Width, bitmap.Height);
-        SKBitmap scaled = scale < 1.0
+        SKBitmap? scaled = scale < 1.0
             ? bitmap.Resize(new SKImageInfo((int)(bitmap.Width * scale), (int)(bitmap.Height * scale)), SKFilterQuality.High)
             : bitmap;
+        if (scaled is null) return (null, null);
         try
         {
             using var image = SKImage.FromBitmap(scaled);
+            if (image is null) return (null, null);
             // PNG keeps sharp edges + transparency for graphics/logos; the size win comes from the
             // resolution drop, not lossy compression, so text/line art stays crisp.
             using var encoded = image.Encode(SKEncodedImageFormat.Png, 90);
+            if (encoded is null) return (null, null);
             return (encoded.ToArray(), "image/png");
         }
         finally
@@ -725,7 +829,7 @@ public sealed class MarkdownHtmlService
 
     // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
     // when the rendered body actually needs them (plain documents stay dependency-free).
-    private static string BuildExtraHead(string body, bool isDark)
+    private static string BuildExtraHead(string body, ThemeDefinition theme)
     {
         var head = "";
         if (body.Contains("class=\"math\""))
@@ -754,7 +858,7 @@ public sealed class MarkdownHtmlService
         }
         if (body.Contains("language-"))
         {
-            var hlTheme = isDark ? "github-dark" : "github";
+            var hlTheme = !ThemeDefinition.IsLight(theme.Code) ? "github-dark" : "github";
             head += $"""
                 <link rel="stylesheet" href="{Services.WebAssets.Base}/{hlTheme}.min.css">
                 <script src="{Services.WebAssets.HighlightJs}"></script>
@@ -786,7 +890,7 @@ public sealed class MarkdownHtmlService
         var items = matches.Select(m =>
         {
             var level = int.Parse(m.Groups[1].Value);
-            var text = Regex.Replace(m.Groups[3].Value, "<[^>]+>", "").Trim();
+            var text = Regex.Replace(m.Groups[3].Value, @"</?[a-z][a-z0-9]*(?:[\s/>]|$)[^>]*>", "").Trim();
             var indent = (level - 1) * 16;
             return $"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>";
         });

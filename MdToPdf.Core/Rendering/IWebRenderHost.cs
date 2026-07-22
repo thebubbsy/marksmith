@@ -47,4 +47,7 @@ public interface IUiPrompts
 {
     // Large-diagram prompt: 1 = keep exact layout (Web Layout), 2 = reflow to fit the page.
     Task<int> AskOversizedDiagramModeAsync();
+    
+    // Ask the user to resolve an ambiguous construct in the markdown.
+    Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity);
 }

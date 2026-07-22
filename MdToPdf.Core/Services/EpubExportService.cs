@@ -24,6 +24,8 @@ public sealed class EpubExportService
     public Task ExportAsync(string markdown, string epubPath, AppSettings settings) => Task.Run(() =>
     {
         markdown = TextNormalizer.Newlines(markdown);
+        markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
@@ -72,7 +74,7 @@ public sealed class EpubExportService
     private static string XhtmlSafe(string html)
     {
         foreach (var t in VoidTags)
-            html = Regex.Replace(html, $@"<{t}(\b[^>]*?)\s*/?>", $"<{t}$1 />", RegexOptions.IgnoreCase);
+            html = Regex.Replace(html, $@"<{t}\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>", $"<{t}$1 />", RegexOptions.IgnoreCase);
         return html;
     }
 
