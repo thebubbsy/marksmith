@@ -206,14 +206,35 @@ public static class MermaidDocxRenderer
         line = line.TrimEnd(';').Trim();
         int i = 0;
         var left = ReadNodeGroup(line, ref i, g);
-        if (left is null) { Console.WriteLine("ReadNodeGroup returned null"); return false; }
+        if (left is null)
+        {
+            // If the line starts directly with an arrow (e.g. `-->B{Decision}`), chain from the last node
+            if (g.Nodes.Count > 0 && ReadArrow(line, ref i) is { } startArrow)
+            {
+                var lastNode = g.Nodes[^1];
+                var right = ReadNodeGroup(line, ref i, g);
+                if (right is null) return false;
+                bool first = true;
+                foreach (var v in right)
+                {
+                    g.Edges.Add(new Edge(lastNode, v, first ? startArrow.Label : null,
+                        startArrow.Dashed, startArrow.Thick, startArrow.StartHead, startArrow.EndHead));
+                    first = false;
+                }
+                left = right;
+            }
+            else
+            {
+                return false;
+            }
+        }
         while (true)
         {
             if (SkipWs(line, ref i)) return true; // clean end of line
             var arrow = ReadArrow(line, ref i);
-            if (arrow is null) { Console.WriteLine("ReadArrow returned null"); return false; }
+            if (arrow is null) return false;
             var right = ReadNodeGroup(line, ref i, g);
-            if (right is null) { Console.WriteLine("ReadNodeGroup (right) returned null"); return false; }
+            if (right is null) return false;
             bool first = true;
             foreach (var u in left)
                 foreach (var v in right)
@@ -308,6 +329,7 @@ public static class MermaidDocxRenderer
 
     private static string Clean(string s)
     {
+        s = s.Replace("\\n", "\n"); // Mermaid literal \n
         s = Regex.Replace(s, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase); // real line breaks in Word
         s = WebUtility.HtmlDecode(Regex.Replace(s, "<.*?>", ""));
         return s.Trim().Trim('"').Replace("**", "").Replace("`", "").Trim();

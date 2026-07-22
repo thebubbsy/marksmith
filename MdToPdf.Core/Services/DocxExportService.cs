@@ -303,6 +303,7 @@ public sealed class DocxExportService
             if (sectPr is not null) body.InsertBefore(el, sectPr); else body.Append(el);
         }
 
+        ctx.MainPart.NumberingDefinitionsPart?.Numbering?.Save();
         main.Document.Save();
     });
 
@@ -339,12 +340,13 @@ public sealed class DocxExportService
         public string BorderHex => Hex(Theme.Border);
         public string CodeHex => Hex(Theme.Code);
         public string SecondaryHex => Hex(Theme.Secondary);
+        public string PrimaryHex => Hex(Theme.Primary);
     }
 
     // Inline formatting state threaded through the inline walker.
     private readonly record struct Fmt(
         bool Bold, bool Italic, bool Strike, bool Code, bool Superscript, bool Subscript,
-        bool Highlight, bool Underline, string? Color);
+        bool Highlight, bool Underline, string? Color, bool NoProof = false, bool WikiLink = false, bool UnderlineDash = false);
 
     private static string Hex(string cssColor) => cssColor.TrimStart('#').ToUpperInvariant();
 
@@ -419,9 +421,9 @@ public sealed class DocxExportService
             case MathBlock math:
             {
                 // Display math â†’ a centered paragraph holding a real, editable Word equation (OMML).
-                var mp = new W.Paragraph(new W.ParagraphProperties( // schema order: spacing before jc
-                    new W.SpacingBetweenLines { Before = "120", After = "120" },
-                    new W.Justification { Val = W.JustificationValues.Center }));
+                var mp = new W.Paragraph(new W.ParagraphProperties(
+                    new W.Justification { Val = W.JustificationValues.Center },
+                    new W.SpacingBetweenLines { Before = "120", After = "120" }));
                 mp.Append(LatexToOmml.Build(math.Lines.ToString()));
                 target.Append(mp);
                 break;
@@ -660,7 +662,7 @@ public sealed class DocxExportService
                 if (target.ChildElements.Count > before && target.ChildElements[before] is W.Paragraph first)
                 {
                     var label = new W.Run(new W.Text($"[{footnote.Order}] ") { Space = SpaceProcessingModeValues.Preserve });
-                    if (first.ParagraphProperties is { } pp) pp.InsertAfterSelf(label);
+                    if (first.ParagraphProperties is { } pp) first.InsertAfter(label, pp);
                     else first.PrependChild(label);
                 }
                 break;
@@ -946,17 +948,59 @@ public sealed class DocxExportService
         return para;
     }
 
+    private static readonly OpenXmlSyntaxHighlighter CodeSyntaxHighlighter = new();
+
+    private static void AppendHighlightedCodeRuns(W.Paragraph para, IEnumerable<W.Run> runs)
+    {
+        var first = true;
+        foreach (var run in runs)
+        {
+            var textObj = run.GetFirstChild<W.Text>();
+            var rawText = textObj?.Text ?? "";
+            var rPr = run.RunProperties?.CloneNode(true) as W.RunProperties;
+
+            var lines = rawText.Replace("\r", "").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (i > 0)
+                {
+                    para.Append(new W.Run(new W.Break()));
+                }
+                if (lines[i].Length > 0)
+                {
+                    var partRun = new W.Run(new W.Text(lines[i]) { Space = SpaceProcessingModeValues.Preserve });
+                    if (rPr != null)
+                    {
+                        partRun.RunProperties = rPr.CloneNode(true) as W.RunProperties;
+                    }
+                    para.Append(partRun);
+                }
+            }
+        }
+    }
+
     private static W.Paragraph CodeParagraph(string text, string info, Ctx ctx)
     {
         var isDiff = info?.Trim().Equals("diff", StringComparison.OrdinalIgnoreCase) == true;
         var para = new W.Paragraph(new W.ParagraphProperties(
             new W.KeepLines(), // don't let a page break shear a code block in half
+            new W.WordWrap { Val = false }, // preserve ASCII art & Unicode box drawing alignment
             new W.ParagraphBorders(
                 new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
                 new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
                 new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
                 new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex }),
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex }));
+
+        if (!string.IsNullOrWhiteSpace(info) && !isDiff)
+        {
+            var highlighted = CodeSyntaxHighlighter.GetHighlightedRuns(text, info, ctx.Theme).ToList();
+            if (highlighted.Count > 0)
+            {
+                AppendHighlightedCodeRuns(para, highlighted);
+                return para;
+            }
+        }
 
         var regex = new Regex(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase);
         var colorStack = new Stack<string>();
@@ -1314,6 +1358,7 @@ public sealed class DocxExportService
             new System.Xml.Linq.XAttribute("SelectedStyle", "\\APA.XSL"),
             new System.Xml.Linq.XAttribute("StyleName", "APA"));
 
+        if (string.IsNullOrWhiteSpace(node.InnerContent)) return;
         var blocks = node.InnerContent.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
         var parsedTags = new List<string>();
 
@@ -1517,7 +1562,7 @@ public sealed class DocxExportService
 
         foreach (var child in alert)
             RenderBlock(child, cell, ctx, -1);
-        if (!cell.Elements<W.Paragraph>().Any())
+        if (cell.LastChild is not W.Paragraph)
             cell.Append(new W.Paragraph());
 
         // The cell background is the theme secondary color, which is dark for dark themes â€” force
@@ -1851,13 +1896,13 @@ public sealed class DocxExportService
                 if (row[c] is MdTableCell mdCell)
                     foreach (var child in mdCell)
                         RenderBlock(child, wCell, ctx, -1);
-                if (!wCell.Elements<W.Paragraph>().Any())
+                if (wCell.LastChild is not W.Paragraph)
                     wCell.Append(new W.Paragraph());
 
                 var align = c < table.ColumnDefinitions.Count ? table.ColumnDefinitions[c].Alignment : null;
                 if (align is TableColumnAlign.Center or TableColumnAlign.Right)
                 {
-                    foreach (var p in wCell.Elements<W.Paragraph>())
+                    foreach (var p in wCell.Descendants<W.Paragraph>())
                     {
                         p.ParagraphProperties ??= new W.ParagraphProperties();
                         p.ParagraphProperties.Justification = new W.Justification
@@ -2009,7 +2054,7 @@ public sealed class DocxExportService
                     // Raw inline HTML AI models emit constantly and that renders fine in the PDF
                     // (browser handles it) but used to be dropped here, silently un-formatting the
                     // text between the tags in Word. Now mapped to the equivalent run properties.
-                    ApplyHtmlInlineTag(html.Tag, target, ref current, htmlFmtStack);
+                    ApplyHtmlInlineTag(html.Tag, target, ref current, htmlFmtStack, ctx);
                     break;
 
                 case ContainerInline nestedContainer:
@@ -2036,7 +2081,7 @@ public sealed class DocxExportService
     // Toggles `current`/`stack` for one raw inline HTML tag. Void tags (<br>) emit immediately;
     // opening tags push and apply; closing tags pop. Unknown tags are still pushed/popped so their
     // (formatting-neutral) presence doesn't unbalance the stack for tags nested inside them.
-    private static void ApplyHtmlInlineTag(string rawTag, OpenXmlCompositeElement target, ref Fmt current, Stack<Fmt> stack)
+    private static void ApplyHtmlInlineTag(string rawTag, OpenXmlCompositeElement target, ref Fmt current, Stack<Fmt> stack, Ctx ctx)
     {
         var t = rawTag.Trim();
         if (t.Length < 2 || t[0] != '<') return;
@@ -2062,7 +2107,11 @@ public sealed class DocxExportService
 
         if (closing)
         {
-            if (stack.Count > 0) current = stack.Pop();
+            if (stack.Count > 0)
+            {
+                var popped = stack.Pop();
+                current = popped with { NoProof = current.NoProof || popped.NoProof };
+            }
             return;
         }
 
@@ -2076,6 +2125,8 @@ public sealed class DocxExportService
             "del" or "s" or "strike" => current with { Strike = true },
             "b" or "strong" => current with { Bold = true },
             "i" or "em" or "cite" or "var" or "dfn" => current with { Italic = true },
+            "span" when t.Contains("wikilink", StringComparison.OrdinalIgnoreCase) => current with { WikiLink = true, UnderlineDash = true, NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
+            "span" when t.Contains("md-tag", StringComparison.OrdinalIgnoreCase) => current with { NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
             "span" or "font" => current with { Color = ExtractHtmlColor(t) ?? current.Color },
             _ => current, // unknown/structural tag: no format change, but still balanced on the stack
         };
@@ -2205,7 +2256,7 @@ public sealed class DocxExportService
             {
                 rPr ??= new W.RunProperties();
                 rPr.RemoveAllChildren<W.Color>();
-                rPr.Append(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
+                rPr.PrependChild(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
             }
             if (rPr != null && rPr.HasChildren) run.Append(rPr);
             run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
@@ -2220,13 +2271,17 @@ public sealed class DocxExportService
         if (fmt.Bold) rPr.Append(new W.Bold());
         if (fmt.Italic) rPr.Append(new W.Italic());
         if (fmt.Strike) rPr.Append(new W.Strike());
+        if (fmt.Code || fmt.NoProof || fmt.WikiLink) rPr.Append(new W.NoProof()); // disables spellcheck and auto-hyphenation
         // Highlight ink is always yellow, so pin the text to black regardless of theme.
         if (fmt.Highlight) rPr.Append(new W.Color { Val = "000000" });
-        else if (fmt.Color is not null) rPr.Append(new W.Color { Val = fmt.Color });
+        else if (fmt.Color is not null)
+        {
+            rPr.Append(new W.Color { Val = fmt.Color });
+        }
         if (fmt.Code) rPr.Append(new W.FontSize { Val = "20" }); // 10pt for code
-        if (fmt.Code) rPr.Append(new W.NoProof()); // disables spellcheck and auto-hyphenation
         if (fmt.Highlight) rPr.Append(new W.Highlight { Val = W.HighlightColorValues.Yellow });
-        if (fmt.Underline) rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
+        if (fmt.WikiLink) rPr.Append(new W.Underline { Val = W.UnderlineValues.Dash });
+        else if (fmt.Underline) rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
         if (fmt.Code) // character border + shading: the rarely-touched w:bdr, boxing inline code
         {
             rPr.Append(new W.Border { Val = W.BorderValues.Single, Size = 4, Space = 1, Color = "auto" });
@@ -2240,10 +2295,13 @@ public sealed class DocxExportService
         // in): kerned ligatures, old-style proportional numerals, contextual alternates.
         if (!fmt.Code)
         {
-            rPr.Append(new W14.Ligatures { Val = W14.LigaturesValues.StandardContextual });
-            rPr.Append(new W14.NumberingFormat { Val = W14.NumberFormValues.OldStyle });
-            rPr.Append(new W14.NumberSpacing { Val = W14.NumberSpacingValues.Proportional });
-            rPr.Append(new W14.ContextualAlternatives());
+            rPr.Append(new AlternateContent(
+                new AlternateContentChoice(
+                    new W14.Ligatures { Val = W14.LigaturesValues.StandardContextual },
+                    new W14.NumberingFormat { Val = W14.NumberFormValues.OldStyle },
+                    new W14.NumberSpacing { Val = W14.NumberSpacingValues.Proportional },
+                    new W14.ContextualAlternatives()
+                ) { Requires = "w14" }));
         }
         return rPr;
     }
@@ -2258,10 +2316,13 @@ public sealed class DocxExportService
         // Doc-wide defaults carry the theme text color and kerning; the w14 OpenType features are
         // stamped per-run in BuildRunProperties (the only place they're schema-legal).
         var baseFont = ctx.BrandFont ?? "Calibri"; // branding kit can restyle the whole document
+        var defaultText = ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background);
+        var headingColor = ContrastGuard.EnsureLegibleText(ctx.HeadingHex, ctx.Theme.Background);
+
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
                 new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont },
-                new W.Color { Val = ctx.Theme.Text.TrimStart('#') },
+                new W.Color { Val = defaultText },
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },
                 new W.FontSizeComplexScript { Val = "22" })),
@@ -2278,8 +2339,8 @@ public sealed class DocxExportService
         // (size half-points, gray color for h6) â€” roughly GitHub's heading scale on an 11pt base.
         (string Size, string? Color)[] headings =
         {
-            ("40", ctx.HeadingHex), ("32", ctx.HeadingHex), ("28", ctx.HeadingHex),
-            ("24", ctx.HeadingHex), ("22", ctx.HeadingHex), ("22", "6A737D"),
+            ("40", headingColor), ("32", headingColor), ("28", headingColor),
+            ("24", headingColor), ("22", headingColor), ("22", ContrastGuard.EnsureLegibleText("6A737D", ctx.Theme.Background)),
         };
         for (var level = 1; level <= 6; level++)
         {
@@ -2437,7 +2498,7 @@ public sealed class DocxExportService
                 var tc = new W.TableCell(
                     new W.TableCellProperties(
                         new W.TableCellWidth { Width = "0", Type = W.TableWidthUnitValues.Auto },
-                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = isHeader ? (ctx.Theme.Primary.TrimStart('#') ?? "F3F4F6") : "FFFFFF" }
+                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = isHeader ? (ctx.Theme.Primary?.TrimStart('#') ?? "F3F4F6") : "FFFFFF" }
                     ),
                     new W.Paragraph(
                         new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }),
@@ -2469,9 +2530,13 @@ public sealed class DocxExportService
         {
             try 
             {
-                var j = JsonDocument.Parse(node.InnerContent);
+                using var j = JsonDocument.Parse(node.InnerContent);
                 var data = j.RootElement.GetProperty("data");
-                foreach (var l in data.GetProperty("labels").EnumerateArray()) labels.Add(l.GetString());
+                foreach (var l in data.GetProperty("labels").EnumerateArray())
+                {
+                    var s = l.GetString();
+                    if (s != null) labels.Add(s);
+                }
                 foreach (var v in data.GetProperty("values").EnumerateArray()) values.Add(v.GetDouble());
             } 
             catch { }
@@ -2486,7 +2551,7 @@ public sealed class DocxExportService
                 var parts = line.Split(',');
                 if (parts.Length >= 2 && double.TryParse(parts[1], out double val))
                 {
-                    labels.Add(parts[0]);
+                    labels.Add(parts[0] ?? "");
                     values.Add(val);
                 }
             }
@@ -2526,7 +2591,7 @@ public sealed class DocxExportService
                 uint rowIdx = (uint)(i + 2);
                 var row = new S.Row() { RowIndex = rowIdx };
                 row.Append(
-                    new S.Cell() { CellReference = "A" + rowIdx, DataType = S.CellValues.String, CellValue = new S.CellValue(labels[i]) },
+                    new S.Cell() { CellReference = "A" + rowIdx, DataType = S.CellValues.String, CellValue = new S.CellValue(labels[i] ?? "") },
                     new S.Cell() { CellReference = "B" + rowIdx, DataType = S.CellValues.Number, CellValue = new S.CellValue(values[i].ToString(CultureInfo.InvariantCulture)) }
                 );
                 sheetData.Append(row);
@@ -2539,7 +2604,7 @@ public sealed class DocxExportService
         stringCache.Append(new C.PointCount() { Val = (uint)labels.Count });
         for (int i = 0; i < labels.Count; i++)
         {
-            stringCache.Append(new C.StringPoint() { Index = (uint)i, NumericValue = new C.NumericValue(labels[i]) });
+            stringCache.Append(new C.StringPoint() { Index = (uint)i, NumericValue = new C.NumericValue(labels[i] ?? "") });
         }
         stringRef.Append(stringCache);
         categoryRef.Append(stringRef);

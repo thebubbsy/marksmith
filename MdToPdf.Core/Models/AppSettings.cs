@@ -4,12 +4,16 @@ public sealed class AppSettings
 {
     public string TargetFormat { get; set; } = "pdf";
     public string Theme { get; set; } = "GitHub Light";
+    public bool ThemeLightInfluence { get; set; }
     public int ContentWidth { get; set; } = 800;
     public bool MermaidEnabled { get; set; } = true;
     public string OutputFolder { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
+
+    public int AmbiguityMode { get; set; } = 1; // 0=AlwaysAsk, 1=UseDefault, 2=RememberChoices
+    public List<AmbiguityPreference> AmbiguityPreferences { get; set; } = new();
 
     // AI ingest + normalization
     public bool NormalizeLlm { get; set; } = true;
@@ -103,6 +107,7 @@ public sealed class AppSettings
         var s = (AppSettings)MemberwiseClone();
         if (o is null) return s;
         if (o.Theme is not null) s.Theme = o.Theme;
+        if (o.ThemeLightInfluence is { } tli) s.ThemeLightInfluence = tli;
         if (o.ContentWidth is { } cw) s.ContentWidth = cw;
         if (o.A4FixedWidth is { } a4) s.A4FixedWidth = a4;
         if (o.UnlimitedHeight is { } uh) s.UnlimitedHeight = uh;
@@ -116,10 +121,17 @@ public sealed class AppSettings
         if (o.ItalicMode is { } im) s.ItalicMode = im;
         if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
         if (o.MermaidDocxMode is { } mm) s.MermaidDocxMode = mm;
+        if (o.OversizedDiagramMode is { } odm) s.OversizedDiagramMode = odm;
+        if (o.DiagramGridSize is { } dgs) s.DiagramGridSize = dgs;
+        if (o.SmartConnectors is { } sc) s.SmartConnectors = sc;
+        if (o.ConnectorRouting is not null) s.ConnectorRouting = o.ConnectorRouting;
+        if (o.ConnectorArrowhead is not null) s.ConnectorArrowhead = o.ConnectorArrowhead;
+        if (o.BrandCoverPage is { } bcp) s.BrandCoverPage = bcp;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
         if (!string.IsNullOrWhiteSpace(o.SourceLanguage)) s.ContentLanguage = o.SourceLanguage;
         if (!string.IsNullOrWhiteSpace(o.SourceDirection)) s.ContentDirection = o.SourceDirection;
+        s.AmbiguityPreferences = new List<AmbiguityPreference>(AmbiguityPreferences);
         return s;
     }
 
@@ -128,6 +140,7 @@ public sealed class AppSettings
         if (other is null) return;
         TargetFormat = other.TargetFormat;
         Theme = other.Theme;
+        ThemeLightInfluence = other.ThemeLightInfluence;
         ContentWidth = other.ContentWidth;
         MermaidEnabled = other.MermaidEnabled;
         OutputFolder = other.OutputFolder;
@@ -167,5 +180,7 @@ public sealed class AppSettings
         ApiPort = other.ApiPort;
         AdvancedMode = other.AdvancedMode;
         AllowedExtensionId = other.AllowedExtensionId;
+        AmbiguityMode = other.AmbiguityMode;
+        AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
 }

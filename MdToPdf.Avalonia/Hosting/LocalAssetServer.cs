@@ -20,14 +20,32 @@ public sealed class LocalAssetServer : IDisposable
     public LocalAssetServer(string rootDir)
     {
         _rootDir = Path.GetFullPath(rootDir);
-        var port = GetFreeLoopbackPort();
-        BaseUrl = $"http://127.0.0.1:{port}";
-        _listener.Prefixes.Add(BaseUrl + "/");
+        for (int attempts = 0; attempts < 50; attempts++)
+        {
+            var port = GetFreeLoopbackPort();
+            var baseUrl = $"http://127.0.0.1:{port}";
+            try
+            {
+                _listener.Prefixes.Clear();
+                _listener.Prefixes.Add(baseUrl + "/");
+                _listener.Start();
+                BaseUrl = baseUrl;
+                return;
+            }
+            catch (Exception ex) when (ex is HttpListenerException or System.Net.Sockets.SocketException)
+            {
+                _listener.Prefixes.Clear();
+            }
+        }
+        throw new InvalidOperationException("Could not bind LocalAssetServer to any loopback port.");
     }
 
     public void Start()
     {
-        _listener.Start();
+        if (!_listener.IsListening)
+        {
+            _listener.Start();
+        }
         _ = Task.Run(AcceptLoopAsync);
     }
 
@@ -80,11 +98,7 @@ public sealed class LocalAssetServer : IDisposable
 
     private static int GetFreeLoopbackPort()
     {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
+        return Random.Shared.Next(49152, 65535);
     }
 
     public void Dispose()

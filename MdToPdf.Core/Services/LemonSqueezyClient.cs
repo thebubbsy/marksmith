@@ -10,9 +10,11 @@ namespace MdToPdf.Services;
 public static class LemonSqueezyClient
 {
     // Set to true when you sell via Lemon Squeezy and issue their license keys.
-    public static bool Enabled => false;
+    public static bool Enabled { get; set; } = false;
+    public static string ApiUrl { get; set; } = "https://api.lemonsqueezy.com/v1/licenses/activate";
 
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    internal static HttpClient Http { get => _http; set => _http = value; }
 
     public static async Task<(bool ok, string message, string? email, string? instanceId)> ActivateAsync(string key)
     {
@@ -23,7 +25,7 @@ public static class LemonSqueezyClient
                 ["license_key"] = key,
                 ["instance_name"] = Environment.MachineName,
             });
-            using var resp = await Http.PostAsync("https://api.lemonsqueezy.com/v1/licenses/activate", body);
+            using var resp = await Http.PostAsync(ApiUrl, body);
             var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
 
             bool activated = json.TryGetProperty("activated", out var a) && a.ValueKind == JsonValueKind.True;

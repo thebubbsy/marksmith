@@ -27,7 +27,7 @@ public static partial class HtmlSanitizer
     private static partial Regex TagAware();
 
     // on*="…" / on*='…' / on*=bare inside a tag. Applied only within a correctly-delimited tag.
-    [GeneratedRegex(@"\son\w+\s*=\s*(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"[\s/]on\w+\s*=\s*(""[^""]*""|'[^']*'|[^\s>]+)", RegexOptions.IgnoreCase)]
     private static partial Regex EventHandlers();
 
     // A url-bearing attribute (href/src, optionally xlink:/xml: prefixed), capturing name+`=`
@@ -44,7 +44,9 @@ public static partial class HtmlSanitizer
     private static bool IsJavascriptUrl(string decoded)
     {
         var compact = new string(decoded.Where(c => !char.IsWhiteSpace(c) && !char.IsControl(c)).ToArray());
-        return compact.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase);
+        return compact.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+            || compact.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase)
+            || compact.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase);
     }
 
     public static string Apply(string html)

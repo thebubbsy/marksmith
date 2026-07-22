@@ -1,9 +1,7 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-full-dark.png">
-  <img src="docs/images/logo-full-light.png" alt="Marksmith" width="260">
-</picture>
+![Marksmith](docs/images/logo-full-dark.png#gh-dark-mode-only)
+![Marksmith](docs/images/logo-full-light.png#gh-light-mode-only)
 
 # Marksmith
 
@@ -43,8 +41,7 @@ It's a native **WinUI 3** desktop app with a left‑to‑right workflow: **Sourc
 
 You don't need an AI chat to use Marksmith — switch to the **Paste** tab and just start writing.
 Every keystroke re-renders the document on the right, so you're always looking at the finished
-page, not the source. When it looks right, hit **Generate PDF** (or **Export DOCX**) and it lands in
-your output folder.
+page, not the source. You can use the fully functional **Visual Markdown Toolbar** at the bottom of the editor to quickly format text (bold, italic, headings, lists, tables) or inject advanced Marksmith elements (tabs, columns, charts, drawings) directly at your cursor. When it looks right, hit **Generate PDF** (or **Export DOCX**) and it lands in your output folder.
 
 ![Typing Markdown into Marksmith with the preview updating live, then exporting a PDF](docs/images/editor-demo.gif)
 
@@ -98,10 +95,9 @@ labels all recolor to match, across **every** built‑in theme. Here's the same 
 
 And it scales: here's a single diagram of a **global datacenter network** — an AS8075 backbone
 fanning out to four regions, each a Clos spine‑leaf fabric, all the way down through top‑of‑rack
-switches and servers to individual **HDD bays**, with real‑world addressing throughout. It's rendered
-at full resolution — **right‑click → "Open image in new tab"** to read the IP addressing:
+switches and servers to individual **HDD bays**, with real‑world addressing throughout. By default, large diagrams are rendered in their exact proportions using the **Keep original size (web layout)** mode, prompting Word to open in Web Layout view for side-to-side scrolling rather than squeezing or reflowing the layout. Since every box, line, and connection is generated as a native DrawingML shape, you can click on any sub-shape and edit or move it directly inside Word:
 
-![Massive Mermaid network topology](docs/images/mermaid-network.png)
+![Massive Mermaid network topology rendered as native editable shapes in Microsoft Word](docs/images/mermaid-network.png)
 
 ### 📤 Export
 
@@ -152,6 +148,15 @@ bothers with — the file is schema‑valid and built to feel hand‑made in Wor
 - **Block deep‑cuts** — code blocks are `keepLines`‑protected from page breaks, inline code gets a
   character‑level border, thematic breaks render as a wave rule, and the extended emphasis syntax maps
   through: `~sub~`, `^sup^`, `==highlight==`, `++inserted++`.
+- **Advanced OpenXML Elements** — Support for rich layout tags:
+  - **Tabs (`:::tabs`)** — Shaded tabs with active header highlighting.
+  - **Link Panels (`:::embed`)** — Clean web link cards with automatic site icon badges.
+  - **Charts (`:::chart`)** — Native Word Pie, Line, and Bar charts powered by real excel data sheets.
+  - **Data Grids (`:::datagrid`)** — Styled tabular grids with repeating headers.
+  - **Columns (`:::columns`)** — Section multi-column structures.
+  - **Custom Geometry (`:::canvas`)** — Path drawing translation to native DrawingML vectors.
+  - **References (`:::references`)** — Auto-generated bibliographies and field citations.
+  - **Workflow flows (`:::timeline` / `:::workflow`)** — Process graphics mapped to editable shape groupings.
 
 ### 🤖 Automation
 
@@ -167,20 +172,27 @@ Marksmith can run hands‑free:
 A loopback‑only API (`127.0.0.1`) lets scripts and other tools drive Marksmith:
 
 ```bash
-# Convert Markdown to a PDF over HTTP
+# Convert Markdown to a PDF or DOCX over HTTP
 curl -X POST http://127.0.0.1:47821/api/convert \
      -H "Content-Type: application/json" \
      -d '{"markdown":"# Hello\n\nFrom **Marksmith**.","theme":"GitHub Dark"}' \
      -o out.pdf
 ```
 
+Here is a side-by-side look at the REST API converting the README file and opening it in Word:
+
+![REST API Conversion Process and Outputs](docs/images/api-conversion-process.png)
+
 | Endpoint | Purpose |
 | --- | --- |
 | `GET  /api/health` | Liveness + endpoint list |
 | `GET  /api/themes` | Available theme names |
+| `GET  /api/settings` | Retrieve active application settings |
+| `POST /api/settings` | Update persistent settings |
 | `POST /api/classify` | Detect the AI source of a Markdown blob |
 | `POST /api/ingest` | Push Markdown into the app UI |
-| `POST /api/convert` | Return a rendered PDF |
+| `POST /api/convert` | Return a rendered PDF, DOCX, PPTX, or EPUB |
+| `POST /api/batch` | Batch convert all Markdown files in a folder |
 
 ### 🧩 Browser extension
 

@@ -116,4 +116,35 @@ public class HtmlRenderTests
     // ---- hr and page structure ----------------------------------------------------------------
     [Fact] public void Thematic_break_renders() => Assert.Contains("<hr", Render("above\n\n---\n\nbelow"));
     [Fact] public void Raw_hr_survives() { var h = Render("above\n<hr>\nbelow"); Assert.Contains("below", h); }
+
+    // ---- 10 improvements validation -----------------------------------------------------------
+    [Fact] public void Workspace_styling_applied_in_interactive_mode()
+    {
+        var html = new MarkdownHtmlService().Render("# Title", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Dark"), interactive: true);
+        Assert.Contains("background: #141416;", html);
+        Assert.Contains("box-shadow: 0 4px 16px rgba(0,0,0,0.25);", html);
+        Assert.Contains("margin: 40px auto;", html);
+    }
+
+    [Fact] public void Workspace_styling_absent_in_print_mode()
+    {
+        var html = new MarkdownHtmlService().Render("# Title", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Dark"), interactive: false);
+        Assert.Contains("background: #0d1117;", html); // GitHub Dark default background
+        Assert.Contains("margin: 0 auto;", html);
+        Assert.DoesNotContain("box-shadow: 0 4px 16px rgba(0,0,0,0.25);", html);
+    }
+
+    [Fact] public void Mermaid_error_script_injected_in_interactive_mode()
+    {
+        var html = new MarkdownHtmlService().Render("```mermaid\ngraph LR\nA-->B\n```", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Light"), interactive: true);
+        Assert.Contains("window.mermaidError = null;", html);
+        Assert.Contains("checkPageOverflow", html);
+    }
+
+    [Fact] public void Mermaid_confinement_css_applied()
+    {
+        var html = new MarkdownHtmlService().Render("# Title", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Light"));
+        Assert.Contains(".mermaid { width: 100%; max-width: 100%;", html);
+        Assert.DoesNotContain("max-width: calc(100vw - 48px);", html);
+    }
 }

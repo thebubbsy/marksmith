@@ -115,7 +115,37 @@ public static class AdmonitionNormalizer
                 // Gather body up to the closing ::: (or end of document if the author forgot it).
                 var body = new List<string>();
                 int j = i + 1;
-                while (j < lines.Length && !Closer.IsMatch(lines[j])) body.Add(lines[j++]);
+                bool bodyInCode = false;
+                string? bodyFence = null;
+                while (j < lines.Length)
+                {
+                    var bodyLine = lines[j];
+                    var bodyTrimmed = bodyLine.TrimStart();
+                    if (!bodyInCode && (bodyTrimmed.StartsWith("```", StringComparison.Ordinal) || bodyTrimmed.StartsWith("~~~", StringComparison.Ordinal)))
+                    {
+                        bodyInCode = true;
+                        bodyFence = bodyTrimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
+                        body.Add(bodyLine);
+                        j++;
+                        continue;
+                    }
+                    if (bodyInCode)
+                    {
+                        if (bodyFence is not null && bodyTrimmed.StartsWith(bodyFence, StringComparison.Ordinal))
+                        {
+                            bodyInCode = false;
+                            bodyFence = null;
+                        }
+                        body.Add(bodyLine);
+                        j++;
+                        continue;
+                    }
+
+                    if (Closer.IsMatch(bodyLine)) break;
+
+                    body.Add(bodyLine);
+                    j++;
+                }
                 i = j; // the for-loop's i++ then steps past the closing ::: (or lands at EOF)
 
                 if (outLines.Count > 0 && outLines[^1].Length > 0) outLines.Add(""); // ensure blockquote starts a new block

@@ -21,6 +21,7 @@ public enum ShapeKind
     Pie,            // pie wedge — uses AdjStartDeg/AdjEndDeg (degrees, 0 = 3 o'clock, clockwise)
     Frame,          // border-only rectangle (alt/loop frames, quadrant boxes) — no fill
     Text,           // borderless, fill-less text label
+    Subgraph,       // nested container with subtle background
 }
 
 public enum ArrowHead { None, Triangle, Open, Diamond, Oval, Stealth }

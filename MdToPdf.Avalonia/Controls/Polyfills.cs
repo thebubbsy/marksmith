@@ -51,7 +51,15 @@ namespace MdToPdf.Avalonia.Controls
 
         public Task<ContentDialogResult> ShowAsync()
         {
-            var tcs = new TaskCompletionSource<ContentDialogResult>();
+            var tcs = new TaskCompletionSource<ContentDialogResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            EventHandler closedHandler = null!;
+            closedHandler = (_, _) =>
+            {
+                this.Closed -= closedHandler;
+                tcs.TrySetResult(ContentDialogResult.None);
+            };
+            this.Closed += closedHandler;
 
             var sp = new StackPanel { Spacing = 10, Margin = new Thickness(20) };
             if (Title != null)
@@ -67,21 +75,21 @@ namespace MdToPdf.Avalonia.Controls
             if (!string.IsNullOrEmpty(SecondaryButtonText))
             {
                 var btn = new Button { Content = SecondaryButtonText };
-                btn.Click += (_, __) => { Close(); tcs.SetResult(ContentDialogResult.Secondary); };
+                btn.Click += (_, __) => { tcs.TrySetResult(ContentDialogResult.Secondary); Close(); };
                 btnPanel.Children.Add(btn);
             }
 
             if (!string.IsNullOrEmpty(PrimaryButtonText))
             {
                 var btn = new Button { Content = PrimaryButtonText };
-                btn.Click += (_, __) => { Close(); tcs.SetResult(ContentDialogResult.Primary); };
+                btn.Click += (_, __) => { tcs.TrySetResult(ContentDialogResult.Primary); Close(); };
                 btnPanel.Children.Add(btn);
             }
 
             if (!string.IsNullOrEmpty(CloseButtonText))
             {
                 var btn = new Button { Content = CloseButtonText };
-                btn.Click += (_, __) => { Close(); tcs.SetResult(ContentDialogResult.None); };
+                btn.Click += (_, __) => { tcs.TrySetResult(ContentDialogResult.None); Close(); };
                 btnPanel.Children.Add(btn);
             }
 
@@ -91,7 +99,7 @@ namespace MdToPdf.Avalonia.Controls
 
             // Find main window to use as owner
             Window owner = null;
-            if (Application.Current.ApplicationLifetime is global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            if (Application.Current != null && Application.Current.ApplicationLifetime is global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
             {
                 owner = desktop.MainWindow;
             }
@@ -99,14 +107,21 @@ namespace MdToPdf.Avalonia.Controls
             if (owner != null)
             {
                 Dispatcher.UIThread.InvokeAsync(async () => {
-                    await this.ShowDialog(owner);
-                    if (!tcs.Task.IsCompleted)
-                        tcs.SetResult(ContentDialogResult.None);
+                    try { await this.ShowDialog(owner); }
+                    catch { }
+                    tcs.TrySetResult(ContentDialogResult.None);
                 });
             }
             else
             {
-                this.Show();
+                try
+                {
+                    this.Show();
+                }
+                catch
+                {
+                    tcs.TrySetResult(ContentDialogResult.None);
+                }
             }
 
             return tcs.Task;
@@ -129,7 +144,14 @@ namespace MdToPdf.Avalonia.Controls
         public bool IsClosable { get => GetValue(IsClosableProperty); set => SetValue(IsClosableProperty, value); }
         public object ActionButton { get => GetValue(ActionButtonProperty); set => SetValue(ActionButtonProperty, value); }
 
-        public event EventHandler<RoutedEventArgs> CloseButtonClick;
+        public static readonly RoutedEvent<RoutedEventArgs> CloseButtonClickEvent =
+            RoutedEvent.Register<InfoBar, RoutedEventArgs>(nameof(CloseButtonClick), RoutingStrategies.Bubble);
+
+        public event EventHandler<RoutedEventArgs>? CloseButtonClick
+        {
+            add => AddHandler(CloseButtonClickEvent, value);
+            remove => RemoveHandler(CloseButtonClickEvent, value);
+        }
 
         public InfoBar()
         {
@@ -147,12 +169,9 @@ namespace MdToPdf.Avalonia.Controls
 
         private void UpdateContent()
         {
-            var sp = new StackPanel { Spacing = 5, Margin = new Thickness(10) };
-            if (!string.IsNullOrEmpty(Title))
-                sp.Children.Add(new TextBlock { Text = Title, FontWeight = FontWeight.Bold });
-            if (!string.IsNullOrEmpty(Message))
-                sp.Children.Add(new TextBlock { Text = Message, TextWrapping = TextWrapping.Wrap });
-            
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            if (!string.IsNullOrEmpty(Title)) sp.Children.Add(new TextBlock { Text = Title, FontWeight = FontWeight.Bold });
+            if (!string.IsNullOrEmpty(Message)) sp.Children.Add(new TextBlock { Text = Message });
             if (ActionButton is Control c)
             {
                 if (c.Parent is global::Avalonia.Controls.Panel p) p.Children.Remove(c);
@@ -165,7 +184,7 @@ namespace MdToPdf.Avalonia.Controls
                 var btn = new Button { Content = "Close" };
                 btn.Click += (s, e) => {
                     IsOpen = false;
-                    CloseButtonClick?.Invoke(this, e);
+                    RaiseEvent(new RoutedEventArgs(CloseButtonClickEvent));
                 };
                 sp.Children.Add(btn);
             }

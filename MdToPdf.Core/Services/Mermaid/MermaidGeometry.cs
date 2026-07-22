@@ -107,7 +107,7 @@ public sealed class GenericDiagram
     }
 
     // css "rgb(r, g, b)" / "rgba(...)" / "#rrggbb" -> "#RRGGBB"; "none"/transparent/empty -> null.
-    private static string? Css(string? c)
+    internal static string? Css(string? c)
     {
         if (string.IsNullOrEmpty(c) || c == "none" || c == "transparent") return null;
         var m = Regex.Match(c, @"rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?");
@@ -136,8 +136,9 @@ public sealed class HNode
     public double Cy { get; set; }
     public double W { get; set; }
     public double H { get; set; }
-    public string Kind { get; set; } = "Rect"; // Rect|RoundRect|Diamond|Ellipse|Circle|Hexagon|Cylinder
+    public string Kind { get; set; } = "Rect"; // Rect|RoundRect|Diamond|Ellipse|Circle|Hexagon|Cylinder|Subgraph
     public string Label { get; set; } = "";     // '\n' between wrapped lines
+    public string? Fill { get; set; }
 }
 
 public sealed class HEdge
@@ -186,6 +187,7 @@ public sealed class HarvestedDiagram
                 "Circle" => ShapeKind.Circle,
                 "Hexagon" => ShapeKind.Hexagon,
                 "Cylinder" => ShapeKind.Cylinder,
+                "Subgraph" => ShapeKind.Subgraph,
                 _ => ShapeKind.Rect,
             };
             d.Shapes.Add(new MShape
@@ -196,6 +198,7 @@ public sealed class HarvestedDiagram
                 W = w,
                 H = h,
                 Text = n.Label,
+                Fill = GenericDiagram.Css(n.Fill),
                 FontSize = 9,
             });
         }

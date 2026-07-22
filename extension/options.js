@@ -6,13 +6,15 @@ const THEMES_FALLBACK = ["GitHub Light", "GitHub Dark", "Solarized Light", "Sola
 
 // Output profile fields -> the keys the app's OutputOverride expects (camelCase).
 const OUT_DEFAULTS = {
-    theme: "GitHub Light", contentWidth: 800, a4FixedWidth: true, unlimitedHeight: true,
+    theme: "GitHub Light", themeLightInfluence: false, contentWidth: 800, a4FixedWidth: true, unlimitedHeight: true,
     includeToc: false, showAttribution: true, noEmoji: false, dashMode: 0, dashCustom: "",
     headingShift: 0, boldMode: 0, italicMode: 0, normalizeLlm: true,
-    format: "pdf", outputFolder: "", mermaidDocxMode: 1,
+    format: "pdf", outputFolder: "", mermaidDocxMode: 1, oversizedDiagramMode: 1,
+    diagramGridSize: 2, smartConnectors: true, connectorRouting: "default", connectorArrowhead: "default",
+    brandCoverPage: false
 };
-const NUMS = new Set(["contentWidth", "dashMode", "headingShift", "boldMode", "italicMode", "mermaidDocxMode"]);
-const BOOLS = new Set(["a4FixedWidth", "unlimitedHeight", "includeToc", "showAttribution", "noEmoji", "normalizeLlm"]);
+const NUMS = new Set(["contentWidth", "dashMode", "headingShift", "boldMode", "italicMode", "mermaidDocxMode", "oversizedDiagramMode", "diagramGridSize"]);
+const BOOLS = new Set(["a4FixedWidth", "unlimitedHeight", "includeToc", "showAttribution", "noEmoji", "normalizeLlm", "themeLightInfluence", "smartConnectors", "brandCoverPage"]);
 
 function fillThemes(list, selected) {
     const sel = $("o_theme");

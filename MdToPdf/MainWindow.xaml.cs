@@ -58,8 +58,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
-    private readonly Services.ApiServer _apiServer;
-    private readonly SemaphoreSlim _convertLock = new(1, 1);
+    private readonly Services.AutomationManager _automationManager;
+    private readonly Services.ExportCoordinator _exportCoordinator = new();
     private H.NotifyIcon.TaskbarIcon? _trayIcon;
     private bool _exitRequested;
 
@@ -132,7 +132,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
-        _apiServer = new Services.ApiServer(
+        _automationManager = new Services.AutomationManager(
             App.LlmSource,
             () => ViewModel.ThemeNames.ToList(),
             (md, origin, ovr) => DispatcherQueue.TryEnqueue(() => IngestFromSource(md, origin, ovr)),
@@ -166,7 +166,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _clipboardIngest.Dispose();
             _folderIngest.Dispose();
-            _apiServer.Dispose();
+            _automationManager.Dispose();
             _trayIcon?.Dispose();
         };
 
@@ -210,16 +210,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (e.PropertyName is not null && PreviewAffectingProperties.Contains(e.PropertyName))
         {
-            if (e.PropertyName == nameof(ViewModels.MainViewModel.CurrentMarkdown))
+            if (e.PropertyName == nameof(ViewModels.MainViewModel.PastedMarkdown))
             {
-                if (!ViewModel.UsePasteSource) ViewModel.UsePasteSource = true; // Auto-switch to editor mode when typing
-
-                // Small per-keystroke delta = typing (light); a big jump = paste (heavy).
-                var len = ViewModel.CurrentMarkdown?.Length ?? 0;
+                var len = ViewModel.PastedMarkdown?.Length ?? 0;
                 if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
                 {
                     _nextRefreshHeavy = true;
-                    MaybeShowPlainPasteHint(ViewModel.CurrentMarkdown ?? "");
+                    MaybeShowPlainPasteHint(ViewModel.PastedMarkdown ?? "");
                 }
                 _lastMarkdownLen = len;
             }
@@ -564,24 +561,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void ApplyAutomationSettings()
     {
-        var vm = ViewModel;
-
-        if (vm.AutoClipboardIngest && !_clipboardIngest.IsRunning) _clipboardIngest.Start();
-        else if (!vm.AutoClipboardIngest && _clipboardIngest.IsRunning) _clipboardIngest.Stop();
-
-        if (vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) _folderIngest.Start(vm.WatchFolder);
-        else _folderIngest.Stop();
-
-        try
-        {
-            if (vm.ApiEnabled && (!_apiServer.IsRunning || _apiServer.Port != vm.ApiPort)) _apiServer.Start(vm.ApiPort);
-            else if (!vm.ApiEnabled) _apiServer.Stop();
-            ApiUrlText.Text = _apiServer.IsRunning ? $"http://127.0.0.1:{_apiServer.Port}/api/health" : "";
-        }
-        catch (Exception ex)
-        {
-            ApiUrlText.Text = $"API failed to start: {ex.Message}";
-        }
+        _automationManager.ApplyAutomationSettings(
+            ViewModel,
+            () => _clipboardIngest.Start(),
+            () => _clipboardIngest.Stop(),
+            _clipboardIngest.IsRunning,
+            folder => _folderIngest.Start(folder),
+            () => _folderIngest.Stop(),
+            _folderIngest.IsRunning,
+            status => ApiUrlText.Text = status);
     }
 
     // Tray icon is created in code, not markup — the WASDK 1.6 XAML compiler crashes on
@@ -633,201 +621,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Which file formats an automated export should produce. "both" = pdf,docx; pptx/epub are
-    // recognized but currently throw NotImplemented (roadmap groundwork).
-    private static string[] ParseFormats(string? format)
-    {
-        if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
-        if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
-        var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(f => f.ToLowerInvariant())
-            .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
-            .Distinct().ToArray();
-        return fmts.Length > 0 ? fmts : new[] { "pdf" };
-    }
+    private static string[] ParseFormats(string? format) => Services.ExportCoordinator.ParseFormats(format);
 
-    // The export uses the caller's output profile (theme, layout, formatting, folder) merged over the
-    // app's settings, and produces whichever format(s) the caller asked for — so the extension fully
-    // drives automated output without touching the app UI.
     private async Task AutoExportIngestAsync(Models.OutputOverride? output)
     {
-        await _convertLock.WaitAsync();
-        try
-        {
-            var md = ViewModel.PastedMarkdown;
-            if (string.IsNullOrWhiteSpace(md)) return;
-
-            if (!await EnsurePreviewWebViewAsync())
-            {
-                ViewModel.StatusText = "Auto-generate failed: the preview engine couldn't start. Try the export again.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-                return;
-            }
-            var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
-            try
-            {
-
-            var settings = App.Settings.Current.CloneWith(output);
-            Directory.CreateDirectory(settings.OutputFolder);
-            var label = (ViewModel.LastClassification?.SourceName ?? "chat").Replace(" ", "");
-            var stem = Path.Combine(settings.OutputFolder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}");
-
-            var produced = new List<string>();
-            var pending = new List<string>();
-            var formats = ParseFormats(output?.Format);
-
-            // Pre-rasterize mermaid diagrams once if a DOCX will need them (Snapshot mode, or as
-            // ShapeForge's fallback for unsupported diagram types).
-            IReadOnlyList<byte[]?>? mermaidImgs = null;
-            IReadOnlyList<Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-            IReadOnlyList<Services.Mermaid.GenericDiagram?>? mermaidGen = null;
-            if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
-            {
-                var harvester = new Services.MermaidHarvestService();
-                var theme = App.Themes.GetOrDefault(settings.Theme);
-                mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
-                if (settings.MermaidDocxMode == 1) // ShapeForge native shapes
-                {
-                    mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
-                    mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
-                    // Diagnostic: write harvest results to merr.txt for troubleshooting
-                    try
-                    {
-                        var logPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!, "merr.txt");
-                        var sb = new System.Text.StringBuilder();
-                        sb.AppendLine($"[{DateTime.Now:HH:mm:ss}] Harvest complete");
-                        sb.AppendLine($"  MermaidDocxMode={settings.MermaidDocxMode}");
-                        sb.AppendLine($"  OversizedDiagramMode={settings.OversizedDiagramMode}");
-                        sb.AppendLine($"  mermaidGeo: {(mermaidGeo is null ? "NULL" : $"Count={mermaidGeo.Count}")}");
-                        if (mermaidGeo is not null)
-                            for (int gi = 0; gi < mermaidGeo.Count; gi++)
-                                sb.AppendLine($"    geo[{gi}]: {(mermaidGeo[gi] is null ? "NULL" : $"Nodes={mermaidGeo[gi]!.Nodes.Count}, Edges={mermaidGeo[gi]!.Edges.Count}, W={mermaidGeo[gi]!.W:F0}, H={mermaidGeo[gi]!.H:F0}, IsEmpty={mermaidGeo[gi]!.IsEmpty}")}");
-                        sb.AppendLine($"  mermaidGen: {(mermaidGen is null ? "NULL" : $"Count={mermaidGen.Count}")}");
-                        if (mermaidGen is not null)
-                            for (int gi = 0; gi < mermaidGen.Count; gi++)
-                                sb.AppendLine($"    gen[{gi}]: {(mermaidGen[gi] is null ? "NULL" : $"IsEmpty={mermaidGen[gi]!.IsEmpty}")}");
-                        sb.AppendLine($"  mermaidImgs: {(mermaidImgs is null ? "NULL" : $"Count={mermaidImgs.Count}")}");
-                        if (mermaidImgs is not null)
-                            for (int gi = 0; gi < mermaidImgs.Count; gi++)
-                                sb.AppendLine($"    img[{gi}]: {(mermaidImgs[gi] is null ? "NULL" : $"{mermaidImgs[gi]!.Length} bytes")}");
-                        System.IO.File.AppendAllText(logPath, sb.ToString());
-                    }
-                    catch { }
-                }
-            }
-
-            foreach (var fmt in formats)
-            {
-                var outPath = $"{stem}.{fmt}";
-                try
-                {
-                    switch (fmt)
-                    {
-                        case "pdf":
-                            var theme = App.Themes.GetOrDefault(settings.Theme);
-                            var html = App.MarkdownHtml.Render(md, settings, theme, ViewModel.LastClassification);
-                            await new Services.PdfExportService().ExportAsync(this, html, outPath, settings);
-                            break;
-                        case "docx":
-                            if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                            {
-                                await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
-                                outPath = settings.RunningDocPath;
-                            }
-                            else await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs,
-                                settings.NormalizeLlm ? ViewModel.LastClassification?.AppliedFixes : null, mermaidGeo, mermaidGen);
-                            break;
-                        case "pptx": await new Services.PptxExportService().ExportAsync(md, outPath, settings); break;
-                        case "epub": await new Services.EpubExportService().ExportAsync(md, outPath, settings); break;
-                    }
-                    produced.Add(outPath);
-                    ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                }
-                catch (NotImplementedException)
-                {
-                    pending.Add(fmt.ToUpperInvariant()); // roadmap format — skip gracefully
-                }
-            }
-
-            if (produced.Count > 0)
-            {
-                ViewModel.LastOutputPath = produced[^1];
-                ViewModel.StatusText = $"Auto-generated: {string.Join(", ", produced.Select(Path.GetFileName))}"
-                    + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "");
-                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-                ShowPdfToast(produced[^1]);
-            }
-            else if (pending.Count > 0)
-            {
-                ViewModel.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
-            }
-
-            }
-            finally
-            {
-                EndOffscreenRender(offscreen);
-            }
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Auto-generate failed: {ex.Message}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-        }
-        finally
-        {
-            _convertLock.Release();
-            await RefreshPreviewAsync();
-        }
+        await _exportCoordinator.AutoExportIngestAsync(
+            ViewModel,
+            output,
+            this,
+            () => new OffscreenScope(this),
+            ShowPdfToast,
+            () => RefreshPreviewAsync());
     }
 
-    // A watched file always ingests into the UI; in auto-convert mode it also goes straight to
-    // PDF in the output folder with a toast — the fully hands-off pipeline.
     private async Task OnWatchedFileAsync(string path)
     {
-        ViewModel.IngestFile(path);
-        if (!ViewModel.WatchFolderAutoConvert) return;
-        if (!App.License.CanAutomate)
-        {
-            ViewModel.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
-            return;
-        }
-        if (!await EnsurePreviewWebViewAsync()) return; // engine not up yet — file stays ingested in the UI
-        var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
-
-        try
-        {
-            await _convertLock.WaitAsync();
-            try
-            {
-                var html = ViewModel.BuildPreviewHtml(ViewModel.PastedMarkdown); // IngestFile already normalized it
-                var folder = App.Settings.Current.OutputFolder;
-                Directory.CreateDirectory(folder);
-                var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                await new Services.PdfExportService().ExportAsync(this, html, outPath, App.Settings.Current);
-
-                ViewModel.LastOutputPath = outPath;
-                ViewModel.RecordExport("PDF", outPath, ViewModel.PastedMarkdown);
-                ViewModel.StatusText = $"Auto-converted: {outPath}";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-                ShowPdfToast(outPath);
-            }
-            finally
-            {
-                _convertLock.Release();
-                await RefreshPreviewAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Auto-convert failed for {Path.GetFileName(path)}: {ex.Message}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-        }
-        finally
-        {
-            EndOffscreenRender(offscreen);
-        }
+        await _exportCoordinator.OnWatchedFileAsync(
+            ViewModel,
+            path,
+            this,
+            () => new OffscreenScope(this),
+            ShowPdfToast,
+            () => RefreshPreviewAsync());
     }
 
     private static void ShowPdfToast(string pdfPath)
@@ -922,44 +737,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        int done = 0, failed = 0;
-        var outFolder = App.Settings.Current.OutputFolder;
-        Directory.CreateDirectory(outFolder);
-        foreach (var f in files)
+        try
         {
-            await _convertLock.WaitAsync();
-            try
-            {
-                var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
-                switch (fmt)
-                {
-                    case "pdf":
-                        await new Services.PdfExportService().ExportAsync(this, ViewModel.BuildPreviewHtml(md), outPath, App.Settings.Current);
-                        break;
-                    case "docx":
-                        await new Services.DocxExportService().ExportAsync(md, outPath, App.Settings.Current);
-                        break;
-                    case "pptx":
-                        await new Services.PptxExportService().ExportAsync(md, outPath, App.Settings.Current);
-                        break;
-                    case "epub":
-                        await new Services.EpubExportService().ExportAsync(md, outPath, App.Settings.Current);
-                        break;
-                }
-                ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                done++;
-                ViewModel.StatusText = $"Batch converting to {fmt.ToUpperInvariant()}… {done + failed}/{files.Length}";
-            }
-            catch { failed++; }
-            finally { _convertLock.Release(); }
-        }
+            var result = await _exportCoordinator.BatchConvertForApiAsync(
+                ViewModel,
+                folder.Path,
+                fmt,
+                null,
+                this,
+                () => new OffscreenScope(this),
+                () => RefreshPreviewAsync(false));
 
-        await RefreshPreviewAsync(false);
-        ViewModel.StatusText = failed == 0
-            ? $"Batch done: {done} {fmt.ToUpperInvariant()} file{(done == 1 ? "" : "s")} in {outFolder}"
-            : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
-        ViewModel.StatusSeverity = failed == 0 ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
+            var propDone = result.GetType().GetProperty("done")?.GetValue(result);
+            var propFailed = result.GetType().GetProperty("failed")?.GetValue(result);
+            var propFolder = result.GetType().GetProperty("outputFolder")?.GetValue(result);
+
+            int done = propDone is int d ? d : 0;
+            int failed = propFailed is int f ? f : 0;
+            string outFolder = propFolder is string s ? s : App.Settings.Current.OutputFolder;
+
+            ViewModel.StatusText = failed == 0
+                ? $"Batch done: {done} {fmt.ToUpperInvariant()} file{(done == 1 ? "" : "s")} in {outFolder}"
+                : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
+            ViewModel.StatusSeverity = failed == 0 ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Batch convert failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
     }
 
     // Ask which format to batch-convert to; returns "pdf"/"docx"/"pptx"/"epub" or null if cancelled.
@@ -1003,103 +809,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (file is not null) ViewModel.RunningDocPath = file.Path;
     }
 
-    // Runs an /api/convert request on the UI thread using the shared preview WebView2 (WebView2
-    // can't render off-tree — see PdfExportService). Serialized by _convertLock; the preview is
-    // restored afterwards.
     private async Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
     {
         var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         DispatcherQueue.TryEnqueue(async () =>
         {
-            if (!await EnsurePreviewWebViewAsync())
-            {
-                tcs.TrySetException(new InvalidOperationException("The preview engine couldn't start."));
-                return;
-            }
-            var offscreen = BeginOffscreenRender(); // tray mode: present off-screen so WebView2 paints
-            await _convertLock.WaitAsync();
             try
             {
-                var settings = App.Settings.Current.CloneWith(output);
-                var md = markdown;
-                // Correctness repairs (copy-artifact removal, math/matrix rescue) always run;
-                // stylistic cleanup only when the caller's profile asks for it.
-                var classification = App.LlmSource.Classify(md);
-                (md, _) = App.LlmSource.RepairArtifacts(md, classification);
-                if (settings.NormalizeLlm)
-                    (md, _) = App.LlmSource.NormalizeStyle(md, classification);
-                var theme = App.Themes.GetOrDefault(settings.Theme);
-                var html = App.MarkdownHtml.Render(md, settings, theme, classification);
-                var fmt = settings.TargetFormat.ToLowerInvariant();
-                if (output?.Format is { Length: > 0 } outputFmt)
-                    fmt = outputFmt.ToLowerInvariant();
-
-                if (fmt == "docx")
-                {
-                    IReadOnlyList<byte[]?>? mermaidImgs = null;
-                    IReadOnlyList<Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                    IReadOnlyList<Services.Mermaid.GenericDiagram?>? mermaidGen = null;
-                    if (md.Contains("```mermaid", StringComparison.Ordinal))
-                    {
-                        var harvester = new Services.MermaidHarvestService();
-                        mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, theme);
-                        if (settings.MermaidDocxMode == 1)
-                        {
-                            mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, theme);
-                            mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
-                        }
-                    }
-
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.docx");
-                    if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                    {
-                        await new Services.DocxExportService().ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs,
-                            mermaidGeo, mermaidGen);
-                        tmp = settings.RunningDocPath;
-                    }
-                    else
-                    {
-                        await new Services.DocxExportService().ExportAsync(md, tmp, settings, mermaidImgs,
-                            settings.NormalizeLlm ? classification.AppliedFixes : null, mermaidGeo, mermaidGen);
-                    }
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    if (tmp != settings.RunningDocPath) File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else if (fmt == "pptx")
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pptx");
-                    await new Services.PptxExportService().ExportAsync(md, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else if (fmt == "epub")
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.epub");
-                    await new Services.EpubExportService().ExportAsync(md, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
-                else
-                {
-                    var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                    await new Services.PdfExportService().ExportAsync(this, html, tmp, settings);
-                    var bytes = await File.ReadAllBytesAsync(tmp);
-                    File.Delete(tmp);
-                    tcs.SetResult(bytes);
-                }
+                var bytes = await _exportCoordinator.ConvertForApiAsync(
+                    ViewModel,
+                    markdown,
+                    output,
+                    this,
+                    () => new OffscreenScope(this),
+                    () => RefreshPreviewAsync());
+                tcs.SetResult(bytes);
             }
             catch (Exception ex)
             {
-                tcs.SetException(ex);
-            }
-            finally
-            {
-                EndOffscreenRender(offscreen);
-                _convertLock.Release();
-                await RefreshPreviewAsync();
+                tcs.TrySetException(ex);
             }
         });
         return await tcs.Task;
@@ -1112,93 +840,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             try
             {
-                if (!Directory.Exists(folderPath))
-                {
-                    tcs.TrySetException(new DirectoryNotFoundException($"Folder not found: {folderPath}"));
-                    return;
-                }
-                var files = Directory.GetFiles(folderPath, "*.md", SearchOption.TopDirectoryOnly);
-                if (files.Length == 0)
-                {
-                    tcs.SetResult(new { done = 0, failed = 0, message = "No .md files found." });
-                    return;
-                }
-
-                var settings = App.Settings.Current.CloneWith(ovr);
-                var fmt = format.ToLowerInvariant();
-                var outFolder = settings.OutputFolder;
-                Directory.CreateDirectory(outFolder);
-
-                if (fmt == "pdf")
-                {
-                    if (!await EnsurePreviewWebViewAsync())
-                    {
-                        tcs.TrySetException(new InvalidOperationException("WebView2 initialization failed."));
-                        return;
-                    }
-                }
-
-                var offscreen = BeginOffscreenRender();
-                int done = 0, failed = 0;
-                var processedFiles = new List<string>();
-
-                foreach (var f in files)
-                {
-                    await _convertLock.WaitAsync();
-                    try
-                    {
-                        var md = ViewModel.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                        var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
-
-                        switch (fmt)
-                        {
-                            case "pdf":
-                                var theme = App.Themes.GetOrDefault(settings.Theme);
-                                var html = App.MarkdownHtml.Render(md, settings, theme, null);
-                                await new Services.PdfExportService().ExportAsync(this, html, outPath, settings);
-                                break;
-                            case "docx":
-                                IReadOnlyList<byte[]?>? mermaidImgs = null;
-                                IReadOnlyList<Services.Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                                IReadOnlyList<Services.Mermaid.GenericDiagram?>? mermaidGen = null;
-                                if (md.Contains("```mermaid", StringComparison.Ordinal))
-                                {
-                                    var harvester = new Services.MermaidHarvestService();
-                                    mermaidImgs = await harvester.RenderMermaidPngsAsync(this, md, settings, App.Themes.GetOrDefault(settings.Theme));
-                                    if (settings.MermaidDocxMode == 1)
-                                    {
-                                        mermaidGeo = await harvester.HarvestMermaidGeometryAsync(this, md, settings, App.Themes.GetOrDefault(settings.Theme));
-                                        mermaidGen = await harvester.HarvestGenericGeometryAsync(this, md, settings);
-                                    }
-                                }
-                                await new Services.DocxExportService().ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);
-                                break;
-                            case "pptx":
-                                await new Services.PptxExportService().ExportAsync(md, outPath, settings);
-                                break;
-                            case "epub":
-                                await new Services.EpubExportService().ExportAsync(md, outPath, settings);
-                                break;
-                        }
-                        ViewModel.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                        processedFiles.Add(outPath);
-                        done++;
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Batch convert failed for {f}: {ex}");
-                        failed++;
-                    }
-                    finally
-                    {
-                        _convertLock.Release();
-                    }
-                }
-
-                EndOffscreenRender(offscreen);
-                await RefreshPreviewAsync(false);
-
-                tcs.SetResult(new { done, failed, outputFolder = outFolder, files = processedFiles });
+                var result = await _exportCoordinator.BatchConvertForApiAsync(
+                    ViewModel,
+                    folderPath,
+                    format,
+                    ovr,
+                    this,
+                    () => new OffscreenScope(this),
+                    () => RefreshPreviewAsync(false));
+                tcs.SetResult(result);
             }
             catch (Exception ex)
             {
@@ -1409,7 +1059,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (string.IsNullOrEmpty(json)) return;
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var root = doc.RootElement;
-            if (root.GetProperty("type").GetString() != "save-diagram") return;
+            if (!root.TryGetProperty("type", out var typeProp)) return;
+            var type = typeProp.GetString();
+
+            if (type == "mermaid-error")
+            {
+                var error = root.GetProperty("error").GetString() ?? "Unknown parse error";
+                System.Diagnostics.Debug.WriteLine($"[Mermaid Error] {error}");
+                ViewModel.StatusText = $"Mermaid Syntax Error: {error}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            if (type == "page-overflow")
+            {
+                var elements = root.GetProperty("elements");
+                var desc = string.Join(", ", elements.EnumerateArray().Select(el => el.GetProperty("element").GetString()));
+                System.Diagnostics.Debug.WriteLine($"[Page Overflow] Elements overflow: {desc}");
+                ViewModel.StatusText = $"Page Overflow: {desc} exceed page width.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            if (type != "save-diagram") return;
 
             var format = root.GetProperty("format").GetString() ?? "png";
             var data = root.GetProperty("data").GetString() ?? "";
@@ -1432,7 +1102,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         catch (Exception ex)
         {
-            ViewModel.StatusText = $"Couldn't save the diagram: {ex.Message}";
+            ViewModel.StatusText = $"Error processing message: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
@@ -1482,6 +1152,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         AppWindow.Hide();
         AppWindow.Move(state.Pos);
         AppWindow.IsShownInSwitchers = true;
+    }
+
+    private sealed class OffscreenScope : IDisposable
+    {
+        private readonly MainWindow _window;
+        private readonly (bool Hidden, Windows.Graphics.PointInt32 Pos) _state;
+
+        public OffscreenScope(MainWindow window)
+        {
+            _window = window;
+            _state = window.BeginOffscreenRender();
+        }
+
+        public void Dispose()
+        {
+            _window.EndOffscreenRender(_state);
+        }
     }
 
     // Called on every refresh. Starts the animated spinner if it isn't already running; otherwise
@@ -1803,5 +1490,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnInsertAiContextClick(object sender, RoutedEventArgs e)
     {
         InsertMarkdown("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
+    }
+
+    public Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity)
+    {
+        return Task.FromResult<MdToPdf.Models.RenderOption?>(null);
     }
 }

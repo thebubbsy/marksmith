@@ -14,13 +14,13 @@ public static class LicenseValidator
     // Vendor public key. REPLACE with your own from tools/licensing/generate-keys.ps1 before selling.
     public const string PublicKeyPem =
         "-----BEGIN PUBLIC KEY-----\n" +
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqbzQ0tZg6fFCbhN2xZ4X\n" +
-        "Tya4qkRsnCx/aGuLY8E9MZuq4KH/SdN96dM8VggaDEV1z3Yf2yQlxSYA2cbSxd04\n" +
-        "W7bjN3lul2J3cFhy7xR5HjWtBVTiLAYE5kA1MsEPbZLJBO5/hk+BZHk6CgOaiwDj\n" +
-        "xtTFanuIvzIV72e6fyKJFjj3Nhu2rBHbPWmjF8tsCy+/7uv9G7Waky4f6CTS5dA7\n" +
-        "nxW0Agv8eFIQqkw9fT7C/MYhLxFOKO9i5QOWTEAyHLB+ZC638Tk7gPAXGPGQzfs7\n" +
-        "qXqSrfNmau19Dtz0Ypj9uSdXcVtx3BtT0wcYF5VOvq9SOO0mdAdYt1o0dxj54mmf\n" +
-        "kQIDAQAB\n" +
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwV1ZGKpYGX0Ve9O7K1cL\n" +
+        "vpv6UbLNtVk3W20V6XDILlWmBIkYjTVRs+XiN6/HUC66vqwNhxYMpOPViYJNic6n\n" +
+        "/z5oZuJOWjyjd080HZGDH+pMrU4s2OmlYjXLu3YsnVMRhbugRrAncvcTqOfW3okC\n" +
+        "u7ZPVz0WE8vNSfMXhqkYlk+O1OiWrcv3NgJ4N5Xk4B5TbkThTip7519uneXtH16S\n" +
+        "bckB0ybs91FDUosjadCVw0sU/++A16k3vJWRz5AhmdZVxYXl1sUhAeSdoYpMPm7c\n" +
+        "p7y7NVa3F1uiuPLmYG5i2rxolB0laCze6tuV8jgVpDNVKN8HpGstFO0xQqw+RwW0\n" +
+        "KQIDAQAB\n" +
         "-----END PUBLIC KEY-----";
 
     public sealed record Payload(
