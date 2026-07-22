@@ -23,21 +23,6 @@
       <w:bookmarkEnd w:id="1" />
     </w:p>
     <w:p>
-      <w:pPr>
-        <w:framePr w:dropCap="drop" w:lines="3" w:wrap="around" w:hAnchor="text" w:vAnchor="text" />
-        <w:spacing w:after="0" w:line="240" w:lineRule="auto" />
-      </w:pPr>
-      <w:r>
-        <w:rPr>
-          <w:b />
-          <w:color w:val="000000" />
-          <w:sz w:val="96" />
-          <w:szCs w:val="96" />
-        </w:rPr>
-        <w:t>T</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
       <w:r>
         <w:rPr>
           <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
@@ -49,7 +34,7 @@
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
-        <w:t xml:space="preserve">his document is a stress-test for Markdown-to-OpenXML (DOCX) and PDF rendering pipelines. It compiles the most complex, nested, and historically "impossible" formatting tasks to verify visual parity, layout stability, and structural compliance.</w:t>
+        <w:t xml:space="preserve">This document is a stress-test for Markdown-to-OpenXML (DOCX) and PDF rendering pipelines. It compiles the most complex, nested, and historically "impossible" formatting tasks to verify visual parity, layout stability, and structural compliance.</w:t>
       </w:r>
     </w:p>
     <w:p>
@@ -3035,11 +3020,11 @@
                         <a:avLst />
                       </a:prstGeom>
                       <a:solidFill>
-                        <a:srgbClr val="FFFFFF" />
+                        <a:srgbClr val="F6F8FA" />
                       </a:solidFill>
                       <a:ln w="12700">
                         <a:solidFill>
-                          <a:srgbClr val="333333" />
+                          <a:srgbClr val="D1D5DA" />
                         </a:solidFill>
                       </a:ln>
                     </wps:spPr>
@@ -3053,7 +3038,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="18" />
                             </w:rPr>
                             <w:t xml:space="preserve">Ingestion Service</w:t>
@@ -3077,11 +3062,11 @@
                         <a:avLst />
                       </a:prstGeom>
                       <a:solidFill>
-                        <a:srgbClr val="FFFFFF" />
+                        <a:srgbClr val="F6F8FA" />
                       </a:solidFill>
                       <a:ln w="12700">
                         <a:solidFill>
-                          <a:srgbClr val="333333" />
+                          <a:srgbClr val="D1D5DA" />
                         </a:solidFill>
                       </a:ln>
                     </wps:spPr>
@@ -3095,7 +3080,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="18" />
                             </w:rPr>
                             <w:t xml:space="preserve">Validation Engine</w:t>
@@ -3119,11 +3104,11 @@
                         <a:avLst />
                       </a:prstGeom>
                       <a:solidFill>
-                        <a:srgbClr val="FFFFFF" />
+                        <a:srgbClr val="F6F8FA" />
                       </a:solidFill>
                       <a:ln w="12700">
                         <a:solidFill>
-                          <a:srgbClr val="333333" />
+                          <a:srgbClr val="D1D5DA" />
                         </a:solidFill>
                       </a:ln>
                     </wps:spPr>
@@ -3137,7 +3122,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="18" />
                             </w:rPr>
                             <w:t xml:space="preserve">Decision Route</w:t>
@@ -3161,11 +3146,11 @@
                         <a:avLst />
                       </a:prstGeom>
                       <a:solidFill>
-                        <a:srgbClr val="FFFFFF" />
+                        <a:srgbClr val="F6F8FA" />
                       </a:solidFill>
                       <a:ln w="12700">
                         <a:solidFill>
-                          <a:srgbClr val="333333" />
+                          <a:srgbClr val="D1D5DA" />
                         </a:solidFill>
                       </a:ln>
                     </wps:spPr>
@@ -3179,7 +3164,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="18" />
                             </w:rPr>
                             <w:t xml:space="preserve">Main Database</w:t>
@@ -3203,11 +3188,11 @@
                         <a:avLst />
                       </a:prstGeom>
                       <a:solidFill>
-                        <a:srgbClr val="FFFFFF" />
+                        <a:srgbClr val="F6F8FA" />
                       </a:solidFill>
                       <a:ln w="12700">
                         <a:solidFill>
-                          <a:srgbClr val="333333" />
+                          <a:srgbClr val="D1D5DA" />
                         </a:solidFill>
                       </a:ln>
                     </wps:spPr>
@@ -3221,7 +3206,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="18" />
                             </w:rPr>
                             <w:t xml:space="preserve">Quarantine Archive</w:t>
@@ -3260,7 +3245,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="15" />
                             </w:rPr>
                             <w:t xml:space="preserve">Valid</w:t>
@@ -3299,7 +3284,7 @@
                           </w:pPr>
                           <w:r>
                             <w:rPr>
-                              <w:color w:val="000000" />
+                              <w:color w:val="1B1F23" />
                               <w:sz w:val="15" />
                             </w:rPr>
                             <w:t xml:space="preserve">Invalid</w:t>
@@ -3675,8 +3660,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="Rf0238f98e04743c9" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R55326e8338a84c21" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="Rf47fb50e479b4677" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="Rd5393c8f03a944b4" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
       <w:pgBorders w:display="allPages" w:offsetFrom="page">
