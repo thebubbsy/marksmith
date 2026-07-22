@@ -707,8 +707,9 @@ public static class DocxShapeEmitter
 
     private static long Emu(double pt) => (long)Math.Round(pt * EmuPerPt);
 
-    private static string Hex(string css)
+    private static string? Hex(string? css)
     {
+        if (string.IsNullOrWhiteSpace(css)) return null;
         var s = css.TrimStart('#');
         return (s.Length >= 6 ? s[..6] : s.PadLeft(6, '0')).ToUpperInvariant();
     }
