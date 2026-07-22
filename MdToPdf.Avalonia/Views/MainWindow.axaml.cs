@@ -129,6 +129,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         {
             try
             {
+                ViewModel.Host = this;
+                ViewModel.Prompts = this;
                 ViewModel.PropertyChanged += OnViewModelPropertyChanged;
                 ApplyAutomationSettings();
                 ViewModel.LoadPresets();
@@ -966,8 +968,35 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private void OnOpenOutputClick(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel.LastOutputPath is { } path && File.Exists(path))
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+        try
+        {
+            var path = ViewModel.LastOutputPath;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            else if (!string.IsNullOrWhiteSpace(path))
+            {
+                var folder = System.IO.Path.GetDirectoryName(path);
+                if (!string.IsNullOrWhiteSpace(folder) && System.IO.Directory.Exists(folder))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = folder,
+                        UseShellExecute = true
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Could not open output: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
     }
 
     private async void OnConvertPdfClick(object? sender, RoutedEventArgs e) =>

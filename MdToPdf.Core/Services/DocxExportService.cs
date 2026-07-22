@@ -542,10 +542,17 @@ public sealed class DocxExportService
                     Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to snapshot image ({png.Length} bytes)");
                     target.Append(SnapshotParagraph(png, ctx));
                 }
+                else if (MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.Settings, ctx.NextDrawingId++, out var fallbackDiagram, out var fallbackOversized, forceFit: true))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to native shapes succeeded");
+                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to native shapes succeeded");
+                    ctx.ForceWebLayout |= fallbackOversized;
+                    target.Append(fallbackDiagram);
+                }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png either)");
-                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png either)");
+                    System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png or shapes available)");
+                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png or shapes available)");
                     target.Append(CodeParagraph(fence.Lines.ToString(), fence.Info, ctx));
                 }
                 break;
