@@ -499,8 +499,15 @@ public static class DocxShapeEmitter
         var requestedColor = Hex(s.TextColor) ?? Hex(t.Primary);
         var color = ContrastGuard.EnsureLegibleText(requestedColor, shapeBg, Hex(t.Primary));
         var sz = (int)Math.Round(s.FontSize * 2); // half-points
+
+        var themeAttr = string.Equals(color, "000000", StringComparison.OrdinalIgnoreCase) || string.Equals(color, "121212", StringComparison.OrdinalIgnoreCase) || string.Equals(color, "1F2328", StringComparison.OrdinalIgnoreCase)
+            ? " w:themeColor=\"text1\""
+            : string.Equals(color, "FFFFFF", StringComparison.OrdinalIgnoreCase) || string.Equals(color, "E6EDF3", StringComparison.OrdinalIgnoreCase)
+            ? " w:themeColor=\"background1\""
+            : "";
+
         return (s.Bold ? "<w:b/>" : "") +
-               $"<w:color w:val=\"{color}\"/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
+               $"<w:color w:val=\"{color}\"{themeAttr}/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
     }
 
     private static string ShapeName(MShape s) => s.Kind switch

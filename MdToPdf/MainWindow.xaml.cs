@@ -11,6 +11,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
+using MdToPdf.Mermaid.Sync;
 
 namespace MdToPdf;
 
@@ -52,6 +53,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // completes. PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
     private int _lastMarkdownLen;
     private bool _nextRefreshHeavy;
+    private bool _isPreviewRefreshing;
+    private bool _pendingPreviewRefresh;
+    private string? _lastRenderedMarkdown;
     // True while the mermaid snapshot renderer owns the WebView — preview refreshes (e.g. the ingest
     // debounce firing mid-harvest) must not navigate away from the render page.
     private bool _mermaidHarvestActive;
@@ -62,6 +66,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private readonly Services.ExportCoordinator _exportCoordinator = new();
     private H.NotifyIcon.TaskbarIcon? _trayIcon;
     private bool _exitRequested;
+    private bool _showingLogsDialog;
+    private List<string> _sessionLogFiles = new();
 
     // Preview loading spinner state. The spinner ticks at ~60fps and stays up for at least SpinMinSec
     // so a fast render never looks like a white flash. It hides only once BOTH the navigation has
@@ -96,7 +102,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         InitializeComponent();
 
-        Title = "Marksmith";
+        Title = "MarkSmith";
         // Unpackaged app: the exe icon covers Explorer/taskbar, but the title bar needs an
         // explicit runtime assignment (relative paths resolve against the CWD, so anchor to base).
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
@@ -116,7 +122,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Typing in the paste editor fires PropertyChanged per keystroke; coalesce preview
         // reloads so WebView2 isn't re-navigated on every character.
         _previewDebounce = DispatcherQueue.CreateTimer();
-        _previewDebounce.Interval = TimeSpan.FromMilliseconds(180);
+        _previewDebounce.Interval = TimeSpan.FromMilliseconds(250);
         _previewDebounce.IsRepeating = false;
         _previewDebounce.Tick += async (_, _) =>
         {
@@ -153,12 +159,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         InitTrayIcon();
 
-        AppWindow.Closing += (_, e) =>
+        AppWindow.Closing += (sender, e) =>
         {
             if (ViewModel.MinimizeToTray && !_exitRequested)
             {
                 e.Cancel = true;
                 AppWindow.Hide(); // watchers + API keep running; tray icon brings it back
+                return;
+            }
+
+            if (_sessionLogFiles.Count > 0 && !_showingLogsDialog)
+            {
+                e.Cancel = true;
+                _showingLogsDialog = true;
+                _ = ShowDebugLogsDialogAndExitAsync();
             }
         };
 
@@ -496,7 +510,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private const string SampleMarkdown = """
         # Quarterly Review — Sample Document
 
-        This is a **sample** so you can try Marksmith without hunting for a Markdown file.
+        This is a **sample** so you can try MarkSmith without hunting for a Markdown file.
         Restyle it on the right, then hit **Generate PDF** below.
 
         > [!TIP]
@@ -548,7 +562,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         ```mermaid
         flowchart LR
-          A[Paste a chat] --> B{Marksmith}
+          A[Paste a chat] --> B{MarkSmith}
           B --> C[Polished PDF]
           B --> D[Editable Word]
         ```
@@ -557,8 +571,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         ```plantuml
         @startuml
-        You -> Marksmith: paste markdown
-        Marksmith --> You: finished document
+        You -> MarkSmith: paste markdown
+        MarkSmith --> You: finished document
         @enduml
         ```
         
@@ -592,7 +606,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         
         ## Definition Lists
         
-        Marksmith
+        MarkSmith
         : The tool you are using right now.
         
         Markdown
@@ -668,13 +682,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try
         {
             var menu = new MenuFlyout();
-            menu.Items.Add(new MenuFlyoutItem { Text = "Open Marksmith", Command = ShowWindowCommand });
+            menu.Items.Add(new MenuFlyoutItem { Text = "Open MarkSmith", Command = ShowWindowCommand });
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(new MenuFlyoutItem { Text = "Exit", Command = ExitApplicationCommand });
 
             _trayIcon = new H.NotifyIcon.TaskbarIcon
             {
-                ToolTipText = "Marksmith",
+                ToolTipText = "MarkSmith",
                 IconSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/tray.png")),
                 ContextMenuMode = H.NotifyIcon.ContextMenuMode.SecondWindow,
                 NoLeftClickDelay = true,
@@ -705,7 +719,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);
         else
         {
-            ViewModel.StatusText = "Hands-free auto-convert is a Marksmith Pro feature. The content is ready — export it manually, or upgrade in Settings ⚙.";
+            ViewModel.StatusText = "Hands-free auto-convert is a MarkSmith Pro feature. The content is ready — export it manually, or upgrade in Settings ⚙.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
@@ -794,7 +808,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (!App.License.CanAutomate)
         {
-            ViewModel.StatusText = "Batch conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusText = "Batch conversion is a MarkSmith Pro feature. Upgrade in Settings ⚙.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
@@ -817,7 +831,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var fmt = await AskBatchFormatAsync(files.Length);
         if (fmt is null) return;
         var docxGated = fmt is "docx" && !App.License.CanExportDocx;
-        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
+        if (docxGated) { ViewModel.StatusText = "Word export is a MarkSmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
 
         if (fmt == "pdf" && !await EnsurePreviewWebViewAsync())
         {
@@ -1066,7 +1080,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         body.Children.Add(new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
-            Text = "This document has a large diagram that won't fit a printed page. How should Marksmith put it into Word?"
+            Text = "This document has a large diagram that won't fit a printed page. How should MarkSmith put it into Word?"
         });
 
         var rbGroup = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
@@ -1131,11 +1145,52 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         await PreviewWebView.EnsureCoreWebView2Async();
         MapAssetHost(PreviewWebView.CoreWebView2);
+        
+        // Intercept local image requests and serve them directly from disk.
+        PreviewWebView.CoreWebView2.AddWebResourceRequestedFilter("https://localimg.marksmith/*", Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.Image);
+        PreviewWebView.CoreWebView2.WebResourceRequested += OnLocalImageRequested;
+
         // The preview auto-refreshes on every change (debounced). Navigation completing satisfies
         // one of the two conditions to hide the spinner; the minimum-time gate satisfies the other.
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _spinNavDone = true;
         PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessage;
         await RefreshPreviewAsync();
+    }
+
+    private void OnLocalImageRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        try
+        {
+            var uri = new Uri(e.Request.Uri);
+            var q = uri.Query;
+            if (!q.StartsWith("?path="))
+            {
+                e.Response = PreviewWebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+                return;
+            }
+
+            var path = Uri.UnescapeDataString(q.Substring(6));
+            if (!File.Exists(path))
+            {
+                e.Response = PreviewWebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+                return;
+            }
+
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            var mime = ext switch
+            {
+                ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif",
+                ".webp" => "image/webp", ".bmp" => "image/bmp", ".svg" => "image/svg+xml", _ => "application/octet-stream",
+            };
+
+            var stream = File.OpenRead(path).AsRandomAccessStream();
+            e.Response = PreviewWebView.CoreWebView2.Environment.CreateWebResourceResponse(
+                stream, 200, "OK", $"Content-Type: {mime}");
+        }
+        catch
+        {
+            e.Response = PreviewWebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 500, "Error", "");
+        }
     }
 
     // The focused diagram viewer posts {type:"save-diagram", format, data} when the user clicks
@@ -1157,6 +1212,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 System.Diagnostics.Debug.WriteLine($"[Mermaid Error] {error}");
                 ViewModel.StatusText = $"Mermaid Syntax Error: {error}";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            if (type == "launch-mermaid-studio" || type == "edit-mermaid-code")
+            {
+                var code = root.TryGetProperty("code", out var cProp) ? cProp.GetString() : "";
+                var idx = root.TryGetProperty("index", out var iProp) ? iProp.GetInt32() : 0;
+                DispatcherQueue.TryEnqueue(() => _ = ShowMermaidDiagramStudioWindowAsync(code ?? "", idx));
+                return;
+            }
+            if (type == "mermaid-node-edit")
+            {
+                var oldText = root.GetProperty("oldText").GetString();
+                var newText = root.GetProperty("newText").GetString();
+                if (!string.IsNullOrEmpty(oldText) && !string.IsNullOrEmpty(newText) && oldText != newText)
+                {
+                    var currentMd = ViewModel.CurrentMarkdown ?? "";
+                    if (currentMd.Contains(oldText))
+                    {
+                        ViewModel.CurrentMarkdown = currentMd.Replace(oldText, newText);
+                        ViewModel.StatusText = $"Diagram label updated: '{oldText}' → '{newText}'";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                    }
+                }
                 return;
             }
             if (type == "page-overflow")
@@ -1194,6 +1272,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.StatusText = $"Error processing message: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
+    }
+
+    private async Task ShowMermaidDiagramStudioWindowAsync(string sampleCode, int targetIndex)
+    {
+        var currentMd = ViewModel.CurrentMarkdown ?? "";
+        
+        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(currentMd, targetIndex);
+        studioWindow.SyncToMarkdownRequested += async (s, markdown) =>
+        {
+            ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown ?? "");
+            ViewModel.StatusText = "Mermaid diagram code updated via Visual Studio.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            await RefreshPreviewAsync(heavy: true);
+        };
+        studioWindow.Activate();
+        await Task.CompletedTask;
     }
 
     // Serve the bundled web assets (mermaid, KaTeX, highlight.js) from a real https origin so
@@ -1374,29 +1468,123 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PreviewWebView.CoreWebView2 is null) return;
         if (_mermaidHarvestActive) return; // snapshot renderer owns the WebView right now
 
-        if (heavy) StartSpinner();
-
-        var vm = ViewModel;
-        string markdown;
-        if (vm.UsePasteSource)
+        if (_isPreviewRefreshing)
         {
-            markdown = vm.PastedMarkdown;
-        }
-        else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-        {
-            markdown = await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
-        }
-        else
-        {
-            markdown = "# Marksmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+            _pendingPreviewRefresh = true;
+            return;
         }
 
-        // Same classify/normalize step the exports run, so the preview shows what will ship
-        // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
-        // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
-        if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
-        PreviewWebView.CoreWebView2.NavigateToString(html);
+        _isPreviewRefreshing = true;
+        _pendingPreviewRefresh = false;
+
+        try
+        {
+            if (heavy) StartSpinner();
+
+            var vm = ViewModel;
+            string markdown;
+            if (vm.UsePasteSource)
+            {
+                markdown = vm.PastedMarkdown;
+            }
+            else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
+            {
+                // Offload file reading to background thread to prevent UI stutter
+                markdown = await Task.Run(async () => await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath));
+            }
+            else
+            {
+                markdown = "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+            }
+
+            // Memoization: skip if the markdown hasn't changed AND this isn't a heavy refresh (e.g. theme change)
+            if (!heavy && markdown == _lastRenderedMarkdown)
+            {
+                return;
+            }
+
+            // Move the heavy markdown parsing and HTML generation to a background thread
+            var html = await Task.Run(() => 
+            {
+                var prepped = vm.PrepareMarkdown(markdown);
+                return vm.BuildPreviewHtml(prepped, interactive: true);
+            });
+            
+            _lastRenderedMarkdown = markdown;
+
+            if (vm.IsDebugModeEnabled)
+            {
+                try
+                {
+                    var logsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs");
+                    Directory.CreateDirectory(logsDir);
+                    var logFile = Path.Combine(logsDir, $"Preview_Session_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("n").Substring(0, 4)}.log");
+                    
+                    var prompt = "Tell me everything wrong with the way we displayed the MD format in this HTML and how to resolve it:\n\n";
+                    File.WriteAllText(logFile, prompt + html);
+                    _sessionLogFiles.Add(logFile);
+                }
+                catch { }
+            }
+
+            // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
+            if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
+            PreviewWebView.CoreWebView2.NavigateToString(html);
+        }
+        finally
+        {
+            _isPreviewRefreshing = false;
+            if (_pendingPreviewRefresh)
+            {
+                // Trigger another refresh if changes happened while we were rendering
+                _previewDebounce.Start();
+            }
+        }
+    }
+
+    private void OnToggleDebugModeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        ViewModel.IsDebugModeEnabled = !ViewModel.IsDebugModeEnabled;
+        ViewModel.StatusText = ViewModel.IsDebugModeEnabled ? "Debug Mode Enabled (HTML logging active)" : "Debug Mode Disabled";
+        ViewModel.StatusSeverity = ViewModel.IsDebugModeEnabled ? Models.StatusSeverity.Warning : Models.StatusSeverity.Informational;
+        args.Handled = true;
+    }
+
+    private async Task ShowDebugLogsDialogAndExitAsync()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var file in _sessionLogFiles)
+        {
+            if (File.Exists(file))
+            {
+                sb.AppendLine($"--- LOG FILE: {Path.GetFileName(file)} ---");
+                sb.AppendLine(File.ReadAllText(file));
+                sb.AppendLine();
+            }
+        }
+
+        var textBox = new TextBox
+        {
+            Text = sb.ToString(),
+            IsReadOnly = true,
+            TextWrapping = TextWrapping.Wrap,
+            AcceptsReturn = true,
+            MaxHeight = 400
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(textBox, ScrollBarVisibility.Auto);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Debug Mode - Session Logs",
+            Content = textBox,
+            CloseButtonText = "Close and Exit",
+            XamlRoot = RootGrid.XamlRoot
+        };
+
+        await dialog.ShowAsync();
+        
+        _exitRequested = true;
+        Close();
     }
 
     private async void OnConvertPdfClick(object sender, RoutedEventArgs e)
@@ -1581,8 +1769,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
     }
 
+    private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
+    {
+        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(ViewModel.CurrentMarkdown);
+        studioWindow.SyncToMarkdownRequested += (s, markdown) =>
+        {
+            ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown);
+        };
+        studioWindow.Activate();
+    }
+
     public Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity)
     {
         return Task.FromResult<MdToPdf.Models.RenderOption?>(null);
     }
 }
+

@@ -7,6 +7,9 @@
     xmlns:localcontrols="using:MdToPdf.Controls">
 
     <Grid x:Name="RootGrid">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Modifiers="Control,Menu" Key="T" Invoked="OnToggleDebugModeInvoked" />
+        </Grid.KeyboardAccelerators>
 
         <Grid.Resources>
             <conv:StatusSeverityConverter x:Key="StatusSeverityConverter" />
@@ -35,7 +38,7 @@
         <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                 <Image Source="ms-appx:///Assets/logo.png" Width="26" Height="26" />
-                <TextBlock Text="Marksmith" FontWeight="SemiBold"
+                <TextBlock Text="MarkSmith" FontWeight="SemiBold"
                            Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
                 <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
                 <TextBlock Text="AI chats &#x2192; polished documents" Opacity="0.55"
@@ -380,7 +383,7 @@
                                     </Button>
                                 </StackPanel>
 
-                                <!-- Row 2: Advanced Marksmith Components -->
+                                <!-- Row 2: Advanced MarkSmith Components -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
                                     <TextBlock Text="Insert:" VerticalAlignment="Center" FontSize="11" Opacity="0.6" Margin="4,0,8,0" FontWeight="SemiBold" />
                                     
@@ -427,6 +430,8 @@
                                         </StackPanel>
                                         <DropDownButton.Flyout>
                                             <MenuFlyout>
+                                                <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
+                                                <MenuFlyoutSeparator />
                                                 <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
                                                 <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                                 <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
@@ -634,7 +639,11 @@
                             <InfoBar IsOpen="{Binding HasMermaidDiagram}"
                                      Severity="{Binding DiagramHintSeverity, Converter={StaticResource StatusSeverityConverter}}"
                                      Message="{Binding DiagramHintText}"
-                                     IsClosable="False" Margin="0,0,0,8" />
+                                     IsClosable="False" Margin="0,0,0,8">
+                                <InfoBar.ActionButton>
+                                    <Button Content="Visual Studio 🎨" Click="OnOpenMermaidStudioClick" />
+                                </InfoBar.ActionButton>
+                            </InfoBar>
                             <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
                                       SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}">
                                 <x:String>Ask me each time</x:String>
@@ -647,7 +656,7 @@
                                 <x:String>Compress Nodes (ShapeForge native shapes)</x:String>
                                 <x:String>Compress Both (ShapeForge native shapes)</x:String>
                             </ComboBox>
-                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let Marksmith re-wrap it to fit standard pages."
+                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let MarkSmith re-wrap it to fit standard pages."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
                             <Expander HorizontalAlignment="Stretch" Margin="0,10,0,0">
                                 <Expander.Header>
@@ -678,7 +687,7 @@
                                     <TextBox Header="Custom Document Font Family" 
                                              Text="{Binding BrandFontFamily, Mode=TwoWay}"
                                              PlaceholderText="e.g. Segoe UI, Inter (leave blank for default)" IsSpellCheckEnabled="False" />
-                                    <TextBlock Text="Requires Marksmith Pro license to apply to DOCX exports."
+                                    <TextBlock Text="Requires MarkSmith Pro license to apply to DOCX exports."
                                                Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
                                 </StackPanel>
                             </Expander>

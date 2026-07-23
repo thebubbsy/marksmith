@@ -68,7 +68,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private MainViewModel ViewModel => (MainViewModel)DataContext!;
 
-    private static readonly Uri PreviewBaseUri = new("https://marksmith.local/");
+    private static readonly Uri PreviewBaseUri = new("https://MarkSmith.local/");
 
     private readonly ClipboardWatcherService _clipboardWatcher;
     private readonly FolderWatcherService _folderWatcher;
@@ -195,7 +195,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         if (AppServices.License.CanAutomate) _ = AutoExportIngestAsync(output);
         else
         {
-            ViewModel.StatusText = "Hands-free auto-convert is a Marksmith Pro feature. The content is ready — export it manually, or upgrade in Settings.";
+            ViewModel.StatusText = "Hands-free auto-convert is a MarkSmith Pro feature. The content is ready — export it manually, or upgrade in Settings.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
@@ -453,7 +453,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         body.Children.Add(new TextBlock
         {
             TextWrapping = global::Avalonia.Media.TextWrapping.Wrap,
-            Text = "This document has a large diagram that won't fit a printed page. How should Marksmith put it into Word?"
+            Text = "This document has a large diagram that won't fit a printed page. How should MarkSmith put it into Word?"
         });
 
         var rbGroup = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
@@ -504,7 +504,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         if (vm.UsePasteSource) markdown = vm.PastedMarkdown;
         else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
             markdown = await MdToPdf.Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
-        else markdown = "# Marksmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+        else markdown = "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
 
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         await NavigateToStringAsync(html);
@@ -512,7 +512,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
     private async void OnGetExtensionClick(object? sender, RoutedEventArgs e)
     {
-        try { await global::Avalonia.Controls.TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/marksmith/tree/main/extension")); }
+        try { await global::Avalonia.Controls.TopLevel.GetTopLevel(this)!.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/MarkSmith/tree/main/extension")); }
         catch { /* no browser */ }
     }
 
@@ -626,7 +626,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     private const string SampleMarkdown = """
         # Quarterly Review — Sample Document
 
-        This is a **sample** so you can try Marksmith without hunting for a Markdown file.
+        This is a **sample** so you can try MarkSmith without hunting for a Markdown file.
         Restyle it on the right, then hit **Generate PDF** below.
 
         > [!TIP]
@@ -678,7 +678,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
         ```mermaid
         flowchart LR
-          A[Paste a chat] --> B{Marksmith}
+          A[Paste a chat] --> B{MarkSmith}
           B --> C[Polished PDF]
           B --> D[Editable Word]
         ```
@@ -687,8 +687,8 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
 
         ```plantuml
         @startuml
-        You -> Marksmith: paste markdown
-        Marksmith --> You: finished document
+        You -> MarkSmith: paste markdown
+        MarkSmith --> You: finished document
         @enduml
         ```
         
@@ -722,7 +722,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         
         ## Definition Lists
         
-        Marksmith
+        MarkSmith
         : The tool you are using right now.
         
         Markdown
@@ -872,7 +872,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
     {
         if (!AppServices.License.CanAutomate)
         {
-            ViewModel.StatusText = "Batch conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusText = "Batch conversion is a MarkSmith Pro feature. Upgrade in Settings ⚙.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
@@ -896,7 +896,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         var fmt = await AskBatchFormatAsync(files.Length);
         if (fmt is null) return;
         var docxGated = fmt is "docx" && !AppServices.License.CanExportDocx;
-        if (docxGated) { ViewModel.StatusText = "Word export is a Marksmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
+        if (docxGated) { ViewModel.StatusText = "Word export is a MarkSmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
 
         if (fmt == "pdf" && !await EnsureReadyAsync())
         {
@@ -1156,3 +1156,4 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
         }
     }
 }
+

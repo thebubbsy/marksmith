@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" mc:Ignorable="w14 w15" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
   <w:background w:color="FFFFFF" />
   <w:body>
     <w:p>
@@ -9,28 +9,28 @@
       <w:bookmarkStart w:name="H_the_marksmith_openxml_gauntlet" w:id="1" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
-        <w:t xml:space="preserve">The Marksmith OpenXML Gauntlet</w:t>
+        <w:t xml:space="preserve">The MarkSmith OpenXML Gauntlet</w:t>
       </w:r>
       <w:bookmarkEnd w:id="1" />
     </w:p>
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -51,12 +51,12 @@
       <w:bookmarkStart w:name="H_advanced_mathematical_equations_l" w:id="2" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -67,12 +67,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -86,12 +86,12 @@
       <w:bookmarkStart w:name="H_multiline_block_math_with_matrice" w:id="3" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -102,12 +102,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -194,12 +194,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -212,12 +212,12 @@
       </m:oMath>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -517,12 +517,12 @@
       <w:bookmarkStart w:name="H_integrals_limits_and_chemistry_ex" w:id="4" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -533,12 +533,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -747,12 +747,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -770,12 +770,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -980,12 +980,12 @@
       <w:bookmarkStart w:name="H_code_fences_with_captions_and_hig" w:id="5" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -996,12 +996,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -1024,7 +1024,6 @@
     <w:p>
       <w:pPr>
         <w:keepLines />
-        <w:wordWrap w:val="false" />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
           <w:left w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -1032,10 +1031,12 @@
           <w:right w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
         </w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />
+        <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">//</w:t>
@@ -1043,6 +1044,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve"> </w:t>
@@ -1050,6 +1052,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">Ru</w:t>
@@ -1057,6 +1060,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">st server e</w:t>
@@ -1064,6 +1068,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">ntrypoint showi</w:t>
@@ -1071,6 +1076,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">ng error han</w:t>
@@ -1078,6 +1084,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="008000" />
         </w:rPr>
         <w:t xml:space="preserve">dling and concurrency</w:t>
@@ -1088,6 +1095,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">use std::sync::Arc;</w:t>
@@ -1098,6 +1106,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">use tokio::net::TcpListener;</w:t>
@@ -1111,6 +1120,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">#[tokio::main]</w:t>
@@ -1121,6 +1131,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {</w:t>
@@ -1131,6 +1142,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">    let listener = TcpListener::bind("127.0.0.1:8080").await?;</w:t>
@@ -1141,6 +1153,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">    let state = Arc::new(Database::connect().await?);</w:t>
@@ -1151,6 +1164,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">    println!("Server listening on http://127.0.0.1:8080");</w:t>
@@ -1164,6 +1178,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">    loop {</w:t>
@@ -1174,6 +1189,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">        let (socket, _) = listener.accept().await?;</w:t>
@@ -1184,6 +1200,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">        let db = Arc::clone(&amp;state);</w:t>
@@ -1194,6 +1211,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">        tokio::spawn(async move {</w:t>
@@ -1204,6 +1222,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">            if let Err(e) = handle_connection(socket, db).await {</w:t>
@@ -1214,6 +1233,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">                eprintln!("Error handling connection: {}", e);</w:t>
@@ -1224,6 +1244,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">            }</w:t>
@@ -1234,6 +1255,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">        });</w:t>
@@ -1244,6 +1266,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">    }</w:t>
@@ -1254,6 +1277,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">}</w:t>
@@ -1273,12 +1297,12 @@
       <w:bookmarkStart w:name="H_high_complexity_nested_tables_the" w:id="6" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -1289,12 +1313,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -1313,7 +1337,7 @@
           <w:insideV w:val="single" w:color="D1D5DA" w:sz="6" />
         </w:tblBorders>
         <w:tblCaption w:val="Table exported from Markdown" />
-        <w:tblDescription w:val="Table exported from Markdown by Marksmith" />
+        <w:tblDescription w:val="Table exported from Markdown by MarkSmith" />
       </w:tblPr>
       <w:tblGrid>
         <w:gridCol />
@@ -1333,12 +1357,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:b />
@@ -1355,12 +1379,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:b />
@@ -1377,12 +1401,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:b />
@@ -1403,12 +1427,12 @@
               <w:rPr>
                 <w:color w:val="1b1f23" />
                 <w:b />
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
               </w:rPr>
@@ -1435,12 +1459,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1503,12 +1527,12 @@
               <w:rPr>
                 <w:color w:val="1b1f23" />
                 <w:b />
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
               </w:rPr>
@@ -1523,12 +1547,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1548,12 +1572,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1563,12 +1587,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1594,12 +1618,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1619,12 +1643,12 @@
               <w:rPr>
                 <w:color w:val="1b1f23" />
                 <w:b />
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
               </w:rPr>
@@ -1636,12 +1660,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1651,12 +1675,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1664,26 +1688,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                  </mc:Choice>
-                </mc:AlternateContent>
-                <w:color w:val="1b1f23" />
-              </w:rPr>
-              <w:t xml:space="preserve"> </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
-                  <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1692,12 +1702,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1706,12 +1716,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1720,12 +1730,26 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
+                  </mc:Choice>
+                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
+              </w:rPr>
+              <w:t xml:space="preserve"> </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <mc:AlternateContent>
+                  <mc:Choice Requires="w14">
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1735,12 +1759,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1748,26 +1772,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                  </mc:Choice>
-                </mc:AlternateContent>
-                <w:color w:val="1b1f23" />
-              </w:rPr>
-              <w:t xml:space="preserve"> </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
-                  <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1776,12 +1786,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1790,12 +1800,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1804,12 +1814,26 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
+                  </mc:Choice>
+                </mc:AlternateContent>
+                <w:color w:val="1b1f23" />
+              </w:rPr>
+              <w:t xml:space="preserve"> </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <mc:AlternateContent>
+                  <mc:Choice Requires="w14">
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1822,12 +1846,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1837,12 +1861,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1850,12 +1874,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1865,12 +1889,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1878,12 +1902,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1906,12 +1930,12 @@
               <w:rPr>
                 <w:color w:val="1b1f23" />
                 <w:b />
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
               </w:rPr>
@@ -1937,12 +1961,12 @@
             </w:r>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1952,12 +1976,12 @@
             <w:r>
               <w:br />
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -1983,12 +2007,12 @@
           <w:p>
             <w:r>
               <w:rPr>
-                <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+                <mc:AlternateContent>
                   <mc:Choice Requires="w14">
-                    <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-                    <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+                    <w14:ligatures w14:val="standardContextual" />
+                    <w14:numForm w14:val="oldStyle" />
+                    <w14:numSpacing w14:val="proportional" />
+                    <w14:cntxtAlts />
                   </mc:Choice>
                 </mc:AlternateContent>
                 <w:color w:val="1b1f23" />
@@ -2021,12 +2045,12 @@
       <w:bookmarkStart w:name="H_multi_tab_options_layout" w:id="7" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2037,12 +2061,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2053,12 +2077,12 @@
       <w:r>
         <w:rPr>
           <w:b />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2068,12 +2092,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2083,7 +2107,6 @@
     <w:p>
       <w:pPr>
         <w:keepLines />
-        <w:wordWrap w:val="false" />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
           <w:left w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -2091,10 +2114,12 @@
           <w:right w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
         </w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />
+        <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">curl -X POST https:</w:t>
@@ -2102,6 +2127,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">//api.marksmi</w:t>
@@ -2109,6 +2135,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">t</w:t>
@@ -2116,6 +2143,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">h.</w:t>
@@ -2123,6 +2151,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">local/v1/export \</w:t>
@@ -2133,6 +2162,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">  -H "Authorization: Bearer ms_live_key" \</w:t>
@@ -2143,6 +2173,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">  -H "Content-Type: application/json" \</w:t>
@@ -2153,6 +2184,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">  -d '{"format": "pdf"}'</w:t>
@@ -2162,12 +2194,12 @@
       <w:r>
         <w:rPr>
           <w:b />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2177,12 +2209,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2192,7 +2224,6 @@
     <w:p>
       <w:pPr>
         <w:keepLines />
-        <w:wordWrap w:val="false" />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
           <w:left w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -2200,6 +2231,7 @@
           <w:right w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
         </w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />
+        <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
         <w:t xml:space="preserve">marksmith.exe --input document.md --format docx --output dist/</w:t>
@@ -2209,12 +2241,12 @@
       <w:r>
         <w:rPr>
           <w:b />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2224,12 +2256,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2237,12 +2269,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2273,12 +2305,12 @@
       <w:bookmarkStart w:name="H_dialect_elements_wikilinks_tags_a" w:id="8" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2293,12 +2325,12 @@
       <w:bookmarkStart w:name="H_custom_dialect_links_badges" w:id="9" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2316,12 +2348,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2332,12 +2364,12 @@
           <w:noProof />
           <w:color w:val="000000" />
           <w:u w:val="dash" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2346,12 +2378,12 @@
       <w:r>
         <w:rPr>
           <w:noProof />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2368,12 +2400,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2384,12 +2416,12 @@
           <w:noProof />
           <w:color w:val="000000" />
           <w:u w:val="dash" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2398,12 +2430,12 @@
       <w:r>
         <w:rPr>
           <w:noProof />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2420,12 +2452,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2443,12 +2475,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2466,12 +2498,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2485,12 +2517,12 @@
       <w:bookmarkStart w:name="H_foldable_obsidian_style_callouts" w:id="10" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2500,18 +2532,19 @@
     </w:p>
     <w:p>
       <w:pPr>
-        <w:outlineLvl w:val="4" />
-        <w15:collapsed w:val="true" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" />
+        <w:outlineLvl w:val="8" />
+        <w15:collapsed w:val="true" />
       </w:pPr>
       <w:r>
         <w:rPr>
           <w:b />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <w:color w:val="1B1F23" />
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2521,12 +2554,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2543,12 +2576,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2565,12 +2598,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2588,12 +2621,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2614,12 +2647,12 @@
       <w:bookmarkStart w:name="H_deeply_nested_list_indentation" w:id="11" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2630,12 +2663,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2652,12 +2685,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2674,12 +2707,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2696,12 +2729,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2718,12 +2751,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2733,7 +2766,6 @@
     <w:p>
       <w:pPr>
         <w:keepLines />
-        <w:wordWrap w:val="false" />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
           <w:left w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -2741,10 +2773,12 @@
           <w:right w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
         </w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />
+        <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">INSE</w:t>
@@ -2752,6 +2786,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve">RT</w:t>
@@ -2759,6 +2794,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="A31515" />
         </w:rPr>
         <w:t xml:space="preserve"> INTO </w:t>
@@ -2766,6 +2802,7 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
           <w:color w:val="24292E" />
         </w:rPr>
         <w:t xml:space="preserve">ledger (state, recorded_at) VALUES ('AUTHORIZED', NOW());</w:t>
@@ -2781,12 +2818,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2803,12 +2840,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2825,12 +2862,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2851,12 +2888,12 @@
       <w:bookmarkStart w:name="H_complex_mermaid_diagrams" w:id="12" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -2871,12 +2908,12 @@
       <w:bookmarkStart w:name="H_flowchart_with_subgraphs" w:id="13" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3310,12 +3347,12 @@
       <w:bookmarkStart w:name="H_state_diagram" w:id="14" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3326,7 +3363,6 @@
     <w:p>
       <w:pPr>
         <w:keepLines />
-        <w:wordWrap w:val="false" />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
           <w:left w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -3334,50 +3370,83 @@
           <w:right w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
         </w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="F6F8FA" />
+        <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">stateDiagram-v2</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    [*] --&gt; Idle</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Idle --&gt; Processing : File Added</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Succeeded : Write OK</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Failed : Disk Full / Error</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Failed --&gt; Retrying : Backoff Timer</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Retrying --&gt; Processing</w:t>
       </w:r>
       <w:r>
         <w:br />
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+        </w:rPr>
         <w:t xml:space="preserve">    Succeeded --&gt; Idle</w:t>
       </w:r>
     </w:p>
@@ -3395,12 +3464,12 @@
       <w:bookmarkStart w:name="H_multi_line_footnotes" w:id="15" />
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3411,12 +3480,12 @@
     <w:p>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3425,12 +3494,12 @@
       <w:r>
         <w:rPr>
           <w:vertAlign w:val="superscript" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3438,12 +3507,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3452,12 +3521,12 @@
       <w:r>
         <w:rPr>
           <w:vertAlign w:val="superscript" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3465,12 +3534,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3483,12 +3552,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3497,12 +3566,12 @@
       <w:r>
         <w:rPr>
           <w:vertAlign w:val="superscript" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3515,12 +3584,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3529,12 +3598,12 @@
       <w:r>
         <w:rPr>
           <w:b />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3542,12 +3611,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3564,12 +3633,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3586,12 +3655,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3609,12 +3678,12 @@
       </w:r>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3631,12 +3700,12 @@
       </w:pPr>
       <w:r>
         <w:rPr>
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3647,12 +3716,12 @@
       <w:r>
         <w:rPr>
           <w:vertAlign w:val="superscript" />
-          <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+          <mc:AlternateContent>
             <mc:Choice Requires="w14">
-              <w14:ligatures w14:val="standardContextual" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numForm w14:val="oldStyle" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:numSpacing w14:val="proportional" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
-              <w14:cntxtAlts xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" />
+              <w14:ligatures w14:val="standardContextual" />
+              <w14:numForm w14:val="oldStyle" />
+              <w14:numSpacing w14:val="proportional" />
+              <w14:cntxtAlts />
             </mc:Choice>
           </mc:AlternateContent>
         </w:rPr>
@@ -3660,8 +3729,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="R2b37abb29add4479" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="Rd41c7d8aa34f4fba" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="Rccc1d781af92402d" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="R7dfb9481e01a4faa" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
       <w:pgBorders w:display="allPages" w:offsetFrom="page">

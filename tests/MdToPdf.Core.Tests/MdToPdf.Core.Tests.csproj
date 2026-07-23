@@ -14,4 +14,12 @@
     <ProjectReference Include="..\..\MdToPdf.Core\MdToPdf.Core.csproj" />
     <ProjectReference Include="..\..\MdToPdf.Avalonia\MdToPdf.Avalonia.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\Point.cs" Link="ViewModels\Mermaid\Point.cs" />
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\Rect.cs" Link="ViewModels\Mermaid\Rect.cs" />
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\DiagramNodeViewModel.cs" Link="ViewModels\Mermaid\DiagramNodeViewModel.cs" />
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\DiagramConnectorViewModel.cs" Link="ViewModels\Mermaid\DiagramConnectorViewModel.cs" />
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\MermaidPaletteItem.cs" Link="ViewModels\Mermaid\MermaidPaletteItem.cs" />
+    <Compile Include="..\..\MdToPdf\ViewModels\Mermaid\MermaidStudioViewModel.cs" Link="ViewModels\Mermaid\MermaidStudioViewModel.cs" />
+  </ItemGroup>
 </Project>

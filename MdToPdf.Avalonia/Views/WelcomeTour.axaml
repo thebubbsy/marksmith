@@ -42,7 +42,7 @@
 </UserControl.Styles>
 <UserControl.Resources>
         <ResourceDictionary>
-            <!-- Give the tour its own accent so the primary button is a deliberate Marksmith green
+            <!-- Give the tour its own accent so the primary button is a deliberate MarkSmith green
                  in BOTH themes, instead of the machine's system accent (which on some setups renders
                  as a near-white/near-black slab that reads as "broken"). Overriding the Accent* fill
                  brushes here keeps AccentButtonStyle's real hover/pressed states — just recoloured. -->
@@ -95,7 +95,7 @@
             <!-- 1 · Welcome -->
             <StackPanel x:Name="Page0" Margin="8,4,8,4">
                 <ui:FontIcon Glyph="&#xE8A5;" Classes="TourHero" />
-                <TextBlock Text="Welcome to Marksmith" Classes="TourTitle" />
+                <TextBlock Text="Welcome to MarkSmith" Classes="TourTitle" />
                 <TextBlock Classes="TourLead"
                            Text="Turn messy AI-chat replies — ChatGPT, Gemini, Claude, Copilot — into polished, professional documents. Here's a 60-second tour of everything it can do." />
                 <Grid ColumnSpacing="12" Margin="0,4,0,0">
@@ -137,7 +137,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <ui:FontIcon Glyph="&#xE8D4;" Classes="TourGlyph" />
-                        <TextBlock Grid.Column="1" Classes="TourFeatureText" Text="Marksmith detects which assistant wrote it and cleans the tell-tale quirks — LaTeX delimiters, citation pips, pseudo-headings." />
+                        <TextBlock Grid.Column="1" Classes="TourFeatureText" Text="MarkSmith detects which assistant wrote it and cleans the tell-tale quirks — LaTeX delimiters, citation pips, pseudo-headings." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -277,7 +277,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <ui:FontIcon Glyph="&#xE734;" Classes="TourGlyph" />
-                        <TextBlock Grid.Column="1" Classes="TourFeatureText" Text="Free exports PDF. Marksmith Pro adds Word export, automation and branding — with a 14-day trial." />
+                        <TextBlock Grid.Column="1" Classes="TourFeatureText" Text="Free exports PDF. MarkSmith Pro adds Word export, automation and branding — with a 14-day trial." />
                     </Grid>
                 </StackPanel>
             </StackPanel>
@@ -320,3 +320,4 @@
         </Grid>
     </Grid>
 </UserControl>
+
