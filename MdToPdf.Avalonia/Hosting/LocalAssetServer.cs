@@ -11,7 +11,7 @@ namespace MdToPdf.Avalonia.Hosting;
 // against this origin instead of the WinUI build's virtual host.
 public sealed class LocalAssetServer : IDisposable
 {
-    private readonly HttpListener _listener = new();
+    private HttpListener _listener = new();
     private readonly string _rootDir;
     private readonly CancellationTokenSource _cts = new();
 
@@ -24,17 +24,18 @@ public sealed class LocalAssetServer : IDisposable
         {
             var port = GetFreeLoopbackPort();
             var baseUrl = $"http://127.0.0.1:{port}";
+            var listener = new HttpListener();
             try
             {
-                _listener.Prefixes.Clear();
-                _listener.Prefixes.Add(baseUrl + "/");
-                _listener.Start();
+                listener.Prefixes.Add(baseUrl + "/");
+                listener.Start();
+                _listener = listener;
                 BaseUrl = baseUrl;
                 return;
             }
             catch (Exception ex) when (ex is HttpListenerException or System.Net.Sockets.SocketException)
             {
-                _listener.Prefixes.Clear();
+                try { listener.Close(); } catch { }
             }
         }
         throw new InvalidOperationException("Could not bind LocalAssetServer to any loopback port.");

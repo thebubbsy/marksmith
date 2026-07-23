@@ -67,7 +67,9 @@ public sealed class MarkdownHtmlService
         }
 
         markdown = TextNormalizer.Newlines(markdown);
+        markdown = Regex.Replace(markdown, @"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", "\n$$$$\n${1}\n$$$$\n", RegexOptions.Singleline);
         markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = KanbanNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
         markdown = DiagramFenceSniffer.Apply(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
@@ -250,7 +252,9 @@ public sealed class MarkdownHtmlService
 
         var mermaidEnabled = settings.MermaidEnabled && body.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         var mermaidScript = mermaidEnabled ? $$"""
+            <link rel="stylesheet" href="{{Services.WebAssets.LiquidFillCss}}">
             <script src="{{Services.WebAssets.Mermaid}}"></script>
+            <script src="{{Services.WebAssets.MermaidInteropJs}}"></script>
             <script>
             mermaid.initialize({
                 startOnLoad: true,
@@ -312,7 +316,10 @@ public sealed class MarkdownHtmlService
                 };
                 const closeLens = () => { lens.classList.remove("open"); bar.style.display = "none"; };
                 document.querySelectorAll(".mermaid, .plugin-diagram").forEach(m =>
-                    m.addEventListener("click", () => { const s = m.querySelector("svg"); if (s) openLens(s); }));
+                    m.addEventListener("click", (e) => {
+                        if (e.target.closest(".mermaid-edit-btn")) return;
+                        const s = m.querySelector("svg"); if (s) openLens(s);
+                    }));
                 lens.addEventListener("wheel", (e) => {
                     e.preventDefault();
                     const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -435,19 +442,26 @@ public sealed class MarkdownHtmlService
                 }
             }
 
+            function makeMermaidInteractive() {
+                // No upper-right button overlay — long-press water-fill gesture handles Studio launch
+            }
+
             window.addEventListener("load", () => {
                 setTimeout(checkPageOverflow, 800);
                 setTimeout(updatePageBreaks, 600);
+                setTimeout(makeMermaidInteractive, 1000);
             });
             window.addEventListener("resize", () => {
                 checkPageOverflow();
                 updatePageBreaks();
+                makeMermaidInteractive();
             });
             
             // Also monitor DOM mutations in case of dynamically injected content
             const observer = new MutationObserver((mutations) => {
                 setTimeout(checkPageOverflow, 200);
                 setTimeout(updatePageBreaks, 300);
+                setTimeout(makeMermaidInteractive, 400);
             });
             observer.observe(canvas, { childList: true, subtree: true });
             </script>
@@ -463,6 +477,11 @@ public sealed class MarkdownHtmlService
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
                    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            @media print {
+              @page { margin: 0 !important; }
+              html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; }
+            }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
@@ -500,9 +519,22 @@ public sealed class MarkdownHtmlService
             .md-tag { display: inline-block; padding: 1px 9px; border-radius: 999px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Primary}}; font-size: 0.85em; }
             .code-title { display: inline-block; margin-bottom: -14px; padding: 4px 12px; border: 1px solid {{theme.Border}}; border-bottom: none; border-radius: 6px 6px 0 0; background: {{theme.Code}}; font-family: Consolas, monospace; font-size: 12px; color: {{theme.Text}}; opacity: 0.85; }
             .tab-label { display: inline-block; margin: 14px 0 6px 0; padding: 4px 14px; border: 1px solid {{theme.Border}}; border-radius: 6px 6px 0 0; border-bottom: 2px solid {{theme.Primary}}; background: {{theme.Secondary}}; font-weight: 700; font-size: 13px; color: {{theme.Primary}}; }
+            .kanban-board { margin: 24px 0; padding: 16px; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Secondary}}; }
+            .kanban-board-title { font-weight: 700; font-size: 1.1em; color: {{theme.Heading}}; margin-bottom: 12px; }
+            .kanban-columns { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+            .kanban-column { flex: 1; min-width: 180px; background: {{theme.Background}}; border: 1px solid {{theme.Border}}; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+            .kanban-column-title { font-weight: 700; font-size: 0.95em; color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Primary}}; padding-bottom: 6px; margin-bottom: 4px; }
+            .kanban-cards { display: flex; flex-direction: column; gap: 8px; }
+            .kanban-card { background: {{theme.Code}}; border: 1px solid {{theme.Border}}; border-radius: 4px; padding: 8px 12px; font-size: 0.9em; }
+            .kanban-card.completed { text-decoration: line-through; opacity: 0.75; }
+            .kanban-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; font-size: 0.8em; margin-left: 4px; color: {{theme.Primary}}; }
             .page-break { border: none; border-top: 2px dashed {{theme.Border}}; margin: 26px 0; position: relative; }
             .page-break::after { content: "page break"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%); padding: 0 10px; background: {{theme.Background}}; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: {{theme.Text}}; opacity: 0.55; }
-            @media print { .page-break { page-break-after: always; border: none; } .page-break::after { content: ""; } }
+            @media print {
+              .page-break { {{(settings.UnlimitedHeight ? "page-break-after: avoid !important; break-after: avoid !important; " : "page-break-after: always; ")}}border: none; }
+              .page-break::after { content: ""; }
+              {{(settings.UnlimitedHeight ? "hr { page-break-after: avoid !important; break-after: avoid !important; }" : "")}}
+            }
             img { max-width: 100%; }
             .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
             /* --- Capability-Aware Preview CSS --- */
@@ -519,9 +551,6 @@ public sealed class MarkdownHtmlService
               .mermaid svg { width: 100% !important; height: auto !important; max-width: 100% !important; }
               #mk-lens, #mk-lens-bar { display: none !important; }
             }
-            .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon, .mermaid .node path, .mermaid .cluster rect { stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
-            .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
-            .mermaid .label { color: {{theme.Primary}} !important; }
             @media print {
               .plugin-diagram { max-width: 100%; }
               .plugin-diagram-missing, .plugin-diagram-error { display: none; }
@@ -769,20 +798,9 @@ public sealed class MarkdownHtmlService
     // for BOTH local and remote images (the |300 arrives glued to the alt text).
     private static readonly Regex ImgTag = new("<img src=\"([^\"]+)\" alt=\"([^\"]*)\"([^>]*)>", RegexOptions.Compiled);
     private static readonly Regex AltSizeHint = new(@"^(.*)\|(\d{2,4})$", RegexOptions.Compiled);
-    // CRITICAL: WebView2's NavigateToString (and the Avalonia NativeWebView equivalent) silently
-    // FAILS past roughly 2 MB — the preview then just spins forever. Base64 inflates a file ~1.34x,
-    // so a couple of multi-MB photos inlined here blow that ceiling and take the whole preview down.
-    // Cap it hard: skip any single image over ~900 KB, and stop inlining once the running total of
-    // encoded image data would approach the budget — the doc's own markup plus this must stay well
-    // under 2 MB. An image that's skipped keeps its original src (it just won't show in the preview),
-    // which is strictly better than a preview that never loads. (Serving arbitrary local images
-    // through the host's asset server, with no size limit, is the real fix — a follow-up.)
-    private const long MaxInlineBudgetBytes = 1_200_000;
-
     private static string EmbedLocalImages(string body)
     {
         if (!body.Contains("<img", StringComparison.Ordinal)) return body;
-        long budgetUsed = 0;
         return ImgTag.Replace(body, m =>
         {
             var src = m.Groups[1].Value;
@@ -806,85 +824,16 @@ public sealed class MarkdownHtmlService
                 : (decoded.Length > 2 && decoded[1] == ':' ? decoded : null);
             if (localPath is not null)
             {
-                try
-                {
-                    var info = new FileInfo(localPath);
-                    if (info.Exists)
-                    {
-                        // Large/high-res local images (phone photos, screenshots, 1273px logos) are
-                        // downscaled to a document-sensible size FIRST — a page is only ~800px wide,
-                        // so a bigger source is wasted bytes that (base64-inflated) blow the
-                        // NavigateToString ceiling and take the whole preview down. Downscaling turns
-                        // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
-                        // pass through untouched; SVG is never rasterized.
-                        var (data, mime) = PrepareImageForInline(localPath, info);
-                        if (data is not null && mime is not null &&
-                            budgetUsed + data.Length * 4 / 3 <= MaxInlineBudgetBytes)
-                        {
-                            src = $"data:{mime};base64,{Convert.ToBase64String(data)}";
-                            budgetUsed += data.Length * 4 / 3;
-                        }
-                    }
-                }
-                catch { /* unreadable/undecodable file: leave the original src; alt text still shows */ }
+                // Serve arbitrary local images through the host's asset server to bypass the 
+                // NavigateToString string-length crashing limits.
+                src = $"https://localimg.marksmith/?path={Uri.EscapeDataString(localPath)}";
             }
 
             return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
         });
     }
 
-    private const int MaxImageDimension = 1400; // downscale target: covers 2x the ~800px page width
 
-    // Returns the bytes+mime to inline for a local image: the file as-is when it's already small
-    // and modest-resolution, or a downscaled re-encode when it's oversized. Returns (null, null)
-    // for formats we don't rasterize (SVG) or anything Skia can't decode.
-    private static (byte[]? Data, string? Mime) PrepareImageForInline(string path, FileInfo info)
-    {
-        var ext = info.Extension.ToLowerInvariant();
-        if (ext == ".svg") return (null, null); // vector: inlining raw would need XML, not a raster path
-
-        var raw = File.ReadAllBytes(path);
-
-        // Fast path: already small AND not huge-resolution → inline the original bytes verbatim,
-        // preserving the exact format (and any transparency/animation) with zero re-encoding.
-        if (info.Length <= 350_000)
-        {
-            using var codec = SKCodec.Create(new MemoryStream(raw));
-            if (codec is null) return (null, null); // undecodable — caller leaves original src
-            if (Math.Max(codec.Info.Width, codec.Info.Height) <= MaxImageDimension)
-            {
-                var mime = ext switch
-                {
-                    ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif",
-                    ".webp" => "image/webp", ".bmp" => "image/bmp", _ => "image/png",
-                };
-                return (raw, mime);
-            }
-        }
-
-        using var bitmap = SKBitmap.Decode(raw);
-        if (bitmap is null) return (null, null);
-
-        var scale = (double)MaxImageDimension / Math.Max(bitmap.Width, bitmap.Height);
-        SKBitmap? scaled = scale < 1.0
-            ? bitmap.Resize(new SKImageInfo((int)(bitmap.Width * scale), (int)(bitmap.Height * scale)), SKFilterQuality.High)
-            : bitmap;
-        if (scaled is null) return (null, null);
-        try
-        {
-            using var image = SKImage.FromBitmap(scaled);
-            if (image is null) return (null, null);
-            // PNG keeps sharp edges + transparency for graphics/logos; the size win comes from the
-            // resolution drop, not lossy compression, so text/line art stays crisp.
-            using var encoded = image.Encode(SKEncodedImageFormat.Png, 90);
-            if (encoded is null) return (null, null);
-            return (encoded.ToArray(), "image/png");
-        }
-        finally
-        {
-            if (!ReferenceEquals(scaled, bitmap)) scaled.Dispose();
-        }
-    }
 
     // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
     // when the rendered body actually needs them (plain documents stay dependency-free).

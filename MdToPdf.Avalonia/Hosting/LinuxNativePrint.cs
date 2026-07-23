@@ -73,7 +73,7 @@ internal static class LinuxNativePrint
         g_object_unref(settings);
 
         var pageSetup = gtk_page_setup_new();
-        var paper = gtk_paper_size_new_custom("marksmith-custom", "Marksmith Custom", setup.PageWidthIn, setup.PageHeightIn, GtkUnitInch);
+        var paper = gtk_paper_size_new_custom("MarkSmith-custom", "MarkSmith Custom", setup.PageWidthIn, setup.PageHeightIn, GtkUnitInch);
         gtk_page_setup_set_paper_size(pageSetup, paper); // copies the paper size
         gtk_paper_size_free(paper);
         gtk_page_setup_set_top_margin(pageSetup, setup.MarginTopIn, GtkUnitInch);
@@ -104,3 +104,4 @@ internal static class LinuxNativePrint
         return ok;
     }
 }
+

@@ -221,6 +221,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
     private bool _isBusy;
+    [ObservableProperty] private bool _isDebugModeEnabled = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasOutput))]
     private string? _lastOutputPath;
@@ -581,6 +582,20 @@ public sealed partial class MainViewModel : ObservableObject
         {
             await ConvertToPdfAsync();
         }
+    }
+
+    [RelayCommand]
+    private async Task ExportPdfAsync()
+    {
+        TargetFormat = "pdf";
+        await ConvertToPdfAsync();
+    }
+
+    [RelayCommand]
+    private async Task ExportDocxAsync()
+    {
+        TargetFormat = "docx";
+        await ConvertToDocxAsync();
     }
 
     [RelayCommand]
