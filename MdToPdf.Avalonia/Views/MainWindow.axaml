@@ -12,7 +12,7 @@
         x:DataType="core:MainViewModel"
         Icon="/Assets/logo.png"
         Width="1280" Height="800"
-        Title="Marksmith">
+        Title="MarkSmith">
 
     <Window.Resources>
         <x:Double x:Key="IconFontSize">14</x:Double>
@@ -24,7 +24,7 @@
         <Border Grid.Row="0" Padding="16,10" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                 <Image Source="/Assets/logo.png" Width="22" Height="22" />
-                <TextBlock Text="Marksmith" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="MarkSmith" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
                 <TextBlock Text="AI chats → polished documents" Opacity="0.55" FontSize="12" VerticalAlignment="Center" />
             </StackPanel>
@@ -39,7 +39,7 @@
             </ui:InfoBar>
             <ui:InfoBar x:Name="ExtensionHintBar" IsOpen="False" IsClosable="True"
                           Severity="Informational" Title="That paste looks like plain text"
-                          Message="Headings, tables and code were probably lost on the way. In your AI chat, use the Marksmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting.">
+                          Message="Headings, tables and code were probably lost on the way. In your AI chat, use the MarkSmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting.">
                 <ui:InfoBar.ActionButton>
                     <Button Content="Get the extension" Click="OnGetExtensionClick" />
                 </ui:InfoBar.ActionButton>
@@ -65,7 +65,7 @@
                 <ui:InfoBar Grid.Row="1" x:Name="ExtensionTip" Severity="Informational" IsOpen="True"
                               IsClosable="True" CloseButtonClick="OnExtensionTipClosed" Margin="0,0,0,10"
                               Title="Work in your AI chat as normal"
-                              Message="Install the Marksmith Connector browser extension to send ChatGPT, Gemini and Claude replies straight here — then export a polished PDF whenever you're ready.">
+                              Message="Install the MarkSmith Connector browser extension to send ChatGPT, Gemini and Claude replies straight here — then export a polished PDF whenever you're ready.">
                     <ui:InfoBar.ActionButton>
                         <Button Content="Get the extension"
                                 Click="OnGetExtensionClick" />
@@ -289,7 +289,7 @@
                                         <TextBlock Text="Custom Document Font Family" FontSize="12" Opacity="0.7" />
                                         <TextBox Text="{Binding BrandFontFamily, Mode=TwoWay}" PlaceholderText="e.g. Segoe UI, Inter (leave blank for default)" />
                                     </StackPanel>
-                                    <TextBlock Text="Requires Marksmith Pro license to apply to DOCX exports." Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="Requires MarkSmith Pro license to apply to DOCX exports." Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Expander>
 
@@ -424,4 +424,5 @@
         </Grid>
     </Grid>
 </Window>
+
 
