@@ -1,8 +1,8 @@
 ---
-title: The Marksmith OpenXML Gauntlet
+title: The MarkSmith OpenXML Gauntlet
 ---
 
-# The Marksmith OpenXML Gauntlet
+# The MarkSmith OpenXML Gauntlet
 
 This document is a stress-test for Markdown-to-OpenXML (DOCX) and PDF rendering pipelines. It compiles the most complex, nested, and historically "impossible" formatting tasks to verify visual parity, layout stability, and structural compliance.
 

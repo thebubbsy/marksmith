@@ -1,0 +1,150 @@
+<UserControl
+    x:Class="MdToPdf.Views.Mermaid.MermaidDiagramStudioControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Background="#181825">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40" /> <!-- App Title Bar Area -->
+            <RowDefinition Height="48" /> <!-- Studio Toolbar -->
+            <RowDefinition Height="*" />  <!-- Main Workspace -->
+            <RowDefinition Height="28" /> <!-- Status Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Custom App Title Bar -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="12,0,0,0" Background="#1E1E2E">
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Text="Mermaid Diagram Studio" FontWeight="SemiBold" FontSize="13" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                <TextBlock Text="·" Opacity="0.4" Foreground="#8D99AE" VerticalAlignment="Center" />
+                <TextBlock Text="Native WinUI 3 Visual Editor" FontSize="12" Foreground="#8D99AE" VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Studio Toolbar -->
+        <Border Grid.Row="1" Background="#212234" BorderBrush="#2B2D42" BorderThickness="0,0,0,1" Padding="12,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Tools -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8D7;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Auto Layout ⚡" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+
+                    <ToggleSwitch x:Name="GridSnapSwitch"
+                                  Header="Snap Grid"
+                                  IsOn="{Binding IsGridSnapEnabled, Mode=TwoWay}"
+                                  Margin="8,0,0,0" />
+
+                    <Button Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete Selected Item">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
+                            <TextBlock Text="Delete" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Center Zoom Slider -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE71F;" FontSize="14" Foreground="#8D99AE" />
+                    <Slider Width="140" Minimum="0.2" Maximum="3.0" StepFrequency="0.1" Value="{Binding ZoomFactor, Mode=TwoWay}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ZoomFactor}" FontSize="12" Foreground="#EDF2F4" Width="45" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Right Actions -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnSyncToMarkdownClick">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                            <TextBlock Text="Sync to Markdown 🔄" FontSize="12" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Workspace (Palette | Canvas | Inspector) -->
+        <Grid Grid.Row="2" ColumnSpacing="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" MinWidth="200" />
+                <ColumnDefinition Width="*" MinWidth="400" />
+                <ColumnDefinition Width="280" MinWidth="220" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Pane: Palette Container -->
+            <Border x:Name="PaletteContainer" Grid.Column="0" />
+
+            <!-- Center Pane: Canvas Workspace Container -->
+            <Border x:Name="CanvasContainer" Grid.Column="1" />
+
+            <!-- Right Pane: Property Inspector -->
+            <Border Grid.Column="2" Background="#181825" BorderBrush="#2B2D42" BorderThickness="1,0,0,0" Padding="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Properties Inspector" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" />
+                        <Rectangle Height="1" Fill="#2B2D42" />
+
+                        <!-- Node Inspector Panel -->
+                        <StackPanel x:Name="NodeInspectorPanel" Spacing="10">
+                            <TextBlock Text="Selected Node" FontWeight="SemiBold" FontSize="12" Foreground="#4CC9F0" />
+                            <TextBox Header="Node ID" Text="{Binding SelectedNode.Id, Mode=TwoWay}" IsReadOnly="True" />
+                            <TextBox Header="Label Text" Text="{Binding SelectedNode.LabelText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
+                            <TextBox Header="Shape" Text="{Binding SelectedNode.Shape, Mode=TwoWay}" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Header="X" Text="{Binding SelectedNode.X, Mode=TwoWay}" />
+                                <TextBox Grid.Column="1" Header="Y" Text="{Binding SelectedNode.Y, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Header="Width" Text="{Binding SelectedNode.Width, Mode=TwoWay}" />
+                                <TextBox Grid.Column="1" Header="Height" Text="{Binding SelectedNode.Height, Mode=TwoWay}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Connector Inspector Panel -->
+                        <StackPanel x:Name="ConnectorInspectorPanel" Spacing="10" Margin="0,10,0,0">
+                            <TextBlock Text="Selected Connector" FontWeight="SemiBold" FontSize="12" Foreground="#4CC9F0" />
+                            <TextBox Header="Source -> Target" Text="{Binding SelectedConnector.SourceNodeId}" IsReadOnly="True" />
+                            <TextBox Header="Label" Text="{Binding SelectedConnector.Label, Mode=TwoWay}" />
+                            <TextBox Header="Line Style" Text="{Binding SelectedConnector.LineStyle, Mode=TwoWay}" />
+                            <TextBox Header="Arrow Head" Text="{Binding SelectedConnector.EndHead, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Bottom Status Bar -->
+        <Border Grid.Row="3" Background="#11111B" Padding="12,0" VerticalAlignment="Stretch">
+            <Grid VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="11" Foreground="#8D99AE" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding Nodes.Count}" FontSize="11" Foreground="#8D99AE" />
+                    <TextBlock Text="{Binding Connectors.Count}" FontSize="11" Foreground="#8D99AE" />
+                    <TextBlock Text="Grid Snap: 10px" FontSize="11" Foreground="#8D99AE" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

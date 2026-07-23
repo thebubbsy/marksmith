@@ -120,7 +120,7 @@ public sealed class DocxExportService
                 var after = markdown.Substring(node.Block.End);
                 markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
             }
-            var featureDict = featureNodes.ToDictionary(n => n.StableId);
+            var featureDict = featureNodes.GroupBy(n => n.StableId).ToDictionary(g => g.Key, g => g.First());
 
             if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
             markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
@@ -145,6 +145,10 @@ public sealed class DocxExportService
             // w:background must precede w:body; displayBackgroundShape in settings makes Word honor it.
             main.Document = new W.Document(
                 new W.DocumentBackground { Color = Hex(theme.Background) }, body);
+            
+            main.Document.AddNamespaceDeclaration("w14", "http://schemas.microsoft.com/office/word/2010/wordml");
+            main.Document.AddNamespaceDeclaration("w15", "http://schemas.microsoft.com/office/word/2012/wordml");
+            main.Document.MCAttributes = new DocumentFormat.OpenXml.MarkupCompatibilityAttributes { Ignorable = "w14 w15" };
 
             var ctx = new Ctx
             {
@@ -235,7 +239,7 @@ public sealed class DocxExportService
             var after = markdown.Substring(node.Block.End);
             markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
         }
-        var featureDict = featureNodes.ToDictionary(n => n.StableId);
+        var featureDict = featureNodes.GroupBy(n => n.StableId).ToDictionary(g => g.Key, g => g.First());
 
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
@@ -319,6 +323,9 @@ public sealed class DocxExportService
         public int NextNumId = 2; // numId 1 is the shared bullet instance
         public int NextBookmarkId = 1;
         public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shapes / snapshots)
+        public int NextRevisionId = 1;    // sequential revision id for OpenXML track changes
+        public string DefaultRevisionAuthor = "Marksmith AI";
+        public DateTime DefaultRevisionDate = DateTime.UtcNow;
         public string? BrandFont;         // branding kit: document-wide font override
         public bool ForceWebLayout;       // an oversized ShapeForge diagram wants Web Layout view
         public int MermaidMode = 1;       // 0 = Snapshot picture, 1 = ShapeForge native shapes
@@ -330,7 +337,7 @@ public sealed class DocxExportService
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
-        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2Ã—2, 3=3Ã—3)
+        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2×2, 3=3×3)
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
@@ -364,7 +371,17 @@ public sealed class DocxExportService
     // Inline formatting state threaded through the inline walker.
     private readonly record struct Fmt(
         bool Bold, bool Italic, bool Strike, bool Code, bool Superscript, bool Subscript,
-        bool Highlight, bool Underline, string? Color, bool NoProof = false, bool WikiLink = false, bool UnderlineDash = false);
+        bool Highlight, bool Underline, string? Color, bool NoProof = false, bool WikiLink = false, bool UnderlineDash = false,
+        RevisionKind Revision = RevisionKind.None, string? RevisionAuthor = null, DateTime? RevisionDate = null, int RevisionId = 0,
+        W.UnderlineValues? UnderlineStyle = null, string? UnderlineColor = null,
+        W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null)
+    {
+        public bool EffectiveUnderline => Underline || (UnderlineStyle.HasValue && UnderlineStyle.Value != W.UnderlineValues.None);
+
+        public W.UnderlineValues EffectiveUnderlineStyle => UnderlineStyle ?? (WikiLink ? W.UnderlineValues.Dash : (Underline ? W.UnderlineValues.Single : W.UnderlineValues.None));
+
+        public W.HighlightColorValues? EffectiveHighlightColor => HighlightColor ?? (Highlight ? W.HighlightColorValues.Yellow : null);
+    }
 
     private static string Hex(string cssColor) => cssColor.TrimStart('#').ToUpperInvariant();
 
@@ -875,7 +892,7 @@ public sealed class DocxExportService
                 <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
                   <wp:extent cx="{cx}" cy="{cy}"/>
                   <wp:effectExtent l="0" t="0" r="0" b="0"/>
-                  <wp:docPr id="{id}" name="Diagram" descr="Diagram rendered by a Marksmith plugin"/>
+                  <wp:docPr id="{id}" name="Diagram" descr="Diagram rendered by a MarkSmith plugin"/>
                   <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
                   <a:graphic>
                     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -929,7 +946,7 @@ public sealed class DocxExportService
                 <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
                   <wp:extent cx="{cx}" cy="{cy}"/>
                   <wp:effectExtent l="0" t="0" r="0" b="0"/>
-                  <wp:docPr id="{id}" name="Mermaid diagram" descr="Diagram snapshot rendered by Marksmith"/>
+                  <wp:docPr id="{id}" name="Mermaid diagram" descr="Diagram snapshot rendered by MarkSmith"/>
                   <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
                   <a:graphic>
                     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -1008,19 +1025,31 @@ public sealed class DocxExportService
     private static W.Paragraph CodeParagraph(string text, string info, Ctx ctx)
     {
         var isDiff = info?.Trim().Equals("diff", StringComparison.OrdinalIgnoreCase) == true;
-        var para = new W.Paragraph(new W.ParagraphProperties(
-            new W.KeepLines(), // don't let a page break shear a code block in half
-            new W.WordWrap { Val = false }, // preserve ASCII art & Unicode box drawing alignment
-            new W.ParagraphBorders(
-                new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-                new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-                new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex }),
-            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex }));
+        var pPr = new W.ParagraphProperties();
+        pPr.KeepLines = new W.KeepLines();
+        pPr.WordWrap = new W.WordWrap { Val = false }; // Explicitly add wordWrap to ensure it's kept in order
+        pPr.ParagraphBorders = new W.ParagraphBorders(
+            new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
+            new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
+            new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
+            new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex });
+        pPr.Shading = new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex };
+        
+        var para = new W.Paragraph(pPr);
 
-        if (!string.IsNullOrWhiteSpace(info) && !isDiff)
+        var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
+        if (string.IsNullOrWhiteSpace(langToken) && !isDiff)
         {
-            var highlighted = CodeSyntaxHighlighter.GetHighlightedRuns(text, info, ctx.Theme).ToList();
+            if (Regex.IsMatch(text, @"\b(def|import|print\(|elif|self\.)\b")) langToken = "python";
+            else if (Regex.IsMatch(text, @"\b(function|console\.log|const|let|var|document\.)\b")) langToken = "javascript";
+            else if (Regex.IsMatch(text, @"\b(public|private|class|namespace|using System|void)\b")) langToken = "csharp";
+            else if (Regex.IsMatch(text, @"\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b", RegexOptions.IgnoreCase)) langToken = "sql";
+            else if (Regex.IsMatch(text, @"<[a-z][\s\S]*>")) langToken = "html";
+        }
+
+        if (!string.IsNullOrWhiteSpace(langToken) && !isDiff)
+        {
+            var highlighted = CodeSyntaxHighlighter.GetHighlightedRuns(text, langToken, ctx.Theme).ToList();
             if (highlighted.Count > 0)
             {
                 AppendHighlightedCodeRuns(para, highlighted);
@@ -1142,6 +1171,9 @@ public sealed class DocxExportService
             case "Canvas":
                 RenderCanvas(node, target, ctx);
                 break;
+            case "Kanban":
+                RenderKanban(node, target, ctx);
+                break;
             default:
                 // Placeholder for features not yet implemented â€” red bold label in the Word doc.
                 var p = new W.Paragraph(new W.ParagraphProperties(
@@ -1187,48 +1219,243 @@ public sealed class DocxExportService
     }
 
     /// <summary>
-    /// Renders a :::tabs block as native Word heading sections â€” one per :::tab.
-    /// Each tab becomes a Heading 3 with a shaded background (tab bar effect), followed by
-    /// its content rendered as standard paragraphs. In Word's Navigation Pane, each tab
-    /// appears as a navigable section so the user can jump between them.
+    /// Renders a :::tabs block as OpenXML Native Tabs with modern visual styling:
+    /// 1. A top 1-row visual Tab Header Bar Table (W.Table) with a cell per tab button.
+    /// 2. Active tab has accent background shading (#EBF3FE / ctx.SecondaryHex) with bold title.
+    /// 3. Inactive tabs have light/muted background shading (#F8F9FA) with standard title text.
+    /// 4. Tab header titles are wrapped in W.Hyperlink anchors pointing to tab section bookmarks.
+    /// 5. Each tab section heading is rendered with W.OutlineLevel (Val = 8) and W15.DefaultCollapsed
+    ///    (Val = false / 0 for active tab, Val = true / 1 for inactive tabs).
+    /// 6. Child Markdown body blocks are rendered under each tab section heading.
     /// </summary>
     private static void RenderTabs(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
-        // Split inner content on :::tab markers
-        var parts = Regex.Split(node.InnerContent, @"^:::tab\b[^\n]*", RegexOptions.Multiline);
-        var titles = Regex.Matches(node.InnerContent, @"^:::tab\s+title=""?([^""\n]+)""?", RegexOptions.Multiline);
+        var tabs = ParseTabsFromContent(node.InnerContent);
+        if (tabs.Count == 0) return;
 
-        for (int i = 0; i < titles.Count; i++)
+        // 1. Render Tab Header Bar Table (W.Table)
+        var table = new W.Table();
+        var tableProps = new W.TableProperties(
+            new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" }, // 100% width
+            new W.TableBorders(
+                new W.TopBorder { Val = W.BorderValues.None },
+                new W.LeftBorder { Val = W.BorderValues.None },
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 6, Space = 0, Color = ctx.BorderHex ?? "CBD5E1" },
+                new W.RightBorder { Val = W.BorderValues.None },
+                new W.InsideHorizontalBorder { Val = W.BorderValues.None },
+                new W.InsideVerticalBorder { Val = W.BorderValues.None }
+            ),
+            new W.TableCellMarginDefault(
+                new W.TopMargin { Width = "100", Type = W.TableWidthUnitValues.Dxa },
+                new W.LeftMargin { Width = "150", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "100", Type = W.TableWidthUnitValues.Dxa },
+                new W.RightMargin { Width = "150", Type = W.TableWidthUnitValues.Dxa }
+            )
+        );
+        table.Append(tableProps);
+
+        int totalTabs = tabs.Count;
+        int cellWidth = totalTabs > 0 ? 9000 / totalTabs : 9000;
+
+        var tableGrid = new W.TableGrid();
+        for (int i = 0; i < totalTabs; i++)
         {
-            var title = titles[i].Groups[1].Value.Trim();
-            // The content for this tab is in parts[i+1] (parts[0] is anything before the first :::tab)
-            var content = i + 1 < parts.Length ? parts[i + 1].Trim() : "";
+            tableGrid.Append(new W.GridColumn { Width = cellWidth.ToString() });
+        }
+        table.Append(tableGrid);
 
-            // --- Tab heading (styled as Heading 3 with accent shading) ---
+        var row = new W.TableRow();
+        var bookmarkNames = new List<string>(totalTabs);
+
+        for (int i = 0; i < totalTabs; i++)
+        {
+            bool isActive = (i == 0);
+            var tabTitle = tabs[i].Title;
+            var cleanId = node.StableId.Replace("-", "");
+            var shortId = cleanId.Substring(0, Math.Min(12, cleanId.Length));
+            var bookmarkName = $"tab_{shortId}_{i}";
+            bookmarkNames.Add(bookmarkName);
+
+            var cell = new W.TableCell();
+            var cellProps = new W.TableCellProperties(
+                new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = cellWidth.ToString() },
+                new W.TableCellBorders(
+                    new W.TopBorder { Val = W.BorderValues.None },
+                    new W.LeftBorder { Val = W.BorderValues.None },
+                    new W.BottomBorder
+                    {
+                        Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
+                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 12U : 0U),
+                        Space = 0,
+                        Color = isActive ? (ctx.PrimaryHex ?? "2563EB") : "auto"
+                    },
+                    new W.RightBorder { Val = W.BorderValues.None }
+                ),
+                new W.Shading
+                {
+                    Val = W.ShadingPatternValues.Clear,
+                    Color = "auto",
+                    Fill = isActive ? "EBF3FE" : "F8F9FA"
+                }
+            );
+            cell.Append(cellProps);
+
+            var p = new W.Paragraph(new W.ParagraphProperties(
+                new W.SpacingBetweenLines { Before = "60", After = "60" },
+                new W.Justification { Val = W.JustificationValues.Center }
+            ));
+
+            var hyperlink = new W.Hyperlink { Anchor = bookmarkName, History = true };
+            AddText(hyperlink, tabTitle, new Fmt { Bold = isActive, Color = isActive ? (ctx.PrimaryHex ?? "1E293B") : "64748B" });
+            p.Append(hyperlink);
+            cell.Append(p);
+            row.Append(cell);
+        }
+
+        table.Append(row);
+        target.Append(table);
+
+        // 2. Render Tab Section Headings and Content Blocks
+        for (int i = 0; i < totalTabs; i++)
+        {
+            bool isActive = (i == 0);
+            var tabTitle = tabs[i].Title;
+            var tabContent = tabs[i].Content;
+            var bookmarkName = bookmarkNames[i];
+            var bmId = (ctx.NextBookmarkId++).ToString();
+
             var heading = new W.Paragraph(
                 new W.ParagraphProperties(
                     new W.ParagraphStyleId { Val = "Heading3" },
-                    new W.SpacingBetweenLines { Before = "240", After = "80" },
+                    new W.ParagraphBorders(
+                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 2, Color = isActive ? (ctx.PrimaryHex ?? "2563EB") : "CBD5E1" }
+                    ),
                     new W.Shading
                     {
-                        Val = W.ShadingPatternValues.Clear, Color = "auto",
-                        Fill = ctx.SecondaryHex
+                        Val = W.ShadingPatternValues.Clear,
+                        Color = "auto",
+                        Fill = isActive ? "EBF3FE" : "F8F9FA"
                     },
-                    new W.ParagraphBorders(
-                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 8, Space = 4, Color = ctx.BorderHex }
-                    )));
-            AddText(heading, $"ðŸ“‘ {title}", new Fmt { Bold = true });
+                    new W.SpacingBetweenLines { Before = "160", After = "80" },
+                    new W.OutlineLevel { Val = 8 },
+                    new W15.DefaultCollapsed { Val = !isActive }
+                )
+            );
+
+            heading.Append(new W.BookmarkStart { Name = bookmarkName, Id = bmId });
+            AddText(heading, tabTitle, new Fmt { Bold = isActive });
+            heading.Append(new W.BookmarkEnd { Id = bmId });
+
             target.Append(heading);
 
-            // --- Tab content (re-parsed through Markdig) ---
-            if (!string.IsNullOrWhiteSpace(content))
+            if (!string.IsNullOrWhiteSpace(tabContent))
             {
-                var innerDoc = Markdig.Markdown.Parse(content,
-                    ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                var innerDoc = Markdig.Markdown.Parse(tabContent, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
                 foreach (var block in innerDoc)
+                {
                     RenderBlock(block, target, ctx, listLevel: -1);
+                }
             }
         }
+    }
+
+    private static void RenderKanban(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var kanban = MdToPdf.Core.Kanban.KanbanParser.Parse(node.Block.RawText, node.InnerContent, node.Attributes);
+        if (kanban.Columns.Count == 0) return;
+
+        if (!string.IsNullOrWhiteSpace(kanban.Title))
+        {
+            var titlePara = new W.Paragraph(new W.ParagraphProperties(
+                new W.SpacingBetweenLines { Before = "180", After = "120" }));
+            AddText(titlePara, kanban.Title, new Fmt { Bold = true, Color = ctx.HeadingHex });
+            target.Append(titlePara);
+        }
+
+        MdToPdf.Core.Kanban.SmartArtKanbanBuilder.BuildKanban(kanban, ctx.MainPart, target, ctx.Theme, ref ctx.NextDrawingId, forceFallback: true);
+    }
+
+    private static List<(string Title, string Content)> ParseTabsFromContent(string innerContent)
+    {
+        var result = new List<(string Title, string Content)>();
+        if (string.IsNullOrWhiteSpace(innerContent)) return result;
+
+        var lines = innerContent.Split('\n');
+        string? currentTitle = null;
+        var currentBody = new List<string>();
+
+        bool inCodeFence = false;
+        string? codeFenceMarker = null;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimEnd('\r');
+            var trimmed = line.TrimStart();
+
+            // Code fence tracking to avoid treating :::tab or == inside code blocks as headers
+            if (!inCodeFence)
+            {
+                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                {
+                    inCodeFence = true;
+                    codeFenceMarker = trimmed.StartsWith("```") ? "```" : "~~~";
+                    if (currentTitle != null) currentBody.Add(line);
+                    continue;
+                }
+            }
+            else
+            {
+                if (currentTitle != null) currentBody.Add(line);
+                if (trimmed.StartsWith(codeFenceMarker!))
+                {
+                    inCodeFence = false;
+                    codeFenceMarker = null;
+                }
+                continue;
+            }
+
+            var tabMatch = Regex.Match(trimmed, @"^:::tab(?:\s+title=(?:""(?<t1>.*)""|(?<t2>\S+))|\s+(?<t3>[^\n]+))?$", RegexOptions.IgnoreCase);
+            var headerMatch = Regex.Match(trimmed, @"^={2,3}\s+(?:""(?<t1>.*)""|(?<t3>[^\n]+))$", RegexOptions.IgnoreCase);
+
+            if (tabMatch.Success || headerMatch.Success)
+            {
+                if (currentTitle != null)
+                {
+                    result.Add((currentTitle, string.Join("\n", currentBody).Trim()));
+                    currentBody.Clear();
+                }
+
+                var match = tabMatch.Success ? tabMatch : headerMatch;
+                var t1 = match.Groups["t1"].Value;
+                var t2 = match.Groups["t2"].Value;
+                var t3 = match.Groups["t3"].Value;
+
+                var title = !string.IsNullOrWhiteSpace(t1) ? t1.Trim()
+                    : !string.IsNullOrWhiteSpace(t2) ? t2.Trim()
+                    : !string.IsNullOrWhiteSpace(t3) ? t3.Trim()
+                    : $"Tab {result.Count + 1}";
+
+                currentTitle = title;
+                continue;
+            }
+
+            if (trimmed == ":::")
+            {
+                continue;
+            }
+
+            if (currentTitle != null)
+            {
+                currentBody.Add(line);
+            }
+        }
+
+        if (currentTitle != null)
+        {
+            result.Add((currentTitle, string.Join("\n", currentBody).Trim()));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -1523,18 +1750,19 @@ public sealed class DocxExportService
                 if (child is ParagraphBlock pb)
                 {
                     var pPr = new W.ParagraphProperties();
+                    
                     if (first)
                     {
-                        pPr.Append(new W.NumberingProperties(
+                        pPr.NumberingProperties = new W.NumberingProperties(
                             new W.NumberingLevelReference { Val = level },
-                            new W.NumberingId { Val = numId }));
+                            new W.NumberingId { Val = numId });
                         // contextualSpacing: suppress inter-paragraph spacing between siblings of
                         // the same list, the way Word's own List Paragraph style does.
-                        pPr.Append(new W.ContextualSpacing());
+                        pPr.ContextualSpacing = new W.ContextualSpacing();
                     }
                     else
                     {
-                        pPr.Append(new W.Indentation { Left = ((level + 1) * 720).ToString() });
+                        pPr.Indentation = new W.Indentation { Left = ((level + 1) * 720).ToString() };
                     }
                     var para = new W.Paragraph(pPr);
                     RenderInlines(para, pb.Inline, ctx, default);
@@ -1595,7 +1823,19 @@ public sealed class DocxExportService
         {
             run.RunProperties ??= new W.RunProperties();
             var existingColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
-            run.RunProperties.Color = new W.Color { Val = ContrastGuard.EnsureLegibleText(existingColor, ctx.SecondaryHex) };
+            var newColorHex = ContrastGuard.EnsureLegibleText(existingColor, ctx.SecondaryHex);
+            if (run.RunProperties.Color != null)
+            {
+                run.RunProperties.Color.Val = newColorHex;
+            }
+            else
+            {
+                var newColor = new W.Color { Val = newColorHex };
+                if (run.RunProperties.GetFirstChild<DocumentFormat.OpenXml.AlternateContent>() is { } alt)
+                    run.RunProperties.InsertBefore(newColor, alt);
+                else
+                    run.RunProperties.Append(newColor);
+            }
         }
 
         target.Append(new W.Table(
@@ -1907,8 +2147,8 @@ public sealed class DocxExportService
         if (openDetails.Success)
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
-                new W.OutlineLevel { Val = 4 }, new W15.DefaultCollapsed { Val = true }));
-            AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true });
+                new W.OutlineLevel { Val = 8 }, new W15.DefaultCollapsed { Val = true }));
+            AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
             return;
         }
@@ -1917,7 +2157,7 @@ public sealed class DocxExportService
         // <details><summary>â€¦</summary>â€¦</details> â†’ a GENUINELY collapsible section: the summary
         // paragraph carries an outline level (which is all Word needs to draw its native â–¸ collapse
         // triangle and fold the following body under it) plus w15:collapsed so it starts folded,
-        // matching <details>'s default-closed semantics. Outline level 4 keeps it out of the
+        // matching <details>'s default-closed semantics. Outline level 8 keeps it out of the
         // document's TOC field (which collects levels 1â€“3 only) so a summary line never pollutes
         // the table of contents. No literal "â–¸" glyph â€” Word draws its own toggle, and a fake one
         // next to the real one reads as a control that does nothing.
@@ -1930,13 +2170,19 @@ public sealed class DocxExportService
             var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
 
             var head = new W.Paragraph(new W.ParagraphProperties(
-                new W.OutlineLevel { Val = 4 },
+                new W.OutlineLevel { Val = 8 },
                 new W15.DefaultCollapsed { Val = true }));
-            AddText(head, summaryText, new Fmt { Bold = true });
+            AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
 
             var nestedTable = Regex.Match(body, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
             if (nestedTable.Success) { RenderHtmlTable(nestedTable.Value, target, ctx); return; }
+            if (body.Contains("<details", StringComparison.OrdinalIgnoreCase))
+            {
+                var innerDoc = Markdig.Markdown.Parse(body, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                foreach (var block in innerDoc) RenderBlock(block, target, ctx, listLevel: -1);
+                return;
+            }
             var bodyText = StripHtmlToText(body);
             if (bodyText.Length > 0) { var bp = new W.Paragraph(); AddText(bp, bodyText, default); target.Append(bp); }
             return;
@@ -2003,15 +2249,16 @@ public sealed class DocxExportService
         W.BorderType Border<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex };
 
+        var tblPr = new W.TableProperties();
+        tblPr.TableWidth = new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" };
+        tblPr.TableBorders = new W.TableBorders(
+            Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
+            Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
+        tblPr.TableCaption = new W.TableCaption { Val = "Table exported from Markdown" };
+        tblPr.TableDescription = new W.TableDescription { Val = "Table exported from Markdown by MarkSmith" };
+
         var wTable = new W.Table(
-            new W.TableProperties(
-                new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
-                new W.TableBorders(
-                    Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
-                    Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>()),
-                // Accessibility alt text â€” the w:tbl equivalent of an <img alt>, almost nobody sets it.
-                new W.TableCaption { Val = "Table exported from Markdown" },
-                new W.TableDescription { Val = "Table exported from Markdown by Marksmith" }),
+            tblPr,
             new W.TableGrid(table.ColumnDefinitions.Select(_ => (OpenXmlElement)new W.GridColumn())));
 
         var dataRowIndex = 0;
@@ -2127,11 +2374,11 @@ public sealed class DocxExportService
             switch (inline)
             {
                 case Markdig.Extensions.Emoji.EmojiInline emoji:
-                    if (!ctx.NoEmoji) AddText(target, emoji.Content.ToString(), current);
+                    if (!ctx.NoEmoji) AddText(target, emoji.Content.ToString(), current, ctx);
                     break;
 
                 case LiteralInline literal:
-                    AddText(target, literal.Content.ToString(), current);
+                    AddText(target, literal.Content.ToString(), current, ctx);
                     break;
 
                 case EmphasisInline em:
@@ -2139,12 +2386,12 @@ public sealed class DocxExportService
                     break;
 
                 case CodeInline code:
-                    AddText(target, code.Content, current with { Code = true });
+                    AddText(target, code.Content, current with { Code = true }, ctx);
                     break;
 
                 case LineBreakInline br:
                     if (br.IsHard) target.Append(new W.Run(new W.Break()));
-                    else AddText(target, " ", current);
+                    else AddText(target, " ", current, ctx);
                     break;
 
                 case LinkInline link:
@@ -2157,46 +2404,44 @@ public sealed class DocxExportService
                     if (relId is not null)
                     {
                         var hl = new W.Hyperlink { Id = relId };
-                        AddText(hl, auto.Url, current with { Color = ctx.LinkColor, Underline = true });
+                        AddText(hl, auto.Url, current with { Color = ctx.LinkColor, Underline = true }, ctx);
                         target.Append(hl);
                     }
                     else
                     {
-                        AddText(target, auto.Url, current);
+                        AddText(target, auto.Url, current, ctx);
                     }
                     break;
                 }
 
                 case TaskList task:
-                    // - [ ] / - [x] â†’ a NATIVE Word checkbox content control (w14:checkbox), the
-                    // same control Word's own Developer ribbon inserts â€” clickable in Word 2010+,
-                    // toggling â˜/â˜’ in place â€” rather than a static glyph pasted as text. The
-                    // display run inside sdtContent must carry the state glyph in MS Gothic (the
-                    // font Word itself uses for these controls) or Word shows a missing-glyph box
-                    // on some systems. No trailing space â€” the literal that follows already has one.
+                    // - [ ] / - [x] → a NATIVE Word checkbox content control (w14:checkbox), the
+                    // same control Word's own Developer ribbon inserts — clickable in Word 2010+,
+                    // toggling ☒/☐ in place. Uses Segoe UI Symbol (native on 100% of Windows/Office installs)
+                    // so the checkbox renders immediately without initial font-cache glitching.
                     target.Append(new W.SdtRun(
                         new W.SdtProperties(
                             new W14.SdtContentCheckBox(
                                 new W14.Checked { Val = task.Checked ? W14.OnOffValues.One : W14.OnOffValues.Zero },
-                                new W14.CheckedState { Val = "2612", Font = "MS Gothic" },
-                                new W14.UncheckedState { Val = "2610", Font = "MS Gothic" })),
+                                new W14.CheckedState { Val = "2612", Font = "Segoe UI Symbol" },
+                                new W14.UncheckedState { Val = "2610", Font = "Segoe UI Symbol" })),
                         new W.SdtContentRun(
                             new W.Run(
-                                new W.RunProperties(new W.RunFonts { Ascii = "MS Gothic", HighAnsi = "MS Gothic", EastAsia = "MS Gothic" }),
-                                new W.Text(task.Checked ? "â˜’" : "â˜")))));
+                                new W.RunProperties(new W.RunFonts { Ascii = "Segoe UI Symbol", HighAnsi = "Segoe UI Symbol", EastAsia = "Segoe UI Symbol", ComplexScript = "Segoe UI Symbol" }),
+                                new W.Text(task.Checked ? "\u2612" : "\u2610")))));
                     break;
 
                 case MathInline math:
-                    // Inline math â†’ an editable Word equation (OMML) dropped into the run flow.
+                    // Inline math → an editable Word equation (OMML) dropped into the run flow.
                     target.Append(LatexToOmml.Build(math.Content.ToString()));
                     break;
 
                 case FootnoteLink fn:
-                    AddText(target, $"[{fn.Index}]", current with { Superscript = true });
+                    AddText(target, $"[{fn.Index}]", current with { Superscript = true }, ctx);
                     break;
 
                 case HtmlEntityInline entity:
-                    AddText(target, entity.Transcoded.ToString(), current);
+                    AddText(target, entity.Transcoded.ToString(), current, ctx);
                     break;
 
                 case HtmlInline html:
@@ -2213,7 +2458,7 @@ public sealed class DocxExportService
         }
     }
 
-    // Basic CSS/HTML color names â†’ 6-hex (Word wants RRGGBB, no leading '#'). Covers the palette AI
+    // Basic CSS/HTML color names → 6-hex (Word wants RRGGBB, no leading '#'). Covers the palette AI
     // models actually reach for when they inline a colored <span>/<font>; anything unrecognized is
     // left alone (the text still renders, just in the default color) rather than guessed at.
     private static readonly Dictionary<string, string> NamedColors = new(StringComparer.OrdinalIgnoreCase)
@@ -2226,6 +2471,185 @@ public sealed class DocxExportService
         ["pink"] = "FFC0CB", ["brown"] = "A52A2A", ["gold"] = "FFD700", ["darkred"] = "8B0000",
         ["darkgreen"] = "006400", ["darkblue"] = "00008B", ["indigo"] = "4B0082", ["violet"] = "EE82EE",
     };
+
+    private static W.UnderlineValues? ParseUnderlineStyle(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        var s = input.Trim().ToLowerInvariant().Replace("-", "").Replace("_", "");
+        return s switch
+        {
+            "single" => W.UnderlineValues.Single,
+            "words" => W.UnderlineValues.Words,
+            "double" => W.UnderlineValues.Double,
+            "dotted" or "dot" => W.UnderlineValues.Dotted,
+            "thick" => W.UnderlineValues.Thick,
+            "dash" or "dashed" => W.UnderlineValues.Dash,
+            "dotdash" => W.UnderlineValues.DotDash,
+            "dotdotdash" => W.UnderlineValues.DotDotDash,
+            "wave" or "wavy" => W.UnderlineValues.Wave,
+            "dottedheavy" or "heavydotted" => W.UnderlineValues.DottedHeavy,
+            "dashedheavy" or "heavydashed" => W.UnderlineValues.DashedHeavy,
+            "wavyheavy" or "heavywave" => W.UnderlineValues.WavyHeavy,
+            "wavydouble" or "doublewave" => W.UnderlineValues.WavyDouble,
+            _ => null
+        };
+    }
+
+    private static W.HighlightColorValues? ParseHighlightColor(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        var c = input.Trim().ToLowerInvariant();
+        return c switch
+        {
+            "yellow" => W.HighlightColorValues.Yellow,
+            "green" => W.HighlightColorValues.Green,
+            "cyan" => W.HighlightColorValues.Cyan,
+            "magenta" => W.HighlightColorValues.Magenta,
+            "blue" => W.HighlightColorValues.Blue,
+            "red" => W.HighlightColorValues.Red,
+            "darkblue" => W.HighlightColorValues.DarkBlue,
+            "darkcyan" => W.HighlightColorValues.DarkCyan,
+            "darkgreen" => W.HighlightColorValues.DarkGreen,
+            "darkmagenta" => W.HighlightColorValues.DarkMagenta,
+            "darkred" => W.HighlightColorValues.DarkRed,
+            "darkyellow" => W.HighlightColorValues.DarkYellow,
+            "darkgray" or "darkgrey" => W.HighlightColorValues.DarkGray,
+            "lightgray" or "lightgrey" => W.HighlightColorValues.LightGray,
+            "black" => W.HighlightColorValues.Black,
+            "white" => W.HighlightColorValues.White,
+            _ => null
+        };
+    }
+
+    private static string? ExtractAttribute(string tag, string attrName)
+    {
+        var m = Regex.Match(tag, $@"{attrName}\s*=\s*[""']([^""']*)[""']", RegexOptions.IgnoreCase);
+        if (m.Success)
+        {
+            var val = System.Net.WebUtility.HtmlDecode(m.Groups[1].Value.Trim()).Trim('"', '\'').Trim();
+            return string.IsNullOrWhiteSpace(val) ? null : val;
+        }
+        var m2 = Regex.Match(tag, $@"{attrName}\s*=\s*([^\s/>]+)", RegexOptions.IgnoreCase);
+        if (m2.Success)
+        {
+            var val = System.Net.WebUtility.HtmlDecode(m2.Groups[1].Value.Trim()).Trim('"', '\'').Trim();
+            return string.IsNullOrWhiteSpace(val) ? null : val;
+        }
+        return null;
+    }
+
+    private static string? ExtractRevisionAuthor(string tag) => ExtractAttribute(tag, "author") ?? ExtractAttribute(tag, "by");
+
+    private static DateTime? ExtractRevisionDate(string tag)
+    {
+        var dateStr = ExtractAttribute(tag, "date");
+        if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var dt))
+        {
+            return dt;
+        }
+        return null;
+    }
+
+    private static W.UnderlineValues? ExtractUnderlineStyle(string tag, string tagName)
+    {
+        var uVal = ExtractAttribute(tag, "u-val") ?? ExtractAttribute(tag, "u-style");
+        if (tagName is "u" or "ins")
+        {
+            uVal ??= ExtractAttribute(tag, "val") ?? ExtractAttribute(tag, "style-type");
+        }
+        if (!string.IsNullOrEmpty(uVal))
+        {
+            var parsed = ParseUnderlineStyle(uVal);
+            if (parsed.HasValue) return parsed.Value;
+        }
+
+        var styleMatch = Regex.Match(tag, @"text-decoration(?:-style)?\s*[:=]\s*[""']?([^;""'>]+)", RegexOptions.IgnoreCase);
+        if (styleMatch.Success)
+        {
+            var parts = styleMatch.Groups[1].Value.Split(new[] { ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var p in parts)
+            {
+                var parsed = ParseUnderlineStyle(p);
+                if (parsed.HasValue) return parsed.Value;
+            }
+        }
+        return null;
+    }
+
+    private static string? ExtractUnderlineColor(string tag)
+    {
+        var colorAttr = ExtractAttribute(tag, "u-color") ?? ExtractAttribute(tag, "underline-color");
+        if (!string.IsNullOrEmpty(colorAttr))
+        {
+            return CleanHexColor(colorAttr);
+        }
+
+        var styleMatch = Regex.Match(tag, @"text-decoration(?:-color)?\s*[:=]\s*[""']?([^;""'>]+)", RegexOptions.IgnoreCase);
+        if (styleMatch.Success)
+        {
+            var parts = styleMatch.Groups[1].Value.Split(new[] { ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var p in parts)
+            {
+                var hex = CleanHexColor(p);
+                if (hex != null) return hex;
+            }
+        }
+        return null;
+    }
+
+    private static W.HighlightColorValues? ExtractHighlightColor(string tag, string tagName)
+    {
+        var hlAttr = ExtractAttribute(tag, "highlight") ?? ExtractAttribute(tag, "hl");
+        if (tagName is "mark")
+        {
+            hlAttr ??= ExtractAttribute(tag, "color") ?? ExtractAttribute(tag, "val");
+        }
+        if (!string.IsNullOrEmpty(hlAttr))
+        {
+            var parsed = ParseHighlightColor(hlAttr);
+            if (parsed.HasValue) return parsed.Value;
+        }
+
+        var bgMatch = Regex.Match(tag, @"(?:background-color|background)\s*[:=]\s*[""']?\s*(#?[0-9a-zA-Z]+)", RegexOptions.IgnoreCase);
+        if (bgMatch.Success)
+        {
+            var val = bgMatch.Groups[1].Value.Trim().TrimStart('#');
+            var parsed = ParseHighlightColor(val);
+            if (parsed.HasValue) return parsed.Value;
+        }
+
+        return null;
+    }
+
+    private static string? ExtractShadingColor(string tag)
+    {
+        var fillAttr = ExtractAttribute(tag, "fill") ?? ExtractAttribute(tag, "bg") ?? ExtractAttribute(tag, "shd");
+        if (!string.IsNullOrEmpty(fillAttr))
+        {
+            var hex = CleanHexColor(fillAttr);
+            if (hex != null) return hex;
+        }
+
+        var bgMatch = Regex.Match(tag, @"(?:background-color|background)\s*[:=]\s*[""']?\s*(#?[0-9a-zA-Z]+)", RegexOptions.IgnoreCase);
+        if (bgMatch.Success)
+        {
+            var val = bgMatch.Groups[1].Value.Trim();
+            var hex = CleanHexColor(val);
+            if (hex != null) return hex;
+        }
+
+        return null;
+    }
+
+    private static string? CleanHexColor(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        var c = input.Trim().TrimStart('#');
+        if (Regex.IsMatch(c, "^[0-9a-fA-F]{6}$")) return c.ToUpperInvariant();
+        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$"))
+            return string.Concat(c.Select(ch => new string(ch, 2))).ToUpperInvariant();
+        return NamedColors.TryGetValue(c, out var hex) ? hex : null;
+    }
 
     // Toggles `current`/`stack` for one raw inline HTML tag. Void tags (<br>) emit immediately;
     // opening tags push and apply; closing tags pop. Unknown tags are still pushed/popped so their
@@ -2265,23 +2689,61 @@ public sealed class DocxExportService
         }
 
         var htmlColor = ExtractHtmlColor(t);
+        var uStyle = ExtractUnderlineStyle(t, name);
+        var uColor = ExtractUnderlineColor(t);
+        var hlColor = ExtractHighlightColor(t, name);
+        var shdColor = ExtractShadingColor(t);
+        var revAuthor = ExtractRevisionAuthor(t);
+        var revDate = ExtractRevisionDate(t);
+
         var next = name switch
         {
             "sub" => current with { Subscript = true, Superscript = false, Color = htmlColor ?? current.Color },
             "sup" => current with { Superscript = true, Subscript = false, Color = htmlColor ?? current.Color },
-            "mark" => current with { Highlight = true, Color = htmlColor ?? current.Color },
+            "mark" => current with {
+                Highlight = true,
+                HighlightColor = hlColor ?? current.HighlightColor,
+                ShadingColor = shdColor ?? current.ShadingColor,
+                Color = htmlColor ?? current.Color
+            },
             "kbd" or "code" or "samp" or "tt" => current with { Code = true, Color = htmlColor ?? current.Color },
-            "u" or "ins" => current with { Underline = true, Color = htmlColor ?? current.Color },
-            "del" or "s" or "strike" => current with { Strike = true, Color = htmlColor ?? current.Color },
+            "u" => current with {
+                Underline = true,
+                UnderlineStyle = uStyle ?? current.UnderlineStyle,
+                UnderlineColor = uColor ?? current.UnderlineColor,
+                Color = htmlColor ?? current.Color
+            },
+            "ins" => current with {
+                Revision = RevisionKind.Insertion,
+                RevisionAuthor = revAuthor ?? current.RevisionAuthor,
+                RevisionDate = revDate ?? current.RevisionDate,
+                Underline = true,
+                UnderlineStyle = uStyle ?? current.UnderlineStyle,
+                UnderlineColor = uColor ?? current.UnderlineColor,
+                Color = htmlColor ?? current.Color
+            },
+            "del" or "s" or "strike" => current with {
+                Revision = name == "del" ? RevisionKind.Deletion : current.Revision,
+                RevisionAuthor = name == "del" ? (revAuthor ?? current.RevisionAuthor) : current.RevisionAuthor,
+                RevisionDate = name == "del" ? (revDate ?? current.RevisionDate) : current.RevisionDate,
+                Strike = true,
+                Color = htmlColor ?? current.Color
+            },
             "b" or "strong" => current with { Bold = true, Color = htmlColor ?? current.Color },
             "i" or "em" or "cite" or "var" or "dfn" => current with { Italic = true, Color = htmlColor ?? current.Color },
             "span" when t.Contains("wikilink", StringComparison.OrdinalIgnoreCase) => current with { WikiLink = true, UnderlineDash = true, NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
             "span" when t.Contains("md-tag", StringComparison.OrdinalIgnoreCase) => current with { NoProof = true, Color = ctx.Theme.Primary?.TrimStart('#') },
-            _ => htmlColor is not null ? current with { Color = htmlColor } : current,
+            _ => current with {
+                Color = htmlColor ?? current.Color,
+                UnderlineStyle = uStyle ?? current.UnderlineStyle,
+                UnderlineColor = uColor ?? current.UnderlineColor,
+                HighlightColor = hlColor ?? current.HighlightColor,
+                ShadingColor = shdColor ?? current.ShadingColor
+            }
         };
 
         // A self-closing formatting tag (<mark/>) has no content to affect, so it must not leave the
-        // format changed for following siblings â€” only real open/close pairs push and pop.
+        // format changed for following siblings — only real open/close pairs push and pop.
         if (!selfClosing) { stack.Push(current); current = next; }
     }
 
@@ -2390,7 +2852,9 @@ public sealed class DocxExportService
 
     private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
 
-    private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt)
+    private static int _globalRevisionId = 0;
+
+    private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt, Ctx? ctx = null)
     {
         if (string.IsNullOrEmpty(text)) return;
         var parts = EmojiRegex.Split(text);
@@ -2406,8 +2870,54 @@ public sealed class DocxExportService
                 rPr.PrependChild(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
             }
             if (rPr != null && rPr.HasChildren) run.Append(rPr);
-            run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
-            target.Append(run);
+
+            if (fmt.Revision == RevisionKind.Insertion)
+            {
+                run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
+                var revId = fmt.RevisionId > 0
+                    ? fmt.RevisionId.ToString()
+                    : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
+                var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
+                var author = !string.IsNullOrWhiteSpace(rawAuthor)
+                    ? rawAuthor
+                    : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
+                var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
+
+                var ins = new W.InsertedRun
+                {
+                    Id = revId,
+                    Author = author,
+                    Date = date
+                };
+                ins.Append(run);
+                target.Append(ins);
+            }
+            else if (fmt.Revision == RevisionKind.Deletion)
+            {
+                run.Append(new W.DeletedText(part) { Space = SpaceProcessingModeValues.Preserve });
+                var revId = fmt.RevisionId > 0
+                    ? fmt.RevisionId.ToString()
+                    : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
+                var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
+                var author = !string.IsNullOrWhiteSpace(rawAuthor)
+                    ? rawAuthor
+                    : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
+                var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
+
+                var del = new W.DeletedRun
+                {
+                    Id = revId,
+                    Author = author,
+                    Date = date
+                };
+                del.Append(run);
+                target.Append(del);
+            }
+            else
+            {
+                run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
+                target.Append(run);
+            }
         }
     }
 
@@ -2419,25 +2929,66 @@ public sealed class DocxExportService
         if (fmt.Italic) rPr.Append(new W.Italic());
         if (fmt.Strike) rPr.Append(new W.Strike());
         if (fmt.Code || fmt.NoProof || fmt.WikiLink) rPr.Append(new W.NoProof()); // disables spellcheck and auto-hyphenation
-        // Highlight ink is always yellow, so pin the text to black regardless of theme.
-        if (fmt.Highlight) rPr.Append(new W.Color { Val = "000000" });
+
+        // Highlight / Text Color (schema order: w:color -> w:sz -> w:highlight)
+        var hlColor = fmt.EffectiveHighlightColor;
+        if (hlColor is not null)
+        {
+            if (hlColor == W.HighlightColorValues.Yellow && fmt.Color is null)
+            {
+                rPr.Append(new W.Color { Val = "000000" });
+            }
+            else if (fmt.Color is not null)
+            {
+                rPr.Append(new W.Color { Val = fmt.Color });
+            }
+        }
         else if (fmt.Color is not null)
         {
             rPr.Append(new W.Color { Val = fmt.Color });
         }
+
         if (fmt.Code) rPr.Append(new W.FontSize { Val = "20" }); // 10pt for code
-        if (fmt.Highlight) rPr.Append(new W.Highlight { Val = W.HighlightColorValues.Yellow });
-        if (fmt.WikiLink) rPr.Append(new W.Underline { Val = W.UnderlineValues.Dash });
-        else if (fmt.Underline) rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
+
+        if (hlColor is not null)
+        {
+            rPr.Append(new W.Highlight { Val = hlColor.Value });
+        }
+
+        // Underline (schema order: w:u)
+        var uStyle = fmt.EffectiveUnderlineStyle;
+        if (uStyle != W.UnderlineValues.None)
+        {
+            var u = new W.Underline { Val = uStyle };
+            if (!string.IsNullOrEmpty(fmt.UnderlineColor))
+            {
+                u.Color = fmt.UnderlineColor;
+            }
+            rPr.Append(u);
+        }
+
+        // Shading (schema order: w:bdr -> w:shd)
         if (fmt.Code) // character border + shading: the rarely-touched w:bdr, boxing inline code
         {
             rPr.Append(new W.Border { Val = W.BorderValues.Single, Size = 4, Space = 1, Color = "auto" });
             rPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = "auto" });
         }
+        else if (!string.IsNullOrEmpty(fmt.ShadingColor))
+        {
+            rPr.Append(new W.Shading
+            {
+                Val = W.ShadingPatternValues.Clear,
+                Color = "auto",
+                Fill = fmt.ShadingColor
+            });
+        }
+
+        // Vertical text alignment (schema order: w:vertAlign)
         if (fmt.Superscript)
             rPr.Append(new W.VerticalTextAlignment { Val = W.VerticalPositionValues.Superscript });
         else if (fmt.Subscript)
             rPr.Append(new W.VerticalTextAlignment { Val = W.VerticalPositionValues.Subscript });
+
         // OpenType typography on every text run (the only rPr the w14 extensions are schema-legal
         // in): kerned ligatures, old-style proportional numerals, contextual alternates.
         if (!fmt.Code)
@@ -2468,7 +3019,7 @@ public sealed class DocxExportService
 
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
-                new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont },
+                new W.RunFonts { Ascii = baseFont, HighAnsi = baseFont, EastAsia = baseFont, ComplexScript = baseFont },
                 new W.Color { Val = defaultText },
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },
@@ -2557,13 +3108,14 @@ public sealed class DocxExportService
         var part = main.AddNewPart<DocumentSettingsPart>();
         var settings = new W.Settings();
         // "Single continuous page" is a PDF-only layout. Word has no page-less print layout, but Web
-        // Layout view is the closest equivalent â€” one continuous flow with no page breaks (and, like
+        // Layout view is the closest equivalent — one continuous flow with no page breaks (and, like
         // the continuous PDF, not meant for printing). w:view must precede w:zoom in the schema order.
         if (webLayout)
             settings.Append(new W.View { Val = W.ViewValues.Web });
         settings.Append(new W.Zoom { Percent = "110" });
-        // Without this Word ignores w:background entirely â€” the pair is the whole trick.
+        // Without this Word ignores w:background entirely — the pair is the whole trick.
         settings.Append(new W.DisplayBackgroundShape());
+        settings.Append(new W.TrackRevisions { Val = true }); // Track Changes enabled so Word displays revision markup (must precede w:autoHyphenation in ECMA-376 schema)
         settings.Append(new W.AutoHyphenation());
         if (updateFieldsOnOpen)
             settings.Append(new W.UpdateFieldsOnOpen { Val = true }); // TOC rebuilds itself on open
@@ -2604,7 +3156,7 @@ public sealed class DocxExportService
                 new W.SpacingBetweenLines { After = "0" },
                 new W.Justification { Val = W.JustificationValues.Center }),
             FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
-            FooterRun("  Â·  Marksmith")));
+            FooterRun("  \u00b7  MarkSmith")));
 
         // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
         var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
@@ -2725,17 +3277,18 @@ public sealed class DocxExportService
         string chartRelId = ctx.MainPart.GetIdOfPart(chartPart);
         
         var packagePart = chartPart.AddNewPart<EmbeddedPackagePart>(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            "rId1"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
+        string embedRelId = chartPart.GetIdOfPart(packagePart);
 
         using (var stream = packagePart.GetStream())
         using (var doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook))
         {
             var workbookPart = doc.AddWorkbookPart();
-            workbookPart.Workbook = new S.Workbook(new S.Sheets(new S.Sheet() { Id = "rId1", SheetId = 1, Name = "Sheet1" }));
+            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            string sheetRelId = workbookPart.GetIdOfPart(worksheetPart);
+            workbookPart.Workbook = new S.Workbook(new S.Sheets(new S.Sheet() { Id = sheetRelId, SheetId = 1, Name = "Sheet1" }));
             
-            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>("rId1");
             var sheetData = new S.SheetData();
             worksheetPart.Worksheet = new S.Worksheet(sheetData);
 
@@ -2856,7 +3409,7 @@ public sealed class DocxExportService
         chart.Append(plotArea);
         chartSpace.Append(chart);
         
-        chartSpace.Append(new C.ExternalData(new C.AutoUpdate() { Val = new DocumentFormat.OpenXml.BooleanValue(false) }) { Id = "rId1" });
+        chartSpace.Append(new C.ExternalData(new C.AutoUpdate() { Val = new DocumentFormat.OpenXml.BooleanValue(false) }) { Id = embedRelId });
         chartPart.ChartSpace = chartSpace;
 
         var drawing = new W.Drawing(
