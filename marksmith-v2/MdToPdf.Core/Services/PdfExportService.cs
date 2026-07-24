@@ -19,24 +19,12 @@ public sealed class PdfExportService
     {
         await host.NavigateToStringAsync(html);
 
-        // Give Mermaid (if present) a moment to finish rendering before we print, same "smart wait"
-        // idea as the Python app's page.wait_for_function polling loop, simplified to a poll here.
-        if (settings.MermaidEnabled && html.Contains("mermaid", StringComparison.OrdinalIgnoreCase))
-        {
-            for (var i = 0; i < 20; i++)
-            {
-                var done = await host.ExecuteScriptAsync("""
-                    (() => {
-                        const all = document.querySelectorAll('.mermaid');
-                        const processed = document.querySelectorAll('.mermaid[data-processed="true"]');
-                        return all.length === 0 || processed.length === all.length;
-                    })()
-                    """);
-                if (done == "true") break;
-                await Task.Delay(250);
-            }
-            await Task.Delay(300); // layout settle buffer, mirrors the Python app's 500ms buffer
-        }
+        // Deterministically wait for Mermaid rendering, async image decodes, and layout reflow
+        // completion before measuring scrollHeight and printing to PDF, without sleeping. The
+        // readiness contract (MutationObserver / img.decode / double-rAF) lives in
+        // IWebRenderHost.WaitForExportReadyAsync so every host gets it for free.
+        var checkMermaid = settings.MermaidEnabled && html.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
+        await host.WaitForExportReadyAsync(checkMermaid);
 
         PdfPageSetup setup;
         if (settings.UnlimitedHeight)

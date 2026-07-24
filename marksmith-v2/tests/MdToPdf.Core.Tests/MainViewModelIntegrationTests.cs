@@ -164,5 +164,41 @@ public class MainViewModelIntegrationTests
             }
         }
     }
+
+    // ---- File-name template (Settings > Export file name) ----
+
+    [Fact]
+    public void FileNameTemplate_DefaultToken_ReturnsTitle()
+    {
+        var name = MainViewModel.ApplyFileNameTemplate("{title}", "My Report", "pdf");
+        Assert.Equal("My Report", name);
+    }
+
+    [Fact]
+    public void FileNameTemplate_DateAndFormatTokens_AreExpanded()
+    {
+        var today = DateTime.Now.ToString("yyyy-MM-dd");
+        var name = MainViewModel.ApplyFileNameTemplate("{date} {title} ({format})", "My Report", "docx");
+        Assert.Equal($"{today} My Report (docx)", name);
+    }
+
+    [Fact]
+    public void FileNameTemplate_EmptyTemplate_FallsBackToTitle()
+    {
+        var name = MainViewModel.ApplyFileNameTemplate("", "Fallback Title", "pdf");
+        Assert.Equal("Fallback Title", name);
+    }
+
+    [Fact]
+    public void FileNameTemplate_UnsafeCharacters_AreSanitized()
+    {
+        // A hostile template must never yield an invalid file name.
+        var name = MainViewModel.ApplyFileNameTemplate("{title} <bad>|\"chars\"", "Rep:ort?", "pdf");
+        Assert.DoesNotContain(":", name);
+        Assert.DoesNotContain("?", name);
+        Assert.DoesNotContain("<", name);
+        Assert.DoesNotContain("|", name);
+        Assert.DoesNotContain("\"", name);
+    }
 }
 

@@ -38,6 +38,25 @@ public sealed class PdfExportService
             await Task.Delay(300); // layout settle buffer, mirrors the Python app's 500ms buffer
         }
 
+        // Wait for all images to fully load so document.body.scrollHeight is accurate for the PDF sizing.
+        // The virtual host fetches them asynchronously, meaning they might pop in after NavigateToStringAsync.
+        for (var i = 0; i < 20; i++)
+        {
+            var imgsDone = await host.ExecuteScriptAsync("""
+                (() => {
+                    const imgs = Array.from(document.images);
+                    if (imgs.length === 0) return true;
+                    // Check if images are complete AND have actually decoded/rendered a size
+                    return imgs.every(img => img.complete && img.naturalHeight > 0);
+                })()
+                """);
+            if (imgsDone == "true") break;
+            await Task.Delay(250);
+        }
+        // Even after images decode, Chromium needs a moment to perform the final layout reflow, 
+        // especially for massive multi-megabyte posters. Wait 1 full second before measuring height.
+        await Task.Delay(1000); 
+
         PdfPageSetup setup;
         if (settings.UnlimitedHeight)
         {

@@ -123,7 +123,11 @@ public static class MermaidCodeGenerator
     private static string FormatNode(FlowNode node)
     {
         string text = string.IsNullOrEmpty(node.Text) ? node.Id : node.Text;
-        bool needsQuotes = text.Contains(" ") || text.Contains(":") || text.Contains("-");
+        // Multi-line labels (from <br/> in the original source, or newlines typed in the
+        // visual editor's inline TextBox) must be re-escaped on output: a raw newline inside
+        // a node statement splits it across lines and corrupts the entire diagram.
+        text = text.Replace("\r\n", "\n").Replace("\n", "<br/>");
+        bool needsQuotes = text.Contains(" ") || text.Contains(":") || text.Contains("-") || text.Contains("<br/>");
         string labelStr = needsQuotes ? $"\"{text}\"" : text;
 
         return node.Shape switch
@@ -149,7 +153,7 @@ public static class MermaidCodeGenerator
         if (edge.StartHead == FlowArrowHead.Normal && edge.EndHead == FlowArrowHead.Normal) return "<-->";
 
         bool hasLabel = !string.IsNullOrEmpty(edge.Label);
-        string labelStr = hasLabel ? $" \"{edge.Label}\" " : string.Empty;
+        string labelStr = hasLabel ? $" \"{edge.Label!.Replace("\r\n", "\n").Replace("\n", "<br/>")}\" " : string.Empty;
 
         return edge.LineStyle switch
         {

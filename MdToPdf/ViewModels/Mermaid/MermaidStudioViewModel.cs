@@ -26,6 +26,27 @@ public partial class MermaidStudioViewModel : ObservableObject
     private MermaidDiagramType _selectedDiagramType = MermaidDiagramType.Flowchart;
 
     [ObservableProperty]
+    private FlowDirection _selectedFlowDirection = FlowDirection.TD;
+
+    public List<FlowDirection> AvailableDirections { get; } = new()
+    {
+        FlowDirection.TD,
+        FlowDirection.LR,
+        FlowDirection.BT,
+        FlowDirection.RL
+    };
+
+    partial void OnSelectedFlowDirectionChanged(FlowDirection value)
+    {
+        if (CurrentAst is FlowchartDiagramAst fc)
+        {
+            fc.Direction = value;
+        }
+        ApplyAutoLayout(force: true);
+        StatusText = $"Flowchart direction set to {value}.";
+    }
+
+    [ObservableProperty]
     private DiagramNodeViewModel? _selectedNode;
 
     [ObservableProperty]
@@ -171,6 +192,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (ast)
         {
             case FlowchartDiagramAst flowchart:
+                SelectedFlowDirection = flowchart.Direction;
                 foreach (var kvp in flowchart.Nodes)
                 {
                     var fn = kvp.Value;
@@ -370,9 +392,17 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
-    public void ApplyAutoLayout()
+    public void ApplyAutoLayout(bool force = false)
     {
         if (Nodes.Count == 0) return;
+
+        if (force)
+        {
+            foreach (var n in Nodes)
+            {
+                n.HasCustomPosition = false;
+            }
+        }
 
         if (SelectedDiagramType == MermaidDiagramType.Mindmap)
         {
@@ -547,25 +577,80 @@ public partial class MermaidStudioViewModel : ObservableObject
                 list.Add(n);
             }
 
+            double startX = 100;
             double startY = 100;
             double layerSpacingY = 160;
             double nodeSpacingX = 200;
+            double layerSpacingX = 220;
+            double nodeSpacingY = 120;
+
+            int maxRank = layers.Keys.Count > 0 ? layers.Keys.Max() : 0;
 
             foreach (var kvp in layers.OrderBy(l => l.Key))
             {
                 int rank = kvp.Key;
                 var layerNodes = kvp.Value;
-                double layerY = startY + rank * layerSpacingY;
-                double totalWidth = (layerNodes.Count - 1) * nodeSpacingX;
-                double startX = Math.Max(100, 500 - totalWidth / 2);
 
-                for (int j = 0; j < layerNodes.Count; j++)
+                switch (SelectedFlowDirection)
                 {
-                    if (!layerNodes[j].HasCustomPosition)
-                    {
-                        layerNodes[j].X = startX + j * nodeSpacingX;
-                        layerNodes[j].Y = layerY;
-                    }
+                    case FlowDirection.LR:
+                        double layerXLR = startX + rank * layerSpacingX;
+                        double totalHeightLR = (layerNodes.Count - 1) * nodeSpacingY;
+                        double startYLR = Math.Max(100, 350 - totalHeightLR / 2);
+                        for (int j = 0; j < layerNodes.Count; j++)
+                        {
+                            if (!layerNodes[j].HasCustomPosition)
+                            {
+                                layerNodes[j].X = layerXLR;
+                                layerNodes[j].Y = startYLR + j * nodeSpacingY;
+                            }
+                        }
+                        break;
+
+                    case FlowDirection.RL:
+                        double layerXRL = startX + (maxRank - rank) * layerSpacingX;
+                        double totalHeightRL = (layerNodes.Count - 1) * nodeSpacingY;
+                        double startYRL = Math.Max(100, 350 - totalHeightRL / 2);
+                        for (int j = 0; j < layerNodes.Count; j++)
+                        {
+                            if (!layerNodes[j].HasCustomPosition)
+                            {
+                                layerNodes[j].X = layerXRL;
+                                layerNodes[j].Y = startYRL + j * nodeSpacingY;
+                            }
+                        }
+                        break;
+
+                    case FlowDirection.BT:
+                        double layerYBT = startY + (maxRank - rank) * layerSpacingY;
+                        double totalWidthBT = (layerNodes.Count - 1) * nodeSpacingX;
+                        double startXBT = Math.Max(100, 500 - totalWidthBT / 2);
+                        for (int j = 0; j < layerNodes.Count; j++)
+                        {
+                            if (!layerNodes[j].HasCustomPosition)
+                            {
+                                layerNodes[j].X = startXBT + j * nodeSpacingX;
+                                layerNodes[j].Y = layerYBT;
+                            }
+                        }
+                        break;
+
+                    case FlowDirection.TD:
+                    case FlowDirection.TB:
+                    default:
+                        double layerY = startY + rank * layerSpacingY;
+                        double totalWidth = (layerNodes.Count - 1) * nodeSpacingX;
+                        double startXTD = Math.Max(100, 500 - totalWidth / 2);
+
+                        for (int j = 0; j < layerNodes.Count; j++)
+                        {
+                            if (!layerNodes[j].HasCustomPosition)
+                            {
+                                layerNodes[j].X = startXTD + j * nodeSpacingX;
+                                layerNodes[j].Y = layerY;
+                            }
+                        }
+                        break;
                 }
             }
         }
@@ -925,8 +1010,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (SelectedDiagramType)
         {
             case MermaidDiagramType.Flowchart:
-                FlowDirection dir = (CurrentAst is FlowchartDiagramAst currentFc) ? currentFc.Direction : FlowDirection.TD;
-                var flowchart = new FlowchartDiagramAst { Direction = dir };
+                var flowchart = new FlowchartDiagramAst { Direction = SelectedFlowDirection };
                 foreach (var n in Nodes)
                 {
                     FlowNodeShape shape;

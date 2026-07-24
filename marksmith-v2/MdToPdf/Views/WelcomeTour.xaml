@@ -276,7 +276,7 @@
                 <TextBlock Style="{StaticResource TourLead}"
                            Text="Learn fastest by doing — load a ready-made sample and start playing:" />
                 <StackPanel Spacing="10">
-                    <CheckBox x:Name="LoadSampleCheck" IsChecked="True" MaxWidth="500" HorizontalContentAlignment="Left">
+                    <CheckBox x:Name="LoadSampleCheck" IsChecked="False" MaxWidth="500" HorizontalContentAlignment="Left">
                         <TextBlock TextWrapping="Wrap" Text="Load a sample document — headings, a table, math, and live diagrams, ready to restyle and export" />
                     </CheckBox>
                     <Grid ColumnSpacing="12" Margin="0,6,0,0">
@@ -292,7 +292,7 @@
         </Grid>
 
         <PipsPager x:Name="Pips" Grid.Row="1" HorizontalAlignment="Center"
-                   NumberOfPages="7" SelectedIndexChanged="OnPipSelected" />
+                   NumberOfPages="7" MaxVisiblePips="7" SelectedIndexChanged="OnPipSelected" />
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>

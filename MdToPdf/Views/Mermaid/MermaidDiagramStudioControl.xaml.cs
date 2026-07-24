@@ -22,7 +22,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
     private void OnAutoLayoutClick(object sender, RoutedEventArgs e)
     {
-        ViewModel?.ApplyAutoLayout();
+        ViewModel?.ApplyAutoLayout(force: true);
     }
 
     private void OnDeleteSelectedClick(object sender, RoutedEventArgs e)

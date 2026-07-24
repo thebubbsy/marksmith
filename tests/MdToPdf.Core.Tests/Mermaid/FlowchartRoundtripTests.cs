@@ -65,4 +65,21 @@ public class FlowchartRoundtripTests
         string generatedCode2 = MermaidCodeGenerator.Generate(parseResult2.Ast!);
         Assert.Equal(generatedCode1, generatedCode2);
     }
+
+    [Fact]
+    public void Flowchart_LR_Direction_Generation_And_Parsing()
+    {
+        var ast = new FlowchartDiagramAst { Direction = FlowDirection.LR };
+        ast.Nodes["A"] = new FlowNode { Id = "A", Text = "Left" };
+        ast.Nodes["B"] = new FlowNode { Id = "B", Text = "Right" };
+        ast.Edges.Add(new FlowEdge { FromId = "A", ToId = "B" });
+
+        string code = MermaidCodeGenerator.Generate(ast);
+        Assert.StartsWith("flowchart LR", code);
+
+        var parseResult = MermaidParser.Parse(code);
+        Assert.True(parseResult.IsSuccess);
+        var parsedAst = Assert.IsType<FlowchartDiagramAst>(parseResult.Ast);
+        Assert.Equal(FlowDirection.LR, parsedAst.Direction);
+    }
 }

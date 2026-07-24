@@ -341,7 +341,12 @@ public sealed partial class MarkdownHtmlService
                                       document.getElementById("mk-lens-pct").textContent = Math.round(sc * 100) + "%"; };
                 const openLens = (svg) => {
                     stage.innerHTML = ""; stage.appendChild(svg.cloneNode(true));
-                    const w = svg.getBoundingClientRect().width || 800;
+                    // Use the diagram's NATURAL width (viewBox/width attr), not getBoundingClientRect():
+                    // on-screen the SVG may be shrunk to fit its column (max-width:100%), but the lens
+                    // clone renders at natural size and we want the opening scale to fit that.
+                    const w = (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) ||
+                              parseFloat(svg.getAttribute("width")) ||
+                              svg.getBoundingClientRect().width || 800;
                     sc = Math.min(1, (innerWidth - 60) / w);
                     tx = Math.max(30, (innerWidth - w * sc) / 2); ty = 40;
                     lens.classList.add("open"); bar.style.display = "flex"; apply();
@@ -499,8 +504,91 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
+        // Mini-TOC scroll-spy (live preview only, and only when a TOC was emitted): as the document
+        // scrolls, the TOC entry for the heading nearest the top of the viewport gets .active. The
+        // heading ids come from Markdig's AutoIdentifiers — the same ids BuildToc links to.
+        var scrollSpyScript = interactive && toc.Length > 0 ? """
+            <script>
+            window.addEventListener("DOMContentLoaded", () => {
+                const toc = document.getElementById("toc");
+                if (!toc) return;
+                const links = Array.from(toc.querySelectorAll('a[href^="#"]'));
+                if (!links.length) return;
+                const map = new Map();
+                links.forEach(a => {
+                    const id = decodeURIComponent(a.getAttribute("href").slice(1));
+                    const el = document.getElementById(id);
+                    if (el) map.set(el, a);
+                });
+                const headings = Array.from(map.keys());
+                if (!headings.length) return;
+                let active = null, ticking = false;
+                const spy = () => {
+                    ticking = false;
+                    let current = headings[0];
+                    for (const h of headings) {
+                        if (h.getBoundingClientRect().top <= 120) current = h; else break;
+                    }
+                    const link = map.get(current);
+                    if (link !== active) {
+                        if (active) active.classList.remove("active");
+                        if (link) link.classList.add("active");
+                        active = link;
+                    }
+                };
+                const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(spy); } };
+                window.addEventListener("scroll", onScroll, { passive: true });
+                window.addEventListener("resize", onScroll, { passive: true });
+                spy();
+            });
+            </script>
+            """ : "";
+
         return $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
+            <script>
+            // Deterministic export-readiness contract (see IWebRenderHost.WaitForExportReadyAsync):
+            // Mermaid completion via MutationObserver on data-processed, async image decodes via
+            // img.decode()/load/error, and layout settle via double requestAnimationFrame. No sleeps.
+            window.marksmithWaitForExportReady = function(checkMermaid) {
+                return new Promise((resolve) => {
+                    const waitForMermaidIfNeeded = (callback) => {
+                        if (!checkMermaid) { callback(); return; }
+                        const isMermaidDone = () => {
+                            const all = document.querySelectorAll('.mermaid');
+                            const processed = document.querySelectorAll('.mermaid[data-processed="true"]');
+                            return all.length == 0 || processed.length == all.length;
+                        };
+                        if (isMermaidDone()) { callback(); return; }
+                        const observer = new MutationObserver(() => {
+                            if (isMermaidDone()) { observer.disconnect(); callback(); }
+                        });
+                        observer.observe(document.body || document.documentElement, {
+                            childList: true, subtree: true, attributes: true, attributeFilter: ['data-processed']
+                        });
+                        setTimeout(() => { observer.disconnect(); callback(); }, 5000);
+                    };
+
+                    const waitForImages = (callback) => {
+                        const imgs = Array.from(document.images);
+                        if (imgs.length == 0) { callback(); return; }
+                        let remaining = imgs.length;
+                        const onImgDone = () => { remaining--; if (remaining <= 0) callback(); };
+                        imgs.forEach(img => {
+                            if (img.complete && img.naturalHeight > 0) { onImgDone(); }
+                            else if (typeof img.decode == 'function') { img.decode().then(onImgDone).catch(onImgDone); }
+                            else { img.addEventListener('load', onImgDone); img.addEventListener('error', onImgDone); }
+                        });
+                    };
+
+                    const settleLayout = () => {
+                        requestAnimationFrame(() => { requestAnimationFrame(() => { resolve("true"); }); });
+                    };
+
+                    waitForMermaidIfNeeded(() => { waitForImages(() => { settleLayout(); }); });
+                });
+            };
+            </script>
             {{mermaidScript}}
             {{lensScript}}
             {{extraHead}}
@@ -527,11 +615,13 @@ public sealed partial class MarkdownHtmlService
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
             {{calloutCss}}
-            /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
-               column to the full preview width; anything larger scrolls, and clicking opens the
-               full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
+            /* Screen (the live preview): diagrams render at natural size when they fit, and shrink
+               to fit the column when they don't (max-width:100% + height:auto keeps the aspect ratio),
+               so a wide diagram is never clipped at the frame's edge nor hidden behind a subtle
+               horizontal scrollbar. Clicking still opens the full-screen pan/zoom viewer, which shows
+               the diagram at its natural size. Print (the PDF export): fit-to-page-width. */
             .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
-            .mermaid svg { max-width: none !important; }
+            .mermaid svg { max-width: 100%; height: auto; }
             /* Plugin diagrams get the same themed frame as .mermaid so they belong to the page.
                Theme-aware engines (see IsThemeAware) render on-theme and are shown as-is; engines
                that don't theme their own output get .plugin-diagram-autoinvert, whose line art is
@@ -597,6 +687,9 @@ public sealed partial class MarkdownHtmlService
             #toc li { margin: 3px 0; }
             #toc a { color: {{theme.Text}}; text-decoration: none; }
             #toc a:hover { color: {{theme.Heading}}; }
+            /* Scroll-spy (live preview only): the entry for the heading currently in view is bolded
+               and accented so a long document's place is always visible in the mini-TOC. */
+            #toc a.active { color: {{theme.Heading}}; font-weight: 700; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
             
             /* Custom styles for diagram errors and page overflow warnings */
@@ -641,7 +734,7 @@ public sealed partial class MarkdownHtmlService
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
-            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}</body></html>
+            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}{{scrollSpyScript}}</body></html>
             """;
     }
 

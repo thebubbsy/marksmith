@@ -3729,8 +3729,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="Rccc1d781af92402d" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R7dfb9481e01a4faa" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="R255c808422ea4f36" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="Rb9e5c3e396c4445c" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
       <w:pgBorders w:display="allPages" w:offsetFrom="page">

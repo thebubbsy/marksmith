@@ -6,10 +6,13 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MdToPdf.Converters"
     xmlns:vm="using:MdToPdf.ViewModels.Mermaid"
+    xmlns:local="using:MdToPdf.Views.Mermaid"
     mc:Ignorable="d">
 
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter" />
+        <conv:ShapeToVisibilityConverter x:Key="ShapeVisConverter" />
+        <conv:ShapeFallbackVisibilityConverter x:Key="ShapeFallbackVisConverter" />
     </UserControl.Resources>
 
     <Grid x:Name="CanvasRootGrid" Background="#1E1E2E">
@@ -94,21 +97,99 @@
                                         IsHitTestVisible="False"
                                         Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}" />
 
-                                <!-- Shape 1: Rounded Rectangle -->
-                                <Border Background="{Binding FillColor}"
-                                        BorderBrush="{Binding StrokeColor}"
-                                        BorderThickness="{Binding StrokeWidth}"
-                                        CornerRadius="10"
-                                        Padding="10">
-                                    <TextBlock Text="{Binding LabelText}"
-                                               Foreground="#EDF2F4"
-                                               FontWeight="SemiBold"
-                                               FontSize="13"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               TextAlignment="Center"
-                                               TextWrapping="Wrap" />
-                                </Border>
+                                <!-- Shapes Area -->
+                                <Grid>
+                                    <!-- Fallback / Rectangular Shapes: visible for any shape that does not
+                                         have a dedicated visual below, so a node can never disappear. -->
+                                    <Border Background="{Binding FillColor}"
+                                            BorderBrush="{Binding StrokeColor}"
+                                            BorderThickness="{Binding StrokeWidth}"
+                                            CornerRadius="10"
+                                            Padding="10"
+                                            Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,Rhombus,RhombusDiamond,Choice,Hexagon,Actor,CylindricalDatabase'}">
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+
+                                    <!-- Circular Shape -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Circle'}">
+                                        <Ellipse Fill="{Binding FillColor}"
+                                                 Stroke="{Binding StrokeColor}"
+                                                 StrokeThickness="{Binding StrokeWidth}" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <!-- Rhombus / Diamond / Choice Shape -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Rhombus,RhombusDiamond,Choice'}">
+                                        <Polygon Fill="{Binding FillColor}"
+                                                 Stroke="{Binding StrokeColor}"
+                                                 StrokeThickness="{Binding StrokeWidth}"
+                                                 Points="50,0 100,50 50,100 0,50"
+                                                 Stretch="Fill" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <!-- Hexagon Shape -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Hexagon'}">
+                                        <Polygon Fill="{Binding FillColor}"
+                                                 Stroke="{Binding StrokeColor}"
+                                                 StrokeThickness="{Binding StrokeWidth}"
+                                                 Points="25,0 75,0 100,50 75,100 25,100 0,50"
+                                                 Stretch="Fill" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <!-- Actor Shape -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Actor'}">
+                                        <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                    </StackPanel>
+
+                                    <!-- Cylindrical Database Shape -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='CylindricalDatabase'}">
+                                        <FontIcon Glyph="&#xEAF5;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                    </StackPanel>
+                                </Grid>
 
                                 <!-- Anchor Handles Overlay (Top, Right, Bottom, Left) -->
                                 <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-13,0,0" Tag="Top">
@@ -203,5 +284,12 @@
                 <Button Content="Fit" Width="40" Height="32" Click="OnZoomFitClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" Margin="4,0,0,0" ToolTipService.ToolTip="Fit to Content" />
             </StackPanel>
         </Border>
+
+        <!-- Minimap overlay: a scaled-down overview of the whole diagram with the current viewport
+             outlined. Click or drag on it to jump the canvas to that region. -->
+        <local:MermaidMinimapControl x:Name="MinimapControl"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Bottom"
+                                     Margin="20" />
     </Grid>
 </UserControl>
