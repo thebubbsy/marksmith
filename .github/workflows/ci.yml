@@ -4,10 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'MdToPdf/**'
-      - 'MdToPdf.Core/**'
-      - 'MdToPdf.Avalonia/**'
-      - 'MdToPdf.sln'
+      - 'marksmith-v2/**'
       - 'extension/**'
       - '.github/workflows/ci.yml'
   pull_request:
@@ -16,7 +13,7 @@ on:
 
 jobs:
   app:
-    name: Build WinUI app (Windows)
+    name: Build Marksmith v2 (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,25 +24,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Build (Release, x64)
-        run: dotnet build MdToPdf/MdToPdf.csproj -c Release -p:Platform=x64
-
-  avalonia:
-    name: Build Avalonia app (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Build (Release)
-        run: dotnet build MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release
+        run: dotnet build marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -p:Platform=x64
 
   extension:
     name: Validate extension

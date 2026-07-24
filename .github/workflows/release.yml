@@ -1,10 +1,9 @@
 name: Release
 
-# Push a version tag (e.g. `git tag v1.0.1 && git push origin v1.0.1`) and this builds:
-#   - the self-contained Windows (WinUI) exe, wrapped in a silent Inno Setup installer, plus a
-#     zipped portable build — this is the primary, full-featured shipping artifact.
-#   - self-contained portable zips of the cross-platform Avalonia preview build for
-#     win-x64/linux-x64/osx-arm64.
+# Push a version tag (e.g. `git tag v1.7.0 && git push origin v1.7.0`) and this builds the
+# marksmith-v2 WinUI app as:
+#   - a self-contained Windows exe wrapped in a silent Inno Setup installer, and
+#   - a zipped portable build.
 # All assets + their SHA256 checksums are published together as one GitHub Release.
 # Can also be run manually against an existing tag via "Run workflow".
 
@@ -14,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to release (e.g. v1.0.1)'
+        description: 'Existing tag to release (e.g. v1.7.0)'
         required: true
 
 permissions:
@@ -38,7 +37,7 @@ jobs:
           gh release create "$tag" --draft --title "Marksmith $tag" --notes "Release in progress..." || true
 
   release-winui:
-    name: Build WinUI app (Windows)
+    name: Build Marksmith v2 (Windows)
     needs: create-release
     runs-on: windows-latest
     steps:
@@ -49,13 +48,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained exe
-        run: dotnet publish MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
+      - name: Publish self-contained exe (marksmith-v2)
+        run: dotnet publish marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
 
       - name: Package portable zip
         shell: pwsh
         run: |
-          $pub = "MdToPdf/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish"
+          $pub = "marksmith-v2/MdToPdf/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish"
           New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
           Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
           Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-x64.zip -Force
@@ -76,61 +75,9 @@ jobs:
           $tag = "${{ inputs.tag || github.ref_name }}"
           gh release upload $tag Marksmith-win-x64.zip dist_installer/Marksmith-Setup-x64.exe --clobber
 
-  release-avalonia:
-    name: Build Avalonia preview (${{ matrix.rid }})
-    needs: create-release
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            rid: win-x64
-          - os: ubuntu-latest
-            rid: linux-x64
-          - os: macos-latest
-            rid: osx-arm64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Publish self-contained (${{ matrix.rid }})
-        run: dotnet publish MdToPdf.Avalonia/MdToPdf.Avalonia.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:DebugType=none
-
-      - name: Package portable zip (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $pub = "MdToPdf.Avalonia/bin/Release/net8.0/${{ matrix.rid }}/publish"
-          New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
-          Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
-          Compress-Archive -Path staging/Marksmith -DestinationPath "Marksmith-Avalonia-${{ matrix.rid }}.zip" -Force
-
-      - name: Package portable zip (Linux/macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          pub="MdToPdf.Avalonia/bin/Release/net8.0/${{ matrix.rid }}/publish"
-          mkdir -p staging/Marksmith
-          cp -R "$pub"/. staging/Marksmith/
-          (cd staging && zip -r "../Marksmith-Avalonia-${{ matrix.rid }}.zip" Marksmith)
-
-      - name: Upload Avalonia release assets (${{ matrix.rid }})
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          tag="${{ inputs.tag || github.ref_name }}"
-          gh release upload "$tag" "Marksmith-Avalonia-${{ matrix.rid }}.zip" --clobber
-
   publish-release:
     name: Publish GitHub Release
-    needs: [release-winui, release-avalonia]
+    needs: [release-winui]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -142,82 +89,37 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ inputs.tag || github.ref_name }}"
-          
+
           mkdir -p release-assets
           cd release-assets
-          
+
           # Download all assets
           gh release download "$tag"
-          
+
           # Calculate checksums
-          sha256sum Marksmith-win-x64.zip Marksmith-Setup-x64.exe Marksmith-Avalonia-win-x64.zip Marksmith-Avalonia-linux-x64.zip Marksmith-Avalonia-osx-arm64.zip > checksums.txt
-          
+          sha256sum Marksmith-win-x64.zip Marksmith-Setup-x64.exe > checksums.txt
+
           # Upload checksums file to release
           gh release upload "$tag" checksums.txt --clobber
-          
+
           # Build release notes
           cat > ../release-notes.md <<'BODY'
-          ## Cross-platform preview build (Windows / Linux / macOS)
+          ## Marksmith for Windows
 
-          This release includes the full-featured Windows installer (unchanged) plus a **new preview
-          build of Marksmith for Windows, Linux, and macOS**. The preview build uses a new
-          cross-platform UI (Avalonia) on top of the same Markdown/PDF/DOCX/PPTX/EPUB engine as the
-          Windows app, but it is not yet at full feature parity — see "Known gaps" below.
-
-          ### Windows — full-featured (recommended)
-
-          - `Marksmith-Setup-x64.exe` — installer
+          - `Marksmith-Setup-x64.exe` — installer (recommended)
           - `Marksmith-win-x64.zip` — portable, unzip and run
 
-          This is the primary, most complete build of Marksmith. Everything in the app — including
-          Settings, license/Pro management, update checks, and automation (clipboard watcher, folder
-          watcher, local REST API) — works here today.
+          This build ships the enhanced marksmith-v2 app: a full Markdown editor with live preview,
+          find & replace, split view, line numbers, a Markdown lint panel, focus mode, text
+          transforms, line operations, document cleanup, word-wrap toggle, and print support — plus
+          Mermaid diagrams that now shrink-to-fit the preview instead of clipping at the edge, and a
+          fix for a startup crash tied to the Ctrl+, settings shortcut.
 
-          ### Cross-platform preview (Avalonia UI) — new
+          **Requires:** the WebView2 Runtime, which ships by default with Windows 10 21H2+ and
+          Windows 11. If it's missing, get it from https://developer.microsoft.com/microsoft-edge/webview2/.
 
-          - `Marksmith-Avalonia-win-x64.zip` — Windows
-          - `Marksmith-Avalonia-linux-x64.zip` — Linux
-          - `Marksmith-Avalonia-osx-arm64.zip` — macOS (Apple Silicon)
-
-          Unzip and run — no installer needed on any platform.
-
-          **What you need installed:**
-
-          - **Windows** — the WebView2 Runtime, which ships by default with Windows 10 21H2+ and
-            Windows 11. This is the same dependency the existing Windows app already has, not
-            something new. If it's missing (older or stripped-down Windows installs), get it from
-            https://developer.microsoft.com/microsoft-edge/webview2/.
-          - **Linux** — a system WebKit engine, which is **not bundled** in the zip and must be
-            installed separately via your distro's package manager, e.g. on Debian/Ubuntu:
-            `sudo apt install libwebkit2gtk-4.1-0` (the exact package name varies by distro).
-          - **macOS** — nothing extra. It uses WKWebView, which is built into the OS.
-
-          Everything else — the .NET runtime, all libraries, and the bundled
-          mermaid/KaTeX/highlight.js assets — is bundled inside each zip; you do not need .NET
-          installed separately on any platform.
-
-          **Status versus the Windows app:**
-
-          - Settings (license/update management) and automation (clipboard watcher, folder watcher,
-            local REST API) are both wired up in this build, mirroring the Windows app's behavior —
-            not yet independently tested end-to-end on Linux/macOS.
-          - **PDF page size (A4-lock, continuous-page mode): solid on Windows now, still unverified
-            on Linux/macOS.** The underlying cross-platform web-view package's own print-settings API
-            has no page width/height on any platform. An earlier attempt to work around that with an
-            injected CSS `@page` rule proved unreliable (matched once, then consistently didn't
-            reproduce). The Windows build now bypasses that package for this instead: it reaches the
-            raw native `ICoreWebView2` COM pointer via the web-view control's platform handle and
-            drives WebView2's own print API directly (`CoreWebView2PrintSettings.PageWidth`/
-            `PageHeight`/margins) — the same native lever the Windows WinUI app already used, and the
-            same kind of real print-API parameter the original Python prototype relied on via
-            Playwright. Verified with an isolated test harness requesting two different page widths
-            (777px and 1500px): both produced PDFs matching the requested size to within WebView2's
-            own rounding. Linux (WebKitGTK) and macOS (WKWebView) have no equivalent bridge wired up
-            yet, so they still fall back to the CSS `@page` rule — genuinely untested there, not
-            confirmed broken, just unverified. Background colors print correctly everywhere (a
-            separate, independently reliable CSS mechanism). The content-width Style setting itself
-            is correctly wired through now (previously hardcoded to 800/1200px regardless of your
-            setting), and on Windows the generated PDF's page now genuinely honors it end-to-end.
+          The .NET runtime and all bundled mermaid/KaTeX/highlight.js assets are included; you do not
+          need .NET installed separately.
 
           BODY
 
@@ -236,6 +138,6 @@ jobs:
 
           cd ..
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
-          
+
           # Undraft and update notes
           gh release edit "$tag" --draft=false --notes-file release-notes.md
