@@ -24,6 +24,18 @@
                         <ToggleSwitch Grid.Column="1" IsOn="{Binding AdvancedMode, Mode=TwoWay}" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
+
+                <Border Style="{StaticResource PipelineCardStyle}">
+                    <StackPanel Padding="16,12" Spacing="6">
+                        <TextBlock Text="Export file name" />
+                        <TextBlock Text="Template for generated file names. Tokens: {title}, {date}, {time}, {format}."
+                                   Style="{StaticResource StepCaptionStyle}" />
+                        <TextBox Text="{Binding FileNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="{}{title}" IsSpellCheckEnabled="False" />
+                        <TextBlock Text="Example: “{date} {title}” → 2026-07-24 My Report.pdf"
+                                   Style="{StaticResource StepCaptionStyle}" Opacity="0.6" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </PivotItem>
 

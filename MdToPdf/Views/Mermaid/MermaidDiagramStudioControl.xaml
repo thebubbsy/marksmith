@@ -41,6 +41,14 @@
                         </StackPanel>
                     </Button>
 
+                    <ComboBox x:Name="DirectionComboBox"
+                              ToolTipService.ToolTip="Flowchart Orientation (TD = Top-Down, LR = Left-Right, BT = Bottom-Up, RL = Right-Left)"
+                              ItemsSource="{Binding AvailableDirections}"
+                              SelectedItem="{Binding SelectedFlowDirection, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              Width="75"
+                              Margin="4,0,0,0" />
+
                     <ToggleSwitch x:Name="GridSnapSwitch"
                                   Header="Snap Grid"
                                   IsOn="{Binding IsGridSnapEnabled, Mode=TwoWay}"

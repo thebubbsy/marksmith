@@ -15,7 +15,7 @@ using MdToPdf.Mermaid.Sync;
 
 namespace MdToPdf;
 
-public sealed partial class MainWindow : Window, Services.IWebRenderHost, Services.IUiPrompts
+public sealed partial class MainWindow : Window
 {
     private static readonly HashSet<string> PreviewAffectingProperties = new()
     {
@@ -46,20 +46,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.ApiPort),
     };
 
-    private readonly DispatcherQueueTimer _previewDebounce;
-
-    // Preview refresh intensity. Typing does a silent "light" refresh (no sprite, no blur); a paste or
-    // a style/theme change does a "heavy" refresh — the loading sprite over a blur that clears as it
-    // completes. PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
+    internal readonly Services.WinUiWebRenderHost _renderHost;
+    
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _previewDebounce;
     private int _lastMarkdownLen;
     private bool _nextRefreshHeavy;
-    private bool _isPreviewRefreshing;
-    private bool _pendingPreviewRefresh;
-    private string? _lastRenderedMarkdown;
-    // True while the mermaid snapshot renderer owns the WebView — preview refreshes (e.g. the ingest
-    // debounce firing mid-harvest) must not navigate away from the render page.
-    private bool _mermaidHarvestActive;
-    private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
+
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
     private readonly Services.AutomationManager _automationManager;
@@ -68,18 +60,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private bool _exitRequested;
     private bool _showingLogsDialog;
     private List<string> _sessionLogFiles = new();
-
-    // Preview loading spinner state. The spinner ticks at ~60fps and stays up for at least SpinMinSec
-    // so a fast render never looks like a white flash. It hides only once BOTH the navigation has
-    // completed and the minimum time passed. Two styles alternate each time (not random): mode 0 spins
-    // the logo about its centre, mode 1 traces an upright figure-eight.
-    private const double SpinMinSec = 0.65;
-    private const double SpinDt = 1.0 / 60.0;
-    private DispatcherQueueTimer? _spinTimer;
-    private int _spinMode;         // 0 spin, 1 figure-eight — alternates on each show
-    private double _spinPhase;     // seconds the spinner has been visible
-    private bool _spinNavDone;
-    private bool _spinActive;
 
     public IRelayCommand ShowWindowCommand { get; }
     public IRelayCommand ExitApplicationCommand { get; }
@@ -119,22 +99,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PreviewWebView.SizeChanged += (_, e) =>
             PreviewWidthText.Text = $"{(int)Math.Round(e.NewSize.Width)} px";
 
-        // Typing in the paste editor fires PropertyChanged per keystroke; coalesce preview
-        // reloads so WebView2 isn't re-navigated on every character.
+        var spinTimer = DispatcherQueue.CreateTimer();
+        spinTimer.Interval = TimeSpan.FromMilliseconds(16);
+
         _previewDebounce = DispatcherQueue.CreateTimer();
-        _previewDebounce.Interval = TimeSpan.FromMilliseconds(250);
-        _previewDebounce.IsRepeating = false;
-        _previewDebounce.Tick += async (_, _) =>
+        _previewDebounce.Interval = TimeSpan.FromMilliseconds(400);
+
+        _renderHost = new Services.WinUiWebRenderHost(
+            this, PreviewWebView, PreviewSpinner, SpinnerLogoTransform,
+            spinTimer, _previewDebounce, ViewModel);
+
+        _previewDebounce.Tick += async (_, _) => 
         {
             var heavy = _nextRefreshHeavy;
             _nextRefreshHeavy = false;
-            await RefreshPreviewAsync(heavy);
+            await _renderHost.RefreshPreviewAsync(heavy);
         };
-
-        _spinTimer = DispatcherQueue.CreateTimer();
-        _spinTimer.Interval = TimeSpan.FromMilliseconds(16);
-        _spinTimer.IsRepeating = true;
-        _spinTimer.Tick += (_, _) => OnSpinTick();
 
         _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
@@ -155,7 +135,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyAutomationSettings();
         SyncAdvancedSection();
         UpdateLicenseBanner();
-        ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         InitTrayIcon();
 
@@ -227,10 +206,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (e.PropertyName == nameof(ViewModels.MainViewModel.PastedMarkdown))
             {
                 var len = ViewModel.PastedMarkdown?.Length ?? 0;
-                if (Math.Abs(len - _lastMarkdownLen) > HeavyChangeThreshold)
+                if (Math.Abs(len - _lastMarkdownLen) > 1000)
                 {
                     _nextRefreshHeavy = true;
-                    MaybeShowPlainPasteHint(ViewModel.PastedMarkdown ?? "");
                 }
                 _lastMarkdownLen = len;
             }
@@ -243,33 +221,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private bool _plainPasteHintShown;
-
-    // A sizeable paste with no Markdown structure at all almost certainly came from plain
-    // copy-paste out of an AI chat — the formatting is already lost. Nudge once per session toward
-    // the extension's "Copy as Markdown" button, and bump /api/attention so that button pulses in
-    // the browser right now.
-    private void MaybeShowPlainPasteHint(string text)
-    {
-        if (_plainPasteHintShown || text.Length < 250) return;
-        if (!LooksLikePlainText(text)) return;
-        _plainPasteHintShown = true;
-        ExtensionHintBar.IsOpen = true;
-        Services.ApiServer.AttentionTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    }
-
-    private static bool LooksLikePlainText(string t)
-    {
-        if (t.Contains("```") || t.Contains("](") || t.Contains("**") || t.Contains("【")) return false;
-        foreach (var raw in t.Split('\n'))
-        {
-            var s = raw.TrimStart();
-            if (s.StartsWith('#') || s.StartsWith("- ") || s.StartsWith("* ") || s.StartsWith("> ")
-                || s.StartsWith('|') || (s.Length > 2 && char.IsDigit(s[0]) && s[1] == '.' && s[2] == ' '))
-                return false; // any structural markdown → not a plain paste
-        }
-        return true;
-    }
 
 
 
@@ -649,7 +600,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Installing/removing a diagram engine changes what the open document can render, so re-run
         // the live preview (heavy path re-invokes the plugin renderers) as soon as it happens —
         // even while the Settings dialog is still open, so the change is visible the moment it closes.
-        settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(() => _ = RefreshPreviewAsync(heavy: true));
+        settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(() => _ = _renderHost.RefreshPreviewAsync(heavy: true));
         var dialog = new ContentDialog
         {
             Title = "Settings",
@@ -704,7 +655,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnExtensionTipClosed(object sender, object args) => ViewModel.ShowExtensionTip = false;
 
     // Clipboard / API / extension ingests land here. Always update the UI; when "auto-generate PDF
     // from AI-chat ingests" is on, also export a PDF — so the extension sending a conversation at
@@ -731,10 +681,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await _exportCoordinator.AutoExportIngestAsync(
             ViewModel,
             output,
-            this,
+            _renderHost,
             () => new OffscreenScope(this),
             ShowPdfToast,
-            () => RefreshPreviewAsync());
+            () => _renderHost.RefreshPreviewAsync());
     }
 
     private async Task OnWatchedFileAsync(string path)
@@ -742,10 +692,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await _exportCoordinator.OnWatchedFileAsync(
             ViewModel,
             path,
-            this,
+            _renderHost,
             () => new OffscreenScope(this),
             ShowPdfToast,
-            () => RefreshPreviewAsync());
+            () => _renderHost.RefreshPreviewAsync());
     }
 
     private static void ShowPdfToast(string pdfPath)
@@ -847,9 +797,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 folder.Path,
                 fmt,
                 null,
-                this,
+                _renderHost,
                 () => new OffscreenScope(this),
-                () => RefreshPreviewAsync(false));
+                () => _renderHost.RefreshPreviewAsync(false));
 
             var propDone = result.GetType().GetProperty("done")?.GetValue(result);
             var propFailed = result.GetType().GetProperty("failed")?.GetValue(result);
@@ -923,9 +873,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ViewModel,
                     markdown,
                     output,
-                    this,
+                    _renderHost,
                     () => new OffscreenScope(this),
-                    () => RefreshPreviewAsync());
+                    () => _renderHost.RefreshPreviewAsync());
                 tcs.SetResult(bytes);
             }
             catch (Exception ex)
@@ -948,9 +898,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     folderPath,
                     format,
                     ovr,
-                    this,
+                    _renderHost,
                     () => new OffscreenScope(this),
-                    () => RefreshPreviewAsync(false));
+                    () => _renderHost.RefreshPreviewAsync(false));
                 tcs.SetResult(result);
             }
             catch (Exception ex)
@@ -1152,9 +1102,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // The preview auto-refreshes on every change (debounced). Navigation completing satisfies
         // one of the two conditions to hide the spinner; the minimum-time gate satisfies the other.
-        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _spinNavDone = true;
+        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _renderHost.MarkNavigationDone();
         PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessage;
-        await RefreshPreviewAsync();
+        await _renderHost.RefreshPreviewAsync();
     }
 
     private void OnLocalImageRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
@@ -1218,7 +1168,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 var code = root.TryGetProperty("code", out var cProp) ? cProp.GetString() : "";
                 var idx = root.TryGetProperty("index", out var iProp) ? iProp.GetInt32() : 0;
-                DispatcherQueue.TryEnqueue(() => _ = ShowMermaidDiagramStudioWindowAsync(code ?? "", idx));
+                DispatcherQueue.TryEnqueue(async () => 
+                {
+                    var currentMd = ViewModel.CurrentMarkdown ?? "";
+                    var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(currentMd, idx);
+                    studioWindow.SyncToMarkdownRequested += async (s, markdown) =>
+                    {
+                        ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown ?? "");
+                        ViewModel.StatusText = "Mermaid diagram code updated via Visual Studio.";
+                        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                        await _renderHost.RefreshPreviewAsync(heavy: true);
+                    };
+                    studioWindow.Activate();
+                    await Task.CompletedTask;
+                });
                 return;
             }
             if (type == "mermaid-node-edit")
@@ -1274,22 +1237,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private async Task ShowMermaidDiagramStudioWindowAsync(string sampleCode, int targetIndex)
-    {
-        var currentMd = ViewModel.CurrentMarkdown ?? "";
-        
-        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(currentMd, targetIndex);
-        studioWindow.SyncToMarkdownRequested += async (s, markdown) =>
-        {
-            ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown ?? "");
-            ViewModel.StatusText = "Mermaid diagram code updated via Visual Studio.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
-            await RefreshPreviewAsync(heavy: true);
-        };
-        studioWindow.Activate();
-        await Task.CompletedTask;
-    }
-
     // Serve the bundled web assets (mermaid, KaTeX, highlight.js) from a real https origin so
     // NavigateToString pages can load them — no CDN, works offline. Referenced as
     // https://{Services.WebAssets.Host}/mermaid.min.js etc.
@@ -1309,7 +1256,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // The WebView initializes asynchronously after launch, but headless work (auto-generate on
     // ingest, watched files, API convert, batch) can arrive first — "WebView2 is not initialized".
     // Every headless caller awaits this before rendering.
-    private async Task<bool> EnsurePreviewWebViewAsync()
+    internal async Task<bool> EnsurePreviewWebViewAsync()
     {
         if (PreviewWebView.CoreWebView2 is not null) return true;
         try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return false; }
@@ -1354,193 +1301,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Called on every refresh. Starts the animated spinner if it isn't already running; otherwise
-    // just marks the new navigation in-flight so it stays up until the latest render finishes.
-    private void StartSpinner()
-    {
-        if (_spinActive) { _spinNavDone = false; return; }
 
-        _spinActive = true;
-        _spinNavDone = false;
-        _spinPhase = 0;
-        _spinMode = 1 - _spinMode; // alternate: spin, then figure-eight, then spin…
-
-        SpinnerLogoTransform.TranslateX = 0;
-        SpinnerLogoTransform.TranslateY = 0;
-        SpinnerLogoTransform.Rotation = 0;
-
-        PreviewSpinner.Visibility = Visibility.Visible;
-        _spinTimer!.Start();
-    }
-
-    private void OnSpinTick()
-    {
-        _spinPhase += SpinDt;
-
-        if (_spinMode == 0)
-        {
-            // Spin the logo about its centre (RenderTransformOrigin 0.5,0.5).
-            SpinnerLogoTransform.Rotation = (_spinPhase * 300) % 360;
-        }
-        else
-        {
-            // Upright logo tracing a figure-eight (Gerono lemniscate: x = A sin t, y = (A/2) sin 2t).
-            var t = _spinPhase * 2.4;
-            const double a = 46;
-            SpinnerLogoTransform.TranslateX = a * Math.Sin(t);
-            SpinnerLogoTransform.TranslateY = a * 0.55 * Math.Sin(2 * t);
-            SpinnerLogoTransform.Rotation = 0; // stays upright
-        }
-
-        if (_spinNavDone && _spinPhase >= SpinMinSec) HideSpinner();
-    }
-
-    private void HideSpinner()
-    {
-        _spinTimer!.Stop();
-        _spinActive = false;
-        PreviewSpinner.Visibility = Visibility.Collapsed;
-        // Reveal the freshly-rendered content: the blur clears over a smooth transition as the sprite goes.
-        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(
-            "document.body && document.body.classList.remove('ms-loading')");
-    }
-
-    // ---- IWebRenderHost / IUiPrompts: the portable seam MainViewModel and MermaidHarvestService
-    // (both in MdToPdf.Core) drive PDF export and mermaid harvesting through, instead of reaching
-    // into a WebView2 control directly. See MdToPdf.Core/Rendering/IWebRenderHost.cs.
-
-    public Task<bool> EnsureReadyAsync() => EnsurePreviewWebViewAsync();
-
-    public Task NavigateToStringAsync(string html)
-    {
-        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
-        var tcs = new TaskCompletionSource();
-        void OnNavigationCompleted(object? s, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
-        {
-            core.NavigationCompleted -= OnNavigationCompleted;
-            tcs.TrySetResult();
-        }
-        core.NavigationCompleted += OnNavigationCompleted;
-        core.NavigateToString(html);
-        return tcs.Task;
-    }
-
-    public async Task<string?> ExecuteScriptAsync(string javaScript)
-    {
-        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
-        return await core.ExecuteScriptAsync(javaScript);
-    }
-
-    public async Task<bool> PrintToPdfAsync(string outputPath, Services.PdfPageSetup setup)
-    {
-        var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
-        var printSettings = core.Environment.CreatePrintSettings();
-        printSettings.ShouldPrintBackgrounds = setup.PrintBackgrounds;
-        printSettings.ShouldPrintHeaderAndFooter = false;
-        printSettings.PageWidth = setup.PageWidthIn;
-        printSettings.PageHeight = setup.PageHeightIn;
-        printSettings.MarginTop = setup.MarginTopIn;
-        printSettings.MarginBottom = setup.MarginBottomIn;
-        printSettings.MarginLeft = setup.MarginLeftIn;
-        printSettings.MarginRight = setup.MarginRightIn;
-        return await core.PrintToPdfAsync(outputPath, printSettings);
-    }
-
-    // The mermaid render page must not be clobbered by the live preview's debounced auto-refresh
-    // while a harvest is in flight; restore the live preview once the harvest ends. Exactly the
-    // wrapper the three harvest methods used to inline before their bodies moved to
-    // MdToPdf.Core/Services/MermaidHarvestService.cs.
-    public Task BeginHarvestAsync()
-    {
-        _mermaidHarvestActive = true;
-        _previewDebounce.Stop();
-        return Task.CompletedTask;
-    }
-
-    public async Task EndHarvestAsync()
-    {
-        _mermaidHarvestActive = false;
-        await RefreshPreviewAsync(false);
-    }
-
-    private async Task RefreshPreviewAsync(bool heavy = true)
-    {
-        if (PreviewWebView.CoreWebView2 is null) return;
-        if (_mermaidHarvestActive) return; // snapshot renderer owns the WebView right now
-
-        if (_isPreviewRefreshing)
-        {
-            _pendingPreviewRefresh = true;
-            return;
-        }
-
-        _isPreviewRefreshing = true;
-        _pendingPreviewRefresh = false;
-
-        try
-        {
-            if (heavy) StartSpinner();
-
-            var vm = ViewModel;
-            string markdown;
-            if (vm.UsePasteSource)
-            {
-                markdown = vm.PastedMarkdown;
-            }
-            else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-            {
-                // Offload file reading to background thread to prevent UI stutter
-                markdown = await Task.Run(async () => await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath));
-            }
-            else
-            {
-                markdown = "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
-            }
-
-            // Memoization: skip if the markdown hasn't changed AND this isn't a heavy refresh (e.g. theme change)
-            if (!heavy && markdown == _lastRenderedMarkdown)
-            {
-                return;
-            }
-
-            // Move the heavy markdown parsing and HTML generation to a background thread
-            var html = await Task.Run(() => 
-            {
-                var prepped = vm.PrepareMarkdown(markdown);
-                return vm.BuildPreviewHtml(prepped, interactive: true);
-            });
-            
-            _lastRenderedMarkdown = markdown;
-
-            if (vm.IsDebugModeEnabled)
-            {
-                try
-                {
-                    var logsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs");
-                    Directory.CreateDirectory(logsDir);
-                    var logFile = Path.Combine(logsDir, $"Preview_Session_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("n").Substring(0, 4)}.log");
-                    
-                    var prompt = "Tell me everything wrong with the way we displayed the MD format in this HTML and how to resolve it:\n\n";
-                    File.WriteAllText(logFile, prompt + html);
-                    _sessionLogFiles.Add(logFile);
-                }
-                catch { }
-            }
-
-            // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
-            if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
-            PreviewWebView.CoreWebView2.NavigateToString(html);
-        }
-        finally
-        {
-            _isPreviewRefreshing = false;
-            if (_pendingPreviewRefresh)
-            {
-                // Trigger another refresh if changes happened while we were rendering
-                _previewDebounce.Start();
-            }
-        }
-    }
 
     private void OnToggleDebugModeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
@@ -1597,7 +1358,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToDocxAsync();
     }
 
-    private void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private async void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
         if (ViewPreviewTab == null) return;
         var isPreview = sender.SelectedItem == ViewPreviewTab;
@@ -1606,7 +1367,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
         if (isPreview)
         {
-            _ = RefreshPreviewAsync(heavy: true);
+            await _renderHost.RefreshPreviewAsync(heavy: true);
         }
     }
 
@@ -1784,4 +1545,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return Task.FromResult<MdToPdf.Models.RenderOption?>(null);
     }
 }
+
+
+
 

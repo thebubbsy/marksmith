@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.InputFilePath),
         nameof(ViewModels.MainViewModel.UsePasteSource),
         nameof(ViewModels.MainViewModel.SelectedThemeName),
+        nameof(ViewModels.MainViewModel.ThemeLightInfluence),
         nameof(ViewModels.MainViewModel.ContentWidth),
         nameof(ViewModels.MainViewModel.A4FixedWidth),
         nameof(ViewModels.MainViewModel.UnlimitedHeight),
@@ -78,6 +79,48 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private bool _spinNavDone;
     private bool _spinActive;
 
+    // Editor<->preview sync-scroll. The Code and Preview panes are alternating tabs, so "sync"
+    // means carrying the scroll position across a tab switch instead of always landing at the top.
+    // Forward (Code->Preview): we stash the editor's scroll fraction before re-navigating, then
+    // apply it once NavigationCompleted fires. Reverse (Preview->Code): we read the WebView's
+    // scroll fraction and mirror it onto the editor's internal ScrollViewer.
+    private double? _pendingPreviewScrollFraction;
+
+    // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
+    // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
+    private readonly List<int> _findMatches = new();
+    private int _findMatchIndex = -1;
+
+    // Preview zoom: WinUI 3's WebView2 exposes no ZoomFactor, so zoom is applied as a CSS zoom on the
+    // document via script. A document-created listener turns Ctrl+wheel into a "preview-zoom" message
+    // so the buttons and the wheel share one code path and one source of truth (_lastPreviewZoom).
+    private double _lastPreviewZoom = 1.0;
+
+    // Auto-recovery: the paste buffer is debounced-written to a recovery file so an unexpected exit
+    // (crash, power loss, forced close) never loses an unsaved document; it's offered back on launch.
+    private static readonly string RecoveryDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf");
+    private static readonly string RecoveryPath = Path.Combine(RecoveryDir, "autosave_recovery.md");
+    private DispatcherQueueTimer? _autosaveTimer;
+
+    // Centre "Looking Glass" view mode: Code / Split (editor + preview side by side) / Preview.
+    private enum ViewMode { Code, Split, Preview }
+    private ViewMode _viewMode = ViewMode.Code;
+
+    // Focus mode (F11): hides the left and right panes so the editor/preview takes the full width.
+    // The pane widths (and MinWidths, which otherwise clamp the collapsed columns open) the user
+    // sized with the splitters are stashed so they can be restored.
+    private GridLength _savedLeftPaneWidth;
+    private GridLength _savedRightPaneWidth;
+    private double _savedLeftPaneMinWidth;
+    private double _savedRightPaneMinWidth;
+
+    // Markdown lint: issues found in the current document (refreshed on every edit).
+    private List<Services.MarkdownLintService.LintIssue> _lintIssues = new();
+
+    // Guards the word-wrap ToggleButton's Checked event from firing during start-up wiring.
+    private bool _initializingWordWrap;
+
     public IRelayCommand ShowWindowCommand { get; }
     public IRelayCommand ExitApplicationCommand { get; }
 
@@ -110,11 +153,39 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         RootGrid.DataContext = ViewModel;
 
+        // Ctrl+, opens Settings. This can't be a XAML KeyboardAccelerator: WinUI can't represent the
+        // comma key in an accelerator (a raw "188" fails XAML parsing, and VirtualKey.OemComma crashes
+        // the framework's accelerator-string builder — see microsoft-ui-xaml#708), so it's handled here.
+        RootGrid.PreviewKeyDown += OnRootPreviewKeyDown;
+
         // Live preview-width ruler (the hairline under the preview): report the pane's width in CSS
         // pixels as the user resizes. WebView2 maps 1 CSS px to 1 DIP at zoom 1, so ActualWidth is
         // the same number the rendered document sees for its own px-based page width.
         PreviewWebView.SizeChanged += (_, e) =>
             PreviewWidthText.Text = $"{(int)Math.Round(e.NewSize.Width)} px";
+
+        // Editor cursor position readout in the status bar (Ln/Col + selection size).
+        PasteTextBox.SelectionChanged += (_, _) => UpdateCursorPosition();
+
+        // Editor font-size zoom: apply the persisted size and let Ctrl+wheel adjust it live.
+        ApplyEditorFontSize(App.Settings.Current.EditorFontSize, persist: false);
+        PasteTextBox.PointerWheelChanged += OnEditorPointerWheel;
+
+        // Word wrap + line numbers: apply the persisted wrap setting (the gutter shows when wrap is off).
+        _initializingWordWrap = true;
+        WordWrapToggle.IsChecked = App.Settings.Current.EditorWordWrap;
+        _initializingWordWrap = false;
+        ApplyWordWrap(App.Settings.Current.EditorWordWrap, persist: false);
+
+        // Line numbers + Markdown lint refresh on every edit; the gutter's scroll is synced to the
+        // editor's internal ScrollViewer once the TextBox template is realized.
+        PasteTextBox.TextChanged += (_, _) => { RefreshLineNumbers(); UpdateLintIndicator(); };
+        PasteTextBox.Loaded += (_, _) => HookEditorScrollSync();
+        RefreshLineNumbers();
+        UpdateLintIndicator();
+
+        // Export-completion toast: manual exports raise ExportCompleted from the ViewModel.
+        ViewModel.ExportCompleted += (kind, path) => ShowExportToast(kind, path);
 
         // Typing in the paste editor fires PropertyChanged per keystroke; coalesce preview
         // reloads so WebView2 isn't re-navigated on every character.
@@ -188,6 +259,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // First-run: show the guided tour once the visual tree is ready (XamlRoot available).
         if (!App.Settings.Current.HasSeenWelcome)
             RootGrid.Loaded += OnFirstRunLoaded;
+
+        // Auto-recovery: offer back any unsaved document that survived the previous session.
+        RootGrid.Loaded += OnRecoveryCheckLoaded;
+    }
+
+    private void OnRecoveryCheckLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= OnRecoveryCheckLoaded; // one-shot
+        DispatcherQueue.TryEnqueue(() => _ = CheckRecoveryAsync());
     }
 
     private void OnFirstRunLoaded(object sender, RoutedEventArgs e)
@@ -201,6 +281,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
         {
             SyncSourcePanels();
+        }
+
+        // Auto-recovery: any edit to the paste buffer (or a switch into/out of paste mode) re-arms
+        // the debounced autosave that mirrors the buffer to the recovery file.
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.PastedMarkdown) ||
+            e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
+        {
+            ScheduleAutosave();
         }
 
         if (e.PropertyName == nameof(ViewModels.MainViewModel.DetectedSourceText))
@@ -338,6 +426,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.DeletePreset(preset);
             PresetsCombo.SelectedItem = null;
         }
+    }
+
+    private void OnToggleThemeFavoriteClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleFavoriteTheme();
     }
 
     // "Create a theme": a color picker per theme element, prefilled from the selected theme so users
@@ -745,19 +838,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             () => RefreshPreviewAsync());
     }
 
-    private static void ShowPdfToast(string pdfPath)
+    private static void ShowPdfToast(string pdfPath) => ShowExportToast("PDF", pdfPath);
+
+    // Windows toast on export completion. kind is "PDF"/"DOCX"/"PPTX" (or a combined "PDF + DOCX"
+    // label from Export-all). Best-effort: notifications can be disabled system-wide, and the
+    // in-app status bar always reports regardless.
+    private static void ShowExportToast(string kind, string path)
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(path)) return;
             var toast = new AppNotificationBuilder()
-                .AddText("PDF ready")
-                .AddText(Path.GetFileName(pdfPath))
+                .AddText($"{kind} ready")
+                .AddText(Path.GetFileName(path))
                 .AddArgument("action", "open")
-                .AddArgument("path", pdfPath)
-                .AddButton(new AppNotificationButton("Open PDF")
-                    .AddArgument("action", "open").AddArgument("path", pdfPath))
+                .AddArgument("path", path)
+                .AddButton(new AppNotificationButton("Open file")
+                    .AddArgument("action", "open").AddArgument("path", path))
                 .AddButton(new AppNotificationButton("Show in folder")
-                    .AddArgument("action", "folder").AddArgument("path", pdfPath))
+                    .AddArgument("action", "folder").AddArgument("path", path))
                 .BuildNotification();
             AppNotificationManager.Default.Show(toast);
         }
@@ -1003,6 +1102,71 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    // Drag-and-drop image embedding: dropping picture files onto the Markdown editor copies them
+    // alongside the document (or into the output folder for pasted sources) and inserts a ready-to-
+    // render ![alt](path) reference at the caret, so screenshots flow straight into the export.
+    private void OnEditorDragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            if (e.DragUIOverride is not null)
+                e.DragUIOverride.Caption = "Drop to embed image";
+        }
+    }
+
+    private async void OnEditorDrop(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        var items = await e.DataView.GetStorageItemsAsync();
+        string[] imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
+        var images = items.OfType<StorageFile>()
+            .Where(f => imageExts.Contains(f.FileType.ToLowerInvariant()))
+            .ToList();
+        if (images.Count == 0) return;
+
+        var targetDir = await ResolveImageDropFolderAsync();
+        if (targetDir is null)
+        {
+            ViewModel.StatusText = "Couldn't find a folder to store the dropped image(s).";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            return;
+        }
+
+        var refs = new List<string>();
+        foreach (var img in images)
+        {
+            // Already living next to the document? Reference it in place instead of duplicating.
+            var srcDir = System.IO.Path.GetDirectoryName(img.Path);
+            if (string.Equals(srcDir, targetDir.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                refs.Add($"![{System.IO.Path.GetFileNameWithoutExtension(img.Name)}]({img.Path})");
+                continue;
+            }
+            var dest = await img.CopyAsync(targetDir, img.Name, NameCollisionOption.GenerateUniqueName);
+            refs.Add($"![{System.IO.Path.GetFileNameWithoutExtension(dest.Name)}]({dest.Path})");
+        }
+
+        InsertMarkdown(string.Join("\n", refs) + "\n");
+        ViewModel.StatusText = $"Embedded {refs.Count} image(s) into the document.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    private async Task<StorageFolder?> ResolveImageDropFolderAsync()
+    {
+        string? dir = null;
+        if (!ViewModel.UsePasteSource && !string.IsNullOrWhiteSpace(ViewModel.InputFilePath))
+            dir = System.IO.Path.GetDirectoryName(ViewModel.InputFilePath);
+        if (string.IsNullOrWhiteSpace(dir)) dir = ViewModel.OutputFolder;
+        if (string.IsNullOrWhiteSpace(dir)) dir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        try
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            return await StorageFolder.GetFolderFromPathAsync(dir);
+        }
+        catch { return null; }
+    }
+
     private async void OnBrowseFileClick(object sender, RoutedEventArgs e)
     {
         var picker = new FileOpenPicker();
@@ -1146,6 +1310,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // one of the two conditions to hide the spinner; the minimum-time gate satisfies the other.
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _spinNavDone = true;
         PreviewWebView.CoreWebView2.WebMessageReceived += OnPreviewWebMessage;
+        // Sync-scroll: once a fresh preview page finishes loading, restore the scroll position the
+        // user had in the editor (stashed just before we re-navigated on the tab switch).
+        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingPreviewScroll();
+
+        // Preview zoom: restore the persisted factor, install the Ctrl+wheel listener, and re-apply
+        // the CSS zoom after every navigation (NavigateToString rebuilds the DOM, dropping the style).
+        ApplyPreviewZoom(App.Settings.Current.PreviewZoom, persist: false);
+        await SetupPreviewZoomAsync();
+        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPreviewCssZoom(_lastPreviewZoom);
+
         await RefreshPreviewAsync();
     }
 
@@ -1161,6 +1335,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var root = doc.RootElement;
             if (!root.TryGetProperty("type", out var typeProp)) return;
             var type = typeProp.GetString();
+
+            // Ctrl+wheel over the preview (bridged from the document-created listener): zoom one step.
+            if (type == "preview-zoom")
+            {
+                var delta = root.TryGetProperty("delta", out var dProp) ? dProp.GetDouble() : 0;
+                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), persist: true);
+                return;
+            }
 
             if (type == "mermaid-error")
             {
@@ -1238,7 +1420,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         studioWindow.SyncToMarkdownRequested += async (s, markdown) =>
         {
             ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown ?? "");
-            ViewModel.StatusText = "Mermaid diagram code updated via Visual Studio.";
+            ViewModel.StatusText = "Mermaid diagram code updated via Diagram Studio.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             await RefreshPreviewAsync(heavy: true);
         };
@@ -1473,6 +1655,276 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         args.Handled = true;
     }
 
+    // ---- Global keyboard shortcuts (documented in the F1 cheatsheet) ----
+
+    private void OnOpenFileAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        OnBrowseFileClick(this, new RoutedEventArgs());
+        args.Handled = true;
+    }
+
+    private void OnGeneratePdfAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToPdfAsync();
+        args.Handled = true;
+    }
+
+    private void OnExportDocxAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToDocxAsync();
+        args.Handled = true;
+    }
+
+    private void OnExportPptxAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel.IsNotBusy) _ = ViewModel.ConvertToPptxAsync();
+        args.Handled = true;
+    }
+
+    private void OnRootPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        // Ctrl+, opens Settings. The comma key is VirtualKey 188 (VK_OEM_COMMA); WinUI's VirtualKey
+        // enum has no named member for it and its accelerator-string builder crashes on it, so this
+        // shortcut is handled here rather than as a XAML KeyboardAccelerator (see constructor note).
+        if (e.Key == (Windows.System.VirtualKey)188)
+        {
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (ctrl && !shift && !alt)
+            {
+                OnSettingsClick(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnShortcutsCheatsheetInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        _ = ShowShortcutsCheatsheetAsync();
+        args.Handled = true;
+    }
+
+    private void OnCommandPaletteInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        _ = ShowCommandPaletteAsync();
+        args.Handled = true;
+    }
+
+    private void OnSaveDocumentAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        _ = SaveDocumentToFileAsync();
+        args.Handled = true;
+    }
+
+    // Ctrl+S writes the editor's current content back to the source .md file. Editing a file flips the
+    // buffer into paste mode, so without this the only way to keep edits was to re-create the file by
+    // hand — now the editor is a real round-trip editor for file-based documents.
+    private async Task SaveDocumentToFileAsync()
+    {
+        var path = ViewModel.InputFilePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            ViewModel.StatusText = "Nothing to save: open a file first (Ctrl+O). Pasted content lives in the editor and is exported, not saved.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        try
+        {
+            await File.WriteAllTextAsync(path, ViewModel.CurrentMarkdown);
+            ViewModel.StatusText = $"Saved changes to {path}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Save failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    private void OnFindAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        ShowFindBar();
+        args.Handled = true;
+    }
+
+    private async void OnShortcutsButtonClick(object sender, RoutedEventArgs e)
+    {
+        await ShowShortcutsCheatsheetAsync();
+    }
+
+    private async Task ShowShortcutsCheatsheetAsync()
+    {
+        var shortcuts = new (string Keys, string Action)[]
+        {
+            ("Ctrl + O", "Open a Markdown file"),
+            ("Ctrl + E", "Generate PDF"),
+            ("Ctrl + Shift + D", "Export DOCX"),
+            ("Ctrl + Shift + P", "Export PPTX"),
+            ("Ctrl + ,", "Open Settings"),
+            ("Ctrl + K", "Command palette"),
+            ("Ctrl + S", "Save edits back to the source file"),
+            ("Ctrl + F", "Find in the editor"),
+            ("Ctrl + Alt + T", "Toggle debug mode"),
+            ("F1", "Show this cheatsheet"),
+        };
+
+        var rows = new StackPanel { Spacing = 10 };
+        foreach (var (keys, action) in shortcuts)
+        {
+            var row = new Grid { ColumnSpacing = 16 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var keyBox = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 4, 10, 4),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Child = new TextBlock { Text = keys, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12.5 },
+            };
+            Grid.SetColumn(keyBox, 0);
+
+            var desc = new TextBlock { Text = action, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
+            Grid.SetColumn(desc, 1);
+
+            row.Children.Add(keyBox);
+            row.Children.Add(desc);
+            rows.Children.Add(row);
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Keyboard shortcuts",
+            Content = rows,
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    // ---- Command palette (Ctrl+K): fuzzy search across actions, themes, and recent files ----
+
+    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run);
+
+    private List<PaletteCommand> BuildPaletteCommands()
+    {
+        var cmds = new List<PaletteCommand>
+        {
+            new("Generate PDF", "Action", () => ViewModel.ConvertToPdfAsync()),
+            new("Export DOCX", "Action", () => ViewModel.ConvertToDocxAsync()),
+            new("Export PPTX", "Action", () => ViewModel.ConvertToPptxAsync()),
+            new("Export all formats", "Action", () => ViewModel.ExportAllAsync()),
+            new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Diagram Studio", "Action", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Settings", "Action", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Take the welcome tour", "Action", ShowWelcomeTourAsync),
+            new("Show keyboard shortcuts", "Action", ShowShortcutsCheatsheetAsync),
+        };
+
+        foreach (var theme in App.Themes.All)
+        {
+            var name = theme.Name;
+            cmds.Add(new($"Switch theme: {name}", "Theme", () => { ViewModel.SelectedThemeName = name; return Task.CompletedTask; }));
+        }
+
+        foreach (var path in ViewModel.RecentFiles.ToList())
+        {
+            var p = path;
+            cmds.Add(new($"Open recent: {System.IO.Path.GetFileName(p)}", "Recent", () =>
+            {
+                ViewModel.InputFilePath = p;
+                ViewModel.UsePasteSource = false;
+                return Task.CompletedTask;
+            }));
+        }
+
+        return cmds;
+    }
+
+    private static bool FuzzyMatch(string text, string query)
+    {
+        if (text.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
+        // Subsequence match: every query character appears in order (case-insensitive).
+        var qi = 0;
+        foreach (var ch in text)
+        {
+            if (qi < query.Length && char.ToLowerInvariant(ch) == char.ToLowerInvariant(query[qi])) qi++;
+        }
+        return qi == query.Length;
+    }
+
+    private async Task ShowCommandPaletteAsync()
+    {
+        var commands = BuildPaletteCommands();
+
+        var search = new TextBox { PlaceholderText = "Type a command, theme, or recent file\u2026", FontSize = 14 };
+        var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 340, IsItemClickEnabled = true };
+        list.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+            "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
+            "<StackPanel Orientation='Horizontal' Spacing='10' Padding='0,2'>" +
+            "<TextBlock Text='{Binding Label}' FontWeight='SemiBold' FontSize='13'/>" +
+            "<TextBlock Text='{Binding Category}' Opacity='0.5' FontSize='11' VerticalAlignment='Center'/>" +
+            "</StackPanel></DataTemplate>");
+
+        void Refresh()
+        {
+            var q = search.Text.Trim();
+            var filtered = string.IsNullOrEmpty(q)
+                ? commands
+                : commands.Where(c => FuzzyMatch(c.Label, q) || FuzzyMatch(c.Category, q)).ToList();
+            list.ItemsSource = filtered;
+            if (filtered.Count > 0) list.SelectedIndex = 0;
+        }
+
+        var panel = new StackPanel { Spacing = 10, Width = 480 };
+        panel.Children.Add(search);
+        panel.Children.Add(list);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Command palette",
+            Content = panel,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+
+        PaletteCommand? chosen = null;
+        search.TextChanged += (s, e) => Refresh();
+        search.KeyDown += (s, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter && list.SelectedItem is PaletteCommand c)
+            {
+                chosen = c;
+                dialog.Hide();
+                e.Handled = true;
+            }
+            else if (e.Key is Windows.System.VirtualKey.Down or Windows.System.VirtualKey.Up && list.Items.Count > 0)
+            {
+                var idx = list.SelectedIndex;
+                idx = e.Key == Windows.System.VirtualKey.Down ? Math.Min(idx + 1, list.Items.Count - 1) : Math.Max(idx - 1, 0);
+                list.SelectedIndex = idx;
+                e.Handled = true;
+            }
+        };
+        list.ItemClick += (s, e) => { if (e.ClickedItem is PaletteCommand c) { chosen = c; dialog.Hide(); } };
+
+        Refresh();
+        search.Focus(FocusState.Programmatic);
+
+        await dialog.ShowAsync();
+
+        if (chosen is not null) await chosen.Run();
+    }
+
     private async Task ShowDebugLogsDialogAndExitAsync()
     {
         var sb = new System.Text.StringBuilder();
@@ -1520,17 +1972,907 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToDocxAsync();
     }
 
+    private async void OnConvertPptxClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToPptxAsync();
+    }
+
+    private async void OnExportAllClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ExportAllAsync();
+    }
+
+    // Copy the rendered HTML — the same pipeline as the live preview, minus the interactive-only
+    // scripting — to the clipboard, both as plain text and as rich HTML (pastes formatted into Word).
+    private async void OnCopyHtmlClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var vm = ViewModel;
+            string markdown;
+            if (vm.UsePasteSource)
+            {
+                markdown = vm.PastedMarkdown;
+            }
+            else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
+            {
+                markdown = await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
+            }
+            else
+            {
+                markdown = vm.CurrentMarkdown ?? string.Empty;
+            }
+
+            var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: false);
+
+            var package = new DataPackage();
+            package.SetText(html);
+            package.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(html));
+            Clipboard.SetContent(package);
+
+            ViewModel.StatusText = "Rendered HTML copied to the clipboard.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Copy HTML failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    // Pin/unpin the selected file to the top of the Step-1 picker (persisted across sessions).
+    private void OnTogglePinFileClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.TogglePinCurrentFile();
+    }
+
     private void OnCenterViewSelectorChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
         if (ViewPreviewTab == null) return;
-        var isPreview = sender.SelectedItem == ViewPreviewTab;
-        if (PastePanel != null) PastePanel.Visibility = isPreview ? Visibility.Collapsed : Visibility.Visible;
-        if (PreviewCard != null) PreviewCard.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
-        if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
-        if (isPreview)
+        var mode = sender.SelectedItem == ViewPreviewTab ? ViewMode.Preview
+                 : sender.SelectedItem == ViewSplitTab ? ViewMode.Split
+                 : ViewMode.Code;
+        ApplyViewMode(mode);
+    }
+
+    // Switch the centre "Looking Glass" between Code, Split (editor + preview side by side) and
+    // Preview. In split mode both panes share the column and a splitter between them appears.
+    private void ApplyViewMode(ViewMode mode)
+    {
+        _viewMode = mode;
+        var showEditor = mode is ViewMode.Code or ViewMode.Split;
+        var showPreview = mode is ViewMode.Preview or ViewMode.Split;
+
+        // Sync-scroll bookkeeping only matters for the pure preview tab transitions.
+        if (mode == ViewMode.Preview) _pendingPreviewScrollFraction = GetEditorScrollFraction();
+        if (mode == ViewMode.Code) _ = CapturePreviewScrollAndApplyToEditorAsync();
+
+        if (PastePanel != null) PastePanel.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
+        if (PreviewCard != null) PreviewCard.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
+        if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
+        if (SplitViewSplitter != null) SplitViewSplitter.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
+
+        // Column widths: give all the space to the visible pane(s); split shares it.
+        if (SplitLeftCol != null) SplitLeftCol.Width = mode == ViewMode.Preview ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        if (SplitRightCol != null) SplitRightCol.Width = mode == ViewMode.Code ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+
+        if (showPreview) _ = RefreshPreviewAsync(heavy: mode == ViewMode.Preview);
+    }
+
+    // ---- Editor<->preview sync-scroll helpers ----
+
+    // The editor's scroll fraction (0..1), or null when there is nothing to scroll. Reaches into the
+    // TextBox's template for its internal ScrollViewer (named ContentElement in the default style).
+    private double? GetEditorScrollFraction()
+    {
+        var sv = FindEditorScrollViewer();
+        if (sv is null || sv.ScrollableHeight <= 0) return null;
+        return Math.Clamp(sv.VerticalOffset / sv.ScrollableHeight, 0.0, 1.0);
+    }
+
+    private ScrollViewer? FindEditorScrollViewer() => FindDescendant<ScrollViewer>(PasteTextBox);
+
+    private static T? FindDescendant<T>(DependencyObject? parent) where T : DependencyObject
+    {
+        if (parent is null) return null;
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
         {
-            _ = RefreshPreviewAsync(heavy: true);
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindDescendant<T>(child) is { } found) return found;
         }
+        return null;
+    }
+
+    // Apply a stashed scroll fraction to the freshly-loaded preview page, then clear it. Skipped while
+    // a mermaid harvest owns the WebView so we never scroll a snapshot render page mid-export.
+    private void ApplyPendingPreviewScroll()
+    {
+        if (_pendingPreviewScrollFraction is not { } frac) return;
+        _pendingPreviewScrollFraction = null;
+        if (_mermaidHarvestActive) return;
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return;
+        var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        _ = core.ExecuteScriptAsync(
+            "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
+            $"if(max>0){{window.scrollTo(0,{f}*max);}}}})();");
+    }
+
+    // Read the preview's current scroll fraction and mirror it onto the editor's ScrollViewer.
+    private async Task CapturePreviewScrollAndApplyToEditorAsync()
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return;
+        string result;
+        try
+        {
+            result = await core.ExecuteScriptAsync(
+                "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
+                "return max>0?(window.scrollY/max):0;})();");
+        }
+        catch { return; }
+
+        if (!double.TryParse(result, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var frac)) return;
+        var sv = FindEditorScrollViewer();
+        if (sv is null || sv.ScrollableHeight <= 0) return;
+        sv.ChangeView(null, Math.Clamp(frac, 0.0, 1.0) * sv.ScrollableHeight, null, disableAnimation: true);
+    }
+
+    // Editor cursor readout: "Ln 12, Col 8" plus "(N selected)" when there's a selection. Cheap to
+    // compute on every SelectionChanged — the editor is a single TextBox, not a virtualized document.
+    private void UpdateCursorPosition()
+    {
+        var tb = PasteTextBox;
+        if (tb is null || CursorPosText is null) return;
+        var text = tb.Text ?? string.Empty;
+        var start = Math.Min(tb.SelectionStart, text.Length);
+        var line = 1;
+        var lastNewline = -1;
+        for (var i = 0; i < start; i++)
+        {
+            if (text[i] == '\n') { line++; lastNewline = i; }
+        }
+        var col = start - lastNewline;
+        var sel = tb.SelectionLength;
+        CursorPosText.Text = sel > 0
+            ? $"Ln {line}, Col {col}  ({sel} selected)"
+            : $"Ln {line}, Col {col}";
+    }
+
+    // ---- Find bar (Ctrl+F): search the Markdown source and jump between matches ----
+
+    private void ShowFindBar()
+    {
+        if (FindBar is null) return;
+        FindBar.Visibility = Visibility.Visible;
+        FindTextBox.Focus(FocusState.Programmatic);
+        FindTextBox.SelectAll();
+    }
+
+    private void OnFindCloseClick(object sender, RoutedEventArgs e) => CloseFindBar();
+
+    private void CloseFindBar()
+    {
+        if (FindBar is null) return;
+        FindBar.Visibility = Visibility.Collapsed;
+        // Hand focus back to the editor so typing resumes where the user left off.
+        PasteTextBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnFindTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            var shiftDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (shiftDown) FindPrev(); else FindNext();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CloseFindBar();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindTextChanged(object sender, TextChangedEventArgs e) => RecomputeFindMatches();
+
+    private void OnFindNextClick(object sender, RoutedEventArgs e) => FindNext();
+
+    private void OnFindPrevClick(object sender, RoutedEventArgs e) => FindPrev();
+
+    // The comparison used by find/replace — the "Aa" checkbox toggles case sensitivity.
+    private StringComparison FindComparison => MatchCaseCheck?.IsChecked == true
+        ? StringComparison.Ordinal
+        : StringComparison.OrdinalIgnoreCase;
+
+    // Rebuild the match list for the current query and refresh the "n/m" readout.
+    private void RecomputeFindMatches()
+    {
+        _findMatches.Clear();
+        _findMatchIndex = -1;
+        var query = FindTextBox?.Text ?? string.Empty;
+        var text = PasteTextBox?.Text ?? string.Empty;
+        if (query.Length > 0 && text.Length > 0)
+        {
+            var cmp = FindComparison;
+            var idx = text.IndexOf(query, cmp);
+            while (idx >= 0)
+            {
+                _findMatches.Add(idx);
+                idx = text.IndexOf(query, idx + query.Length, cmp);
+            }
+        }
+        UpdateFindCount();
+    }
+
+    private void OnMatchCaseChanged(object sender, RoutedEventArgs e) => RecomputeFindMatches();
+
+    private void UpdateFindCount()
+    {
+        if (FindCountText is null) return;
+        FindCountText.Text = _findMatches.Count == 0
+            ? (string.IsNullOrEmpty(FindTextBox?.Text) ? string.Empty : "No matches")
+            : $"{_findMatchIndex + 1}/{_findMatches.Count}";
+    }
+
+    private void FindNext()
+    {
+        if (_findMatches.Count == 0) { UpdateFindCount(); return; }
+        _findMatchIndex = (_findMatchIndex + 1) % _findMatches.Count;
+        SelectFindMatch();
+    }
+
+    private void FindPrev()
+    {
+        if (_findMatches.Count == 0) { UpdateFindCount(); return; }
+        _findMatchIndex = (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
+        SelectFindMatch();
+    }
+
+    // Highlight the current match in the editor and scroll it into view. Selecting text on a focused
+    // TextBox makes WinUI bring the caret into view, which gives us scroll-into-view for free.
+    private void SelectFindMatch()
+    {
+        if (_findMatchIndex < 0 || _findMatchIndex >= _findMatches.Count) return;
+        var start = _findMatches[_findMatchIndex];
+        var len = (FindTextBox?.Text ?? string.Empty).Length;
+        PasteTextBox.Focus(FocusState.Programmatic);
+        PasteTextBox.Select(start, len);
+        UpdateFindCount();
+    }
+
+    // ---- Replace (the second row of the find bar, or Ctrl+H) ----
+
+    private void OnReplaceTextBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            OnReplaceClick(sender, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CloseFindBar();
+            e.Handled = true;
+        }
+    }
+
+    // Replace the currently-highlighted match (if the selection is one), then jump to the next match.
+    private void OnReplaceClick(object sender, RoutedEventArgs e)
+    {
+        var query = FindTextBox?.Text ?? string.Empty;
+        if (query.Length == 0) return;
+        var replacement = ReplaceTextBox?.Text ?? string.Empty;
+
+        if (PasteTextBox.SelectionLength == query.Length)
+        {
+            PasteTextBox.SelectedText = replacement; // swaps the selected match in place
+        }
+
+        // Continue searching from just after the caret, wrapping to the top if needed.
+        var text = PasteTextBox.Text ?? string.Empty;
+        var cmp = FindComparison;
+        var from = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
+        var next = text.IndexOf(query, from, cmp);
+        if (next < 0) next = text.IndexOf(query, 0, cmp);
+
+        RecomputeFindMatches();
+        if (next >= 0)
+        {
+            _findMatchIndex = _findMatches.IndexOf(next);
+            SelectFindMatch();
+        }
+    }
+
+    // Replace every match in the document in one pass.
+    private void OnReplaceAllClick(object sender, RoutedEventArgs e)
+    {
+        var query = FindTextBox?.Text ?? string.Empty;
+        if (query.Length == 0) return;
+        var replacement = ReplaceTextBox?.Text ?? string.Empty;
+        var text = PasteTextBox.Text ?? string.Empty;
+        var cmp = FindComparison;
+
+        var sb = new System.Text.StringBuilder(text.Length);
+        var idx = 0;
+        var count = 0;
+        while (true)
+        {
+            var found = text.IndexOf(query, idx, cmp);
+            if (found < 0) { sb.Append(text, idx, text.Length - idx); break; }
+            sb.Append(text, idx, found - idx);
+            sb.Append(replacement);
+            idx = found + query.Length;
+            count++;
+        }
+
+        if (count > 0)
+        {
+            PasteTextBox.Text = sb.ToString();
+            ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")}.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        else
+        {
+            ViewModel.StatusText = "No matches to replace.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
+        RecomputeFindMatches();
+    }
+
+    private void OnReplaceAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        ShowFindBar();
+        ReplaceTextBox?.Focus(FocusState.Programmatic);
+        args.Handled = true;
+    }
+
+    // ---- Editor font-size zoom (A−/A+ buttons, Ctrl+wheel) — persisted across sessions ----
+
+    private const double EditorFontBase = 13.0; // must match the PasteTextBox XAML default
+    private const double EditorFontMin = 8.0;
+    private const double EditorFontMax = 32.0;
+
+    private void OnEditorZoomInClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(PasteTextBox.FontSize + 1, persist: true);
+
+    private void OnEditorZoomOutClick(object sender, RoutedEventArgs e) => ApplyEditorFontSize(PasteTextBox.FontSize - 1, persist: true);
+
+    // Ctrl+wheel over the editor zooms the source font; a bare wheel still scrolls the text.
+    private void OnEditorPointerWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (!ctrl) return;
+        var delta = e.GetCurrentPoint(PasteTextBox).Properties.MouseWheelDelta;
+        if (delta == 0) return;
+        ApplyEditorFontSize(PasteTextBox.FontSize + (delta > 0 ? 1 : -1), persist: true);
+        e.Handled = true;
+    }
+
+    private void ApplyEditorFontSize(double size, bool persist)
+    {
+        var clamped = Math.Clamp(size, EditorFontMin, EditorFontMax);
+        PasteTextBox.FontSize = clamped;
+        if (LineNumberText is not null) LineNumberText.FontSize = clamped; // keep the gutter in step
+        if (EditorZoomText is not null)
+            EditorZoomText.Text = $"{(int)Math.Round(clamped / EditorFontBase * 100.0)}%";
+        if (persist)
+        {
+            App.Settings.Current.EditorFontSize = clamped;
+            App.Settings.Save();
+        }
+    }
+
+    // ---- Word wrap + line numbers ----
+
+    // Word wrap is a persisted editor display setting. When wrapping is off the editor scrolls
+    // horizontally and shows a line-number gutter (wrapping would break line-number alignment).
+    private void OnWordWrapToggled(object sender, RoutedEventArgs e)
+    {
+        if (_initializingWordWrap) return;
+        ApplyWordWrap(WordWrapToggle?.IsChecked == true, persist: true);
+    }
+
+    private void ApplyWordWrap(bool wrap, bool persist)
+    {
+        PasteTextBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        ScrollViewer.SetHorizontalScrollBarVisibility(PasteTextBox, wrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollMode(PasteTextBox, wrap ? ScrollMode.Disabled : ScrollMode.Enabled);
+        if (LineNumberGutter is not null)
+            LineNumberGutter.Visibility = wrap ? Visibility.Collapsed : Visibility.Visible;
+        if (persist)
+        {
+            App.Settings.Current.EditorWordWrap = wrap;
+            App.Settings.Save();
+        }
+        RefreshLineNumbers();
+    }
+
+    // Rebuild the gutter's "1\n2\n...\nN" text to match the editor's current line count.
+    private void RefreshLineNumbers()
+    {
+        if (LineNumberText is null) return;
+        var text = PasteTextBox?.Text ?? string.Empty;
+        var count = 1;
+        for (var i = 0; i < text.Length; i++) if (text[i] == '\n') count++;
+        var sb = new System.Text.StringBuilder(count * 4);
+        for (var i = 1; i <= count; i++) { sb.Append(i); if (i < count) sb.Append('\n'); }
+        LineNumberText.Text = sb.ToString();
+    }
+
+    // Mirror the editor's vertical scroll offset onto the gutter so the numbers track the text.
+    private void HookEditorScrollSync()
+    {
+        var sv = FindEditorScrollViewer();
+        if (sv is null) return;
+        sv.ViewChanged += (_, _) => SyncLineNumberScroll();
+        SyncLineNumberScroll();
+    }
+
+    private void SyncLineNumberScroll()
+    {
+        var sv = FindEditorScrollViewer();
+        if (sv is null || LineNumberScroll is null) return;
+        LineNumberScroll.ChangeView(null, sv.VerticalOffset, null, disableAnimation: true);
+    }
+
+    // ---- Markdown lint ----
+
+    // Re-run the linter and refresh the issue-count chip and the flyout's issue list.
+    private void UpdateLintIndicator()
+    {
+        _lintIssues = Services.MarkdownLintService.Analyze(PasteTextBox?.Text);
+        if (LintCountText is not null)
+            LintCountText.Text = _lintIssues.Count == 0 ? "No issues" : $"{_lintIssues.Count} issue{(_lintIssues.Count == 1 ? "" : "s")}";
+        if (LintList is not null) LintList.ItemsSource = _lintIssues.ToList();
+    }
+
+    // Clicking an issue jumps the editor caret to that line.
+    private void OnLintItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is Services.MarkdownLintService.LintIssue issue)
+        {
+            GoToLine(issue.Line);
+            LintFlyout?.Hide();
+        }
+    }
+
+    // Move the caret to the start of the given 1-based line and bring it into view.
+    private void GoToLine(int lineNo)
+    {
+        var text = PasteTextBox.Text ?? string.Empty;
+        var offset = 0;
+        var line = 1;
+        while (line < lineNo && offset < text.Length)
+        {
+            if (text[offset] == '\n') line++;
+            offset++;
+        }
+        PasteTextBox.Focus(FocusState.Programmatic);
+        PasteTextBox.Select(Math.Clamp(offset, 0, text.Length), 0);
+        UpdateCursorPosition();
+    }
+
+    // ---- Text transforms (the Transform dropdown) ----
+
+    // Apply a transform to the current selection, or to the current line when nothing is selected.
+    private void TransformSelection(Func<string, string> transform)
+    {
+        var tb = PasteTextBox;
+        var text = tb.Text ?? string.Empty;
+        if (text.Length == 0) return;
+        var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
+        var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
+        if (selLen == 0)
+        {
+            var (ls, le) = CurrentLineRange(text, selStart);
+            selStart = ls;
+            selLen = le - ls;
+        }
+        if (selLen <= 0) return;
+        var segment = text.Substring(selStart, selLen);
+        var transformed = transform(segment);
+        tb.Text = text.Remove(selStart, selLen).Insert(selStart, transformed);
+        tb.SelectionStart = selStart;
+        tb.SelectionLength = Math.Clamp(transformed.Length, 0, tb.Text.Length - selStart);
+        tb.Focus(FocusState.Programmatic);
+    }
+
+    // The [start, end) range of the single line surrounding pos.
+    private static (int Start, int End) CurrentLineRange(string text, int pos)
+    {
+        pos = Math.Clamp(pos, 0, text.Length);
+        var start = pos;
+        while (start > 0 && text[start - 1] != '\n') start--;
+        var end = pos;
+        while (end < text.Length && text[end] != '\n') end++;
+        return (start, end);
+    }
+
+    private void OnTransformUpperClick(object sender, RoutedEventArgs e) => TransformSelection(s => s.ToUpperInvariant());
+    private void OnTransformLowerClick(object sender, RoutedEventArgs e) => TransformSelection(s => s.ToLowerInvariant());
+    private void OnTransformTitleClick(object sender, RoutedEventArgs e) =>
+        TransformSelection(s => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant()));
+    private void OnSortLinesAscClick(object sender, RoutedEventArgs e) =>
+        TransformSelection(s => string.Join("\n", s.Split('\n').OrderBy(x => x, StringComparer.OrdinalIgnoreCase)));
+    private void OnSortLinesDescClick(object sender, RoutedEventArgs e) =>
+        TransformSelection(s => string.Join("\n", s.Split('\n').OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase)));
+    private void OnDedupeLinesClick(object sender, RoutedEventArgs e) => TransformSelection(DedupeLines);
+
+    private static string DedupeLines(string s)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var kept = new List<string>();
+        foreach (var line in s.Split('\n'))
+            if (seen.Add(line.TrimEnd('\r'))) kept.Add(line);
+        return string.Join("\n", kept);
+    }
+
+    // ---- Line operations (Alt+Up/Down to move, Ctrl+D to duplicate) ----
+
+    private void OnMoveLineUpAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        MoveSelectedLines(-1);
+        args.Handled = true;
+    }
+
+    private void OnMoveLineDownAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        MoveSelectedLines(1);
+        args.Handled = true;
+    }
+
+    private void OnDuplicateLineAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        DuplicateCurrentLines();
+        args.Handled = true;
+    }
+
+    private static int CountNewlines(string s, int upTo)
+    {
+        var n = 0;
+        var end = Math.Min(upTo, s.Length);
+        for (var i = 0; i < end; i++) if (s[i] == '\n') n++;
+        return n;
+    }
+
+    // Move the (possibly multi-line) selection up (-1) or down (+1) one line, keeping it selected.
+    private void MoveSelectedLines(int direction)
+    {
+        var tb = PasteTextBox;
+        var text = tb.Text ?? string.Empty;
+        if (text.Length == 0) return;
+
+        var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
+        var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
+        var anchor = selLen > 0 ? selStart + selLen - 1 : selStart;
+
+        var list = new List<string>(text.Split('\n'));
+        var first = CountNewlines(text, selStart);
+        var last = CountNewlines(text, anchor);
+        if (first > last) (first, last) = (last, first);
+        if (first < 0) first = 0;
+        if (last > list.Count - 1) last = list.Count - 1;
+
+        int shift;
+        if (direction < 0)
+        {
+            if (first == 0) return; // already at the very top
+            shift = -(list[first - 1].Length + 1);
+            var above = list[first - 1];
+            list.RemoveAt(first - 1);
+            list.Insert(last, above);
+        }
+        else
+        {
+            if (last >= list.Count - 1) return; // already at the very bottom
+            shift = list[last + 1].Length + 1;
+            var below = list[last + 1];
+            list.RemoveAt(last + 1);
+            list.Insert(first, below);
+        }
+
+        tb.Text = string.Join("\n", list);
+        tb.SelectionStart = Math.Clamp(selStart + shift, 0, tb.Text.Length);
+        tb.SelectionLength = Math.Clamp(selLen, 0, tb.Text.Length - tb.SelectionStart);
+        tb.Focus(FocusState.Programmatic);
+    }
+
+    // Duplicate the current line (or the selected lines) directly below itself.
+    private void DuplicateCurrentLines()
+    {
+        var tb = PasteTextBox;
+        var text = tb.Text ?? string.Empty;
+        if (text.Length == 0) return;
+
+        var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
+        var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
+        var anchor = selLen > 0 ? selStart + selLen - 1 : selStart;
+
+        var lines = text.Split('\n');
+        var first = CountNewlines(text, selStart);
+        var last = CountNewlines(text, anchor);
+        if (first > last) (first, last) = (last, first);
+        if (last > lines.Length - 1) last = lines.Length - 1;
+
+        var block = string.Join("\n", lines, first, last - first + 1);
+
+        // Find the newline that ends line `last` (-1 when it is the final line).
+        var lineEnd = -1;
+        var ln = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n') { if (ln == last) { lineEnd = i; break; } ln++; }
+        }
+
+        string newText;
+        int caret;
+        if (lineEnd >= 0)
+        {
+            newText = text.Insert(lineEnd + 1, block + "\n");
+            caret = lineEnd + 1 + block.Length + 1;
+        }
+        else
+        {
+            newText = text + "\n" + block;
+            caret = newText.Length;
+        }
+        tb.Text = newText;
+        tb.SelectionStart = Math.Clamp(caret, 0, newText.Length);
+        tb.SelectionLength = 0;
+        tb.Focus(FocusState.Programmatic);
+    }
+
+    // ---- Document cleanup ----
+
+    // One-click tidy-up: strip trailing whitespace, collapse runs of 3+ blank lines to two, and trim
+    // leading/trailing blank lines. Reports how much it fixed in the status bar.
+    private void OnCleanupClick(object sender, RoutedEventArgs e)
+    {
+        var tb = PasteTextBox;
+        var text = tb.Text ?? string.Empty;
+        if (text.Length == 0) return;
+
+        var hadCrlf = text.Contains("\r\n");
+        var norm = text.Replace("\r\n", "\n");
+        var lines = norm.Split('\n');
+
+        var changes = 0;
+        var cleaned = new List<string>(lines.Length);
+        var blankRun = 0;
+        foreach (var raw in lines)
+        {
+            var line = raw.TrimEnd();
+            if (line.Length != raw.Length) changes++;
+            if (line.Length == 0)
+            {
+                blankRun++;
+                if (blankRun > 2) { changes++; continue; } // collapse 3+ consecutive blanks
+            }
+            else
+            {
+                blankRun = 0;
+            }
+            cleaned.Add(line);
+        }
+        while (cleaned.Count > 0 && cleaned[0].Length == 0) { cleaned.RemoveAt(0); changes++; }
+        while (cleaned.Count > 0 && cleaned[^1].Length == 0) { cleaned.RemoveAt(cleaned.Count - 1); changes++; }
+
+        if (changes == 0)
+        {
+            ViewModel.StatusText = "Document is already clean — nothing to fix.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
+        }
+
+        var result = string.Join("\n", cleaned);
+        if (hadCrlf) result = result.Replace("\n", "\r\n");
+        var caret = Math.Clamp(tb.SelectionStart, 0, result.Length);
+        tb.Text = result;
+        tb.SelectionStart = caret;
+        tb.SelectionLength = 0;
+        ViewModel.StatusText = $"Cleaned up {changes} issue{(changes == 1 ? "" : "s")} (trailing spaces, blank-line runs).";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    // ---- Focus mode (F11): hide the side panes for distraction-free editing ----
+
+    private void OnFocusModeToggled(object sender, RoutedEventArgs e) => ApplyFocusMode(FocusModeToggle?.IsChecked == true);
+
+    private void OnFocusModeAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true;
+        args.Handled = true;
+    }
+
+    private void ApplyFocusMode(bool focus)
+    {
+        if (focus)
+        {
+            _savedLeftPaneWidth = LeftPaneCol.Width;
+            _savedRightPaneWidth = RightPaneCol.Width;
+            _savedLeftPaneMinWidth = LeftPaneCol.MinWidth;
+            _savedRightPaneMinWidth = RightPaneCol.MinWidth;
+            // Zero the MinWidths too — a ColumnDefinition's MinWidth wins over Width, so without this
+            // the "collapsed" panes would still hold a 250px gap on each side.
+            LeftPaneCol.MinWidth = 0;
+            RightPaneCol.MinWidth = 0;
+            LeftPaneCol.Width = new GridLength(0);
+            RightPaneCol.Width = new GridLength(0);
+            if (LeftPane != null) LeftPane.Visibility = Visibility.Collapsed;
+            if (RightPane != null) RightPane.Visibility = Visibility.Collapsed;
+            if (LeftSplitter != null) LeftSplitter.Visibility = Visibility.Collapsed;
+            if (RightSplitter != null) RightSplitter.Visibility = Visibility.Collapsed;
+            if (MainLayoutGrid != null) MainLayoutGrid.ColumnSpacing = 0;
+        }
+        else
+        {
+            LeftPaneCol.Width = _savedLeftPaneWidth.IsAuto ? new GridLength(320) : _savedLeftPaneWidth;
+            RightPaneCol.Width = _savedRightPaneWidth.IsAuto ? new GridLength(380) : _savedRightPaneWidth;
+            LeftPaneCol.MinWidth = _savedLeftPaneMinWidth > 0 ? _savedLeftPaneMinWidth : 250;
+            RightPaneCol.MinWidth = _savedRightPaneMinWidth > 0 ? _savedRightPaneMinWidth : 250;
+            if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            if (RightPane != null) RightPane.Visibility = Visibility.Visible;
+            if (LeftSplitter != null) LeftSplitter.Visibility = Visibility.Visible;
+            if (RightSplitter != null) RightSplitter.Visibility = Visibility.Visible;
+            if (MainLayoutGrid != null) MainLayoutGrid.ColumnSpacing = 10;
+        }
+    }
+
+    // ---- Print (Ctrl+P): print the rendered document via the WebView ----
+
+    private void OnPrintClick(object sender, RoutedEventArgs e) => PrintDocument();
+
+    private void OnPrintAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        PrintDocument();
+        args.Handled = true;
+    }
+
+    // Open the system print dialog for the rendered preview. The preview is kept current by the
+    // debounced auto-refresh (it renders even while the preview tab is hidden), so what you see is
+    // what prints. If the WebView hasn't finished initializing yet, wait for it rather than failing.
+    private async void PrintDocument()
+    {
+        if (!await EnsurePreviewWebViewAsync())
+        {
+            ViewModel.StatusText = "The preview isn't ready yet — try again in a moment.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        var core = PreviewWebView.CoreWebView2;
+        try
+        {
+            core.ShowPrintUI(Microsoft.Web.WebView2.Core.CoreWebView2PrintDialogKind.System);
+            ViewModel.StatusText = "Opening the print dialog…";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Print failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    // ---- Preview zoom (buttons + Ctrl+wheel) — persisted across sessions ----
+
+    private const double PreviewZoomMin = 0.25;
+    private const double PreviewZoomMax = 4.0;
+    private const double PreviewZoomStep = 0.1;
+
+    private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom + PreviewZoomStep, persist: true);
+
+    private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom - PreviewZoomStep, persist: true);
+
+    private void ApplyPreviewZoom(double factor, bool persist)
+    {
+        var clamped = Math.Clamp(factor, PreviewZoomMin, PreviewZoomMax);
+        _lastPreviewZoom = clamped;
+        ApplyPreviewCssZoom(clamped);
+        if (PreviewZoomText is not null)
+            PreviewZoomText.Text = $"{(int)Math.Round(clamped * 100.0)}%";
+        if (persist)
+        {
+            App.Settings.Current.PreviewZoom = clamped;
+            App.Settings.Save();
+        }
+    }
+
+    // Apply the zoom as a CSS zoom on the root element. Best-effort: the CoreWebView2 may not be
+    // ready on the very first call (the value is re-applied after every navigation regardless).
+    private void ApplyPreviewCssZoom(double factor)
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return;
+        var f = factor.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        _ = core.ExecuteScriptAsync($"document.documentElement.style.zoom = '{f}';");
+    }
+
+    // Install the Ctrl+wheel -> "preview-zoom" bridge once. Native browser zoom is disabled so the
+    // wheel and the buttons both flow through ApplyPreviewZoom (one source of truth, no compounding).
+    private async Task SetupPreviewZoomAsync()
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return;
+        try { core.Settings.IsZoomControlEnabled = false; } catch { /* setting unavailable */ }
+        try
+        {
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(
+                "window.addEventListener('wheel', function(e){" +
+                "if(e.ctrlKey){e.preventDefault();" +
+                "try{window.chrome.webview.postMessage(JSON.stringify({type:'preview-zoom',delta:e.deltaY}));}catch(_){}" +
+                "}}, {passive:false});");
+        }
+        catch { /* listener already registered or unavailable */ }
+    }
+
+    // ---- Auto-recovery of unsaved editor content ----
+
+    // Debounce the recovery write so a fast typist doesn't hit the disk on every keystroke.
+    private void ScheduleAutosave()
+    {
+        if (_autosaveTimer is null)
+        {
+            _autosaveTimer = DispatcherQueue.CreateTimer();
+            _autosaveTimer.Interval = TimeSpan.FromSeconds(2);
+            _autosaveTimer.Tick += (_, _) => { _autosaveTimer.Stop(); WriteRecoveryFile(); };
+        }
+        _autosaveTimer.Stop();
+        _autosaveTimer.Start();
+    }
+
+    // Mirror the paste buffer to the recovery file. When the editor is file-based (or empty) there
+    // is nothing unsaved to protect, so any stale recovery file is removed instead.
+    private void WriteRecoveryFile()
+    {
+        try
+        {
+            if (ViewModel.UsePasteSource && !string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown))
+            {
+                Directory.CreateDirectory(RecoveryDir);
+                File.WriteAllText(RecoveryPath, ViewModel.PastedMarkdown);
+            }
+            else if (File.Exists(RecoveryPath))
+            {
+                File.Delete(RecoveryPath);
+            }
+        }
+        catch { /* recovery is best-effort and must never interrupt editing */ }
+    }
+
+    // On launch, if a recovery file survived the previous session, offer to restore it. Runs once the
+    // visual tree is ready (a ContentDialog needs a XamlRoot).
+    private async Task CheckRecoveryAsync()
+    {
+        try
+        {
+            if (!File.Exists(RecoveryPath)) return;
+            var content = File.ReadAllText(RecoveryPath);
+            if (string.IsNullOrWhiteSpace(content)) { File.Delete(RecoveryPath); return; }
+
+            var dialog = new ContentDialog
+            {
+                Title = "Recover unsaved document",
+                Content = "MarkSmith found an unsaved document from your last session. Would you like to restore it?",
+                PrimaryButtonText = "Restore",
+                CloseButtonText = "Discard",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                ViewModel.CurrentMarkdown = content;
+                ViewModel.StatusText = "Unsaved document restored from your last session.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                await RefreshPreviewAsync(heavy: true);
+            }
+            File.Delete(RecoveryPath);
+        }
+        catch { /* recovery is best-effort */ }
     }
 
     private void InsertMarkdown(string prefix, string suffix = "")

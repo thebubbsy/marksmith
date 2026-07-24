@@ -9,6 +9,30 @@ public sealed class AppSettings
     public bool MermaidEnabled { get; set; } = true;
     public string OutputFolder { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+
+    // Template for export file names. Tokens: {title} (document title), {date} (yyyy-MM-dd),
+    // {time} (HH-mm-ss), {format} (pdf/docx/pptx). Default "{title}" keeps the historic behavior.
+    public string FileNameTemplate { get; set; } = "{title}";
+
+    // Theme names the user has pinned; favorites are surfaced at the top of the theme dropdown.
+    public List<string> FavoriteThemes { get; set; } = new();
+
+    // Full paths of files the user has explicitly pinned; they always sit at the very top of the
+    // Step-1 file picker (above the auto-surfaced recents) so a go-to document is one click away.
+    public List<string> PinnedFiles { get; set; } = new();
+
+    // Editor (Markdown source) font size in px. Zoomable at runtime (A+/A- buttons, Ctrl+wheel)
+    // and persisted so the editor comes back at the size the user last chose. 13 matches the XAML default.
+    public double EditorFontSize { get; set; } = 13;
+
+    // Live-preview zoom factor (1.0 = 100%). Settable via the preview zoom buttons and the browser's
+    // native Ctrl+wheel inside the WebView; persisted so the preview opens at the last zoom.
+    public double PreviewZoom { get; set; } = 1.0;
+
+    // Whether the Markdown editor soft-wraps long lines. When off, the editor scrolls horizontally
+    // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
+    public bool EditorWordWrap { get; set; } = true;
+
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
 
@@ -144,6 +168,12 @@ public sealed class AppSettings
         ContentWidth = other.ContentWidth;
         MermaidEnabled = other.MermaidEnabled;
         OutputFolder = other.OutputFolder;
+        FileNameTemplate = other.FileNameTemplate;
+        FavoriteThemes = new List<string>(other.FavoriteThemes);
+        PinnedFiles = new List<string>(other.PinnedFiles);
+        EditorFontSize = other.EditorFontSize;
+        PreviewZoom = other.PreviewZoom;
+        EditorWordWrap = other.EditorWordWrap;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
         NormalizeLlm = other.NormalizeLlm;

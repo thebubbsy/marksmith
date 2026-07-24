@@ -10,6 +10,7 @@
 
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter" />
+        <conv:ShapeToVisibilityConverter x:Key="ShapeVisConverter" />
     </UserControl.Resources>
 
     <Grid x:Name="CanvasRootGrid" Background="#1E1E2E">
@@ -94,12 +95,30 @@
                                         IsHitTestVisible="False"
                                         Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}" />
 
-                                <!-- Shape 1: Rounded Rectangle -->
-                                <Border Background="{Binding FillColor}"
-                                        BorderBrush="{Binding StrokeColor}"
-                                        BorderThickness="{Binding StrokeWidth}"
-                                        CornerRadius="10"
-                                        Padding="10">
+                                <!-- Shapes Area -->
+                                <Grid>
+                                    <!-- Fallback / Rectangular Shapes -->
+                                    <Border Background="{Binding FillColor}"
+                                            BorderBrush="{Binding StrokeColor}"
+                                            BorderThickness="{Binding StrokeWidth}"
+                                            CornerRadius="10"
+                                            Padding="10"
+                                            Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Rectangle,RoundedRectangle,Stadium,Subroutine,Participant,Entity,TaskBar,Milestone,ClassBox,Interface'}">
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+                                    
+                                    <!-- Circular Shapes -->
+                                    <Ellipse Fill="{Binding FillColor}"
+                                             Stroke="{Binding StrokeColor}"
+                                             StrokeThickness="{Binding StrokeWidth}"
+                                             Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Circle,RootNode,NormalState'}" />
                                     <TextBlock Text="{Binding LabelText}"
                                                Foreground="#EDF2F4"
                                                FontWeight="SemiBold"
@@ -107,8 +126,67 @@
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                TextAlignment="Center"
-                                               TextWrapping="Wrap" />
-                                </Border>
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Circle,RootNode,NormalState'}" />
+                                               
+                                    <!-- Actor Shape -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Actor'}">
+                                        <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                    </StackPanel>
+                                    
+                                    <!-- Cylindrical Database Shape -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='CylindricalDatabase'}">
+                                        <FontIcon Glyph="&#xEAF5;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                    </StackPanel>
+
+                                    <!-- Rhombus / ChoiceState Shape -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Rhombus,ChoiceState'}">
+                                        <Polygon Fill="{Binding FillColor}"
+                                                 Stroke="{Binding StrokeColor}"
+                                                 StrokeThickness="{Binding StrokeWidth}"
+                                                 Points="50,0 100,50 50,100 0,50"
+                                                 Stretch="Fill" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+                                    
+                                    <!-- Hexagon Shape -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Hexagon'}">
+                                        <Polygon Fill="{Binding FillColor}"
+                                                 Stroke="{Binding StrokeColor}"
+                                                 StrokeThickness="{Binding StrokeWidth}"
+                                                 Points="25,0 75,0 100,50 75,100 25,100 0,50"
+                                                 Stretch="Fill" />
+                                        <TextBlock Text="{Binding LabelText}"
+                                                   Foreground="#EDF2F4"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+                                </Grid>
 
                                 <!-- Anchor Handles Overlay (Top, Right, Bottom, Left) -->
                                 <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-13,0,0" Tag="Top">
@@ -171,17 +249,26 @@
 
                 <!-- Layer 5: Floating Inline TextBox Editor -->
                 <Canvas x:Name="InPlaceEditorCanvas" Visibility="Collapsed" Canvas.ZIndex="100">
-                    <TextBox x:Name="InlineEditTextBox"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             FontFamily="Cascadia Mono, Consolas, Segoe UI"
-                             FontSize="13"
-                             Background="#2B2D42"
-                             Foreground="#EDF2F4"
-                             BorderBrush="#4CC9F0"
-                             BorderThickness="2"
-                             LostFocus="OnInlineEditLostFocus"
-                             KeyDown="OnInlineEditKeyDown" />
+                    <StackPanel x:Name="InlineEditContainer" Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="2" CornerRadius="4">
+                        <TextBox x:Name="InlineEditTextBox"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                                 FontSize="13"
+                                 Background="Transparent"
+                                 Foreground="#EDF2F4"
+                                 BorderThickness="0"
+                                 MinHeight="40"
+                                 KeyDown="OnInlineEditKeyDown" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,4,4">
+                            <Button Background="Transparent" BorderThickness="0" Padding="4" Click="OnInlineAcceptClick" ToolTipService.ToolTip="Accept">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#00E676" />
+                            </Button>
+                            <Button Background="Transparent" BorderThickness="0" Padding="4" Click="OnInlineCancelClick" ToolTipService.ToolTip="Cancel">
+                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FF1744" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
                 </Canvas>
 
             </Grid>

@@ -112,6 +112,8 @@ public sealed partial class MainViewModel : ObservableObject
     public LlmClassification? LastClassification { get; private set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(WordCountText))]
+    [NotifyPropertyChangedFor(nameof(DocumentStats))]
+    [NotifyPropertyChangedFor(nameof(DocumentStatsDetail))]
     [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
     private string _pastedMarkdown = string.Empty;
 
@@ -185,14 +187,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public string WordCountText
-    {
-        get
-        {
-            var words = PastedMarkdown.Split(new[] { ' ', '\n', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
-            return $"{words} words · {PastedMarkdown.Length} chars";
-        }
-    }
+    public string WordCountText => DocumentStats.SummaryText;
+
+    // Full breakdown (words, characters, reading time, headings/code/tables/images/links/diagrams)
+    // for the status-bar tooltip. Recomputed lazily off the current markdown.
+    public string DocumentStatsDetail => DocumentStats.DetailText;
+
+    // Reading-time / structure metrics for the current document. Derived from PastedMarkdown, so it
+    // refreshes with the same change notification the word count already fired on.
+    public Services.DocumentStats DocumentStats => Services.DocumentStatsService.Analyze(PastedMarkdown);
 
     partial void OnPastedMarkdownChanged(string value)
     {

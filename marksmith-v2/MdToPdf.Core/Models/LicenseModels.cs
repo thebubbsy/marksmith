@@ -16,6 +16,7 @@ public sealed class LicenseState
 
     // ---- entitlements (the paywall) ----
     public bool CanExportDocx => IsPro;   // DOCX + editable math
+    public bool CanExportPptx => IsPro;   // PPTX slide decks
     public bool CanAutomate => IsPro;     // hands-free auto-convert (clipboard / watch folder / extension)
     public bool ShowFooter => !IsPro;     // "Made with Marksmith" footer on free exports
 }

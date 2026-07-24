@@ -103,10 +103,15 @@ public static class MarkdownDiscoveryService
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(
-                @"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders");
-            if (key?.GetValue("{374DE290-123F-4565-9164-39C4925E467B}") is string v && v.Length > 0)
-                return Environment.ExpandEnvironmentVariables(v);
+            // Shell Folders lives in the Windows registry only; skip on other platforms so the
+            // net8.0 engine stays cross-platform clean (CA1416) and falls back to ~/Downloads.
+            if (OperatingSystem.IsWindows())
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders");
+                if (key?.GetValue("{374DE290-123F-4565-9164-39C4925E467B}") is string v && v.Length > 0)
+                    return Environment.ExpandEnvironmentVariables(v);
+            }
         }
         catch { /* fall through to the default */ }
         var def = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
