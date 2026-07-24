@@ -31,7 +31,8 @@
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's
                  "Copy as Markdown" button would have kept the formatting. -->
-            <localcontrols:ExtensionHintBar x:Name="ExtensionHintBar" Margin="16,0,16,0" />
+            <localcontrols:ExtensionHintBar x:Name="ExtensionHintBar" Margin="16,0,16,0"
+                                            IsOpen="{x:Bind ViewModel.ShowExtensionTip, Mode=TwoWay}" />
         </StackPanel>
 
         <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
@@ -78,7 +79,7 @@
 
                 <!-- One-time tip: the browser extension lets users send AI chats here in one click. -->
                 <localcontrols:ExtensionTip Grid.Row="1" x:Name="ExtensionTip" 
-                                            Closed="OnExtensionTipClosed" />
+                                            IsOpen="{x:Bind ViewModel.ShowExtensionTip, Mode=TwoWay}" />
 
                 <Border Grid.Row="2" Style="{StaticResource PipelineCardStyle}"
                         AllowDrop="True" DragOver="OnSourceDragOver" Drop="OnSourceDrop">
@@ -454,6 +455,7 @@
                             </StackPanel>
 
                             <TextBlock Grid.Row="2" Text="{Binding WordCountText}" HorizontalAlignment="Right"
+                                       ToolTipService.ToolTip="{Binding DocumentStatsDetail}"
                                        Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" />
                         </Grid>
                     <Border x:Name="PreviewCard" Grid.Row="1" Visibility="Collapsed" Style="{StaticResource PipelineCardStyle}">

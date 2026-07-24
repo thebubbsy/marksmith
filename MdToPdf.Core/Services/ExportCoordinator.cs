@@ -343,18 +343,23 @@ public sealed class ExportCoordinator
                     case "pdf":
                         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
                         var html = AppServices.MarkdownHtml.Render(md, settings, theme, null);
-                        await _pdfExport.ExportAsync(host, html, outPath, settings);
+                        // host is guaranteed non-null here: the fmt=="pdf" guard above throws otherwise.
+                        await _pdfExport.ExportAsync(host!, html, outPath, settings);
                         break;
                     case "docx":
                         IReadOnlyList<byte[]?>? mermaidImgs = null;
                         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
                         IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGen = null;
-                        if (md.Contains("```mermaid", StringComparison.Ordinal))
+                        // Mermaid rendering/geometry harvesting needs a live web host. In headless/API
+                        // batch runs host can be null — skip harvesting instead of crashing; the DOCX
+                        // exporter falls back to parser-based ShapeForge or a code block for diagrams.
+                        if (host is not null && md.Contains("```mermaid", StringComparison.Ordinal))
                         {
-                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
+                            var docxTheme = AppServices.Themes.GetOrDefault(settings.Theme);
+                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, docxTheme);
                             if (settings.MermaidDocxMode == 1)
                             {
-                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, AppServices.Themes.GetOrDefault(settings.Theme));
+                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, docxTheme);
                                 mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
                             }
                         }

@@ -4,9 +4,29 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    RequestedTheme="Dark">
+
+    <UserControl.Resources>
+        <!-- The Studio is always dark with a cyan accent, regardless of the user's Windows
+             accent color (otherwise default-styled buttons/toggles bleed through purple or
+             whatever the OS accent is, clashing with the grey main window). -->
+        <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="#4CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightAltAccentBrush" Color="#4CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightAltListAccentHighBrush" Color="#4CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightAltListAccentLowBrush" Color="#334CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightAltListAccentMediumBrush" Color="#664CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightListAccentHighBrush" Color="#4CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightListAccentLowBrush" Color="#334CC9F0" />
+        <SolidColorBrush x:Key="SystemControlHighlightListAccentMediumBrush" Color="#664CC9F0" />
+        <SolidColorBrush x:Key="SystemControlForegroundAccentBrush" Color="#4CC9F0" />
+    </UserControl.Resources>
 
     <Grid x:Name="RootGrid" Background="#181825">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Modifiers="Control" Key="Z" Invoked="OnUndoAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Y" Invoked="OnRedoAcceleratorInvoked" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="40" /> <!-- App Title Bar Area -->
             <RowDefinition Height="48" /> <!-- Studio Toolbar -->
@@ -34,10 +54,11 @@
 
                 <!-- Left Tools -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes">
+                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8D7;" FontSize="14" Foreground="#4CC9F0" />
-                            <TextBlock Text="Auto Layout ⚡" FontSize="12" />
+                            <TextBlock Text="Auto Layout ⚡" FontSize="12" Foreground="#EDF2F4" />
                         </StackPanel>
                     </Button>
 
@@ -46,11 +67,22 @@
                                   IsOn="{Binding IsGridSnapEnabled, Mode=TwoWay}"
                                   Margin="8,0,0,0" />
 
-                    <Button Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete Selected Item">
+                    <Button Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete Selected Item"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
-                            <TextBlock Text="Delete" FontSize="12" />
+                            <TextBlock Text="Delete" FontSize="12" Foreground="#EDF2F4" />
                         </StackPanel>
+                    </Button>
+
+                    <Button Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                        <FontIcon Glyph="&#xE7A7;" FontSize="14" Foreground="#4CC9F0" />
+                    </Button>
+
+                    <Button Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y)"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                        <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
                 </StackPanel>
 
@@ -63,10 +95,11 @@
 
                 <!-- Right Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnSyncToMarkdownClick">
+                    <Button Click="OnSyncToMarkdownClick"
+                            Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="Sync to Markdown 🔄" FontSize="12" FontWeight="SemiBold" />
+                            <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Sync to Markdown 🔄" FontSize="12" FontWeight="SemiBold" Foreground="#EDF2F4" />
                         </StackPanel>
                     </Button>
                 </StackPanel>

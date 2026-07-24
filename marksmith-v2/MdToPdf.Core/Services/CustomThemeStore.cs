@@ -50,10 +50,28 @@ public static class CustomThemeStore
         try
         {
             if (File.Exists(StorePath))
-                return JsonSerializer.Deserialize<List<ThemeDefinition>>(File.ReadAllText(StorePath), JsonOpts) ?? new();
+            {
+                var loaded = JsonSerializer.Deserialize<List<ThemeDefinition>>(File.ReadAllText(StorePath), JsonOpts) ?? new();
+                // Drop leaked debug/test artifacts (e.g. "Test Theme <32-hex guid>") so they never
+                // surface in the user-facing theme dropdown. Legitimate user themes are unaffected.
+                loaded.RemoveAll(t => IsTestArtifactName(t.Name));
+                return loaded;
+            }
         }
         catch { /* corrupt store: start fresh rather than crash the app at startup */ }
         return new();
+    }
+
+    // Matches the naming pattern used by automated tests ("Test Theme " + 32-hex GUID, see
+    // ShapeForgeAndThemeTests). A real user would never name a theme this, so it is a safe,
+    // precise filter for debug artifacts that escaped cleanup.
+    private static bool IsTestArtifactName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        const string prefix = "Test Theme ";
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+        var suffix = name.Substring(prefix.Length);
+        return suffix.Length == 32 && suffix.All(Uri.IsHexDigit);
     }
 
     private static void Save()

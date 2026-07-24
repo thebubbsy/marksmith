@@ -995,7 +995,6 @@ public sealed class DocxExportService
 
     private static void AppendHighlightedCodeRuns(W.Paragraph para, IEnumerable<W.Run> runs)
     {
-        var first = true;
         foreach (var run in runs)
         {
             var textObj = run.GetFirstChild<W.Text>();
@@ -3446,7 +3445,7 @@ public sealed class DocxExportService
                 var xDoc = XDocument.Parse(svgContent);
                 var svgElement = xDoc.Root;
 
-                var viewBox = svgElement.Attribute("viewBox")?.Value;
+                var viewBox = svgElement?.Attribute("viewBox")?.Value;
                 if (!string.IsNullOrEmpty(viewBox))
                 {
                     var parts = viewBox.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
@@ -3458,7 +3457,7 @@ public sealed class DocxExportService
                     }
                 }
                 
-                foreach (var el in svgElement.Descendants())
+                foreach (var el in svgElement?.Descendants() ?? Enumerable.Empty<XElement>())
                 {
                     var localName = el.Name.LocalName.ToLowerInvariant();
                     if (localName == "path")
