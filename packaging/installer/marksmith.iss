@@ -6,13 +6,13 @@
 ; Chocolatey, and a Microsoft Store EXE/MSI submission.
 
 #define AppName "Marksmith"
-#define AppVersion "1.4.1"
+#define AppVersion "1.7.0"
 #define AppPublisher "thebubbsy"
 #define AppURL "https://github.com/thebubbsy/marksmith"
 #define AppExe "Marksmith.exe"
 
 #ifndef PublishDir
-  #define PublishDir "..\..\MdToPdf\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish"
+  #define PublishDir "..\..\marksmith-v2\MdToPdf\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish"
 #endif
 
 [Setup]
