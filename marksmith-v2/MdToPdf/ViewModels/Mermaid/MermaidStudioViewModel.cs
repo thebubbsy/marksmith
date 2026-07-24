@@ -52,7 +52,76 @@ public partial class MermaidStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _rawMermaidCode = string.Empty;
 
+    // Canonical code snapshot of the last load/save point, used to detect unsaved edits. We compare
+    // generated-code-to-generated-code (not the raw source text) so harmless formatting differences
+    // between the authored fence and the generator's output don't register as false "dirty" state.
+    private string _savedCode = string.Empty;
+
     public MermaidDiagramAst? CurrentAst { get; private set; }
+
+    // True when the canvas has drifted from the last load/sync — drives the "unsaved changes"
+    // prompt on window close.
+    public bool HasUnsavedChanges => !string.Equals(GenerateMermaidCode(), _savedCode, StringComparison.Ordinal);
+
+    // ---- Undo / Redo (memento snapshots of canonical mermaid code) ----
+    // The whole canvas round-trips through GenerateMermaidCode()/parse, so a single string is a
+    // complete, faithful snapshot. Snapshot BEFORE each mutation; undo/redo swap the current state
+    // with the stack top. Capped so a long editing session can't grow without bound.
+    private readonly List<string> _undoStack = new();
+    private readonly List<string> _redoStack = new();
+    private const int MaxUndoDepth = 100;
+
+    [ObservableProperty] private bool _canUndo;
+    [ObservableProperty] private bool _canRedo;
+
+    // Call BEFORE a mutation so the pre-change state is what gets restored.
+    public void SnapshotForUndo()
+    {
+        _undoStack.Add(GenerateMermaidCode());
+        if (_undoStack.Count > MaxUndoDepth) _undoStack.RemoveAt(0);
+        _redoStack.Clear();
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = false;
+    }
+
+    [RelayCommand]
+    public void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+        _redoStack.Add(GenerateMermaidCode());
+        var prev = _undoStack[^1];
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        RestoreFromCode(prev);
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = _redoStack.Count > 0;
+        StatusText = "Undid last change.";
+    }
+
+    [RelayCommand]
+    public void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+        _undoStack.Add(GenerateMermaidCode());
+        var next = _redoStack[^1];
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+        RestoreFromCode(next);
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = _redoStack.Count > 0;
+        StatusText = "Redid change.";
+    }
+
+    private void RestoreFromCode(string code)
+    {
+        var parseResult = MermaidParser.Parse(code);
+        if (parseResult.Ast is null) return;
+        CurrentAst = parseResult.Ast;
+        SelectedDiagramType = parseResult.Ast.DiagramType;
+        AstToCanvas(parseResult.Ast);
+        // Deliberately do NOT touch _savedCode: undo/redo must not reset the unsaved-changes baseline.
+        SelectedNodes.Clear();
+        SelectedNode = null;
+        SelectedConnector = null;
+    }
 
     public MermaidStudioViewModel()
     {
@@ -129,6 +198,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             CurrentAst = parseResult.Ast;
             SelectedDiagramType = parseResult.Ast.DiagramType;
             AstToCanvas(parseResult.Ast);
+            _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
             StatusText = $"Loaded {SelectedDiagramType} diagram ({Nodes.Count} nodes, {Connectors.Count} edges).";
         }
         else
@@ -160,6 +230,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         conn2.UpdateGeometry(nodeB.AnchorRight, nodeC.AnchorLeft);
         Connectors.Add(conn2);
 
+        _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
         StatusText = "Sample flowchart initialized.";
     }
 
@@ -174,10 +245,15 @@ public partial class MermaidStudioViewModel : ObservableObject
                 foreach (var kvp in flowchart.Nodes)
                 {
                     var fn = kvp.Value;
+                    // Display <br/> (and variants) as real line breaks on the canvas; the
+                    // code generator re-escapes \n back to <br/> on sync, so the round-trip
+                    // is lossless and multi-line labels render properly in both worlds.
+                    string label = string.IsNullOrEmpty(fn.Text) ? fn.Id : fn.Text;
+                    label = System.Text.RegularExpressions.Regex.Replace(label, "<br\\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = fn.Id,
-                        LabelText = string.IsNullOrEmpty(fn.Text) ? fn.Id : fn.Text,
+                        LabelText = label,
                         Shape = fn.Shape.ToString(),
                         Category = "Flowchart"
                     });
@@ -370,9 +446,18 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
-    public void ApplyAutoLayout()
+    public void ApplyAutoLayout(bool force = false)
     {
         if (Nodes.Count == 0) return;
+
+        // The Auto Layout toolbar button passes force=true: it is an explicit user request to
+        // re-arrange the whole diagram, so it must override any node the user has dragged or that
+        // was loaded with a saved position (HasCustomPosition). The default (force=false) path is
+        // used on load, where saved/custom positions are deliberately respected.
+        if (force)
+        {
+            foreach (var n in Nodes) n.HasCustomPosition = false;
+        }
 
         if (SelectedDiagramType == MermaidDiagramType.Mindmap)
         {
@@ -681,6 +766,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public DiagramNodeViewModel QuickAddNode(DiagramNodeViewModel sourceNode, string direction)
     {
+        SnapshotForUndo();
         int counter = Nodes.Count + 1;
         string id = $"node_{counter}";
         while (Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
@@ -774,7 +860,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         };
 
         Nodes.Add(newNode);
-        AddConnector(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
+        AddConnectorCore(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
         SelectNode(newNode, false);
         StatusText = $"Quick-added node '{newNode.LabelText}' ({direction}).";
         return newNode;
@@ -821,6 +907,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
     {
+        SnapshotForUndo();
         int counter = Nodes.Count + 1;
         string id = $"node_{counter}";
         while (Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
@@ -851,6 +938,14 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void AddConnector(string sourceId, string sourceAnchor, string targetId, string targetAnchor)
     {
+        SnapshotForUndo();
+        AddConnectorCore(sourceId, sourceAnchor, targetId, targetAnchor);
+    }
+
+    // Snapshot-free core so composite operations (e.g. QuickAddNode = add node + add connector) can
+    // record a single undo entry instead of one per sub-step.
+    private void AddConnectorCore(string sourceId, string sourceAnchor, string targetId, string targetAnchor)
+    {
         var conn = new DiagramConnectorViewModel
         {
             SourceNodeId = sourceId,
@@ -871,6 +966,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (SelectedNodes.Count > 0 || SelectedNode != null)
         {
+            SnapshotForUndo();
             var nodesToDelete = SelectedNodes.Count > 0 ? SelectedNodes.ToList() : new List<DiagramNodeViewModel> { SelectedNode! };
             foreach (var nodeToDelete in nodesToDelete)
             {
@@ -885,6 +981,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
         else if (SelectedConnector != null)
         {
+            SnapshotForUndo();
             var connToDelete = SelectedConnector;
             Connectors.Remove(connToDelete);
             SelectedConnector = null;
@@ -1405,6 +1502,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         string newMermaidCode = GenerateMermaidCode();
         RawMermaidCode = newMermaidCode;
+        _savedCode = newMermaidCode; // syncing counts as saving — reset the dirty baseline
         if (MermaidMarkdownSyncService.ExtractMermaidBlocks(markdown).Count > 0)
         {
             return MermaidMarkdownSyncService.ReplaceMermaidBlock(markdown, ActiveBlockIndex, newMermaidCode);

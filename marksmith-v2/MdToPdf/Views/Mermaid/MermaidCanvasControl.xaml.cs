@@ -18,6 +18,7 @@ public sealed partial class MermaidCanvasControl : UserControl
     private Point _pointerStartPos;
     private Point _nodeStartPos;
     private Dictionary<DiagramNodeViewModel, Point>? _initialSelectedNodePositions;
+    private bool _dragSnapshotTaken;
 
     private bool _isRubberbanding;
     private Point _rubberbandStartPoint;
@@ -39,6 +40,9 @@ public sealed partial class MermaidCanvasControl : UserControl
     public MermaidCanvasControl()
     {
         InitializeComponent();
+
+        // The minimap mirrors and navigates the main canvas ScrollViewer.
+        MinimapControl.TargetScrollViewer = CanvasScrollViewer;
 
         ConnectorsItemsControl.PointerPressed += OnConnectorsItemsControlPointerPressed;
         ConnectorsItemsControl.DoubleTapped += OnConnectorsItemsControlDoubleTapped;
@@ -82,7 +86,46 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnZoomFitClick(object sender, RoutedEventArgs e)
     {
-        CanvasScrollViewer.ChangeView(null, null, 1.0f);
+        var vm = ViewModel;
+        if (vm == null || vm.Nodes.Count == 0)
+        {
+            CanvasScrollViewer.ChangeView(0, 0, 1.0f);
+            return;
+        }
+
+        // True fit-to-content: compute the bounding box of every node, derive the zoom
+        // that fits it into the current viewport (with a comfort margin), and center it.
+        const double pad = 60;
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var n in vm.Nodes)
+        {
+            minX = Math.Min(minX, n.X);
+            minY = Math.Min(minY, n.Y);
+            maxX = Math.Max(maxX, n.X + n.Width);
+            maxY = Math.Max(maxY, n.Y + n.Height);
+        }
+
+        double contentW = maxX - minX + pad * 2;
+        double contentH = maxY - minY + pad * 2;
+        double vpW = CanvasScrollViewer.ViewportWidth;
+        double vpH = CanvasScrollViewer.ViewportHeight;
+        if (vpW <= 0 || vpH <= 0)
+        {
+            CanvasScrollViewer.ChangeView(0, 0, 1.0f);
+            return;
+        }
+
+        float zoom = (float)Math.Clamp(
+            Math.Min(vpW / contentW, vpH / contentH),
+            CanvasScrollViewer.MinZoomFactor,
+            CanvasScrollViewer.MaxZoomFactor);
+
+        // Offsets are in un-scaled content coordinates; center the bounding box.
+        double offsetX = (minX - pad) - (vpW / zoom - contentW) / 2;
+        double offsetY = (minY - pad) - (vpH / zoom - contentH) / 2;
+
+        CanvasScrollViewer.ChangeView(Math.Max(0, offsetX), Math.Max(0, offsetY), zoom);
     }
 
     #endregion
@@ -170,6 +213,7 @@ public sealed partial class MermaidCanvasControl : UserControl
 
                 _isDraggingNode = true;
                 _draggedNode = nodeVM;
+                _dragSnapshotTaken = false;
                 _pointerStartPos = e.GetCurrentPoint(InfiniteCanvasGrid).Position;
                 _nodeStartPos = new Point(nodeVM.X, nodeVM.Y);
 
@@ -192,6 +236,13 @@ public sealed partial class MermaidCanvasControl : UserControl
     {
         if (_isDraggingNode && _draggedNode != null && ViewModel != null && _initialSelectedNodePositions != null)
         {
+            // Snapshot once per drag (on the first real move) so a whole reposition is a single undo
+            // step, and a mere select-click (no movement) never pollutes the undo stack.
+            if (!_dragSnapshotTaken)
+            {
+                ViewModel.SnapshotForUndo();
+                _dragSnapshotTaken = true;
+            }
             Point currentPos = e.GetCurrentPoint(InfiniteCanvasGrid).Position;
             double deltaX = currentPos.X - _pointerStartPos.X;
             double deltaY = currentPos.Y - _pointerStartPos.Y;
@@ -473,14 +524,25 @@ public sealed partial class MermaidCanvasControl : UserControl
     {
         if (_editingNode != null)
         {
-            _editingNode.LabelText = InlineEditTextBox.Text;
-            _editingNode.RecalculateBoundsForText();
-            ViewModel?.UpdateConnectedConnectors(_editingNode);
+            var newText = InlineEditTextBox.Text;
+            // Only record an undo step when the rename actually changed something.
+            if (!string.Equals(newText, _editingNode.LabelText, StringComparison.Ordinal))
+            {
+                ViewModel?.SnapshotForUndo();
+                _editingNode.LabelText = newText;
+                _editingNode.RecalculateBoundsForText();
+                ViewModel?.UpdateConnectedConnectors(_editingNode);
+            }
             _editingNode = null;
         }
         else if (_editingConnector != null)
         {
-            _editingConnector.Label = InlineEditTextBox.Text;
+            var newText = InlineEditTextBox.Text;
+            if (!string.Equals(newText, _editingConnector.Label, StringComparison.Ordinal))
+            {
+                ViewModel?.SnapshotForUndo();
+                _editingConnector.Label = newText;
+            }
             _editingConnector = null;
         }
 

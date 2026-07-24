@@ -14,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ThemeCatalog _themes = AppServices.Themes;
     private readonly PdfExportService _pdfExport = new();
     private readonly DocxExportService _docxExport = new();
+    private readonly PptxExportService _pptxExport = new();
     private readonly MermaidHarvestService _mermaidHarvest = new();
 
     private CancellationTokenSource? _conversionCts;
@@ -47,7 +48,10 @@ public sealed partial class MainViewModel : ObservableObject
     private string _inputFilePath = string.Empty;
 
     [ObservableProperty] private string _outputFolder;
+    [ObservableProperty] private string _fileNameTemplate = "{title}";
     [ObservableProperty] private string _selectedThemeName;
+    [ObservableProperty] private bool _isCurrentThemeFavorite;
+    [ObservableProperty] private bool _isCurrentFilePinned;
     [ObservableProperty] private bool _themeLightInfluence;
     [ObservableProperty] private int _contentWidth;
     [ObservableProperty] private bool _a4FixedWidth;
@@ -126,6 +130,10 @@ public sealed partial class MainViewModel : ObservableObject
         _fileReadCts?.Dispose();
         _fileReadCts = new CancellationTokenSource();
         var token = _fileReadCts.Token;
+
+        // Reflect whether the newly-selected file is one the user has pinned.
+        IsCurrentFilePinned = !string.IsNullOrWhiteSpace(value)
+            && _settingsService.Current.PinnedFiles.Contains(Path.GetFullPath(value), Services.PathEquality.Comparer);
 
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
@@ -264,11 +272,44 @@ public sealed partial class MainViewModel : ObservableObject
         IsDiscoveringFiles = true;
         try
         {
-            var entries = await Services.MarkdownDiscoveryService.DiscoverAsync(_recentFilesService.Load());
+            // Explicitly pinned files lead, then the auto-tracked recents; DiscoverAsync keeps this
+            // whole set above the disk-discovered files.
+            var pinned = _settingsService.Current.PinnedFiles;
+            var combined = pinned
+                .Concat(_recentFilesService.Load().Where(r => !pinned.Contains(r, Services.PathEquality.Comparer)))
+                .ToList();
+            var entries = await Services.MarkdownDiscoveryService.DiscoverAsync(combined);
             MarkdownFiles.Clear();
-            foreach (var e in entries) MarkdownFiles.Add(e);
+            foreach (var e in entries)
+            {
+                // Re-mark explicit pins with a 📌 so they read as user-pinned, distinct from the ★
+                // the discovery service stamps on plain recently-opened files.
+                if (pinned.Contains(e.Path, Services.PathEquality.Comparer))
+                    MarkdownFiles.Add(e with { Detail = "📌 " + e.Detail.TrimStart('★', ' ') });
+                else
+                    MarkdownFiles.Add(e);
+            }
         }
         finally { IsDiscoveringFiles = false; }
+    }
+
+    // Pins/unpins the currently selected file. Pinned files are persisted and always floated to the
+    // top of the Step-1 picker, so a go-to document stays one click away across sessions.
+    public void TogglePinCurrentFile()
+    {
+        if (string.IsNullOrWhiteSpace(InputFilePath)) return;
+        string full;
+        try { full = Path.GetFullPath(InputFilePath); } catch { return; }
+
+        var pinned = _settingsService.Current.PinnedFiles;
+        if (pinned.Contains(full, Services.PathEquality.Comparer))
+            pinned.RemoveAll(f => string.Equals(f, full, Services.PathEquality.Comparison));
+        else
+            pinned.Insert(0, full);
+        IsCurrentFilePinned = pinned.Contains(full, Services.PathEquality.Comparer);
+        SaveSettingsDebounced();
+
+        _ = RefreshMarkdownFilesAsync();
     }
 
     public void RecordExport(string kind, string outputPath, string markdown)
@@ -287,10 +328,23 @@ public sealed partial class MainViewModel : ObservableObject
         AppServices.History.Add(entry);
     }
 
+    // Raised after a manual, user-initiated export finishes (kind + output path). The WinUI layer
+    // subscribes to surface a Windows toast. Auto-ingest/watch-folder exports raise their own toast
+    // through the ExportCoordinator's callback, and batch/API flows stay silent, so this is only
+    // fired from the single-format ConvertTo*Async paths (suppressed while ExportAllAsync batches
+    // them, which raises one combined notification instead).
+    public event Action<string, string>? ExportCompleted;
+    private bool _suppressExportToasts;
+    private void RaiseExportCompleted(string kind, string path)
+    {
+        if (!_suppressExportToasts) ExportCompleted?.Invoke(kind, path);
+    }
+
     public MainViewModel()
     {
         var settings = _settingsService.Current;
         _outputFolder = settings.OutputFolder;
+        _fileNameTemplate = string.IsNullOrWhiteSpace(settings.FileNameTemplate) ? "{title}" : settings.FileNameTemplate;
         _selectedThemeName = settings.Theme;
         _themeLightInfluence = settings.ThemeLightInfluence;
         _contentWidth = settings.ContentWidth;
@@ -325,7 +379,8 @@ public sealed partial class MainViewModel : ObservableObject
         _apiPort = settings.ApiPort;
         _targetFormat = settings.TargetFormat;
 
-        ThemeNames = new ObservableCollection<string>(_themes.All.Select(t => t.Name));
+        ThemeNames = new ObservableCollection<string>(BuildOrderedThemeNames(settings.FavoriteThemes));
+        _isCurrentThemeFavorite = settings.FavoriteThemes.Contains(_selectedThemeName);
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
 
         AppServices.License.Changed += OnLicenseChanged;
@@ -355,7 +410,12 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
-    partial void OnSelectedThemeNameChanged(string value) { _settingsService.Current.Theme = value; SaveSettingsDebounced(); }
+    partial void OnFileNameTemplateChanged(string value) { _settingsService.Current.FileNameTemplate = value; SaveSettingsDebounced(); }
+    partial void OnSelectedThemeNameChanged(string value) {
+        _settingsService.Current.Theme = value;
+        IsCurrentThemeFavorite = _settingsService.Current.FavoriteThemes.Contains(value);
+        SaveSettingsDebounced();
+    }
     partial void OnThemeLightInfluenceChanged(bool value) { _settingsService.Current.ThemeLightInfluence = value; SaveSettingsDebounced(); }
     partial void OnTargetFormatChanged(string value) { 
         _settingsService.Current.TargetFormat = value; 
@@ -399,6 +459,32 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
+
+    // Pins/unpins the currently selected theme. Favorites are persisted and floated to the top of
+    // the theme dropdown so a user's go-to palettes are always one glance away.
+    public void ToggleFavoriteTheme()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedThemeName)) return;
+        var favorites = _settingsService.Current.FavoriteThemes;
+        if (favorites.Contains(SelectedThemeName)) favorites.Remove(SelectedThemeName);
+        else favorites.Add(SelectedThemeName);
+        IsCurrentThemeFavorite = favorites.Contains(SelectedThemeName);
+
+        // Rebuild the ordered list without disturbing the current selection.
+        var ordered = BuildOrderedThemeNames(favorites);
+        ThemeNames.Clear();
+        foreach (var name in ordered) ThemeNames.Add(name);
+        SaveSettingsDebounced();
+    }
+
+    private List<string> BuildOrderedThemeNames(IEnumerable<string> favorites)
+    {
+        var fav = new HashSet<string>(favorites, StringComparer.OrdinalIgnoreCase);
+        return _themes.All.Select(t => t.Name)
+            .OrderByDescending(n => fav.Contains(n))
+            .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
     // ---- Export presets ----
 
@@ -629,6 +715,7 @@ public sealed partial class MainViewModel : ObservableObject
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("PDF", outPath, markdown);
+            RaiseExportCompleted("PDF", outPath);
             StatusText = $"PDF export done: {outPath}";
         });
     }
@@ -705,8 +792,82 @@ public sealed partial class MainViewModel : ObservableObject
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
+            RaiseExportCompleted("DOCX", outPath);
             StatusText = $"DOCX export done: {outPath}{layoutNote}";
         });
+    }
+
+    public async Task ConvertToPptxAsync()
+    {
+        if (!AppServices.License.CanExportPptx)
+        {
+            StatusText = "PPTX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
+            StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("PPTX", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, PptxExportService.Extension);
+            await _pptxExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("PPTX", outPath, markdown);
+            RaiseExportCompleted("PPTX", outPath);
+            StatusText = $"PPTX export done: {outPath}";
+        });
+    }
+
+    // One-click "Export all": produces every format the license allows (PDF always; DOCX/PPTX when
+    // Pro) from the same resolved source, then reports a single combined summary. Each per-format
+    // export runs through its own ConvertTo*Async (own progress/error handling), so a failure in one
+    // format never blocks the others — success is detected by the export-history count growing.
+    public async Task ExportAllAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        IsBusy = true;
+        _suppressExportToasts = true; // one combined toast at the end, not one per format
+        var done = new List<string>();
+        var failed = new List<string>();
+        var skipped = new List<string>();
+
+        try
+        {
+            await RunOneFormatAsync("PDF", ConvertToPdfAsync, done, failed);
+            if (AppServices.License.CanExportDocx) await RunOneFormatAsync("DOCX", ConvertToDocxAsync, done, failed);
+            else skipped.Add("DOCX");
+            if (AppServices.License.CanExportPptx) await RunOneFormatAsync("PPTX", ConvertToPptxAsync, done, failed);
+            else skipped.Add("PPTX");
+        }
+        finally
+        {
+            _suppressExportToasts = false;
+        }
+
+        IsBusy = false;
+
+        if (done.Count > 0) RaiseExportCompleted(string.Join(" + ", done), LastOutputPath ?? string.Empty);
+
+        var parts = new List<string>();
+        if (done.Count > 0) parts.Add($"Exported {string.Join(" + ", done)}");
+        if (failed.Count > 0) parts.Add($"{string.Join(" + ", failed)} failed");
+        if (skipped.Count > 0) parts.Add($"{string.Join(" + ", skipped)} skipped (Pro)");
+        StatusText = string.Join(" · ", parts);
+        StatusSeverity = failed.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
+    }
+
+    private async Task RunOneFormatAsync(string kind, Func<Task> export, List<string> done, List<string> failed)
+    {
+        var before = History.Count;
+        try { await export(); }
+        catch { /* per-format errors are already surfaced via the status bar */ }
+        if (History.Count > before) done.Add(kind);
+        else failed.Add(kind);
     }
 
     public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
@@ -752,14 +913,24 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // Turn an arbitrary conversation title into a safe filename base: strip characters illegal on
-    // any OS, collapse whitespace, and cap the length so a very long title can't blow up the path.
+    // any OS, drop leftover Markdown emphasis markers, collapse whitespace, and cap the length at a
+    // word boundary so a very long title can't blow up the path or produce an untypeable name that
+    // ends mid-word (no trailing ellipsis).
     private static string SanitizeFileName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(title.Select(c => invalid.Contains(c) ? ' ' : c).ToArray());
+        // Strip common Markdown emphasis/code markers that survive heading extraction.
+        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[*_`#>|]", " ");
         cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.');
-        return cleaned.Length > 80 ? cleaned[..80].Trim() : cleaned;
+        const int max = 64;
+        if (cleaned.Length > max)
+        {
+            var cut = cleaned.LastIndexOf(' ', max);
+            cleaned = (cut > max / 2 ? cleaned[..cut] : cleaned[..max]).Trim().TrimEnd('.');
+        }
+        return cleaned;
     }
 
     private (string? Markdown, string SourceLabel) ResolveSource()
@@ -772,11 +943,13 @@ public sealed partial class MainViewModel : ObservableObject
                 StatusSeverity = StatusSeverity.Warning;
                 return (null, string.Empty);
             }
-            // Prefer the captured conversation title as the filename base; fall back to the first
-            // heading in the content, then to a random label if the content has no title either.
-            var titleBase = SanitizeFileName(SuggestedTitle);
+            // Prefer the document's own first heading as the filename base — it is parsed from the
+            // actual Markdown and is therefore always a clean, faithful title. Fall back to the
+            // captured conversation title (browser-extension metadata, which can be unreliable),
+            // then to a random label if the content has no usable title either.
+            var titleBase = SanitizeFileName(HistoryEntry.ExtractTitle(PastedMarkdown) ?? "");
             if (string.IsNullOrEmpty(titleBase))
-                titleBase = SanitizeFileName(HistoryEntry.ExtractTitle(PastedMarkdown) ?? "");
+                titleBase = SanitizeFileName(SuggestedTitle);
             var label = string.IsNullOrEmpty(titleBase)
                 ? $"pasted_export_{Guid.NewGuid().ToString()[..8]}"
                 : titleBase;
@@ -804,7 +977,25 @@ public sealed partial class MainViewModel : ObservableObject
             folder = AppContext.BaseDirectory;
         }
         Directory.CreateDirectory(folder);
-        return Path.Combine(folder, $"{sourceLabel}.{extension}");
+
+        var baseName = ApplyFileNameTemplate(_settingsService.Current.FileNameTemplate, sourceLabel, extension);
+        if (string.IsNullOrWhiteSpace(baseName)) baseName = sourceLabel; // never lose the title entirely
+        return Path.Combine(folder, $"{baseName}.{extension}");
+    }
+
+    // Expands the user's file-name template (Settings) into a safe base name. Supports {title},
+    // {date}, {time} and {format}; anything the template yields is re-sanitized so a custom
+    // template can never produce an invalid path.
+    internal static string ApplyFileNameTemplate(string? template, string title, string extension)
+    {
+        if (string.IsNullOrWhiteSpace(template)) template = "{title}";
+        var now = DateTime.Now;
+        var name = template
+            .Replace("{title}", title, StringComparison.OrdinalIgnoreCase)
+            .Replace("{date}", now.ToString("yyyy-MM-dd"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{time}", now.ToString("HH-mm-ss"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{format}", extension, StringComparison.OrdinalIgnoreCase);
+        return SanitizeFileName(name);
     }
 
     private void TrackRecent(string path)

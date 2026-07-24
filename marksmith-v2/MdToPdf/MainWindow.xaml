@@ -9,17 +9,34 @@
     <Grid x:Name="RootGrid">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control,Menu" Key="T" Invoked="OnToggleDebugModeInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="O" Invoked="OnOpenFileAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnGeneratePdfAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="D" Invoked="OnExportDocxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnExportPptxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="K" Invoked="OnCommandPaletteInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="S" Invoked="OnSaveDocumentAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="H" Invoked="OnReplaceAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="P" Invoked="OnPrintAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateLineAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Menu" Key="Up" Invoked="OnMoveLineUpAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Menu" Key="Down" Invoked="OnMoveLineDownAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F11" Invoked="OnFocusModeAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F1" Invoked="OnShortcutsCheatsheetInvoked" />
         </Grid.KeyboardAccelerators>
 
         <Grid.Resources>
             <conv:StatusSeverityConverter x:Key="StatusSeverityConverter" />
+            <conv:StatusSeverityToBrushConverter x:Key="StatusSeverityToBrushConverter" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
         </Grid.Resources>
 
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="1" Spacing="6">
@@ -49,17 +66,17 @@
         <!-- Left-to-right pipeline: 1 Source -> 2 Style -> 3 Preview & Export -->
         
         <!-- 3-Pane Looking Glass Layout -->
-        <Grid Grid.Row="2" Padding="16,6,16,16" ColumnSpacing="10">
+        <Grid x:Name="MainLayoutGrid" Grid.Row="2" Padding="16,6,16,16" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" MinWidth="250" /> <!-- Left: Source/Files -->
+                <ColumnDefinition x:Name="LeftPaneCol" Width="320" MinWidth="250" /> <!-- Left: Source/Files -->
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="400" /> <!-- Center: Looking Glass (Editor/Preview) -->
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="380" MinWidth="250" /> <!-- Right: Style/Export -->
+                <ColumnDefinition x:Name="RightPaneCol" Width="380" MinWidth="250" /> <!-- Right: Style/Export -->
             </Grid.ColumnDefinitions>
 
             <!-- LEFT PANE -->
-            <Grid Grid.Column="0" RowSpacing="10">
+            <Grid x:Name="LeftPane" Grid.Column="0" RowSpacing="10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -115,8 +132,23 @@
                                 </StackPanel>
                             </Border>
 
-                            <TextBox Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
-                                     PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
+                                         PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
+                                <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnTogglePinFileClick"
+                                        ToolTipService.ToolTip="Pin/unpin this file to the top of the file list">
+                                    <Grid>
+                                        <FontIcon Glyph="&#xE734;" FontSize="14"
+                                                  Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <FontIcon Glyph="&#xE735;" FontSize="14"
+                                                  Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                    </Grid>
+                                </Button>
+                            </Grid>
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -267,7 +299,7 @@
 
             
 
-            <controls:GridSplitter Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+            <controls:GridSplitter x:Name="LeftSplitter" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
 
             <!-- CENTER PANE: LOOKING Glass -->
             
@@ -299,30 +331,129 @@
                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                             </StackPanel>
                         </Border>
+                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Padding="8,0"
+                                Click="OnCopyHtmlClick" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="13" />
+                                <TextBlock Text="Copy HTML" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
+                                Click="OnPrintClick" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE749;" FontSize="13" />
+                        </Button>
+                        <ToggleButton x:Name="FocusModeToggle" ToolTipService.ToolTip="Focus mode — hide the side panels (F11)"
+                                      Height="32" Width="32" Padding="0" VerticalAlignment="Center"
+                                      Checked="OnFocusModeToggled" Unchecked="OnFocusModeToggled">
+                            <FontIcon Glyph="&#xE740;" FontSize="13" />
+                        </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True" />
+                            <SelectorBarItem x:Name="ViewSplitTab" Text="Split" />
                             <SelectorBarItem x:Name="ViewPreviewTab" Text="Preview" />
                         </SelectorBar>
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="1">
-                        <Grid x:Name="PastePanel" Grid.Row="1" RowSpacing="8" Visibility="Visible">
+                <Grid Grid.Row="1" x:Name="LookingGlassGrid">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="SplitLeftCol" Width="*" />
+                            <ColumnDefinition x:Name="SplitMidCol" Width="Auto" />
+                            <ColumnDefinition x:Name="SplitRightCol" Width="0" />
+                        </Grid.ColumnDefinitions>
+                        <Grid x:Name="PastePanel" Grid.Column="0" RowSpacing="8" Visibility="Visible">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBox x:Name="PasteTextBox" Grid.Row="0" MinHeight="180"
-                                     Text="{Binding CurrentMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     AcceptsReturn="True" TextWrapping="Wrap"
-                                     FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
-                                     PlaceholderText="Paste or type Markdown here..."
-                                     VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto" />
+
+                            <!-- Find & replace bar (Ctrl+F / Ctrl+H): search and replace in the Markdown source. -->
+                            <Border x:Name="FindBar" Grid.Row="0" Visibility="Collapsed"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="8,6">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document..."
+                                                 Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
+                                                 TextChanged="OnFindTextChanged" />
+                                        <TextBlock x:Name="FindCountText" Grid.Column="1" VerticalAlignment="Center"
+                                                   FontSize="12" Opacity="0.7" MinWidth="52" TextAlignment="Center" />
+                                        <CheckBox x:Name="MatchCaseCheck" Grid.Column="2" Content="Aa" MinWidth="0"
+                                                  VerticalAlignment="Center" ToolTipService.ToolTip="Match case"
+                                                  Checked="OnMatchCaseChanged" Unchecked="OnMatchCaseChanged" />
+                                        <Button Grid.Column="3" Height="30" Padding="8,0" Click="OnFindPrevClick"
+                                                ToolTipService.ToolTip="Previous match (Shift+Enter)">
+                                            <FontIcon Glyph="&#xE70E;" FontSize="13" />
+                                        </Button>
+                                        <Button Grid.Column="4" Height="30" Padding="8,0" Click="OnFindNextClick"
+                                                ToolTipService.ToolTip="Next match (Enter)">
+                                            <FontIcon Glyph="&#xE70D;" FontSize="13" />
+                                        </Button>
+                                        <Button Grid.Column="5" Height="30" Padding="8,0" Click="OnFindCloseClick"
+                                                ToolTipService.ToolTip="Close (Escape)">
+                                            <FontIcon Glyph="&#xE711;" FontSize="13" />
+                                        </Button>
+                                    </Grid>
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with..."
+                                                 Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown" />
+                                        <Button Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
+                                                ToolTipService.ToolTip="Replace the current match (Enter)">
+                                            <TextBlock Text="Replace" FontSize="12" />
+                                        </Button>
+                                        <Button Grid.Column="2" Height="30" Padding="12,0" Click="OnReplaceAllClick"
+                                                ToolTipService.ToolTip="Replace every match">
+                                            <TextBlock Text="Replace all" FontSize="12" />
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <!-- Line-number gutter: only shown when word wrap is off (wrapping would break the
+                                     alignment). Its scroll is synced to the editor's from code-behind. -->
+                                <Border x:Name="LineNumberGutter" Grid.Column="0" Width="46" Visibility="Collapsed"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+                                    <ScrollViewer x:Name="LineNumberScroll" VerticalScrollBarVisibility="Hidden"
+                                                  HorizontalScrollBarVisibility="Disabled" IsHitTestVisible="False">
+                                        <TextBlock x:Name="LineNumberText" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextAlignment="Right" Padding="4,5,8,0" Text="1" />
+                                    </ScrollViewer>
+                                </Border>
+                                <TextBox x:Name="PasteTextBox" Grid.Column="1" MinHeight="180"
+                                         Text="{Binding CurrentMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
+                                         PlaceholderText="Paste or type Markdown here... (drop an image to embed it)"
+                                         VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
+                                         AllowDrop="True" DragOver="OnEditorDragOver" Drop="OnEditorDrop"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                            </Grid>
                             
                             <!-- Editor Toolbar Down Bottom -->
-                            <StackPanel Grid.Row="1" Spacing="6" HorizontalAlignment="Center">
+                            <StackPanel Grid.Row="2" Spacing="6" HorizontalAlignment="Center">
                                 <!-- Row 1: Basic Markdown Elements -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
                                     <Button ToolTipService.ToolTip="Bold" Width="32" Height="32" Padding="0" Click="OnBoldClick">
@@ -450,14 +581,95 @@
                                             <TextBlock Text="AI Context" FontSize="11" />
                                         </StackPanel>
                                     </Button>
+
+                                    <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
+
+                                    <DropDownButton ToolTipService.ToolTip="Transform the selected text (or current line)" Height="32" Padding="8,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8CB;" FontSize="12" />
+                                            <TextBlock Text="Transform" FontSize="11" />
+                                        </StackPanel>
+                                        <DropDownButton.Flyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
+                                                <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
+                                                <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
+                                                <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
+                                                <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
+                                            </MenuFlyout>
+                                        </DropDownButton.Flyout>
+                                    </DropDownButton>
+                                    <Button ToolTipService.ToolTip="Clean up the document (trailing spaces, blank-line runs)" Height="32" Padding="8,0" Click="OnCleanupClick">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                            <TextBlock Text="Cleanup" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </StackPanel>
 
-                            <TextBlock Grid.Row="2" Text="{Binding WordCountText}" HorizontalAlignment="Right"
-                                       Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"
-                                       ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
+                            <Grid Grid.Row="3">
+                                <!-- Editor font-size zoom (persisted): A− / A+ buttons plus Ctrl+wheel in the
+                                     editor. The % readout is relative to the 13px default. -->
+                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <Button ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
+                                        <TextBlock Text="A&#x2212;" FontSize="12" />
+                                    </Button>
+                                    <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
+                                               Opacity="0.6" MinWidth="42" TextAlignment="Center"
+                                               ToolTipService.ToolTip="Editor font size" />
+                                    <Button ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
+                                        <TextBlock Text="A+" FontSize="12" />
+                                    </Button>
+                                    <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                                    <ToggleButton x:Name="WordWrapToggle" ToolTipService.ToolTip="Word wrap — turn off to show line numbers"
+                                                  Height="24" Padding="6,0" Checked="OnWordWrapToggled" Unchecked="OnWordWrapToggled">
+                                        <TextBlock Text="Wrap" FontSize="11" />
+                                    </ToggleButton>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
+                                    <Button x:Name="LintButton" Height="24" Padding="6,0"
+                                            ToolTipService.ToolTip="Markdown issues — click to review and jump">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="12" />
+                                            <TextBlock x:Name="LintCountText" Text="No issues" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <Flyout x:Name="LintFlyout" Placement="Top">
+                                                <Grid Width="340" RowSpacing="8">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Grid.Row="0" Text="Markdown issues" FontWeight="SemiBold" />
+                                                    <ListView x:Name="LintList" Grid.Row="1" MaxHeight="300" SelectionMode="None"
+                                                              IsItemClickEnabled="True" ItemClick="OnLintItemClick">
+                                                        <ListView.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,2">
+                                                                    <TextBlock Text="{Binding Line}" FontFamily="Consolas" FontSize="12"
+                                                                               Opacity="0.55" MinWidth="34" />
+                                                                    <TextBlock Text="{Binding Message}" FontSize="12" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ListView.ItemTemplate>
+                                                    </ListView>
+                                                </Grid>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <TextBlock Text="{Binding WordCountText}" VerticalAlignment="Center"
+                                               Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"
+                                               ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
+                                </StackPanel>
+                            </Grid>
                         </Grid>
-                    <Border x:Name="PreviewCard" Grid.Row="1" Visibility="Collapsed" Style="{StaticResource PipelineCardStyle}">
+                        <controls:GridSplitter x:Name="SplitViewSplitter" Grid.Column="1" Width="16" Visibility="Collapsed"
+                                               Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+                        <Border x:Name="PreviewCard" Grid.Column="2" Visibility="Collapsed" Style="{StaticResource PipelineCardStyle}">
                     <Grid>
                         <WebView2 x:Name="PreviewWebView" Margin="1" />
 
@@ -484,7 +696,7 @@
                      ticks and the current CSS-pixel width in a centred chip. PreviewWidthText is
                      updated from code-behind on the WebView's SizeChanged. Lets the user see exactly
                      how wide the rendered document is as they resize. -->
-                <Grid Grid.Row="2" Height="18" Margin="2,-4,2,-2" ToolTipService.ToolTip="Width of the live preview">
+                <Grid Grid.Row="2" Height="24" Margin="2,-4,2,-2" ToolTipService.ToolTip="Width of the live preview">
                     <Rectangle Height="1" VerticalAlignment="Center"
                                Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.35" />
                     <Rectangle Width="1" Height="7" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -496,16 +708,28 @@
                         <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </Border>
+                    <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
+                         the readout stays in sync via a light poll in code-behind. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
+                            <FontIcon Glyph="&#xE738;" FontSize="11" />
+                        </Button>
+                        <TextBlock x:Name="PreviewZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
+                                   Opacity="0.65" MinWidth="40" TextAlignment="Center" ToolTipService.ToolTip="Preview zoom (Ctrl+wheel)" />
+                        <Button ToolTipService.ToolTip="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
+                            <FontIcon Glyph="&#xE710;" FontSize="11" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
                 </Grid>
             </Grid>
 
 
-            <controls:GridSplitter Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+            <controls:GridSplitter x:Name="RightSplitter" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
 
             <!-- RIGHT PANE -->
             
-            <Grid Grid.Column="4" RowSpacing="10">
+            <Grid x:Name="RightPane" Grid.Column="4" RowSpacing="10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -539,9 +763,11 @@
                                                   ItemClick="OnHistoryItemClick">
                                             <ListView.ItemTemplate>
                                                 <DataTemplate>
-                                                    <StackPanel Padding="0,6" Spacing="2">
+                                                    <StackPanel Padding="0,6" Spacing="2"
+                                                                ToolTipService.ToolTip="{Binding OutputPath}">
                                                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Text="{Binding Subtitle}" Opacity="0.6" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding OutputPath}" Opacity="0.4" FontSize="11" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>
@@ -552,6 +778,9 @@
                         </Button>
                         <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour">
                             <FontIcon Glyph="&#xE897;" FontSize="14" />
+                        </Button>
+                        <Button x:Name="ShortcutsButton" Click="OnShortcutsButtonClick" ToolTipService.ToolTip="Keyboard shortcuts (F1)">
+                            <FontIcon Glyph="&#xE765;" FontSize="14" />
                         </Button>
                         <Button x:Name="SettingsButton" Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
                             <FontIcon Glyph="&#xE713;" FontSize="14" />
@@ -587,11 +816,32 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" Header="Theme" ItemsSource="{Binding ThemeNames}"
                                           SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch" />
-                                <Button Grid.Column="1" Content="🎨" Click="OnCreateThemeClick"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3"
+                                                           VerticalAlignment="Center"
+                                                           Fill="{Binding Converter={StaticResource ThemeNameToSwatchConverter}}" />
+                                                <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="1" Click="OnToggleThemeFavoriteClick" VerticalAlignment="Bottom"
+                                        ToolTipService.ToolTip="Pin/unpin the selected theme to the top of the list">
+                                    <Grid>
+                                        <FontIcon Glyph="&#xE734;" FontSize="14"
+                                                  Visibility="{Binding IsCurrentThemeFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        <FontIcon Glyph="&#xE735;" FontSize="14"
+                                                  Visibility="{Binding IsCurrentThemeFavorite, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                    </Grid>
+                                </Button>
+                                <Button Grid.Column="2" Content="🎨" Click="OnCreateThemeClick"
                                         VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
                             </Grid>
 
@@ -642,7 +892,7 @@
                                      Message="{Binding DiagramHintText}"
                                      IsClosable="False" Margin="0,0,0,8">
                                 <InfoBar.ActionButton>
-                                    <Button Content="Visual Studio 🎨" Click="OnOpenMermaidStudioClick" />
+                                    <Button Content="Diagram Studio 🎨" Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio" />
                                 </InfoBar.ActionButton>
                             </InfoBar>
                             <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
@@ -801,6 +1051,8 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Button x:Name="GeneratePdfButton" Grid.Column="0" Height="40" Style="{StaticResource AccentButtonStyle}"
@@ -822,14 +1074,57 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="2" Height="40" Content="Cancel"
+                    <Button x:Name="ExportPptxButton" Grid.Column="2" Height="40" Click="OnConvertPptxClick" IsEnabled="{Binding IsNotBusy}"
+                            ToolTipService.ToolTip="Export as a PowerPoint deck (headings become slides)">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8AC;" FontSize="14" />
+                            <TextBlock Text="Export PPTX" />
+                            <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
+                                    VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="White" />
+                            </Border>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="ExportAllButton" Grid.Column="3" Height="40" Width="40" Padding="0"
+                            Click="OnExportAllClick" IsEnabled="{Binding IsNotBusy}"
+                            ToolTipService.ToolTip="Export all licensed formats at once (PDF + DOCX + PPTX)">
+                        <FontIcon Glyph="&#xE71D;" FontSize="15" />
+                    </Button>
+
+                    <Button Grid.Column="4" Height="40" Content="Cancel"
                             Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}" />
 
-                    <ProgressRing Grid.Column="3" IsActive="{Binding IsBusy}" Width="22" Height="22"
+                    <ProgressRing Grid.Column="5" IsActive="{Binding IsBusy}" Width="22" Height="22"
                                   VerticalAlignment="Center" />
                 </Grid>
             </Grid>
 
         </Grid>
+
+        <!-- Persistent status bar: surfaces conversion progress, the finished output path, and
+             warnings/errors. Bound to MainViewModel.StatusText/StatusSeverity so every export
+             gives visible feedback instead of failing silently. -->
+        <Border Grid.Row="3" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
+                Padding="16,6">
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ProgressRing Grid.Column="0" IsActive="{Binding IsBusy}" Width="14" Height="14"
+                              VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" VerticalAlignment="Center"
+                           Foreground="{Binding StatusSeverity, Converter={StaticResource StatusSeverityToBrushConverter}}"
+                           TextTrimming="CharacterEllipsis" FontSize="12" />
+                <!-- Editor cursor position (Ln/Col + selection size). Kept on the far right so it never
+                     competes with the status message; updated from PasteTextBox.SelectionChanged. -->
+                <TextBlock x:Name="CursorPosText" Grid.Column="2" VerticalAlignment="Center" FontSize="12"
+                           Opacity="0.65" FontFamily="Cascadia Mono, Consolas, monospace"
+                           ToolTipService.ToolTip="Cursor position in the Markdown editor" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

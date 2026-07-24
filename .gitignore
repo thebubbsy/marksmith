@@ -84,3 +84,9 @@ AGENT_LEARNINGS_*.md
 .agents/
 audit_report.md
 *_report.md
+
+# Generated test outputs & IDE/scratch (keep backups lean)
+test_outputs/
+.qoder/
+MathTest/
+test.cs

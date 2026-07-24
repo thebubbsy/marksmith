@@ -8,8 +8,46 @@ namespace MdToPdf.Services;
 
 // Port of create_html_content() from md_to_pdf_tui.py: Markdown -> themed HTML string that
 // WebView2 can navigate to for live preview and PDF export via CoreWebView2.PrintToPdfAsync.
-public sealed class MarkdownHtmlService
+public sealed partial class MarkdownHtmlService
 {
+    // Render() runs on every preview keystroke. The patterns below were previously invoked via
+    // the static Regex.* helpers, which re-parse+hash the pattern into .NET's bounded (15-entry)
+    // process-wide cache on each call. Hoisting them to source-generated [GeneratedRegex] matchers
+    // makes each one a pre-compiled, allocation-free singleton with no per-call cache lookup —
+    // the patterns are copied verbatim, so behavior is identical.
+    [GeneratedRegex(@"(?:\$\$\s*)?(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})(?:\s*\$\$)?", RegexOptions.Singleline)]
+    private static partial Regex MathEnvBlockRe();
+
+    [GeneratedRegex("<pre><code class=\"language-mermaid\">(.*?)</code></pre>", RegexOptions.Singleline)]
+    private static partial Regex MermaidFenceHtmlRe();
+
+    [GeneratedRegex("<pre><code(?: class=\"language-[\\w-]+\")?>(.*?)</code></pre>", RegexOptions.Singleline)]
+    private static partial Regex AnyCodeBlockRe();
+
+    [GeneratedRegex("`([^`]+)`|'([^']+)'|\"([^\"]+)\"", RegexOptions.Singleline)]
+    private static partial Regex QuotedLiteralRe();
+
+    [GeneratedRegex("<pre><code class=\"language-([\\w-]+)\">(.*?)</code></pre>", RegexOptions.Singleline)]
+    private static partial Regex PluginLangCodeRe();
+
+    [GeneratedRegex("<div class=\"mermaid\">.*?</div>", RegexOptions.Singleline)]
+    private static partial Regex MermaidDivRe();
+
+    [GeneratedRegex(@"^\d+\. ")]
+    private static partial Regex OrderedListLineRe();
+
+    [GeneratedRegex(@"[*_`~]")]
+    private static partial Regex InlineMarkRe();
+
+    [GeneratedRegex("^[A-Za-z0-9-]+$")]
+    private static partial Regex LangTagRe();
+
+    [GeneratedRegex("<h([123]) id=\"([^\"]+)\"[^>]*>(.*?)</h\\1>", RegexOptions.Singleline)]
+    private static partial Regex TocHeadingRe();
+
+    [GeneratedRegex(@"</?[a-z][a-z0-9]*(?:[\s/>]|$)[^>]*>")]
+    private static partial Regex HtmlTagStripRe();
+
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions() // tables, footnotes, task lists, etc. — mirrors mdit-py-plugins' table/footnote support
         .UseYamlFrontMatter()    // mirrors front_matter_plugin
@@ -67,7 +105,7 @@ public sealed class MarkdownHtmlService
         }
 
         markdown = TextNormalizer.Newlines(markdown);
-        markdown = Regex.Replace(markdown, @"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", "\n$$$$\n${1}\n$$$$\n", RegexOptions.Singleline);
+        markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = KanbanNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
@@ -88,10 +126,8 @@ public sealed class MarkdownHtmlService
         // escaped: mermaid reads the element's textContent (which the browser decodes automatically),
         // so diagrams render correctly, while the browser never parses malicious markup like
         // <img onerror=…> as live HTML inside the div. HtmlDecode-ing here would reintroduce that XSS.
-        body = Regex.Replace(body,
-            "<pre><code class=\"language-mermaid\">(.*?)</code></pre>",
-            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>",
-            RegexOptions.Singleline);
+        body = MermaidFenceHtmlRe().Replace(body,
+            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
 
         // Some Markdown (typically a library's own README showing "here's how to render a
         // diagram") carries real Mermaid diagram source without a genuine ```mermaid fence:
@@ -109,8 +145,7 @@ public sealed class MarkdownHtmlService
         // decodes for us).
         if (settings.MermaidEnabled)
         {
-            body = Regex.Replace(body,
-                "<pre><code(?: class=\"language-[\\w-]+\")?>(.*?)</code></pre>",
+            body = AnyCodeBlockRe().Replace(body,
                 m =>
                 {
                     var codeContent = m.Groups[1].Value;
@@ -122,7 +157,7 @@ public sealed class MarkdownHtmlService
                     }
                     else
                     {
-                        foreach (Match lit in Regex.Matches(codeContent, "`([^`]+)`|'([^']+)'|\"([^\"]+)\"", RegexOptions.Singleline))
+                        foreach (Match lit in QuotedLiteralRe().Matches(codeContent))
                         {
                             var group = lit.Groups[1].Success ? lit.Groups[1] : lit.Groups[2].Success ? lit.Groups[2] : lit.Groups[3];
                             var candidate = group.Value.Trim();
@@ -131,8 +166,7 @@ public sealed class MarkdownHtmlService
                         }
                     }
                     return extras.Length > 0 ? m.Value + extras : m.Value;
-                },
-                RegexOptions.Singleline);
+                });
         }
 
         // Plugin-provided diagram languages (e.g. ```plantuml via the optional PlantUML plugin) —
@@ -142,8 +176,7 @@ public sealed class MarkdownHtmlService
         // by the time this HTML reaches the browser the SVG already exists. See
         // MdToPdf.Plugins.IDiagramPlugin / PluginManager.
         var pluginTheme = Plugins.PluginTheme.From(theme);
-        body = Regex.Replace(body,
-            "<pre><code class=\"language-([\\w-]+)\">(.*?)</code></pre>",
+        body = PluginLangCodeRe().Replace(body,
             m =>
             {
                 var language = m.Groups[1].Value;
@@ -173,8 +206,7 @@ public sealed class MarkdownHtmlService
                     return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{System.Net.WebUtility.HtmlEncode(known.Name)}</b> plugin (Settings → Plugins) to render this diagram.</div>";
 
                 return m.Value;
-            },
-            RegexOptions.Singleline);
+            });
 
         // When the whole document is essentially one diagram + a title (and maybe a few words),
         // the live preview becomes a dedicated diagram viewer: title top-left, +/−/Reset, pan/zoom.
@@ -183,7 +215,7 @@ public sealed class MarkdownHtmlService
             var focus = AnalyzeDiagramFocus(markdown);
             if (focus.Focused)
             {
-                var mm = Regex.Match(body, "<div class=\"mermaid\">.*?</div>", RegexOptions.Singleline);
+                var mm = MermaidDivRe().Match(body);
                 if (mm.Success) return BuildFocusedDiagramHtml(theme, mm.Value, focus.Title, focus.Subtitle);
             }
         }
@@ -480,7 +512,7 @@ public sealed class MarkdownHtmlService
             @media print {
               @page { margin: 0 !important; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; {{(settings.UnlimitedHeight ? "padding: 60px 40px !important;" : "padding: 48px 54px !important;")}} }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
@@ -498,13 +530,13 @@ public sealed class MarkdownHtmlService
             /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
                column to the full preview width; anything larger scrolls, and clicking opens the
                full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
-            .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
+            .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; page-break-inside: avoid; break-inside: avoid; }
             .mermaid svg { max-width: none !important; }
             /* Plugin diagrams get the same themed frame as .mermaid so they belong to the page.
                Theme-aware engines (see IsThemeAware) render on-theme and are shown as-is; engines
                that don't theme their own output get .plugin-diagram-autoinvert, whose line art is
                inverted on dark themes for legibility (pluginDiagramSvgFilter). */
-            .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
+            .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; page-break-inside: avoid; break-inside: avoid; }
             .plugin-diagram svg { max-width: 100%; height: auto; }
             .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
             .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
@@ -535,7 +567,7 @@ public sealed class MarkdownHtmlService
               .page-break::after { content: ""; }
               {{(settings.UnlimitedHeight ? "hr { page-break-after: avoid !important; break-after: avoid !important; }" : "")}}
             }
-            img { max-width: 100%; }
+            img { max-width: 100%; page-break-inside: avoid; break-inside: avoid; }
             .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
             /* --- Capability-Aware Preview CSS --- */
             /* If the output format is DOCX and Mermaid ShapeForge mode is off, non-supported items could be dimmed here, but for now we rely on the backend. */
@@ -633,7 +665,7 @@ public sealed class MarkdownHtmlService
             if (line.StartsWith('#')) { if (title.Length == 0) title = line.TrimStart('#', ' ').Trim(); continue; }
             // Any richer block means it's a real document, not a diagram card.
             if (line.Contains('|') || line.StartsWith("![") || line.StartsWith("- ") ||
-                line.StartsWith("* ") || line.StartsWith("> ") || Regex.IsMatch(line, @"^\d+\. "))
+                line.StartsWith("* ") || line.StartsWith("> ") || OrderedListLineRe().IsMatch(line))
                 return (false, "", "");
             if (subtitle.Length == 0) subtitle = line;
             proseLen += line.Length;
@@ -643,7 +675,7 @@ public sealed class MarkdownHtmlService
     }
 
     private static string StripInline(string s) =>
-        System.Net.WebUtility.HtmlEncode(Regex.Replace(s, @"[*_`~]", "").Trim());
+        System.Net.WebUtility.HtmlEncode(InlineMarkRe().Replace(s, "").Trim());
 
     // Builds the ` lang="…" dir="…"` suffix for the <html> tag from source-page metadata. Both
     // values are page-derived, so they're strictly validated rather than interpolated raw: lang
@@ -653,7 +685,7 @@ public sealed class MarkdownHtmlService
     {
         var attrs = "";
         var lang = (language ?? "").Trim();
-        if (lang.Length is > 0 and <= 35 && Regex.IsMatch(lang, "^[A-Za-z0-9-]+$"))
+        if (lang.Length is > 0 and <= 35 && LangTagRe().IsMatch(lang))
             attrs += $" lang=\"{lang}\"";
         var dir = (direction ?? "").Trim().ToLowerInvariant();
         if (dir is "ltr" or "rtl" or "auto")
@@ -798,9 +830,20 @@ public sealed class MarkdownHtmlService
     // for BOTH local and remote images (the |300 arrives glued to the alt text).
     private static readonly Regex ImgTag = new("<img src=\"([^\"]+)\" alt=\"([^\"]*)\"([^>]*)>", RegexOptions.Compiled);
     private static readonly Regex AltSizeHint = new(@"^(.*)\|(\d{2,4})$", RegexOptions.Compiled);
+    // CRITICAL: WebView2's NavigateToString (and the Avalonia NativeWebView equivalent) silently
+    // FAILS past roughly 2 MB — the preview then just spins forever. Base64 inflates a file ~1.34x,
+    // so a couple of multi-MB photos inlined here blow that ceiling and take the whole preview down.
+    // Cap it hard: skip any single image over ~900 KB, and stop inlining once the running total of
+    // encoded image data would approach the budget — the doc's own markup plus this must stay well
+    // under 2 MB. An image that's skipped keeps its original src (it just won't show in the preview),
+    // which is strictly better than a preview that never loads. (Serving arbitrary local images
+    // through the host's asset server, with no size limit, is the real fix — a follow-up.)
+    private const long MaxInlineBudgetBytes = 1_200_000;
+
     private static string EmbedLocalImages(string body)
     {
         if (!body.Contains("<img", StringComparison.Ordinal)) return body;
+        long budgetUsed = 0;
         return ImgTag.Replace(body, m =>
         {
             var src = m.Groups[1].Value;
@@ -824,16 +867,85 @@ public sealed class MarkdownHtmlService
                 : (decoded.Length > 2 && decoded[1] == ':' ? decoded : null);
             if (localPath is not null)
             {
-                // Serve arbitrary local images through the host's asset server to bypass the 
-                // NavigateToString string-length crashing limits.
-                src = $"https://localimg.marksmith/?path={Uri.EscapeDataString(localPath)}";
+                try
+                {
+                    var info = new FileInfo(localPath);
+                    if (info.Exists)
+                    {
+                        // Large/high-res local images (phone photos, screenshots, 1273px logos) are
+                        // downscaled to a document-sensible size FIRST — a page is only ~800px wide,
+                        // so a bigger source is wasted bytes that (base64-inflated) blow the
+                        // NavigateToString ceiling and take the whole preview down. Downscaling turns
+                        // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
+                        // pass through untouched; SVG is never rasterized.
+                        var (data, mime) = PrepareImageForInline(localPath, info);
+                        if (data is not null && mime is not null &&
+                            budgetUsed + data.Length * 4 / 3 <= MaxInlineBudgetBytes)
+                        {
+                            src = $"data:{mime};base64,{Convert.ToBase64String(data)}";
+                            budgetUsed += data.Length * 4 / 3;
+                        }
+                    }
+                }
+                catch { /* unreadable/undecodable file: leave the original src; alt text still shows */ }
             }
 
             return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
         });
     }
 
+    private const int MaxImageDimension = 1400; // downscale target: covers 2x the ~800px page width
 
+    // Returns the bytes+mime to inline for a local image: the file as-is when it's already small
+    // and modest-resolution, or a downscaled re-encode when it's oversized. Returns (null, null)
+    // for formats we don't rasterize (SVG) or anything Skia can't decode.
+    private static (byte[]? Data, string? Mime) PrepareImageForInline(string path, FileInfo info)
+    {
+        var ext = info.Extension.ToLowerInvariant();
+        if (ext == ".svg") return (null, null); // vector: inlining raw would need XML, not a raster path
+
+        var raw = File.ReadAllBytes(path);
+
+        // Fast path: already small AND not huge-resolution → inline the original bytes verbatim,
+        // preserving the exact format (and any transparency/animation) with zero re-encoding.
+        if (info.Length <= 350_000)
+        {
+            using var codec = SKCodec.Create(new MemoryStream(raw));
+            if (codec is null) return (null, null); // undecodable — caller leaves original src
+            if (Math.Max(codec.Info.Width, codec.Info.Height) <= MaxImageDimension)
+            {
+                var mime = ext switch
+                {
+                    ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif",
+                    ".webp" => "image/webp", ".bmp" => "image/bmp", _ => "image/png",
+                };
+                return (raw, mime);
+            }
+        }
+
+        using var bitmap = SKBitmap.Decode(raw);
+        if (bitmap is null) return (null, null);
+
+        var scale = (double)MaxImageDimension / Math.Max(bitmap.Width, bitmap.Height);
+        SKBitmap? scaled = scale < 1.0
+            ? bitmap.Resize(new SKImageInfo((int)(bitmap.Width * scale), (int)(bitmap.Height * scale)), SKFilterQuality.High)
+            : bitmap;
+        if (scaled is null) return (null, null);
+        try
+        {
+            using var image = SKImage.FromBitmap(scaled);
+            if (image is null) return (null, null);
+            // PNG keeps sharp edges + transparency for graphics/logos; the size win comes from the
+            // resolution drop, not lossy compression, so text/line art stays crisp.
+            using var encoded = image.Encode(SKEncodedImageFormat.Png, 90);
+            if (encoded is null) return (null, null);
+            return (encoded.ToArray(), "image/png");
+        }
+        finally
+        {
+            if (!ReferenceEquals(scaled, bitmap)) scaled.Dispose();
+        }
+    }
 
     // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
     // when the rendered body actually needs them (plain documents stay dependency-free).
@@ -892,13 +1004,13 @@ public sealed class MarkdownHtmlService
     // Markdig's AutoIdentifiers (in UseAdvancedExtensions) gives every heading an id we can link to.
     private static string BuildToc(string body, ThemeDefinition theme)
     {
-        var matches = Regex.Matches(body, "<h([123]) id=\"([^\"]+)\"[^>]*>(.*?)</h\\1>", RegexOptions.Singleline);
+        var matches = TocHeadingRe().Matches(body);
         if (matches.Count < 2) return "";
 
         var items = matches.Select(m =>
         {
             var level = int.Parse(m.Groups[1].Value);
-            var text = Regex.Replace(m.Groups[3].Value, @"</?[a-z][a-z0-9]*(?:[\s/>]|$)[^>]*>", "").Trim();
+            var text = HtmlTagStripRe().Replace(m.Groups[3].Value, "").Trim();
             var indent = (level - 1) * 16;
             return $"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>";
         });

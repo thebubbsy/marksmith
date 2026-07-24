@@ -495,8 +495,8 @@ public static class DocxShapeEmitter
 
     private static string RunProps(MShape s, ThemeDefinition t)
     {
-        var shapeBg = Hex(s.Fill) ?? Hex(t.Background);
-        var requestedColor = Hex(s.TextColor) ?? Hex(t.Primary);
+        var shapeBg = Hex(s.Fill) ?? Hex(t.Background) ?? "FFFFFF";
+        var requestedColor = Hex(s.TextColor) ?? Hex(t.Primary) ?? "000000";
         var color = ContrastGuard.EnsureLegibleText(requestedColor, shapeBg, Hex(t.Primary));
         var sz = (int)Math.Round(s.FontSize * 2); // half-points
 

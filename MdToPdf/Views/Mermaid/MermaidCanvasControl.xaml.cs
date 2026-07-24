@@ -423,8 +423,8 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingNode = node;
         _editingConnector = null;
 
-        Canvas.SetLeft(InPlaceEditorCanvas, node.X);
-        Canvas.SetTop(InPlaceEditorCanvas, node.Y);
+        Canvas.SetLeft(InlineEditContainer, node.X);
+        Canvas.SetTop(InlineEditContainer, node.Y);
         InlineEditTextBox.Width = Math.Max(node.Width, 140);
         InlineEditTextBox.Height = Math.Max(node.Height, 60);
         InlineEditTextBox.Text = node.LabelText;
@@ -439,8 +439,8 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingConnector = conn;
         _editingNode = null;
 
-        Canvas.SetLeft(InPlaceEditorCanvas, conn.MidpointX - 40);
-        Canvas.SetTop(InPlaceEditorCanvas, conn.MidpointY - 15);
+        Canvas.SetLeft(InlineEditContainer, conn.MidpointX - 40);
+        Canvas.SetTop(InlineEditContainer, conn.MidpointY - 15);
         InlineEditTextBox.Width = 120;
         InlineEditTextBox.Height = 35;
         InlineEditTextBox.Text = conn.Label ?? string.Empty;
@@ -464,9 +464,14 @@ public sealed partial class MermaidCanvasControl : UserControl
         }
     }
 
-    private void OnInlineEditLostFocus(object sender, RoutedEventArgs e)
+    private void OnInlineAcceptClick(object sender, RoutedEventArgs e)
     {
         CommitInPlaceEdit();
+    }
+
+    private void OnInlineCancelClick(object sender, RoutedEventArgs e)
+    {
+        CancelInPlaceEdit();
     }
 
     private void CommitInPlaceEdit()

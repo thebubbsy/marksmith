@@ -24,6 +24,7 @@ public sealed class LicenseService
 
     public bool IsPro => State.IsPro;
     public bool CanExportDocx => State.CanExportDocx;
+    public bool CanExportPptx => State.CanExportPptx;
     public bool CanAutomate => State.CanAutomate;
     public bool ShowFooter => State.ShowFooter;
 

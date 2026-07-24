@@ -38,6 +38,101 @@ public interface IWebRenderHost
     // it afterward; a host with no such concern can no-op both.
     Task BeginHarvestAsync();
     Task EndHarvestAsync();
+
+    // Deterministically waits for WebView content (Mermaid diagrams, async images, layout reflow)
+    // to complete rendering and settle before PDF export, without sleeping. Default implementation
+    // runs a JS readiness contract in the page: MutationObserver on .mermaid[data-processed],
+    // img.decode()/load/error for images, and a double requestAnimationFrame for layout settle.
+    // Falls back to the injected window.marksmithWaitForExportReady when present in the document.
+    Task WaitForExportReadyAsync(bool hasMermaid = false)
+    {
+        return ExecuteScriptAsync($$"""
+            (() => {
+                if (typeof window.marksmithWaitForExportReady == 'function') {
+                    return window.marksmithWaitForExportReady({{ (hasMermaid ? "true" : "false") }});
+                }
+                return new Promise((resolve) => {
+                    const checkMermaid = {{ (hasMermaid ? "true" : "false") }};
+
+                    const waitForMermaidIfNeeded = (callback) => {
+                        if (!checkMermaid) {
+                            callback();
+                            return;
+                        }
+
+                        const isMermaidDone = () => {
+                            const all = document.querySelectorAll('.mermaid');
+                            const processed = document.querySelectorAll('.mermaid[data-processed="true"]');
+                            return all.length == 0 || processed.length == all.length;
+                        };
+
+                        if (isMermaidDone()) {
+                            callback();
+                            return;
+                        }
+
+                        const observer = new MutationObserver(() => {
+                            if (isMermaidDone()) {
+                                observer.disconnect();
+                                callback();
+                            }
+                        });
+
+                        observer.observe(document.body || document.documentElement, {
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                            attributeFilter: ['data-processed']
+                        });
+
+                        setTimeout(() => {
+                            observer.disconnect();
+                            callback();
+                        }, 5000);
+                    };
+
+                    const waitForImages = (callback) => {
+                        const imgs = Array.from(document.images);
+                        if (imgs.length == 0) {
+                            callback();
+                            return;
+                        }
+
+                        let remaining = imgs.length;
+                        const onImgDone = () => {
+                            remaining--;
+                            if (remaining <= 0) callback();
+                        };
+
+                        imgs.forEach(img => {
+                            if (img.complete && img.naturalHeight > 0) {
+                                onImgDone();
+                            } else if (typeof img.decode == 'function') {
+                                img.decode().then(onImgDone).catch(onImgDone);
+                            } else {
+                                img.addEventListener('load', onImgDone);
+                                img.addEventListener('error', onImgDone);
+                            }
+                        });
+                    };
+
+                    const settleLayout = () => {
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                resolve("true");
+                            });
+                        });
+                    };
+
+                    waitForMermaidIfNeeded(() => {
+                        waitForImages(() => {
+                            settleLayout();
+                        });
+                    });
+                });
+            })()
+            """);
+    }
 }
 
 // UI-framework-specific prompts the Core ViewModel needs but can't render itself (native dialogs

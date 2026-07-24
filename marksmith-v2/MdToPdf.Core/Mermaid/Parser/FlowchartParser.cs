@@ -89,7 +89,7 @@ public static class FlowchartParser
 
     private static void ParseLine(string line, FlowchartDiagramAst ast, FlowSubgraph? currentSubgraph)
     {
-        var edgeMatch = Regex.Match(line, @"^(.*?)\s*(--\s*\|[^|]+\|(?:-->|---|->)|==\s*\|[^|]+\|(?:==>|===|=>)|-\.-\s*\|[^|]+\|(?:-\.->|-.-|->|-->)|--\s*""[^""]+""\s*(?:-->|---|->)|==\s*""[^""]+""\s*(?:==>|===|=>)|-\.\s*""[^""]+""\s*(?:\.->|\.-)|--\s*[^""=\->|]+\s*(?:-->|---|->)|==\s*[^""=\->|]+\s*(?:==>|===|=>)|-\.\s*[^""=\->|]+\s*(?:\.->|\.-)|<-->|x--x|o--o|==>|===|-.->|-.-|-->|---|==)\s*(.*)$");
+        var edgeMatch = Regex.Match(line, @"^(.*?)\s*(--\s*\|[^|]+\|(?:-->|---|->)|==\s*\|[^|]+\|(?:==>|===|=>)|-\.-\s*\|[^|]+\|(?:-\.->|-.-|->|-->)|--\s*""[^""]+""\s*(?:-->|---|->)|==\s*""[^""]+""\s*(?:==>|===|=>)|-\.\s*""[^""]+""\s*(?:\.->|\.-)|--\s*[^""=\->|]+\s*(?:-->|---|->)|==\s*[^""=\->|]+\s*(?:==>|===|=>)|-\.\s*[^""=\->|]+\s*(?:\.->|\.-)|(?:-->|==>|-.->|<-->|---|===|-.-|->|=>)\s*\|[^|]+\||<-->|x--x|o--o|==>|===|-.->|-.-|-->|---|==)\s*(.*)$");
 
         if (edgeMatch.Success)
         {
@@ -133,32 +133,37 @@ public static class FlowchartParser
                 }
             }
 
-            if (opPart.Contains("=="))
+            // Arrowhead / line-style detection inspects the bare edge syntax, so drop any label
+            // that trails the arrow first — "-->|Yes|" ends in "|", not ">", and would otherwise
+            // lose its arrowhead.
+            var opCore = Regex.Replace(opPart, @"\|[^|]*\|\s*$", string.Empty).TrimEnd();
+
+            if (opCore.Contains("=="))
             {
                 style = FlowLineStyle.Thick;
-                if (!opPart.EndsWith(">")) endHead = FlowArrowHead.None;
+                if (!opCore.EndsWith(">")) endHead = FlowArrowHead.None;
             }
-            else if (opPart.Contains("-.-") || opPart.Contains("-."))
+            else if (opCore.Contains("-.-") || opCore.Contains("-."))
             {
                 style = FlowLineStyle.Dashed;
-                if (!opPart.EndsWith(">")) endHead = FlowArrowHead.None;
+                if (!opCore.EndsWith(">")) endHead = FlowArrowHead.None;
             }
-            else if (opPart.StartsWith("x") && opPart.EndsWith("x"))
+            else if (opCore.StartsWith("x") && opCore.EndsWith("x"))
             {
                 startHead = FlowArrowHead.Cross;
                 endHead = FlowArrowHead.Cross;
             }
-            else if (opPart.StartsWith("o") && opPart.EndsWith("o"))
+            else if (opCore.StartsWith("o") && opCore.EndsWith("o"))
             {
                 startHead = FlowArrowHead.Circle;
                 endHead = FlowArrowHead.Circle;
             }
-            else if (opPart.StartsWith("<"))
+            else if (opCore.StartsWith("<"))
             {
                 startHead = FlowArrowHead.Normal;
                 endHead = FlowArrowHead.Normal;
             }
-            else if (!opPart.EndsWith(">"))
+            else if (!opCore.EndsWith(">"))
             {
                 endHead = FlowArrowHead.None;
             }
