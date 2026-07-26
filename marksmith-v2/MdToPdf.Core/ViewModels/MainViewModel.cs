@@ -333,8 +333,11 @@ public sealed partial class MainViewModel : ObservableObject
         _ = RefreshMarkdownFilesAsync();
     }
 
-    public void RecordExport(string kind, string outputPath, string markdown)
+    public void RecordExport(string kind, string outputPath, string markdown, long durationMs = 0)
     {
+        long sizeBytes = 0;
+        try { if (File.Exists(outputPath)) sizeBytes = new FileInfo(outputPath).Length; } catch { /* best-effort */ }
+
         var entry = new HistoryEntry
         {
             Timestamp = DateTime.Now,
@@ -344,6 +347,8 @@ public sealed partial class MainViewModel : ObservableObject
             OutputPath = outputPath,
             Kind = kind,
             DocumentTitle = HistoryEntry.ExtractTitle(markdown),
+            DurationMs = durationMs,
+            OutputSizeBytes = sizeBytes,
         };
         History.Insert(0, entry);
         AppServices.History.Add(entry);

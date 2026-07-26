@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace MdToPdf.Models;
@@ -12,12 +13,43 @@ public sealed class HistoryEntry
     public string Kind { get; set; } = "";          // PDF / DOCX
     public string DocumentTitle { get; set; } = ""; // the document's own title (first heading)
 
+    // Export telemetry (Task 15): how long the conversion took and how big the output file is.
+    // Both are optional — DurationMs is 0 when the caller didn't time the export, OutputSizeBytes
+    // is 0 when the output file couldn't be measured — and are simply omitted from the subtitle.
+    public long DurationMs { get; set; }
+    public long OutputSizeBytes { get; set; }
+
     // The history line reads as the exported document's title; format details move to the subtitle.
     public string Title => string.IsNullOrWhiteSpace(DocumentTitle)
         ? (string.IsNullOrWhiteSpace(SourceLabel) ? "Untitled document" : SourceLabel)
         : DocumentTitle;
 
-    public string Subtitle => $"{Kind} · {Detected} · {Theme} · {Timestamp:g}";
+    // Human-readable output size ("512 B", "18.4 KB", "1.2 MB"); empty when unknown.
+    public string OutputSizeText => OutputSizeBytes switch
+    {
+        <= 0 => "",
+        < 1024 => $"{OutputSizeBytes} B",
+        < 1024 * 1024 => $"{OutputSizeBytes / 1024.0:0.#} KB",
+        _ => $"{OutputSizeBytes / (1024.0 * 1024.0):0.#} MB",
+    };
+
+    // Human-readable export duration ("320 ms", "2.5 s"); empty when the caller didn't time it.
+    public string DurationText => DurationMs switch
+    {
+        <= 0 => "",
+        < 1000 => $"{DurationMs} ms",
+        _ => $"{DurationMs / 1000.0:0.#} s",
+    };
+
+    public string Subtitle
+    {
+        get
+        {
+            var core = $"{Kind} · {Detected} · {Theme} · {Timestamp:g}";
+            var extra = string.Join(" · ", new[] { DurationText, OutputSizeText }.Where(s => s.Length > 0));
+            return extra.Length == 0 ? core : $"{core} · {extra}";
+        }
+    }
 
     // Pull a human title from the Markdown: YAML front-matter title, else the first heading,
     // else the first meaningful line. Cleaned of Markdown syntax and length-capped.
@@ -42,10 +74,12 @@ public sealed class HistoryEntry
             if (m.Success) return Clean(m.Groups[1].Value);
         }
 
+        var inFence = false;
         foreach (var raw in lines)
         {
             var l = raw.Trim();
-            if (l.Length == 0 || l.StartsWith("```") || l.StartsWith("~~~") || l.StartsWith("---") || l.StartsWith(">")) continue;
+            if (l.StartsWith("```") || l.StartsWith("~~~")) { inFence = !inFence; continue; }
+            if (inFence || l.Length == 0 || l.StartsWith("---") || l.StartsWith(">")) continue;
             return Clean(l);
         }
         return "";
