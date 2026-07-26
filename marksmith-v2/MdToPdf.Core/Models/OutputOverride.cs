@@ -11,6 +11,7 @@ public sealed class OutputOverride
     public bool? A4FixedWidth { get; set; }
     public bool? UnlimitedHeight { get; set; }
     public bool? IncludeToc { get; set; }
+    public bool? ShowWordCount { get; set; }
     public bool? ShowAttribution { get; set; }
     public bool? NoEmoji { get; set; }
     public int? DashMode { get; set; }

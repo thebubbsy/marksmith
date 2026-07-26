@@ -233,6 +233,8 @@ public sealed partial class MarkdownHtmlService
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        var stats = DocumentStatsService.Analyze(markdown);
+        var statsPill = settings.ShowWordCount && stats.Words > 0 ? $"<div class=\"stats-pill\"><svg style=\"width:12px;height:12px;vertical-align:-1px;margin-right:4px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>{stats.SummaryText}</div>" : "";
         // Free tier stamps a subtle footer on every export/preview; Pro removes it.
         var footer = AppServices.License.ShowFooter
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
@@ -734,7 +736,7 @@ public sealed partial class MarkdownHtmlService
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
-            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}{{scrollSpyScript}}</body></html>
+            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{statsPill}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}{{scrollSpyScript}}</body></html>
             """;
     }
 
