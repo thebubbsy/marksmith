@@ -6,7 +6,8 @@ namespace MdToPdf.Services;
 public sealed record PdfPageSetup(
     double PageWidthIn, double PageHeightIn,
     double MarginTopIn, double MarginBottomIn, double MarginLeftIn, double MarginRightIn,
-    bool PrintBackgrounds);
+    bool PrintBackgrounds,
+    string HeaderTemplate = "", string FooterTemplate = "");
 
 // The portable seam between the Core engine and whatever embeddable web renderer a UI project
 // uses (WebView2 on Windows, an Avalonia webview package on Mac/Linux, or a headless-Chromium
