@@ -4,31 +4,26 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 3)
+## 🚀 Active Priority Tasks (Cycle 5)
 
-### [x] 5. Visual Mermaid Studio Connector Routing & Style Presets
-- **Target Files**: `marksmith-v2/MdToPdf/Views/Mermaid/MermaidDiagramStudioControl.xaml`, `MermaidStudioViewModel.cs`
+### [ ] 9. Multi-Cloud Storage Provider & Auto-Sync Engine (OneDrive, Google Drive, Dropbox, Box, WebDAV)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/CloudStorageService.cs` (new core service)
+  - `marksmith-v2/MdToPdf.Core/Models/CloudProviderInfo.cs` (provider metadata POCO)
+  - `marksmith-v2/MdToPdf/Views/SettingsView.xaml` (Cloud Storage panel under Automation)
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/CloudStorageServiceTests.cs` (unit tests)
 - **Goal**:
-  - Add explicit connector curve controls (`Elbow / Orthogonal 90°`, `Straight`, `Curved / Bezier`) in the Visual Mermaid Studio toolbar.
-  - Add preset diagram color palettes (`Catppuccin Slate`, `Nord Ocean`, `Emerald Corporate`, `Monochrome Print`) in the Diagram Studio inspector panel to quickly recolor diagram shape fills, borders, and arrow markers.
-
-### [x] 6. AI Quirk Normalization — DeepSeek & Perplexity AI Artifact Cleaners
-- **Target Files**: `marksmith-v2/MdToPdf.Core/Services/ProviderDialectNormalizer.cs`, `DialectNormalizer.cs`
-- **Goal**:
-  - Add automatic detection and stripping for DeepSeek / Perplexity AI chat artifacts (e.g., `<think> ... </think>` reasoning tags, web search citation badges `[source]`, `[1]`, and raw prompt echo headers).
-  - Add comprehensive unit tests in `DialectNormalizerTests.cs` for DeepSeek and Perplexity input streams.
-
-### [x] 7. Native EPUB Cover Image & Dublin Core Metadata Exporter
-- **Target Files**: `marksmith-v2/MdToPdf.Core/Services/EpubExportService.cs`
-- **Goal**:
-  - Enable embedding custom book cover PNG/JPG images into EPUB3 exports when `BrandCoverPage` / `BrandLogoPath` is enabled.
-  - Inject Dublin Core XML metadata (`dc:title`, `dc:creator`, `dc:language`, `dc:identifier`) into EPUB `content.opf` based on document frontmatter or `ContentLanguage` settings.
-
-### [x] 8. Global Keyboard Shortcuts & Live Zoom Diagnostics
-- **Target Files**: `marksmith-v2/MdToPdf/MainWindow.xaml.cs`, `MainViewModel.cs`
-- **Goal**:
-  - Register global keyboard shortcuts (`Ctrl+Shift+E` for instant DOCX export, `Ctrl+Shift+P` for instant PDF export, `Ctrl+Shift+M` to launch Visual Mermaid Studio).
-  - Surface active preview zoom level dynamically in the status bar tooltip (`Preview Zoom: 100%`).
+  - Build a unified `CloudStorageService` auto-detecting and integrating local cloud drive sync directories across Windows:
+    1. **Microsoft OneDrive**: `%USERPROFILE%\OneDrive`, `%USERPROFILE%\OneDrive - [Business]`
+    2. **Google Drive**: `%USERPROFILE%\Google Drive`, `G:\My Drive` (Google Drive for Desktop volume)
+    3. **Dropbox**: `%USERPROFILE%\Dropbox`, `%APPDATA%\Dropbox\info.json`
+    4. **Box Sync / iCloud Drive**: `%USERPROFILE%\Box`, `%USERPROFILE%\iCloudDrive`
+    5. **Nextcloud / OwnCloud / WebDAV**: Standard WebDAV REST client fallback with endpoint, username, password/token auth.
+  - Features:
+    - Auto-detect active cloud storage folders on system startup and display detected drives in Settings -> Automation -> Cloud Sync.
+    - Add "Save & Export to Cloud Storage" option in the main export split button and folder ingest menu.
+    - Enable background auto-publishing of exported PDF/DOCX/PPTX/EPUB files directly into designated Cloud Drive folders upon document export.
+  - Verification: Add unit tests verifying path resolution, provider detection, and mock upload/sync dispatching across all 5 provider targets.
 
 ---
 
@@ -38,4 +33,5 @@
 - **2026-07-27 01:15**: Cycle 1 — Tasks 1 & 2 completed (extension mermaid recovery + chained-arrow parser fix / spatial metadata hiding). Suite: 719 passed / 0 failed / 21 skipped / 740 total.
 - **2026-07-27 02:10**: Cycle 2 — Tasks 3 & 4 completed (toolbar consolidated into 5 dropdown clusters + title-bar quick actions; ApiServer AllowedExtensionId auth tests + multi-format export integration tests). Suite: 731 passed / 0 failed / 21 skipped / 752 total.
 - **2026-07-27 03:41**: Cycle 3 queued — Tasks 5, 6, 7, 8 added.
-- **2026-07-27 04:32**: Cycle 4 — Tasks 5, 6, 7, 8 completed (Mermaid Studio connector curve routing + 4 style presets persisted via `%%{init}%%`; DeepSeek `<think>`/Perplexity citation-pip/prompt-echo cleaners + 21 tests; EPUB3 cover image + Dublin Core metadata + 11 tests; Ctrl+Shift+E/P/M instant-export & Studio shortcuts + live zoom tooltip). Also fixed a pre-existing ChatGPT `\[`→`$$` display-math bug (double-backslash pattern never matched). Suite: 763 passed / 0 failed / 21 skipped / 784 total.
+- **2026-07-27 04:32**: Cycle 4 — Tasks 5, 6, 7, 8 completed (Mermaid Studio connector curve routing + 4 style presets; DeepSeek `<think>` / Perplexity cleaners; EPUB3 cover image + Dublin Core metadata; Ctrl+Shift+E/P/M shortcuts + zoom tooltip). Suite: 763 passed / 0 failed / 21 skipped / 784 total.
+- **2026-07-27 05:03**: Cycle 5 queued — Task 9 (Multi-Cloud Storage & Auto-Sync Engine for OneDrive, Google Drive, Dropbox, Box, Nextcloud / WebDAV) added.
