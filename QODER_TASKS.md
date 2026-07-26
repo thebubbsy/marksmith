@@ -1,45 +1,40 @@
 # Qoder Task Queue & Feature Backlog — Marksmith v2
 
-> **Instructions for Qoder**: This file is polled periodically to assign next technical priorities. Pick the next uncompleted task (`[ ]`), execute changes, run `dotnet build` to verify 0 errors/warnings, and mark it complete (`[x]`).
+> **Instructions for Qoder**: This file is polled periodically to assign next technical priorities. Pick the next uncompleted task (`[ ]`), execute changes, run `dotnet test` to verify 0 errors/failures, and mark it complete (`[x]`).
 
 ---
 
-## 🚀 Active Priority Tasks
+## 🚀 Active Priority Tasks (Cycle 3)
 
-### 1. Fix Browser Extension ChatGPT Mermaid Code Recovery (Issue #8) — [x] DONE 2026-07-27
-- **Target Files**: `extension/background.js`, `extension/copybutton.js`
-- **Problem**: When ChatGPT renders interactive SVG/canvas Mermaid widgets, `recoverMermaidSources()` fails to find the raw ` ```mermaid ` source code, causing Marksmith to ingest only the header text `"Mermaid"`.
+### 5. Visual Mermaid Studio Connector Routing & Style Presets
+- **Target Files**: `marksmith-v2/MdToPdf/Views/Mermaid/MermaidDiagramStudioControl.xaml`, `MermaidStudioViewModel.cs`
 - **Goal**:
-  - Update DOM selectors in `recoverMermaidSources()` to match ChatGPT's newest widget wrappers.
-  - Implement fallback logic to inspect `<code class="language-mermaid">`, `data-code` attributes, or programmatically trigger ChatGPT's "Code" toggle button prior to Markdown conversion.
-  - Ensure `convertHtmlToMarkdown` replaces the widget with a clean fenced ` ```mermaid ` block.
-- **Done**: Widget detection now accepts `<canvas>` renders, "diagram" class/testid variants, and header-label ("Mermaid") wrappers; source recovery adds mermaid-keyword sniffing of any `code`/`pre`/`textarea`, `data-code`/`data-content`/`data-source` attributes, and text-labeled "Code"/"Source" toggle tabs. `copybutton.js` gained the same recovery pre-pass (it previously dropped diagrams entirely). Both files pass `node --check`.
+  - Add explicit connector curve controls (`Elbow / Orthogonal 90°`, `Straight`, `Curved / Bezier`) in the Visual Mermaid Studio toolbar.
+  - Add preset diagram color palettes (`Catppuccin Slate`, `Nord Ocean`, `Emerald Corporate`, `Monochrome Print`) in the Diagram Studio inspector panel to quickly recolor diagram shape fills, borders, and arrow markers.
 
-### 2. Mermaid Chained-Arrow Parser Fix & Spatial Metadata Hiding (Issue #7) — [x] DONE 2026-07-27
-- **Target File**: `marksmith-v2/MdToPdf.Core/Mermaid/Parser/FlowchartParser.cs`
-- **Problem**: Chained arrow lines (e.g., `A -->|Yes| B -->|No| C`) fail regex parsing because `FlowchartParser.cs` assumes only one edge per line, misparsing `B -->|No| C` as a single node ID.
+### 6. AI Quirk Normalization — DeepSeek & Perplexity AI Artifact Cleaners
+- **Target Files**: `marksmith-v2/MdToPdf.Core/Services/ProviderDialectNormalizer.cs`, `DialectNormalizer.cs`
 - **Goal**:
-  - Refactor `ParseLine()` to loop sequentially across multiple edge operators per line.
-  - Hide/strip `%% {"id": ...}` spatial comments from the primary Markdown editor view while preserving them during export sync.
-- **Done**: `ParseLine()` now walks every edge operator per line (with a bracket-balance guard so arrows inside node labels don't false-chain). New `MermaidSpatialMetadataService` strips `%% {"id":...}` lines from editor text into a per-block stash and re-injects them on Diagram Studio open, studio sync, and file save; wired into `MainWindow.xaml.cs`. Covered by 10 new tests (suite: 719 passed / 0 failed / 21 skipped / 740 total).
+  - Add automatic detection and stripping for DeepSeek / Perplexity AI chat artifacts (e.g., `<think> ... </think>` reasoning tags, web search citation badges `[source]`, `[1]`, and raw prompt echo headers).
+  - Add comprehensive unit tests in `DialectNormalizerTests.cs` for DeepSeek and Perplexity input streams.
 
-### 3. UI Layout De-Cluttering & Toolbar Consolidation (Issue #6) — [x] DONE 2026-07-27
-- **Target File**: `marksmith-v2/MdToPdf/MainWindow.xaml`
+### 7. Native EPUB Cover Image & Dublin Core Metadata Exporter
+- **Target Files**: `marksmith-v2/MdToPdf.Core/Services/EpubExportService.cs`
 - **Goal**:
-  - Consolidate the 20+ horizontal formatting buttons into 5 dropdown clusters (`Text Style`, `Lists ▼`, `+ Insert ▼`, `Tools ▼`, `View & Zoom ▼`) to save ~100px vertical workspace.
-  - Move primary export controls (`Export PDF`, `Export Word`, `Diagram Studio 🎨`, `Settings ⚙`) into the empty right half of the custom Title Bar (`AppTitleBar`).
-- **Done**: The two toolbar rows are now a single row of five dropdown clusters (Text Style / Lists / Insert / Tools / View & Zoom) — every action keeps its original Click handler, rehomed one menu deep (Rich Components and Diagram became sub-menus of Insert). The title-bar row was split so only the branding grid stays the drag region (SetTitleBar target) and Export PDF / Export Word / Diagram Studio 🎨 / Settings ⚙ live as clickable quick actions in the right half, right-margined clear of the system caption buttons.
+  - Enable embedding custom book cover PNG/JPG images into EPUB3 exports when `BrandCoverPage` / `BrandLogoPath` is enabled.
+  - Inject Dublin Core XML metadata (`dc:title`, `dc:creator`, `dc:language`, `dc:identifier`) into EPUB `content.opf` based on document frontmatter or `ContentLanguage` settings.
 
-### 4. Automated Integration & Export Test Suite Coverage — [x] DONE 2026-07-27
-- **Target Project**: `marksmith-v2/tests/MdToPdf.Core.Tests`
+### 8. Global Keyboard Shortcuts & Live Zoom Diagnostics
+- **Target Files**: `marksmith-v2/MdToPdf/MainWindow.xaml.cs`, `MainViewModel.cs`
 - **Goal**:
-  - Add unit tests for `AllowedExtensionId` authorization check in `ApiServer.cs`.
-  - Add integration tests verifying multi-format exports (PDF, DOCX, PPTX, EPUB) generate non-zero-byte valid archives without throwing exceptions.
-- **Done**: New `ApiServerAuthAndExportIntegrationTests.cs` — 7 auth tests (pinned ID admits only the matching chrome/moz extension, case-insensitive; blank pin trusts any extension but still rejects web origins; governance reads refuse even the pinned extension) + 5 export integration tests (DOCX/PPTX/EPUB produce non-zero valid archives with the expected OOXML/OCF entries; `/api/convert` round-trips a real DOCX archive and delivers PDF bytes intact with the right content types — real PDF rendering needs WebView2, so that leg validates the API contract). Suite: 731 passed / 0 failed / 21 skipped / 752 total.
+  - Register global keyboard shortcuts (`Ctrl+Shift+E` for instant DOCX export, `Ctrl+Shift+P` for instant PDF export, `Ctrl+Shift+M` to launch Visual Mermaid Studio).
+  - Surface active preview zoom level dynamically in the status bar tooltip (`Preview Zoom: 100%`).
 
 ---
 
-## 📌 Status Log
+## 📌 History & Completed Tasks
+
 - **2026-07-27 00:26**: Queue initialized for Qoder polling.
-- **2026-07-27 01:15**: Cycle 1 — Tasks 1 & 2 completed (extension mermaid recovery + chained-arrow parser fix / spatial metadata hiding). Suite: 719 passed / 0 failed / 21 skipped / 740 total. Tasks 3 & 4 queued for next cycles.
-- **2026-07-27 02:10**: Cycle 2 — Tasks 3 & 4 completed (toolbar consolidated into 5 dropdown clusters + title-bar quick actions; ApiServer AllowedExtensionId auth tests + multi-format export integration tests). Suite: 731 passed / 0 failed / 21 skipped / 752 total. Queue is empty.
+- **2026-07-27 01:15**: Cycle 1 — Tasks 1 & 2 completed (extension mermaid recovery + chained-arrow parser fix / spatial metadata hiding). Suite: 719 passed / 0 failed / 21 skipped / 740 total.
+- **2026-07-27 02:10**: Cycle 2 — Tasks 3 & 4 completed (toolbar consolidated into 5 dropdown clusters + title-bar quick actions; ApiServer AllowedExtensionId auth tests + multi-format export integration tests). Suite: 731 passed / 0 failed / 21 skipped / 752 total.
+- **2026-07-27 03:41**: Cycle 3 queued — Tasks 5, 6, 7, 8 added.
