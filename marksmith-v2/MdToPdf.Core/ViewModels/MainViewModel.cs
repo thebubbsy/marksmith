@@ -286,6 +286,18 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
 
+    // Document outline (Task 17): H1–H6 entries extracted from CurrentMarkdown. The anchors are the
+    // exact Markdig AutoIdentifier ids the preview renders, so the outline flyout can click-to-scroll.
+    public ObservableCollection<TocEntry> TocEntries { get; } = new();
+
+    /// <summary>Re-extracts the document outline from <see cref="CurrentMarkdown"/> (Task 17).</summary>
+    public void RefreshToc()
+    {
+        var entries = TocExtractorService.Extract(CurrentMarkdown);
+        TocEntries.Clear();
+        foreach (var e in entries) TocEntries.Add(e);
+    }
+
     [ObservableProperty] private bool _isDiscoveringFiles;
 
     // Scan Downloads/Documents/Desktop/OneDrive for real .md files (newest first), pinned/opened

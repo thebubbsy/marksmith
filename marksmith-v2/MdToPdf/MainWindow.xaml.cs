@@ -232,6 +232,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _previewDebounce.IsRepeating = false;
         _previewDebounce.Tick += async (_, _) =>
         {
+            // Outline (Task 17): the TOC depends only on the markdown, so refresh it on the same
+            // debounce as the preview — cheap, and keeps the flyout in step with what's rendered.
+            ViewModel.RefreshToc();
             // ISS-004: while a portal is open a re-navigation would destroy it mid-edit, so the
             // update goes through the live path instead — push the editor's text into the portal's
             // textarea (split + portal: typed text appears inside the shape) and swap the preview
@@ -287,6 +290,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         UpdateLicenseBanner();
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
+        TocList.ItemsSource = ViewModel.TocEntries; // Outline flyout (Task 17) — same reason
+        ViewModel.RefreshToc();
         InitTrayIcon();
 
         AppWindow.Closing += (sender, e) =>
@@ -1030,6 +1035,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.StatusText = $"File no longer exists: {entry.OutputPath}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
+    }
+
+    // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
+    // id Markdig rendered on the heading element, so getElementById + scrollIntoView lands on it.
+    private async void OnTocItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not Services.TocEntry entry || string.IsNullOrEmpty(entry.Anchor)) return;
+        if (PreviewWebView.CoreWebView2 is not { } core) return;
+        var js = "(function(){var el=document.getElementById(" +
+                 System.Text.Json.JsonSerializer.Serialize(entry.Anchor) +
+                 ");if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}})();";
+        try { await core.ExecuteScriptAsync(js); } catch { /* best-effort */ }
     }
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)

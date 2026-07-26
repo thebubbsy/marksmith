@@ -64,13 +64,18 @@
   - Support embedding custom TTF/OTF fonts into PDF & EPUB output profiles.
   - Verification: 32 unit tests in `FontManagerServiceTests.cs` (preset catalog, CSS resolution, TTF/OTF validation, base64 @font-face embedding). Suite: 871 passed / 0 failed / 892 total.
 
-### [ ] 17. Interactive Document Outline / TOC Navigation Flyout
+### [x] 17. Interactive Document Outline / TOC Navigation Flyout
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/TocExtractorService.cs`
-  - `marksmith-v2/MdToPdf/Views/TocFlyoutControl.xaml`
+  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/MdToPdf/MainWindow.xaml` (Outline button + TocList flyout)
+  - `marksmith-v2/MdToPdf/MainWindow.xaml.cs` (OnTocItemClick scroll + refresh hook)
+  - `marksmith-v2/MdToPdf/Converters/LevelToIndentConverter.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/TocExtractorServiceTests.cs`
 - **Goal**:
   - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
   - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
+  - Verification: 11 unit tests in `TocExtractorServiceTests.cs` (level/order extraction, Markdig AutoIdentifier anchors match rendered HTML ids, duplicate disambiguation, fenced-code exclusion, inline-markup stripping). Suite: 905 passed / 0 failed / 926 total.
 
 ### [x] 18. PDF Password Encryption & Security Policy Engine
 - **Target Files**:
@@ -115,3 +120,4 @@
 - **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total.
 - **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total.
 - **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total. Cycle 12 queued — Tasks 19 & 20 added.
+- **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
