@@ -58,6 +58,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // True while the mermaid snapshot renderer owns the WebView — preview refreshes (e.g. the ingest
     // debounce firing mid-harvest) must not navigate away from the render page.
     private bool _mermaidHarvestActive;
+    // Diagram Studio node positions live as %% {"id":...} comment lines inside mermaid fences.
+    // They're noise in the raw editor, so the editor shows stripped markdown and the removed
+    // lines are stashed here (per mermaid block index) to be re-injected on save / studio open.
+    private Dictionary<int, List<string>> _mermaidSpatialStash = new();
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -1647,12 +1651,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async Task ShowMermaidDiagramStudioWindowAsync(string sampleCode, int targetIndex)
     {
-        var currentMd = ViewModel.CurrentMarkdown ?? "";
-        
+        // The editor holds stripped markdown — restore the stashed %% position lines so the
+        // studio lays nodes out exactly where the user left them.
+        var currentMd = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+            ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+
         var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(currentMd, targetIndex);
         studioWindow.SyncToMarkdownRequested += async (s, markdown) =>
         {
-            ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown ?? "");
+            var fullMd = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+                ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+            var synced = studioWindow.ViewModel.SyncToMarkdown(fullMd);
+            // Editor stays clean: strip the fresh position lines back out into the stash.
+            ViewModel.CurrentMarkdown = Mermaid.Sync.MermaidSpatialMetadataService.Strip(synced, out _mermaidSpatialStash);
             ViewModel.StatusText = "Mermaid diagram code updated via Diagram Studio.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
             await RefreshPreviewAsync(heavy: true);
@@ -2064,7 +2075,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         try
         {
-            await File.WriteAllTextAsync(path, ViewModel.CurrentMarkdown);
+            // Restore any stashed %% position metadata so the saved file keeps studio layouts.
+            var toSave = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+                ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+            await File.WriteAllTextAsync(path, toSave);
             ViewModel.StatusText = $"Saved changes to {path}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
@@ -3449,10 +3463,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
     {
-        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(ViewModel.CurrentMarkdown);
+        var fullMd = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+            ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(fullMd);
         studioWindow.SyncToMarkdownRequested += (s, markdown) =>
         {
-            ViewModel.CurrentMarkdown = studioWindow.ViewModel.SyncToMarkdown(ViewModel.CurrentMarkdown);
+            var current = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+                ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+            var synced = studioWindow.ViewModel.SyncToMarkdown(current);
+            ViewModel.CurrentMarkdown = Mermaid.Sync.MermaidSpatialMetadataService.Strip(synced, out _mermaidSpatialStash);
         };
         studioWindow.Activate();
     }
