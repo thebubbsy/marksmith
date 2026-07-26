@@ -136,4 +136,42 @@ public class DocumentStatsServiceTests
         var s = DocumentStatsService.Analyze(md);
         Assert.Equal(md.Length, s.Characters);
     }
+
+    [Fact]
+    public void CharactersNoSpaces_ExcludesAllWhitespace()
+    {
+        // "ab cd\n\tef" -> 6 visible chars (a b c d e f), 3 whitespace (space, \n, \t).
+        var s = DocumentStatsService.Analyze("ab cd\n\tef");
+        Assert.Equal(9, s.Characters);
+        Assert.Equal(6, s.CharactersNoSpaces);
+    }
+
+    [Fact]
+    public void Lines_CountsPhysicalLines()
+    {
+        Assert.Equal(1, DocumentStatsService.Analyze("single line").Lines);
+        Assert.Equal(3, DocumentStatsService.Analyze("a\nb\nc").Lines);
+    }
+
+    [Fact]
+    public void Lines_SingleTrailingNewline_DoesNotAddPhantomLine()
+    {
+        // "hello\n" is one line in any editor, not two; but a real blank line still counts.
+        Assert.Equal(1, DocumentStatsService.Analyze("hello\n").Lines);
+        Assert.Equal(2, DocumentStatsService.Analyze("a\n\n").Lines);
+    }
+
+    [Fact]
+    public void Lines_NormalizesCrlfLineEndings()
+    {
+        Assert.Equal(3, DocumentStatsService.Analyze("a\r\nb\r\nc").Lines);
+    }
+
+    [Fact]
+    public void DetailText_SurfacesCharactersNoSpacesAndLines()
+    {
+        var detail = DocumentStatsService.Analyze("Hello world\nSecond line").DetailText;
+        Assert.Contains("without spaces", detail);
+        Assert.Contains("2 lines", detail);
+    }
 }
