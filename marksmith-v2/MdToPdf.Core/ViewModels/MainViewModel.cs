@@ -107,6 +107,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
+    // Cloud storage auto-publish (Task 9).
+    [ObservableProperty] private bool _cloudAutoPublish;
+    [ObservableProperty] private string _cloudProviderId = "";
+    [ObservableProperty] private string _cloudSubfolder = "Marksmith";
+    [ObservableProperty] private string _webDavEndpoint = "";
+    [ObservableProperty] private string _webDavUser = "";
+    [ObservableProperty] private string _webDavToken = "";
+
+    // Cloud drives detected on this machine (Task 9); feeds the Settings ▸ Automation ▸ Cloud Sync
+    // picker. Refreshed on startup and via RefreshCloudProviders() (the "Re-scan" button).
+    public ObservableCollection<Models.CloudProviderInfo> CloudProviders { get; } = new();
+
     // The originating conversation's title (from source-page metadata on ingest), used as the
     // default export filename + document title. Empty for hand-typed / plain content.
     [ObservableProperty] private string _suggestedTitle = string.Empty;
@@ -383,7 +395,15 @@ public sealed partial class MainViewModel : ObservableObject
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
         _allowedExtensionId = settings.AllowedExtensionId;
+        _cloudAutoPublish = settings.CloudAutoPublish;
+        _cloudProviderId = settings.CloudProviderId;
+        _cloudSubfolder = settings.CloudSubfolder;
+        _webDavEndpoint = settings.WebDavEndpoint;
+        _webDavUser = settings.WebDavUser;
+        _webDavToken = settings.WebDavToken;
         _targetFormat = settings.TargetFormat;
+
+        RefreshCloudProviders();
 
         ThemeNames = new ObservableCollection<string>(BuildOrderedThemeNames(settings.FavoriteThemes));
         _isCurrentThemeFavorite = settings.FavoriteThemes.Contains(_selectedThemeName);
@@ -413,6 +433,13 @@ public sealed partial class MainViewModel : ObservableObject
             }
             catch (OperationCanceledException) { }
         });
+    }
+
+    // Re-scans the machine for cloud-drive sync folders (Task 9) and refreshes the picker list.
+    public void RefreshCloudProviders()
+    {
+        CloudProviders.Clear();
+        foreach (var p in AppServices.CloudStorage.DetectProviders()) CloudProviders.Add(p);
     }
 
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
@@ -465,6 +492,12 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
+    partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
+    partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; SaveSettingsDebounced(); }
+    partial void OnCloudSubfolderChanged(string value) { _settingsService.Current.CloudSubfolder = value; SaveSettingsDebounced(); }
+    partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
+    partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }
+    partial void OnWebDavTokenChanged(string value) { _settingsService.Current.WebDavToken = value; SaveSettingsDebounced(); }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
 
