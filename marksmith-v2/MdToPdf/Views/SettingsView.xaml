@@ -39,6 +39,52 @@
             </StackPanel>
         </PivotItem>
 
+        <!-- ===== Automation ===== -->
+        <PivotItem Header="Automation">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14" Margin="0,12,10,0">
+                    <!-- Card 1: Local REST API Server -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Local REST API server" FontWeight="SemiBold" />
+                                    <TextBlock Text="Listens on loopback (127.0.0.1) for conversion requests from local scripts and browser extension."
+                                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding ApiEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <TextBlock Text="API Port" Style="{StaticResource StepCaptionStyle}" />
+                                <NumberBox Value="{Binding ApiPort, Mode=TwoWay}" Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="180" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 2: Browser Extension Connector & Extension ID Pairing -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <TextBlock Text="Browser Extension Pairing Key" FontWeight="SemiBold" />
+                            <TextBlock Text="Copy your Extension ID from the Chrome/Edge extension popup and paste it here to authorize 1-click prompt ingestion."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+
+                            <TextBox Text="{Binding AllowedExtensionId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     PlaceholderText="Paste your Extension ID (e.g. ext-xxxx or Chrome Extension ID)"
+                                     IsSpellCheckEnabled="False" />
+
+                            <TextBlock Text="Leave blank to allow all local requests on loopback."
+                                       Style="{StaticResource StepCaptionStyle}" Opacity="0.7" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+
         <!-- ===== License ===== -->
         <PivotItem Header="License">
             <StackPanel Spacing="14" Margin="0,12,0,0">
