@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 9 & 10)
+## 🚀 Active Priority Tasks (Cycle 10 & 11)
 
 ### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
@@ -72,6 +72,14 @@
   - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
   - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
 
+### [ ] 18. PDF Password Encryption & Security Policy Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/PdfSecurityService.cs`
+  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfSecurityServiceTests.cs`
+- **Goal**:
+  - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -85,5 +93,5 @@
 - **2026-07-27 07:20**: Cycle 6 — Task 11 completed.
 - **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 21 skipped / 836 total.
 - **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
-- **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total. Cycle 10 queued — Tasks 16 & 17 added.
-- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total.
+- **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total.
+- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total. Cycle 11 queued — Task 18 added.
