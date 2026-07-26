@@ -153,6 +153,10 @@ public sealed class AppSettings
     // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
     public bool AdvancedMode { get; set; }
 
+    // Pro mode skips the interactive pickers: Insert ▸ Image drops the raw markdown placeholder
+    // directly (the classic one-keystroke behavior) instead of opening the drag & drop / URL modal.
+    public bool ProMode { get; set; }
+
     // Security: Specific extension ID allowed to call the local API (resolves SAST warning)
     public string AllowedExtensionId { get; set; } = "";
 
@@ -251,6 +255,7 @@ public sealed class AppSettings
         ApiEnabled = other.ApiEnabled;
         ApiPort = other.ApiPort;
         AdvancedMode = other.AdvancedMode;
+        ProMode = other.ProMode;
         AllowedExtensionId = other.AllowedExtensionId;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
