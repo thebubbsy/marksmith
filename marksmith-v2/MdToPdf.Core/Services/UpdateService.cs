@@ -30,15 +30,7 @@ public sealed class UpdateService
             http.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-UpdateCheck");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             var json = await http.GetStringAsync(LatestReleaseApi);
-
-            using var doc = JsonDocument.Parse(json);
-            var tag = doc.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
-            var url = doc.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() ?? ReleasesUrl : ReleasesUrl;
-            var latest = tag.TrimStart('v', 'V');
-
-            if (Compare(latest, CurrentVersion) > 0)
-                return new(true, true, tag, url, $"Update available — {tag}. You have {CurrentVersion}.");
-            return new(true, false, tag, url, $"You're up to date (v{CurrentVersion}).");
+            return EvaluateReleaseJson(json, CurrentVersion);
         }
         catch (HttpRequestException)
         {
@@ -49,6 +41,25 @@ public sealed class UpdateService
         {
             return new(false, false, "", ReleasesUrl, $"Update check failed: {ex.Message}");
         }
+    }
+
+    // Parses a GitHub "releases/latest" JSON payload and decides whether an update is available.
+    // Extracted from CheckAsync so the parse + version-decision contract is unit-testable without a
+    // network call. Returns Ok=false with a friendly message when the payload carries no tag (e.g.
+    // the repo is private and the API answered with an error body instead of a release).
+    internal static Result EvaluateReleaseJson(string json, string currentVersion)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var tag = doc.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
+        var url = doc.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() ?? ReleasesUrl : ReleasesUrl;
+
+        if (string.IsNullOrWhiteSpace(tag))
+            return new(false, false, "", ReleasesUrl, "The releases feed returned no tag information.");
+
+        var latest = tag.TrimStart('v', 'V');
+        if (Compare(latest, currentVersion) > 0)
+            return new(true, true, tag, url, $"Update available — {tag}. You have {currentVersion}.");
+        return new(true, false, tag, url, $"You're up to date (v{currentVersion}).");
     }
 
     // Numeric dotted-version compare; returns >0 if a is newer than b.
@@ -74,7 +85,7 @@ public sealed class UpdateService
 
     private static (int[] Numbers, bool IsPrerelease) Parse(string v)
     {
-        v = v.TrimStart('v', 'V').Trim();
+        v = v.Trim().TrimStart('v', 'V').Trim();
         var dash = v.IndexOf('-');
         var isPre = dash >= 0;
         var core = isPre ? v[..dash] : v;
