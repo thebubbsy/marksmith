@@ -29,7 +29,7 @@
         </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="40" /> <!-- App Title Bar Area -->
-            <RowDefinition Height="48" /> <!-- Studio Toolbar -->
+            <RowDefinition Height="56" /> <!-- Studio Toolbar (tall enough for headered pickers) -->
             <RowDefinition Height="*" />  <!-- Main Workspace -->
             <RowDefinition Height="28" /> <!-- Status Bar -->
         </Grid.RowDefinitions>
@@ -86,11 +86,24 @@
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
+                    <!-- Flowchart layout direction (Top-Down / Left-Right / …) — emitted as
+                         `flowchart TD|LR|…` and restored on load. -->
+                    <ComboBox x:Name="DirectionComboBox"
+                              Header="Direction"
+                              SelectedIndex="{Binding FlowchartDirectionIndex, Mode=TwoWay}"
+                              ToolTipService.ToolTip="Flowchart layout direction (Top-Down, Left-Right, …)"
+                              Width="130" Margin="8,0,0,0">
+                        <ComboBoxItem Content="Top-Down" />
+                        <ComboBoxItem Content="Left-Right" />
+                        <ComboBoxItem Content="Bottom-Up" />
+                        <ComboBoxItem Content="Right-Left" />
+                    </ComboBox>
+
                     <!-- Connector curve routing (QODER task 5) -->
                     <ComboBox x:Name="RoutingComboBox"
                               Header="Connectors"
                               SelectedIndex="{Binding ConnectorRoutingIndex, Mode=TwoWay}"
-                              ToolTipService.ToolTip="Connector curve style"
+                              ToolTipService.ToolTip="Connector line style (elbow, straight, curved)"
                               Width="180" Margin="8,0,0,0">
                         <ComboBoxItem Content="Elbow / Orthogonal 90°" />
                         <ComboBoxItem Content="Straight" />

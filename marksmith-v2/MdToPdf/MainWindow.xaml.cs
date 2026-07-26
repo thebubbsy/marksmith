@@ -2762,16 +2762,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _ = RefreshPreviewAsync();
     }
 
-    // ISS-004: persist the portal reveal scope and re-render the preview so the portal script
-    // picks up the new aperture size. Coalesced through the same debounce used for typing so a
-    // slider drag doesn't re-navigate the WebView on every tick.
+    // ISS-004: persist the portal reveal scope and push it straight into the page so an open
+    // aperture grows/shrinks in real time as the slider drags. __portalSetReveal is a cheap
+    // in-place DOM resize (no re-navigation), so the portal and its caret survive the drag —
+    // higher number = bigger circle/band, lower = smaller, live on every tick. The value is also
+    // persisted so the next full render bakes the same size in and nothing drifts.
     private void OnPortalRevealChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (_initializingPortalReveal) return;
-        App.Settings.Current.PortalRevealScope = (int)System.Math.Round(PortalRevealSlider?.Value ?? 45);
+        var scope = (int)System.Math.Round(PortalRevealSlider?.Value ?? 45);
+        App.Settings.Current.PortalRevealScope = scope;
         App.Settings.Save();
-        _previewDebounce.Stop();
-        _previewDebounce.Start();
+        var js = "if (window.__portalSetReveal) { window.__portalSetReveal(" + scope + "); }";
+        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
     }
 
     // ISS-004: persist the portal shape (circle spotlight vs full-width focus bands) and re-render

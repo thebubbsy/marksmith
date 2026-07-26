@@ -96,6 +96,58 @@
                                        Style="{StaticResource StepCaptionStyle}" Opacity="0.7" />
                         </StackPanel>
                     </Border>
+
+                    <!-- Card 3: Cloud Storage Sync (Task 9) -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Cloud Storage Sync" FontWeight="SemiBold" />
+                                    <TextBlock Text="Auto-publish every export into a cloud drive — OneDrive, Google Drive, Dropbox, Box, iCloud, or a WebDAV / Nextcloud endpoint."
+                                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding CloudAutoPublish, Mode=TwoWay}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Cloud drive" Style="{StaticResource StepCaptionStyle}" />
+                                <ComboBox ItemsSource="{Binding CloudProviders}"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectedValuePath="Id"
+                                          SelectedValue="{Binding CloudProviderId, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Subfolder inside the drive" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding CloudSubfolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="Marksmith" IsSpellCheckEnabled="False" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="WebDAV / Nextcloud (used only when the WebDAV provider is selected)" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="https://cloud.example.com/remote.php/dav/files/you/" IsSpellCheckEnabled="False" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding WebDavUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             PlaceholderText="User" IsSpellCheckEnabled="False" />
+                                    <PasswordBox Grid.Column="1" Password="{Binding WebDavToken, Mode=TwoWay}"
+                                                 PlaceholderText="Token / password" />
+                                </Grid>
+                            </StackPanel>
+
+                            <Button Content="Re-scan for drives" Click="OnRescanCloud"
+                                    ToolTipService.ToolTip="Re-detect cloud drive sync folders on this PC" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
         </PivotItem>

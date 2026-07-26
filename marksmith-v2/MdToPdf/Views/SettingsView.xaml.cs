@@ -56,6 +56,9 @@ public sealed partial class SettingsView : UserControl
         RefreshLicenseUi();
     }
 
+    // Cloud Storage Sync (Task 9): re-detect the local cloud-drive sync folders and refresh the picker.
+    private void OnRescanCloud(object sender, RoutedEventArgs e) => App.ViewModel.RefreshCloudProviders();
+
     private async void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
         CheckButton.IsEnabled = false;

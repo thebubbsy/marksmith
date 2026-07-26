@@ -50,6 +50,7 @@
     } else if (host.includes("claude.ai"))
       roots = [...document.querySelectorAll('[data-testid="assistant-message"], .font-claude-message')];
     if (!roots.length) return "";
+    recoverMermaid(roots);
     return roots.map(conv).join("\n\n---\n\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
@@ -57,6 +58,11 @@
   function conv(n) {
     if (n.nodeType === Node.TEXT_NODE) return n.textContent;
     if (n.nodeType !== Node.ELEMENT_NODE) return "";
+
+    if (n.dataset && n.dataset.mkMermaid) {
+      const f = String.fromCharCode(96, 96, 96), nl = String.fromCharCode(10);
+      return nl + f + "mermaid" + nl + n.dataset.mkMermaid + nl + f + nl;
+    }
 
     const cls = typeof n.className === "string" ? n.className : (n.className?.baseVal || "");
     if (cls.includes("katex") || cls.includes("math-inline") || cls.includes("math-display")) {
@@ -97,6 +103,119 @@
       }
       case "button": case "script": case "style": case "svg": case "noscript": return "";
       default: return kids();
+    }
+  }
+
+  // Recover the RAW mermaid source for rendered diagram widgets and tag each container with
+  // data-mk-mermaid so conv() emits a fenced block instead of dropping the <svg>/<canvas> (which
+  // used to leak the bare word "Mermaid" into the ingest). Synchronous because extractConversation
+  // is sync: DOM code elements -> data-attributes -> the message's raw markdown pulled straight out
+  // of React state (fence-by-index). Best-effort, never throws.
+  const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|xychart-beta|sankey-beta|block-beta|packet-beta|kanban|architecture-beta)\b/;
+  function recoverMermaid(rootsArr) {
+    const grab = (c) => (c.tagName === "TEXTAREA" ? c.value : c.textContent) || "";
+    const FENCE = String.fromCharCode(96, 96, 96); // the three-backtick code fence
+
+    // Pull the reply's RAW markdown out of React's internal state — the source of truth the
+    // diagram was rendered from, immune to widget DOM churn. Walk up to the nearest fiber and
+    // climb until we find a string prop holding a mermaid fence. "" when not React.
+    const reactMarkdown = (startEl) => {
+      try {
+        let node = startEl, fiber = null;
+        while (node && !fiber) {
+          const key = Object.keys(node).find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+          fiber = key ? node[key] : null;
+          if (!fiber) node = node.parentElement;
+        }
+        if (!fiber) return "";
+        const dig = (obj, depth) => {
+          if (!obj || depth > 5) return "";
+          if (typeof obj === "string") return obj.includes(FENCE + "mermaid") ? obj : "";
+          if (typeof obj !== "object") return "";
+          let keys;
+          try { keys = Object.keys(obj); } catch { return ""; }
+          if (keys.length > 60) keys = keys.slice(0, 60);
+          for (const k of keys) {
+            let v; try { v = obj[k]; } catch { continue; }
+            if (typeof v === "string" && v.includes(FENCE + "mermaid")) return v;
+          }
+          for (const k of keys) {
+            let v; try { v = obj[k]; } catch { continue; }
+            if (v && typeof v === "object") {
+              const r = dig(v, depth + 1);
+              if (r) return r;
+            }
+          }
+          return "";
+        };
+        let cur = fiber;
+        for (let i = 0; cur && i < 50; i++, cur = cur.return) {
+          const r = dig(cur.memoizedProps, 0);
+          if (r) return r;
+        }
+        return "";
+      } catch { return ""; }
+    };
+    const fencesFrom = (md) => {
+      const out = [];
+      if (!md) return out;
+      const re = /`{3}mermaid[^\n]*\r?\n([\s\S]*?)`{3}/gi;
+      let m;
+      while ((m = re.exec(md)) !== null) out.push(m[1].trim());
+      return out;
+    };
+
+    for (const root of rootsArr) {
+      const fences = fencesFrom(reactMarkdown(root));
+      const found = [];
+      const seen = new Set();
+      const push = (c) => { if (c && !seen.has(c) && c.querySelector("svg, canvas")) { seen.add(c); found.push(c); } };
+      for (const c of root.querySelectorAll('.mermaid, [class*="mermaid" i], [data-testid*="mermaid" i], [class*="diagram" i], [data-testid*="diagram" i]')) push(c);
+      for (const s of root.querySelectorAll('svg[id*="mermaid" i], canvas[id*="mermaid" i]')) {
+        push(s.closest('[class*="mermaid" i], [class*="diagram" i], [data-testid*="mermaid" i]') || s.parentElement || s);
+      }
+      for (const h of root.querySelectorAll("div, span, header, h1, h2, h3, h4, p")) {
+        if (/^mermaid$/i.test((h.textContent || "").trim()) && !h.querySelector("svg, canvas")) {
+          let anc = h.parentElement;
+          for (let d = 0; anc && d < 8; d++, anc = anc.parentElement) {
+            if (anc.querySelector("svg, canvas")) { push(anc); break; }
+          }
+        }
+      }
+      const containers = found.filter((a) => !found.some((b) => b !== a && a.contains(b)));
+
+      let fenceIdx = 0;
+      for (const el of containers) {
+        try {
+          if (el.dataset.mkMermaid) { fenceIdx++; continue; }
+          let source = "";
+          const scope = el.closest('[data-message-id], [data-message-author-role]') || el.parentElement || el;
+          const codeEl = scope.querySelector('code[class*="language-mermaid"]');
+          if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+          if (!source) {
+            for (const cand of scope.querySelectorAll("code, pre, textarea")) {
+              if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); break; }
+            }
+          }
+          if (!source) {
+            let node = el;
+            for (let d = 0; node && d < 4 && !source; d++, node = node.parentElement) {
+              for (const attr of node.attributes || []) {
+                if (MERMAID_HEAD.test(attr.value || "")) { source = attr.value; break; }
+              }
+            }
+          }
+          if (!source) {
+            for (const holder of el.querySelectorAll("[data-code], [data-content], [data-source]")) {
+              const v = holder.dataset.code || holder.dataset.content || holder.dataset.source || "";
+              if (MERMAID_HEAD.test(v.trim())) { source = v; break; }
+            }
+          }
+          if (!source && fences.length > fenceIdx) source = fences[fenceIdx];
+          if (source.trim()) el.dataset.mkMermaid = source.trim();
+          fenceIdx++;
+        } catch { fenceIdx++; }
+      }
     }
   }
 })();

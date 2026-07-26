@@ -84,6 +84,35 @@ public partial class MermaidStudioViewModel : ObservableObject
         };
     }
 
+    // ---- Flowchart direction (Top-Down / Left-Right / …) ----
+    // The layout direction emitted as `flowchart TD|LR|…`. Restored from the loaded AST so an
+    // authored `graph LR` round-trips unchanged; the toolbar Direction picker lets the user flip
+    // it and the change flows into GenerateMermaidCode (and thus the dirty baseline / sync).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlowchartDirectionIndex))]
+    private FlowDirection _flowchartDirection = FlowDirection.TD;
+
+    // int-backed view of FlowchartDirection for the toolbar ComboBox (display order:
+    // 0 = Top-Down, 1 = Left-Right, 2 = Bottom-Up, 3 = Right-Left). TB (a Mermaid synonym of TD)
+    // displays as Top-Down but is preserved verbatim unless the user actively picks a new option.
+    public int FlowchartDirectionIndex
+    {
+        get => FlowchartDirection switch
+        {
+            FlowDirection.LR => 1,
+            FlowDirection.BT => 2,
+            FlowDirection.RL => 3,
+            _ => 0 // TD and TB both read as Top-Down
+        };
+        set => FlowchartDirection = value switch
+        {
+            1 => FlowDirection.LR,
+            2 => FlowDirection.BT,
+            3 => FlowDirection.RL,
+            _ => FlowDirection.TD
+        };
+    }
+
     // Canonical code snapshot of the last load/save point, used to detect unsaved edits. We compare
     // generated-code-to-generated-code (not the raw source text) so harmless formatting differences
     // between the authored fence and the generator's output don't register as false "dirty" state.
@@ -246,6 +275,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     private void LoadDefaultSample()
     {
         SelectedDiagramType = MermaidDiagramType.Flowchart;
+        FlowchartDirection = FlowDirection.TD; // the sample is laid out top-down
         Nodes.Clear();
         Connectors.Clear();
 
@@ -277,6 +307,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (ast)
         {
             case FlowchartDiagramAst flowchart:
+                // Restore the authored layout direction so `graph LR` etc. round-trips and the
+                // Direction picker reflects the loaded diagram.
+                FlowchartDirection = flowchart.Direction;
                 foreach (var kvp in flowchart.Nodes)
                 {
                     var fn = kvp.Value;
@@ -1058,8 +1091,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (SelectedDiagramType)
         {
             case MermaidDiagramType.Flowchart:
-                FlowDirection dir = (CurrentAst is FlowchartDiagramAst currentFc) ? currentFc.Direction : FlowDirection.TD;
-                var flowchart = new FlowchartDiagramAst { Direction = dir };
+                var flowchart = new FlowchartDiagramAst { Direction = FlowchartDirection };
                 foreach (var n in Nodes)
                 {
                     FlowNodeShape shape;

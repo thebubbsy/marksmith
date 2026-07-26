@@ -160,6 +160,16 @@ public sealed class AppSettings
     // Security: Specific extension ID allowed to call the local API (resolves SAST warning)
     public string AllowedExtensionId { get; set; } = "";
 
+    // Cloud storage auto-publish (Task 9): mirror every export into a cloud drive. The provider id
+    // selects a detected local sync folder ("onedrive"/"googledrive"/"dropbox"/"box"/"icloud") that
+    // the provider's own desktop client then syncs, or "webdav" for an endpoint-driven HTTP PUT.
+    public bool CloudAutoPublish { get; set; }
+    public string CloudProviderId { get; set; } = "";
+    public string CloudSubfolder { get; set; } = "Marksmith";
+    public string WebDavEndpoint { get; set; } = "";
+    public string WebDavUser { get; set; } = "";
+    public string WebDavToken { get; set; } = "";
+
     // Returns a copy with any non-null override fields applied — used so an API/extension caller can
     // export with its own output profile without mutating the app's persistent settings.
     public AppSettings CloneWith(OutputOverride? o)
@@ -257,6 +267,12 @@ public sealed class AppSettings
         AdvancedMode = other.AdvancedMode;
         ProMode = other.ProMode;
         AllowedExtensionId = other.AllowedExtensionId;
+        CloudAutoPublish = other.CloudAutoPublish;
+        CloudProviderId = other.CloudProviderId;
+        CloudSubfolder = other.CloudSubfolder;
+        WebDavEndpoint = other.WebDavEndpoint;
+        WebDavUser = other.WebDavUser;
+        WebDavToken = other.WebDavToken;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
