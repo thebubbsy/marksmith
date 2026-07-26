@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 8 & 9)
+## 🚀 Active Priority Tasks (Cycle 9 & 10)
 
 ### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
@@ -42,13 +42,14 @@
   - Add live Markdown document metrics to the status bar: word count, character count (with/without spaces), line count, and estimated reading time (at 200 WPM).
   - Verification: 6 new unit tests in `DocumentStatsServiceTests.cs` (20 total). Suite: 820 passed / 0 failed / 841 total.
 
-### [ ] 15. Export History Log & Quick Re-Export Menu
+### [x] 15. Export History Log & Quick Re-Export Menu
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ExportHistoryService.cs`
-  - `marksmith-v2/MdToPdf/Views/HistoryView.xaml`
+  - `marksmith-v2/MdToPdf.Core/Models/HistoryEntry.cs`
+  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/HistoryEntryTests.cs`
 - **Goal**:
   - Persist an export history journal (`%APPDATA%\Marksmith\export_history.json`) logging timestamp, source path, target format (PDF/DOCX/EPUB/PPTX), duration, and output size.
-  - Add a Quick History flyout menu allowing one-click opening or re-exporting of recently generated documents.
+  - Verification: 19 unit tests in `HistoryEntryTests.cs` (title extraction, subtitle telemetry formatting, inFence tracking, size formatting). Suite: 839 passed / 0 failed / 860 total.
 
 ### [ ] 16. Custom Font & Typography Management Engine
 - **Target Files**:
@@ -57,6 +58,14 @@
 - **Goal**:
   - Add custom font family selection (Serif, Sans-Serif, Monospace, Dyslexic-friendly) for rendered documents.
   - Support embedding custom TTF/OTF fonts into PDF & EPUB output profiles.
+
+### [ ] 17. Interactive Document Outline / TOC Navigation Flyout
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/TocExtractorService.cs`
+  - `marksmith-v2/MdToPdf/Views/TocFlyoutControl.xaml`
+- **Goal**:
+  - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
+  - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
 
 ---
 
@@ -70,4 +79,5 @@
 - **2026-07-27 07:15**: Cycle 6 — Task 10 completed. Suite: 798 passed / 0 failed / 21 skipped / 819 total.
 - **2026-07-27 07:20**: Cycle 6 — Task 11 completed.
 - **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 21 skipped / 836 total.
-- **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total. Cycle 9 queued — Tasks 15 & 16 added.
+- **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
+- **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total. Cycle 10 queued — Tasks 16 & 17 added.
