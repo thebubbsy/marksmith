@@ -53,6 +53,10 @@ public static partial class DocumentStatsService
         // from a closing one across the whole document). Everything OUTSIDE a fence is prose we scan
         // for headings/tables and accumulate for word counting; fence bodies are excluded wholesale.
         var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        // Line count for the status bar: a single trailing newline shouldn't register as an extra
+        // blank line ("hello\n" is one line), but a genuine blank line still counts ("a\n\n" = 2).
+        int lineCount = lines.Length;
+        if (lineCount > 1 && lines[^1].Length == 0) lineCount--;
         string? fenceMarker = null; // the ``` or ~~~ run that opened the current block, or null
 
         foreach (var line in lines)
@@ -93,10 +97,16 @@ public static partial class DocumentStatsService
         int words = CountWords(proseText);
         var readingTime = TimeSpan.FromMinutes(words / WordsPerMinute);
 
+        // Characters without whitespace — the "dense" character count some style guides prefer.
+        int charsNoSpaces = 0;
+        foreach (var ch in markdown) if (!char.IsWhiteSpace(ch)) charsNoSpaces++;
+
         return new DocumentStats
         {
             Words = words,
             Characters = markdown.Length,
+            CharactersNoSpaces = charsNoSpaces,
+            Lines = lineCount,
             Headings = headings,
             CodeBlocks = codeBlocks,
             Tables = tables,
@@ -156,6 +166,8 @@ public readonly record struct DocumentStats
 {
     public int Words { get; init; }
     public int Characters { get; init; }
+    public int CharactersNoSpaces { get; init; }
+    public int Lines { get; init; }
     public int Headings { get; init; }
     public int CodeBlocks { get; init; }
     public int Tables { get; init; }
@@ -187,8 +199,8 @@ public readonly record struct DocumentStats
         get
         {
             var sb = new StringBuilder();
-            sb.Append($"{Words:N0} words · {Characters:N0} characters\n");
-            sb.Append($"Estimated reading time: {ReadingTimeText}");
+            sb.Append($"{Words:N0} words · {Characters:N0} characters ({CharactersNoSpaces:N0} without spaces)\n");
+            sb.Append($"{Lines:N0} lines · Estimated reading time: {ReadingTimeText}");
             AppendCount(sb, "heading", Headings);
             AppendCount(sb, "code block", CodeBlocks);
             AppendCount(sb, "table", Tables);
