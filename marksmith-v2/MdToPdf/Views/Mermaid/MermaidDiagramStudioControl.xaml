@@ -64,6 +64,7 @@
 
                     <ToggleSwitch x:Name="GridSnapSwitch"
                                   Header="Snap Grid"
+                                  ToolTipService.ToolTip="Snap nodes to a 10px grid while dragging"
                                   IsOn="{Binding IsGridSnapEnabled, Mode=TwoWay}"
                                   Margin="8,0,0,0" />
 
@@ -89,13 +90,14 @@
                 <!-- Center Zoom Slider -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE71F;" FontSize="14" Foreground="#8D99AE" />
-                    <Slider Width="140" Minimum="0.2" Maximum="3.0" StepFrequency="0.1" Value="{Binding ZoomFactor, Mode=TwoWay}" VerticalAlignment="Center" />
+                    <Slider Width="140" Minimum="0.2" Maximum="3.0" StepFrequency="0.1" Value="{Binding ZoomFactor, Mode=TwoWay}" VerticalAlignment="Center"
+                            ToolTipService.ToolTip="Canvas zoom (0.2× – 3×)" />
                     <TextBlock Text="{Binding ZoomFactor}" FontSize="12" Foreground="#EDF2F4" Width="45" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Right Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnSyncToMarkdownClick"
+                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#4CC9F0" />

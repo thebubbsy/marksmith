@@ -415,13 +415,27 @@ async function extractMarkdown(mode) {
     // toggle and reading what it reveals. Best-effort — never lets extraction fail.
     async function recoverMermaidSources(rootsArr) {
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context)\b/;
+        const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|xychart-beta|sankey-beta|block-beta|packet-beta|kanban|architecture-beta)\b/;
 
-        // Collect candidate containers that hold a rendered diagram (an <svg>).
+        // Collect candidate containers that hold a rendered diagram (an <svg> or <canvas> —
+        // ChatGPT's newest interactive widgets render to canvas). Wrapper classes/testids have
+        // churned repeatedly, so besides the mermaid/diagram selectors we also accept any wrapper
+        // whose small header label just reads "Mermaid" (the current widget chrome). A false
+        // positive is harmless: containers only get tagged when real mermaid source is found.
         const found = [];
+        const seen = new Set();
+        const push = (c) => {
+            if (c && !seen.has(c) && c.querySelector("svg, canvas")) { seen.add(c); found.push(c); }
+        };
         for (const root of rootsArr) {
-            for (const c of root.querySelectorAll('.mermaid, [class*="mermaid"], [data-testid*="mermaid"]')) {
-                if (c.querySelector("svg")) found.push(c);
+            for (const c of root.querySelectorAll('.mermaid, [class*="mermaid" i], [data-testid*="mermaid" i], [class*="diagram" i], [data-testid*="diagram" i]')) push(c);
+            for (const h of root.querySelectorAll("div, span, header, h1, h2, h3, h4")) {
+                if (h.childElementCount === 0 && /^mermaid$/i.test((h.textContent || "").trim())) {
+                    let anc = h.parentElement;
+                    for (let d = 0; anc && d < 6; d++, anc = anc.parentElement) {
+                        if (anc.querySelector("svg, canvas")) { push(anc); break; }
+                    }
+                }
             }
         }
         // Keep only the innermost matches so we never tag a large wrapper and swallow its siblings.
@@ -432,13 +446,22 @@ async function extractMarkdown(mode) {
                 if (el.dataset.mkMermaid) continue;
                 let source = "";
 
-                // 1) Raw source already present in the DOM (possibly hidden).
+                // 1) Raw source already present in the DOM (possibly hidden). Besides the classic
+                //    language-mermaid class, accept any <code>/<pre>/<textarea> inside the widget
+                //    whose text starts with a mermaid header keyword.
                 const scope = el.closest("[data-message-id]") || el.parentElement || el;
                 const codeEl = el.querySelector('code[class*="language-mermaid"]') ||
                     scope.querySelector('code[class*="language-mermaid"]');
                 if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+                if (!source) {
+                    for (const cand of scope.querySelectorAll("code, pre, textarea")) {
+                        const t = cand.tagName === "TEXTAREA" ? cand.value : cand.textContent;
+                        if (MERMAID_HEAD.test((t || "").trim())) { source = t; break; }
+                    }
+                }
 
-                // 2) Source stashed in a data-attribute on the container or a close ancestor.
+                // 2) Source stashed in a data-attribute (data-code, data-content, …) on the
+                //    container or a close ancestor/descendant.
                 if (!source) {
                     let node = el;
                     for (let d = 0; node && d < 4 && !source; d++, node = node.parentElement) {
@@ -447,17 +470,38 @@ async function extractMarkdown(mode) {
                         }
                     }
                 }
-
-                // 3) Click the "code" toggle to reveal the source, read it, then toggle back.
                 if (!source) {
-                    const toggle = scope.querySelector(
+                    for (const holder of el.querySelectorAll("[data-code], [data-content], [data-source]")) {
+                        const v = holder.dataset.code || holder.dataset.content || holder.dataset.source || "";
+                        if (MERMAID_HEAD.test(v.trim())) { source = v; break; }
+                    }
+                }
+
+                // 3) Click the "Code" toggle to reveal the source, read it, then toggle back.
+                //    ChatGPT's widget header now uses plain text "Code"/"Source" tabs without
+                //    aria-labels, so fall back to matching visible button/tab text too.
+                if (!source) {
+                    let toggle = scope.querySelector(
                         'button[aria-label*="code" i]:not([aria-label*="copy" i]), button[data-testid*="code" i]:not([data-testid*="copy" i]), button[title*="code" i]:not([title*="copy" i])'
                     );
+                    if (!toggle) {
+                        toggle = [...scope.querySelectorAll('button, [role="tab"], [role="button"]')].find((b) => {
+                            const t = (b.textContent || "").trim();
+                            return /^(code|source|view code|show code)$/i.test(t);
+                        });
+                    }
                     if (toggle) {
                         toggle.click();
                         await sleep(350);
-                        const revealed = scope.querySelector('code[class*="language-mermaid"]');
-                        if (revealed && revealed.textContent.trim()) source = revealed.textContent;
+                        let revealed = scope.querySelector('code[class*="language-mermaid"]');
+                        if (!revealed) {
+                            revealed = [...scope.querySelectorAll("code, pre, textarea")].find((c) =>
+                                MERMAID_HEAD.test(((c.tagName === "TEXTAREA" ? c.value : c.textContent) || "").trim()));
+                        }
+                        if (revealed) {
+                            const t = revealed.tagName === "TEXTAREA" ? revealed.value : revealed.textContent;
+                            if (t && t.trim()) source = t;
+                        }
                         toggle.click(); // leave the page as we found it
                         await sleep(150);
                     }
