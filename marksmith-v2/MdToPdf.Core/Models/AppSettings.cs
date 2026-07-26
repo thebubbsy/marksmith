@@ -92,6 +92,7 @@ public sealed class AppSettings
 
     // Export extras
     public bool IncludeToc { get; set; }
+    public bool ShowWordCount { get; set; } = true;
     public bool ShowAttribution { get; set; } = true;
     public bool NoEmoji { get; set; } // strip all emoji from preview + every export format
     public int DashMode { get; set; } // em-dash handling: 0 keep, 1 hyphen, 2 spaced, 3 custom
@@ -136,6 +137,7 @@ public sealed class AppSettings
         if (o.A4FixedWidth is { } a4) s.A4FixedWidth = a4;
         if (o.UnlimitedHeight is { } uh) s.UnlimitedHeight = uh;
         if (o.IncludeToc is { } toc) s.IncludeToc = toc;
+        if (o.ShowWordCount is { } swc) s.ShowWordCount = swc;
         if (o.ShowAttribution is { } sa) s.ShowAttribution = sa;
         if (o.NoEmoji is { } ne) s.NoEmoji = ne;
         if (o.DashMode is { } dm) s.DashMode = dm;
@@ -197,6 +199,7 @@ public sealed class AppSettings
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
         IncludeToc = other.IncludeToc;
+        ShowWordCount = other.ShowWordCount;
         ShowAttribution = other.ShowAttribution;
         NoEmoji = other.NoEmoji;
         DashMode = other.DashMode;
