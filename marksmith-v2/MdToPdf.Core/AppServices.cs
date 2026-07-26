@@ -18,6 +18,7 @@ public static class AppServices
     public static Services.UpdateService Updates { get; } = new();
     public static Services.LicenseService License { get; } = new();
     public static Services.BatchConvertService BatchConvert { get; } = new();
+    public static Services.CloudStorageService CloudStorage { get; } = new();
     public static Plugins.PluginManager Plugins { get; } = new();
     public static Services.ExportCoordinator ExportCoordinator { get; } = new();
 

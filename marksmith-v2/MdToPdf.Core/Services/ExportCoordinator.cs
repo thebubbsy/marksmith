@@ -130,6 +130,25 @@ public sealed class ExportCoordinator
                 vm.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
                 vm.StatusSeverity = StatusSeverity.Warning;
             }
+
+            // Cloud auto-publish (Task 9): mirror each produced file into the configured cloud drive
+            // (a local sync-folder copy, or a WebDAV PUT). Best-effort — a failed sync must never
+            // fail the export that just succeeded.
+            if (settings.CloudAutoPublish && produced.Count > 0 && !string.IsNullOrWhiteSpace(settings.CloudProviderId))
+            {
+                foreach (var p in produced)
+                {
+                    try
+                    {
+                        await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
+                            settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
+                    }
+                    catch (Exception cex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {

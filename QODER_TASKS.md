@@ -6,7 +6,7 @@
 
 ## 🚀 Active Priority Tasks (Cycle 5)
 
-### [ ] 9. Multi-Cloud Storage Provider & Auto-Sync Engine (OneDrive, Google Drive, Dropbox, Box, WebDAV)
+### [x] 9. Multi-Cloud Storage Provider & Auto-Sync Engine (OneDrive, Google Drive, Dropbox, Box, WebDAV)
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/CloudStorageService.cs` (new core service)
   - `marksmith-v2/MdToPdf.Core/Models/CloudProviderInfo.cs` (provider metadata POCO)
@@ -35,3 +35,4 @@
 - **2026-07-27 03:41**: Cycle 3 queued — Tasks 5, 6, 7, 8 added.
 - **2026-07-27 04:32**: Cycle 4 — Tasks 5, 6, 7, 8 completed (Mermaid Studio connector curve routing + 4 style presets; DeepSeek `<think>` / Perplexity cleaners; EPUB3 cover image + Dublin Core metadata; Ctrl+Shift+E/P/M shortcuts + zoom tooltip). Suite: 763 passed / 0 failed / 21 skipped / 784 total.
 - **2026-07-27 05:03**: Cycle 5 queued — Task 9 (Multi-Cloud Storage & Auto-Sync Engine for OneDrive, Google Drive, Dropbox, Box, Nextcloud / WebDAV) added.
+- **2026-07-24 06:12**: Cycle 5 — Task 9 completed (unified CloudStorageService auto-detecting OneDrive / Google Drive / Dropbox / Box / iCloud sync folders + WebDAV endpoint client; Settings -> Automation Cloud Sync panel; background auto-publish of exports; 21 new unit tests). Suite: 784 passed / 0 failed / 21 skipped / 805 total.
