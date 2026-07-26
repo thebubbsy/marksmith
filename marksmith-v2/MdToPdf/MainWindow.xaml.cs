@@ -2022,6 +2022,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         args.Handled = true;
     }
 
+    private void OnMermaidStudioAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        OnOpenMermaidStudioClick(this, new RoutedEventArgs());
+        args.Handled = true;
+    }
+
     private void OnRootPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         // Ctrl+, opens Settings. The comma key is VirtualKey 188 (VK_OEM_COMMA); WinUI's VirtualKey
@@ -2106,8 +2112,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ("Ctrl + O", "Open a Markdown file"),
             ("Ctrl + E", "Generate PDF"),
+            ("Ctrl + Shift + P", "Instant PDF export"),
+            ("Ctrl + Shift + E", "Instant DOCX export"),
             ("Ctrl + Shift + D", "Export DOCX"),
-            ("Ctrl + Shift + P", "Export PPTX"),
+            ("Ctrl + Shift + T", "Export PPTX"),
+            ("Ctrl + Shift + M", "Open the Visual Mermaid Studio"),
             ("Ctrl + ,", "Open Settings"),
             ("Ctrl + K", "Command palette"),
             ("Ctrl + S", "Save edits back to the source file"),
@@ -3186,7 +3195,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _lastPreviewZoom = clamped;
         ApplyPreviewCssZoom(clamped);
         if (PreviewZoomText is not null)
-            PreviewZoomText.Text = $"{(int)Math.Round(clamped * 100.0)}%";
+        {
+            var percent = (int)Math.Round(clamped * 100.0);
+            PreviewZoomText.Text = $"{percent}%";
+            // Live zoom diagnostics: the status-bar readout always carries the current level
+            // in its tooltip, so hovering shows the exact preview zoom ("Preview Zoom: 100%").
+            ToolTipService.SetToolTip(PreviewZoomText, $"Preview Zoom: {percent}%");
+        }
         if (persist)
         {
             App.Settings.Current.PreviewZoom = clamped;
