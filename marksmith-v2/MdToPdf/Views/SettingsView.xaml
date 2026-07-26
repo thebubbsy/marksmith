@@ -51,6 +51,22 @@
                                    Style="{StaticResource StepCaptionStyle}" Opacity="0.6" />
                     </StackPanel>
                 </Border>
+
+                <!-- Typography preset (Task 16) -->
+                <Border Style="{StaticResource PipelineCardStyle}">
+                    <StackPanel Padding="16,12" Spacing="6">
+                        <TextBlock Text="Document font" FontWeight="SemiBold" />
+                        <TextBlock Text="Typography preset applied to the preview and exported documents."
+                                   Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                        <ComboBox SelectedItem="{Binding FontPreset, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                            <x:String>System</x:String>
+                            <x:String>Serif</x:String>
+                            <x:String>Sans-Serif</x:String>
+                            <x:String>Monospace</x:String>
+                            <x:String>Dyslexic-friendly</x:String>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </PivotItem>
 

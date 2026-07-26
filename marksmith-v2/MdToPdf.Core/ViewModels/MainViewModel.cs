@@ -120,6 +120,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _pdfFooterTemplate = "";
     [ObservableProperty] private string _pdfPageNumberPosition = "None";
 
+    // Typography preset (Task 16) — id from FontManagerService.Presets ("System" default).
+    [ObservableProperty] private string _fontPreset = "System";
+
     // Cloud drives detected on this machine (Task 9); feeds the Settings ▸ Automation ▸ Cloud Sync
     // picker. Refreshed on startup and via RefreshCloudProviders() (the "Re-scan" button).
     public ObservableCollection<Models.CloudProviderInfo> CloudProviders { get; } = new();
@@ -414,6 +417,7 @@ public sealed partial class MainViewModel : ObservableObject
         _pdfHeaderTemplate = settings.PdfHeaderTemplate;
         _pdfFooterTemplate = settings.PdfFooterTemplate;
         _pdfPageNumberPosition = settings.PdfPageNumberPosition;
+        _fontPreset = settings.FontPreset;
         _targetFormat = settings.TargetFormat;
 
         RefreshCloudProviders();
@@ -514,6 +518,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnPdfHeaderTemplateChanged(string value) { _settingsService.Current.PdfHeaderTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
     partial void OnPdfFooterTemplateChanged(string value) { _settingsService.Current.PdfFooterTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
     partial void OnPdfPageNumberPositionChanged(string value) { _settingsService.Current.PdfPageNumberPosition = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
+    partial void OnFontPresetChanged(string value) { _settingsService.Current.FontPreset = value; SaveSettingsDebounced(); }
 
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
     // tokens expand to. Falls back to the default template when the matching band is empty.
