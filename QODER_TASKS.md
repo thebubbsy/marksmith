@@ -23,20 +23,23 @@
   - Hide/strip `%% {"id": ...}` spatial comments from the primary Markdown editor view while preserving them during export sync.
 - **Done**: `ParseLine()` now walks every edge operator per line (with a bracket-balance guard so arrows inside node labels don't false-chain). New `MermaidSpatialMetadataService` strips `%% {"id":...}` lines from editor text into a per-block stash and re-injects them on Diagram Studio open, studio sync, and file save; wired into `MainWindow.xaml.cs`. Covered by 10 new tests (suite: 719 passed / 0 failed / 21 skipped / 740 total).
 
-### 3. UI Layout De-Cluttering & Toolbar Consolidation (Issue #6)
+### 3. UI Layout De-Cluttering & Toolbar Consolidation (Issue #6) — [x] DONE 2026-07-27
 - **Target File**: `marksmith-v2/MdToPdf/MainWindow.xaml`
 - **Goal**:
   - Consolidate the 20+ horizontal formatting buttons into 5 dropdown clusters (`Text Style`, `Lists ▼`, `+ Insert ▼`, `Tools ▼`, `View & Zoom ▼`) to save ~100px vertical workspace.
   - Move primary export controls (`Export PDF`, `Export Word`, `Diagram Studio 🎨`, `Settings ⚙`) into the empty right half of the custom Title Bar (`AppTitleBar`).
+- **Done**: The two toolbar rows are now a single row of five dropdown clusters (Text Style / Lists / Insert / Tools / View & Zoom) — every action keeps its original Click handler, rehomed one menu deep (Rich Components and Diagram became sub-menus of Insert). The title-bar row was split so only the branding grid stays the drag region (SetTitleBar target) and Export PDF / Export Word / Diagram Studio 🎨 / Settings ⚙ live as clickable quick actions in the right half, right-margined clear of the system caption buttons.
 
-### 4. Automated Integration & Export Test Suite Coverage
+### 4. Automated Integration & Export Test Suite Coverage — [x] DONE 2026-07-27
 - **Target Project**: `marksmith-v2/tests/MdToPdf.Core.Tests`
 - **Goal**:
   - Add unit tests for `AllowedExtensionId` authorization check in `ApiServer.cs`.
   - Add integration tests verifying multi-format exports (PDF, DOCX, PPTX, EPUB) generate non-zero-byte valid archives without throwing exceptions.
+- **Done**: New `ApiServerAuthAndExportIntegrationTests.cs` — 7 auth tests (pinned ID admits only the matching chrome/moz extension, case-insensitive; blank pin trusts any extension but still rejects web origins; governance reads refuse even the pinned extension) + 5 export integration tests (DOCX/PPTX/EPUB produce non-zero valid archives with the expected OOXML/OCF entries; `/api/convert` round-trips a real DOCX archive and delivers PDF bytes intact with the right content types — real PDF rendering needs WebView2, so that leg validates the API contract). Suite: 731 passed / 0 failed / 21 skipped / 752 total.
 
 ---
 
 ## 📌 Status Log
 - **2026-07-27 00:26**: Queue initialized for Qoder polling.
 - **2026-07-27 01:15**: Cycle 1 — Tasks 1 & 2 completed (extension mermaid recovery + chained-arrow parser fix / spatial metadata hiding). Suite: 719 passed / 0 failed / 21 skipped / 740 total. Tasks 3 & 4 queued for next cycles.
+- **2026-07-27 02:10**: Cycle 2 — Tasks 3 & 4 completed (toolbar consolidated into 5 dropdown clusters + title-bar quick actions; ApiServer AllowedExtensionId auth tests + multi-format export integration tests). Suite: 731 passed / 0 failed / 21 skipped / 752 total. Queue is empty.

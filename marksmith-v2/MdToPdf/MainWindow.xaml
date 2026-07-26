@@ -53,19 +53,61 @@
             <localcontrols:ExtensionHintBar x:Name="ExtensionHintBar" Margin="16,0,16,0" />
         </StackPanel>
 
-        <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Image Source="ms-appx:///Assets/logo.png" Width="26" Height="26" />
-                <TextBlock Text="MarkSmith" FontWeight="SemiBold"
-                           Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
-                <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
-                <TextBlock Text="AI chats &#x2192; polished documents" Opacity="0.55"
-                           Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
-            </StackPanel>
+        <!-- Custom title bar so Mica shows through behind it; extended via Window.ExtendsContentIntoTitleBar in code-behind.
+             Issue #6: the row is split — only the branding grid (AppTitleBar) is the drag region
+             (SetTitleBar target), so the quick-action buttons in the right half stay clickable. -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-            <!-- ISS-008: the tip jar now lives in the ⋯ menu next to Settings (the title-bar button
-                 overlapped the system caption buttons at narrow widths). -->
+            <Grid x:Name="AppTitleBar" Grid.Column="0" Padding="16,0,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Image Source="ms-appx:///Assets/logo.png" Width="26" Height="26" />
+                    <TextBlock Text="MarkSmith" FontWeight="SemiBold"
+                               Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+                    <TextBlock Text="·" Opacity="0.4" VerticalAlignment="Center" />
+                    <TextBlock Text="AI chats &#x2192; polished documents" Opacity="0.55"
+                               Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- ISS-008: the tip jar now lives in the ⋯ menu next to Settings (the title-bar button
+                     overlapped the system caption buttons at narrow widths). -->
+            </Grid>
+
+            <!-- Issue #6: primary quick actions surfaced in the title bar's empty right half.
+                 Right margin clears the system caption buttons (min/max/close overlay). -->
+            <StackPanel x:Name="TitleBarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4"
+                        VerticalAlignment="Center" Margin="0,0,150,0">
+                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                        Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
+                        ToolTipService.ToolTip="Export as PDF (.pdf)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE749;" FontSize="12" />
+                        <TextBlock Text="Export PDF" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                        Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}"
+                        ToolTipService.ToolTip="Export as Word (.docx)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE74E;" FontSize="12" />
+                        <TextBlock Text="Export Word" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                        Click="OnOpenMermaidStudioClick"
+                        ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio">
+                    <TextBlock Text="Diagram Studio 🎨" FontSize="12" />
+                </Button>
+                <Button Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
+                        Click="OnSettingsClick"
+                        ToolTipService.ToolTip="Settings (Ctrl+,)">
+                    <FontIcon Glyph="&#xE713;" FontSize="14" />
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- Left-to-right pipeline: 1 Source -> 2 Style -> 3 Preview & Export -->
@@ -526,82 +568,81 @@
                             </Grid>
                             
                             <!-- Editor Toolbar Down Bottom -->
-                            <StackPanel Grid.Row="2" Spacing="6" HorizontalAlignment="Center">
-                                <!-- Row 1: Basic Markdown Elements -->
-                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-                                    <Button ToolTipService.ToolTip="Bold" Width="32" Height="32" Padding="0" Click="OnBoldClick">
+                            <!-- Issue #6: the old two rows of 20+ buttons are consolidated into five
+                                 dropdown clusters on a single row (~100px of vertical workspace saved).
+                                 Every action keeps its original Click handler — just rehomed one menu deep. -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                                <DropDownButton ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE19B;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Italic" Width="32" Height="32" Padding="0" Click="OnItalicClick">
-                                        <FontIcon Glyph="&#xE19D;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Strikethrough" Width="32" Height="32" Padding="0" Click="OnStrikethroughClick">
-                                        <FontIcon Glyph="&#xE19E;" FontSize="14" />
-                                    </Button>
-                                    
-                                    <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
-                                    
-                                    <DropDownButton ToolTipService.ToolTip="Headings" Height="32" Padding="8,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE8C0;" FontSize="14" />
-                                            <TextBlock Text="Heading" FontSize="12" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <DropDownButton.Flyout>
-                                            <MenuFlyout>
-                                                <MenuFlyoutItem Text="Heading 1 (#)" Click="OnH1Click" />
-                                                <MenuFlyoutItem Text="Heading 2 (##)" Click="OnH2Click" />
-                                                <MenuFlyoutItem Text="Heading 3 (###)" Click="OnH3Click" />
-                                                <MenuFlyoutItem Text="Heading 4 (####)" Click="OnH4Click" />
-                                            </MenuFlyout>
-                                        </DropDownButton.Flyout>
-                                    </DropDownButton>
-                                    
-                                    <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
-                                    
-                                    <Button ToolTipService.ToolTip="Link" Width="32" Height="32" Padding="0" Click="OnLinkClick">
-                                        <FontIcon Glyph="&#xE71B;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Image" Width="32" Height="32" Padding="0" Click="OnImageClick">
-                                        <FontIcon Glyph="&#xEB9F;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Table" Width="32" Height="32" Padding="0" Click="OnTableClick">
-                                        <FontIcon Glyph="&#xEA37;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Code Block" Width="32" Height="32" Padding="0" Click="OnCodeBlockClick">
-                                        <FontIcon Glyph="&#xE943;" FontSize="14" />
-                                    </Button>
-                                    
-                                    <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
-                                    
-                                    <Button ToolTipService.ToolTip="Bullet List" Width="32" Height="32" Padding="0" Click="OnBulletListClick">
-                                        <FontIcon Glyph="&#xE292;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Numbered List" Width="32" Height="32" Padding="0" Click="OnNumberedListClick">
-                                        <FontIcon Glyph="&#xE293;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Task List" Width="32" Height="32" Padding="0" Click="OnTaskListClick">
-                                        <FontIcon Glyph="&#xE73A;" FontSize="14" />
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Blockquote" Width="32" Height="32" Padding="0" Click="OnBlockquoteClick">
-                                        <FontIcon Glyph="&#xE9F9;" FontSize="14" />
-                                    </Button>
-                                </StackPanel>
+                                        <TextBlock Text="Text Style" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Bold" Click="OnBoldClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19B;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Italic" Click="OnItalicClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19D;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Strikethrough" Click="OnStrikethroughClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19E;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Heading 1 (#)" Click="OnH1Click" />
+                                            <MenuFlyoutItem Text="Heading 2 (##)" Click="OnH2Click" />
+                                            <MenuFlyoutItem Text="Heading 3 (###)" Click="OnH3Click" />
+                                            <MenuFlyoutItem Text="Heading 4 (####)" Click="OnH4Click" />
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
 
-                                <!-- Row 2: Advanced MarkSmith Components -->
-                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-                                    <TextBlock Text="Insert:" VerticalAlignment="Center" FontSize="11" Opacity="0.6" Margin="4,0,8,0" FontWeight="SemiBold" />
-                                    
-                                    <!-- Rich components are consolidated into one menu to keep the toolbar
-                                         compact (this row used to overflow and overlap when maximized). Every
-                                         action is preserved exactly — same handlers, same icons — just rehomed
-                                         one menu deep instead of six side-by-side buttons. -->
-                                    <DropDownButton ToolTipService.ToolTip="Insert a rich component (tabs, embed, chart, data grid, columns, canvas)" Height="32" Padding="8,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE71D;" FontSize="12" />
-                                            <TextBlock Text="Components" FontSize="11" />
-                                        </StackPanel>
-                                        <DropDownButton.Flyout>
-                                            <MenuFlyout>
+                                <DropDownButton ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE292;" FontSize="14" />
+                                        <TextBlock Text="Lists" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Bullet List" Click="OnBulletListClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE292;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Numbered List" Click="OnNumberedListClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE293;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Task List" Click="OnTaskListClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73A;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Blockquote" Click="OnBlockquoteClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+
+                                <DropDownButton ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE710;" FontSize="14" />
+                                        <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Link" Click="OnLinkClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Image" Click="OnImageClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Table" Click="OnTableClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA37;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Code Block" Click="OnCodeBlockClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutSubItem Text="Rich Components">
+                                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutSubItem.Icon>
                                                 <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF7ED;" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
@@ -620,63 +661,63 @@
                                                 <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
-                                            </MenuFlyout>
-                                        </DropDownButton.Flyout>
-                                    </DropDownButton>
-                                    <DropDownButton ToolTipService.ToolTip="Insert Diagram" Height="32" Padding="8,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE8DA;" FontSize="12" />
-                                            <TextBlock Text="Diagram" FontSize="11" />
-                                        </StackPanel>
-                                        <DropDownButton.Flyout>
-                                            <MenuFlyout>
+                                            </MenuFlyoutSubItem>
+                                            <MenuFlyoutSubItem Text="Diagram">
+                                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
                                                 <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
                                                 <MenuFlyoutSeparator />
                                                 <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
                                                 <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                                 <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
-                                            </MenuFlyout>
-                                        </DropDownButton.Flyout>
-                                    </DropDownButton>
-                                    <Button ToolTipService.ToolTip="Insert Bibliography / References" Height="32" Padding="8,0" Click="OnInsertReferencesClick">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE113;" FontSize="12" />
-                                            <TextBlock Text="References" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button ToolTipService.ToolTip="Insert AI Context metadata" Height="32" Padding="8,0" Click="OnInsertAiContextClick">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE945;" FontSize="12" />
-                                            <TextBlock Text="AI Context" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
+                                            </MenuFlyoutSubItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE113;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="AI Context metadata" Click="OnInsertAiContextClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
 
-                                    <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
+                                <DropDownButton ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE90F;" FontSize="14" />
+                                        <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
+                                            <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
+                                            <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
+                                            <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
+                                            <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Clean up document" Click="OnCleanupClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
 
-                                    <DropDownButton ToolTipService.ToolTip="Transform the selected text (or current line)" Height="32" Padding="8,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE8CB;" FontSize="12" />
-                                            <TextBlock Text="Transform" FontSize="11" />
-                                        </StackPanel>
-                                        <DropDownButton.Flyout>
-                                            <MenuFlyout>
-                                                <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
-                                                <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
-                                                <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
-                                                <MenuFlyoutSeparator />
-                                                <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
-                                                <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
-                                                <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
-                                            </MenuFlyout>
-                                        </DropDownButton.Flyout>
-                                    </DropDownButton>
-                                    <Button ToolTipService.ToolTip="Clean up the document (trailing spaces, blank-line runs)" Height="32" Padding="8,0" Click="OnCleanupClick">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE74D;" FontSize="12" />
-                                            <TextBlock Text="Cleanup" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
+                                <DropDownButton ToolTipService.ToolTip="View &amp; zoom — editor font size and preview zoom" Height="32" Padding="8,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE71E;" FontSize="14" />
+                                        <TextBlock Text="View &amp; Zoom" FontSize="12" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Editor font larger (A+)" Click="OnEditorZoomInClick" />
+                                            <MenuFlyoutItem Text="Editor font smaller (A−)" Click="OnEditorZoomOutClick" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Zoom preview in" Click="OnPreviewZoomInClick" />
+                                            <MenuFlyoutItem Text="Zoom preview out" Click="OnPreviewZoomOutClick" />
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
                             </StackPanel>
 
                             <Grid Grid.Row="3">
