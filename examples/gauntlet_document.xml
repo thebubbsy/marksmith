@@ -4414,13 +4414,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-<<<<<<< HEAD
-      <w:headerReference w:type="default" r:id="R8561a50569fa42f4" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="Rb0d6d3cc0c104640" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-=======
-      <w:headerReference w:type="default" r:id="Rdcdd81ea3521487e" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="Ra301a925ea0a4c6f" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
->>>>>>> 8932a95 (v2.0.0 Release: Native Word OMML Math, Visual Mermaid Studio, Multi-Format Exports (PDF/DOCX/PPTX/EPUB), Offline REST API & DLP Governance)
+      <w:headerReference w:type="default" r:id="R29c581d432534a79" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="Re669b2868b714226" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
     </w:sectPr>
