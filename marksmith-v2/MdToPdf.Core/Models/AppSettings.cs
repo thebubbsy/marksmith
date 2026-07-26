@@ -122,6 +122,16 @@ public sealed class AppSettings
     public string FontPreset { get; set; } = "System";
     public string CustomFontPath { get; set; } = "";
 
+    // PDF security (Task 18): optional password protection + access control applied to the PDF after
+    // export (see PdfSecurityService). The "allow" toggles default to true so an enabled-but-unconfigured
+    // policy still permits everything until the user restricts it.
+    public bool PdfEncrypt { get; set; }
+    public string PdfUserPassword { get; set; } = "";
+    public string PdfOwnerPassword { get; set; } = "";
+    public bool PdfAllowPrinting { get; set; } = true;
+    public bool PdfAllowCopying { get; set; } = true;
+    public bool PdfAllowModifying { get; set; } = true;
+
     // Export extras
     public bool IncludeToc { get; set; }
     public bool ShowWordCount { get; set; } = true;
@@ -272,6 +282,12 @@ public sealed class AppSettings
         BrandFontFamily = other.BrandFontFamily;
         FontPreset = other.FontPreset;
         CustomFontPath = other.CustomFontPath;
+        PdfEncrypt = other.PdfEncrypt;
+        PdfUserPassword = other.PdfUserPassword;
+        PdfOwnerPassword = other.PdfOwnerPassword;
+        PdfAllowPrinting = other.PdfAllowPrinting;
+        PdfAllowCopying = other.PdfAllowCopying;
+        PdfAllowModifying = other.PdfAllowModifying;
         IncludeToc = other.IncludeToc;
         ShowWordCount = other.ShowWordCount;
         ShowAttribution = other.ShowAttribution;
