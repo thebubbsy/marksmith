@@ -26,6 +26,21 @@
                 </Border>
 
                 <Border Style="{StaticResource PipelineCardStyle}">
+                    <Grid Padding="16,12" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Pro mode" />
+                            <TextBlock Text="Skip the interactive pickers — Insert ▸ Image drops the raw markdown placeholder straight into the editor instead of opening the drag &amp; drop / URL dialog."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" IsOn="{Binding ProMode, Mode=TwoWay}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource PipelineCardStyle}">
                     <StackPanel Padding="16,12" Spacing="6">
                         <TextBlock Text="Export file name" />
                         <TextBlock Text="Template for generated file names. Tokens: {title}, {date}, {time}, {format}."
