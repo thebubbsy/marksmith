@@ -273,9 +273,34 @@ public sealed partial class MarkdownHtmlService
         // OutputOverride.SourceFontFamily / AppSettings.CloneWith) so the preview shows the reply in
         // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
         // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
-        var bodyFontFamily = string.IsNullOrWhiteSpace(settings.BrandFontFamily)
-            ? (settings.TargetFormat == "docx" ? "\"Calibri\", \"Cambria\", sans-serif" : "-apple-system, \"Segoe UI\", sans-serif")
-            : $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
+        // Typography presets (Task 16) layer underneath the brand font: BrandFontFamily wins, then
+        // the selected preset, then the format-specific default. A custom TTF/OTF (CustomFontPath)
+        // is embedded via @font-face so Chromium's PDF print uses the exact font.
+        string bodyFontFamily;
+        if (!string.IsNullOrWhiteSpace(settings.BrandFontFamily))
+        {
+            bodyFontFamily = $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
+        }
+        else
+        {
+            var preset = FontManagerService.FindPreset(settings.FontPreset);
+            bodyFontFamily = preset != null && preset.Id != FontManagerService.SystemPresetId
+                ? preset.CssStack
+                : (settings.TargetFormat == "docx" ? "\"Calibri\", \"Cambria\", sans-serif" : FontManagerService.DefaultStack);
+        }
+
+        // Custom font embedding (Task 16): inline the configured TTF/OTF as a base64 @font-face rule
+        // and prefer it for the body so the rendered document/PDF uses the exact font.
+        var fontFaceCss = "";
+        if (FontManagerService.IsEmbeddableFontFile(settings.CustomFontPath))
+        {
+            var face = FontManagerService.BuildFontFaceCss(settings.CustomFontPath);
+            if (face != null)
+            {
+                fontFaceCss = face;
+                bodyFontFamily = $"\"{FontManagerService.GetFontFamilyName(settings.CustomFontPath)}\", {bodyFontFamily}";
+            }
+        }
 
         // lang/dir come from the source page's metadata on ingest (see AppSettings.ContentLanguage/
         // ContentDirection). Emitting dir="rtl" on <html> makes the whole document lay out
@@ -998,6 +1023,7 @@ public sealed partial class MarkdownHtmlService
             {{lensScript}}
             {{extraHead}}
             <style>
+            {{fontFaceCss}}
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
                    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
