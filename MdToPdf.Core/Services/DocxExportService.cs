@@ -2856,67 +2856,80 @@ public sealed class DocxExportService
     private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt, Ctx? ctx = null)
     {
         if (string.IsNullOrEmpty(text)) return;
+
+        // BOLT: Fast path for plain text bypasses Regex.Split array allocation
+        if (!EmojiRegex.IsMatch(text))
+        {
+            AddTextFragment(target, text, fmt, ctx, isEmoji: false);
+            return;
+        }
+
         var parts = EmojiRegex.Split(text);
         foreach (var part in parts)
         {
             if (string.IsNullOrEmpty(part)) continue;
-            var run = new W.Run();
-            var rPr = BuildRunProperties(fmt);
-            if (EmojiRegex.IsMatch(part))
-            {
-                rPr ??= new W.RunProperties();
-                rPr.RemoveAllChildren<W.Color>();
-                rPr.PrependChild(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
-            }
-            if (rPr != null && rPr.HasChildren) run.Append(rPr);
+            AddTextFragment(target, part, fmt, ctx, isEmoji: EmojiRegex.IsMatch(part));
+        }
+    }
 
-            if (fmt.Revision == RevisionKind.Insertion)
-            {
-                run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
-                var revId = fmt.RevisionId > 0
-                    ? fmt.RevisionId.ToString()
-                    : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
-                var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
-                var author = !string.IsNullOrWhiteSpace(rawAuthor)
-                    ? rawAuthor
-                    : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
-                var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
+    private static void AddTextFragment(OpenXmlCompositeElement target, string part, Fmt fmt, Ctx? ctx, bool isEmoji)
+    {
+        var run = new W.Run();
+        var rPr = BuildRunProperties(fmt);
+        if (isEmoji)
+        {
+            rPr ??= new W.RunProperties();
+            rPr.RemoveAllChildren<W.Color>();
+            rPr.PrependChild(new W.RunFonts { Ascii = "Segoe UI Emoji", HighAnsi = "Segoe UI Emoji", EastAsia = "Segoe UI Emoji", ComplexScript = "Segoe UI Emoji" });
+        }
+        if (rPr != null && rPr.HasChildren) run.Append(rPr);
 
-                var ins = new W.InsertedRun
-                {
-                    Id = revId,
-                    Author = author,
-                    Date = date
-                };
-                ins.Append(run);
-                target.Append(ins);
-            }
-            else if (fmt.Revision == RevisionKind.Deletion)
-            {
-                run.Append(new W.DeletedText(part) { Space = SpaceProcessingModeValues.Preserve });
-                var revId = fmt.RevisionId > 0
-                    ? fmt.RevisionId.ToString()
-                    : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
-                var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
-                var author = !string.IsNullOrWhiteSpace(rawAuthor)
-                    ? rawAuthor
-                    : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
-                var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
+        if (fmt.Revision == RevisionKind.Insertion)
+        {
+            run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
+            var revId = fmt.RevisionId > 0
+                ? fmt.RevisionId.ToString()
+                : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
+            var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
+            var author = !string.IsNullOrWhiteSpace(rawAuthor)
+                ? rawAuthor
+                : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
+            var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
 
-                var del = new W.DeletedRun
-                {
-                    Id = revId,
-                    Author = author,
-                    Date = date
-                };
-                del.Append(run);
-                target.Append(del);
-            }
-            else
+            var ins = new W.InsertedRun
             {
-                run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
-                target.Append(run);
-            }
+                Id = revId,
+                Author = author,
+                Date = date
+            };
+            ins.Append(run);
+            target.Append(ins);
+        }
+        else if (fmt.Revision == RevisionKind.Deletion)
+        {
+            run.Append(new W.DeletedText(part) { Space = SpaceProcessingModeValues.Preserve });
+            var revId = fmt.RevisionId > 0
+                ? fmt.RevisionId.ToString()
+                : (ctx != null ? (ctx.NextRevisionId++).ToString() : Interlocked.Increment(ref _globalRevisionId).ToString());
+            var rawAuthor = fmt.RevisionAuthor?.Trim('"', '\'').Trim();
+            var author = !string.IsNullOrWhiteSpace(rawAuthor)
+                ? rawAuthor
+                : (ctx?.DefaultRevisionAuthor ?? "Marksmith AI");
+            var date = fmt.RevisionDate ?? ctx?.DefaultRevisionDate ?? DateTime.UtcNow;
+
+            var del = new W.DeletedRun
+            {
+                Id = revId,
+                Author = author,
+                Date = date
+            };
+            del.Append(run);
+            target.Append(del);
+        }
+        else
+        {
+            run.Append(new W.Text(part) { Space = SpaceProcessingModeValues.Preserve });
+            target.Append(run);
         }
     }
 
