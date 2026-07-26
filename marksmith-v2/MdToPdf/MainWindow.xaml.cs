@@ -3426,9 +3426,51 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown("[", "](url)");
     }
 
-    private void OnImageClick(object sender, RoutedEventArgs e)
+    private async void OnImageClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("![", "](image.png)");
+        // Pro mode (Settings ▸ General): the classic one-keystroke placeholder, no modal.
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("![", "](image.png)");
+            return;
+        }
+
+        // Default experience: an interactive picker — drag & drop, browse, or paste a URL.
+        var control = new Views.ImageInsertControl();
+        var dialog = new ContentDialog
+        {
+            Title = "Insert image",
+            Content = control,
+            CloseButtonText = "Cancel",
+            XamlRoot = Content.XamlRoot,
+        };
+        control.ImagePicked += source =>
+        {
+            dialog.Hide();
+            InsertImageMarkdown(source);
+        };
+        await dialog.ShowAsync();
+    }
+
+    // Turns a picked source (local path or URL) into markdown image syntax. Local paths get
+    // forward slashes so the WebView2 preview and the DOCX image embedder resolve them, and the
+    // alt text comes from the file name; URLs keep a generic alt.
+    private void InsertImageMarkdown(string source)
+    {
+        string src, alt;
+        if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            src = source;
+            alt = "image";
+        }
+        else
+        {
+            src = source.Replace('\\', '/');
+            alt = System.IO.Path.GetFileNameWithoutExtension(source);
+            if (string.IsNullOrWhiteSpace(alt)) alt = "image";
+        }
+        InsertMarkdown($"\n![{alt}]({src})\n");
     }
 
     private void OnTableClick(object sender, RoutedEventArgs e)
