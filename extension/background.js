@@ -1,7 +1,28 @@
 // Marksmith Connector — grabs assistant replies from AI chat sites, converts them to
-// Markdown, and POSTs them to the Marksmith desktop app's local API (/api/ingest).
+// Markdown, and drives the Marksmith desktop app's local API. Two paths:
+//   • /api/ingest  — push the reply into the running app's preview ("Send to Marksmith")
+//   • /api/convert — get finished PDF/DOCX/PPTX/EPUB bytes back and download them in-browser
+// Also powers the popup control center (health / inspect / send / download messages) and a
+// toolbar badge that flags when the app can't be reached.
 
 const DEFAULT_PORT = 47821;
+
+// Content types the app's /api/convert can return, keyed by the `format` we request.
+const MIME = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    epub: "application/epub+zip",
+};
+
+// The AI-chat sites we can pull a reply from (used to scope the page context-menus).
+const CHAT_URLS = [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://copilot.microsoft.com/*",
+];
 
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
@@ -13,58 +34,182 @@ chrome.runtime.onInstalled.addListener(() => {
         id: "mdpdfm-conversation",
         title: "Send full conversation to Marksmith",
         contexts: ["page"],
-        documentUrlPatterns: [
-            "https://chatgpt.com/*",
-            "https://chat.openai.com/*",
-            "https://gemini.google.com/*",
-            "https://claude.ai/*",
-            "https://copilot.microsoft.com/*",
-        ],
+        documentUrlPatterns: CHAT_URLS,
+    });
+    chrome.contextMenus.create({
+        id: "mdpdfm-dl-pdf",
+        title: "Download latest reply as PDF",
+        contexts: ["page"],
+        documentUrlPatterns: CHAT_URLS,
+    });
+    chrome.contextMenus.create({
+        id: "mdpdfm-dl-docx",
+        title: "Download latest reply as DOCX",
+        contexts: ["page"],
+        documentUrlPatterns: CHAT_URLS,
     });
 });
 
-chrome.action.onClicked.addListener((tab) => grabAndSend(tab, "latest"));
+// ── toolbar badge: a quiet "!" when the app is unreachable ──────────────────
+// Polls /api/health once a minute so the icon tells you at a glance whether sends
+// will work, without you having to open the popup.
+chrome.alarms.create("health-poll", { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "health-poll") refreshBadge();
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "sync" && changes.port) refreshBadge();
+});
+refreshBadge();
 
+async function refreshBadge() {
+    let ok = false;
+    try { ok = (await health()).ok; } catch { ok = false; }
+    if (ok) {
+        chrome.action.setBadgeText({ text: "" });
+    } else {
+        chrome.action.setBadgeBackgroundColor({ color: "#f85149" });
+        chrome.action.setBadgeText({ text: "!" });
+    }
+}
+
+// ── context-menu clicks ─────────────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === "mdpdfm-selection") grabAndSend(tab, "selection");
     else if (info.menuItemId === "mdpdfm-conversation") grabAndSend(tab, "all");
+    else if (info.menuItemId === "mdpdfm-dl-pdf") downloadFromTab(tab, "latest", "pdf");
+    else if (info.menuItemId === "mdpdfm-dl-docx") downloadFromTab(tab, "latest", "docx");
 });
 
+// ── message router ──────────────────────────────────────────────────────────
+// Serves the popup control center and the copybutton's attention poll. Every branch
+// responds asynchronously, so each returns `true` to keep the channel open.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // Attention channel: copybutton.js polls through us (MV3 content scripts can't fetch
     // cross-origin themselves). The app bumps /api/attention when it spots a plain-text paste.
     if (msg?.type === "attention-poll") {
         (async () => {
             try {
-                const { port } = await chrome.storage.sync.get({ port: DEFAULT_PORT });
+                const port = await getPort();
                 const resp = await fetch(`http://127.0.0.1:${port}/api/attention`);
                 sendResponse(resp.ok ? await resp.json() : { flashTs: 0 });
             } catch {
                 sendResponse({ flashTs: 0 }); // app not running — nothing to flash
             }
         })();
-        return true; // async response
+        return true;
     }
 
+    if (msg?.type === "health") {
+        (async () => sendResponse(await health()))();
+        return true;
+    }
+
+    if (msg?.type === "inspect") {
+        (async () => sendResponse(await inspectActiveTab(msg.mode || "latest")))();
+        return true;
+    }
+
+    if (msg?.type === "send") {
+        (async () => {
+            const tab = await activeTab();
+            if (!tab?.id) return sendResponse({ ok: false, error: "No active tab." });
+            // Popup shows its own toast, so suppress the Windows notification here.
+            sendResponse(await grabAndSend(tab, msg.mode || "latest", { notify: false }));
+        })();
+        return true;
+    }
+
+    if (msg?.type === "download") {
+        (async () => {
+            const tab = await activeTab();
+            if (!tab?.id) return sendResponse({ ok: false, error: "No active tab." });
+            sendResponse(await downloadFromTab(tab, msg.mode || "latest", msg.format || "pdf", { notify: false }));
+        })();
+        return true;
+    }
 });
 
-async function grabAndSend(tab, mode) {
+// ── small shared helpers ────────────────────────────────────────────────────
+async function getPort() {
+    const { port } = await chrome.storage.sync.get({ port: DEFAULT_PORT });
+    return port;
+}
+
+async function activeTab() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab;
+}
+
+async function health() {
+    try {
+        const port = await getPort();
+        const resp = await fetch(`http://127.0.0.1:${port}/api/health`);
+        if (!resp.ok) return { ok: false };
+        const j = await resp.json();
+        return { ok: true, app: j.app || "Marksmith" };
+    } catch {
+        return { ok: false };
+    }
+}
+
+async function extractFromTab(tabId, mode) {
+    const [res] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: extractMarkdown,
+        args: [mode],
+    });
+    return res?.result;
+}
+
+// Extract from the active tab AND classify the result (best-effort) so the popup can
+// preview source/model/char-count/math before the user commits to a send or download.
+async function inspectActiveTab(mode) {
+    const tab = await activeTab();
+    if (!tab?.id) return { ok: false, error: "No active tab." };
+
     let extracted;
     try {
-        const [res] = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: extractMarkdown,
-            args: [mode],
-        });
-        extracted = res?.result;
+        extracted = await extractFromTab(tab.id, mode);
     } catch (e) {
-        notify("Cannot read this page", e.message);
-        return;
+        return { ok: false, error: "Cannot read this page — " + e.message };
+    }
+    if (!extracted?.ok) {
+        return { ok: false, error: extracted?.error || "Could not find assistant content on this page." };
+    }
+
+    let cls = null;
+    try {
+        const port = await getPort();
+        const resp = await fetch(`http://127.0.0.1:${port}/api/classify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ markdown: extracted.markdown }),
+        });
+        if (resp.ok) cls = await resp.json();
+    } catch {
+        // App offline — classification is a nicety, not a blocker. The popup still
+        // shows the extraction; it just won't display a confidence chip.
+    }
+    return { ok: true, markdown: extracted.markdown, meta: extracted.meta, cls };
+}
+
+// ── send to the app (/api/ingest) ───────────────────────────────────────────
+async function grabAndSend(tab, mode, opts = {}) {
+    const showNotify = opts.notify !== false;
+
+    let extracted;
+    try {
+        extracted = await extractFromTab(tab.id, mode);
+    } catch (e) {
+        if (showNotify) notify("Cannot read this page", e.message);
+        return { ok: false, error: "Cannot read this page — " + e.message };
     }
 
     if (!extracted?.ok) {
-        notify("Nothing to send", extracted?.error || "Could not find assistant content on this page.");
-        return;
+        const err = extracted?.error || "Could not find assistant content on this page.";
+        if (showNotify) notify("Nothing to send", err);
+        return { ok: false, error: err };
     }
 
     try {
@@ -90,10 +235,92 @@ async function grabAndSend(tab, mode) {
             body: JSON.stringify({ markdown: extracted.markdown, output: hasAny ? merged : undefined }),
         });
         if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
-        notify("Sent to Marksmith ✓", `${extracted.markdown.length.toLocaleString()} chars ingested — check the preview.`);
+        if (showNotify) notify("Sent to Marksmith ✓", `${extracted.markdown.length.toLocaleString()} chars ingested — check the preview.`);
+        return { ok: true, chars: extracted.markdown.length };
     } catch (e) {
-        notify("Marksmith unreachable", "Is the app running with Automation → Local REST API enabled? " + e.message);
+        const err = "Is the app running with Automation → Local REST API enabled? " + e.message;
+        if (showNotify) notify("Marksmith unreachable", err);
+        return { ok: false, error: err };
     }
+}
+
+// ── direct in-browser download (/api/convert) ───────────────────────────────
+// The headline upgrade: get finished bytes back from the app and hand them to the
+// browser's download manager — no need to open Marksmith at all.
+async function downloadFromTab(tab, mode, format, opts = {}) {
+    const showNotify = opts.notify !== false;
+
+    let extracted;
+    try {
+        extracted = await extractFromTab(tab.id, mode);
+    } catch (e) {
+        if (showNotify) notify("Cannot read this page", e.message);
+        return { ok: false, error: "Cannot read this page — " + e.message };
+    }
+    if (!extracted?.ok) {
+        const err = extracted?.error || "Could not find assistant content on this page.";
+        if (showNotify) notify("Nothing to convert", err);
+        return { ok: false, error: err };
+    }
+
+    try {
+        const filename = await convertAndDownload(extracted.markdown, format, extracted.meta);
+        if (showNotify) notify(`Downloading ${filename} ✓`, "Marksmith converted the reply — check your browser downloads.");
+        return { ok: true, filename };
+    } catch (e) {
+        if (showNotify) notify("Download failed", e.message);
+        return { ok: false, error: e.message };
+    }
+}
+
+async function convertAndDownload(markdown, format, meta) {
+    const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: null });
+    // Honor the saved output profile (theme, width, diagram mode, …) but force the format
+    // the user just asked for — a profile set to "pdf" must not block a DOCX download.
+    const ovr = { ...(output || {}), format };
+
+    const resp = await fetch(`http://127.0.0.1:${port}/api/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown, output: ovr }),
+    });
+    if (!resp.ok) throw new Error(`Marksmith returned HTTP ${resp.status}. Is the Local REST API on?`);
+
+    const buf = await resp.arrayBuffer();
+    if (!buf.byteLength) throw new Error("Marksmith returned an empty file.");
+
+    const dataUrl = bufferToDataUrl(buf, MIME[format] || "application/octet-stream");
+    const filename = buildFilename(meta, format);
+    await chrome.downloads.download({
+        url: dataUrl,
+        filename,
+        saveAs: false,
+        conflictAction: "uniquify",
+    });
+    return filename;
+}
+
+// MV3 service workers have no URL.createObjectURL, so we base64-encode the bytes into a
+// data: URL for chrome.downloads. Chunked to avoid blowing the call stack on big documents.
+function bufferToDataUrl(buffer, mime) {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return `data:${mime};base64,` + btoa(binary);
+}
+
+// Turn the captured conversation title into a safe, friendly filename.
+function buildFilename(meta, format) {
+    const raw = (meta?.title || "").trim() || "marksmith-export";
+    const base = raw
+        .replace(/[\\/:*?"<>|\r\n]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80) || "marksmith-export";
+    return `${base}.${format}`;
 }
 
 function notify(title, message) {
@@ -103,7 +330,9 @@ function notify(title, message) {
 // Injected into the page. Finds assistant messages via per-site selectors and converts their
 // HTML to Markdown with a small recursive walker (headings, lists, tables, code fences, links).
 // mode: "latest" = newest assistant reply, "all" = whole conversation, "selection" = user selection.
-function extractMarkdown(mode) {
+// Async because the mermaid pre-pass may need to click a "code" toggle and wait for the raw
+// fenced source to appear before the walker runs.
+async function extractMarkdown(mode) {
     function conv(n) {
         if (n.nodeType === Node.TEXT_NODE) return n.textContent;
         if (n.nodeType !== Node.ELEMENT_NODE) return "";
@@ -115,6 +344,13 @@ function extractMarkdown(mode) {
                 const t = tex.textContent.trim();
                 return cls.includes("-display") ? `\n$$${t}$$\n` : `$${t}$`;
             }
+        }
+
+        // A rendered diagram whose raw ```mermaid source was recovered by the pre-pass below —
+        // emit the fenced source. Without this the walker hits the rendered <svg> and drops the
+        // diagram entirely, so exports lose every chart.
+        if (n.dataset && n.dataset.mkMermaid) {
+            return `\n\`\`\`mermaid\n${n.dataset.mkMermaid}\n\`\`\`\n`;
         }
 
         const tag = n.tagName.toLowerCase();
@@ -139,12 +375,16 @@ function extractMarkdown(mode) {
                 const txt = (code || n).textContent.replace(/\n$/, "");
                 return `\n\`\`\`${lang}\n${txt}\n\`\`\`\n`;
             }
-            case "ul":
-                return "\n" + [...n.children].filter((c) => c.tagName === "LI")
-                    .map((li) => "- " + conv(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n";
-            case "ol":
-                return "\n" + [...n.children].filter((c) => c.tagName === "LI")
-                    .map((li, i) => `${i + 1}. ` + conv(li).trim().replace(/\n/g, "\n   ")).join("\n") + "\n";
+            case "ul": {
+                const items = [...n.children].filter((c) => c.tagName === "LI")
+                    .map((li) => "- " + conv(li).trim().replace(/\n/g, "\n  "));
+                return "\n" + items.join("\n") + "\n";
+            }
+            case "ol": {
+                const items = [...n.children].filter((c) => c.tagName === "LI")
+                    .map((li, i) => `${i + 1}. ` + conv(li).trim().replace(/\n/g, "\n   "));
+                return "\n" + items.join("\n") + "\n";
+            }
             case "li": return kids();
             case "a": return n.href && !n.href.startsWith("javascript:") ? `[${kids()}](${n.href})` : kids();
             case "img": return n.src ? `![${n.alt || ""}](${n.src})` : "";
@@ -167,6 +407,66 @@ function extractMarkdown(mode) {
     }
 
     const clean = (md) => md.replace(/\n{3,}/g, "\n\n").trim();
+
+    // Recover the RAW ```mermaid source for every rendered diagram and tag its container with
+    // data-mk-mermaid so `conv` emits a fenced block instead of dropping the <svg>. ChatGPT renders
+    // diagrams to SVG and hides the original fenced source, so we try (in order): a code element
+    // already in the DOM, a data-attribute holding the source, and finally clicking the "code"
+    // toggle and reading what it reveals. Best-effort — never lets extraction fail.
+    async function recoverMermaidSources(rootsArr) {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context)\b/;
+
+        // Collect candidate containers that hold a rendered diagram (an <svg>).
+        const found = [];
+        for (const root of rootsArr) {
+            for (const c of root.querySelectorAll('.mermaid, [class*="mermaid"], [data-testid*="mermaid"]')) {
+                if (c.querySelector("svg")) found.push(c);
+            }
+        }
+        // Keep only the innermost matches so we never tag a large wrapper and swallow its siblings.
+        const containers = found.filter((a) => !found.some((b) => b !== a && a.contains(b)));
+
+        for (const el of containers) {
+            try {
+                if (el.dataset.mkMermaid) continue;
+                let source = "";
+
+                // 1) Raw source already present in the DOM (possibly hidden).
+                const scope = el.closest("[data-message-id]") || el.parentElement || el;
+                const codeEl = el.querySelector('code[class*="language-mermaid"]') ||
+                    scope.querySelector('code[class*="language-mermaid"]');
+                if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+
+                // 2) Source stashed in a data-attribute on the container or a close ancestor.
+                if (!source) {
+                    let node = el;
+                    for (let d = 0; node && d < 4 && !source; d++, node = node.parentElement) {
+                        for (const attr of node.attributes || []) {
+                            if (MERMAID_HEAD.test(attr.value || "")) { source = attr.value; break; }
+                        }
+                    }
+                }
+
+                // 3) Click the "code" toggle to reveal the source, read it, then toggle back.
+                if (!source) {
+                    const toggle = scope.querySelector(
+                        'button[aria-label*="code" i]:not([aria-label*="copy" i]), button[data-testid*="code" i]:not([data-testid*="copy" i]), button[title*="code" i]:not([title*="copy" i])'
+                    );
+                    if (toggle) {
+                        toggle.click();
+                        await sleep(350);
+                        const revealed = scope.querySelector('code[class*="language-mermaid"]');
+                        if (revealed && revealed.textContent.trim()) source = revealed.textContent;
+                        toggle.click(); // leave the page as we found it
+                        await sleep(150);
+                    }
+                }
+
+                if (source.trim()) el.dataset.mkMermaid = source.trim();
+            } catch { /* non-fatal: a failed recovery just means that diagram is skipped */ }
+        }
+    }
 
     const host = location.hostname;
 
@@ -236,5 +536,6 @@ function extractMarkdown(mode) {
     }
 
     if (mode === "latest") roots = roots.slice(-1);
+    await recoverMermaidSources(roots);
     return { ok: true, markdown: clean(roots.map(conv).join("\n\n---\n\n")), meta: buildMeta(roots[0]) };
 }

@@ -15,6 +15,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly PdfExportService _pdfExport = new();
     private readonly DocxExportService _docxExport = new();
     private readonly PptxExportService _pptxExport = new();
+    private readonly EpubExportService _epubExport = new();
     private readonly MermaidHarvestService _mermaidHarvest = new();
 
     private CancellationTokenSource? _conversionCts;
@@ -621,6 +622,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(meta?.SourceModel))
             classification.Model = meta.SourceModel.Trim();
 
+        // ISS-005: provider-specific dialect normalization, keyed off the definitive source id the
+        // extension reports (DeepSeek escaped pipes, Perplexity [n] pips, quoted code fences, …).
+        // Runs before the general artifact repair so its output is cleaned too. No-op for unknown ids.
+        text = ProviderDialectNormalizer.Normalize(text, meta?.SourceId);
+
         // Correctness repairs always run; stylistic cleanup only when the toggle is on.
         (text, _) = AppServices.LlmSource.RepairArtifacts(text, classification);
         if (NormalizeLlm)
@@ -819,6 +825,24 @@ public sealed partial class MainViewModel : ObservableObject
             RecordExport("PPTX", outPath, markdown);
             RaiseExportCompleted("PPTX", outPath);
             StatusText = $"PPTX export done: {outPath}";
+        });
+    }
+
+    // EPUB is a free (ungated) format — no license check, mirrors the PPTX path.
+    public async Task ConvertToEpubAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("EPUB", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, EpubExportService.Extension);
+            await _epubExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("EPUB", outPath, markdown);
+            RaiseExportCompleted("EPUB", outPath);
+            StatusText = $"EPUB export done: {outPath}";
         });
     }
 

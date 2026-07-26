@@ -1501,9 +1501,18 @@ public partial class MermaidStudioViewModel : ObservableObject
     public string SyncToMarkdown(string markdown)
     {
         string newMermaidCode = GenerateMermaidCode();
-        RawMermaidCode = newMermaidCode;
         _savedCode = newMermaidCode; // syncing counts as saving — reset the dirty baseline
-        if (MermaidMarkdownSyncService.ExtractMermaidBlocks(markdown).Count > 0)
+
+        // ISS-018: the canvas AST can't represent style/classDef/linkStyle directives or
+        // per-subgraph directions — carry them across from the fence being replaced so the
+        // canvas → AST → code round trip doesn't strip them. The dirty baseline above stays
+        // pure generator output so HasUnsavedChanges keeps comparing like with like.
+        var blocks = MermaidMarkdownSyncService.ExtractMermaidBlocks(markdown);
+        if (ActiveBlockIndex >= 0 && ActiveBlockIndex < blocks.Count)
+            newMermaidCode = Services.MermaidPreservationNormalizer.Preserve(newMermaidCode, blocks[ActiveBlockIndex].Code);
+
+        RawMermaidCode = newMermaidCode;
+        if (blocks.Count > 0)
         {
             return MermaidMarkdownSyncService.ReplaceMermaidBlock(markdown, ActiveBlockIndex, newMermaidCode);
         }

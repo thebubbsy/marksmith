@@ -49,9 +49,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private readonly DispatcherQueueTimer _previewDebounce;
 
-    // Preview refresh intensity. Typing does a silent "light" refresh (no sprite, no blur); a paste or
-    // a style/theme change does a "heavy" refresh — the loading sprite over a blur that clears as it
-    // completes. PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
+    // Preview refresh intensity. Historically typing did a "light" refresh and paste/style changes a
+    // "heavy" one (loading sprite over a blur); the sprite/blur visuals are retired — every refresh
+    // now renders in plain sight — but the classification is kept as a future intensity signal.
+    // PropertyChanged fires per keystroke, so a single edit's delta is our typing signal.
     private int _lastMarkdownLen;
     private bool _nextRefreshHeavy;
     // True while the mermaid snapshot renderer owns the WebView — preview refreshes (e.g. the ingest
@@ -121,6 +122,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Guards the word-wrap ToggleButton's Checked event from firing during start-up wiring.
     private bool _initializingWordWrap;
 
+    // Guards the Looking Glass portal ToggleButton's Checked event during start-up wiring (ISS-004).
+    private bool _initializingLookingGlass;
+
+    // Guards the portal reveal-scope Slider's ValueChanged event during start-up wiring (ISS-004).
+    private bool _initializingPortalReveal;
+
+    // Looking Glass portal (ISS-004): true while a source-reveal portal is open in the preview.
+    // Suppresses the debounced typing refresh so re-navigating the WebView doesn't destroy the
+    // open portal mid-edit; the preview is refreshed once when the portal closes. _portalDirty
+    // tracks whether the portal actually edited the source so we only re-render when needed.
+    private bool _portalOpen;
+    private bool _portalDirty;
+    // Last markdown the preview canvas rendered (via navigation OR in-place swap) — lets the live
+    // path skip no-op re-swaps, e.g. when a portal edit's own debounce echo comes back around.
+    private string? _lastLiveCanvasMd;
+
     public IRelayCommand ShowWindowCommand { get; }
     public IRelayCommand ExitApplicationCommand { get; }
 
@@ -177,6 +194,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _initializingWordWrap = false;
         ApplyWordWrap(App.Settings.Current.EditorWordWrap, persist: false);
 
+        // ISS-004: reflect the persisted Looking Glass portal mode without firing a preview refresh.
+        _initializingLookingGlass = true;
+        LookingGlassToggle.IsChecked = App.Settings.Current.LookingGlassMode;
+        _initializingLookingGlass = false;
+
+        // ISS-004: reflect the persisted portal reveal scope + shape without firing the change handlers.
+        _initializingPortalReveal = true;
+        PortalRevealSlider.Value = App.Settings.Current.PortalRevealScope;
+        foreach (var item in PortalShapeCombo.Items)
+            if (item is ComboBoxItem ci && (ci.Tag as string) == App.Settings.Current.PortalShape)
+            {
+                PortalShapeCombo.SelectedItem = ci;
+                break;
+            }
+        if (PortalShapeCombo.SelectedItem is null) PortalShapeCombo.SelectedIndex = 0; // unknown value -> Circle
+        _initializingPortalReveal = false;
+
         // Line numbers + Markdown lint refresh on every edit; the gutter's scroll is synced to the
         // editor's internal ScrollViewer once the TextBox template is realized.
         PasteTextBox.TextChanged += (_, _) => { RefreshLineNumbers(); UpdateLintIndicator(); };
@@ -194,8 +228,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _previewDebounce.IsRepeating = false;
         _previewDebounce.Tick += async (_, _) =>
         {
+            // ISS-004: while a portal is open a re-navigation would destroy it mid-edit, so the
+            // update goes through the live path instead — push the editor's text into the portal's
+            // textarea (split + portal: typed text appears inside the shape) and swap the preview
+            // canvas in place behind it. The page-script rebuild happens when the portal closes.
+            if (_portalOpen)
+            {
+                var md = ViewModel.CurrentMarkdown ?? "";
+                if (PreviewWebView.CoreWebView2 is { } pcore)
+                {
+                    var js = "if (window.__portalUpdateSource) { window.__portalUpdateSource(" +
+                             System.Text.Json.JsonSerializer.Serialize(md) + "); }";
+                    try { await pcore.ExecuteScriptAsync(js); } catch { }
+                }
+                _portalDirty = true;
+                await UpdatePreviewCanvasLiveAsync(md);
+                return;
+            }
             var heavy = _nextRefreshHeavy;
             _nextRefreshHeavy = false;
+            // Typing-sized changes render in place — same live path the portal uses — so the page
+            // never re-navigates under the reader; it falls back to a real refresh when the page
+            // can't host the new content (e.g. first math/code block since the last navigation).
+            // Heavy changes (paste / theme / layout) still rebuild the whole page.
+            if (!heavy && await UpdatePreviewCanvasLiveAsync()) return;
             await RefreshPreviewAsync(heavy);
         };
 
@@ -206,6 +262,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
+        // ISS-011: surface the auto-detected AI-agent export folders as one-click watch presets.
+        WatchFolderPresets.ItemsSource = Services.AiAgentFolderPresets.GetAvailablePresets();
         _automationManager = new Services.AutomationManager(
             App.LlmSource,
             () => ViewModel.ThemeNames.ToList(),
@@ -260,8 +318,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!App.Settings.Current.HasSeenWelcome)
             RootGrid.Loaded += OnFirstRunLoaded;
 
+        // Launch counter for the ⋯-menu tip jar nudge: by the third launch they're clearly getting
+        // value, so point out — once — that Buy Me a Coffee (and everything else) lives in that menu.
+        // Skipped on a first run, where the post-tour tip already introduces the menu.
+        App.Settings.Current.LaunchCount++;
+        App.Settings.Save();
+        if (App.Settings.Current.HasSeenWelcome &&
+            App.Settings.Current.LaunchCount >= 3 &&
+            !App.Settings.Current.HasSeenCoffeeReminder)
+            RootGrid.Loaded += OnCoffeeReminderLoaded;
+
         // Auto-recovery: offer back any unsaved document that survived the previous session.
         RootGrid.Loaded += OnRecoveryCheckLoaded;
+
+        // ISS-009: public beta time-bomb — once the cutoff passes, block the app with the
+        // feedback prompt instead of letting a stale build keep converting documents.
+        RootGrid.Loaded += OnBetaExpirationCheckLoaded;
+    }
+
+    private void OnBetaExpirationCheckLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= OnBetaExpirationCheckLoaded; // one-shot
+        DispatcherQueue.TryEnqueue(() => _ = CheckAndEnforceBetaExpirationAsync());
+    }
+
+    // ISS-009: the pure cutoff check lives in Core (Services.BetaExpirationGuard); here we surface
+    // the WinUI prompt and hard-stop the app either way — Primary opens the feedback page first.
+    private async Task CheckAndEnforceBetaExpirationAsync()
+    {
+        if (!Services.BetaExpirationGuard.IsBetaExpired()) return;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = RootGrid.XamlRoot,
+            Title = "⏰ Public Beta Period Completed",
+            Content = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Text = "Thank you for testing the MarkSmith Public Beta! The 30-day feedback period has ended. Please submit your feedback and download the latest build to continue converting documents."
+            },
+            PrimaryButtonText = "Submit Feedback & Get Update",
+            CloseButtonText = "Close App",
+            DefaultButton = ContentDialogButton.Primary
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.BetaExpirationGuard.FeedbackUrl));
+        }
+
+        Environment.Exit(0);
     }
 
     private void OnRecoveryCheckLoaded(object sender, RoutedEventArgs e)
@@ -275,6 +382,33 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         RootGrid.Loaded -= OnFirstRunLoaded; // one-shot
         DispatcherQueue.TryEnqueue(() => _ = ShowWelcomeTourAsync());
     }
+
+    // Third-launch tip jar nudge (see constructor). One-shot and once ever, gated on the
+    // persisted HasSeenCoffeeReminder flag set here before showing.
+    private void OnCoffeeReminderLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= OnCoffeeReminderLoaded; // one-shot
+        App.Settings.Current.HasSeenCoffeeReminder = true;
+        App.Settings.Save();
+        DispatcherQueue.TryEnqueue(() => ShowMoreMenuTip(
+            "Enjoying MarkSmith?",
+            "Third launch already — glad it's earning its keep! If it saves you time, there's a ☕ Buy Me a Coffee in this menu. Tour, shortcuts and settings live here too."));
+    }
+
+    // Points the TeachingTip at the ⋯ menu with the given copy. Used by the first-run intro
+    // (post-tour) and the third-launch tip jar reminder.
+    private void ShowMoreMenuTip(string title, string subtitle)
+    {
+        MoreMenuTip.Title = title;
+        MoreMenuTip.Subtitle = subtitle;
+        MoreMenuTip.IsOpen = true;
+    }
+
+    // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
+    // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
+    private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e) =>
+        DispatcherQueue.TryEnqueue(() =>
+            Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(MoreMenuButton));
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -550,8 +684,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnTakeTourClick(object sender, RoutedEventArgs e) => _ = ShowWelcomeTourAsync();
 
-    // The first-run guided tour. Auto-shown once (gated on settings.HasSeenWelcome); the title-bar
-    // tour button replays it. A borderless dialog hosting the WelcomeTour control, closed when the
+    // The first-run guided tour. Auto-shown once (gated on settings.HasSeenWelcome); replayable
+    // from the ⋯ menu. A borderless dialog hosting the WelcomeTour control, closed when the
     // tour raises Completed. Finishing (not skipping) can then load a sample document and hand off
     // to the TeachingTip walkthrough of the real controls, per the checkboxes on the final page.
     private async Task ShowWelcomeTourAsync()
@@ -587,6 +721,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             App.Settings.Current.HasSeenWelcome = true;
             App.Settings.Save();
+            // First run only: after the tour, point out the ⋯ menu so nobody hunts for the
+            // relocated tour / shortcuts / settings / tip jar.
+            ShowMoreMenuTip(
+                "Everything else lives here",
+                "Export history, the tour, keyboard shortcuts, Settings — and a ☕ tip jar if MarkSmith saves your day.");
         }
 
         if (tour?.LoadSampleRequested == true) LoadSampleDocument();
@@ -898,8 +1037,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (folder is not null) ViewModel.WatchFolder = folder.Path;
     }
 
-    // Batch: convert every .md in a chosen folder to a themed PDF, one by one through the same
-    // classify → normalize → render pipeline the watched folder uses. Pro (automation) feature.
+    // ISS-011: quick-pick a known AI-agent export folder as the watch target.
+    private void OnWatchFolderPresetSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (WatchFolderPresets.SelectedItem is Services.AiAgentFolderPresets.FolderPreset preset)
+            ViewModel.WatchFolder = preset.Path;
+    }
+
+    // ISS-008: open the tip jar — a no-strings donation page for the project.
+    private async void OnBuyCoffeeClick(object sender, RoutedEventArgs e)
+    {
+        var coffeeUrl = new Uri("https://buymeacoffee.com/marksmith");
+        await Windows.System.Launcher.LaunchUriAsync(coffeeUrl);
+    }
+
+    // Batch: convert every .md in a chosen folder (optionally its subfolders too) to a chosen
+    // format — PDF/DOCX/PPTX/EPUB — one by one through the same classify → normalize → render
+    // pipeline the watched folder uses. Pro (automation) feature.
     private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
     {
         if (!App.License.CanAutomate)
@@ -915,16 +1069,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var folder = await picker.PickSingleFolderAsync();
         if (folder is null) return;
 
-        var files = Directory.GetFiles(folder.Path, "*.md", SearchOption.TopDirectoryOnly);
+        // Count the whole tree so the dialog reflects every file we could reach, and we don't bail
+        // on a folder whose .md files all live in subfolders.
+        var files = Directory.GetFiles(folder.Path, "*.md", SearchOption.AllDirectories);
         if (files.Length == 0)
         {
-            ViewModel.StatusText = $"No .md files found in {folder.Path}.";
+            ViewModel.StatusText = $"No .md files found in {folder.Path} or its subfolders.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
 
-        // Which format? PDF/DOCX/PPTX/EPUB — the same choice the individual exports offer.
-        var fmt = await AskBatchFormatAsync(files.Length);
+        // Which format? PDF/DOCX/PPTX/EPUB — the same choice the individual exports offer — plus
+        // whether to descend into subfolders.
+        var (fmt, recursive) = await AskBatchFormatAsync(files.Length);
         if (fmt is null) return;
         var docxGated = fmt is "docx" && !App.License.CanExportDocx;
         if (docxGated) { ViewModel.StatusText = "Word export is a MarkSmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
@@ -945,7 +1102,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 null,
                 this,
                 () => new OffscreenScope(this),
-                () => RefreshPreviewAsync(false));
+                () => RefreshPreviewAsync(false),
+                recursive);
 
             var propDone = result.GetType().GetProperty("done")?.GetValue(result);
             var propFailed = result.GetType().GetProperty("failed")?.GetValue(result);
@@ -967,25 +1125,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Ask which format to batch-convert to; returns "pdf"/"docx"/"pptx"/"epub" or null if cancelled.
-    private async Task<string?> AskBatchFormatAsync(int count)
+    // Ask which format to batch-convert to and whether to include subfolders; returns
+    // ("pdf"/"docx"/"pptx"/"epub", recursive) or (null, false) if cancelled.
+    private async Task<(string? Format, bool Recursive)> AskBatchFormatAsync(int count)
     {
         var combo = new ComboBox { SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0) };
         combo.Items.Add("PDF");
         combo.Items.Add("Word (DOCX)");
         combo.Items.Add("PowerPoint (PPTX)");
         combo.Items.Add("EPUB");
+        var recurse = new CheckBox { Content = "Include subfolders", Margin = new Thickness(0, 12, 0, 0) };
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = $"Batch convert {count} file{(count == 1 ? "" : "s")}",
-            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Every .md file in the folder is converted to your chosen format, using the current Style settings." }, combo } },
+            Title = $"Batch convert up to {count} .md file{(count == 1 ? "" : "s")}",
+            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Every .md file in the folder is converted to your chosen format, using the current Style settings. Tick \u201CInclude subfolders\u201D to also convert nested folders \u2014 their structure is recreated in the output." }, combo, recurse } },
             PrimaryButtonText = "Convert",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
-        return combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return (null, false);
+        var fmt = combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
+        return (fmt, recurse.IsChecked == true);
     }
 
     private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
@@ -1306,6 +1467,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         await PreviewWebView.EnsureCoreWebView2Async();
         MapAssetHost(PreviewWebView.CoreWebView2);
+        var core = PreviewWebView.CoreWebView2;
+
+        // ISS-007: the preview is a document viewer, not a browser. Suppress the default right-click
+        // context menu, and intercept link clicks so external URLs open in the system browser instead
+        // of navigating the preview away from the document. Internal schemes (the marksmith.assets
+        // virtual host, data: and about: used by NavigateToString) are allowed through.
+        core.Settings.AreDefaultContextMenusEnabled = false;
+        core.NavigationStarting += (s, e) =>
+        {
+            var uri = e.Uri ?? string.Empty;
+            if (uri.Length == 0 ||
+                uri.StartsWith("https://marksmith.assets", StringComparison.OrdinalIgnoreCase) ||
+                uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                uri.StartsWith("about:", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            e.Cancel = true;
+
+            if (Uri.TryCreate(uri, UriKind.Absolute, out var external) &&
+                (external.Scheme == Uri.UriSchemeHttp || external.Scheme == Uri.UriSchemeHttps))
+            {
+                _ = Windows.System.Launcher.LaunchUriAsync(external);
+            }
+        };
+        core.NewWindowRequested += (s, e) =>
+        {
+            e.Handled = true;
+            if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var external))
+            {
+                _ = Windows.System.Launcher.LaunchUriAsync(external);
+            }
+        };
+
         // The preview auto-refreshes on every change (debounced). Navigation completing satisfies
         // one of the two conditions to hide the spinner; the minimum-time gate satisfies the other.
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => _spinNavDone = true;
@@ -1341,6 +1537,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 var delta = root.TryGetProperty("delta", out var dProp) ? dProp.GetDouble() : 0;
                 if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), persist: true);
+                return;
+            }
+
+            // Looking Glass portal (ISS-004): a portal just opened in the preview — hand it the
+            // editor's current Markdown so it can reveal (and edit) the source behind the preview.
+            if (type == "portal-open")
+            {
+                _portalOpen = true;
+                _portalDirty = false;
+                var source = ViewModel.CurrentMarkdown ?? "";
+                var js = "if (window.__portalSetSource) { window.__portalSetSource(" +
+                         System.Text.Json.JsonSerializer.Serialize(source) + "); }";
+                _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
+                return;
+            }
+            if (type == "portal-edit")
+            {
+                var text = root.TryGetProperty("text", out var tProp) ? tProp.GetString() : null;
+                if (text != null && text != (ViewModel.CurrentMarkdown ?? ""))
+                {
+                    ViewModel.CurrentMarkdown = text; // flows to the editor via binding
+                    _portalDirty = true;
+                    // Live render: swap the preview's canvas in place (no navigation, so the open
+                    // portal survives) — the markdown generates right in front of the user's eyes
+                    // while they type through the shape.
+                    _ = UpdatePreviewCanvasLiveAsync(text);
+                }
+                return;
+            }
+            if (type == "portal-closed")
+            {
+                var wasDirty = _portalDirty;
+                _portalOpen = false;
+                _portalDirty = false;
+                // Content is already live via the in-place swaps; this light re-nav just rebuilds
+                // the page scripts (TOC anchors, scroll-spy) without any blur or spinner.
+                if (wasDirty) _ = RefreshPreviewAsync(heavy: false);
                 return;
             }
 
@@ -1606,26 +1839,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PreviewWebView.CoreWebView2 is null) return;
         if (_mermaidHarvestActive) return; // snapshot renderer owns the WebView right now
 
-        if (heavy) StartSpinner();
+        // ISS-004: any refresh re-navigates the preview, which tears down any open portal's DOM —
+        // clear the portal flags so they don't go stale and block future typing refreshes.
+        _portalOpen = false;
+        _portalDirty = false;
+
+        // The loading sprite + blur treatment is retired: the user wants to literally watch the
+        // preview render — no blur, no loading symbols. The pre-paint scroll restore below keeps
+        // the re-render from visibly jumping, so a bare refresh reads as an in-place repaint.
+        // (`heavy` is kept for call-site compatibility / future intensity signalling.)
+        _ = heavy;
 
         var vm = ViewModel;
-        string markdown;
-        if (vm.UsePasteSource)
-        {
-            markdown = vm.PastedMarkdown;
-        }
-        else if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-        {
-            markdown = await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
-        }
-        else
-        {
-            markdown = "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
-        }
+        var markdown = await ResolvePreviewMarkdownAsync();
 
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
 
         if (vm.IsDebugModeEnabled)
         {
@@ -1642,9 +1873,108 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             catch { }
         }
 
-        // Heavy refreshes render blurred, then unblur when the spinner clears (see HideSpinner).
-        if (heavy) html = html.Replace("<body>", "<body class=\"ms-loading\">");
+        // (Blur-while-rendering used to be injected here as an ms-loading body class; removed so
+        // the render happens in plain sight.)
+
+        // ISS-003: a re-render (NavigateToString) resets window.scrollY to 0. Stash the preview's
+        // current scroll fraction so ApplyPendingPreviewScroll (wired to NavigationCompleted) puts
+        // the reader back where they were. Only capture when nothing is already pending — a pending
+        // value set by a tab switch (editor->preview hand-off) takes precedence and must survive.
+        if (_pendingPreviewScrollFraction is null)
+            _pendingPreviewScrollFraction = await CapturePreviewScrollFractionAsync();
+
+        // Restore the scroll position during the initial parse — before the first paint — so the
+        // reader never sees the page land at the top and then jump back down. NavigateToString resets
+        // scrollY to 0; this inline script runs synchronously as the fresh document loads and puts us
+        // back where we were while the content is still blurred (heavy) or mid-repaint (light).
+        // ApplyPendingPreviewScroll (NavigationCompleted) still runs afterwards to fine-tune once
+        // async layout (mermaid / images) settles.
+        if (_pendingPreviewScrollFraction is { } frac)
+        {
+            var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            html = html.Replace("</body>",
+                "<script>(function(){var m=document.documentElement.scrollHeight-window.innerHeight;" +
+                $"if(m>0){{window.scrollTo(0,{f}*m);}}}})();</script></body>");
+        }
+
         PreviewWebView.CoreWebView2.NavigateToString(html);
+    }
+
+    // ISS-004 "watch it generate": full refreshes re-navigate the page, which both tears any open
+    // portal out of the DOM and repaints under the reader — so typing-sized updates re-render the
+    // Markdown and swap ONLY the #canvas contents in place. The portal is a sibling of #canvas on
+    // <body>, so it — and the user's caret inside it — survive untouched while the preview updates
+    // live behind the shape. The template brackets the canvas contents with ms-canvas-start/end
+    // markers so extraction never has to parse nested divs.
+    //
+    // Returns false when the swap can't happen here — no page yet, markers missing, or the current
+    // page never loaded a renderer the new content needs (KaTeX / highlight.js are included
+    // per-navigation on demand; mermaid ships on every page) — so the caller can fall back to a
+    // real refresh. Pass null to render whatever the current preview source resolves to.
+    private async Task<bool> UpdatePreviewCanvasLiveAsync(string? markdown = null)
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null || _mermaidHarvestActive) return false;
+
+        markdown ??= await ResolvePreviewMarkdownAsync();
+        if (markdown == _lastLiveCanvasMd) return true; // canvas already shows exactly this source
+
+        var vm = ViewModel;
+        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        const string startMark = "<!--ms-canvas-start-->", endMark = "<!--ms-canvas-end-->";
+        var s = html.IndexOf(startMark, StringComparison.Ordinal);
+        var e = html.IndexOf(endMark, StringComparison.Ordinal);
+        if (s < 0 || e < 0 || e <= s) return false;
+        var inner = html.Substring(s + startMark.Length, e - (s + startMark.Length));
+
+        var js = "(function(){var c=document.getElementById('canvas');if(!c)return 'nav';" +
+                 "var h=" + System.Text.Json.JsonSerializer.Serialize(inner) + ";" +
+                 // First math/code block since the last navigation: its renderer isn't on this
+                 // page (BuildExtraHead includes them on demand) — ask for a real refresh.
+                 "if(h.indexOf('class=\"math\"')>=0&&!window.__msRenderMath)return 'nav';" +
+                 "if(h.indexOf('language-')>=0&&!window.hljs)return 'nav';" +
+                 "c.innerHTML=h;" +
+                 // Fresh fences/spans arrive unrendered — best-effort re-runs, ignore if absent.
+                 "try{if(window.mermaid&&window.mermaid.run){window.mermaid.run();}}catch(x){}" +
+                 "try{if(window.__msRenderMath){window.__msRenderMath(c);}}catch(x){}" +
+                 "try{if(window.hljs){c.querySelectorAll('pre code').forEach(function(el){window.hljs.highlightElement(el);});}}catch(x){}" +
+                 "return 'ok';})();";
+        string result;
+        try { result = await core.ExecuteScriptAsync(js); } catch { return false; }
+        if (result != "\"ok\"") return false;
+        _lastLiveCanvasMd = markdown;
+        return true;
+    }
+
+    // The preview's markdown source, in priority order — shared by the full refresh and the live
+    // in-place canvas swap so both always render the same document.
+    private async Task<string> ResolvePreviewMarkdownAsync()
+    {
+        var vm = ViewModel;
+        if (vm.UsePasteSource) return vm.PastedMarkdown;
+        if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
+            return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
+        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+    }
+
+    // Read the preview's current vertical scroll fraction (0..1), or null when the page isn't ready
+    // or the read fails — callers treat null as "nothing to restore". Mirror of the fraction math in
+    // CapturePreviewScrollAndApplyToEditorAsync, but returns the value instead of moving the editor.
+    private async Task<double?> CapturePreviewScrollFractionAsync()
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return null;
+        string result;
+        try
+        {
+            result = await core.ExecuteScriptAsync(
+                "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
+                "return max>0?(window.scrollY/max):0;})();");
+        }
+        catch { return null; }
+
+        if (!double.TryParse(result, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var frac)) return null;
+        return Math.Clamp(frac, 0.0, 1.0);
     }
 
     private void OnToggleDebugModeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -1977,6 +2307,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToPptxAsync();
     }
 
+    private async void OnExportEpubClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToEpubAsync();
+    }
+
+    // Primary action of the export SplitButton: generate a Word document — ISS-019 made .docx
+    // the default export format (was PDF). The remaining formats live in the flyout and reuse
+    // the individual OnConvert*Click handlers above. SplitButton.Click raises
+    // SplitButtonClickEventArgs, so it needs its own handler signature.
+    private async void OnPrimaryExportClick(SplitButton sender, SplitButtonClickEventArgs args)
+    {
+        await ViewModel.ConvertToDocxAsync();
+    }
+
     private async void OnExportAllClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ExportAllAsync();
@@ -2055,6 +2399,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Column widths: give all the space to the visible pane(s); split shares it.
         if (SplitLeftCol != null) SplitLeftCol.Width = mode == ViewMode.Preview ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         if (SplitRightCol != null) SplitRightCol.Width = mode == ViewMode.Code ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+
+        // ISS-017: Split view squeezes the editor + preview between the two step panels, so entering
+        // Split auto-collapses them into a full-canvas workspace and leaving restores them. Reuse the
+        // existing focus-mode machinery: syncing the toggle fires its Checked/Unchecked handler, which
+        // runs ApplyFocusMode (and saves/restores the pane widths). Setting the same value twice is a
+        // no-op, so we never re-save already-collapsed widths.
+        if (FocusModeToggle != null)
+            FocusModeToggle.IsChecked = mode == ViewMode.Split;
 
         if (showPreview) _ = RefreshPreviewAsync(heavy: mode == ViewMode.Preview);
     }
@@ -2376,6 +2728,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyWordWrap(WordWrapToggle?.IsChecked == true, persist: true);
     }
 
+    // ISS-004: toggle the Looking Glass portal overlay (fog-of-war lens + glowing cursor ring,
+    // rendered inside the preview page). The flag lives in AppSettings so MarkdownHtmlService
+    // picks it up on the next render — which we trigger right away.
+    private void OnLookingGlassToggled(object sender, RoutedEventArgs e)
+    {
+        if (_initializingLookingGlass) return;
+        App.Settings.Current.LookingGlassMode = LookingGlassToggle?.IsChecked == true;
+        App.Settings.Save();
+        _ = RefreshPreviewAsync();
+    }
+
+    // ISS-004: persist the portal reveal scope and re-render the preview so the portal script
+    // picks up the new aperture size. Coalesced through the same debounce used for typing so a
+    // slider drag doesn't re-navigate the WebView on every tick.
+    private void OnPortalRevealChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_initializingPortalReveal) return;
+        App.Settings.Current.PortalRevealScope = (int)System.Math.Round(PortalRevealSlider?.Value ?? 45);
+        App.Settings.Save();
+        _previewDebounce.Stop();
+        _previewDebounce.Start();
+    }
+
+    // ISS-004: persist the portal shape (circle spotlight vs full-width focus bands) and re-render
+    // through the same debounce as the size slider.
+    private void OnPortalShapeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializingPortalReveal) return;
+        App.Settings.Current.PortalShape =
+            (PortalShapeCombo?.SelectedItem as ComboBoxItem)?.Tag as string ?? "circle";
+        App.Settings.Save();
+        _previewDebounce.Stop();
+        _previewDebounce.Start();
+    }
+
     private void ApplyWordWrap(bool wrap, bool persist)
     {
         PasteTextBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
@@ -2430,14 +2817,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (LintList is not null) LintList.ItemsSource = _lintIssues.ToList();
     }
 
-    // Clicking an issue jumps the editor caret to that line.
+    // Clicking an issue jumps the editor caret to that line AND drops a red homing radar beacon on
+    // the corresponding element in the live preview (ISS-012), so the user's eye lands on both.
     private void OnLintItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is Services.MarkdownLintService.LintIssue issue)
         {
             GoToLine(issue.Line);
+            TriggerIssueRadarBeacon(issue.Line);
             LintFlyout?.Hide();
         }
+    }
+
+    // Fire the preview's triggerRedRadarBeacon(line) (injected by MarkdownHtmlService in interactive
+    // mode). Best-effort: if the preview isn't ready or the script is absent this is a silent no-op.
+    private void TriggerIssueRadarBeacon(int line)
+    {
+        var core = PreviewWebView?.CoreWebView2;
+        if (core is null) return;
+        _ = core.ExecuteScriptAsync(
+            $"if (typeof triggerRedRadarBeacon === 'function') {{ triggerRedRadarBeacon({line}); }}");
     }
 
     // Move the caret to the start of the given 1-based line and bring it into view.
@@ -2877,6 +3276,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void InsertMarkdown(string prefix, string suffix = "")
     {
+        // ISS-004: while a Looking Glass portal is open, the formatting toolbar drives the
+        // PORTAL editor — that's where the user's working caret lives, not the main editor
+        // behind it. __portalApplyEdit fires a synthetic input, so the edit rides the normal
+        // portal-edit sync back into the editor and the live preview.
+        if (_portalOpen && PreviewWebView.CoreWebView2 is { } core)
+        {
+            var pjs = "if (window.__portalApplyEdit) { window.__portalApplyEdit(" +
+                      System.Text.Json.JsonSerializer.Serialize(prefix) + ", " +
+                      System.Text.Json.JsonSerializer.Serialize(suffix) + "); }";
+            _ = core.ExecuteScriptAsync(pjs);
+            PreviewWebView.Focus(FocusState.Programmatic); // hand focus back to the portal caret
+            return;
+        }
+
         var tb = PasteTextBox;
         if (tb == null) return;
         try

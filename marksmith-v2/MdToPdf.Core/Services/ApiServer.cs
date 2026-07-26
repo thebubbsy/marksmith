@@ -132,14 +132,22 @@ public sealed class ApiServer : IDisposable
         // "null": file:// pages and sandboxed/opaque contexts (a locally-opened dashboard).
         if (string.IsNullOrEmpty(origin) || origin == "null") return true;
 
-        // Browser extensions — specifically matching the configured AllowedExtensionId.
-        var allowedId = _allowedExtensionId?.Invoke();
-        if (!string.IsNullOrWhiteSpace(allowedId) &&
-            (origin.Equals($"chrome-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
-             origin.Equals($"moz-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
-             origin.Equals($"safari-web-extension://{allowedId}", StringComparison.OrdinalIgnoreCase)))
+        // Browser-extension origins (chrome/moz/safari). An MV3 service-worker fetch sends
+        // Origin: chrome-extension://<id>, so the bundled extension MUST be admitted here or every
+        // /api/ingest and /api/convert call 403s — the "popup says Connected but export returns
+        // HTTP 403" bug. When a specific AllowedExtensionId is pinned, only that exact ID passes
+        // (strict). When it is left blank (the default) any installed extension is trusted: an
+        // extension has to be deliberately installed by the user, and the real threat model for
+        // this loopback API is drive-by web pages (http/https origins), still rejected below.
+        if (origin.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+            origin.StartsWith("moz-extension://", StringComparison.OrdinalIgnoreCase) ||
+            origin.StartsWith("safari-web-extension://", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            var allowedId = _allowedExtensionId?.Invoke();
+            if (string.IsNullOrWhiteSpace(allowedId)) return true; // not pinned → trust any extension
+            return origin.Equals($"chrome-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+                   origin.Equals($"moz-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+                   origin.Equals($"safari-web-extension://{allowedId}", StringComparison.OrdinalIgnoreCase);
         }
 
         // Loopback only, matched on the exact host so look-alike public hosts can't slip through.

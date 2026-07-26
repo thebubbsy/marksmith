@@ -1,13 +1,14 @@
 {
     "manifest_version": 3,
     "name": "Marksmith Connector",
-    "version": "1.5.0",
-    "description": "Copy AI replies as Markdown or send them to Marksmith — ChatGPT, Gemini, Claude and Copilot.",
-    "permissions": ["contextMenus", "notifications", "storage", "scripting", "activeTab"],
+    "version": "2.0.0",
+    "description": "Turn AI chats into polished PDF/DOCX/PPTX/EPUB — send to Marksmith or download straight from ChatGPT, Gemini, Claude and Copilot.",
+    "permissions": ["contextMenus", "notifications", "storage", "scripting", "activeTab", "downloads", "alarms", "tabs"],
     "host_permissions": ["http://127.0.0.1/*"],
     "background": { "service_worker": "background.js" },
     "action": {
-        "default_title": "Send latest AI reply to Marksmith",
+        "default_title": "Marksmith — open the control center",
+        "default_popup": "popup.html",
         "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
     },
     "content_scripts": [

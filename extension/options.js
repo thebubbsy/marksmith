@@ -9,7 +9,7 @@ const OUT_DEFAULTS = {
     theme: "GitHub Light", themeLightInfluence: false, contentWidth: 800, a4FixedWidth: true, unlimitedHeight: true,
     includeToc: false, showAttribution: true, noEmoji: false, dashMode: 0, dashCustom: "",
     headingShift: 0, boldMode: 0, italicMode: 0, normalizeLlm: true,
-    format: "pdf", outputFolder: "", mermaidDocxMode: 1, oversizedDiagramMode: 1,
+    format: "docx", outputFolder: "", mermaidDocxMode: 1, oversizedDiagramMode: 1,
     diagramGridSize: 2, smartConnectors: true, connectorRouting: "default", connectorArrowhead: "default",
     brandCoverPage: false
 };
