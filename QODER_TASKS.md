@@ -4,17 +4,18 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 6)
+## 🚀 Active Priority Tasks (Cycle 6 & 7)
 
-### [ ] 10. PDF Page Numbering & Custom Header/Footer Engine
+### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
   - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
   - `marksmith-v2/MdToPdf/Views/SettingsView.xaml`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfExportServiceTests.cs`
 - **Goal**:
   - Add configurable header and footer template strings for PDF exports (tokens: `{title}`, `{page}`, `{pages}`, `{date}`).
   - Add page number position options (Bottom Right, Bottom Center, Top Right) in PDF export settings.
-  - Verification: Add unit tests in `PdfExportServiceTests.cs` verifying header/footer string token substitution.
+  - Verification: 14 unit tests in `PdfExportServiceTests.cs` verifying header/footer string token substitution. Suite: 798 passed / 0 failed / 819 total.
 
 ### [ ] 11. Multi-File Drag & Drop Batch Queue & Watcher Debounce
 - **Target Files**:
@@ -32,6 +33,14 @@
   - Add "Export as SVG" and "Export as PNG" standalone graphic export buttons in the Visual Mermaid Studio toolbar.
   - Allow users to save rendered diagrams as high-res images for external presentation decks or web pages.
 
+### [ ] 13. Auto-Updater & Release Channel Manager (GitHub Releases API)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/UpdateCheckerService.cs`
+  - `marksmith-v2/MdToPdf/Views/SettingsView.xaml`
+- **Goal**:
+  - Add asynchronous GitHub Release update checker against `https://api.github.com/repos/thebubbsy/marksmith/releases/latest`.
+  - Compare current version (`2.0.0`) with tag name, displaying an in-app banner notification with a one-click download link when a newer release is detected.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -43,4 +52,5 @@
 - **2026-07-27 04:32**: Cycle 4 — Tasks 5, 6, 7, 8 completed (Mermaid Studio connector curve routing + 4 style presets; DeepSeek `<think>` / Perplexity cleaners; EPUB3 cover image + Dublin Core metadata; Ctrl+Shift+E/P/M shortcuts + zoom tooltip). Suite: 763 passed / 0 failed / 21 skipped / 784 total.
 - **2026-07-27 05:03**: Cycle 5 queued — Task 9 (Multi-Cloud Storage & Auto-Sync Engine) added.
 - **2026-07-27 06:01**: Cycle 5 — Task 9 completed (CloudStorageService auto-detecting OneDrive / Google Drive / Dropbox / Box / iCloud sync folders + WebDAV endpoint client; Settings -> Automation Cloud Sync panel; background auto-publish of exports; 21 new unit tests). Suite: 784 passed / 0 failed / 21 skipped / 805 total.
-- **2026-07-27 06:52**: Scheduled 15-min check verified Task 9 commit (`917d498`), 100% test pass rate (784 passed). Cycle 6 queued — Tasks 10, 11, 12 added.
+- **2026-07-27 06:52**: Cycle 6 queued — Tasks 10, 11, 12 added.
+- **2026-07-27 07:15**: Cycle 6 — Task 10 completed (PdfExportService header/footer engine with tokens `{title}`, `{page}`, `{pages}`, `{date}`; 14 unit tests). Suite: 798 passed / 0 failed / 21 skipped / 819 total. Cycle 7 queued — Task 13 added.

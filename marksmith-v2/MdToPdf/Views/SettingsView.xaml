@@ -54,6 +54,51 @@
             </StackPanel>
         </PivotItem>
 
+        <!-- ===== PDF ===== -->
+        <PivotItem Header="PDF">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14" Margin="0,12,10,0">
+                    <!-- Page chrome: header / footer & page numbers (Task 10) -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Header &amp; Footer / Page Numbers" FontWeight="SemiBold" />
+                                <TextBlock Text="Add a running header and footer to PDF exports. Tokens: {title}, {page}, {pages}, {date}."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Page number position" Style="{StaticResource StepCaptionStyle}" />
+                                <ComboBox SelectedItem="{Binding PdfPageNumberPosition, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <x:String>None</x:String>
+                                    <x:String>BottomRight</x:String>
+                                    <x:String>BottomCenter</x:String>
+                                    <x:String>TopRight</x:String>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Header template" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Footer template" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding PdfFooterTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="e.g. Page {page} of {pages}" IsSpellCheckEnabled="False" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Preview" Style="{StaticResource StepCaptionStyle}" Opacity="0.7" />
+                                <TextBlock Text="{Binding PdfFooterPreview}" Style="{StaticResource StepCaptionStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+
         <!-- ===== Automation ===== -->
         <PivotItem Header="Automation">
             <ScrollViewer VerticalScrollBarVisibility="Auto">

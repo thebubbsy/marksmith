@@ -1257,13 +1257,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Importer plugins (e.g. Pandoc) widen what "a droppable document" means — see
         // MdToPdf.Core/Plugins/PluginFileReader for where the conversion happens on read.
         var importerExts = App.Plugins.AllImporterExtensions;
-        var file = items.OfType<StorageFile>()
-            .FirstOrDefault(f => f.FileType is ".md" or ".markdown" or ".txt"
-                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()));
-        if (file is not null)
+        var docs = items.OfType<StorageFile>()
+            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
+                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
+            .ToList();
+        if (docs.Count == 0) return;
+
+        // Single file: load it into the editor exactly as before.
+        if (docs.Count == 1)
         {
-            ViewModel.InputFilePath = file.Path;
+            ViewModel.InputFilePath = docs[0].Path;
             ViewModel.UsePasteSource = false;
+            return;
+        }
+
+        // Multi-file drop (Task 11): stage the dropped documents into a temp folder and run them
+        // through the batch converter as one queue — a multi-file drop becomes a single batch job in
+        // the current default format, written to the configured output folder.
+        await RunMultiFileBatchAsync(docs);
+    }
+
+    private async Task RunMultiFileBatchAsync(List<StorageFile> docs)
+    {
+        var staging = Path.Combine(Path.GetTempPath(), "mk-batch-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(staging);
+            foreach (var f in docs)
+                File.Copy(f.Path, Path.Combine(staging, Path.GetFileName(f.Path)), overwrite: true);
+
+            var format = App.Settings.Current.DefaultExportFormat;
+            var outDir = App.Settings.Current.OutputFolder;
+            await ViewModel.BatchConvertAsync(staging, outDir, format);
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Batch conversion failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 
@@ -1816,16 +1846,49 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     public async Task<bool> PrintToPdfAsync(string outputPath, Services.PdfPageSetup setup)
     {
         var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
-        var printSettings = core.Environment.CreatePrintSettings();
-        printSettings.ShouldPrintBackgrounds = setup.PrintBackgrounds;
-        printSettings.ShouldPrintHeaderAndFooter = false;
-        printSettings.PageWidth = setup.PageWidthIn;
-        printSettings.PageHeight = setup.PageHeightIn;
-        printSettings.MarginTop = setup.MarginTopIn;
-        printSettings.MarginBottom = setup.MarginBottomIn;
-        printSettings.MarginLeft = setup.MarginLeftIn;
-        printSettings.MarginRight = setup.MarginRightIn;
-        return await core.PrintToPdfAsync(outputPath, printSettings);
+        var hasHeaderFooter = !string.IsNullOrEmpty(setup.HeaderTemplate) || !string.IsNullOrEmpty(setup.FooterTemplate);
+
+        // Fast path — no header/footer: use the native PrintToPdfAsync (zero-margin, edge-to-edge
+        // theme backgrounds), exactly as before Task 10.
+        if (!hasHeaderFooter)
+        {
+            var printSettings = core.Environment.CreatePrintSettings();
+            printSettings.ShouldPrintBackgrounds = setup.PrintBackgrounds;
+            printSettings.ShouldPrintHeaderAndFooter = false;
+            printSettings.PageWidth = setup.PageWidthIn;
+            printSettings.PageHeight = setup.PageHeightIn;
+            printSettings.MarginTop = setup.MarginTopIn;
+            printSettings.MarginBottom = setup.MarginBottomIn;
+            printSettings.MarginLeft = setup.MarginLeftIn;
+            printSettings.MarginRight = setup.MarginRightIn;
+            return await core.PrintToPdfAsync(outputPath, printSettings);
+        }
+
+        // Header/footer path (Task 10): WebView2's native print settings only expose HeaderTitle /
+        // FooterUri, not custom templates — so drive Chromium's Page.printToPDF over the DevTools
+        // protocol instead. It accepts headerTemplate / footerTemplate HTML with the auto-substituting
+        // pageNumber / totalPages / date / title spans that PdfExportService.BuildChromiumTemplate emits.
+        var args = new Dictionary<string, object?>
+        {
+            ["paperWidth"] = setup.PageWidthIn,
+            ["paperHeight"] = setup.PageHeightIn,
+            ["marginTop"] = setup.MarginTopIn,
+            ["marginBottom"] = setup.MarginBottomIn,
+            ["marginLeft"] = setup.MarginLeftIn,
+            ["marginRight"] = setup.MarginRightIn,
+            ["printBackground"] = setup.PrintBackgrounds,
+            ["displayHeaderFooter"] = true,
+            ["headerTemplate"] = setup.HeaderTemplate,
+            ["footerTemplate"] = setup.FooterTemplate,
+            ["preferCSSPageSize"] = false,
+        };
+        var resultJson = await core.CallDevToolsProtocolMethodAsync(
+            "Page.printToPDF", System.Text.Json.JsonSerializer.Serialize(args));
+        using var doc = System.Text.Json.JsonDocument.Parse(resultJson);
+        var b64 = doc.RootElement.GetProperty("data").GetString();
+        if (string.IsNullOrEmpty(b64)) return false;
+        await File.WriteAllBytesAsync(outputPath, Convert.FromBase64String(b64));
+        return true;
     }
 
     // The mermaid render page must not be clobbered by the live preview's debounced auto-refresh
