@@ -73,6 +73,11 @@ public sealed class AppSettings
     public int DashMode { get; set; } // em-dash handling: 0 keep, 1 hyphen, 2 spaced, 3 custom
     public string DashCustom { get; set; } = ""; // replacement text when DashMode == 3
 
+    // DOCX page chrome (both opt-in; a converted chat should look like a clean document, not a
+    // framed certificate under revision tracking). Default off = no page border, no Track Changes.
+    public bool PageBorder { get; set; }    // draw a full page frame in the theme border color
+    public bool TrackChanges { get; set; }  // turn on Word revision tracking in the exported file
+
     // Formatting personalization (structure, not cleanup)
     public int HeadingShift { get; set; } // -5..+5: promote (-) or demote (+) every heading
     public int BoldMode { get; set; }     // 0 keep, 1 remove, 2 to italic
@@ -168,6 +173,8 @@ public sealed class AppSettings
         BrandFontFamily = other.BrandFontFamily;
         IncludeToc = other.IncludeToc;
         ShowAttribution = other.ShowAttribution;
+        PageBorder = other.PageBorder;
+        TrackChanges = other.TrackChanges;
         NoEmoji = other.NoEmoji;
         DashMode = other.DashMode;
         DashCustom = other.DashCustom;

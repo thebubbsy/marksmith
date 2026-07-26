@@ -87,6 +87,8 @@ audit_report.md
 
 # Generated test outputs & IDE/scratch (keep backups lean)
 test_outputs/
+marksmith-v2/test_outputs/
+tests/docx_verify_output/
 .qoder/
 MathTest/
 test.cs

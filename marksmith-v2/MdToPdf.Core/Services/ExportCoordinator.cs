@@ -300,14 +300,15 @@ public sealed class ExportCoordinator
         OutputOverride? ovr,
         IWebRenderHost? host,
         Func<IDisposable>? beginOffscreen = null,
-        Func<Task>? onCompletedRefresh = null)
+        Func<Task>? onCompletedRefresh = null,
+        bool recursive = false)
     {
         if (!Directory.Exists(folderPath))
         {
             throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
         }
 
-        var files = Directory.GetFiles(folderPath, "*.md", SearchOption.TopDirectoryOnly);
+        var files = Directory.GetFiles(folderPath, "*.md", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
         if (files.Length == 0)
         {
             return new { done = 0, failed = 0, message = "No .md files found." };
@@ -336,7 +337,13 @@ public sealed class ExportCoordinator
             try
             {
                 var md = vm.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
+                // Mirror the source's relative folder structure under the output folder so a
+                // recursive batch doesn't collide same-named files from different subfolders.
+                // (For a top-level-only batch relDir is "" and this is the same flat path as before.)
+                var relDir = Path.GetDirectoryName(Path.GetRelativePath(folderPath, f)) ?? "";
+                var outDir = Path.Combine(outFolder, relDir);
+                Directory.CreateDirectory(outDir);
+                var outPath = Path.Combine(outDir, Path.GetFileNameWithoutExtension(f) + "." + fmt);
 
                 switch (fmt)
                 {

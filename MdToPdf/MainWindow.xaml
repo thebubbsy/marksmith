@@ -6,9 +6,23 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     xmlns:localcontrols="using:MdToPdf.Controls">
 
-    <Grid x:Name="RootGrid">
+    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control,Menu" Key="T" Invoked="OnToggleDebugModeInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="O" Invoked="OnOpenFileAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnGeneratePdfAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="D" Invoked="OnExportDocxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnExportPptxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="K" Invoked="OnCommandPaletteInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="S" Invoked="OnSaveDocumentAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="H" Invoked="OnReplaceAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="P" Invoked="OnPrintAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateLineAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Menu" Key="Up" Invoked="OnMoveLineUpAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Menu" Key="Down" Invoked="OnMoveLineDownAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F11" Invoked="OnFocusModeAcceleratorInvoked" />
+            <KeyboardAccelerator Key="F1" Invoked="OnShortcutsCheatsheetInvoked" />
         </Grid.KeyboardAccelerators>
 
         <Grid.Resources>

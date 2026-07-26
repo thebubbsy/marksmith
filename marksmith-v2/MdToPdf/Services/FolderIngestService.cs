@@ -63,3 +63,36 @@ public sealed class FolderIngestService : IDisposable
 
     public void Dispose() => Stop();
 }
+
+// ISS-011: one-click watch-folder presets for the places local AI agents and CLIs drop their
+// Markdown exports. A preset is only offered when its folder (or the parent that would contain
+// it) exists, so the picker never suggests paths this machine has never heard of.
+public static class AiAgentFolderPresets
+{
+    public record FolderPreset(string Name, string Description, string Path);
+
+    public static List<FolderPreset> GetAvailablePresets()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        return new List<FolderPreset>
+        {
+            new("Google Antigravity / Gemini CLI", "Default scratch output path for AGY CLI",
+                Path.Combine(userProfile, ".gemini", "antigravity", "scratch")),
+
+            new("Ollama Local Models", "Ollama export directory",
+                Path.Combine(documents, "Ollama", "Outputs")),
+
+            new("Claude Desktop", "Claude Desktop app exported conversations",
+                Path.Combine(appData, "Claude", "Exports")),
+
+            new("GPT-Engineer / Aider CLI", "CLI coding agent workspace output",
+                Path.Combine(userProfile, ".local", "share", "gpt-engineer")),
+
+            new("Downloads Folder", "Browser downloaded AI markdown files",
+                Path.Combine(userProfile, "Downloads"))
+        }.Where(p => Directory.Exists(p.Path) || Directory.Exists(Path.GetDirectoryName(p.Path))).ToList();
+    }
+}
