@@ -35,6 +35,7 @@
             <conv:StatusSeverityToBrushConverter x:Key="StatusSeverityToBrushConverter" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
+            <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
         </Grid.Resources>
 
         <Grid.RowDefinitions>
@@ -871,6 +872,33 @@
                              step header at narrow widths, so everything lives in one ⋯ menu now — the
                              tip jar too (it used to float in the title bar). The history ListView keeps
                              its rich flyout, re-shown as an attached flyout from the menu item. -->
+                        <!-- Document outline (Task 17): H1–H6 flyout; clicking a node scrolls the
+                             preview to that heading. Its own Button.Flyout (not an attached flyout)
+                             so it doesn't collide with the ⋯ menu's history attached flyout. -->
+                        <Button x:Name="OutlineButton" ToolTipService.ToolTip="Document outline (H1–H6)">
+                            <FontIcon Glyph="&#xE8A4;" FontSize="14" />
+                            <Button.Flyout>
+                                <Flyout Placement="Bottom">
+                                    <Grid RowSpacing="8" Width="340">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="Document outline" FontWeight="SemiBold" />
+                                        <ListView x:Name="TocList" Grid.Row="1" MaxHeight="420"
+                                                  SelectionMode="None" IsItemClickEnabled="True"
+                                                  ItemClick="OnTocItemClick">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
+                                                               Margin="{Binding Level, Converter={StaticResource LevelToIndentConverter}}" />
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                    </Grid>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                         <Button x:Name="MoreMenuButton" ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support">
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
