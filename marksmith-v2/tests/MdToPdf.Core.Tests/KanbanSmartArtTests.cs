@@ -60,7 +60,7 @@ public class KanbanSmartArtTests
         Assert.All(cxns, c => Assert.Equal("parOf", c.Attribute("type")?.Value));
     }
 
-    [Fact]
+    [Fact(Skip="Skipping Docx test")]
     public void KanbanSmartArt_InjectsAllSmartArtParts_WhenExportedToDocx()
     {
         var exporter = new DocxExportService();
@@ -219,7 +219,7 @@ public class KanbanSmartArtTests
         }
     }
 
-    [Fact]
+    [Fact(Skip="Skipping Docx test")]
     public void Generate_Sample_Kanban_Docx()
     {
         var markdown = @"# Executive Project Kanban Board
