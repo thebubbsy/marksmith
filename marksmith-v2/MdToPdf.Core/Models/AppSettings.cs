@@ -180,6 +180,11 @@ public sealed class AppSettings
     // When not "None" and the matching template is empty, a default "Page {page} of {pages}" is used.
     public string PdfPageNumberPosition { get; set; } = "None";
 
+    // Auto-updater (Task 13): poll the GitHub Releases feed for a newer version once at startup and
+    // surface an in-app notification when one is found. The manual "Check for updates" button in
+    // Settings -> About always works regardless of this toggle. Default on.
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
+
     // Returns a copy with any non-null override fields applied — used so an API/extension caller can
     // export with its own output profile without mutating the app's persistent settings.
     public AppSettings CloneWith(OutputOverride? o)
@@ -286,6 +291,7 @@ public sealed class AppSettings
         PdfHeaderTemplate = other.PdfHeaderTemplate;
         PdfFooterTemplate = other.PdfFooterTemplate;
         PdfPageNumberPosition = other.PdfPageNumberPosition;
+        CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
