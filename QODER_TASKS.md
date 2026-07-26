@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 10 & 11)
+## 🚀 Active Priority Tasks (Cycle 11 & 12)
 
 ### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
@@ -83,6 +83,22 @@
   - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
   - Verification: 23 unit tests in `PdfSecurityServiceTests.cs` (policy build/validation, 32-byte password limit, PDFsharp encrypt round-trip, owner/user reopen, wrong-password rejection, permission restriction). Suite: 894 passed / 0 failed / 915 total.
 
+### [ ] 19. Custom PDF Watermark & Classification Stamp Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/PdfWatermarkService.cs`
+  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfWatermarkServiceTests.cs`
+- **Goal**:
+  - Support diagonal text watermarks (e.g. "CONFIDENTIAL", "DRAFT") or image watermarks overlayed/underlayed on exported PDF pages with configurable opacity, rotation angle, font size, and color.
+
+### [ ] 20. EPUB Metadata & Cover Art Customization Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/EpubExportService.cs`
+  - `marksmith-v2/MdToPdf.Core/Models/EpubMetadata.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/EpubExportServiceTests.cs`
+- **Goal**:
+  - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, and custom cover image embedding.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -97,5 +113,5 @@
 - **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 21 skipped / 836 total.
 - **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
 - **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total.
-- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total. Cycle 11 queued — Task 18 added.
-- **2026-07-27 09:00**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total.
+- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total.
+- **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total. Cycle 12 queued — Tasks 19 & 20 added.
