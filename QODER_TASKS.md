@@ -51,13 +51,18 @@
   - Persist an export history journal (`%APPDATA%\Marksmith\export_history.json`) logging timestamp, source path, target format (PDF/DOCX/EPUB/PPTX), duration, and output size.
   - Verification: 19 unit tests in `HistoryEntryTests.cs` (title extraction, subtitle telemetry formatting, inFence tracking, size formatting). Suite: 839 passed / 0 failed / 860 total.
 
-### [ ] 16. Custom Font & Typography Management Engine
+### [x] 16. Custom Font & Typography Management Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/FontManagerService.cs`
+  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
+  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/MdToPdf.Core/Services/MarkdownHtmlService.cs`
   - `marksmith-v2/MdToPdf/Views/SettingsView.xaml`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/FontManagerServiceTests.cs`
 - **Goal**:
   - Add custom font family selection (Serif, Sans-Serif, Monospace, Dyslexic-friendly) for rendered documents.
   - Support embedding custom TTF/OTF fonts into PDF & EPUB output profiles.
+  - Verification: 32 unit tests in `FontManagerServiceTests.cs` (preset catalog, CSS resolution, TTF/OTF validation, base64 @font-face embedding). Suite: 871 passed / 0 failed / 892 total.
 
 ### [ ] 17. Interactive Document Outline / TOC Navigation Flyout
 - **Target Files**:
@@ -81,3 +86,4 @@
 - **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 21 skipped / 836 total.
 - **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
 - **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total. Cycle 10 queued — Tasks 16 & 17 added.
+- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total.

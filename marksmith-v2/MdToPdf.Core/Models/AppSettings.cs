@@ -116,6 +116,12 @@ public sealed class AppSettings
     public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
     public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
 
+    // Typography (Task 16): preset id ("System", "Serif", "Sans-Serif", "Monospace",
+    // "Dyslexic-friendly" — see FontManagerService) applied to rendered documents, plus an optional
+    // custom TTF/OTF that is embedded into the output via @font-face.
+    public string FontPreset { get; set; } = "System";
+    public string CustomFontPath { get; set; } = "";
+
     // Export extras
     public bool IncludeToc { get; set; }
     public bool ShowWordCount { get; set; } = true;
@@ -264,6 +270,8 @@ public sealed class AppSettings
         BrandCoverPage = other.BrandCoverPage;
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
+        FontPreset = other.FontPreset;
+        CustomFontPath = other.CustomFontPath;
         IncludeToc = other.IncludeToc;
         ShowWordCount = other.ShowWordCount;
         ShowAttribution = other.ShowAttribution;
