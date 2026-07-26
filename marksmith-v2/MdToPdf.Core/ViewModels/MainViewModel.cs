@@ -86,6 +86,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _runningDocPath = "";
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
+    [ObservableProperty] private bool _showWordCount;
     [ObservableProperty] private int _mermaidDocxMode = 1; // 0 Snapshot picture, 1 ShapeForge shapes
     [ObservableProperty] private int _oversizedDiagramMode; // 0 Ask, 1 Exact/WebLayout, 2 Reflow
     [ObservableProperty] private bool _brandCoverPage;
@@ -919,7 +920,7 @@ public sealed partial class MainViewModel : ObservableObject
     private static string SanitizeFileName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
-        var invalid = Path.GetInvalidFileNameChars();
+        var invalid = Path.GetInvalidFileNameChars().Concat(new[] { ':', '?', '<', '|', '"' }).ToArray();
         var cleaned = new string(title.Select(c => invalid.Contains(c) ? ' ' : c).ToArray());
         // Strip common Markdown emphasis/code markers that survive heading extraction.
         cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[*_`#>|]", " ");
