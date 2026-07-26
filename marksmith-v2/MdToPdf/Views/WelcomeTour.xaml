@@ -300,10 +300,13 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" MinWidth="88" />
+            <Button x:Name="SkipButton" Grid.Column="0" Content="Skip" Click="OnSkip" MinWidth="88"
+                    ToolTipService.ToolTip="Skip the tour — reopen it anytime from the ⋯ menu" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" MinWidth="88" />
-                <Button x:Name="NextButton" Content="Next" Click="OnNext" Style="{StaticResource AccentButtonStyle}" MinWidth="112" />
+                <Button x:Name="BackButton" Content="Back" Click="OnBack" Visibility="Collapsed" MinWidth="88"
+                        ToolTipService.ToolTip="Previous step" />
+                <Button x:Name="NextButton" Content="Next" Click="OnNext" Style="{StaticResource AccentButtonStyle}" MinWidth="112"
+                        ToolTipService.ToolTip="Next step" />
             </StackPanel>
         </Grid>
     </Grid>

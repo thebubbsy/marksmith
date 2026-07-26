@@ -44,7 +44,8 @@
             <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
             <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
                 <InfoBar.ActionButton>
-                    <Button Content="Upgrade to Pro" Click="OnUpgradeClick" />
+                    <Button Content="Upgrade to Pro" Click="OnUpgradeClick"
+                            ToolTipService.ToolTip="Unlock MarkSmith Pro — DOCX export, automation and no export footer" />
                 </InfoBar.ActionButton>
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's
@@ -132,7 +133,8 @@
                                     <TextBlock Text="Drop a .md file here" HorizontalAlignment="Center" Opacity="0.75" />
                                     <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
                                                Style="{StaticResource CaptionTextBlockStyle}" />
-                                    <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center" />
+                                    <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center"
+                                            ToolTipService.ToolTip="Browse for a Markdown file to open" />
                                 </StackPanel>
                             </Border>
 
@@ -161,7 +163,8 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Recent &amp; found .md files" VerticalAlignment="Bottom"
                                            Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.8" />
-                                <HyperlinkButton x:Name="RescanButton" Grid.Column="1" Click="OnRescanMarkdownClick" Padding="4,0">
+                                <HyperlinkButton x:Name="RescanButton" Grid.Column="1" Click="OnRescanMarkdownClick" Padding="4,0"
+                                                 ToolTipService.ToolTip="Rescan your PC for recent Markdown files">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <FontIcon Glyph="&#xE72C;" FontSize="12" />
                                         <TextBlock Text="Rescan" Style="{StaticResource CaptionTextBlockStyle}" />
@@ -170,6 +173,7 @@
                             </Grid>
                             <ComboBox x:Name="MarkdownFilesCombo" ItemsSource="{Binding MarkdownFiles}"
                                       SelectionChanged="OnMarkdownFileSelected" Margin="0,-8,0,0"
+                                      ToolTipService.ToolTip="Recent and discovered Markdown files on this PC"
                                       PlaceholderText="Pick a Markdown file from your PC..." HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
@@ -226,7 +230,8 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
                                                      PlaceholderText="e.g. C:\Docs\AI-notebook.docx" IsSpellCheckEnabled="False" />
-                                            <Button Grid.Column="1" Click="OnBrowseRunningDocClick">
+                                            <Button Grid.Column="1" Click="OnBrowseRunningDocClick"
+                                                    ToolTipService.ToolTip="Choose the running .docx document">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
@@ -253,7 +258,8 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
                                                      PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
-                                            <Button Grid.Column="1" Click="OnBrowseWatchFolderClick">
+                                            <Button Grid.Column="1" Click="OnBrowseWatchFolderClick"
+                                                    ToolTipService.ToolTip="Choose the folder to watch">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
@@ -274,7 +280,8 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
 
-                                        <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch" Margin="0,8,0,0">
+                                        <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                                ToolTipService.ToolTip="Pick a folder — every .md file inside becomes a themed PDF">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <FontIcon Glyph="&#xE8B9;" FontSize="14" />
                                                 <TextBlock Text="Batch convert a folder to PDF…" />
@@ -319,7 +326,8 @@
 
             
 
-            <controls:GridSplitter x:Name="LeftSplitter" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+            <controls:GridSplitter x:Name="LeftSplitter" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
+                                   ToolTipService.ToolTip="Drag to resize the Source pane" />
 
             <!-- CENTER PANE: LOOKING Glass -->
             
@@ -388,9 +396,12 @@
                             <FontIcon Glyph="&#xE740;" FontSize="13" />
                         </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged">
-                            <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True" />
-                            <SelectorBarItem x:Name="ViewSplitTab" Text="Split" />
-                            <SelectorBarItem x:Name="ViewPreviewTab" Text="Preview" />
+                            <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
+                                             ToolTipService.ToolTip="Markdown editor only" />
+                            <SelectorBarItem x:Name="ViewSplitTab" Text="Split"
+                                             ToolTipService.ToolTip="Editor and live preview side by side" />
+                            <SelectorBarItem x:Name="ViewPreviewTab" Text="Preview"
+                                             ToolTipService.ToolTip="Rendered preview only" />
                         </SelectorBar>
                     </StackPanel>
                 </Grid>
@@ -726,7 +737,8 @@
                             </Grid>
                         </Grid>
                         <controls:GridSplitter x:Name="SplitViewSplitter" Grid.Column="1" Width="16" Visibility="Collapsed"
-                                               Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+                                               Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
+                                               ToolTipService.ToolTip="Drag to resize the editor / preview split" />
                         <Border x:Name="PreviewCard" Grid.Column="2" Visibility="Collapsed" Style="{StaticResource PipelineCardStyle}">
                     <Grid>
                         <WebView2 x:Name="PreviewWebView" Margin="1" />
@@ -785,7 +797,8 @@
             </Grid>
 
 
-            <controls:GridSplitter x:Name="RightSplitter" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto" />
+            <controls:GridSplitter x:Name="RightSplitter" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
+                                               ToolTipService.ToolTip="Drag to resize the Style &amp; Export pane" />
 
             <!-- RIGHT PANE -->
             
@@ -1011,7 +1024,8 @@
                                         <TextBox Grid.Column="0" Header="Company Logo (PNG/JPEG)" 
                                                  Text="{Binding BrandLogoPath, Mode=TwoWay}"
                                                  PlaceholderText="Select logo image..." IsSpellCheckEnabled="False" />
-                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseLogoClick">
+                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseLogoClick"
+                                                ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)">
                                             <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                         </Button>
                                     </Grid>
@@ -1087,7 +1101,8 @@
                                           </Grid.ColumnDefinitions>
                                           <TextBox Grid.Column="0" Header="Logo (PNG/JPEG)" Text="{Binding BrandLogoPath, Mode=TwoWay}"
                                                    PlaceholderText="Optional — shown on the cover" IsSpellCheckEnabled="False" />
-                                          <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseBrandLogoClick">
+                                          <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseBrandLogoClick"
+                                                  ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)">
                                               <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                           </Button>
                                       </Grid>
@@ -1166,7 +1181,8 @@
                     </SplitButton>
 
                     <Button Grid.Column="1" Height="40" Content="Cancel"
-                            Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}" />
+                            Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}"
+                            ToolTipService.ToolTip="Cancel the export in progress" />
 
                     <ProgressRing Grid.Column="2" IsActive="{Binding IsBusy}" Width="22" Height="22"
                                   VerticalAlignment="Center" />

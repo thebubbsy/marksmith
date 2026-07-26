@@ -98,6 +98,11 @@
             }
         }
 
+        // A rendered diagram whose raw ```mermaid source was recovered by the pre-pass below —
+        // emit the fenced source instead of hitting the <svg>/<canvas> and dropping the diagram.
+        if (n.dataset && n.dataset.mkMermaid) {
+            return `\n\`\`\`mermaid\n${n.dataset.mkMermaid}\n\`\`\`\n`;
+        }
         const tag = n.tagName.toLowerCase();
         const kids = () => [...n.childNodes].map(conv).join("");
         switch (tag) {
@@ -149,6 +154,66 @@
     function toMarkdown(root) {
         const target = site.content ? root.querySelector(site.content) || root : root;
         return conv(target).replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    // Recover the RAW mermaid source for rendered diagram widgets inside this reply and tag the
+    // container with data-mk-mermaid so conv() emits a fenced block instead of dropping the
+    // <svg>/<canvas>. Same strategy as background.js's pre-pass: existing code element ->
+    // data-code style attributes -> click the widget's "Code" toggle. Best-effort, never throws.
+    const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|xychart-beta|sankey-beta|block-beta|packet-beta|kanban|architecture-beta)\b/;
+    async function recoverMermaid(root) {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const found = [];
+        const seen = new Set();
+        const push = (c) => { if (c && !seen.has(c) && c.querySelector("svg, canvas")) { seen.add(c); found.push(c); } };
+        for (const c of root.querySelectorAll('.mermaid, [class*="mermaid" i], [data-testid*="mermaid" i], [class*="diagram" i], [data-testid*="diagram" i]')) push(c);
+        for (const h of root.querySelectorAll("div, span, header, h1, h2, h3, h4")) {
+            if (h.childElementCount === 0 && /^mermaid$/i.test((h.textContent || "").trim())) {
+                let anc = h.parentElement;
+                for (let d = 0; anc && d < 6; d++, anc = anc.parentElement) {
+                    if (anc.querySelector("svg, canvas")) { push(anc); break; }
+                }
+            }
+        }
+        const containers = found.filter((a) => !found.some((b) => b !== a && a.contains(b)));
+        for (const el of containers) {
+            try {
+                if (el.dataset.mkMermaid) continue;
+                let source = "";
+                const grab = (c) => (c.tagName === "TEXTAREA" ? c.value : c.textContent) || "";
+                const codeEl = el.querySelector('code[class*="language-mermaid"]');
+                if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+                if (!source) {
+                    for (const cand of el.querySelectorAll("code, pre, textarea")) {
+                        if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); break; }
+                    }
+                }
+                if (!source) {
+                    for (const holder of el.querySelectorAll("[data-code], [data-content], [data-source]")) {
+                        const v = holder.dataset.code || holder.dataset.content || holder.dataset.source || "";
+                        if (MERMAID_HEAD.test(v.trim())) { source = v; break; }
+                    }
+                }
+                if (!source) {
+                    let toggle = el.querySelector(
+                        'button[aria-label*="code" i]:not([aria-label*="copy" i]), button[data-testid*="code" i]:not([data-testid*="copy" i]), button[title*="code" i]:not([title*="copy" i])'
+                    );
+                    if (!toggle) {
+                        toggle = [...el.querySelectorAll('button, [role="tab"], [role="button"]')].find((b) =>
+                            /^(code|source|view code|show code)$/i.test((b.textContent || "").trim()));
+                    }
+                    if (toggle) {
+                        toggle.click();
+                        await sleep(350);
+                        const revealed = [...el.querySelectorAll("code, pre, textarea")].find((c) => MERMAID_HEAD.test(grab(c).trim()));
+                        if (revealed) source = grab(revealed);
+                        toggle.click(); // leave the page as we found it
+                        await sleep(150);
+                    }
+                }
+                if (source.trim()) el.dataset.mkMermaid = source.trim();
+            } catch { /* non-fatal: a failed recovery just means that diagram is skipped */ }
+        }
     }
 
     // Everything Marksmith can learn about where this reply came from, read off the live page at
@@ -229,6 +294,7 @@
         btn.addEventListener("click", async (e) => {
             e.preventDefault();
             e.stopPropagation();
+            await recoverMermaid(root); // tag rendered diagrams with their raw source first
             const md = toMarkdown(root);
             if (!md) return flashText(btn, "Nothing to copy");
             try {
