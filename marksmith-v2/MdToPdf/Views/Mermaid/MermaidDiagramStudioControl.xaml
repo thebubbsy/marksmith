@@ -85,6 +85,17 @@
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
+
+                    <!-- Connector curve routing (QODER task 5) -->
+                    <ComboBox x:Name="RoutingComboBox"
+                              Header="Connectors"
+                              SelectedIndex="{Binding ConnectorRoutingIndex, Mode=TwoWay}"
+                              ToolTipService.ToolTip="Connector curve style"
+                              Width="180" Margin="8,0,0,0">
+                        <ComboBoxItem Content="Elbow / Orthogonal 90°" />
+                        <ComboBoxItem Content="Straight" />
+                        <ComboBoxItem Content="Curved / Bezier" />
+                    </ComboBox>
                 </StackPanel>
 
                 <!-- Center Zoom Slider -->
@@ -160,6 +171,45 @@
                             <TextBox Header="Label" Text="{Binding SelectedConnector.Label, Mode=TwoWay}" />
                             <TextBox Header="Line Style" Text="{Binding SelectedConnector.LineStyle, Mode=TwoWay}" />
                             <TextBox Header="Arrow Head" Text="{Binding SelectedConnector.EndHead, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <!-- Style Presets (QODER task 5): one-click recolor of node fills, borders
+                             and connector lines; the active choice is persisted as an %%{init}%%
+                             directive on sync. -->
+                        <StackPanel Spacing="10" Margin="0,10,0,0">
+                            <TextBlock Text="Style Presets" FontWeight="SemiBold" FontSize="12" Foreground="#4CC9F0" />
+                            <Button x:Name="PresetCatppuccin" Tag="Catppuccin Slate" Click="OnPalettePresetClick"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#313244" Stroke="#89B4FA" />
+                                    <TextBlock Text="Catppuccin Slate" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PresetNord" Tag="Nord Ocean" Click="OnPalettePresetClick"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#2E3440" Stroke="#88C0D0" />
+                                    <TextBlock Text="Nord Ocean" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PresetEmerald" Tag="Emerald Corporate" Click="OnPalettePresetClick"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#062E23" Stroke="#34D399" />
+                                    <TextBlock Text="Emerald Corporate" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PresetMono" Tag="Monochrome Print" Click="OnPalettePresetClick"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3" Fill="#FFFFFF" Stroke="#1F2937" />
+                                    <TextBlock Text="Monochrome Print" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

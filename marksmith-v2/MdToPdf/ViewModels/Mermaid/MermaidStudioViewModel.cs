@@ -52,6 +52,38 @@ public partial class MermaidStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _rawMermaidCode = string.Empty;
 
+    // ---- Connector routing + style presets (QODER task 5) ----
+    // The routing mode applied to every connector on the canvas. Changing it re-geometries all
+    // existing connectors and is persisted into the generated mermaid via an `%%{init}%%`
+    // `flowchart.curve` directive so the choice survives a save/reload round trip.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectorRoutingIndex))]
+    private ConnectorRoutingMode _connectorRouting = ConnectorRoutingMode.Orthogonal;
+
+    // Name of the active style preset (empty = studio default colors). When set, every node's
+    // fill/border and every connector's line are recolored, and the palette is persisted into the
+    // generated mermaid via `%%{init}%%` themeVariables.
+    [ObservableProperty]
+    private string _activePalette = string.Empty;
+
+    // int-backed view of ConnectorRouting for the toolbar ComboBox, whose display order
+    // (0 = Elbow/Orthogonal, 1 = Straight, 2 = Curved/Bezier) differs from the enum's order.
+    public int ConnectorRoutingIndex
+    {
+        get => ConnectorRouting switch
+        {
+            ConnectorRoutingMode.Straight => 1,
+            ConnectorRoutingMode.Bezier => 2,
+            _ => 0
+        };
+        set => ConnectorRouting = value switch
+        {
+            1 => ConnectorRoutingMode.Straight,
+            2 => ConnectorRoutingMode.Bezier,
+            _ => ConnectorRoutingMode.Orthogonal
+        };
+    }
+
     // Canonical code snapshot of the last load/save point, used to detect unsaved edits. We compare
     // generated-code-to-generated-code (not the raw source text) so harmless formatting differences
     // between the authored fence and the generator's output don't register as false "dirty" state.
@@ -198,6 +230,9 @@ public partial class MermaidStudioViewModel : ObservableObject
             CurrentAst = parseResult.Ast;
             SelectedDiagramType = parseResult.Ast.DiagramType;
             AstToCanvas(parseResult.Ast);
+            // Re-apply any authored routing/palette BEFORE taking the dirty baseline so the
+            // generated baseline (which embeds the matching `%%{init}%%`) lines up exactly.
+            RestoreStudioStateFromDirectives();
             _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
             StatusText = $"Loaded {SelectedDiagramType} diagram ({Nodes.Count} nodes, {Connectors.Count} edges).";
         }
@@ -953,7 +988,8 @@ public partial class MermaidStudioViewModel : ObservableObject
             TargetNodeId = targetId,
             TargetAnchor = targetAnchor,
             LineStyle = "Solid",
-            EndHead = "Normal"
+            EndHead = "Normal",
+            RoutingMode = ConnectorRouting // new connectors follow the active toolbar routing
         };
         UpdateConnectorGeometry(conn);
         Connectors.Add(conn);
@@ -1492,10 +1528,129 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
+    // ---- Style presets (QODER task 5) ----
+    // A preset recolors node fills, node borders and connector lines in one click and is persisted
+    // into the generated mermaid code as `%%{init}%%` themeVariables so the look survives a reload.
+    public sealed record DiagramPalette(string Name, string Fill, string Border, string Line, string Text);
+
+    public static readonly IReadOnlyList<DiagramPalette> StylePresets = new[]
+    {
+        new DiagramPalette("Catppuccin Slate",  "#313244", "#585B70", "#89B4FA", "#CDD6F4"),
+        new DiagramPalette("Nord Ocean",        "#2E3440", "#4C566A", "#88C0D0", "#ECEFF4"),
+        new DiagramPalette("Emerald Corporate", "#062E23", "#10B981", "#34D399", "#ECFDF5"),
+        new DiagramPalette("Monochrome Print",  "#FFFFFF", "#1F2937", "#111827", "#111827"),
+    };
+
+    partial void OnConnectorRoutingChanged(ConnectorRoutingMode value)
+    {
+        foreach (var c in Connectors) c.RoutingMode = value;
+        UpdateAllConnectors();
+        StatusText = $"Connector routing set to {value}.";
+    }
+
+    partial void OnActivePaletteChanged(string value)
+    {
+        var preset = StylePresets.FirstOrDefault(p => p.Name == value);
+        if (preset is null) return; // empty/unknown -> keep current colors
+        foreach (var n in Nodes)
+        {
+            n.FillColor = preset.Fill;
+            n.StrokeColor = preset.Border;
+        }
+        foreach (var c in Connectors)
+        {
+            c.StrokeColor = preset.Line;
+        }
+        StatusText = $"Applied '{value}' palette.";
+    }
+
     public string GenerateMermaidCode()
     {
         var ast = CanvasToAst();
+        ApplyStudioDirectives(ast);
         return MermaidCodeGenerator.Generate(ast);
+    }
+
+    // Persists the Studio's routing + palette choices into the generated mermaid as an
+    // `%%{init}%%` directive (and carries across any non-init directives from the loaded AST so
+    // they aren't dropped by the canvas round trip). Emitted ONLY when the state differs from the
+    // studio defaults, so untouched documents still round-trip byte-identically.
+    private void ApplyStudioDirectives(MermaidDiagramAst ast)
+    {
+        if (CurrentAst is not null)
+        {
+            foreach (var dir in CurrentAst.Directives)
+            {
+                if (dir.StartsWith("%%{init", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!ast.Directives.Contains(dir)) ast.Directives.Add(dir);
+            }
+        }
+
+        var init = BuildInitDirective();
+        if (init is not null) ast.Directives.Add(init);
+    }
+
+    private string? BuildInitDirective()
+    {
+        bool hasPalette = !string.IsNullOrEmpty(ActivePalette);
+        bool hasCurve = ConnectorRouting != ConnectorRoutingMode.Orthogonal;
+        if (!hasPalette && !hasCurve) return null;
+
+        var parts = new List<string>();
+        if (hasPalette)
+        {
+            var preset = StylePresets.First(p => p.Name == ActivePalette);
+            parts.Add("'theme':'base'");
+            parts.Add("'themeVariables':{'primaryColor':'" + preset.Fill +
+                      "','primaryBorderColor':'" + preset.Border +
+                      "','lineColor':'" + preset.Line +
+                      "','primaryTextColor':'" + preset.Text + "'}");
+        }
+        if (hasCurve)
+        {
+            string curve = ConnectorRouting switch
+            {
+                ConnectorRoutingMode.Straight => "linear",
+                ConnectorRoutingMode.Bezier => "basis",
+                _ => "stepAfter"
+            };
+            parts.Add("'flowchart':{'curve':'" + curve + "'}");
+        }
+        return "%%{init: {" + string.Join(",", parts) + "}}%%";
+    }
+
+    // Re-applies the routing + palette encoded in a loaded diagram's `%%{init}%%` directive so the
+    // canvas reflects the authored look (and the dirty baseline generated afterwards matches it).
+    private void RestoreStudioStateFromDirectives()
+    {
+        var routing = ConnectorRoutingMode.Orthogonal;
+        var palette = string.Empty;
+
+        foreach (var dir in CurrentAst?.Directives ?? Enumerable.Empty<string>())
+        {
+            if (!dir.StartsWith("%%{init", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var curveMatch = System.Text.RegularExpressions.Regex.Match(dir, "'curve'\\s*:\\s*'(\\w+)'");
+            if (curveMatch.Success)
+            {
+                routing = curveMatch.Groups[1].Value.ToLowerInvariant() switch
+                {
+                    "linear" => ConnectorRoutingMode.Straight,
+                    "basis" => ConnectorRoutingMode.Bezier,
+                    _ => ConnectorRoutingMode.Orthogonal
+                };
+            }
+
+            var colorMatch = System.Text.RegularExpressions.Regex.Match(dir, "'primaryColor'\\s*:\\s*'(#[0-9A-Fa-f]{3,8})'");
+            if (colorMatch.Success)
+            {
+                var match = StylePresets.FirstOrDefault(p => p.Fill.Equals(colorMatch.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
+                if (match is not null) palette = match.Name;
+            }
+        }
+
+        ConnectorRouting = routing;
+        ActivePalette = palette;
     }
 
     public string SyncToMarkdown(string markdown)
