@@ -56,11 +56,21 @@ public sealed class PdfExportService
                 PrintBackgrounds: true);
         }
 
-        // Force zero-margin @page CSS and exact background color rendering so theme fills 100% edge-to-edge.
+        // Header / footer engine (Task 10): build the Chromium template pair and, when a band is
+        // present, reserve top/bottom margin space for it (Chromium draws the header/footer inside the
+        // margin box, so a zero-margin page would clip them). Off by default — existing edge-to-edge
+        // exports keep margin 0 and no header/footer until the user opts in via Settings.
+        var docTitle = Path.GetFileNameWithoutExtension(pdfPath);
+        var (headerTpl, footerTpl) = BuildHeaderFooter(settings, docTitle);
+        if (headerTpl.Length > 0) setup = setup with { MarginTopIn = Math.Max(setup.MarginTopIn, 0.4), HeaderTemplate = headerTpl };
+        if (footerTpl.Length > 0) setup = setup with { MarginBottomIn = Math.Max(setup.MarginBottomIn, 0.4), FooterTemplate = footerTpl };
+
+        // @page CSS mirrors the print margins (0 for edge-to-edge theme backgrounds, or the reserved
+        // header/footer space) and forces exact background color rendering so the theme fills the page.
         await host.ExecuteScriptAsync($$"""
             (() => {
                 const style = document.createElement('style');
-                style.textContent = `@page { size: {{Inches(setup.PageWidthIn)}}in {{Inches(setup.PageHeightIn)}}in; margin: 0 !important; }
+                style.textContent = `@page { size: {{Inches(setup.PageWidthIn)}}in {{Inches(setup.PageHeightIn)}}in; margin: {{Inches(setup.MarginTopIn)}}in {{Inches(setup.MarginRightIn)}}in {{Inches(setup.MarginBottomIn)}}in {{Inches(setup.MarginLeftIn)}}in !important; }
                     html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }`;
                 document.head.appendChild(style);
             })();
@@ -71,4 +81,65 @@ public sealed class PdfExportService
     }
 
     private static string Inches(double value) => value.ToString(CultureInfo.InvariantCulture);
+
+    // ---- Header / footer engine (Task 10) ----
+
+    // Substitutes the four template tokens with literal values — used for the Settings live preview
+    // and unit tests. {pages} is replaced before {page} so the shorter token can't corrupt the longer
+    // one ("Page {page} of {pages}" must become "Page 3 of 12", never "Page 3 of <n>s").
+    public static string SubstituteTokens(string template, string title, int page, int pages, DateTime date)
+    {
+        if (string.IsNullOrEmpty(template)) return "";
+        return template
+            .Replace("{title}", title)
+            .Replace("{pages}", pages.ToString(CultureInfo.InvariantCulture))
+            .Replace("{page}", page.ToString(CultureInfo.InvariantCulture))
+            .Replace("{date}", date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+    }
+
+    // Converts a user template into a Chromium header/footer HTML fragment. {page}/{pages}/{date}
+    // become Chromium's special auto-substituting spans (filled per page at print time); {title}
+    // becomes the HTML-escaped literal document title. Returns "" for an empty template so Chromium
+    // simply skips that band.
+    public static string BuildChromiumTemplate(string template, string title)
+    {
+        if (string.IsNullOrWhiteSpace(template)) return "";
+        return template
+            .Replace("{pages}", "<span class=\"totalPages\"></span>")
+            .Replace("{page}", "<span class=\"pageNumber\"></span>")
+            .Replace("{date}", "<span class=\"date\"></span>")
+            .Replace("{title}", System.Net.WebUtility.HtmlEncode(title));
+    }
+
+    // Builds the (header, footer) Chromium template pair from settings + the chosen page-number
+    // position. A non-"None" position with an empty matching band injects a default "Page {page} of
+    // {pages}"; alignment (left/center/right) follows the position. Explicit templates always render.
+    public static (string Header, string Footer) BuildHeaderFooter(AppSettings settings, string title)
+    {
+        var pos = (settings.PdfPageNumberPosition ?? "None").Trim();
+        var header = settings.PdfHeaderTemplate ?? "";
+        var footer = settings.PdfFooterTemplate ?? "";
+        var enabled = !string.Equals(pos, "None", StringComparison.OrdinalIgnoreCase);
+
+        if (enabled)
+        {
+            var top = pos.StartsWith("Top", StringComparison.OrdinalIgnoreCase);
+            if (top && string.IsNullOrWhiteSpace(header)) header = "Page {page} of {pages}";
+            if (!top && string.IsNullOrWhiteSpace(footer)) footer = "Page {page} of {pages}";
+        }
+
+        var align = pos.EndsWith("Center", StringComparison.OrdinalIgnoreCase) ? "center"
+                  : pos.EndsWith("Right", StringComparison.OrdinalIgnoreCase) ? "right"
+                  : "left";
+
+        return (WrapBand(header, title, align), WrapBand(footer, title, align));
+    }
+
+    private static string WrapBand(string template, string title, string align)
+    {
+        var body = BuildChromiumTemplate(template, title);
+        return body.Length == 0
+            ? ""
+            : $"<div style=\"font-size:9px; text-align:{align}; width:100%; padding:0 0.3in;\">{body}</div>";
+    }
 }

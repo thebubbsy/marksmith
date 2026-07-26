@@ -170,6 +170,16 @@ public sealed class AppSettings
     public string WebDavUser { get; set; } = "";
     public string WebDavToken { get; set; } = "";
 
+    // PDF header / footer engine (Task 10): per-page header and footer template strings. Tokens:
+    // {title} (document title), {page} (current page no.), {pages} (total pages), {date} (print date).
+    // Chromium fills {page}/{pages}/{date} per page at print time; {title} is embedded literally.
+    // Both default to empty so existing edge-to-edge zero-margin PDFs are unchanged until opted in.
+    public string PdfHeaderTemplate { get; set; } = "";
+    public string PdfFooterTemplate { get; set; } = "";
+    // Where the page-number chrome sits: "None" (off), "BottomRight", "BottomCenter" or "TopRight".
+    // When not "None" and the matching template is empty, a default "Page {page} of {pages}" is used.
+    public string PdfPageNumberPosition { get; set; } = "None";
+
     // Returns a copy with any non-null override fields applied — used so an API/extension caller can
     // export with its own output profile without mutating the app's persistent settings.
     public AppSettings CloneWith(OutputOverride? o)
@@ -273,6 +283,9 @@ public sealed class AppSettings
         WebDavEndpoint = other.WebDavEndpoint;
         WebDavUser = other.WebDavUser;
         WebDavToken = other.WebDavToken;
+        PdfHeaderTemplate = other.PdfHeaderTemplate;
+        PdfFooterTemplate = other.PdfFooterTemplate;
+        PdfPageNumberPosition = other.PdfPageNumberPosition;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
