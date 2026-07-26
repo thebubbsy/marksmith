@@ -12,7 +12,12 @@
             <KeyboardAccelerator Modifiers="Control" Key="O" Invoked="OnOpenFileAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnGeneratePdfAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="D" Invoked="OnExportDocxAcceleratorInvoked" />
-            <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnExportPptxAcceleratorInvoked" />
+            <!-- Instant-export shortcuts (QODER task 8): Ctrl+Shift+E = DOCX, Ctrl+Shift+P = PDF
+                 (PPTX moved to Ctrl+Shift+T to free Ctrl+Shift+P), Ctrl+Shift+M = Mermaid Studio. -->
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="E" Invoked="OnExportDocxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnGeneratePdfAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="T" Invoked="OnExportPptxAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="M" Invoked="OnMermaidStudioAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="K" Invoked="OnCommandPaletteInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="S" Invoked="OnSaveDocumentAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAcceleratorInvoked" />

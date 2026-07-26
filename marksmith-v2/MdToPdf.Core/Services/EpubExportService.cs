@@ -23,6 +23,9 @@ public sealed class EpubExportService
 
     public Task ExportAsync(string markdown, string epubPath, AppSettings settings) => Task.Run(() =>
     {
+        // Front matter is metadata for the OPF (Dublin Core) — read it before normalization.
+        var frontMatter = ExtractFrontMatter(markdown);
+
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
@@ -32,7 +35,33 @@ public sealed class EpubExportService
 
         var theme = Themes.GetOrDefault(settings.Theme);
         var bodyHtml = XhtmlSafe(Markdown.ToHtml(markdown, Pipeline));
-        var bookTitle = HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
+        var bookTitle = NonEmpty(frontMatter, "title")
+                        ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
+        var author = NonEmpty(frontMatter, "author") ?? "Marksmith";
+        var language = NonEmpty(frontMatter, "language")
+                       ?? (string.IsNullOrWhiteSpace(settings.ContentLanguage) ? "en" : settings.ContentLanguage);
+
+        // Branding kit: embed the brand logo as the EPUB3 cover image (plus a cover.xhtml
+        // landing page first in the spine) when cover-page branding is on and the logo is a
+        // real PNG/JPG on disk.
+        string? coverFile = null, coverMediaType = null;
+        byte[]? coverBytes = null;
+        if (settings.BrandCoverPage && !string.IsNullOrWhiteSpace(settings.BrandLogoPath)
+            && File.Exists(settings.BrandLogoPath))
+        {
+            var ext = Path.GetExtension(settings.BrandLogoPath).ToLowerInvariant();
+            coverMediaType = ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                _ => null,
+            };
+            if (coverMediaType is not null)
+            {
+                coverFile = ext == ".png" ? "cover.png" : "cover.jpg";
+                coverBytes = File.ReadAllBytes(settings.BrandLogoPath);
+            }
+        }
 
         // Split into chapters on each <h1>. Content before the first heading becomes its own chapter.
         var segments = Regex.Split(bodyHtml, @"(?=<h1[ >])")
@@ -55,8 +84,13 @@ public sealed class EpubExportService
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, chapters));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, chapters, coverFile, coverMediaType));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters));
+        if (coverFile is not null && coverBytes is not null)
+        {
+            WriteEntry(zip, $"OEBPS/{coverFile}", coverBytes);
+            WriteEntry(zip, "OEBPS/cover.xhtml", CoverXhtml(coverFile));
+        }
         foreach (var c in chapters)
             WriteEntry(zip, $"OEBPS/{c.File}", ChapterXhtml(c));
     });
@@ -70,6 +104,38 @@ public sealed class EpubExportService
         var bytes = Encoding.UTF8.GetBytes(content);
         s.Write(bytes, 0, bytes.Length);
     }
+
+    private static void WriteEntry(ZipArchive zip, string path, byte[] bytes)
+    {
+        var entry = zip.CreateEntry(path, CompressionLevel.Optimal);
+        using var s = entry.Open();
+        s.Write(bytes, 0, bytes.Length);
+    }
+
+    // Minimal YAML front matter reader for the Dublin Core keys the OPF wants (title / author /
+    // language). Line-based "key: value" subset — no YAML parser dependency for three scalars.
+    private static Dictionary<string, string> ExtractFrontMatter(string markdown)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var lines = markdown.Split('\n');
+        int i = 0;
+        while (i < lines.Length && string.IsNullOrWhiteSpace(lines[i])) i++;
+        if (i >= lines.Length || lines[i].Trim() != "---") return map;
+        for (i++; i < lines.Length; i++)
+        {
+            var t = lines[i].Trim();
+            if (t == "---" || t == "...") break;
+            var colon = t.IndexOf(':');
+            if (colon <= 0) continue;
+            var key = t[..colon].Trim();
+            var value = t[(colon + 1)..].Trim().Trim('"', '\'');
+            if (key.Length > 0 && value.Length > 0) map[key] = value;
+        }
+        return map;
+    }
+
+    private static string? NonEmpty(Dictionary<string, string> map, string key) =>
+        map.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
     private static string XhtmlSafe(string html)
     {
@@ -99,10 +165,17 @@ public sealed class EpubExportService
         </container>
         """;
 
-    private static string Opf(string title, List<Chapter> chapters)
+    private static string Opf(string title, string author, string language, List<Chapter> chapters,
+                              string? coverFile, string? coverMediaType)
     {
         var manifest = new StringBuilder();
         var spine = new StringBuilder();
+        if (coverFile is not null)
+        {
+            manifest.Append("    <item id=\"cover\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n");
+            manifest.Append($"    <item id=\"cover-image\" href=\"{coverFile}\" media-type=\"{coverMediaType}\" properties=\"cover-image\"/>\n");
+            spine.Append("    <itemref idref=\"cover\"/>\n");
+        }
         foreach (var c in chapters)
         {
             manifest.Append($"    <item id=\"{c.Id}\" href=\"{c.File}\" media-type=\"application/xhtml+xml\"/>\n");
@@ -116,8 +189,8 @@ public sealed class EpubExportService
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
             <dc:identifier id="bookid">urn:uuid:{uid}</dc:identifier>
             <dc:title>{Esc(title)}</dc:title>
-            <dc:language>en</dc:language>
-            <dc:creator>Marksmith</dc:creator>
+            <dc:language>{Esc(language)}</dc:language>
+            <dc:creator>{Esc(author)}</dc:creator>
             <meta property="dcterms:modified">{modified}</meta>
           </metadata>
           <manifest>
@@ -129,6 +202,19 @@ public sealed class EpubExportService
         </package>
         """;
     }
+
+    private static string CoverXhtml(string coverFile) =>
+        $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+        <head><title>Cover</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+        <body>
+          <section epub:type="cover">
+            <img src="{coverFile}" alt="Cover" style="max-width:100%;max-height:100%;"/>
+          </section>
+        </body>
+        </html>
+        """;
 
     private static string Nav(List<Chapter> chapters)
     {

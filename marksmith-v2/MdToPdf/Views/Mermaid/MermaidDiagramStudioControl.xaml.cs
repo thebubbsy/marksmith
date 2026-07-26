@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using MdToPdf.ViewModels.Mermaid;
 
 namespace MdToPdf.Views.Mermaid;
@@ -19,6 +20,32 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         PaletteContainer.Child = new NodePaletteControl();
         CanvasContainer.Child = new MermaidCanvasControl();
+
+        // The Studio window assigns DataContext AFTER LoadFromMarkdown runs, so this fires once
+        // the restored palette is known — keeps the preset buttons' active highlight accurate.
+        DataContextChanged += (s, e) => HighlightActivePalette();
+    }
+
+    private void OnPalettePresetClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null || sender is not FrameworkElement { Tag: string name }) return;
+        ViewModel.ActivePalette = name;
+        HighlightActivePalette();
+    }
+
+    // Highlights the active preset button (also reflects state restored from a loaded
+    // %%{init}%% directive, not just in-session clicks).
+    private void HighlightActivePalette()
+    {
+        var active = ViewModel?.ActivePalette ?? string.Empty;
+        var accent = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 0x4C, 0xC9, 0xF0));
+        var rest = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 0x8D, 0x99, 0xAE));
+        foreach (var btn in new[] { PresetCatppuccin, PresetNord, PresetEmerald, PresetMono })
+        {
+            bool isActive = btn.Tag is string tag && tag == active;
+            btn.BorderBrush = isActive ? accent : rest;
+            btn.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(1);
+        }
     }
 
     private void OnAutoLayoutClick(object sender, RoutedEventArgs e)
