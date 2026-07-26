@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Marksmith Connector</title>
+<style>
+    :root {
+        --bg: #12131b; --card: #1c1c28; --line: #2a2a3a; --text: #e8e8f0;
+        --dim: #9a9ab0; --accent: #7c4dff; --accent-hi: #8f66ff; --ok: #3fb950;
+        --warn: #d29922; --err: #f85149;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+        width: 320px; background: var(--bg); color: var(--text);
+        font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px;
+    }
+    .wrap { padding: 14px; }
+
+    /* ── header ─────────────────────────────────────────── */
+    header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    header img { width: 30px; height: 30px; border-radius: 50%; background: #fff; padding: 2px; }
+    header .t { flex: 1; }
+    header h1 { font-size: 14.5px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+    header .sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+    .conn { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
+            padding: 4px 9px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+    .conn.ok  .dot { background: var(--ok);  box-shadow: 0 0 6px var(--ok); }
+    .conn.ok  { color: var(--ok); }
+    .conn.err .dot { background: var(--err); box-shadow: 0 0 6px var(--err); }
+    .conn.err { color: var(--err); }
+    .conn.busy .dot { background: var(--warn); animation: pulse 1s infinite; }
+    .conn.busy { color: var(--warn); }
+    @keyframes pulse { 50% { opacity: .35; } }
+
+    /* ── cards ──────────────────────────────────────────── */
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 12px; margin-bottom: 10px; }
+    .card h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
+               color: var(--dim); margin: 0 0 9px; font-weight: 600; }
+
+    /* ── detected-source panel ──────────────────────────── */
+    .src-line { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    .src-badge { font-size: 11px; font-weight: 700; text-transform: capitalize; color: #fff;
+                 padding: 3px 9px; border-radius: 6px; background: var(--accent); }
+    .src-model { font-size: 12px; color: var(--text); font-weight: 600; }
+    .src-stats { font-size: 11.5px; color: var(--dim); line-height: 1.5; }
+    .chip { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px;
+            border-radius: 10px; border: 1px solid var(--line); color: var(--dim); margin-left: 5px; }
+    .chip.math { color: #79c0ff; border-color: #1f6feb66; }
+    .chip.conf { color: var(--ok); border-color: #3fb95066; }
+
+    /* ── mode segmented control ─────────────────────────── */
+    .seg { display: flex; background: #14141d; border: 1px solid var(--line); border-radius: 9px;
+           overflow: hidden; margin-top: 10px; }
+    .seg button { flex: 1; padding: 7px 0; font-size: 11.5px; font-weight: 600; cursor: pointer;
+                  color: var(--dim); background: transparent; border: none; transition: .15s; }
+    .seg button.on { color: #fff; background: var(--accent); }
+
+    /* ── buttons ────────────────────────────────────────── */
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+           padding: 10px 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff;
+           background: var(--accent); border: none; border-radius: 10px; transition: .15s; }
+    .btn:hover:not(:disabled) { background: var(--accent-hi); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn.ghost { background: #14141d; border: 1px solid var(--line); color: var(--text); }
+    .btn.ghost:hover:not(:disabled) { background: #1e1e2c; border-color: var(--accent); }
+
+    .dl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dl-grid .btn { padding: 8px 0; font-size: 12px; }
+    .fmt { font-weight: 700; }
+
+    /* ── status / toast ─────────────────────────────────── */
+    #toast { min-height: 16px; font-size: 11.5px; margin-top: 9px; line-height: 1.45; text-align: center; }
+    #toast.ok { color: var(--ok); }
+    #toast.err { color: var(--err); }
+    #toast.dim { color: var(--dim); }
+
+    /* ── offline help ───────────────────────────────────── */
+    .help { font-size: 11.5px; color: var(--dim); line-height: 1.55; }
+    .help b { color: #c8c8d8; }
+    .help code { background: #14141d; border: 1px solid var(--line); border-radius: 5px;
+                 padding: 1px 5px; font-size: 10.5px; color: #79c0ff; cursor: pointer; }
+
+    /* ── footer ─────────────────────────────────────────── */
+    footer { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+    footer a { color: #9a86ff; text-decoration: none; font-size: 11.5px; }
+    footer a:hover { text-decoration: underline; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line);
+               border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
+               vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <img src="icons/icon48.png" alt="Marksmith">
+        <div class="t">
+            <h1>Marksmith</h1>
+            <div class="sub">AI chat &rarr; polished documents</div>
+        </div>
+        <div class="conn busy" id="conn"><span class="dot"></span><span id="connTxt">Checking&hellip;</span></div>
+    </header>
+
+    <!-- Detected source / classification -->
+    <div class="card" id="srcCard">
+        <h2>Detected on this page</h2>
+        <div id="srcBody">
+            <div class="src-line">
+                <span class="src-badge" id="srcName">&hellip;</span>
+                <span class="src-model" id="srcModel"></span>
+            </div>
+            <div class="src-stats">
+                <span id="srcChars">&hellip;</span>
+                <span class="chip conf hidden" id="chipConf"></span>
+                <span class="chip math hidden" id="chipMath">&Sigma; math</span>
+            </div>
+        </div>
+        <div id="srcEmpty" class="help hidden"></div>
+        <div class="seg" id="modeSeg">
+            <button data-mode="latest" class="on">Latest reply</button>
+            <button data-mode="all">Full conversation</button>
+        </div>
+    </div>
+
+    <!-- Primary action -->
+    <button class="btn" id="sendBtn" disabled>
+        <span id="sendIco">&#10148;</span><span id="sendTxt">Send to Marksmith</span>
+    </button>
+
+    <!-- Direct downloads -->
+    <div class="card" style="margin-top:10px">
+        <h2>Download straight to your browser</h2>
+        <div class="dl-grid">
+            <button class="btn ghost dl" data-format="pdf"  disabled><span class="fmt">PDF</span></button>
+            <button class="btn ghost dl" data-format="docx" disabled><span class="fmt">DOCX</span></button>
+            <button class="btn ghost dl" data-format="pptx" disabled><span class="fmt">PPTX</span></button>
+            <button class="btn ghost dl" data-format="epub" disabled><span class="fmt">EPUB</span></button>
+        </div>
+    </div>
+
+    <!-- Copy markdown -->
+    <button class="btn ghost" id="copyBtn" disabled>&#10697; Copy as Markdown</button>
+
+    <div id="toast" class="dim"></div>
+
+    <!-- Offline / pairing help -->
+    <div class="card hidden" id="helpCard">
+        <h2>Can't reach Marksmith</h2>
+        <div class="help">
+            Make sure the app is running with <b>Source &rarr; Automation &rarr; Local REST API</b>
+            turned on, and the port matches (default <b>47821</b>).<br><br>
+            If it's on but still blocked, add this extension's ID under
+            <b>Automation &rarr; Allowed extension ID</b> in the app:<br>
+            <code id="extId" title="Click to copy">&hellip;</code>
+        </div>
+    </div>
+
+    <footer>
+        <a href="#" id="openOptions">&#9881; Options</a>
+        <span class="help" id="verTxt"></span>
+    </footer>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

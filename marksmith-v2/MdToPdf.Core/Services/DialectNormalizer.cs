@@ -27,6 +27,9 @@ public static class DialectNormalizer
     // prose is a color someone is talking about, not a tag (the lookahead rejects 3/4/6/8-digit
     // pure-hex tokens; a real tag like #q3-plan has non-hex characters and passes).
     private static readonly Regex HashTag = new(@"(?<=^|\s)#(?![0-9a-fA-F]{3,8}\b(?![\w/-]))([a-zA-Z][\w/-]{1,49})\b", RegexOptions.Compiled);
+    // ISS-002: ::emoji_name:: double-colon shortcode (single-colon :emoji: is Markdig's job). The
+    // map lookup in EmojiReplacer ignores unknown names, so std::vector::foo passes through.
+    private static readonly Regex DoubleColonEmoji = new(@"::([a-zA-Z0-9_+-]+)::", RegexOptions.Compiled);
     private static readonly Regex FenceTitle = new("^(`{3,}|~{3,})\\s*([\\w+#-]+)?(?::([\\w./\\\\ -]+))?((?:\\s+\\w+=(?:\"[^\"]*\"|\\S+))*)\\s*$", RegexOptions.Compiled);
     private static readonly Regex TitleAttr = new("title=\"([^\"]*)\"", RegexOptions.Compiled);
     private static readonly Regex TabHeader = new("^===\\s+\"([^\"]+)\"\\s*$", RegexOptions.Compiled);
@@ -169,6 +172,11 @@ public static class DialectNormalizer
             line = ReplaceOutsideInlineCode(line, HashTag, m =>
                 $"<span class=\"md-tag\">#{m.Groups[1].Value}</span>");
 
+            // ---- ISS-002: ::emoji:: double-colon shortcodes (inline-code-guarded; fenced code is
+            // already skipped by the inCode pass above) ----
+            line = ReplaceOutsideInlineCode(line, DoubleColonEmoji, m =>
+                EmojiReplacer.ReplaceShortcode(m.Groups[1].Value, m.Value));
+
             // ---- CriticMarkup syntax normalization ({++ins++}, {~~del~~}, {==hl==}, {~~old~>~new~~}, {>>comment<<}) ----
             line = ReplaceOutsideInlineCode(line, CriticSub, m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>");
             line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[1].Value}</del>");
@@ -222,6 +230,36 @@ public static class DialectNormalizer
         }
 
         return string.Join("\n", output);
+    }
+
+    // ISS-015: rewrite MkDocs-style `=== "Tab"` blocks into an interactive tab group
+    // (.md-tab-group / .md-tab-nav / .md-tab-content) for outputs that can host live JS (the HTML
+    // preview). Each tab's body is emitted verbatim, so callers that need the body rendered as
+    // Markdown should run this on already-rendered fragments or post-process the content divs.
+    //
+    // NOTE: deliberately NOT wired into Apply(). The default pipeline (preview + PDF + DOCX) uses
+    // the sequential bold-label rendering above — that path is covered by Content_tabs_become_labels
+    // and works in every output, whereas this interactive form relies on inline onclick handlers
+    // that HtmlSanitizer strips. Kept as a building block for a future sanitizer-safe tab strip.
+    public static string NormalizeTabbedBlocks(string markdown)
+    {
+        return Regex.Replace(markdown, "===\\s*\"([^\"]+)\"\\r?\\n([\\s\\S]*?)(?=(===\\s*\"|$))", m =>
+        {
+            var title = m.Groups[1].Value;
+            var content = m.Groups[2].Value.Trim();
+            var tabId = "tab-" + Guid.NewGuid().ToString("n")[..6];
+
+            return $"""
+                <div class="md-tab-group">
+                    <div class="md-tab-nav">
+                        <button class="md-tab-link active" onclick="selectMdTab(this, '{tabId}')">{title}</button>
+                    </div>
+                    <div class="md-tab-content active" id="{tabId}">
+                        {content}
+                    </div>
+                </div>
+                """;
+        });
     }
 
     // Applies `rx` replacements to the parts of a single line NOT inside `inline code` spans or HTML tags.

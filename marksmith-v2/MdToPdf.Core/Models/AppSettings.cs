@@ -33,6 +33,27 @@ public sealed class AppSettings
     // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
     public bool EditorWordWrap { get; set; } = true;
 
+    // Looking Glass portal mode (ISS-004): fuses editor + preview into one canvas. The rendered
+    // preview is the default surface; clicking it opens a "portal" aperture that reveals the
+    // editable Markdown source behind the preview through a fog-of-war blur, with a glowing
+    // cursor ring, iris animation and whir. Preview-only; never affects an export. Persisted.
+    public bool LookingGlassMode { get; set; }
+
+    // Portal reveal scope (ISS-004): how much of the Markdown source a portal reveals, 0..100.
+    // 0 = tight focus (~3 clear lines with a blurred falloff back to the preview); 100 = the
+    // full section/document is visible the moment the caret lands. Maps to the portal aperture
+    // radius. Persisted.
+    public int PortalRevealScope { get; set; } = 45;
+
+    // Portal shape (ISS-004): "circle" spotlight, or full-width "focus" reading bands in three
+    // heights ("focus1".."focus3" — skinny to tall). The reveal slider acts as the size dial for
+    // whichever shape is active. Persisted.
+    public string PortalShape { get; set; } = "circle";
+
+    // Default export format across the app UI and the browser extension (ISS-019): "docx",
+    // "pdf", "pptx" or "epub". Word is the default per user request.
+    public string DefaultExportFormat { get; set; } = "docx";
+
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
 
@@ -82,8 +103,13 @@ public sealed class AppSettings
     public string ConnectorRouting { get; set; } = "default"; // "default", "straight", "elbow", "curved"
     public string ConnectorArrowhead { get; set; } = "default"; // "default", "triangle", "open", "diamond", "oval", "stealth", "none"
 
-    // First-run guided tour: shown once automatically, replayable from the title-bar tour button.
+    // First-run guided tour: shown once automatically, replayable from the ⋯ menu.
     public bool HasSeenWelcome { get; set; }
+
+    // Total app launches, for the one-time "enjoying it? there's a tip jar in the ⋯ menu" nudge
+    // shown on the third launch (three launches = they're getting value from it).
+    public int LaunchCount { get; set; }
+    public bool HasSeenCoffeeReminder { get; set; }
 
     // Branding kit (Pro): make exports look like YOUR documents, not converted markdown.
     public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
@@ -97,6 +123,11 @@ public sealed class AppSettings
     public bool NoEmoji { get; set; } // strip all emoji from preview + every export format
     public int DashMode { get; set; } // em-dash handling: 0 keep, 1 hyphen, 2 spaced, 3 custom
     public string DashCustom { get; set; } = ""; // replacement text when DashMode == 3
+
+    // DOCX page chrome (both opt-in; a converted chat should look like a clean document, not a
+    // framed certificate under revision tracking). Default off = no page border, no Track Changes.
+    public bool PageBorder { get; set; }    // draw a full page frame in the theme border color
+    public bool TrackChanges { get; set; }  // turn on Word revision tracking in the exported file
 
     // Formatting personalization (structure, not cleanup)
     public int HeadingShift { get; set; } // -5..+5: promote (-) or demote (+) every heading
@@ -176,6 +207,10 @@ public sealed class AppSettings
         EditorFontSize = other.EditorFontSize;
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
+        LookingGlassMode = other.LookingGlassMode;
+        PortalRevealScope = other.PortalRevealScope;
+        PortalShape = other.PortalShape;
+        DefaultExportFormat = other.DefaultExportFormat;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
         NormalizeLlm = other.NormalizeLlm;
@@ -195,12 +230,16 @@ public sealed class AppSettings
         ConnectorRouting = other.ConnectorRouting;
         ConnectorArrowhead = other.ConnectorArrowhead;
         HasSeenWelcome = other.HasSeenWelcome;
+        LaunchCount = other.LaunchCount;
+        HasSeenCoffeeReminder = other.HasSeenCoffeeReminder;
         BrandCoverPage = other.BrandCoverPage;
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
         IncludeToc = other.IncludeToc;
         ShowWordCount = other.ShowWordCount;
         ShowAttribution = other.ShowAttribution;
+        PageBorder = other.PageBorder;
+        TrackChanges = other.TrackChanges;
         NoEmoji = other.NoEmoji;
         DashMode = other.DashMode;
         DashCustom = other.DashCustom;
