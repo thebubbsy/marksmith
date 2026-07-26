@@ -17,13 +17,14 @@
   - Add page number position options (Bottom Right, Bottom Center, Top Right) in PDF export settings.
   - Verification: 14 unit tests in `PdfExportServiceTests.cs` verifying header/footer string token substitution. Suite: 798 passed / 0 failed / 819 total.
 
-### [ ] 11. Multi-File Drag & Drop Batch Queue & Watcher Debounce
+### [x] 11. Multi-File Drag & Drop Batch Queue & Watcher Debounce
 - **Target Files**:
   - `marksmith-v2/MdToPdf/MainWindow.xaml.cs`
   - `marksmith-v2/MdToPdf/Services/FolderIngestService.cs`
 - **Goal**:
   - Support dragging multiple `.md` files onto the editor canvas, opening an interactive multi-file batch conversion queue card.
   - Implement file-lock retry and 300ms debounce in `FolderIngestService` to prevent `IOException` when AI tools overwrite files continuously.
+  - Verification: multi-file drop routes through `BatchConvertAsync`; `FolderIngestService` debounces (300ms quiet window) + file-lock retry (10×300ms). Suite: 798 passed / 0 failed / 819 total.
 
 ### [ ] 12. Visual Mermaid Diagram Standalone Graphic Exporter (SVG / PNG)
 - **Target Files**:
@@ -54,3 +55,4 @@
 - **2026-07-27 06:01**: Cycle 5 — Task 9 completed (CloudStorageService auto-detecting OneDrive / Google Drive / Dropbox / Box / iCloud sync folders + WebDAV endpoint client; Settings -> Automation Cloud Sync panel; background auto-publish of exports; 21 new unit tests). Suite: 784 passed / 0 failed / 21 skipped / 805 total.
 - **2026-07-27 06:52**: Cycle 6 queued — Tasks 10, 11, 12 added.
 - **2026-07-27 07:15**: Cycle 6 — Task 10 completed (PdfExportService header/footer engine with tokens `{title}`, `{page}`, `{pages}`, `{date}`; 14 unit tests). Suite: 798 passed / 0 failed / 21 skipped / 819 total. Cycle 7 queued — Task 13 added.
+- **2026-07-27 07:20**: Cycle 6 — Task 11 completed (multi-file drag & drop batch queue routing through `BatchConvertAsync`; `FolderIngestService` 300ms debounce + file-lock retry). Task 12 (Mermaid SVG/PNG export) deferred to a later cycle. Suite: 798 passed / 0 failed / 21 skipped / 819 total.
