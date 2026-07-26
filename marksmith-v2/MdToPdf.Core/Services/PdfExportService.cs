@@ -78,6 +78,13 @@ public sealed class PdfExportService
 
         var ok = await host.PrintToPdfAsync(pdfPath, setup);
         if (!ok) throw new InvalidOperationException("PDF export failed (the web renderer reported failure).");
+
+        // Password protection / access control (Task 18): Chromium emits an unprotected PDF, so when a
+        // password is configured we post-process the written file with the standard security handler.
+        // A policy without any password is skipped — encryption needs a password to be meaningful.
+        var policy = PdfSecurityService.BuildPolicy(settings);
+        if (policy != null && policy.HasPassword)
+            PdfSecurityService.ApplyToFile(pdfPath, policy);
     }
 
     private static string Inches(double value) => value.ToString(CultureInfo.InvariantCulture);

@@ -72,13 +72,16 @@
   - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
   - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
 
-### [ ] 18. PDF Password Encryption & Security Policy Engine
+### [x] 18. PDF Password Encryption & Security Policy Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/PdfSecurityService.cs`
+  - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
   - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
+  - `marksmith-v2/MdToPdf.Core/MdToPdf.Core.csproj` (PDFsharp dependency)
   - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfSecurityServiceTests.cs`
 - **Goal**:
   - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
+  - Verification: 23 unit tests in `PdfSecurityServiceTests.cs` (policy build/validation, 32-byte password limit, PDFsharp encrypt round-trip, owner/user reopen, wrong-password rejection, permission restriction). Suite: 894 passed / 0 failed / 915 total.
 
 ---
 
@@ -95,3 +98,4 @@
 - **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
 - **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total.
 - **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total. Cycle 11 queued — Task 18 added.
+- **2026-07-27 09:00**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total.
