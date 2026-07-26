@@ -103,6 +103,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _advancedMode;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
+    [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
     // The originating conversation's title (from source-page metadata on ingest), used as the
@@ -379,6 +380,7 @@ public sealed partial class MainViewModel : ObservableObject
         _advancedMode = settings.AdvancedMode;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
+        _allowedExtensionId = settings.AllowedExtensionId;
         _targetFormat = settings.TargetFormat;
 
         ThemeNames = new ObservableCollection<string>(BuildOrderedThemeNames(settings.FavoriteThemes));
@@ -459,6 +461,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; SaveSettingsDebounced(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
+    partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
 

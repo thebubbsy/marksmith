@@ -1087,9 +1087,6 @@ public sealed partial class MarkdownHtmlService
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
-<<<<<<< HEAD
-            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{statsPill}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}{{scrollSpyScript}}</body></html>
-=======
             /* Issue-locator radar beacon (ISS-012): a pulsing red homing ring dropped onto the
                element for the lint issue the user clicked in the sidebar. */
             .radar-beacon-container { position: absolute; width: 60px; height: 60px; pointer-events: none; transform: translate(-50%, -50%); z-index: 999; }
@@ -1128,9 +1125,7 @@ public sealed partial class MarkdownHtmlService
                the clear centre of the shape (the masked rim was otherwise unreadable). */
             .portal-source { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: #dbe6f2; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 20px; padding: 80px; white-space: pre; overflow: auto; caret-color: #58a6ff; }
             .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
-            .portal-close:hover { background: rgba(88, 166, 255, 0.35); }
             </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
->>>>>>> 8932a95 (v2.0.0 Release: Native Word OMML Math, Visual Mermaid Studio, Multi-Format Exports (PDF/DOCX/PPTX/EPUB), Offline REST API & DLP Governance)
             """;
     }
 
