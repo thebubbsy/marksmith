@@ -637,14 +637,21 @@ public sealed partial class MarkdownHtmlService
                 let curApH = 200;  // height of the currently-open aperture (circle diameter or band height)
 
                 const vh = window.innerHeight || 800;
-                const apertureSize = Math.round(200 + (REVEAL / 100) * (vh * 0.9 - 200)); // circle diameter
                 // Focus bands: skinny full-width strips for line-oriented reading. The slider fattens
                 // the base band (~3 lines at 0) and the ×2/×3 presets multiply it — more line widths,
                 // more content — clamped so a band never swallows the whole viewport.
                 const bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
-                const bandH = Math.round(Math.min(vh * 0.85, (60 + (REVEAL / 100) * 160) * bandMult));
-                const clearStop = Math.round(35 + REVEAL * 0.4);       // % radius kept fully clear
-                const fadeStop = Math.min(clearStop + 28, 96);         // % radius hit fully transparent
+                // Size dial -> aperture dimensions, split out into applyReveal so the live slider
+                // (__portalSetReveal) can recompute on the fly and grow/shrink an open portal in
+                // real time instead of waiting for a full re-render.
+                let apertureSize = 0, bandH = 0, clearStop = 0, fadeStop = 0;
+                function applyReveal(reveal) {
+                    apertureSize = Math.round(200 + (reveal / 100) * (vh * 0.9 - 200)); // circle diameter
+                    bandH = Math.round(Math.min(vh * 0.85, (60 + (reveal / 100) * 160) * bandMult));
+                    clearStop = Math.round(35 + reveal * 0.4);       // % radius kept fully clear
+                    fadeStop = Math.min(clearStop + 28, 96);         // % radius hit fully transparent
+                }
+                applyReveal(REVEAL);
 
                 // Mouse events report unzoomed viewport pixels, but the ring/aperture are absolutely
                 // positioned inside the zoomed document (the app re-applies a CSS zoom on the root
@@ -697,6 +704,21 @@ public sealed partial class MarkdownHtmlService
                     if (!silent) post({ type: "portal-closed" });
                 }
 
+                // The "page" is the #canvas column (fixed content width, centered in the preview) —
+                // NOT the whole scrollable document. Focus bands must span exactly that width and
+                // align to its left edge. getBoundingClientRect is zoomed, so divide the effective
+                // CSS zoom back out to get document coordinates (the portal lives in the same zoomed
+                // subtree, so these map 1:1 onto its style.left/width).
+                function pageRect() {
+                    const z = document.documentElement.currentCSSZoom
+                        || parseFloat(document.documentElement.style.zoom || "1") || 1;
+                    const canvas = document.getElementById("canvas");
+                    if (!canvas) return { left: 8, width: Math.max(240, (window.innerWidth || 800) / z - 16) };
+                    const r = canvas.getBoundingClientRect();
+                    const root = document.documentElement.getBoundingClientRect();
+                    return { left: (r.left - root.left) / z, width: r.width / z };
+                }
+
                 function openPortal(x, y, el) {
                     closePortal(true);
                     pendingText = el ? (el.textContent || "") : "";
@@ -705,8 +727,10 @@ public sealed partial class MarkdownHtmlService
                     portal.className = "portal-aperture" + (isBand ? " portal-band" : "");
                     const docW = document.documentElement.scrollWidth;
                     const docH = document.documentElement.scrollHeight;
-                    // Bands span the full preview width; circles stay square on the click point.
-                    const apW = isBand ? Math.max(240, docW - 16) : apertureSize;
+                    const pg = pageRect(); // the #canvas page column — bands match it, not the whole preview
+                    // Bands span the page (#canvas) width and align to its left edge; circles stay
+                    // square on the click point.
+                    const apW = isBand ? Math.max(240, pg.width) : apertureSize;
                     const apH = isBand ? bandH : apertureSize;
                     curApH = apH;
                     portal.style.width = apW + "px";
@@ -714,7 +738,7 @@ public sealed partial class MarkdownHtmlService
                     // Where in the document (0=top, 1=bottom) the portal was opened: the caret
                     // fallback in __portalSetSource lands at the same fraction of the source.
                     clickFrac = docH > 0 ? Math.min(1, Math.max(0, y / docH)) : 0;
-                    portal.style.left = isBand ? "8px"
+                    portal.style.left = isBand ? pg.left + "px"
                         : Math.min(Math.max(x - apW / 2, 8), Math.max(8, docW - apW - 8)) + "px";
                     portal.style.top = Math.min(Math.max(y - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
 
@@ -808,6 +832,37 @@ public sealed partial class MarkdownHtmlService
                     portalTa.scrollTop = Math.max(0, line * lineH - curApH / 2 + lineH);
                     portalTa.scrollLeft = 0;
                     followCaret(); // settle the column too (long lines in skinny bands)
+                };
+
+                // Live size dial: the app calls this on every slider tick so the open aperture
+                // grows/shrinks in real time — a cheap in-place resize, no re-navigation, so the
+                // portal and its caret survive the drag. The circle stays centered on itself and
+                // bands keep their vertical center; both are clamped to the document bounds. The
+                // fog-of-war mask is rebuilt too, since its clear/fade stops track the dial.
+                function resizeOpenPortal() {
+                    if (!portal || !portalTa) return;
+                    const docW = document.documentElement.scrollWidth;
+                    const docH = document.documentElement.scrollHeight;
+                    const pg = pageRect(); // bands stay locked to the #canvas page column
+                    const apW = isBand ? Math.max(240, pg.width) : apertureSize;
+                    const apH = isBand ? bandH : apertureSize;
+                    const cx = (parseFloat(portal.style.left) || 0) + (parseFloat(portal.style.width) || apW) / 2;
+                    const cy = (parseFloat(portal.style.top) || 0) + (parseFloat(portal.style.height) || apH) / 2;
+                    portal.style.width = apW + "px";
+                    portal.style.height = apH + "px";
+                    portal.style.left = (isBand ? pg.left : Math.min(Math.max(cx - apW / 2, 8), Math.max(8, docW - apW - 8))) + "px";
+                    portal.style.top = Math.min(Math.max(cy - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+                    curApH = apH;
+                    const mask = isBand
+                        ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
+                        : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                    portalTa.style.maskImage = mask;
+                    portalTa.style.webkitMaskImage = mask;
+                }
+                window.__portalSetReveal = function (reveal) {
+                    reveal = Math.max(0, Math.min(100, Number(reveal) || 0));
+                    applyReveal(reveal);
+                    resizeOpenPortal();
                 };
 
                 // Split + portal: typing in the MAIN editor streams in here so the raw MD inside
