@@ -1036,58 +1036,11 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:i />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="1F2328" />
         </w:rPr>
-        <w:t xml:space="preserve">//</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="A31515" />
-        </w:rPr>
-        <w:t xml:space="preserve"> </w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="A31515" />
-        </w:rPr>
-        <w:t xml:space="preserve">Ru</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="A31515" />
-        </w:rPr>
-        <w:t xml:space="preserve">st server e</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="A31515" />
-        </w:rPr>
-        <w:t xml:space="preserve">ntrypoint showi</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="A31515" />
-        </w:rPr>
-        <w:t xml:space="preserve">ng error han</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="008000" />
-        </w:rPr>
-        <w:t xml:space="preserve">dling and concurrency</w:t>
+        <w:t xml:space="preserve">// Rust server entrypoint showing error handling and concurrency</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1095,10 +1048,35 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="0550AE" />
         </w:rPr>
-        <w:t xml:space="preserve">use std::sync::Arc;</w:t>
+        <w:t xml:space="preserve">use</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> std::sync::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="116329" />
+        </w:rPr>
+        <w:t xml:space="preserve">Arc</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">;</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1106,10 +1084,19 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="0550AE" />
         </w:rPr>
-        <w:t xml:space="preserve">use tokio::net::TcpListener;</w:t>
+        <w:t xml:space="preserve">use</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> tokio::net::TcpListener;</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1121,7 +1108,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">#[tokio::main]</w:t>
       </w:r>
@@ -1131,10 +1118,101 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="0550AE" />
         </w:rPr>
-        <w:t xml:space="preserve">async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {</w:t>
+        <w:t xml:space="preserve">async</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">fn</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">main</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">() -&gt; </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="116329" />
+        </w:rPr>
+        <w:t xml:space="preserve">Result</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">&lt;(), </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="116329" />
+        </w:rPr>
+        <w:t xml:space="preserve">Box</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">&lt;</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">dyn</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> std::error::Error&gt;&gt; {</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1143,9 +1221,75 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">    let listener = TcpListener::bind("127.0.0.1:8080").await?;</w:t>
+        <w:t xml:space="preserve">    </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">let</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> listener = TcpListener::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">bind</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">"127.0.0.1:8080"</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">).</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">await</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">?;</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1154,9 +1298,91 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">    let state = Arc::new(Database::connect().await?);</w:t>
+        <w:t xml:space="preserve">    </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">let</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> state = </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="116329" />
+        </w:rPr>
+        <w:t xml:space="preserve">Arc</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">new</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(Database::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">connect</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">().</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">await</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">?);</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1165,9 +1391,41 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">    println!("Server listening on http://127.0.0.1:8080");</w:t>
+        <w:t xml:space="preserve">    </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="953800" />
+        </w:rPr>
+        <w:t xml:space="preserve">println</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">!(</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">"Server listening on http://127.0.0.1:8080"</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">);</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1179,9 +1437,26 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">    loop {</w:t>
+        <w:t xml:space="preserve">    </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">loop</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> {</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1190,9 +1465,67 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">        let (socket, _) = listener.accept().await?;</w:t>
+        <w:t xml:space="preserve">        </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">let</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(socket, _) = listener.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">accept</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">().</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">await</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">?;</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1201,9 +1534,58 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">        let db = Arc::clone(&amp;state);</w:t>
+        <w:t xml:space="preserve">        </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">let</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> db = </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="116329" />
+        </w:rPr>
+        <w:t xml:space="preserve">Arc</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">clone</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(&amp;state);</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1212,9 +1594,59 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">        tokio::spawn(async move {</w:t>
+        <w:t xml:space="preserve">        tokio::</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">spawn</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">async</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">move</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> {</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1223,9 +1655,92 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">            if let Err(e) = handle_connection(socket, db).await {</w:t>
+        <w:t xml:space="preserve">            </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">if</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">let</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="953800" />
+        </w:rPr>
+        <w:t xml:space="preserve">Err</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(e) = </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">handle_connection</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(socket, db).</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">await</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> {</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1234,9 +1749,41 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">                eprintln!("Error handling connection: {}", e);</w:t>
+        <w:t xml:space="preserve">                </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="953800" />
+        </w:rPr>
+        <w:t xml:space="preserve">eprintln</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">!(</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">"Error handling connection: {}"</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">, e);</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -1245,7 +1792,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">            }</w:t>
       </w:r>
@@ -1256,7 +1803,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">        });</w:t>
       </w:r>
@@ -1267,7 +1814,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">    }</w:t>
       </w:r>
@@ -1278,7 +1825,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">}</w:t>
       </w:r>
@@ -2120,41 +2667,51 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="953800" />
         </w:rPr>
-        <w:t xml:space="preserve">curl -X POST https:</w:t>
+        <w:t xml:space="preserve">curl</w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">//api.marksmi</w:t>
+        <w:t xml:space="preserve"> -X POST https://api.marksmith.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">local</w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">t</w:t>
+        <w:t xml:space="preserve">/v1/</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">export</w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">h.</w:t>
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292E" />
-        </w:rPr>
-        <w:t xml:space="preserve">local/v1/export \</w:t>
+        <w:t xml:space="preserve"> \</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -2163,9 +2720,25 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">  -H "Authorization: Bearer ms_live_key" \</w:t>
+        <w:t xml:space="preserve">  -H </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">"Authorization: Bearer ms_live_key"</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> \</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -2174,9 +2747,25 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">  -H "Content-Type: application/json" \</w:t>
+        <w:t xml:space="preserve">  -H </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">"Content-Type: application/json"</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve"> \</w:t>
       </w:r>
       <w:r>
         <w:br />
@@ -2185,9 +2774,17 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">  -d '{"format": "pdf"}'</w:t>
+        <w:t xml:space="preserve">  -d </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">'{"format": "pdf"}'</w:t>
       </w:r>
     </w:p>
     <w:p>
@@ -2234,6 +2831,11 @@
         <w:wordWrap w:val="false" />
       </w:pPr>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
         <w:t xml:space="preserve">marksmith.exe --input document.md --format docx --output dist/</w:t>
       </w:r>
     </w:p>
@@ -2778,34 +3380,109 @@
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="0550AE" />
         </w:rPr>
-        <w:t xml:space="preserve">INSE</w:t>
+        <w:t xml:space="preserve">INSERT</w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve">RT</w:t>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">INTO</w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="A31515" />
+          <w:color w:val="24292F" />
         </w:rPr>
-        <w:t xml:space="preserve"> INTO </w:t>
+        <w:t xml:space="preserve"> </w:t>
       </w:r>
       <w:r>
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
-          <w:color w:val="24292E" />
+          <w:color w:val="8250DF" />
         </w:rPr>
-        <w:t xml:space="preserve">ledger (state, recorded_at) VALUES ('AUTHORIZED', NOW());</w:t>
+        <w:t xml:space="preserve">ledger </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(state, recorded_at) </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:b />
+          <w:noProof />
+          <w:color w:val="0550AE" />
+        </w:rPr>
+        <w:t xml:space="preserve">VALUES</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve"> </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">(</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="0A3069" />
+        </w:rPr>
+        <w:t xml:space="preserve">'AUTHORIZED'</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">, </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="8250DF" />
+        </w:rPr>
+        <w:t xml:space="preserve">NOW</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
+        <w:t xml:space="preserve">());</w:t>
       </w:r>
     </w:p>
     <w:p>
@@ -3376,6 +4053,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">stateDiagram-v2</w:t>
       </w:r>
@@ -3386,6 +4064,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    [*] --&gt; Idle</w:t>
       </w:r>
@@ -3396,6 +4075,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Idle --&gt; Processing : File Added</w:t>
       </w:r>
@@ -3406,6 +4086,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Succeeded : Write OK</w:t>
       </w:r>
@@ -3416,6 +4097,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Failed : Disk Full / Error</w:t>
       </w:r>
@@ -3426,6 +4108,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Failed --&gt; Retrying : Backoff Timer</w:t>
       </w:r>
@@ -3436,6 +4119,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Retrying --&gt; Processing</w:t>
       </w:r>
@@ -3446,6 +4130,7 @@
         <w:rPr>
           <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
           <w:noProof />
+          <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">    Succeeded --&gt; Idle</w:t>
       </w:r>
@@ -3729,16 +4414,15 @@
       </w:r>
     </w:p>
     <w:sectPr>
+<<<<<<< HEAD
       <w:headerReference w:type="default" r:id="R8561a50569fa42f4" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:footerReference w:type="default" r:id="Rb0d6d3cc0c104640" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+=======
+      <w:headerReference w:type="default" r:id="Rdcdd81ea3521487e" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="Ra301a925ea0a4c6f" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+>>>>>>> 8932a95 (v2.0.0 Release: Native Word OMML Math, Visual Mermaid Studio, Multi-Format Exports (PDF/DOCX/PPTX/EPUB), Offline REST API & DLP Governance)
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
-      <w:pgBorders w:display="allPages" w:offsetFrom="page">
-        <w:top w:val="single" w:color="D1D5DA" w:sz="8" w:space="24" />
-        <w:left w:val="single" w:color="D1D5DA" w:sz="8" w:space="24" />
-        <w:bottom w:val="single" w:color="D1D5DA" w:sz="8" w:space="24" />
-        <w:right w:val="single" w:color="D1D5DA" w:sz="8" w:space="24" />
-      </w:pgBorders>
     </w:sectPr>
   </w:body>
 </w:document>

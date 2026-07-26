@@ -28,6 +28,13 @@ public sealed class MermaidDiagramStudioWindow : Window
     {
         Title = "Mermaid Diagram Studio";
 
+        // Set official Marksmith taskbar & titlebar icon
+        var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+        if (System.IO.File.Exists(iconPath))
+        {
+            AppWindow.SetIcon(iconPath);
+        }
+
         // Enable WASDK Mica backdrop
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         

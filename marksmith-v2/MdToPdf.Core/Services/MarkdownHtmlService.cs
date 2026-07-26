@@ -512,26 +512,21 @@ public sealed partial class MarkdownHtmlService
         var scrollSpyScript = interactive && toc.Length > 0 ? """
             <script>
             window.addEventListener("DOMContentLoaded", () => {
-                const toc = document.getElementById("toc");
-                if (!toc) return;
-                const links = Array.from(toc.querySelectorAll('a[href^="#"]'));
-                if (!links.length) return;
-                const map = new Map();
-                links.forEach(a => {
-                    const id = decodeURIComponent(a.getAttribute("href").slice(1));
-                    const el = document.getElementById(id);
-                    if (el) map.set(el, a);
-                });
-                const headings = Array.from(map.keys());
-                if (!headings.length) return;
+                // Re-query #toc and the headings on every pass: live in-place canvas swaps
+                // (split typing / portal edits) replace them wholesale, so nodes cached at
+                // load would go stale after the first swap and the spy would freeze.
                 let active = null, ticking = false;
                 const spy = () => {
                     ticking = false;
-                    let current = headings[0];
-                    for (const h of headings) {
-                        if (h.getBoundingClientRect().top <= 120) current = h; else break;
+                    const toc = document.getElementById("toc");
+                    if (!toc) return;
+                    let link = null;
+                    for (const a of toc.querySelectorAll('a[href^="#"]')) {
+                        const el = document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)));
+                        if (!el) continue;
+                        if (!link) link = a; // first resolvable heading is the default
+                        if (el.getBoundingClientRect().top <= 120) link = a; else break;
                     }
-                    const link = map.get(current);
                     if (link !== active) {
                         if (active) active.classList.remove("active");
                         if (link) link.classList.add("active");
@@ -543,6 +538,359 @@ public sealed partial class MarkdownHtmlService
                 window.addEventListener("resize", onScroll, { passive: true });
                 spy();
             });
+            </script>
+            """ : "";
+
+        // Issue-locator homing beacon (ISS-012, live preview only): the app calls
+        // triggerRedRadarBeacon(line) when the user clicks a lint issue in the sidebar; we scroll
+        // the matching element into view, flash a red highlight and drop a pulsing radar ring on it.
+        var radarScript = interactive ? """
+            <script>
+            function triggerRedRadarBeacon(lineNumber) {
+                const el = document.querySelector(`[data-line='${lineNumber}']`) || document.querySelector("h1, h2, p, pre");
+                if (!el) return;
+
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("issue-target-highlight");
+
+                const rect = el.getBoundingClientRect();
+                const beacon = document.createElement("div");
+                beacon.className = "radar-beacon-container";
+                beacon.style.left = (rect.left + 30) + "px";
+                beacon.style.top = (rect.top + window.scrollY + rect.height / 2) + "px";
+                beacon.innerHTML = '<div class="radar-beacon-ring"></div><div class="radar-beacon-ring"></div>';
+
+                document.body.appendChild(beacon);
+
+                setTimeout(() => {
+                    beacon.remove();
+                    el.classList.remove("issue-target-highlight");
+                }, 2500);
+            }
+            </script>
+            """ : "";
+
+        // Interactive tabbed content (ISS-015, live preview only): switches the visible pane within
+        // a .md-tab-group when its tab button is clicked. Print ignores this (CSS shows all panes).
+        var tabScript = interactive ? """
+            <script>
+            function selectMdTab(btn, targetId) {
+                const group = btn.closest(".md-tab-group");
+                if (!group) return;
+
+                group.querySelectorAll(".md-tab-link").forEach(b => b.classList.remove("active"));
+                group.querySelectorAll(".md-tab-content").forEach(c => c.classList.remove("active"));
+
+                btn.classList.add("active");
+                const target = group.querySelector("#" + targetId);
+                if (target) target.classList.add("active");
+            }
+            </script>
+            """ : "";
+
+        // Looking Glass portal mode (ISS-004, live preview only, opt-in): the rendered preview is
+        // the default surface; clicking it opens a circular "aperture" that reveals the editable
+        // Markdown source sitting BEHIND the preview, through a fog-of-war blur (clear at the
+        // caret, blurring back to the full preview). A glowing cursor ring tracks the pointer and
+        // a short Web Audio whir + iris animation play as each portal opens. Edits are synced back
+        // to the app over the postMessage bridge (portal-open / portal-edit / portal-closed).
+        var revealScope = Math.Clamp(settings.PortalRevealScope, 0, 100);
+        // Portal shape: a circle spotlight, or full-width "focus" reading bands in three heights.
+        // Sanitized to the known set so the value can be inlined into the script safely.
+        var portalShape = settings.PortalShape is "focus1" or "focus2" or "focus3" ? settings.PortalShape : "circle";
+        var portalScript = interactive && settings.LookingGlassMode ? $$"""
+            <script>
+            function playPortalWhirSound() {
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) return;
+                    const ctx = new AudioCtx();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(130, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(450, ctx.currentTime + 0.22);
+
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.22);
+                } catch(e) {}
+            }
+
+            (function () {
+                const REVEAL = {{revealScope}}; // size dial 0..100 — scales whichever shape is active
+                const SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "focus2" | "focus3"
+                const isBand = SHAPE.indexOf("focus") === 0; // full-width reading band vs circle spotlight
+                const ring = document.createElement("div");
+                ring.id = "portal-cursor-ring";
+                document.body.appendChild(ring);
+
+                let portal = null, portalTa = null, editTimer = null, pendingText = "";
+                let dragging = false, dragStartX = 0, dragStartY = 0, dragScrollLeft = 0, dragScrollTop = 0; // middle-button source panning
+                let clickFrac = 0; // vertical document fraction of the opening click (0..1) — positional caret fallback
+                let curApH = 200;  // height of the currently-open aperture (circle diameter or band height)
+
+                const vh = window.innerHeight || 800;
+                const apertureSize = Math.round(200 + (REVEAL / 100) * (vh * 0.9 - 200)); // circle diameter
+                // Focus bands: skinny full-width strips for line-oriented reading. The slider fattens
+                // the base band (~3 lines at 0) and the ×2/×3 presets multiply it — more line widths,
+                // more content — clamped so a band never swallows the whole viewport.
+                const bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
+                const bandH = Math.round(Math.min(vh * 0.85, (60 + (REVEAL / 100) * 160) * bandMult));
+                const clearStop = Math.round(35 + REVEAL * 0.4);       // % radius kept fully clear
+                const fadeStop = Math.min(clearStop + 28, 96);         // % radius hit fully transparent
+
+                // Mouse events report unzoomed viewport pixels, but the ring/aperture are absolutely
+                // positioned inside the zoomed document (the app re-applies a CSS zoom on the root
+                // after every navigation) — so raw clientX/Y drift off the cursor at any zoom ≠ 100%.
+                // Map through the root's bounding rect + effective zoom to get true document coords.
+                function docPoint(e) {
+                    const r = document.documentElement.getBoundingClientRect();
+                    const z = document.documentElement.currentCSSZoom
+                        || parseFloat(document.documentElement.style.zoom || "1") || 1;
+                    return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+                }
+
+                document.addEventListener("mousemove", (e) => {
+                    const p = docPoint(e);
+                    ring.style.left = p.x + "px";
+                    ring.style.top = p.y + "px";
+                });
+
+                function post(msg) { try { chrome.webview.postMessage(JSON.stringify(msg)); } catch (e) {} }
+
+                // Light Markdown strip so rendered text can be matched back to a source line.
+                function stripMd(s) {
+                    return String(s).replace(/[#>*_`~\[\]()!|\\-]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+                }
+                // Match the clicked block's text back to a source line. Returns -1 when there's
+                // nothing to match — callers fall back to the click's document position instead of
+                // silently landing at the top. When the same text appears more than once (repeated
+                // headings, list items), the occurrence closest to the positional estimate wins.
+                function caretLineFromText(source, estimate) {
+                    const target = stripMd(pendingText).slice(0, 40);
+                    if (target.length < 4) return -1;
+                    const lines = source.split("\n");
+                    let best = -1;
+                    for (let i = 0; i < lines.length; i++) {
+                        const sl = stripMd(lines[i]);
+                        if (sl.length >= 4 && (sl.indexOf(target) >= 0 || target.indexOf(sl.slice(0, 40)) >= 0)) {
+                            if (best < 0 || Math.abs(i - estimate) < Math.abs(best - estimate)) best = i;
+                        }
+                    }
+                    return best;
+                }
+
+                function closePortal(silent) {
+                    if (!portal) return;
+                    const p = portal;
+                    portal = null; portalTa = null;
+                    dragging = false;
+                    p.classList.add("portal-closing");
+                    setTimeout(() => p.remove(), 200);
+                    if (!silent) post({ type: "portal-closed" });
+                }
+
+                function openPortal(x, y, el) {
+                    closePortal(true);
+                    pendingText = el ? (el.textContent || "") : "";
+
+                    portal = document.createElement("div");
+                    portal.className = "portal-aperture" + (isBand ? " portal-band" : "");
+                    const docW = document.documentElement.scrollWidth;
+                    const docH = document.documentElement.scrollHeight;
+                    // Bands span the full preview width; circles stay square on the click point.
+                    const apW = isBand ? Math.max(240, docW - 16) : apertureSize;
+                    const apH = isBand ? bandH : apertureSize;
+                    curApH = apH;
+                    portal.style.width = apW + "px";
+                    portal.style.height = apH + "px";
+                    // Where in the document (0=top, 1=bottom) the portal was opened: the caret
+                    // fallback in __portalSetSource lands at the same fraction of the source.
+                    clickFrac = docH > 0 ? Math.min(1, Math.max(0, y / docH)) : 0;
+                    portal.style.left = isBand ? "8px"
+                        : Math.min(Math.max(x - apW / 2, 8), Math.max(8, docW - apW - 8)) + "px";
+                    portal.style.top = Math.min(Math.max(y - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+
+                    const closeBtn = document.createElement("div");
+                    closeBtn.className = "portal-close";
+                    closeBtn.textContent = "\u00D7";
+                    closeBtn.addEventListener("click", (ev) => { ev.stopPropagation(); closePortal(); });
+                    portal.appendChild(closeBtn);
+
+                    portalTa = document.createElement("textarea");
+                    portalTa.className = "portal-source";
+                    portalTa.spellcheck = false;
+                    portalTa.wrap = "off";
+                    // Circle keeps the radial fog-of-war; bands fade top/bottom only (the strip is
+                    // meant to read clean edge-to-edge across the line).
+                    const mask = isBand
+                        ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
+                        : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                    portalTa.style.maskImage = mask;
+                    portalTa.style.webkitMaskImage = mask;
+                    portal.appendChild(portalTa);
+
+                    document.body.appendChild(portal);
+                    playPortalWhirSound();
+                    post({ type: "portal-open" });
+
+                    portalTa.addEventListener("input", () => {
+                        followCaret();
+                        clearTimeout(editTimer);
+                        editTimer = setTimeout(() => post({ type: "portal-edit", text: portalTa ? portalTa.value : "" }), 400);
+                    });
+                    // Arrow keys / Home / End / clicks move the caret without firing "input".
+                    portalTa.addEventListener("keyup", followCaret);
+                    portalTa.addEventListener("click", followCaret);
+                    portalTa.addEventListener("keydown", (ev) => {
+                        if (ev.key === "Escape") { ev.stopPropagation(); closePortal(); }
+                    });
+                }
+
+                // The portal follows the | typing cursor: as the caret walks along (or down) a line,
+                // the source pans under the fixed aperture exactly as if the user were middle-mouse
+                // grab-dragging it, so what they type is always inside the clear centre of the shape.
+                let charW = 0;
+                function measureCharW() {
+                    if (charW || !portalTa) return charW || 8;
+                    try {
+                        const c2d = document.createElement("canvas").getContext("2d");
+                        const cs = getComputedStyle(portalTa);
+                        c2d.font = cs.fontSize + " " + cs.fontFamily;
+                        charW = c2d.measureText("M").width || 8; // monospace: every column is one M wide
+                    } catch (e) { charW = 8; }
+                    return charW;
+                }
+                function followCaret() {
+                    if (!portalTa) return;
+                    const pos = portalTa.selectionStart || 0;
+                    const before = portalTa.value.slice(0, pos);
+                    const nl = before.lastIndexOf("\n");
+                    const line = nl < 0 ? 0 : (before.match(/\n/g) || []).length;
+                    const col = pos - nl - 1;
+                    const pad = 80, lineH = 20; // mirror .portal-source padding / line-height
+                    const x = pad + col * measureCharW();
+                    const y = pad + line * lineH;
+                    // Comfort box: only pan when the caret drifts out of the middle of the aperture,
+                    // so the text doesn't slide on every single keystroke.
+                    const w = portalTa.clientWidth, h = portalTa.clientHeight;
+                    const cx = x - portalTa.scrollLeft, cy = y - portalTa.scrollTop;
+                    if (cx < w * 0.30) portalTa.scrollLeft = Math.max(0, x - w * 0.30);
+                    else if (cx > w * 0.70) portalTa.scrollLeft = x - w * 0.70;
+                    if (cy < h * 0.35) portalTa.scrollTop = Math.max(0, y - h * 0.35);
+                    else if (cy > h * 0.65) portalTa.scrollTop = y - h * 0.65;
+                }
+
+                // The app calls this with the editor's current Markdown to fill the open portal and
+                // land the caret on the line matching the clicked block. When text matching can't
+                // find that line, land at the same vertical fraction of the source as the click was
+                // down the document — clicking near the bottom must never dump you at the top.
+                window.__portalSetSource = function (source) {
+                    if (!portalTa) return;
+                    source = source || "";
+                    portalTa.value = source;
+                    const lines = source.split("\n");
+                    const estimate = Math.round(clickFrac * Math.max(0, lines.length - 1));
+                    let line = caretLineFromText(source, estimate);
+                    if (line < 0) line = estimate;
+                    let off = 0;
+                    for (let i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
+                    portalTa.focus();
+                    try { portalTa.setSelectionRange(off, off); } catch (e) {}
+                    const lineH = 20;
+                    portalTa.scrollTop = Math.max(0, line * lineH - curApH / 2 + lineH);
+                    portalTa.scrollLeft = 0;
+                    followCaret(); // settle the column too (long lines in skinny bands)
+                };
+
+                // Split + portal: typing in the MAIN editor streams in here so the raw MD inside
+                // the shape stays live. The portal's own caret owns the text while the textarea is
+                // focused (its edits are already local), so only unfocused portals accept a push —
+                // which also kills the echo when a portal edit round-trips the app's debounce.
+                window.__portalUpdateSource = function (source) {
+                    if (!portalTa || document.activeElement === portalTa) return;
+                    source = source || "";
+                    const old = portalTa.value;
+                    if (old === source) return;
+                    // Land the caret at the first divergence so followCaret pans the view to
+                    // wherever the user is typing in the editor — text appears inside the shape.
+                    let i = 0;
+                    const n = Math.min(old.length, source.length);
+                    while (i < n && old.charCodeAt(i) === source.charCodeAt(i)) i++;
+                    const st = portalTa.scrollTop, sl = portalTa.scrollLeft;
+                    portalTa.value = source;
+                    portalTa.scrollTop = st;
+                    portalTa.scrollLeft = sl;
+                    try { portalTa.setSelectionRange(i, i); } catch (e) {}
+                    followCaret();
+                };
+
+                // Formatting-toolbar routing: while a portal is open the app forwards the editor
+                // toolbar's wrap/insert here so it lands at the portal caret. Mirrors the TextBox
+                // behavior — wrap the selection, or insert and park the caret between the markers.
+                // The synthetic input event reuses the typing path (followCaret + debounced
+                // portal-edit post), so the app and preview sync exactly as if it was typed.
+                window.__portalApplyEdit = function (prefix, suffix) {
+                    if (!portalTa) return;
+                    prefix = prefix || ""; suffix = suffix || "";
+                    const s = portalTa.selectionStart || 0, e = portalTa.selectionEnd || 0;
+                    const v = portalTa.value;
+                    const sel = v.slice(s, e);
+                    portalTa.value = v.slice(0, s) + prefix + sel + suffix + v.slice(e);
+                    const at = s + prefix.length;
+                    try { portalTa.setSelectionRange(at, sel ? at + sel.length : at); } catch (x) {}
+                    portalTa.focus();
+                    portalTa.dispatchEvent(new Event("input", { bubbles: true }));
+                };
+
+                // Middle-button (button 1) press-and-drag pans the Markdown source inside the open
+                // aperture — the circle stays put while the text behind it scrolls, so you can read
+                // up/down/left/right through the fixed window. Grab-and-pan like touch scrolling:
+                // drag down to see earlier content, drag up to see later. preventDefault + capture
+                // phase free the middle button from its default autoscroll and keep the caret still.
+                document.addEventListener("mousedown", (e) => {
+                    if (e.button !== 1 || !portalTa) return;
+                    dragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragScrollLeft = portalTa.scrollLeft;
+                    dragScrollTop = portalTa.scrollTop;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+                document.addEventListener("mousemove", (e) => {
+                    if (!dragging || !portalTa) return;
+                    if (!(e.buttons & 4)) { dragging = false; return; } // released (even outside the window)
+                    portalTa.scrollLeft = dragScrollLeft - (e.clientX - dragStartX);
+                    portalTa.scrollTop = dragScrollTop - (e.clientY - dragStartY);
+                    e.preventDefault();
+                }, true);
+                document.addEventListener("mouseup", (e) => { if (e.button === 1) dragging = false; }, true);
+
+                // In portal mode the whole preview is a "click to reveal the source behind it"
+                // surface: a click opens (or moves) a portal at that spot. Capture phase + default
+                // suppression so we win over links/tabs/selection while the mode is on.
+                document.addEventListener("click", (e) => {
+                    if (portal && portal.contains(e.target)) return; // clicks inside the portal pass through
+                    // Only take text from a real content block. Falling back to e.target here used to
+                    // hand caretLineFromText the whole page's text (body/#canvas), which "matched" the
+                    // first lines of the source and threw the caret to the top of the document.
+                    const el = (e.target && e.target.closest)
+                        ? e.target.closest("h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,table,code")
+                        : null;
+                    const p = docPoint(e);
+                    openPortal(p.x, p.y, el);
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+            })();
             </script>
             """ : "";
 
@@ -608,8 +956,11 @@ public sealed partial class MarkdownHtmlService
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
             font[color] { color: revert; }
-            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Mono", Consolas, monospace; }
-            code { font-family: "Cascadia Mono", Consolas, monospace; }
+            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
+            code { font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
+            /* ASCII / box-drawing diagrams (ISS-006): ligatures and loose leading break column
+               alignment, so code blocks flagged as ascii/text get tight, uniform metrics. */
+            pre code.language-ascii, pre code.language-text, pre code.language-txt, pre.ascii-diagram { line-height: 1.15 !important; letter-spacing: 0px !important; font-size: 14px; display: block; overflow-x: auto; }
             table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
             th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
             th { background: {{theme.Code}}; font-weight: bold; }
@@ -736,7 +1087,50 @@ public sealed partial class MarkdownHtmlService
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
+<<<<<<< HEAD
             </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{statsPill}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}{{scrollSpyScript}}</body></html>
+=======
+            /* Issue-locator radar beacon (ISS-012): a pulsing red homing ring dropped onto the
+               element for the lint issue the user clicked in the sidebar. */
+            .radar-beacon-container { position: absolute; width: 60px; height: 60px; pointer-events: none; transform: translate(-50%, -50%); z-index: 999; }
+            .radar-beacon-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.15); animation: radarPulse 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+            .radar-beacon-ring:nth-child(2) { animation-delay: 0.4s; }
+            @keyframes radarPulse { 0% { transform: scale(0.1); opacity: 1; } 80% { opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+            .issue-target-highlight { background: rgba(239, 68, 68, 0.25) !important; outline: 2px dashed #ef4444 !important; transition: background 0.5s ease; }
+            /* Interactive tabbed content (ISS-015): a real tab strip in the live preview; print
+               falls back to showing every tab's body so nothing is lost on paper. */
+            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Secondary}}; overflow: hidden; }
+            .md-tab-nav { display: flex; background: {{theme.Code}}; border-bottom: 1px solid {{theme.Border}}; padding: 4px 8px 0 8px; gap: 4px; }
+            .md-tab-link { padding: 8px 16px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease; }
+            .md-tab-link.active { background: {{theme.Background}}; color: {{theme.Primary}}; border-color: {{theme.Border}}; border-bottom: 2px solid {{theme.Primary}}; }
+            .md-tab-content { display: none; padding: 16px; }
+            .md-tab-content.active { display: block; }
+            @media print { .md-tab-content { display: block !important; border-top: 1px dashed {{theme.Border}}; } }
+            /* Looking Glass portal mode (ISS-004): the preview is the default surface; clicking
+               opens a circular aperture revealing the editable Markdown source behind it through a
+               fog-of-war blur (clear at the caret, blurring back to the preview). The ring/aperture
+               elements are only created by the portal script when the mode is on, so this CSS is
+               inert otherwise. */
+            #portal-cursor-ring { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(88, 166, 255, 0.65); box-shadow: 0 0 16px rgba(88, 166, 255, 0.35), inset 0 0 10px rgba(88, 166, 255, 0.15); pointer-events: none; transform: translate(-50%, -50%); animation: portalPulse 2s infinite ease-in-out; z-index: 60; }
+            @keyframes portalPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.75; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } }
+            .portal-aperture { position: absolute; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
+            @keyframes portalIris { from { transform: scale(0.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            /* Full-width "focus" reading bands: rounded strip instead of a circle, iris opens
+               vertically like a letterbox, and the close button moves to the right edge where a
+               skinny band actually has room for it. */
+            .portal-aperture.portal-band { border-radius: 14px; animation: portalIrisBand 0.22s ease-out; }
+            @keyframes portalIrisBand { from { transform: scaleY(0.15); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+            .portal-band .portal-close { left: auto; right: 12px; top: 50%; transform: translateY(-50%); }
+            .portal-aperture.portal-closing { animation: portalClose 0.2s ease-in forwards; }
+            @keyframes portalClose { from { transform: scale(1); opacity: 1; } to { transform: scale(0.25); opacity: 0; } }
+            /* 80px padding doubles as pan overscroll: native scrolling clamps at the content box, so
+               the generous inset lets middle-drag carry corner text ~80px past its natural bound into
+               the clear centre of the shape (the masked rim was otherwise unreadable). */
+            .portal-source { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: #dbe6f2; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 20px; padding: 80px; white-space: pre; overflow: auto; caret-color: #58a6ff; }
+            .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
+            .portal-close:hover { background: rgba(88, 166, 255, 0.35); }
+            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
+>>>>>>> 8932a95 (v2.0.0 Release: Native Word OMML Math, Visual Mermaid Studio, Multi-Format Exports (PDF/DOCX/PPTX/EPUB), Offline REST API & DLP Governance)
             """;
     }
 
@@ -1059,7 +1453,7 @@ public sealed partial class MarkdownHtmlService
                 <link rel="stylesheet" href="{{Services.WebAssets.KatexCss}}">
                 <script defer src="{{Services.WebAssets.KatexJs}}"></script>
                 {{mhchem}}<script defer src="{{Services.WebAssets.KatexAutoRender}}"
-                        onload="renderMathInElement(document.body, {
+                        onload="window.__msRenderMath = function (root) { renderMathInElement(root, {
                             delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],
                             // \tag is display-mode-only in KaTeX and hard-errors in inline math,
                             // which used to leave the WHOLE span as raw text. Override it to render
@@ -1068,7 +1462,10 @@ public sealed partial class MarkdownHtmlService
                             // Any other unsupported command degrades to red text instead of
                             // aborting the span and dumping raw source at the reader.
                             throwOnError: false
-                        });"></script>
+                        }); };
+                        // Named + window-scoped so in-place canvas swaps (live typing / portal
+                        // edits) can re-render fresh math with the exact same options.
+                        window.__msRenderMath(document.body);"></script>
                 """;
         }
         if (body.Contains("language-"))

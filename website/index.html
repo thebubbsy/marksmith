@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marksmith — Turn AI Chats into Native Word, PDF, PPTX & EPUB</title>
+    <meta name="description" content="100% offline document engine. Turn ChatGPT, Gemini & Claude responses into native editable Word math, PowerPoint slides, PDFs & EPUB eBooks.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="website_style.css">
+</head>
+<body>
+    <!-- Background Glow Effects -->
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar" id="main-nav">
+        <div class="nav-container">
+            <a href="#" class="brand-logo" id="nav-logo">
+                <div class="logo-icon">M</div>
+                <span class="brand-name">Marksmith<span class="badge-v2">v2</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="#features" class="nav-item" id="nav-link-features">Features</a>
+                <a href="#formats" class="nav-item" id="nav-link-formats">Formats</a>
+                <a href="#diagram-studio" class="nav-item" id="nav-link-studio">Diagram Studio</a>
+                <a href="#governance" class="nav-item" id="nav-link-gov">Enterprise DLP</a>
+                <a href="#download" class="btn-primary btn-nav" id="nav-btn-download">Download Free</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero-section" id="hero-header">
+        <div class="hero-content">
+            <div class="hero-badge" id="hero-privacy-badge">
+                <span class="pulse-dot"></span> 100% Local &amp; Offline • Zero Cloud Exposure
+            </div>
+            <h1 class="hero-title" id="hero-main-heading">
+                Turn Raw AI Chats Into <br>
+                <span class="gradient-text">Native Word, PDF &amp; Presentations</span>
+            </h1>
+            <p class="hero-subtitle" id="hero-subtext">
+                Stop wrestling with broken brackets and static code blocks. Marksmith turns LaTeX math into 
+                <strong>native editable Word equations (OMML)</strong> and rebuilds Mermaid diagrams as <strong>vector shapes</strong>.
+            </p>
+            <div class="hero-cta-group" id="hero-cta-container">
+                <a href="#download" class="btn-primary btn-large" id="hero-btn-primary">
+                    <svg class="icon-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Download for Windows 11
+                </a>
+                <a href="#video-demo" class="btn-secondary btn-large" id="hero-btn-video">
+                    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Watch 2-Min Demo
+                </a>
+            </div>
+            <div class="hero-stats" id="hero-stats-row">
+                <div class="stat-item"><span class="stat-num">0 ms</span> Cloud Latency</div>
+                <div class="stat-divider"></div>
+                <div class="stat-item"><span class="stat-num">4+</span> Export Formats</div>
+                <div class="stat-divider"></div>
+                <div class="stat-item"><span class="stat-num">100%</span> Private DLP</div>
+            </div>
+        </div>
+
+        <!-- Interactive Demo Mockup -->
+        <div class="hero-mockup-container" id="hero-app-preview">
+            <div class="window-frame">
+                <div class="window-header">
+                    <div class="window-controls">
+                        <span class="control-dot red"></span>
+                        <span class="control-dot yellow"></span>
+                        <span class="control-dot green"></span>
+                    </div>
+                    <div class="window-title">Marksmith v2 — [Looking Glass Active]</div>
+                    <div class="window-actions">
+                        <span class="pill-tag">Local REST API: 47821</span>
+                    </div>
+                </div>
+                <div class="window-body">
+                    <div class="editor-pane">
+                        <div class="pane-header">Source Markdown (ChatGPT Ingest)</div>
+                        <pre class="code-preview"><code><span class="code-keyword"># Matrix Equation</span>
+$$ \begin{bmatrix} a &amp; b \\ c &amp; d \end{bmatrix} $$
+
+<span class="code-keyword">```mermaid</span>
+flowchart LR
+    A[Raw AI Prompt] --&gt; B{Marksmith}
+    B --&gt;|Native OMML| C[Editable Word .docx]
+<span class="code-keyword">```</span></code></pre>
+                    </div>
+                    <div class="looking-glass-divider"></div>
+                    <div class="preview-pane">
+                        <div class="pane-header">Rendered Output (Native Word OMML &amp; Shapes)</div>
+                        <div class="rendered-math">
+                            <math display="block">
+                                <mrow>
+                                    <mo>[</mo>
+                                    <mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>
+                                    <mo>]</mo>
+                                </mrow>
+                            </math>
+                        </div>
+                        <div class="rendered-diagram-badge">
+                            ✨ Vector Grouped Shapes (Drag &amp; Edit)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Key Features Grid -->
+    <section class="features-section" id="features">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-tag">ENGINEERING ADVANTAGE</span>
+                <h2 class="section-title">Built for Professionals Who Demanded Better</h2>
+                <p class="section-desc">No generic Markdown renderers. Marksmith parses AST trees directly into native Microsoft Office XML objects.</p>
+            </div>
+
+            <div class="grid-3-col">
+                <div class="feature-card" id="feature-card-math">
+                    <div class="card-icon icon-math">∑</div>
+                    <h3>Native Word OMML Math</h3>
+                    <p>Converts LaTeX and KaTeX formulas into native, fully editable Word equations. Edit numbers directly inside matrices in Microsoft Word.</p>
+                </div>
+                <div class="feature-card" id="feature-card-mermaid">
+                    <div class="card-icon icon-diagram">🎨</div>
+                    <h3>Visual Mermaid Studio</h3>
+                    <p>Full visual drag-and-drop designer. Instantly toggle diagram orientation (Left-to-Right `LR` / Top-to-Bottom `TD`) with smart orthogonal routing.</p>
+                </div>
+                <div class="feature-card" id="feature-card-browser">
+                    <div class="card-icon icon-ext">🌐</div>
+                    <h3>1-Click Extension Ingest</h3>
+                    <p>Browser extension for ChatGPT, Gemini, Claude &amp; Copilot. Click "Send to Marksmith" or enable auto-send on conversation end.</p>
+                </div>
+                <div class="feature-card" id="feature-card-watch">
+                    <div class="card-icon icon-folder">📁</div>
+                    <h3>Watch Folder Daemon</h3>
+                    <p>Background folder watcher auto-compiles `.md` files dropped from Obsidian or Notion straight to PDF or Word presentations.</p>
+                </div>
+                <div class="feature-card" id="feature-card-dlp">
+                    <div class="card-icon icon-shield">🛡️</div>
+                    <h3>Enterprise DLP &amp; Governance</h3>
+                    <p>Client-side credential scanner masks API keys and secrets before export. Aggregates local usage metrics with zero cloud transmission.</p>
+                </div>
+                <div class="feature-card" id="feature-card-offline">
+                    <div class="card-icon icon-lock">🔒</div>
+                    <h3>100% Offline &amp; Air-Gapped</h3>
+                    <p>Runs strictly on localhost (`127.0.0.1`). Your trade secrets, financial models, and code stay completely on your machine.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Multi-Format Showcase -->
+    <section class="formats-section" id="formats">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-tag">MULTI-FORMAT EXPORT</span>
+                <h2 class="section-title">One Markdown Document. Any Office Output.</h2>
+            </div>
+            <div class="format-chips-grid">
+                <div class="format-card" id="fmt-card-docx">
+                    <div class="format-badge badge-docx">DOCX</div>
+                    <h4>Microsoft Word</h4>
+                    <p>Native OMML math, editable grouped vector shapes, custom callout boxes, and custom typography templates.</p>
+                </div>
+                <div class="format-card" id="fmt-card-pdf">
+                    <div class="format-badge badge-pdf">PDF</div>
+                    <h4>Vector PDF</h4>
+                    <p>Pixel-perfect print layouts, embedded web fonts, KaTeX math typesetting, and selectable code blocks.</p>
+                </div>
+                <div class="format-card" id="fmt-card-pptx">
+                    <div class="format-badge badge-pptx">PPTX</div>
+                    <h4>PowerPoint Decks</h4>
+                    <p>Header-driven slide generation (`# Slide`). Automatically converts Markdown bullet points into structured slide shapes.</p>
+                </div>
+                <div class="format-card" id="fmt-card-epub">
+                    <div class="format-badge badge-epub">EPUB</div>
+                    <h4>eBook Publishing</h4>
+                    <p>Reflowable eBook packages complete with cover metadata, table of contents, and responsive ebook typography.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download & CTA Section -->
+    <section class="cta-section" id="download">
+        <div class="cta-card" id="cta-main-card">
+            <h2>Ready to Upgrade Your AI Workflow?</h2>
+            <p>Download Marksmith v2 for Windows 11. Self-contained, portable, zero installation required.</p>
+            <div class="cta-actions">
+                <a href="#" class="btn-primary btn-large" id="cta-btn-download">
+                    Download Marksmith v2 (.exe)
+                </a>
+            </div>
+            <div class="cta-meta">
+                <span>Windows 11 / 10 (x64)</span> • <span>Self-Contained 181 MB</span> • <span>SHA-256 Verified</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer-bar">
+        <div class="footer-container">
+            <div class="footer-brand">Marksmith v2 Engine • 100% Local &amp; Private</div>
+            <div class="footer-links">
+                <a href="https://github.com" target="_blank">GitHub Repository</a>
+                <a href="#features">Documentation</a>
+                <a href="#governance">Privacy Policy</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
