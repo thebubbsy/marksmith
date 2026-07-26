@@ -4414,8 +4414,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="Rb3090e6c9f6744ab" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R4197ac103de14c47" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="Rca12d44b2b1142dc" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="Rf3bb1dfda8354902" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
     </w:sectPr>
