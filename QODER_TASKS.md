@@ -93,13 +93,14 @@
   - Support diagonal text watermarks (e.g. "CONFIDENTIAL", "DRAFT") or image watermarks overlayed/underlayed on exported PDF pages with configurable opacity, rotation angle, font size, and color using PDFsharp page graphics.
   - Verification: 3 unit tests in `PdfWatermarkServiceTests.cs`.
 
-### [ ] 20. EPUB Metadata & Cover Art Customization Engine
+### [x] 20. EPUB Metadata & Cover Art Customization Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/EpubExportService.cs`
   - `marksmith-v2/MdToPdf.Core/Models/EpubMetadata.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/EpubExportServiceTests.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/EpubCoverAndMetadataTests.cs`
 - **Goal**:
-  - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, and custom cover image embedding.
+  - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, Description, Rights, and custom cover image embedding.
+  - Verification: `EpubCoverAndMetadataTests.cs`. Suite: 909 passed / 0 failed / 21 skipped / 930 total.
 
 ### [x] 21. MS Word-Styled HTML Tabbed Content Rendering Engine
 - **Target Files**:
@@ -128,3 +129,4 @@
 - **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:45**: Antigravity — Task 21 completed (MS Word-Styled HTML Tabbed Content Rendering Engine with `#0078D4` ribbon active border, ARIA tab roles, keyboard arrow navigation, fade micro-animation, and print rules). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:47**: Antigravity — Task 19 completed (PdfWatermarkService post-export diagonal text and classification stamp engine via PDFsharp + 3 unit tests in `PdfWatermarkServiceTests.cs`). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
+- **2026-07-27 13:51**: Antigravity — Task 20 completed (EpubExportService metadata fields for Title, Author, Publisher, Identifier/ISBN, Description, Rights, and custom cover image embedding + unit tests). Suite: 909 passed / 0 failed / 21 skipped / 930 total.
