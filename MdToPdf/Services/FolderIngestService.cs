@@ -6,6 +6,26 @@ namespace MdToPdf.Services;
 // AI chat UIs drop conversation exports there — and hands the file path to the app.
 public sealed class FolderIngestService : IDisposable
 {
+    public static IReadOnlyList<string> AiAgentFolderPresets
+    {
+        get
+        {
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+            var paths = new[]
+            {
+                Path.Combine(userProfile, ".gemini", "antigravity", "scratch"),
+                Path.Combine(documents, "Ollama"),
+                Path.Combine(appData, "Claude", "Exports"),
+                Path.Combine(userProfile, ".local", "share", "gpt-engineer")
+            };
+
+            return paths.Where(Directory.Exists).ToList();
+        }
+    }
+
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly Action<string> _onFile;
     private FileSystemWatcher? _watcher;
