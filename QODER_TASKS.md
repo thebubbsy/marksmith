@@ -174,12 +174,13 @@
   - Normalize rich text HTML clipboard content into clean standard Markdown syntax during paste actions.
   - Verification: `ClipboardNormalizerServiceTests.cs`.
 
-### [ ] 30. Auto-Save Snapshot & Document Recovery Vault
+### [x] 30. Auto-Save Snapshot & Document Recovery Vault
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/DocumentRecoveryVault.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentRecoveryVaultTests.cs`
 - **Goal**:
   - Implement periodic auto-save snapshot vault to local storage to prevent data loss during unexpected crashes or OS restarts.
+  - Verification: `DocumentRecoveryVaultTests.cs`.
 
 ---
 
@@ -208,4 +209,5 @@
 - **2026-07-27 14:45**: Antigravity — Task 26 completed (ExportDiagnosticsService per-step latency and memory allocation telemetry tracker + unit tests). Suite: 919 passed / 0 failed / 21 skipped / 940 total.
 - **2026-07-27 14:47**: Antigravity — Task 27 completed (UserThemeStylesheetService custom CSS scoping, sanitization of dangerous expressions, and HTML head injection + unit tests). Suite: 922 passed / 0 failed / 21 skipped / 943 total.
 - **2026-07-27 15:00**: Antigravity — Task 28 completed (FrontmatterService YAML frontmatter block parser returning metadata dictionary + stripped markdown body + unit tests). Suite: 924 passed / 0 failed / 21 skipped / 945 total.
-- **2026-07-27 15:30**: Antigravity — Task 29 completed (ClipboardNormalizerService rich text HTML clipboard converter to clean Markdown + unit tests).
+- **2026-07-27 15:30**: Antigravity — Task 29 completed (ClipboardNormalizerService rich text HTML clipboard converter to clean Markdown + unit tests). Suite: 934 passed / 0 failed / 21 skipped / 955 total.
+- **2026-07-27 15:47**: Antigravity — Task 30 completed (DocumentRecoveryVault local storage snapshot auto-saver + crash recovery manager + unit tests).
