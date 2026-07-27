@@ -230,6 +230,14 @@
   - Parse Markdown document links and anchor references (`#section-id`, `[text][ref]`) and validate internal header anchor existence and local file path validity.
   - Verification: `LinkIntegrityAnalyzerServiceTests.cs`.
 
+### [x] 37. Markdown Document Comparer & Semantic Diff Generator
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/MarkdownDiffService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/MarkdownDiffServiceTests.cs`
+- **Goal**:
+  - Compare two versions of a Markdown document and produce line-by-line semantic diff models (Inserted, Deleted, Unchanged) for revision history preview.
+  - Verification: `MarkdownDiffServiceTests.cs`.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -265,3 +273,4 @@
 - **2026-07-27 18:46**: Antigravity — Task 34 completed (TableFormatterService ASCII Markdown table column aligner + cell padding engine + alignment specifier preservation + unit tests). Suite: 952 passed / 0 failed / 21 skipped / 973 total.
 - **2026-07-27 19:00**: Antigravity — Task 35 completed (DocumentTemplateGalleryService built-in document templates + variable interpolation + unit tests). Suite: 958 passed / 0 failed / 21 skipped / 979 total.
 - **2026-07-27 19:15**: Antigravity — Task 36 completed (LinkIntegrityAnalyzerService Markdown link & anchor reference validator + unit tests). Suite: 961 passed / 0 failed / 21 skipped / 982 total.
+- **2026-07-27 19:30**: Antigravity — Task 37 completed (MarkdownDiffService line-by-line semantic LCS diff engine + unit tests).
