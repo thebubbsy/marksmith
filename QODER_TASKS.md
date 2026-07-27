@@ -108,7 +108,15 @@
   - `marksmith-v2/tests/MdToPdf.Core.Tests/NativeTabsTests.cs`
 - **Goal**:
   - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders `#0078D4`, clean tab headers, subtle drop shadows, keyboard arrow key navigation, ARIA tab roles, and print-optimized active tab visibility for PDF printing).
-  - Verification: `NativeTabsTests.cs`. Suite: 905 passed / 0 failed / 21 skipped / 926 total.
+
+### [x] 22. Custom Form Input Syntax Parser & HTML Interactive Element Generator
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/MarkdownFormInputParserService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/MarkdownFormInputParserServiceTests.cs`
+- **Goal**:
+  - Parse custom Markdown form input annotations (`[input:name type "default"]` and `[select:name options=[a,b,c]]`).
+  - Render interactive, styled HTML form input fields for web/PDF document preview and export pipelines.
+  - Verification: 2 new unit tests in `MarkdownFormInputParserServiceTests.cs`. Suite: 985 passed / 0 failed / 21 skipped / 1006 total.
 
 ### [x] 22. WebDAV & Cloud Export Provider Transport Engine
 - **Target Files**:
