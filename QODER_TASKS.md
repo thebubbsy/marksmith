@@ -180,7 +180,21 @@
   - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentRecoveryVaultTests.cs`
 - **Goal**:
   - Implement periodic auto-save snapshot vault to local storage to prevent data loss during unexpected crashes or OS restarts.
-  - Verification: `DocumentRecoveryVaultTests.cs`.
+  - Verification: `DocumentRecoveryVaultTests.cs`. Suite: 939 passed / 0 failed / 21 skipped / 960 total.
+
+### [ ] 31. Advanced Footnote & Endnote Cross-Referencing Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/FootnoteService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/FootnoteServiceTests.cs`
+- **Goal**:
+  - Process inline Markdown footnotes (`[^1]`) and definitions (`[^1]: Footnote text`), re-numbering sequentially, generating back-links, and embedding footnote sections in HTML, PDF, and DOCX exports.
+
+### [ ] 32. Smart Code Snippet Line Numbering & Line Highlighting Synthesizer
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/CodeBlockHighlighterService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeBlockHighlighterServiceTests.cs`
+- **Goal**:
+  - Parse fence attributes (e.g. ````csharp {1,3-5} showLineNumbers````) to add line numbers and highlighted line background accents in code snippets across preview and PDF/HTML output.
 
 ---
 
