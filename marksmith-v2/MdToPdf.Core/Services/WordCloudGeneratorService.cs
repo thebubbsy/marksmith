@@ -47,7 +47,7 @@ namespace MdToPdf.Core.Services
             // 3. Strip Markdown header markers, links, bold, italic
             cleaned = Regex.Replace(cleaned, @"^#+\s+", "", RegexOptions.Multiline);
             cleaned = Regex.Replace(cleaned, @"\[([^\]]+)\]\([^\)]+\)", "$1");
-            cleaned = Regex.Replace(cleaned, @"[\*\_]{1,3}", " ");
+            cleaned = Regex.Replace(cleaned, @"[*_]{1,3}", " ");
 
             // 4. Tokenize into words
             var tokens = Regex.Matches(cleaned, @"\b[a-zA-Z]{3,}\b")
