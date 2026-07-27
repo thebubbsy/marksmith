@@ -676,8 +676,10 @@ public sealed partial class MarkdownHtmlService
 
             (function () {
                 const REVEAL = {{revealScope}}; // size dial 0..100 — scales whichever shape is active
-                const SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "focus2" | "focus3"
+                const SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "square" | "logo"
                 const isBand = SHAPE.indexOf("focus") === 0; // full-width reading band vs circle spotlight
+                const isSquare = SHAPE === "square";
+                const isLogo = SHAPE === "logo";
                 const ring = document.createElement("div");
                 ring.id = "portal-cursor-ring";
                 document.body.appendChild(ring);
@@ -697,7 +699,7 @@ public sealed partial class MarkdownHtmlService
                 // real time instead of waiting for a full re-render.
                 let apertureSize = 0, bandH = 0, clearStop = 0, fadeStop = 0;
                 function applyReveal(reveal) {
-                    apertureSize = Math.round(200 + (reveal / 100) * (vh * 0.9 - 200)); // circle diameter
+                    apertureSize = Math.round(200 + (reveal / 100) * (vh * 0.9 - 200)); // circle diameter / shape size
                     bandH = Math.round(Math.min(vh * 0.85, (60 + (reveal / 100) * 160) * bandMult));
                     clearStop = Math.round(35 + reveal * 0.4);       // % radius kept fully clear
                     fadeStop = Math.min(clearStop + 28, 96);         // % radius hit fully transparent
@@ -775,7 +777,7 @@ public sealed partial class MarkdownHtmlService
                     pendingText = el ? (el.textContent || "") : "";
 
                     portal = document.createElement("div");
-                    portal.className = "portal-aperture" + (isBand ? " portal-band" : "");
+                    portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
                     const docW = document.documentElement.scrollWidth;
                     const docH = document.documentElement.scrollHeight;
                     const pg = pageRect(); // the #canvas page column — bands match it, not the whole preview
@@ -807,7 +809,7 @@ public sealed partial class MarkdownHtmlService
                     // meant to read clean edge-to-edge across the line).
                     const mask = isBand
                         ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
-                        : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                        : (isSquare || isLogo) ? "none" : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
                     portalTa.style.maskImage = mask;
                     portalTa.style.webkitMaskImage = mask;
                     portal.appendChild(portalTa);
@@ -906,7 +908,7 @@ public sealed partial class MarkdownHtmlService
                     curApH = apH;
                     const mask = isBand
                         ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
-                        : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                        : (isSquare || isLogo) ? "none" : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
                     portalTa.style.maskImage = mask;
                     portalTa.style.webkitMaskImage = mask;
                 }
@@ -1008,19 +1010,20 @@ public sealed partial class MarkdownHtmlService
             // img.decode()/load/error, and layout settle via double requestAnimationFrame. No sleeps.
             window.marksmithWaitForExportReady = function(checkMermaid) {
                 return new Promise((resolve) => {
-                    const waitForMermaidIfNeeded = (callback) => {
-                        if (!checkMermaid) { callback(); return; }
-                        const isMermaidDone = () => {
-                            const all = document.querySelectorAll('.mermaid');
-                            const processed = document.querySelectorAll('.mermaid[data-processed="true"]');
-                            return all.length == 0 || processed.length == all.length;
+                    const done = () => resolve(true);
+                    let mDone = !checkMermaid, iDone = false;
+                    const tryDone = () => { if (mDone && iDone) requestAnimationFrame(() => requestAnimationFrame(done)); };
+
+                    if (checkMermaid) {
+                        const check = () => {
+                            const nodes = document.querySelectorAll('.mermaid');
+                            if (!nodes.length || Array.from(nodes).every(n => n.hasAttribute('data-processed'))) {
+                                mDone = true;
+                                tryDone();
+                                return true;
+                            }
+                            return false;
                         };
-                        if (isMermaidDone()) { callback(); return; }
-                        const observer = new MutationObserver(() => {
-                            if (isMermaidDone()) { observer.disconnect(); callback(); }
-                        });
-                        observer.observe(document.body || document.documentElement, {
-                            childList: true, subtree: true, attributes: true, attributeFilter: ['data-processed']
                         });
                         setTimeout(() => { observer.disconnect(); callback(); }, 5000);
                     };
