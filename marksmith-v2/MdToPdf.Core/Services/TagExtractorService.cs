@@ -55,7 +55,7 @@ namespace MdToPdf.Core.Services
             result.Hashtags = tagsSet.OrderBy(t => t).ToList();
 
             // Strip headings formatting, markdown symbols
-            string plainText = Regex.Replace(cleaned, @"[#*\_~`>\[\]\(\)]", " ");
+            string plainText = Regex.Replace(cleaned, @"[#*_~`>\[\]\(\)]", " ");
             string[] words = Regex.Split(plainText.ToLower(), @"\W+");
 
             var wordCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
