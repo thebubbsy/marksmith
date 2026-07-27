@@ -126,12 +126,13 @@
   - Build template token interpolator (`{page}`, `{pages}`, `{title}`, `{date}`, `{time}`, `{author}`) for custom header/footer HTML templates during Chromium PDF rendering.
   - Verification: `HeaderFooterTemplateServiceTests.cs`. Suite: 912 passed / 0 failed / 21 skipped / 933 total.
 
-### [ ] 24. MathJax & KaTeX Math Macro Preprocessor Engine
+### [x] 24. MathJax & KaTeX Math Macro Preprocessor Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/MathMacroService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/MathMacroServiceTests.cs`
 - **Goal**:
   - Add inline custom TeX/LaTeX macro definitions (`\newcommand` / `\def`) expansion preprocessor for Markdown math blocks (`$$ ... $$`).
+  - Verification: `MathMacroServiceTests.cs`. Suite: 916 passed / 0 failed / 21 skipped / 937 total.
 
 ### [ ] 25. Export Batch & Command-Line CLI Runner
 - **Target Files**:
@@ -162,3 +163,4 @@
 - **2026-07-27 13:51**: Antigravity — Task 20 completed (EpubExportService metadata fields for Title, Author, Publisher, Identifier/ISBN, Description, Rights, and custom cover image embedding + unit tests). Suite: 909 passed / 0 failed / 21 skipped / 930 total.
 - **2026-07-27 14:01**: Antigravity — Task 22 completed (CloudStorageService WebDAV subfolder path resolution, User-Agent header, and TestConnectionAsync health check endpoint verification + unit tests). Suite: 910 passed / 0 failed / 21 skipped / 931 total.
 - **2026-07-27 14:03**: Antigravity — Task 23 completed (HeaderFooterTemplateService token interpolator for {page}, {pages}, {title}, {date}, {time}, {author} into Chromium PDF header/footer HTML + unit tests). Suite: 912 passed / 0 failed / 21 skipped / 933 total.
+- **2026-07-27 14:15**: Antigravity — Task 24 completed (MathMacroService pre-expands \newcommand{\name}{body} and \def\name{body} TeX macros in Markdown math blocks + unit tests). Suite: 916 passed / 0 failed / 21 skipped / 937 total.
