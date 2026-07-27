@@ -110,6 +110,20 @@
   - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders `#0078D4`, clean tab headers, subtle drop shadows, keyboard arrow key navigation, ARIA tab roles, and print-optimized active tab visibility for PDF printing).
   - Verification: `NativeTabsTests.cs`. Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 
+### [ ] 22. WebDAV & Cloud Export Provider Transport Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/CloudStorageService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/CloudStorageServiceTests.cs`
+- **Goal**:
+  - Expand CloudStorageService to support WebDAV endpoint authentication (HTTP Basic / Bearer token) and automated remote upload of generated PDF, DOCX, and EPUB artifacts to user-configured WebDAV subfolders.
+
+### [ ] 23. Dynamic Header & Footer Page Template Interpolator
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
+  - `marksmith-v2/MdToPdf.Core/Services/HeaderFooterTemplateService.cs`
+- **Goal**:
+  - Build template token interpolator ({page}, {pages}, {title}, {date}, {time}, {author}) for custom header/footer HTML templates during Chromium PDF rendering.
+
 ---
 
 ## 📌 History & Completed Tasks
