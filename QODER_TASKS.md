@@ -278,7 +278,7 @@
   - Convert straight quotes (`"` to `“`/`”`), apostrophes (`'` to `’`), en/em dashes (`--` to `–`, `---` to `—`), and ellipses (`...` to `…`) outside code/math blocks.
   - Verification: `SmartPunctuationServiceTests.cs`.
 
-### [ ] 43. Document Word Cloud Data Generator Engine
+### [x] 43. Document Word Cloud Data Generator Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/WordCloudGeneratorService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/WordCloudGeneratorServiceTests.cs`
