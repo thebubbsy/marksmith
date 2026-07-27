@@ -270,7 +270,7 @@
   - Automatically generate GitHub-compatible slug anchors (e.g. `#my-heading-name`) for all headings and inject a styled Table of Contents at the `[TOC]` placeholder tag.
   - Verification: `TocAnchorInjectorServiceTests.cs`.
 
-### [ ] 42. Markdown Smart Typography & Punctuation Converter
+### [x] 42. Markdown Smart Typography & Punctuation Converter
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/SmartPunctuationService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/SmartPunctuationServiceTests.cs`
@@ -382,3 +382,4 @@
 - **2026-07-27 20:00**: Antigravity — Task 39 completed (CitationEngineService inline citation parser + bibliography generator + unit tests). Suite: 970 passed / 0 failed / 21 skipped / 991 total.
 - **2026-07-27 20:15**: Antigravity — Task 40 completed (TagExtractorService hashtag & key phrase extractor + unit tests). Suite: 973 passed / 0 failed / 21 skipped / 994 total.
 - **2026-07-27 20:30**: Antigravity — Task 41 completed (TocAnchorInjectorService heading anchor slug generator & TOC injector + unit tests). Suite: 975 passed / 0 failed / 21 skipped / 996 total.
+- **2026-07-27 20:45**: Antigravity — Task 42 completed (SmartPunctuationService smart quotes, dashes & ellipses converter + unit tests).
