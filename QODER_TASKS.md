@@ -84,13 +84,14 @@
   - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
   - Verification: 23 unit tests in `PdfSecurityServiceTests.cs`. Suite: 894 passed / 0 failed / 915 total.
 
-### [ ] 19. Custom PDF Watermark & Classification Stamp Engine
+### [x] 19. Custom PDF Watermark & Classification Stamp Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/PdfWatermarkService.cs`
   - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfWatermarkServiceTests.cs`
 - **Goal**:
-  - Support diagonal text watermarks (e.g. "CONFIDENTIAL", "DRAFT") or image watermarks overlayed/underlayed on exported PDF pages with configurable opacity, rotation angle, font size, and color.
+  - Support diagonal text watermarks (e.g. "CONFIDENTIAL", "DRAFT") or image watermarks overlayed/underlayed on exported PDF pages with configurable opacity, rotation angle, font size, and color using PDFsharp page graphics.
+  - Verification: 3 unit tests in `PdfWatermarkServiceTests.cs`.
 
 ### [ ] 20. EPUB Metadata & Cover Art Customization Engine
 - **Target Files**:
@@ -126,3 +127,4 @@
 - **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total.
 - **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:45**: Antigravity — Task 21 completed (MS Word-Styled HTML Tabbed Content Rendering Engine with `#0078D4` ribbon active border, ARIA tab roles, keyboard arrow navigation, fade micro-animation, and print rules). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
+- **2026-07-27 13:47**: Antigravity — Task 19 completed (PdfWatermarkService post-export diagonal text and classification stamp engine via PDFsharp + 3 unit tests in `PdfWatermarkServiceTests.cs`). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
