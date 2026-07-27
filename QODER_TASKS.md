@@ -100,12 +100,13 @@
 - **Goal**:
   - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, and custom cover image embedding.
 
-### [ ] 21. MS Word-Styled HTML Tabbed Content Rendering Engine
+### [x] 21. MS Word-Styled HTML Tabbed Content Rendering Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/MarkdownHtmlService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/NativeTabsTests.cs`
 - **Goal**:
-  - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders, clean tab headers, subtle drop shadows, and print-optimized active tab visibility for PDF printing).
+  - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders `#0078D4`, clean tab headers, subtle drop shadows, keyboard arrow key navigation, ARIA tab roles, and print-optimized active tab visibility for PDF printing).
+  - Verification: `NativeTabsTests.cs`. Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 
 ---
 
@@ -123,4 +124,5 @@
 - **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 860 total.
 - **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 892 total.
 - **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total.
-- **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total. Cycle 13 queued — Task 21 added (MS Word-Styled HTML Tabbed Content Rendering).
+- **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
+- **2026-07-27 13:45**: Antigravity — Task 21 completed (MS Word-Styled HTML Tabbed Content Rendering Engine with `#0078D4` ribbon active border, ARIA tab roles, keyboard arrow navigation, fade micro-animation, and print rules). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
