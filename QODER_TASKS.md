@@ -262,6 +262,86 @@
   - Extract hashtags (#tag, #multi-word-tag) and high-frequency TF-IDF key phrases from Markdown content while ignoring code fences, inline code, and URLs.
   - Verification: `TagExtractorServiceTests.cs`.
 
+### [x] 41. Markdown Heading Anchor Slug Generator & TOC Injector Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/TocAnchorInjectorService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/TocAnchorInjectorServiceTests.cs`
+- **Goal**:
+  - Automatically generate GitHub-compatible slug anchors (e.g. `#my-heading-name`) for all headings and inject a styled Table of Contents at the `[TOC]` placeholder tag.
+  - Verification: `TocAnchorInjectorServiceTests.cs`.
+
+### [ ] 42. Markdown Smart Typography & Punctuation Converter
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/SmartPunctuationService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/SmartPunctuationServiceTests.cs`
+- **Goal**:
+  - Convert straight quotes (`"` to `“`/`”`), apostrophes (`'` to `’`), en/em dashes (`--` to `–`, `---` to `—`), and ellipses (`...` to `…`) outside code/math blocks.
+  - Verification: `SmartPunctuationServiceTests.cs`.
+
+### [ ] 43. Document Word Cloud Data Generator Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/WordCloudGeneratorService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/WordCloudGeneratorServiceTests.cs`
+- **Goal**:
+  - Generate weighted word frequency data with font size scaling metrics for word cloud visualization, excluding stop words and markdown formatting.
+  - Verification: `WordCloudGeneratorServiceTests.cs`.
+
+### [ ] 44. Markdown Code Snippet Dependency Sniffer
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/CodeSnippetDependencySnifferService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeSnippetDependencySnifferServiceTests.cs`
+- **Goal**:
+  - Detect imported libraries and dependencies inside code blocks (`import`, `require`, `#include`, `using`) and build a list of external packages referenced in the document.
+  - Verification: `CodeSnippetDependencySnifferServiceTests.cs`.
+
+### [ ] 45. Image Metadata & Exif Stripper Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ImageExifStripperService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ImageExifStripperServiceTests.cs`
+- **Goal**:
+  - Strip privacy-sensitive EXIF metadata (GPS, camera model, timestamp) from embedded images prior to export.
+  - Verification: `ImageExifStripperServiceTests.cs`.
+
+### [ ] 46. Markdown Document Summarizer & Excerpt Generator
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/DocumentExcerptService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentExcerptServiceTests.cs`
+- **Goal**:
+  - Generate a concise 1-2 sentence plain-text summary or excerpt from the opening paragraphs of a Markdown document, stripping formatting and media.
+  - Verification: `DocumentExcerptServiceTests.cs`.
+
+### [ ] 47. Relative Link Resolver & Path Normalizer Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/RelativeLinkResolverService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/RelativeLinkResolverServiceTests.cs`
+- **Goal**:
+  - Resolve relative file links (`./doc.md`, `../img.png`) against a document root directory into normalized absolute file paths.
+  - Verification: `RelativeLinkResolverServiceTests.cs`.
+
+### [ ] 48. Markdown Task List Progress Calculator Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/TaskListProgressService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/TaskListProgressServiceTests.cs`
+- **Goal**:
+  - Parse `- [ ]` and `- [x]` task list items across the document, calculating overall completed count, total count, and completion percentage metric.
+  - Verification: `TaskListProgressServiceTests.cs`.
+
+### [ ] 49. Document Outline Depth Filtering Service
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/OutlineFilterService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/OutlineFilterServiceTests.cs`
+- **Goal**:
+  - Filter a TOC or heading outline by maximum depth (e.g. H1..H3 only) and prune empty sub-trees.
+  - Verification: `OutlineFilterServiceTests.cs`.
+
+### [ ] 50. Markdown Block Quote Stylizer & Callout Transformer
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/BlockquoteTransformerService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/BlockquoteTransformerServiceTests.cs`
+- **Goal**:
+  - Transform GitHub-style blockquote callouts (`> [!NOTE]`, `> [!WARNING]`, `> [!TIP]`) into custom CSS alert container elements.
+  - Verification: `BlockquoteTransformerServiceTests.cs`.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -301,3 +381,4 @@
 - **2026-07-27 19:45**: Antigravity — Task 38 completed (ReadabilityAnalyzerService Flesch Reading Ease & Grade Level readability complexity calculator + unit tests). Suite: 967 passed / 0 failed / 21 skipped / 988 total.
 - **2026-07-27 20:00**: Antigravity — Task 39 completed (CitationEngineService inline citation parser + bibliography generator + unit tests). Suite: 970 passed / 0 failed / 21 skipped / 991 total.
 - **2026-07-27 20:15**: Antigravity — Task 40 completed (TagExtractorService hashtag & key phrase extractor + unit tests). Suite: 973 passed / 0 failed / 21 skipped / 994 total.
+- **2026-07-27 20:30**: Antigravity — Task 41 completed (TocAnchorInjectorService heading anchor slug generator & TOC injector + unit tests).
