@@ -214,6 +214,21 @@
   - Auto-format raw ASCII Markdown tables by aligning column widths, padding cell spaces, and normalizing alignment specifiers.
   - Verification: `TableFormatterServiceTests.cs`.
 
+### [x] 35. Document Template Presets & Snippets Gallery Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/DocumentTemplateGalleryService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentTemplateGalleryServiceTests.cs`
+- **Goal**:
+  - Provide built-in Markdown document templates (Academic Paper, Technical Specification, Executive Brief, Meeting Minutes) with variable interpolation (`{{title}}`, `{{author}}`, `{{date}}`).
+  - Verification: `DocumentTemplateGalleryServiceTests.cs`.
+
+### [ ] 36. Markdown Link Integrity & Broken Reference Analyzer
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/LinkIntegrityAnalyzerService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/LinkIntegrityAnalyzerServiceTests.cs`
+- **Goal**:
+  - Parse Markdown document links and anchor references (`#section-id`, `[text][ref]`) and validate internal header anchor existence and local file path validity.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -247,3 +262,4 @@
 - **2026-07-27 16:30**: Antigravity — Task 32 completed (CodeBlockHighlighterService code fence line numbering + range line highlighting parser + HTML line wrapper + unit tests). Suite: 948 passed / 0 failed / 21 skipped / 969 total.
 - **2026-07-27 18:45**: Antigravity — Task 33 completed (SpellCheckService tokenized Markdown spell checker + Levenshtein edit distance suggestions + code/math block skipping + unit tests).
 - **2026-07-27 18:46**: Antigravity — Task 34 completed (TableFormatterService ASCII Markdown table column aligner + cell padding engine + alignment specifier preservation + unit tests). Suite: 952 passed / 0 failed / 21 skipped / 973 total.
+- **2026-07-27 19:00**: Antigravity — Task 35 completed (DocumentTemplateGalleryService built-in document templates + variable interpolation + unit tests).
