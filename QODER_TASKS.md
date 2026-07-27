@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Active Priority Tasks (Cycle 11 & 12)
+## 🚀 Active Priority Tasks (Cycle 12 & 13)
 
 ### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
@@ -67,15 +67,11 @@
 ### [x] 17. Interactive Document Outline / TOC Navigation Flyout
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/TocExtractorService.cs`
-  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
-  - `marksmith-v2/MdToPdf/MainWindow.xaml` (Outline button + TocList flyout)
-  - `marksmith-v2/MdToPdf/MainWindow.xaml.cs` (OnTocItemClick scroll + refresh hook)
-  - `marksmith-v2/MdToPdf/Converters/LevelToIndentConverter.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/TocExtractorServiceTests.cs`
+  - `marksmith-v2/MdToPdf/Views/TocFlyoutControl.xaml`
 - **Goal**:
   - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
   - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
-  - Verification: 11 unit tests in `TocExtractorServiceTests.cs` (level/order extraction, Markdig AutoIdentifier anchors match rendered HTML ids, duplicate disambiguation, fenced-code exclusion, inline-markup stripping). Suite: 905 passed / 0 failed / 926 total.
+  - Verification: 11 unit tests in `TocExtractorServiceTests.cs`. Suite: 905 passed / 0 failed / 926 total.
 
 ### [x] 18. PDF Password Encryption & Security Policy Engine
 - **Target Files**:
@@ -86,7 +82,7 @@
   - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfSecurityServiceTests.cs`
 - **Goal**:
   - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
-  - Verification: 23 unit tests in `PdfSecurityServiceTests.cs` (policy build/validation, 32-byte password limit, PDFsharp encrypt round-trip, owner/user reopen, wrong-password rejection, permission restriction). Suite: 894 passed / 0 failed / 915 total.
+  - Verification: 23 unit tests in `PdfSecurityServiceTests.cs`. Suite: 894 passed / 0 failed / 915 total.
 
 ### [ ] 19. Custom PDF Watermark & Classification Stamp Engine
 - **Target Files**:
@@ -104,6 +100,13 @@
 - **Goal**:
   - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, and custom cover image embedding.
 
+### [ ] 21. MS Word-Styled HTML Tabbed Content Rendering Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/MarkdownHtmlService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/NativeTabsTests.cs`
+- **Goal**:
+  - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders, clean tab headers, subtle drop shadows, and print-optimized active tab visibility for PDF printing).
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -115,9 +118,9 @@
 - **2026-07-27 06:01**: Cycle 5 — Task 9 completed. Suite: 784 passed / 0 failed / 21 skipped / 805 total.
 - **2026-07-27 07:15**: Cycle 6 — Task 10 completed. Suite: 798 passed / 0 failed / 21 skipped / 819 total.
 - **2026-07-27 07:20**: Cycle 6 — Task 11 completed.
-- **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 21 skipped / 836 total.
-- **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 21 skipped / 841 total.
-- **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 21 skipped / 860 total.
-- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 21 skipped / 892 total.
-- **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total. Cycle 12 queued — Tasks 19 & 20 added.
-- **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
+- **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 836 total.
+- **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 841 total.
+- **2026-07-27 08:16**: Cycle 9 — Task 15 completed (HistoryEntry export telemetry journal + 19 unit tests). Suite: 839 passed / 0 failed / 860 total.
+- **2026-07-27 08:32**: Cycle 10 — Task 16 completed (FontManagerService typography presets + TTF/OTF @font-face embedding + Settings picker + 32 unit tests). Suite: 871 passed / 0 failed / 892 total.
+- **2026-07-27 09:08**: Cycle 11 — Task 18 completed (PdfSecurityService password protection + access-control permissions via PDFsharp post-export encryption + 23 unit tests). Suite: 894 passed / 0 failed / 21 skipped / 915 total.
+- **2026-07-27 09:30**: Cycle 12 — Task 17 completed (TocExtractorService Markdig-AST outline + interactive Outline flyout with click-to-scroll preview + LevelToIndentConverter + 11 unit tests). Suite: 905 passed / 0 failed / 21 skipped / 926 total. Cycle 13 queued — Task 21 added (MS Word-Styled HTML Tabbed Content Rendering).
