@@ -11,7 +11,7 @@ using MdToPdf.Models;
 
 namespace MdToPdf.Services;
 
-// Unified cloud-storage publishing (Task 9). The folder-sync providers (OneDrive, Google Drive,
+// Unified cloud-storage publishing (Task 9 & Task 22). The folder-sync providers (OneDrive, Google Drive,
 // Dropbox, Box, iCloud) are detected by locating their local sync directory on this machine;
 // "publishing" is then just a file copy into that directory and the provider's own desktop client
 // syncs it up to the cloud. WebDAV / Nextcloud is endpoint-driven instead (an authenticated HTTP
@@ -34,16 +34,12 @@ public sealed class CloudStorageService
     private static CloudProviderInfo Make(string id, string name, string root, string source) =>
         new() { Id = id, DisplayName = name, SyncRoot = root, Detected = true, DetectionSource = source };
 
-    // Adds a detected provider unless the same sync root is already listed (Dropbox's info.json
-    // usually points at the same folder as the default path — we don't want to show it twice).
     private static void AddDistinct(List<CloudProviderInfo> list, CloudProviderInfo p)
     {
         if (!list.Any(x => string.Equals(x.SyncRoot, p.SyncRoot, StringComparison.OrdinalIgnoreCase)))
             list.Add(p);
     }
 
-    // Reads the Dropbox desktop client's info.json to find the real sync root (it can be relocated
-    // off the default path). Returns null when the file is missing or malformed.
     private static string? ReadDropboxRoot(string? infoPath)
     {
         if (infoPath is null || !File.Exists(infoPath)) return null;
@@ -60,14 +56,11 @@ public sealed class CloudStorageService
         catch { return null; }
     }
 
-    // Scans the machine for known cloud-drive sync folders and returns one entry per provider found
-    // (plus an always-present, never-"detected" WebDAV entry so the Settings UI can offer it).
     public IReadOnlyList<CloudProviderInfo> DetectProviders()
     {
         var result = new List<CloudProviderInfo>();
         var up = UserProfile;
 
-        // OneDrive — the personal folder plus any "OneDrive - <tenant>" business folders.
         if (!string.IsNullOrEmpty(up))
         {
             var personal = Path.Combine(up, "OneDrive");
@@ -80,7 +73,6 @@ public sealed class CloudStorageService
             catch { /* enumerating the profile root is best-effort */ }
         }
 
-        // Google Drive — the desktop app's folder, or the mapped "My Drive" volume.
         if (!string.IsNullOrEmpty(up))
         {
             var gd = Path.Combine(up, "Google Drive");
@@ -89,7 +81,6 @@ public sealed class CloudStorageService
         const string gVolume = @"G:\My Drive";
         if (Directory.Exists(gVolume)) AddDistinct(result, Make("googledrive", "Google Drive", gVolume, "G: volume"));
 
-        // Dropbox — the default folder, or the path recorded by the client in info.json.
         if (!string.IsNullOrEmpty(up))
         {
             var db = Path.Combine(up, "Dropbox");
@@ -100,7 +91,6 @@ public sealed class CloudStorageService
         if (infoRoot is not null && Directory.Exists(infoRoot))
             AddDistinct(result, Make("dropbox", "Dropbox", infoRoot, "info.json"));
 
-        // Box and iCloud Drive.
         if (!string.IsNullOrEmpty(up))
         {
             var box = Path.Combine(up, "Box");
@@ -109,7 +99,6 @@ public sealed class CloudStorageService
             if (Directory.Exists(icloud)) AddDistinct(result, Make("icloud", "iCloud Drive", icloud, "default path"));
         }
 
-        // WebDAV / Nextcloud is configured by endpoint, never detected locally — always offered.
         result.Add(new CloudProviderInfo
         {
             Id = "webdav",
@@ -121,7 +110,6 @@ public sealed class CloudStorageService
         return result;
     }
 
-    // Returns the detected sync root for a provider id, or null when it isn't present on this machine.
     public string? ResolveSyncRoot(string providerId)
     {
         if (string.IsNullOrWhiteSpace(providerId)) return null;
@@ -129,8 +117,6 @@ public sealed class CloudStorageService
             p.Detected && string.Equals(p.Id, providerId, StringComparison.OrdinalIgnoreCase))?.SyncRoot;
     }
 
-    // Copies an exported file into the provider's local sync folder (under an optional subfolder) and
-    // returns the destination path. The provider's desktop client takes it from there.
     public string PublishToLocal(string filePath, string providerId, string subfolder)
     {
         var root = ResolveSyncRoot(providerId)
@@ -142,14 +128,19 @@ public sealed class CloudStorageService
         return dest;
     }
 
-    // Uploads a file to a WebDAV / Nextcloud endpoint with an authenticated HTTP PUT. Uses Basic auth
-    // when both a user and a token/password are supplied, Bearer when only a token is, and anonymous
-    // otherwise. Returns true on any 2xx response.
-    public async Task<bool> UploadToWebDavAsync(string filePath, string endpoint, string? user, string? token)
+    public async Task<bool> UploadToWebDavAsync(string filePath, string endpoint, string? user, string? token, string? subfolder = null)
     {
         if (string.IsNullOrWhiteSpace(endpoint)) return false;
-        var baseUri = endpoint.EndsWith("/", StringComparison.Ordinal) ? endpoint : endpoint + "/";
-        var target = new Uri(new Uri(baseUri), Path.GetFileName(filePath));
+        var baseUriStr = endpoint.EndsWith("/", StringComparison.Ordinal) ? endpoint : endpoint + "/";
+        if (!string.IsNullOrWhiteSpace(subfolder))
+        {
+            var cleanSub = subfolder.Trim('/', '\\');
+            if (cleanSub.Length > 0)
+            {
+                baseUriStr += cleanSub + "/";
+            }
+        }
+        var target = new Uri(new Uri(baseUriStr), Path.GetFileName(filePath));
 
         using var client = new HttpClient(_handlerFactory());
         if (!string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(token))
@@ -161,14 +152,40 @@ public sealed class CloudStorageService
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-CloudPublisher/2.0");
 
         using var content = new ByteArrayContent(await File.ReadAllBytesAsync(filePath));
         var resp = await client.PutAsync(target, content);
         return resp.IsSuccessStatusCode;
     }
 
-    // One-call dispatch used by the export pipeline: route to the local sync-folder copy or the WebDAV
-    // PUT based on the chosen provider. Returns the destination (path or endpoint) or null on failure.
+    public async Task<bool> TestConnectionAsync(string endpoint, string? user, string? token)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint)) return false;
+        try
+        {
+            using var client = new HttpClient(_handlerFactory());
+            if (!string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(token))
+            {
+                var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{token}"));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basic);
+            }
+            else if (!string.IsNullOrWhiteSpace(token))
+            {
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-CloudPublisher/2.0");
+
+            var req = new HttpRequestMessage(HttpMethod.Head, endpoint);
+            var resp = await client.SendAsync(req);
+            return resp.IsSuccessStatusCode || resp.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task<string?> PublishAsync(
         string filePath,
         string providerId,
@@ -180,7 +197,7 @@ public sealed class CloudStorageService
         if (string.IsNullOrWhiteSpace(providerId)) return null;
         if (string.Equals(providerId, "webdav", StringComparison.OrdinalIgnoreCase))
         {
-            var ok = await UploadToWebDavAsync(filePath, webDavEndpoint, webDavUser, webDavToken);
+            var ok = await UploadToWebDavAsync(filePath, webDavEndpoint, webDavUser, webDavToken, subfolder);
             return ok ? webDavEndpoint : null;
         }
         return PublishToLocal(filePath, providerId, subfolder);
