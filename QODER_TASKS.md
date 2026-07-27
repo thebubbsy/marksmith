@@ -142,6 +142,20 @@
   - Build multi-file batch export runner supporting directory globs (`*.md`) and multi-format output targets (`pdf`, `docx`, `epub`).
   - Verification: `BatchExportRunnerTests.cs`. Suite: 918 passed / 0 failed / 21 skipped / 939 total.
 
+### [ ] 26. Async Export Telemetry & Detailed Metric Diagnostics
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ExportDiagnosticsService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ExportDiagnosticsServiceTests.cs`
+- **Goal**:
+  - Track per-export step latency breakdown (markdown parsing, image embedding, layout generation, PDF rendering) and memory allocation metrics.
+
+### [ ] 27. Custom CSS Injection & User Theme Stylesheet Manager
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/UserThemeStylesheetService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/UserThemeStylesheetServiceTests.cs`
+- **Goal**:
+  - Build user CSS stylesheet manager that validates, scopes, and injects custom user CSS overrides into HTML, PDF, and EPUB export pipelines.
+
 ---
 
 ## 📌 History & Completed Tasks
