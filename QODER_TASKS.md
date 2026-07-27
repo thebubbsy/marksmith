@@ -150,12 +150,13 @@
   - Track per-export step latency breakdown (markdown parsing, image embedding, layout generation, PDF rendering) and memory allocation metrics.
   - Verification: `ExportDiagnosticsServiceTests.cs`. Suite: 919 passed / 0 failed / 21 skipped / 940 total.
 
-### [ ] 27. Custom CSS Injection & User Theme Stylesheet Manager
+### [x] 27. Custom CSS Injection & User Theme Stylesheet Manager
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/UserThemeStylesheetService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/UserThemeStylesheetServiceTests.cs`
 - **Goal**:
   - Build user CSS stylesheet manager that validates, scopes, and injects custom user CSS overrides into HTML, PDF, and EPUB export pipelines.
+  - Verification: `UserThemeStylesheetServiceTests.cs`. Suite: 922 passed / 0 failed / 21 skipped / 943 total.
 
 ---
 
@@ -182,3 +183,4 @@
 - **2026-07-27 14:15**: Antigravity — Task 24 completed (MathMacroService pre-expands \newcommand{\name}{body} and \def\name{body} TeX macros in Markdown math blocks + unit tests). Suite: 916 passed / 0 failed / 21 skipped / 937 total.
 - **2026-07-27 14:30**: Antigravity — Task 25 completed (BatchExportRunner multi-file batch export runner supporting directory globs and multi-format HTML, DOCX, EPUB outputs + unit tests). Suite: 918 passed / 0 failed / 21 skipped / 939 total.
 - **2026-07-27 14:45**: Antigravity — Task 26 completed (ExportDiagnosticsService per-step latency and memory allocation telemetry tracker + unit tests). Suite: 919 passed / 0 failed / 21 skipped / 940 total.
+- **2026-07-27 14:47**: Antigravity — Task 27 completed (UserThemeStylesheetService custom CSS scoping, sanitization of dangerous expressions, and HTML head injection + unit tests). Suite: 922 passed / 0 failed / 21 skipped / 943 total.
