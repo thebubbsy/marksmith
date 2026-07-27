@@ -222,12 +222,13 @@
   - Provide built-in Markdown document templates (Academic Paper, Technical Specification, Executive Brief, Meeting Minutes) with variable interpolation (`{{title}}`, `{{author}}`, `{{date}}`).
   - Verification: `DocumentTemplateGalleryServiceTests.cs`.
 
-### [ ] 36. Markdown Link Integrity & Broken Reference Analyzer
+### [x] 36. Markdown Link Integrity & Broken Reference Analyzer
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/LinkIntegrityAnalyzerService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/LinkIntegrityAnalyzerServiceTests.cs`
 - **Goal**:
   - Parse Markdown document links and anchor references (`#section-id`, `[text][ref]`) and validate internal header anchor existence and local file path validity.
+  - Verification: `LinkIntegrityAnalyzerServiceTests.cs`.
 
 ---
 
@@ -263,3 +264,4 @@
 - **2026-07-27 18:45**: Antigravity — Task 33 completed (SpellCheckService tokenized Markdown spell checker + Levenshtein edit distance suggestions + code/math block skipping + unit tests).
 - **2026-07-27 18:46**: Antigravity — Task 34 completed (TableFormatterService ASCII Markdown table column aligner + cell padding engine + alignment specifier preservation + unit tests). Suite: 952 passed / 0 failed / 21 skipped / 973 total.
 - **2026-07-27 19:00**: Antigravity — Task 35 completed (DocumentTemplateGalleryService built-in document templates + variable interpolation + unit tests). Suite: 958 passed / 0 failed / 21 skipped / 979 total.
+- **2026-07-27 19:15**: Antigravity — Task 36 completed (LinkIntegrityAnalyzerService Markdown link & anchor reference validator + unit tests).
