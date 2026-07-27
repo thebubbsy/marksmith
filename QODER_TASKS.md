@@ -246,6 +246,14 @@
   - Calculate Flesch Reading Ease and Flesch-Kincaid Grade Level scores for Markdown documents while ignoring code blocks, math expressions, and raw HTML tags.
   - Verification: `ReadabilityAnalyzerServiceTests.cs`.
 
+### [x] 39. Markdown Citation & Bibliography Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/CitationEngineService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/CitationEngineServiceTests.cs`
+- **Goal**:
+  - Parse inline citations ([@citekey]), resolve key metadata dictionary, format inline numeric/author-year citations, and generate an end-of-document formatted References / Bibliography section.
+  - Verification: `CitationEngineServiceTests.cs`.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -283,3 +291,4 @@
 - **2026-07-27 19:15**: Antigravity — Task 36 completed (LinkIntegrityAnalyzerService Markdown link & anchor reference validator + unit tests). Suite: 961 passed / 0 failed / 21 skipped / 982 total.
 - **2026-07-27 19:30**: Antigravity — Task 37 completed (MarkdownDiffService line-by-line semantic LCS diff engine + unit tests). Suite: 964 passed / 0 failed / 21 skipped / 985 total.
 - **2026-07-27 19:45**: Antigravity — Task 38 completed (ReadabilityAnalyzerService Flesch Reading Ease & Grade Level readability complexity calculator + unit tests). Suite: 967 passed / 0 failed / 21 skipped / 988 total.
+- **2026-07-27 20:00**: Antigravity — Task 39 completed (CitationEngineService inline citation parser + bibliography generator + unit tests).
