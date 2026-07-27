@@ -110,12 +110,13 @@
   - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders `#0078D4`, clean tab headers, subtle drop shadows, keyboard arrow key navigation, ARIA tab roles, and print-optimized active tab visibility for PDF printing).
   - Verification: `NativeTabsTests.cs`. Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 
-### [ ] 22. WebDAV & Cloud Export Provider Transport Engine
+### [x] 22. WebDAV & Cloud Export Provider Transport Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/CloudStorageService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/CloudStorageServiceTests.cs`
 - **Goal**:
-  - Expand CloudStorageService to support WebDAV endpoint authentication (HTTP Basic / Bearer token) and automated remote upload of generated PDF, DOCX, and EPUB artifacts to user-configured WebDAV subfolders.
+  - Expand CloudStorageService to support WebDAV endpoint authentication (HTTP Basic / Bearer token), subfolder path resolution, `TestConnectionAsync` endpoint health checks, and automated remote upload of generated PDF, DOCX, and EPUB artifacts to user-configured WebDAV subfolders.
+  - Verification: `CloudStorageServiceTests.cs`. Suite: 910 passed / 0 failed / 21 skipped / 931 total.
 
 ### [ ] 23. Dynamic Header & Footer Page Template Interpolator
 - **Target Files**:
@@ -144,3 +145,4 @@
 - **2026-07-27 13:45**: Antigravity — Task 21 completed (MS Word-Styled HTML Tabbed Content Rendering Engine with `#0078D4` ribbon active border, ARIA tab roles, keyboard arrow navigation, fade micro-animation, and print rules). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:47**: Antigravity — Task 19 completed (PdfWatermarkService post-export diagonal text and classification stamp engine via PDFsharp + 3 unit tests in `PdfWatermarkServiceTests.cs`). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:51**: Antigravity — Task 20 completed (EpubExportService metadata fields for Title, Author, Publisher, Identifier/ISBN, Description, Rights, and custom cover image embedding + unit tests). Suite: 909 passed / 0 failed / 21 skipped / 930 total.
+- **2026-07-27 14:01**: Antigravity — Task 22 completed (CloudStorageService WebDAV subfolder path resolution, User-Agent header, and TestConnectionAsync health check endpoint verification + unit tests). Suite: 910 passed / 0 failed / 21 skipped / 931 total.

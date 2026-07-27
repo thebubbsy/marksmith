@@ -286,10 +286,24 @@ public class CloudStorageServiceTests : IDisposable
         var src = Path.Combine(_root, "w.epub");
         File.WriteAllText(src, "book");
 
-        var result = await svc.PublishAsync(src, "webdav", "ignored", "https://cloud.example.com/dav/", "u", "p");
+        var result = await svc.PublishAsync(src, "webdav", "exports", "https://cloud.example.com/dav/", "u", "p");
 
         Assert.Equal("https://cloud.example.com/dav/", result);
         Assert.NotNull(handler.LastRequest);
+        Assert.Equal("https://cloud.example.com/dav/exports/w.epub", handler.LastRequest!.RequestUri?.ToString());
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_returns_true_on_successful_head_request()
+    {
+        var handler = new FakeHandler { Status = HttpStatusCode.OK };
+        var svc = ServiceWith(handler);
+
+        var ok = await svc.TestConnectionAsync("https://cloud.example.com/dav/", "user", "token");
+
+        Assert.True(ok);
+        Assert.NotNull(handler.LastRequest);
+        Assert.Equal(HttpMethod.Head, handler.LastRequest!.Method);
     }
 
     [Fact]
