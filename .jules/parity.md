@@ -1,0 +1,3 @@
+## 2024-07-27 - [Fix Interactive Tabbed Blocks Parity (ISS-015)]
+**Learning:** Hardcoded styling values inside the Docx exporter (`DocxExportService.cs`) for features like tabs easily diverge from the HTML/Live Preview configurations that dynamically use the current theme (via `ThemeCatalog`).
+**Action:** When migrating complex HTML structure (e.g. `md-tab-link.active`) with overlapping borders (like `-1px margin-bottom`), mimic the visual stacking in DOCX by carefully combining `TopBorder` (for the active tab highlight) and `BottomBorder` colored as `ctx.Theme.Background` alongside dynamic matching text/fill colors drawn directly from `ctx.Theme`. Ensure hardcoded hex strings are removed where possible.

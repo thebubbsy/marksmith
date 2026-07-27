@@ -1295,22 +1295,40 @@ public sealed class DocxExportService
             var cellProps = new W.TableCellProperties(
                 new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = cellWidth.ToString() },
                 new W.TableCellBorders(
-                    new W.TopBorder { Val = W.BorderValues.None },
-                    new W.LeftBorder { Val = W.BorderValues.None },
+                    new W.TopBorder
+                    {
+                        Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
+                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 18U : 0U),
+                        Space = 0,
+                        Color = isActive ? ctx.HeadingHex : "auto"
+                    },
+                    new W.LeftBorder
+                    {
+                        Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
+                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 6U : 0U),
+                        Space = 0,
+                        Color = isActive ? ctx.BorderHex : "auto"
+                    },
                     new W.BottomBorder
                     {
                         Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
-                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 12U : 0U),
+                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 6U : 0U),
                         Space = 0,
-                        Color = isActive ? (ctx.PrimaryHex ?? "2563EB") : "auto"
+                        Color = isActive ? ctx.Theme.Background.TrimStart('#') : "auto"
                     },
-                    new W.RightBorder { Val = W.BorderValues.None }
+                    new W.RightBorder
+                    {
+                        Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
+                        Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 6U : 0U),
+                        Space = 0,
+                        Color = isActive ? ctx.BorderHex : "auto"
+                    }
                 ),
                 new W.Shading
                 {
                     Val = W.ShadingPatternValues.Clear,
                     Color = "auto",
-                    Fill = isActive ? "EBF3FE" : "F8F9FA"
+                    Fill = isActive ? ctx.Theme.Background.TrimStart('#') : ctx.SecondaryHex
                 }
             );
             cell.Append(cellProps);
@@ -1321,7 +1339,7 @@ public sealed class DocxExportService
             ));
 
             var hyperlink = new W.Hyperlink { Anchor = bookmarkName, History = true };
-            AddText(hyperlink, tabTitle, new Fmt { Bold = isActive, Color = isActive ? (ctx.PrimaryHex ?? "1E293B") : "64748B" });
+            AddText(hyperlink, tabTitle, new Fmt { Bold = isActive, Color = isActive ? ctx.HeadingHex : ctx.Theme.Text.TrimStart('#') });
             p.Append(hyperlink);
             cell.Append(p);
             row.Append(cell);
