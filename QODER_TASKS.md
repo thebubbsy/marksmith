@@ -126,6 +126,20 @@
   - Build template token interpolator (`{page}`, `{pages}`, `{title}`, `{date}`, `{time}`, `{author}`) for custom header/footer HTML templates during Chromium PDF rendering.
   - Verification: `HeaderFooterTemplateServiceTests.cs`. Suite: 912 passed / 0 failed / 21 skipped / 933 total.
 
+### [ ] 24. MathJax & KaTeX Math Macro Preprocessor Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/MathMacroService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/MathMacroServiceTests.cs`
+- **Goal**:
+  - Add inline custom TeX/LaTeX macro definitions (`\newcommand` / `\def`) expansion preprocessor for Markdown math blocks (`$$ ... $$`).
+
+### [ ] 25. Export Batch & Command-Line CLI Runner
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/BatchExportRunner.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/BatchExportRunnerTests.cs`
+- **Goal**:
+  - Build multi-file batch export runner supporting directory globs (`*.md`) and multi-format output targets (`pdf`, `docx`, `epub`).
+
 ---
 
 ## 📌 History & Completed Tasks
