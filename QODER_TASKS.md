@@ -190,12 +190,13 @@
   - Process inline Markdown footnotes (`[^1]`) and definitions (`[^1]: Footnote text`), re-numbering sequentially, generating back-links, and embedding footnote sections in HTML, PDF, and DOCX exports.
   - Verification: `FootnoteServiceTests.cs`.
 
-### [ ] 32. Smart Code Snippet Line Numbering & Line Highlighting Synthesizer
+### [x] 32. Smart Code Snippet Line Numbering & Line Highlighting Synthesizer
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/CodeBlockHighlighterService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeBlockHighlighterServiceTests.cs`
 - **Goal**:
   - Parse fence attributes (e.g. ````csharp {1,3-5} showLineNumbers````) to add line numbers and highlighted line background accents in code snippets across preview and PDF/HTML output.
+  - Verification: `CodeBlockHighlighterServiceTests.cs`.
 
 ---
 
@@ -226,4 +227,5 @@
 - **2026-07-27 15:00**: Antigravity — Task 28 completed (FrontmatterService YAML frontmatter block parser returning metadata dictionary + stripped markdown body + unit tests). Suite: 924 passed / 0 failed / 21 skipped / 945 total.
 - **2026-07-27 15:30**: Antigravity — Task 29 completed (ClipboardNormalizerService rich text HTML clipboard converter to clean Markdown + unit tests). Suite: 934 passed / 0 failed / 21 skipped / 955 total.
 - **2026-07-27 15:47**: Antigravity — Task 30 completed (DocumentRecoveryVault local storage snapshot auto-saver + crash recovery manager + unit tests). Suite: 939 passed / 0 failed / 21 skipped / 960 total.
-- **2026-07-27 16:15**: Antigravity — Task 31 completed (FootnoteService inline footnote parser + sequential re-indexing + footnote section builder + unit tests).
+- **2026-07-27 16:15**: Antigravity — Task 31 completed (FootnoteService inline footnote parser + sequential re-indexing + footnote section builder + unit tests). Suite: 944 passed / 0 failed / 21 skipped / 965 total.
+- **2026-07-27 16:30**: Antigravity — Task 32 completed (CodeBlockHighlighterService code fence line numbering + range line highlighting parser + HTML line wrapper + unit tests).
