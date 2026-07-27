@@ -254,6 +254,14 @@
   - Parse inline citations ([@citekey]), resolve key metadata dictionary, format inline numeric/author-year citations, and generate an end-of-document formatted References / Bibliography section.
   - Verification: `CitationEngineServiceTests.cs`.
 
+### [x] 40. Markdown Keyword & Tag Extractor Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/TagExtractorService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/TagExtractorServiceTests.cs`
+- **Goal**:
+  - Extract hashtags (#tag, #multi-word-tag) and high-frequency TF-IDF key phrases from Markdown content while ignoring code fences, inline code, and URLs.
+  - Verification: `TagExtractorServiceTests.cs`.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -292,3 +300,4 @@
 - **2026-07-27 19:30**: Antigravity — Task 37 completed (MarkdownDiffService line-by-line semantic LCS diff engine + unit tests). Suite: 964 passed / 0 failed / 21 skipped / 985 total.
 - **2026-07-27 19:45**: Antigravity — Task 38 completed (ReadabilityAnalyzerService Flesch Reading Ease & Grade Level readability complexity calculator + unit tests). Suite: 967 passed / 0 failed / 21 skipped / 988 total.
 - **2026-07-27 20:00**: Antigravity — Task 39 completed (CitationEngineService inline citation parser + bibliography generator + unit tests). Suite: 970 passed / 0 failed / 21 skipped / 991 total.
+- **2026-07-27 20:15**: Antigravity — Task 40 completed (TagExtractorService hashtag & key phrase extractor + unit tests).
