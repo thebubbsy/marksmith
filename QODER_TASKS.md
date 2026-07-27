@@ -118,12 +118,13 @@
   - Expand CloudStorageService to support WebDAV endpoint authentication (HTTP Basic / Bearer token), subfolder path resolution, `TestConnectionAsync` endpoint health checks, and automated remote upload of generated PDF, DOCX, and EPUB artifacts to user-configured WebDAV subfolders.
   - Verification: `CloudStorageServiceTests.cs`. Suite: 910 passed / 0 failed / 21 skipped / 931 total.
 
-### [ ] 23. Dynamic Header & Footer Page Template Interpolator
+### [x] 23. Dynamic Header & Footer Page Template Interpolator
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
   - `marksmith-v2/MdToPdf.Core/Services/HeaderFooterTemplateService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/HeaderFooterTemplateServiceTests.cs`
 - **Goal**:
-  - Build template token interpolator ({page}, {pages}, {title}, {date}, {time}, {author}) for custom header/footer HTML templates during Chromium PDF rendering.
+  - Build template token interpolator (`{page}`, `{pages}`, `{title}`, `{date}`, `{time}`, `{author}`) for custom header/footer HTML templates during Chromium PDF rendering.
+  - Verification: `HeaderFooterTemplateServiceTests.cs`. Suite: 912 passed / 0 failed / 21 skipped / 933 total.
 
 ---
 
@@ -146,3 +147,4 @@
 - **2026-07-27 13:47**: Antigravity — Task 19 completed (PdfWatermarkService post-export diagonal text and classification stamp engine via PDFsharp + 3 unit tests in `PdfWatermarkServiceTests.cs`). Suite: 905 passed / 0 failed / 21 skipped / 926 total.
 - **2026-07-27 13:51**: Antigravity — Task 20 completed (EpubExportService metadata fields for Title, Author, Publisher, Identifier/ISBN, Description, Rights, and custom cover image embedding + unit tests). Suite: 909 passed / 0 failed / 21 skipped / 930 total.
 - **2026-07-27 14:01**: Antigravity — Task 22 completed (CloudStorageService WebDAV subfolder path resolution, User-Agent header, and TestConnectionAsync health check endpoint verification + unit tests). Suite: 910 passed / 0 failed / 21 skipped / 931 total.
+- **2026-07-27 14:03**: Antigravity — Task 23 completed (HeaderFooterTemplateService token interpolator for {page}, {pages}, {title}, {date}, {time}, {author} into Chromium PDF header/footer HTML + unit tests). Suite: 912 passed / 0 failed / 21 skipped / 933 total.
