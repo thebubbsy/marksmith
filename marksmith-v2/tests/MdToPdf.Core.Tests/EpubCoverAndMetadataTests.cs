@@ -219,4 +219,63 @@ public class EpubCoverAndMetadataTests
         Assert.Contains("<dc:description>A comprehensive guide to Marksmith v2</dc:description>", opf);
         Assert.Contains("<dc:rights>Copyright 2026 Jane Doe</dc:rights>", opf);
     }
+
+    [Fact]
+    public void Custom_Cover_Image_In_EpubMetadata_Is_Embedded_As_Cover()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "marksmith_epub_cover_" + Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+        var coverImgPath = Path.Combine(dir, "custom_cover.svg");
+        File.WriteAllText(coverImgPath, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"red\"/></svg>");
+
+        var meta = new EpubMetadata
+        {
+            CoverImagePath = coverImgPath
+        };
+
+        var epub = Path.Combine(dir, "book_cover.epub");
+        new EpubExportService().ExportAsync("# SVG Cover\n\nContent", epub, new AppSettings(), meta).GetAwaiter().GetResult();
+
+        using var zip = ZipFile.OpenRead(epub);
+        var svgEntry = zip.GetEntry("OEBPS/cover.svg");
+        Assert.NotNull(svgEntry);
+
+        var opf = ReadEntry(epub, "OEBPS/content.opf");
+        Assert.Contains("media-type=\"image/svg+xml\"", opf);
+        Assert.Contains("href=\"cover.svg\"", opf);
+    }
+
+    [Fact]
+    public void Front_Matter_Publisher_Isbn_Description_Rights_Are_Extracted()
+    {
+        var md = """
+            ---
+            title: Frontmatter Book
+            author: Author Name
+            publisher: Acme Press
+            isbn: 978-1-23-456789-0
+            description: An adventurous journey
+            rights: Public Domain
+            ---
+
+            # Chapter One
+
+            Once upon a time.
+            """;
+
+        var dir = Path.Combine(Path.GetTempPath(), "marksmith_epub_fm_" + Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+        var epub = Path.Combine(dir, "book_fm.epub");
+
+        new EpubExportService().ExportAsync(md, epub, new AppSettings()).GetAwaiter().GetResult();
+
+        var opf = ReadEntry(epub, "OEBPS/content.opf");
+        Assert.Contains("<dc:title>Frontmatter Book</dc:title>", opf);
+        Assert.Contains("<dc:creator>Author Name</dc:creator>", opf);
+        Assert.Contains("<dc:publisher>Acme Press</dc:publisher>", opf);
+        Assert.Contains("<dc:identifier id=\"bookid\">978-1-23-456789-0</dc:identifier>", opf);
+        Assert.Contains("<dc:description>An adventurous journey</dc:description>", opf);
+        Assert.Contains("<dc:rights>Public Domain</dc:rights>", opf);
+    }
 }
+
