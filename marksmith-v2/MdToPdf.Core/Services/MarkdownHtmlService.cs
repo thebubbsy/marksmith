@@ -603,13 +603,39 @@ public sealed partial class MarkdownHtmlService
                 const group = btn.closest(".md-tab-group");
                 if (!group) return;
 
-                group.querySelectorAll(".md-tab-link").forEach(b => b.classList.remove("active"));
-                group.querySelectorAll(".md-tab-content").forEach(c => c.classList.remove("active"));
+                group.querySelectorAll(".md-tab-link").forEach(b => {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                group.querySelectorAll(".md-tab-content").forEach(c => {
+                    c.classList.remove("active");
+                });
 
                 btn.classList.add("active");
+                btn.setAttribute("aria-selected", "true");
                 const target = group.querySelector("#" + targetId);
-                if (target) target.classList.add("active");
+                if (target) {
+                    target.classList.add("active");
+                }
             }
+
+            document.addEventListener("keydown", (e) => {
+                if (e.target && e.target.classList && e.target.classList.contains("md-tab-link")) {
+                    const nav = e.target.closest(".md-tab-nav");
+                    if (!nav) return;
+                    const tabs = Array.from(nav.querySelectorAll(".md-tab-link"));
+                    const idx = tabs.indexOf(e.target);
+                    if (e.key === "ArrowRight" && idx >= 0 && idx < tabs.length - 1) {
+                        e.preventDefault();
+                        tabs[idx + 1].focus();
+                        tabs[idx + 1].click();
+                    } else if (e.key === "ArrowLeft" && idx > 0) {
+                        e.preventDefault();
+                        tabs[idx - 1].focus();
+                        tabs[idx - 1].click();
+                    }
+                }
+            });
             </script>
             """ : "";
 
@@ -1175,15 +1201,17 @@ public sealed partial class MarkdownHtmlService
             .radar-beacon-ring:nth-child(2) { animation-delay: 0.4s; }
             @keyframes radarPulse { 0% { transform: scale(0.1); opacity: 1; } 80% { opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
             .issue-target-highlight { background: rgba(239, 68, 68, 0.25) !important; outline: 2px dashed #ef4444 !important; transition: background 0.5s ease; }
-            /* Interactive tabbed content (ISS-015): a real tab strip in the live preview; print
-               falls back to showing every tab's body so nothing is lost on paper. */
-            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Secondary}}; overflow: hidden; }
-            .md-tab-nav { display: flex; background: {{theme.Code}}; border-bottom: 1px solid {{theme.Border}}; padding: 4px 8px 0 8px; gap: 4px; }
-            .md-tab-link { padding: 8px 16px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease; }
-            .md-tab-link.active { background: {{theme.Background}}; color: {{theme.Primary}}; border-color: {{theme.Border}}; border-bottom: 2px solid {{theme.Primary}}; }
-            .md-tab-content { display: none; padding: 16px; }
+            /* Interactive tabbed content (ISS-015): MS Word Ribbon-style tab strip for live preview & print */
+            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Secondary}}; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); }
+            .md-tab-nav { display: flex; background: {{theme.Code}}; border-bottom: 1px solid {{theme.Border}}; padding: 6px 8px 0 8px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+            .md-tab-nav::-webkit-scrollbar { display: none; }
+            .md-tab-link { padding: 9px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; font-family: "Segoe UI", Calibri, sans-serif; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease-in-out; outline: none; user-select: none; }
+            .md-tab-link:hover { background: rgba(0, 120, 212, 0.08); color: #0078D4; }
+            .md-tab-link.active { background: {{theme.Background}}; color: #0078D4; border-color: {{theme.Border}}; border-top: 3px solid #0078D4; border-bottom: 1px solid {{theme.Background}}; font-weight: 700; margin-bottom: -1px; }
+            .md-tab-content { display: none; padding: 18px; animation: mdTabFade 0.15s ease-in-out; }
             .md-tab-content.active { display: block; }
-            @media print { .md-tab-content { display: block !important; border-top: 1px dashed {{theme.Border}}; } }
+            @keyframes mdTabFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+            @media print { .md-tab-content { display: block !important; border-top: 1px dashed {{theme.Border}}; page-break-inside: avoid; } }
             /* Looking Glass portal mode (ISS-004): the preview is the default surface; clicking
                opens a circular aperture revealing the editable Markdown source behind it through a
                fog-of-war blur (clear at the caret, blurring back to the preview). The ring/aperture
