@@ -198,12 +198,13 @@
   - Parse fence attributes (e.g. ````csharp {1,3-5} showLineNumbers````) to add line numbers and highlighted line background accents in code snippets across preview and PDF/HTML output.
   - Verification: `CodeBlockHighlighterServiceTests.cs`. Suite: 948 passed / 0 failed / 21 skipped / 969 total.
 
-### [ ] 33. Multi-Language Document Spell & Grammar Check Engine
+### [x] 33. Multi-Language Document Spell & Grammar Check Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/SpellCheckService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/SpellCheckServiceTests.cs`
 - **Goal**:
   - Tokenized Markdown spell checker skipping code blocks, math, and URLs, returning misspellings with suggested replacements.
+  - Verification: `SpellCheckServiceTests.cs`.
 
 ### [ ] 34. Markdown Table Auto-Formatter & Column Aligner Engine
 - **Target Files**:
@@ -242,4 +243,5 @@
 - **2026-07-27 15:30**: Antigravity — Task 29 completed (ClipboardNormalizerService rich text HTML clipboard converter to clean Markdown + unit tests). Suite: 934 passed / 0 failed / 21 skipped / 955 total.
 - **2026-07-27 15:47**: Antigravity — Task 30 completed (DocumentRecoveryVault local storage snapshot auto-saver + crash recovery manager + unit tests). Suite: 939 passed / 0 failed / 21 skipped / 960 total.
 - **2026-07-27 16:15**: Antigravity — Task 31 completed (FootnoteService inline footnote parser + sequential re-indexing + footnote section builder + unit tests). Suite: 944 passed / 0 failed / 21 skipped / 965 total.
-- **2026-07-27 16:30**: Antigravity — Task 32 completed (CodeBlockHighlighterService code fence line numbering + range line highlighting parser + HTML line wrapper + unit tests).
+- **2026-07-27 16:30**: Antigravity — Task 32 completed (CodeBlockHighlighterService code fence line numbering + range line highlighting parser + HTML line wrapper + unit tests). Suite: 948 passed / 0 failed / 21 skipped / 969 total.
+- **2026-07-27 18:45**: Antigravity — Task 33 completed (SpellCheckService tokenized Markdown spell checker + Levenshtein edit distance suggestions + code/math block skipping + unit tests).
