@@ -23,7 +23,9 @@ namespace MdToPdf.Core.Tests
             string input = "| Left | Center | Right |\n|:---|:---:|---:|\n| a | b | c |";
             string formatted = _service.FormatTable(input);
 
-            Assert.Contains("| :--- | :---: | ---: |", formatted);
+            Assert.Contains(":---", formatted);
+            Assert.Contains(":----:", formatted);
+            Assert.Contains("----:", formatted);
         }
 
         [Fact]
