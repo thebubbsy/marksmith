@@ -158,6 +158,28 @@
   - Build user CSS stylesheet manager that validates, scopes, and injects custom user CSS overrides into HTML, PDF, and EPUB export pipelines.
   - Verification: `UserThemeStylesheetServiceTests.cs`. Suite: 922 passed / 0 failed / 21 skipped / 943 total.
 
+### [x] 28. Markdown Frontmatter Metadata Parser Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/FrontmatterService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/FrontmatterServiceTests.cs`
+- **Goal**:
+  - Parse YAML frontmatter headers delimited by `---` at the top of Markdown documents, returning extracted metadata dictionary and stripped document content.
+  - Verification: `FrontmatterServiceTests.cs`. Suite: 924 passed / 0 failed / 21 skipped / 945 total.
+
+### [ ] 29. Rich Text Clipboard Copy/Paste Normalizer
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ClipboardNormalizerService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ClipboardNormalizerServiceTests.cs`
+- **Goal**:
+  - Normalize rich text HTML clipboard content into clean standard Markdown syntax during paste actions.
+
+### [ ] 30. Auto-Save Snapshot & Document Recovery Vault
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/DocumentRecoveryVault.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentRecoveryVaultTests.cs`
+- **Goal**:
+  - Implement periodic auto-save snapshot vault to local storage to prevent data loss during unexpected crashes or OS restarts.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -184,3 +206,4 @@
 - **2026-07-27 14:30**: Antigravity — Task 25 completed (BatchExportRunner multi-file batch export runner supporting directory globs and multi-format HTML, DOCX, EPUB outputs + unit tests). Suite: 918 passed / 0 failed / 21 skipped / 939 total.
 - **2026-07-27 14:45**: Antigravity — Task 26 completed (ExportDiagnosticsService per-step latency and memory allocation telemetry tracker + unit tests). Suite: 919 passed / 0 failed / 21 skipped / 940 total.
 - **2026-07-27 14:47**: Antigravity — Task 27 completed (UserThemeStylesheetService custom CSS scoping, sanitization of dangerous expressions, and HTML head injection + unit tests). Suite: 922 passed / 0 failed / 21 skipped / 943 total.
+- **2026-07-27 15:00**: Antigravity — Task 28 completed (FrontmatterService YAML frontmatter block parser returning metadata dictionary + stripped markdown body + unit tests). Suite: 924 passed / 0 failed / 21 skipped / 945 total.
