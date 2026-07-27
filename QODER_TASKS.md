@@ -182,12 +182,13 @@
   - Implement periodic auto-save snapshot vault to local storage to prevent data loss during unexpected crashes or OS restarts.
   - Verification: `DocumentRecoveryVaultTests.cs`. Suite: 939 passed / 0 failed / 21 skipped / 960 total.
 
-### [ ] 31. Advanced Footnote & Endnote Cross-Referencing Engine
+### [x] 31. Advanced Footnote & Endnote Cross-Referencing Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/FootnoteService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/FootnoteServiceTests.cs`
 - **Goal**:
   - Process inline Markdown footnotes (`[^1]`) and definitions (`[^1]: Footnote text`), re-numbering sequentially, generating back-links, and embedding footnote sections in HTML, PDF, and DOCX exports.
+  - Verification: `FootnoteServiceTests.cs`.
 
 ### [ ] 32. Smart Code Snippet Line Numbering & Line Highlighting Synthesizer
 - **Target Files**:
@@ -205,7 +206,7 @@
 - **2026-07-27 02:10**: Cycle 2 — Tasks 3 & 4 completed. Suite: 731 passed / 0 failed / 21 skipped / 752 total.
 - **2026-07-27 04:32**: Cycle 4 — Tasks 5, 6, 7, 8 completed. Suite: 763 passed / 0 failed / 21 skipped / 784 total.
 - **2026-07-27 06:01**: Cycle 5 — Task 9 completed. Suite: 784 passed / 0 failed / 21 skipped / 805 total.
-- **2026-07-27 07:15**: Cycle 6 — Task 10 completed. Suite: 798 passed / 0 failed / 21 skipped / 819 total.
+- **2026-07-27 07:15**: Cycle 6 — Task 10 completed. Suite: 798 passed / 0 failed / 819 total.
 - **2026-07-27 07:20**: Cycle 6 — Task 11 completed.
 - **2026-07-27 07:31**: Cycle 7 — Task 13 completed (GitHub Releases API UpdateService + 17 unit tests). Suite: 815 passed / 0 failed / 836 total.
 - **2026-07-27 07:45**: Cycle 8 — Task 14 completed (DocumentStatsService line count + chars-without-spaces + 6 unit tests). Suite: 820 passed / 0 failed / 841 total.
@@ -224,4 +225,5 @@
 - **2026-07-27 14:47**: Antigravity — Task 27 completed (UserThemeStylesheetService custom CSS scoping, sanitization of dangerous expressions, and HTML head injection + unit tests). Suite: 922 passed / 0 failed / 21 skipped / 943 total.
 - **2026-07-27 15:00**: Antigravity — Task 28 completed (FrontmatterService YAML frontmatter block parser returning metadata dictionary + stripped markdown body + unit tests). Suite: 924 passed / 0 failed / 21 skipped / 945 total.
 - **2026-07-27 15:30**: Antigravity — Task 29 completed (ClipboardNormalizerService rich text HTML clipboard converter to clean Markdown + unit tests). Suite: 934 passed / 0 failed / 21 skipped / 955 total.
-- **2026-07-27 15:47**: Antigravity — Task 30 completed (DocumentRecoveryVault local storage snapshot auto-saver + crash recovery manager + unit tests).
+- **2026-07-27 15:47**: Antigravity — Task 30 completed (DocumentRecoveryVault local storage snapshot auto-saver + crash recovery manager + unit tests). Suite: 939 passed / 0 failed / 21 skipped / 960 total.
+- **2026-07-27 16:15**: Antigravity — Task 31 completed (FootnoteService inline footnote parser + sequential re-indexing + footnote section builder + unit tests).
