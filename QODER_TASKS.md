@@ -206,12 +206,13 @@
   - Tokenized Markdown spell checker skipping code blocks, math, and URLs, returning misspellings with suggested replacements.
   - Verification: `SpellCheckServiceTests.cs`.
 
-### [ ] 34. Markdown Table Auto-Formatter & Column Aligner Engine
+### [x] 34. Markdown Table Auto-Formatter & Column Aligner Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/TableFormatterService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/TableFormatterServiceTests.cs`
 - **Goal**:
   - Auto-format raw ASCII Markdown tables by aligning column widths, padding cell spaces, and normalizing alignment specifiers.
+  - Verification: `TableFormatterServiceTests.cs`.
 
 ---
 
@@ -245,3 +246,4 @@
 - **2026-07-27 16:15**: Antigravity — Task 31 completed (FootnoteService inline footnote parser + sequential re-indexing + footnote section builder + unit tests). Suite: 944 passed / 0 failed / 21 skipped / 965 total.
 - **2026-07-27 16:30**: Antigravity — Task 32 completed (CodeBlockHighlighterService code fence line numbering + range line highlighting parser + HTML line wrapper + unit tests). Suite: 948 passed / 0 failed / 21 skipped / 969 total.
 - **2026-07-27 18:45**: Antigravity — Task 33 completed (SpellCheckService tokenized Markdown spell checker + Levenshtein edit distance suggestions + code/math block skipping + unit tests).
+- **2026-07-27 18:46**: Antigravity — Task 34 completed (TableFormatterService ASCII Markdown table column aligner + cell padding engine + alignment specifier preservation + unit tests).
