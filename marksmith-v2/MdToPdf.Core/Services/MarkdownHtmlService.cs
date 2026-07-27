@@ -1202,13 +1202,13 @@ public sealed partial class MarkdownHtmlService
             @keyframes radarPulse { 0% { transform: scale(0.1); opacity: 1; } 80% { opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
             .issue-target-highlight { background: rgba(239, 68, 68, 0.25) !important; outline: 2px dashed #ef4444 !important; transition: background 0.5s ease; }
             /* Interactive tabbed content (ISS-015): MS Word Ribbon-style tab strip for live preview & print */
-            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Secondary}}; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); }
-            .md-tab-nav { display: flex; background: {{theme.Code}}; border-bottom: 1px solid {{theme.Border}}; padding: 6px 8px 0 8px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Background}}; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+            .md-tab-nav { display: flex; background: {{theme.Secondary}}; border-bottom: 1px solid {{theme.Border}}; padding: 6px 8px 0 8px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
             .md-tab-nav::-webkit-scrollbar { display: none; }
-            .md-tab-link { padding: 9px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; font-family: "Segoe UI", Calibri, sans-serif; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease-in-out; outline: none; user-select: none; }
-            .md-tab-link:hover { background: rgba(0, 120, 212, 0.08); color: #0078D4; }
-            .md-tab-link.active { background: {{theme.Background}}; color: #0078D4; border-color: {{theme.Border}}; border-top: 3px solid #0078D4; border-bottom: 1px solid {{theme.Background}}; font-weight: 700; margin-bottom: -1px; }
-            .md-tab-content { display: none; padding: 18px; animation: mdTabFade 0.15s ease-in-out; }
+            .md-tab-link { padding: 9px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; opacity: 0.75; font-family: "Segoe UI", Calibri, sans-serif; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease-in-out; outline: none; user-select: none; }
+            .md-tab-link:hover { opacity: 1.0; background: {{theme.Background}}; color: {{theme.Heading}}; }
+            .md-tab-link.active { opacity: 1.0; background: {{theme.Background}}; color: {{theme.Heading}}; border-color: {{theme.Border}}; border-top: 3px solid {{theme.Heading}}; border-bottom: 1px solid {{theme.Background}}; font-weight: 700; margin-bottom: -1px; }
+            .md-tab-content { display: none; padding: 18px; background: {{theme.Background}}; color: {{theme.Text}}; animation: mdTabFade 0.15s ease-in-out; }
             .md-tab-content.active { display: block; }
             @keyframes mdTabFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
             @media print { .md-tab-content { display: block !important; border-top: 1px dashed {{theme.Border}}; page-break-inside: avoid; } }
