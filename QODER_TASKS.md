@@ -286,7 +286,7 @@
   - Generate weighted word frequency data with font size scaling metrics for word cloud visualization, excluding stop words and markdown formatting.
   - Verification: `WordCloudGeneratorServiceTests.cs`.
 
-### [ ] 44. Markdown Code Snippet Dependency Sniffer
+### [x] 44. Markdown Code Snippet Dependency Sniffer
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/CodeSnippetDependencySnifferService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeSnippetDependencySnifferServiceTests.cs`
