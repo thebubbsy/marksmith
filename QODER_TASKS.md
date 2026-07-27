@@ -352,6 +352,68 @@
 
 ---
 
+## 💡 Dreamboard / Future Aspose-Disruption Backlog
+
+> ⚠️ **CRITICAL DIRECTIVE / MANDATORY NOTE**: **ASK MATT BEFORE IMPLEMENTING ANY OF THE TASKS IN THIS SECTION.**
+> Do not execute or implement any item from this section without explicit approval from Matt.
+
+### [ ] D1. Reverse Document Importer (`DOCX` / `PDF` → `Markdown`)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ReverseImportService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ReverseImportServiceTests.cs`
+- **Goal**:
+  - Convert incoming DOCX and PDF documents into clean Markdown, allowing legacy document migration directly into Marksmith.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D2. Optical Character Recognition Engine (Scanned PDF / Image → Markdown)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/OcrEngineService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/OcrEngineServiceTests.cs`
+- **Goal**:
+  - Extract text and tables from scanned PDFs, PNGs, and JPGs via local `Windows.Media.Ocr` or Tesseract into formatted Markdown.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D3. Enterprise PDF Encryption & Digital Rights Management (DRM)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/PdfSecurityEnforcementService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfSecurityEnforcementServiceTests.cs`
+- **Goal**:
+  - Support AES 128/256-bit password encryption, digital signatures, and printing/copying permission restrictions.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D4. Spreadsheet / CSV Table Bidirectional Sync Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ExcelTableSyncService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ExcelTableSyncServiceTests.cs`
+- **Goal**:
+  - 1-click import from `.csv`/`.xlsx` files into Markdown tables and export Markdown tables directly to `.xlsx` workbooks.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D5. Visual Redline Document Diff Engine (`.md` / `.pdf` Comparison)
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/VisualDocumentDiffService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/VisualDocumentDiffServiceTests.cs`
+- **Goal**:
+  - Provide a visual side-by-side redline diff viewer highlighting additions and deletions between document revisions.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D6. High-Throughput PDF Size Compressor & Image Downsampler
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/PdfCompressorService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfCompressorServiceTests.cs`
+- **Goal**:
+  - Post-process generated PDFs to compress embedded images, strip unused font metadata, and minimize PDF file sizes for email sharing.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+### [ ] D7. Client-Side WebAssembly (WASM) Single-Page Web Edition
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Wasm/`
+- **Goal**:
+  - Compile the Marksmith core Markdown rendering pipeline to WebAssembly (Blazor WASM) for browser-based offline conversion without installation.
+- **Note**: **ASK MATT BEFORE IMPLEMENTING**
+
+---
+
 ## 📌 History & Completed Tasks
 
 - **2026-07-27 00:26**: Queue initialized for Qoder polling.
