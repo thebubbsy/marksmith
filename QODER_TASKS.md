@@ -238,6 +238,14 @@
   - Compare two versions of a Markdown document and produce line-by-line semantic diff models (Inserted, Deleted, Unchanged) for revision history preview.
   - Verification: `MarkdownDiffServiceTests.cs`.
 
+### [x] 38. Markdown Readability Score & Complexity Analyzer Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/ReadabilityAnalyzerService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/ReadabilityAnalyzerServiceTests.cs`
+- **Goal**:
+  - Calculate Flesch Reading Ease and Flesch-Kincaid Grade Level scores for Markdown documents while ignoring code blocks, math expressions, and raw HTML tags.
+  - Verification: `ReadabilityAnalyzerServiceTests.cs`.
+
 ---
 
 ## 📌 History & Completed Tasks
@@ -274,3 +282,4 @@
 - **2026-07-27 19:00**: Antigravity — Task 35 completed (DocumentTemplateGalleryService built-in document templates + variable interpolation + unit tests). Suite: 958 passed / 0 failed / 21 skipped / 979 total.
 - **2026-07-27 19:15**: Antigravity — Task 36 completed (LinkIntegrityAnalyzerService Markdown link & anchor reference validator + unit tests). Suite: 961 passed / 0 failed / 21 skipped / 982 total.
 - **2026-07-27 19:30**: Antigravity — Task 37 completed (MarkdownDiffService line-by-line semantic LCS diff engine + unit tests). Suite: 964 passed / 0 failed / 21 skipped / 985 total.
+- **2026-07-27 19:45**: Antigravity — Task 38 completed (ReadabilityAnalyzerService Flesch Reading Ease & Grade Level readability complexity calculator + unit tests). Suite: 964 passed / 0 failed / 21 skipped / 985 total.
