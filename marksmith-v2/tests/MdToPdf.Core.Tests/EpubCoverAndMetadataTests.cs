@@ -191,4 +191,32 @@ public class EpubCoverAndMetadataTests
         Assert.Contains("<dc:title>Q&amp;A &lt;Live&gt;</dc:title>", opf);
         Assert.Contains("<dc:creator>Tom &amp; Jerry</dc:creator>", opf);
     }
+
+    [Fact]
+    public void EpubMetadata_Overrides_FrontMatter_And_Outputs_Publisher_Identifier_Description_Rights()
+    {
+        var meta = new EpubMetadata
+        {
+            Title = "Custom EPUB Title",
+            Author = "Jane Doe",
+            Publisher = "O'Reilly Media",
+            Identifier = "978-3-16-148410-0",
+            Description = "A comprehensive guide to Marksmith v2",
+            Rights = "Copyright 2026 Jane Doe"
+        };
+
+        var dir = Path.Combine(Path.GetTempPath(), "marksmith_epub_meta_" + Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+        var epub = Path.Combine(dir, "book_meta.epub");
+
+        new EpubExportService().ExportAsync("# Sample\n\nProse", epub, new AppSettings(), meta).GetAwaiter().GetResult();
+
+        var opf = ReadEntry(epub, "OEBPS/content.opf");
+        Assert.Contains("<dc:title>Custom EPUB Title</dc:title>", opf);
+        Assert.Contains("<dc:creator>Jane Doe</dc:creator>", opf);
+        Assert.Contains("<dc:publisher>O'Reilly Media</dc:publisher>", opf);
+        Assert.Contains("<dc:identifier id=\"bookid\">978-3-16-148410-0</dc:identifier>", opf);
+        Assert.Contains("<dc:description>A comprehensive guide to Marksmith v2</dc:description>", opf);
+        Assert.Contains("<dc:rights>Copyright 2026 Jane Doe</dc:rights>", opf);
+    }
 }

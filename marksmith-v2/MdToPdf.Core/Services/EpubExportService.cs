@@ -21,7 +21,10 @@ public sealed class EpubExportService
     private static readonly string[] VoidTags =
         { "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr" };
 
-    public Task ExportAsync(string markdown, string epubPath, AppSettings settings) => Task.Run(() =>
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings) =>
+        ExportAsync(markdown, epubPath, settings, null);
+
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings, EpubMetadata? meta) => Task.Run(() =>
     {
         // Front matter is metadata for the OPF (Dublin Core) — read it before normalization.
         var frontMatter = ExtractFrontMatter(markdown);
@@ -35,31 +38,62 @@ public sealed class EpubExportService
 
         var theme = Themes.GetOrDefault(settings.Theme);
         var bodyHtml = XhtmlSafe(Markdown.ToHtml(markdown, Pipeline));
-        var bookTitle = NonEmpty(frontMatter, "title")
+        
+        var bookTitle = NonEmpty(meta?.Title)
+                        ?? NonEmpty(frontMatter, "title")
                         ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
-        var author = NonEmpty(frontMatter, "author") ?? "Marksmith";
-        var language = NonEmpty(frontMatter, "language")
+
+        var author = NonEmpty(meta?.Author)
+                     ?? NonEmpty(frontMatter, "author") ?? "Marksmith";
+
+        var language = NonEmpty(meta?.Language)
+                       ?? NonEmpty(frontMatter, "language")
                        ?? (string.IsNullOrWhiteSpace(settings.ContentLanguage) ? "en" : settings.ContentLanguage);
 
-        // Branding kit: embed the brand logo as the EPUB3 cover image (plus a cover.xhtml
-        // landing page first in the spine) when cover-page branding is on and the logo is a
-        // real PNG/JPG on disk.
+        var publisher = NonEmpty(meta?.Publisher) ?? NonEmpty(frontMatter, "publisher");
+        var identifier = NonEmpty(meta?.Identifier)
+                          ?? NonEmpty(frontMatter, "isbn")
+                          ?? NonEmpty(frontMatter, "identifier");
+        var description = NonEmpty(meta?.Description) ?? NonEmpty(frontMatter, "description");
+        var rights = NonEmpty(meta?.Rights) ?? NonEmpty(frontMatter, "rights");
+
+        // Cover Image resolution: explicit EpubMetadata path -> Front matter cover -> BrandLogoPath
+        var explicitCoverPath = NonEmpty(meta?.CoverImagePath)
+                                ?? NonEmpty(frontMatter, "cover")
+                                ?? NonEmpty(frontMatter, "cover_image");
+
+        string? logoPath = null;
+        if (!string.IsNullOrWhiteSpace(explicitCoverPath) && File.Exists(explicitCoverPath))
+        {
+            logoPath = explicitCoverPath;
+        }
+        else if (settings.BrandCoverPage && !string.IsNullOrWhiteSpace(settings.BrandLogoPath) && File.Exists(settings.BrandLogoPath))
+        {
+            logoPath = settings.BrandLogoPath;
+        }
+
         string? coverFile = null, coverMediaType = null;
         byte[]? coverBytes = null;
-        if (settings.BrandCoverPage && !string.IsNullOrWhiteSpace(settings.BrandLogoPath)
-            && File.Exists(settings.BrandLogoPath))
+        if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
         {
-            var ext = Path.GetExtension(settings.BrandLogoPath).ToLowerInvariant();
+            var ext = Path.GetExtension(logoPath).ToLowerInvariant();
             coverMediaType = ext switch
             {
                 ".png" => "image/png",
                 ".jpg" or ".jpeg" => "image/jpeg",
+                ".svg" => "image/svg+xml",
                 _ => null,
             };
             if (coverMediaType is not null)
             {
-                coverFile = ext == ".png" ? "cover.png" : "cover.jpg";
-                coverBytes = File.ReadAllBytes(settings.BrandLogoPath);
+                coverFile = ext switch
+                {
+                    ".png" => "cover.png",
+                    ".jpg" or ".jpeg" => "cover.jpg",
+                    ".svg" => "cover.svg",
+                    _ => "cover.img"
+                };
+                coverBytes = File.ReadAllBytes(logoPath);
             }
         }
 
@@ -84,7 +118,7 @@ public sealed class EpubExportService
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, chapters, coverFile, coverMediaType));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters));
         if (coverFile is not null && coverBytes is not null)
         {
@@ -112,8 +146,6 @@ public sealed class EpubExportService
         s.Write(bytes, 0, bytes.Length);
     }
 
-    // Minimal YAML front matter reader for the Dublin Core keys the OPF wants (title / author /
-    // language). Line-based "key: value" subset — no YAML parser dependency for three scalars.
     private static Dictionary<string, string> ExtractFrontMatter(string markdown)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -134,6 +166,7 @@ public sealed class EpubExportService
         return map;
     }
 
+    private static string? NonEmpty(string? val) => string.IsNullOrWhiteSpace(val) ? null : val;
     private static string? NonEmpty(Dictionary<string, string> map, string key) =>
         map.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
@@ -165,8 +198,9 @@ public sealed class EpubExportService
         </container>
         """;
 
-    private static string Opf(string title, string author, string language, List<Chapter> chapters,
-                              string? coverFile, string? coverMediaType)
+    private static string Opf(string title, string author, string language, string? publisher, string? identifier,
+                               string? description, string? rights, List<Chapter> chapters,
+                               string? coverFile, string? coverMediaType)
     {
         var manifest = new StringBuilder();
         var spine = new StringBuilder();
@@ -182,16 +216,23 @@ public sealed class EpubExportService
             spine.Append($"    <itemref idref=\"{c.Id}\"/>\n");
         }
         var modified = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-        var uid = Guid.NewGuid().ToString();
+        var uid = string.IsNullOrWhiteSpace(identifier) ? $"urn:uuid:{Guid.NewGuid()}" : identifier;
+        
+        var metaXml = new StringBuilder();
+        metaXml.AppendLine($"    <dc:identifier id=\"bookid\">{Esc(uid)}</dc:identifier>");
+        metaXml.AppendLine($"    <dc:title>{Esc(title)}</dc:title>");
+        metaXml.AppendLine($"    <dc:language>{Esc(language)}</dc:language>");
+        metaXml.AppendLine($"    <dc:creator>{Esc(author)}</dc:creator>");
+        if (!string.IsNullOrWhiteSpace(publisher)) metaXml.AppendLine($"    <dc:publisher>{Esc(publisher)}</dc:publisher>");
+        if (!string.IsNullOrWhiteSpace(description)) metaXml.AppendLine($"    <dc:description>{Esc(description)}</dc:description>");
+        if (!string.IsNullOrWhiteSpace(rights)) metaXml.AppendLine($"    <dc:rights>{Esc(rights)}</dc:rights>");
+        metaXml.AppendLine($"    <meta property=\"dcterms:modified\">{modified}</meta>");
+
         return $"""
         <?xml version="1.0" encoding="utf-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-            <dc:identifier id="bookid">urn:uuid:{uid}</dc:identifier>
-            <dc:title>{Esc(title)}</dc:title>
-            <dc:language>{Esc(language)}</dc:language>
-            <dc:creator>{Esc(author)}</dc:creator>
-            <meta property="dcterms:modified">{modified}</meta>
+        {metaXml.ToString().TrimEnd()}
           </metadata>
           <manifest>
             <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
