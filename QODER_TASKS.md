@@ -294,7 +294,7 @@
   - Detect imported libraries and dependencies inside code blocks (`import`, `require`, `#include`, `using`) and build a list of external packages referenced in the document.
   - Verification: `CodeSnippetDependencySnifferServiceTests.cs`.
 
-### [ ] 45. Image Metadata & Exif Stripper Engine
+### [x] 45. Image Metadata & Exif Stripper Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/ImageExifStripperService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/ImageExifStripperServiceTests.cs`
