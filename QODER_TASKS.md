@@ -196,7 +196,21 @@
   - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeBlockHighlighterServiceTests.cs`
 - **Goal**:
   - Parse fence attributes (e.g. ````csharp {1,3-5} showLineNumbers````) to add line numbers and highlighted line background accents in code snippets across preview and PDF/HTML output.
-  - Verification: `CodeBlockHighlighterServiceTests.cs`.
+  - Verification: `CodeBlockHighlighterServiceTests.cs`. Suite: 948 passed / 0 failed / 21 skipped / 969 total.
+
+### [ ] 33. Multi-Language Document Spell & Grammar Check Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/SpellCheckService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/SpellCheckServiceTests.cs`
+- **Goal**:
+  - Tokenized Markdown spell checker skipping code blocks, math, and URLs, returning misspellings with suggested replacements.
+
+### [ ] 34. Markdown Table Auto-Formatter & Column Aligner Engine
+- **Target Files**:
+  - `marksmith-v2/MdToPdf.Core/Services/TableFormatterService.cs`
+  - `marksmith-v2/tests/MdToPdf.Core.Tests/TableFormatterServiceTests.cs`
+- **Goal**:
+  - Auto-format raw ASCII Markdown tables by aligning column widths, padding cell spaces, and normalizing alignment specifiers.
 
 ---
 
