@@ -29,6 +29,14 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();
     [GeneratedRegex(@"\$\$?.+?\$\$?", RegexOptions.Singleline)] private static partial Regex DollarMath();
+    // A proper $$...$$ display-math block, used ONLY to protect already-delimited math from the
+    // recovery passes below. The looser DollarMath pattern (kept for HasMath detection) can mis-pair
+    // a lone $ with a $$ elsewhere in the document — e.g. an inline $...$ closing $ pairing with a
+    // following block's opening $$ — leaving a real $$...$$ block's \begin{...}...\end{...} body
+    // unprotected. That let RecoverMatrixEnvironments re-wrap an already-correct matrix in a SECOND
+    // set of $$, which Markdig then parsed as two empty math blocks around a literal
+    // "\begin 1 & 2 & 3 \ ..." paragraph (the reported sample-doc preview bug).
+    [GeneratedRegex(@"\$\$[\s\S]*?\$\$")] private static partial Regex DisplayMathBlock();
     // Seed commands for undelimited-math recovery: each is a self-contained structural construct
     // (fraction, root, binomial, box) that is ALWAYS real math — a bare one glued into text is never
     // prose, unlike a lone \times or \approx which might be. The unit's brace arguments are consumed
@@ -239,6 +247,7 @@ public sealed partial class LlmSourceService
         Collect(FencedCode());
         Collect(InlineCode());
         Collect(DollarMath());
+        Collect(DisplayMathBlock());
         bool IsProtected(int index) => protectedRanges.Any(r => index >= r.Start && index < r.End);
 
         int count = 0;
@@ -292,6 +301,7 @@ public sealed partial class LlmSourceService
         Collect(FencedCode());
         Collect(InlineCode());
         Collect(DollarMath());
+        Collect(DisplayMathBlock());
         bool IsProtected(int index) => protectedRanges.Any(r => index >= r.Start && index < r.End);
 
         // Collect the [start,end) span of each seed's full \cmd{..}{..} unit, left to right,

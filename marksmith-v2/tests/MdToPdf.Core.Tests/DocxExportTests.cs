@@ -62,6 +62,27 @@ public class DocxExportTests
     [Fact] public void Tag_keeps_label() => Assert.Contains("(3.1)", Export("$x=1 \\tag{3.1}$"));
     [Fact] public void Unknown_command_degrades_to_text_not_crash() => Assert.Contains("weirdcmd", Export("$\\weirdcmd{x}$"));
 
+    // Display (block) math — the $$-fenced matrix from the built-in sample document. Regression
+    // guard for the reported "Word export keeps the $$ on each side" bug: the delimiters must be
+    // consumed by the parser (never leak as literal text) and the body must become a real matrix.
+    [Fact]
+    public void Block_ddollar_bmatrix_exports_as_omml_matrix_without_dollar_leak()
+    {
+        var x = Export("Block equations work too:\n$$\n\\begin{bmatrix}\n1 & 2 & 3 \\\\\n4 & 5 & 6 \\\\\n7 & 8 & 9\n\\end{bmatrix}\n$$");
+        Assert.Contains("<m:m>", x);   // genuine OMML matrix element
+        Assert.DoesNotContain("$", x); // no $$ delimiter leaked as text
+    }
+
+    // The single-line "glued" form AI chats often emit ($$\begin{env}…\end{env}$$ with no blank
+    // line) must also export cleanly — it parses as inline math, still OMML, still no $$ leak.
+    [Fact]
+    public void Glued_ddollar_bmatrix_exports_as_omml_matrix_without_dollar_leak()
+    {
+        var x = Export("$$\\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}$$");
+        Assert.Contains("<m:m>", x);
+        Assert.DoesNotContain("$", x);
+    }
+
     // ---- schema validation --------------------------------------------------------------------
     [Fact]
     public void Exported_Docx_Passes_ECMA376_OpenXml_Validation()

@@ -17,6 +17,17 @@
                 "https://chatgpt.com/*",
                 "https://chat.openai.com/*",
                 "https://gemini.google.com/*",
+                "https://claude.ai/*",
+                "https://copilot.microsoft.com/*"
+            ],
+            "js": ["selectors.js"],
+            "run_at": "document_start"
+        },
+        {
+            "matches": [
+                "https://chatgpt.com/*",
+                "https://chat.openai.com/*",
+                "https://gemini.google.com/*",
                 "https://claude.ai/*"
             ],
             "js": ["autosend.js"],

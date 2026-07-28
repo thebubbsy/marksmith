@@ -463,7 +463,13 @@ public static class DocxShapeEmitter
 
         var sb = new StringBuilder();
         sb.Append("<wps:wsp>");
-        sb.Append($"<wps:cNvPr id=\"{id}\" name=\"{Esc(ShapeName(s))} {id}\"/>");
+        // Reverse-import tagging: when a renderer supplied a semantic node id, write a structured
+        // ms:node=<id>;kind=<ShapeKind> name so DocxShapeParser can recover the node losslessly.
+        // Otherwise keep the human-friendly "<Kind> <id>" name (no round-trip identity available).
+        string shapeName = s.NodeId is not null
+            ? $"ms:node={s.NodeId};kind={s.Kind}"
+            : $"{ShapeName(s)} {id}";
+        sb.Append($"<wps:cNvPr id=\"{id}\" name=\"{Esc(shapeName)}\"/>");
         sb.Append("<wps:cNvSpPr/>");
         sb.Append("<wps:spPr>");
         sb.Append($"<a:xfrm><a:off x=\"{x}\" y=\"{y}\"/><a:ext cx=\"{w}\" cy=\"{h}\"/></a:xfrm>");
@@ -593,7 +599,7 @@ public static class DocxShapeEmitter
 
         return
             "<wps:wsp>" +
-            $"<wps:cNvPr id=\"{id}\" name=\"Edge {id}\"/>" +
+            $"<wps:cNvPr id=\"{id}\" name=\"{Esc(c.EdgeKey ?? $"Edge {id}")}\"/>" +
             cxnAttr +
             "<wps:spPr>" +
             $"<a:xfrm><a:off x=\"{ox}\" y=\"{oy}\"/><a:ext cx=\"{w}\" cy=\"{h}\"/></a:xfrm>" +
@@ -654,7 +660,7 @@ public static class DocxShapeEmitter
 
         return
             "<wps:wsp>" +
-            $"<wps:cNvPr id=\"{id}\" name=\"Connector {id}\"/>" +
+            $"<wps:cNvPr id=\"{id}\" name=\"{Esc(c.EdgeKey ?? $"Connector {id}")}\"/>" +
             $"<wps:cNvCnPr>{cxnAttr}</wps:cNvCnPr>" +
             "<wps:spPr>" +
             $"<a:xfrm{flips}><a:off x=\"{Emu(x)}\" y=\"{Emu(y)}\"/><a:ext cx=\"{Emu(w)}\" cy=\"{Emu(h)}\"/></a:xfrm>" +
