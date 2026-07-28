@@ -1,0 +1,60 @@
+# Selector Watch — daily drift detection for extension/selectors.js
+# Tests consolidated DOM selectors against captured fixtures for each supported AI chat site.
+# On drift (selector no longer matches fixture DOM), opens a PR with proposed updates.
+name: Selector Watch
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # daily at 14:00 UTC (midnight AEST)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  selector-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --prefix extension/tests jsdom
+
+      - name: Run selector fixture tests
+        id: drift
+        run: node extension/tests/selector-drift.test.js
+        continue-on-error: true
+
+      - name: Report drift
+        if: steps.drift.outcome == 'failure'
+        run: |
+          echo "::warning::Selector drift detected — see test output for details."
+
+      - name: Open remediation PR
+        if: steps.drift.outcome == 'failure'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "fix(extension): update selectors for DOM drift"
+          title: "fix(extension): selector drift detected"
+          body: |
+            ## Selector Drift Detected
+
+            The daily selector-watch job found that one or more DOM selectors in
+            `extension/selectors.js` no longer match the captured fixtures.
+
+            ### Action Required
+            - Review the test output below
+            - Update selectors in `extension/selectors.js`
+            - Re-capture fixtures if the sites have genuinely changed
+
+            ### Test Output
+            ```
+            ${{ steps.drift.outputs.stdout }}
+            ```
+          branch: fix/selector-drift
+          labels: extension, selectors, automated

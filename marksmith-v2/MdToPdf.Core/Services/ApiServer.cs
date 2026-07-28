@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,31 @@ public sealed class ApiServer : IDisposable
     // Bumped (unix ms) when the app wants the extension's "Copy as Markdown" buttons to pulse —
     // e.g. after a plain-text paste. Static so UI code can set it without holding the server.
     public static long AttentionTs;
+
+    // Bumped (unix ms) every time the extension polls /api/commands — used by the UI to show
+    // whether the browser extension is connected (heartbeat within last 90 s = connected).
+    public static long LastExtensionPollTs;
+
+    // ---- Reverse command channel (App -> Extension) ----------------------------------------
+    // The app enqueues jobs (e.g. "send this prompt to the user's web AI"); the extension polls
+    // GET /api/commands, executes, and posts the result back to POST /api/commands/result.
+    public sealed record CommandJob(string Id, string Type, string Prompt);
+    public sealed record CommandResult(string Id, string ReplyMarkdown);
+
+    private static readonly ConcurrentQueue<CommandJob> PendingCommands = new();
+    private static readonly ConcurrentDictionary<string, CommandResult> CommandResults = new();
+
+    /// <summary>Enqueues a job for the extension to pick up. Returns the job id.</summary>
+    public static string EnqueueCommand(string type, string prompt)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        PendingCommands.Enqueue(new CommandJob(id, type, prompt));
+        return id;
+    }
+
+    /// <summary>Checks whether a result has been posted for the given job id.</summary>
+    public static CommandResult? GetResult(string id) =>
+        CommandResults.TryRemove(id, out var r) ? r : null;
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -219,6 +245,28 @@ public sealed class ApiServer : IDisposable
                     // Markdown" buttons pulse (set when the app detects a plain-text paste).
                     await WriteJsonAsync(ctx, 200, new { flashTs = AttentionTs });
                     break;
+
+                case ("GET", "/api/commands"):
+                {
+                    // Extension polls for pending jobs. Drains the queue into the response.
+                    LastExtensionPollTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var jobs = new List<CommandJob>();
+                    while (PendingCommands.TryDequeue(out var job)) jobs.Add(job);
+                    await WriteJsonAsync(ctx, 200, jobs);
+                    break;
+                }
+
+                case ("POST", "/api/commands/result"):
+                {
+                    var body = await ReadBoundedBodyAsync(ctx);
+                    var result = string.IsNullOrWhiteSpace(body) ? null
+                        : JsonSerializer.Deserialize<CommandResult>(body, JsonOpts);
+                    if (result?.Id is not { Length: > 0 })
+                    { await WriteJsonAsync(ctx, 400, new { error = "id and replyMarkdown are required" }); break; }
+                    CommandResults[result.Id] = result;
+                    await WriteJsonAsync(ctx, 200, new { ok = true });
+                    break;
+                }
 
                 case ("POST", "/api/classify"):
                 {

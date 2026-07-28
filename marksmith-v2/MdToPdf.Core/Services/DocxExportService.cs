@@ -135,7 +135,7 @@ public sealed class DocxExportService
 
             using var package = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
             package.PackageProperties.Title = title;
-            package.PackageProperties.Creator = "Marksmith";
+            package.PackageProperties.Creator = settings.AuthorName; // empty = no attribution (house-style mode)
             package.PackageProperties.Subject = "Generated from Markdown";
             package.PackageProperties.Created = DateTime.UtcNow;
             package.PackageProperties.Modified = DateTime.UtcNow;
@@ -1059,7 +1059,16 @@ public sealed class DocxExportService
             new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
             new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex });
         pPr.Shading = new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex };
-        
+
+        // Preserve the EXPLICIT fence language on the paragraph so a reverse import (DOCX -> MD) can
+        // restore the exact ```lang fence. Only the author's own language token is stored — the
+        // auto-detected fallback below is a highlight-only guess and is deliberately NOT persisted.
+        // The MSCode_ prefix marks it as a Marksmith code-language carrier; Word ignores the
+        // undefined style reference (all code formatting here is direct), so rendering is unchanged.
+        var explicitLang = SanitizeCodeLanguage(info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "");
+        if (explicitLang.Length > 0 && !isDiff)
+            pPr.ParagraphStyleId = new W.ParagraphStyleId { Val = "MSCode_" + explicitLang };
+
         var para = new W.Paragraph(pPr);
 
         var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
@@ -1133,6 +1142,16 @@ public sealed class DocxExportService
             }
         }
         return para;
+    }
+
+    // Keeps only characters that are safe in an OOXML styleId so an arbitrary fence language can be
+    // carried on the code paragraph (MSCode_<lang>) and recovered losslessly by the reverse importer.
+    private static string SanitizeCodeLanguage(string lang)
+    {
+        var sb = new StringBuilder();
+        foreach (var c in lang)
+            if (char.IsLetterOrDigit(c) || c == '_' || c == '-') sb.Append(c);
+        return sb.ToString();
     }
 
     private static void ApplyQuoteFormatting(W.Paragraph p, Ctx ctx)
@@ -2474,6 +2493,16 @@ public sealed class DocxExportService
                     ApplyHtmlInlineTag(html.Tag, target, ref current, htmlFmtStack, ctx);
                     break;
 
+                case Markdig.Extensions.Tables.PipeTableDelimiterInline pipeDelim:
+                    // A '|' that Markdig's pipe-table inline parser tokenized but that never formed a
+                    // real table (a stray pipe inside a paragraph, e.g. "A | B"). Left unhandled it fell
+                    // into the ContainerInline case below, which recursed into the wrapped text but never
+                    // emitted the delimiter itself — silently deleting the user's '|'. Emit it, then the
+                    // content that followed it.
+                    AddText(target, "|", current, ctx);
+                    RenderInlines(target, pipeDelim, ctx, current);
+                    break;
+
                 case ContainerInline nestedContainer:
                     RenderInlines(target, nestedContainer, ctx, current);
                     break;
@@ -3190,8 +3219,21 @@ public sealed class DocxExportService
             new W.ParagraphProperties(
                 new W.SpacingBetweenLines { After = "0" },
                 new W.Justification { Val = W.JustificationValues.Center }),
-            FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
-            FooterRun("  \u00b7  MarkSmith")));
+            FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
+
+        // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active, so the
+        // document looks like the user's own work. Built-in themes keep the attribution.
+        // We check settings.Theme (the requested name) rather than ctx.Theme.Name (the resolved
+        // fallback) so an unregistered custom theme name still suppresses branding.
+        if (Themes.IsBuiltin(settings.Theme))
+        {
+            footerPart.Footer = new W.Footer(new W.Paragraph(
+                new W.ParagraphProperties(
+                    new W.SpacingBetweenLines { After = "0" },
+                    new W.Justification { Val = W.JustificationValues.Center }),
+                FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
+                FooterRun("  \u00b7  MarkSmith")));
+        }
 
         // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
         var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
