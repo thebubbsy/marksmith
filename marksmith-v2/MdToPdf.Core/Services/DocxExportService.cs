@@ -105,6 +105,9 @@ public sealed class DocxExportService
         int? oversizedDiagramModeOverride = null) =>
         Task.Run(() =>
         {
+            // Capture the pristine source BEFORE any normalization so Tier-1 reimport returns the
+            // user's exact input (lossless round-trip). Every transform below is presentation-only.
+            var originalSource = markdown;
             markdown = TextNormalizer.Newlines(markdown);
             markdown = AdmonitionNormalizer.Apply(markdown);
             markdown = DialectNormalizer.Apply(markdown);
@@ -188,6 +191,8 @@ public sealed class DocxExportService
                 webLayout: settings.UnlimitedHeight || ctx.ForceWebLayout || !ThemeDefinition.IsLight(ctx.Theme.Background));
 
             body.Append(BuildSectionProperties(main, ctx, settings, title));
+            // Tier 1 enabler: tuck the original source away so this file reopens byte-for-byte.
+            MarksmithSourceStore.Embed(main, originalSource, settings);
             main.Document.Save();
         });
 
@@ -224,6 +229,8 @@ public sealed class DocxExportService
     {
         if (!File.Exists(docxPath)) { ExportAsync(markdown, docxPath, settings, mermaidImages, null, mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride).GetAwaiter().GetResult(); return; }
 
+        // Pristine new section, captured before normalization, for the combined embedded source.
+        var originalSource = markdown;
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown);
@@ -251,6 +258,14 @@ public sealed class DocxExportService
         using var package = WordprocessingDocument.Open(docxPath, true);
         var main = package.MainDocumentPart!;
         var body = main.Document.Body!;
+
+        // Recover the source embedded by the original export so the re-embedded copy represents the
+        // WHOLE running document, not just this appended section. Joined with a horizontal rule to
+        // mirror the visible dated-section divider the body assembly inserts below.
+        var priorSource = MarksmithSourceStore.Read(package)?.Markdown;
+        var combinedSource = string.IsNullOrEmpty(priorSource)
+            ? originalSource
+            : priorSource.TrimEnd('\n') + "\n\n---\n\n" + originalSource;
 
         // Reuse the existing document's numbering and bookmarks; offset new ids past what's there so an
         // appended section never collides with earlier ones.
@@ -308,6 +323,8 @@ public sealed class DocxExportService
         }
 
         ctx.MainPart.NumberingDefinitionsPart?.Numbering?.Save();
+        // Re-embed the combined source so an appended compendium still reopens losslessly.
+        MarksmithSourceStore.Embed(main, combinedSource, settings);
         main.Document.Save();
     });
 
