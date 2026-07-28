@@ -7,8 +7,10 @@
 
 ### Turn AI chats into polished documents.
 
-Paste a reply from ChatGPT, Gemini, or Claude — Marksmith detects the source, cleans up the
-formatting quirks each one leaves behind, and exports a professional **PDF** or **DOCX**.
+Paste a reply from ChatGPT, Gemini, Claude, or Copilot — Marksmith detects the source, cleans up
+the formatting quirks each one leaves behind, and exports a professional **PDF** or **DOCX**.
+Import your company's `.dotx` template and it even matches your brand — using the AI you already
+have, at zero extra cost.
 
 ![Marksmith](docs/images/hero.png)
 
@@ -193,15 +195,47 @@ Here is a side-by-side look at the REST API converting the README file and openi
 | `POST /api/ingest` | Push Markdown into the app UI |
 | `POST /api/convert` | Return a rendered PDF, DOCX, PPTX, or EPUB |
 | `POST /api/batch` | Batch convert all Markdown files in a folder |
+| `GET  /api/commands` | Pending jobs for the browser extension (Zero‑Click Pipeline) |
+| `POST /api/commands/result` | Extension posts a completed job's reply |
 
 ### 🧩 Browser extension
 
 The **Marksmith Connector** (Chrome/Edge, MV3) adds a one‑click "send to Marksmith" button on
-ChatGPT, Gemini, and Claude — it converts the reply to Markdown and posts it to the local API. It can
-also **auto-send at the end of a conversation** (when you stop interacting) and carries its own
-**output profile** — theme, page layout, and formatting set in the connector's Options page — so
-automated PDFs use those settings independently of the app's own Style panel. See
-[`extension/README.md`](extension/README.md) to load it.
+ChatGPT, Gemini, Claude, and Copilot — it converts the reply to Markdown and posts it to the local
+API. It can also **auto-send at the end of a conversation** (when you stop interacting) and carries
+its own **output profile** — theme, page layout, and formatting set in the connector's Options page —
+so automated PDFs use those settings independently of the app's own Style panel.
+
+The extension is also the other half of the **Zero‑Click Pipeline** (below): it polls the app's
+command channel, and when Marksmith has a prompt for your web AI it **auto‑injects it into the
+active chat composer and submits** — or hands you a one‑click *Copy Prompt* if the page's DOM has
+changed. See [`extension/README.md`](extension/README.md) to load it.
+
+### 🏢 House‑Style Automation (Zero‑Click Pipeline)
+
+Make every export match your company's brand — **without touching an API key or paying a token.**
+Marksmith stays 100% offline; the AI you *already use* in the browser does the creative work.
+
+1. **Import a `.dotx` template** — Settings → Automation → *Import Company Template*. Marksmith
+   parses the OOXML locally: body & heading fonts, heading colors, and the full `theme1.xml` color
+   palette (accents, hyperlinks, page background).
+2. **Zero‑click prompt delivery** — the style summary is engineered into an unambiguous prompt and
+   pushed to the browser extension over the loopback command channel. The extension finds your
+   active ChatGPT / Gemini / Claude / Copilot tab, pastes the prompt into the composer, and hits
+   send. If the page's DOM has drifted, the popup shows a one‑click **Copy Prompt** instead.
+3. **Your AI answers, Marksmith listens** — the reply is a strict `ThemeDefinition` JSON. Marksmith
+   parses it (tolerant of code fences, prose, trailing commas), saves it as a custom theme, and
+   applies it to preview, PDF, and DOCX.
+
+The result: exports that look like they came straight from your brand kit. And when a custom
+house‑style theme is active, Marksmith **strips its own provenance** — no `Marksmith` creator
+metadata, no `· MarkSmith` footer stamp — so the document reads as your own work. Page numbers and
+everything else stay intact.
+
+> **Resilience built in.** All per‑site DOM selectors live in a single `extension/selectors.js`,
+> and a daily GitHub Action (`selector-watch.yml`) tests them against captured DOM fixtures for
+> each supported AI site. On drift it opens a remediation PR for human review — the pipeline
+> repairs itself.
 
 ### 🏢 AI Usage Governance (for organizations)
 
@@ -333,9 +367,13 @@ Prebuilt portable zips for all three platforms are attached to each
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later. Recently shipped: **EPUB & PPTX
-export**, **append‑to‑a‑running‑document**, and **Mermaid flowcharts as native Word shapes**. Next up:
+See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later. Recently shipped: **House‑Style
+Automation & the Zero‑Click Extension Pipeline** (import a `.dotx`, get a brand‑matched theme via
+your own web AI), **provenance stripping** for custom themes, **EPUB & PPTX export**, and
+**Mermaid flowcharts as native Word shapes**. Next up:
 
+- **Smart Dual‑Mode DOCX Engine** — lossless round‑trip for Marksmith‑exported files plus a
+  universal importer for any DOCX in the world (embedded images, shapes → Mermaid)
 - Cleanup shown as Word tracked changes / comments
 - Export presets and batch conversion
 
