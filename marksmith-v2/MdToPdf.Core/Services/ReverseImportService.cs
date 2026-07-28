@@ -3,34 +3,156 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using M = DocumentFormat.OpenXml.Math;
+using A = DocumentFormat.OpenXml.Drawing;
 
 namespace MdToPdf.Services;
 
-// The inverse of DocxExportService: reads a .docx that Marksmith produced and reconstructs the
-// source Markdown. This is a REAL reverse converter — no embedded copy of the original is stored or
-// read back. It pattern-matches the exact OOXML signatures the forward engine emits (heading styles,
-// run-level bold/italic/strike/highlight/inline-code/sub/sup, zebra tables with a bold header row,
-// numId-based lists with w14 checkbox task items, Consolas code paragraphs, centered OMML equation
-// paragraphs, single-cell alert tables, wave-border horizontal rules, and H_* bookmark anchors) and
-// re-emits CANONICAL Markdown. Because the forward pass is lossy for presentation-only choices
-// (emphasis marker style, table cell padding, math whitespace, soft line breaks), the guarantee is:
-// canonical Markdown round-trips byte-for-byte, and any equivalent spelling converges to canonical
-// form on the first pass (idempotent from then on).
+// The Smart Dual-Mode DOCX-to-Markdown engine — the inverse of DocxExportService.
+//
+//   Tier 1 (Lossless): a Marksmith-made .docx carries the original source in a private custom-XML
+//     part (MarksmithSourceStore). When that marker is present we hand the exact source back —
+//     byte-for-byte, no reconstruction. A staleness flag names the one leak: the user edited the
+//     file in Word after export.
+//
+//   Tier 2 (Universal): ANY .docx in the world — Word, Pandoc, Google Docs, LibreOffice — is parsed
+//     into clean Markdown. Images are extracted to a media/ folder, headings/lists/tables/quotes/
+//     code/HR are generalized well beyond Marksmith's own signatures, OMML becomes LaTeX math, and
+//     shapes become Mermaid (or a rasterized PNG fallback) so nothing is silently dropped.
+//
+//   Tier 3 (Pandoc): if the native engine produces nothing and a Pandoc importer plugin is
+//     installed, we defer to it.
+//
+// The class is single-use per import: instance fields hold per-document state (image map, footnotes,
+// media counters) and are reset at the start of each Universal Engine run.
+public enum ImportTier { None, EmbeddedSource, UniversalEngine, Pandoc }
+
+public sealed record ReverseImportResult(
+    string Markdown,
+    ImportTier Tier,
+    bool IsStale,
+    string? Warning,
+    IReadOnlyList<string> ExtractedMedia);
+
 public sealed class ReverseImportService
 {
-    // ---- public entry ------------------------------------------------------------------------
+    private const string StaleWarning =
+        "This document was modified in Word after Marksmith exported it. The recovered source may not reflect the current visible content.";
 
+    // The wordprocessingml namespace URI, used for generic attribute reads (e.g. w:ilvl/@w:val).
+    private const string WNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static readonly HashSet<string> MonoFonts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Consolas", "Courier New", "Lucida Console", "Source Code Pro", "Fira Code", "JetBrains Mono",
+    };
+
+    // ---- per-import state (reset in RunUniversalEngine) --------------------------------------
+    private MainDocumentPart? _main;
+    private string? _mediaDir;
+    private Dictionary<string, DocxImageExtractor.ExtractedImage> _imageMap = new();
+    private readonly List<string> _rasterizedPaths = new();
+    private int _diagramCounter;
+    private Dictionary<string, string> _footnotes = new();
+    private readonly HashSet<string> _usedFootnotes = new();
+
+    // ---- public API --------------------------------------------------------------------------
+
+    /// <summary>Full async cascade: Tier 1 (embedded) -> Tier 2 (Universal) -> Tier 3 (Pandoc).</summary>
+    public Task<ReverseImportResult> ImportFromDocxAsync(string docxPath, string? mediaDir = null) =>
+        Task.Run(() =>
+        {
+            mediaDir ??= DefaultMediaDir(docxPath);
+            using var stream = File.OpenRead(docxPath);
+            return ImportCore(stream, mediaDir, docxPath);
+        });
+
+    /// <summary>Stream overload. Pandoc fallback is unavailable without a path; Tier 1 -> Tier 2.</summary>
+    public Task<ReverseImportResult> ImportFromDocxAsync(Stream stream, string? mediaDir = null) =>
+        Task.Run(() => ImportCore(stream, mediaDir, pandocPath: null));
+
+    /// <summary>Back-compat sync entry (used by DocxRoundTripTests): Tier 1 -> Tier 2, markdown only.</summary>
     public string ImportFromDocx(string docxPath)
     {
         using var stream = File.OpenRead(docxPath);
         return ImportFromDocx(stream);
     }
 
-    public string ImportFromDocx(Stream stream)
+    /// <summary>Back-compat sync entry: Tier 1 -> Tier 2 (no Pandoc, no media write), markdown only.</summary>
+    public string ImportFromDocx(Stream stream) =>
+        ImportCore(stream, mediaDir: null, pandocPath: null).Markdown;
+
+    // ---- cascade core ------------------------------------------------------------------------
+
+    private ReverseImportResult ImportCore(Stream stream, string? mediaDir, string? pandocPath)
     {
         using var doc = WordprocessingDocument.Open(stream, false);
+
+        // Tier 1: embedded source (lossless).
+        var embedded = MarksmithSourceStore.Read(doc);
+        if (embedded is not null)
+        {
+            return new ReverseImportResult(
+                embedded.Markdown,
+                ImportTier.EmbeddedSource,
+                embedded.IsStale,
+                embedded.IsStale ? StaleWarning : null,
+                Array.Empty<string>());
+        }
+
+        // Tier 2: native Universal Engine.
+        try
+        {
+            var (md, media) = RunUniversalEngine(doc, mediaDir);
+            if (!string.IsNullOrWhiteSpace(md))
+                return new ReverseImportResult(md, ImportTier.UniversalEngine, false, null, media);
+        }
+        catch
+        {
+            // fall through to Pandoc
+        }
+
+        // Tier 3: Pandoc importer plugin (path-based only).
+        if (pandocPath is not null)
+        {
+            try
+            {
+                var md = AppServices.Plugins.FindImporter("docx")?.ImportToMarkdown(pandocPath);
+                if (!string.IsNullOrWhiteSpace(md))
+                    return new ReverseImportResult(md!, ImportTier.Pandoc, false, null, Array.Empty<string>());
+            }
+            catch
+            {
+                // fall through to None
+            }
+        }
+
+        return new ReverseImportResult("", ImportTier.None, false, null, Array.Empty<string>());
+    }
+
+    private static string DefaultMediaDir(string docxPath)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(docxPath));
+        if (string.IsNullOrEmpty(dir)) dir = ".";
+        return Path.Combine(dir, Path.GetFileNameWithoutExtension(docxPath) + "_media");
+    }
+
+    // ---- Universal Engine --------------------------------------------------------------------
+
+    private (string Markdown, IReadOnlyList<string> Media) RunUniversalEngine(WordprocessingDocument doc, string? mediaDir)
+    {
         var main = doc.MainDocumentPart ?? throw new InvalidDataException("Not a valid .docx (no main document part).");
         var body = main.Document?.Body ?? throw new InvalidDataException("Not a valid .docx (no body).");
+
+        // Reset per-import state.
+        _main = main;
+        _mediaDir = mediaDir;
+        _diagramCounter = 0;
+        _rasterizedPaths.Clear();
+        _usedFootnotes.Clear();
+        _footnotes = LoadFootnotes(doc);
+        _imageMap = mediaDir is not null
+            ? DocxImageExtractor.ExtractAll(main, mediaDir)
+            : new Dictionary<string, DocxImageExtractor.ExtractedImage>();
 
         var numMap = LoadNumbering(doc);
         var items = new List<Block>();
@@ -43,14 +165,19 @@ public sealed class ReverseImportService
                     items.Add(ConvertTable(t));
                     break;
                 case W.Paragraph p:
-                    var block = ConvertParagraph(p, main);
+                    var block = ConvertParagraph(p);
                     if (block is not null) items.Add(block);
                     break;
                 // sectPr and other structural parts carry no content.
             }
         }
 
-        return Assemble(items, numMap);
+        var markdown = Assemble(items, numMap);
+        var media = _imageMap.Values.Select(v => v.RelativePath)
+            .Concat(_rasterizedPaths)
+            .Distinct()
+            .ToList();
+        return (markdown, media);
     }
 
     // ---- intermediate model ------------------------------------------------------------------
@@ -61,10 +188,13 @@ public sealed class ReverseImportService
     private sealed record HrBlock : Block;
     private sealed record TableBlock(string Markdown) : Block;
     private sealed record AlertBlock(string Markdown) : Block;
-    private sealed record CodeBlock(string Lang, string Content) : Block;
+    private sealed record CodeBlock(string Lang, string Content, bool Mergeable) : Block;
     private sealed record DisplayMathBlock(string Latex) : Block;
     private sealed record MermaidBlock(string Content) : Block;
-    private sealed record ListItemBlock(int NumId, bool IsTask, bool Checked, string Text) : Block;
+    private sealed record ListItemBlock(int NumId, bool IsTask, bool Checked, string Text, int Level) : Block;
+    private sealed record ImageBlock(string Alt, string Path) : Block;
+    private sealed record BlockquoteBlock(string Text) : Block;
+    private sealed record RawBlock(string Markdown) : Block;
 
     // ---- assembly ----------------------------------------------------------------------------
 
@@ -76,8 +206,7 @@ public sealed class ReverseImportService
         {
             if (items[i] is ListItemBlock first)
             {
-                // A "list" is a run of consecutive list paragraphs sharing (numId, task-ness). A
-                // change in either marks a new list, which the source separated with a blank line.
+                // A "list" is a run of consecutive list paragraphs sharing (numId, task-ness).
                 var group = new List<ListItemBlock>();
                 while (i < items.Count && items[i] is ListItemBlock li &&
                        li.NumId == first.NumId && li.IsTask == first.IsTask)
@@ -87,13 +216,42 @@ public sealed class ReverseImportService
                 }
                 blocks.Add(RenderListGroup(group, numMap));
             }
+            else if (items[i] is CodeBlock { Mergeable: true } firstCode)
+            {
+                // Merge consecutive generalized monospace paragraphs into a single fence.
+                var lines = new List<string> { firstCode.Content };
+                var lang = firstCode.Lang;
+                i++;
+                while (i < items.Count && items[i] is CodeBlock { Mergeable: true } cc)
+                {
+                    lines.Add(cc.Content);
+                    if (string.IsNullOrEmpty(lang)) lang = cc.Lang;
+                    i++;
+                }
+                blocks.Add("```" + lang + "\n" + string.Join("\n", lines) + "\n```");
+            }
             else
             {
                 blocks.Add(RenderBlock(items[i]));
                 i++;
             }
         }
-        return string.Join("\n\n", blocks) + "\n";
+
+        var result = string.Join("\n\n", blocks) + "\n";
+
+        // Footnote definitions (C7) — appended once, in id order, for every reference actually used.
+        if (_usedFootnotes.Count > 0 && _footnotes.Count > 0)
+        {
+            var defs = new List<string>();
+            foreach (var id in _usedFootnotes.OrderBy(x => x, StringComparer.Ordinal))
+            {
+                if (_footnotes.TryGetValue(id, out var text) && text.Length > 0)
+                    defs.Add($"[^{id}]: {text}");
+            }
+            if (defs.Count > 0) result += "\n" + string.Join("\n", defs) + "\n";
+        }
+
+        return result;
     }
 
     private string RenderBlock(Block b) => b switch
@@ -106,20 +264,39 @@ public sealed class ReverseImportService
         CodeBlock c => "```" + c.Lang + "\n" + c.Content + "\n```",
         DisplayMathBlock m => "$$\n" + m.Latex + "\n$$",
         MermaidBlock mm => "```mermaid\n" + mm.Content + "\n```",
+        ImageBlock img => "![" + img.Alt + "](" + img.Path + ")",
+        BlockquoteBlock q => RenderBlockquote(q.Text),
+        RawBlock raw => raw.Markdown,
         _ => "",
     };
+
+    private static string RenderBlockquote(string text) =>
+        string.Join("\n", text.Split('\n').Select(l => "> " + l));
 
     private string RenderListGroup(List<ListItemBlock> group, Dictionary<int, bool> numMap)
     {
         var isOrdered = numMap.TryGetValue(group[0].NumId, out var ord) && ord;
         var lines = new List<string>();
-        int counter = 1;
+        var counters = new Dictionary<int, int>(); // per-level ordered counters (C5 nesting)
         foreach (var item in group)
         {
-            string prefix = item.IsTask
-                ? (item.Checked ? "- [x] " : "- [ ] ")
-                : (isOrdered ? counter++ + ". " : "- ");
-            lines.Add(prefix + item.Text);
+            var indent = new string(' ', Math.Max(0, item.Level) * 2);
+            string prefix;
+            if (item.IsTask)
+            {
+                prefix = item.Checked ? "- [x] " : "- [ ] ";
+            }
+            else if (isOrdered)
+            {
+                counters.TryGetValue(item.Level, out var n);
+                counters[item.Level] = n + 1;
+                prefix = counters[item.Level] + ". ";
+            }
+            else
+            {
+                prefix = "- ";
+            }
+            lines.Add(indent + prefix + item.Text);
         }
         return string.Join("\n", lines);
     }
@@ -151,55 +328,93 @@ public sealed class ReverseImportService
         return map;
     }
 
+    // ---- footnotes ---------------------------------------------------------------------------
+
+    private static Dictionary<string, string> LoadFootnotes(WordprocessingDocument doc)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var footnotes = doc.MainDocumentPart?.FootnotesPart?.Footnotes;
+        if (footnotes is null) return map;
+        foreach (var fn in footnotes.Elements<W.Footnote>())
+        {
+            // Footnote ids are numeric; the auto-generated separator (-1) and continuation-separator
+            // (0) footnotes carry id <= 0, while real author footnotes start at 1.
+            long? idVal = fn.Id?.Value;
+            if (idVal is null or <= 0) continue;
+            var id = idVal.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var text = string.Concat(fn.Descendants<W.Text>().Select(t => t.Text)).Trim();
+            if (text.Length > 0) map[id] = text;
+        }
+        return map;
+    }
+
     // ---- paragraphs --------------------------------------------------------------------------
 
-    private Block? ConvertParagraph(W.Paragraph p, MainDocumentPart main)
+    private Block? ConvertParagraph(W.Paragraph p)
     {
         var pPr = p.GetFirstChild<W.ParagraphProperties>();
         var styleId = pPr?.GetFirstChild<W.ParagraphStyleId>()?.Val?.Value ?? "";
 
-        // Mermaid diagram: the forward engine renders a ```mermaid fence as a native Word drawing
-        // (a wpg group of wps shapes). Recover the diagram source from the shape identity tags.
-        var drawing = p.GetFirstChild<W.Run>()?.GetFirstChild<W.Drawing>();
-        if (drawing is not null && DocxShapeParser.TryParseMermaid(drawing) is { } mermaid)
-            return new MermaidBlock(mermaid);
-
-        // Heading.
-        if (styleId.StartsWith("Heading", StringComparison.Ordinal) &&
-            int.TryParse(styleId.Substring("Heading".Length), out var level) && level is >= 1 and <= 6)
+        // Drawings (diagrams & pictures). A standalone drawing paragraph — no text outside the
+        // drawing — becomes a block; inline images within text are handled inside ConvertRun.
+        var drawing = p.Descendants<W.Drawing>().FirstOrDefault();
+        if (drawing is not null)
         {
-            return new HeadingBlock(level, ConvertInlines(p, main).Trim());
+            bool standalone = !p.Descendants<W.Text>()
+                .Any(t => t.Text.Length > 0 && !t.Ancestors<W.Drawing>().Any());
+            if (standalone)
+            {
+                var drawn = ConvertDrawing(drawing);
+                if (drawn is not null) return drawn;
+            }
         }
 
-        // Horizontal rule: an empty paragraph whose only decoration is a wave bottom border.
+        // Heading (generalized cascade: style name -> outline level -> font-size heuristic).
+        var headingLevel = DetectHeadingLevel(p, pPr, styleId);
+        if (headingLevel > 0)
+            return new HeadingBlock(headingLevel, ConvertInlines(p).Trim());
+
+        // Horizontal rule: an empty paragraph carrying ANY bottom border (C4).
         var bottomBorder = pPr?.GetFirstChild<W.ParagraphBorders>()?.GetFirstChild<W.BottomBorder>();
         var hasAnyText = p.Descendants<W.Text>().Any(t => t.Text.Length > 0);
-        if (!hasAnyText && bottomBorder?.Val?.Value == W.BorderValues.Wave)
+        if (!hasAnyText && bottomBorder?.Val?.Value is not null)
             return new HrBlock();
 
-        // Code block: the forward engine marks these with keepLines + a full border + Consolas runs.
+        // Code block — Marksmith form: keepLines + a full border + Consolas runs.
         if (pPr?.GetFirstChild<W.KeepLines>() is not null)
         {
             var lang = styleId.StartsWith("MSCode_", StringComparison.Ordinal)
                 ? styleId.Substring("MSCode_".Length)
                 : "";
-            return new CodeBlock(lang, ExtractCodeContent(p));
+            return new CodeBlock(lang, ExtractCodeContent(p), Mergeable: false);
         }
 
-        // Display math: a centered paragraph whose ONLY content is an OMML equation.
+        // Code block — generalized: all runs monospace AND (shading OR a code-like style) (C3).
+        if (IsGeneralizedCodeParagraph(p, pPr, styleId, out var codeLang))
+            return new CodeBlock(codeLang, ExtractCodeContent(p), Mergeable: true);
+
+        // Display math: a centered paragraph whose ONLY content is an OMML equation (C8).
         var omml = p.GetFirstChild<M.OfficeMath>();
         var isCentered = pPr?.GetFirstChild<W.Justification>()?.Val?.Value == W.JustificationValues.Center;
         if (omml is not null && !hasAnyText && isCentered)
             return new DisplayMathBlock(OmmlToLatex.Convert(omml));
 
-        // List item.
+        // Blockquote: a "Quote" style, or an indented italic paragraph (C2).
+        if (IsBlockquote(p, pPr, styleId, out var quoteText))
+            return new BlockquoteBlock(quoteText);
+
+        // List item (with nesting via w:ilvl) (C5).
         var numPr = pPr?.GetFirstChild<W.NumberingProperties>();
         if (numPr is not null)
         {
             var numId = numPr.GetFirstChild<W.NumberingId>()?.Val?.Value ?? 0;
-            // Task list: the forward engine emits the checkbox as a w:sdt (w14:checkbox) whose first
-            // run is a ballot glyph — ☒ (U+2612) checked / ☐ (U+2610) unchecked. Detect the glyph in
-            // the paragraph's text directly (robust to the sdt's concrete OpenXml class).
+            // w:ilvl (nesting level), read generically — 0-based, drives 2-space indentation (C5).
+            int ilvl = 0;
+            var ilvlVal = numPr.Elements().FirstOrDefault(e => e.LocalName == "ilvl")?.GetAttribute("val", WNamespace).Value;
+            int.TryParse(ilvlVal, out ilvl);
+
+            // Task list: the forward engine emits the checkbox as a w14:checkbox sdt whose first run
+            // is a ballot glyph — ☒ (U+2612) checked / ☐ (U+2610) unchecked. Detect it in the text.
             var textParts = p.Descendants<W.Text>().Select(t => t.Text).ToList();
             bool isTask = false, isChecked = false;
             if (textParts.Count > 0 && textParts[0].Length > 0 &&
@@ -210,18 +425,153 @@ public sealed class ReverseImportService
                 textParts[0] = textParts[0].Substring(1);
             }
             var text = string.Concat(textParts).TrimStart();
-            return new ListItemBlock(numId, isTask, isChecked, text);
+            return new ListItemBlock(numId, isTask, isChecked, text, ilvl);
         }
 
-        // Plain paragraph (may contain inline math / links / formatting).
-        var inline = ConvertInlines(p, main);
+        // Plain paragraph (may contain inline math / links / images / formatting).
+        var inline = ConvertInlines(p);
         if (string.IsNullOrWhiteSpace(inline)) return null; // drop empty spacer paragraphs
         return new ParagraphBlock(inline);
     }
 
+    // ---- drawings (diagrams & pictures) ------------------------------------------------------
+
+    private Block? ConvertDrawing(W.Drawing drawing)
+    {
+        // 1. Tagged / geometry Mermaid recovery (Marksmith ShapeForge + structured foreign shapes).
+        if (DocxShapeParser.TryParseMermaid(drawing) is { } mermaid)
+            return new MermaidBlock(mermaid);
+
+        // 2. Picture (pic:pic / a:blip) → image reference resolved through the extraction map.
+        var blip = drawing.Descendants<A.Blip>().FirstOrDefault();
+        var relId = blip?.Embed?.Value;
+        if (!string.IsNullOrEmpty(relId) && _imageMap.TryGetValue(relId, out var img))
+            return new ImageBlock(img.Alt, img.RelativePath);
+
+        // 3. Shape group / SmartArt with no Mermaid recovery → raster fallback (Part D). Never drop.
+        bool hasShapes = drawing.Descendants().Any(e => e.LocalName == "wsp");
+        bool isSmartArt = drawing.Descendants().Any(e =>
+            e.LocalName == "relIds" ||
+            (e.LocalName == "graphicData" && (e.GetAttribute("uri", "").Value ?? "").Contains("diagram", StringComparison.Ordinal)));
+        if (hasShapes || isSmartArt)
+        {
+            if (_mediaDir is not null)
+            {
+                var path = DocxDrawingRasterizer.TryRasterize(drawing, _mediaDir, ref _diagramCounter);
+                if (path is not null)
+                {
+                    _rasterizedPaths.Add(path);
+                    return new ImageBlock("Diagram", path);
+                }
+            }
+            var shapeCount = drawing.Descendants().Count(e => e.LocalName == "wsp");
+            return new RawBlock($"<!-- Unconvertible diagram: {shapeCount} shapes -->");
+        }
+
+        return null;
+    }
+
+    // ---- heading detection (C1) --------------------------------------------------------------
+
+    private int DetectHeadingLevel(W.Paragraph p, W.ParagraphProperties? pPr, string styleId)
+    {
+        // 1. Style id/name: Heading1..6 (any casing, with/without space), Title -> H1, Subtitle -> H2.
+        var normalized = styleId.Replace(" ", "").ToLowerInvariant();
+        if (normalized == "title") return 1;
+        if (normalized == "subtitle") return 2;
+        if (normalized.StartsWith("heading", StringComparison.Ordinal))
+        {
+            var rest = normalized.Substring("heading".Length);
+            if (int.TryParse(rest, out var lvl) && lvl is >= 1 and <= 6) return lvl;
+        }
+
+        // 2. w:outlineLvl — Word's semantic heading level (0-based).
+        var outline = pPr?.GetFirstChild<W.OutlineLevel>()?.Val?.Value;
+        if (outline is not null)
+        {
+            var lvl = outline.Value + 1;
+            if (lvl is >= 1 and <= 6) return lvl;
+        }
+
+        // 3. Font-size heuristic: a SHORT, fully-bold, large paragraph is almost certainly a heading.
+        var text = string.Concat(p.Descendants<W.Text>().Select(t => t.Text));
+        if (text.Length is > 0 and < 200)
+        {
+            var runs = p.Descendants<W.Run>().Where(r => r.Elements<W.Text>().Any()).ToList();
+            bool allBold = runs.Count > 0 && runs.All(r =>
+                r.GetFirstChild<W.RunProperties>()?.GetFirstChild<W.Bold>() is not null);
+            if (allBold)
+            {
+                double maxPt = runs.Max(RunFontSizePt);
+                if (maxPt >= 28) return 1;
+                if (maxPt >= 24) return 2;
+                if (maxPt >= 20) return 3;
+            }
+        }
+
+        return 0;
+    }
+
+    // w:sz is expressed in half-points.
+    private static double RunFontSizePt(W.Run r)
+    {
+        var sz = r.GetFirstChild<W.RunProperties>()?.GetFirstChild<W.FontSize>()?.Val?.Value;
+        return double.TryParse(sz, out var halfPts) ? halfPts / 2.0 : 0;
+    }
+
+    // ---- blockquote detection (C2) -----------------------------------------------------------
+
+    private bool IsBlockquote(W.Paragraph p, W.ParagraphProperties? pPr, string styleId, out string text)
+    {
+        text = "";
+        bool quoteStyle = styleId.ToLowerInvariant().Contains("quote", StringComparison.Ordinal);
+
+        bool indentItalic = false;
+        var leftIndent = pPr?.GetFirstChild<W.Indentation>()?.Left?.Value;
+        if (int.TryParse(leftIndent, out var twips) && twips >= 720)
+        {
+            var runs = p.Descendants<W.Run>().Where(r => r.Elements<W.Text>().Any()).ToList();
+            indentItalic = runs.Count > 0 && runs.All(r =>
+                r.GetFirstChild<W.RunProperties>()?.GetFirstChild<W.Italic>() is not null);
+        }
+
+        if (!quoteStyle && !indentItalic) return false;
+        text = ConvertInlines(p).Trim();
+        return text.Length > 0;
+    }
+
+    // ---- generalized code detection (C3) -----------------------------------------------------
+
+    private static bool IsGeneralizedCodeParagraph(W.Paragraph p, W.ParagraphProperties? pPr, string styleId, out string lang)
+    {
+        lang = "";
+        var runs = p.Elements<W.Run>().Where(r => r.Elements<W.Text>().Any()).ToList();
+        if (runs.Count == 0) return false;
+
+        bool allMono = runs.All(r =>
+        {
+            var font = r.GetFirstChild<W.RunProperties>()?.GetFirstChild<W.RunFonts>()?.Ascii?.Value;
+            return font is not null && MonoFonts.Contains(font);
+        });
+        if (!allMono) return false;
+
+        bool hasShading = pPr?.GetFirstChild<W.Shading>() is not null;
+        var styleLower = styleId.ToLowerInvariant();
+        bool codeStyle = styleLower.Contains("code", StringComparison.Ordinal) ||
+                         styleLower.Contains("html", StringComparison.Ordinal) ||
+                         styleLower.Contains("plaintext", StringComparison.Ordinal);
+        if (!hasShading && !codeStyle) return false;
+
+        // Best-effort language from a style suffix like "Code_cs" / "HTML_py".
+        var us = styleId.LastIndexOf('_');
+        if (codeStyle && us > 0 && us < styleId.Length - 1)
+            lang = styleId.Substring(us + 1);
+        return true;
+    }
+
     // ---- inline content ----------------------------------------------------------------------
 
-    private string ConvertInlines(W.Paragraph p, MainDocumentPart main, bool excludeSdt = false)
+    private string ConvertInlines(W.Paragraph p)
     {
         var sb = new StringBuilder();
         foreach (var child in p.ChildElements)
@@ -235,11 +585,10 @@ public sealed class ReverseImportService
                     sb.Append('$').Append(OmmlToLatex.Convert(om)).Append('$');
                     break;
                 case W.Hyperlink h:
-                    sb.Append(ConvertHyperlink(h, main));
+                    sb.Append(ConvertHyperlink(h));
                     break;
-                case W.SdtBlock:
-                    // Task checkbox glyph — handled by the caller, not part of the item text.
-                    if (!excludeSdt) sb.Append(GetSdtText((W.SdtBlock)child));
+                case W.SdtBlock sdt:
+                    sb.Append(GetSdtText(sdt));
                     break;
                 // BookmarkStart/End, proof errors, etc. carry no visible text.
             }
@@ -250,8 +599,26 @@ public sealed class ReverseImportService
     private static string GetSdtText(W.SdtBlock sdt) =>
         string.Concat(sdt.Descendants<W.Text>().Select(t => t.Text));
 
-    private static string ConvertRun(W.Run r)
+    private string ConvertRun(W.Run r)
     {
+        // Inline picture within a text run → inline image reference.
+        var drawing = r.GetFirstChild<W.Drawing>();
+        if (drawing is not null)
+        {
+            var relId = drawing.Descendants<A.Blip>().FirstOrDefault()?.Embed?.Value;
+            if (!string.IsNullOrEmpty(relId) && _imageMap.TryGetValue(relId, out var img))
+                return "![" + img.Alt + "](" + img.RelativePath + ")";
+        }
+
+        // Footnote reference → [^N] (definition appended at assembly) (C7).
+        var fnRef = r.GetFirstChild<W.FootnoteReference>();
+        if (fnRef is not null)
+        {
+            var id = fnRef.Id?.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "";
+            if (id.Length > 0) _usedFootnotes.Add(id);
+            return "[^" + id + "]";
+        }
+
         var rPr = r.GetFirstChild<W.RunProperties>();
         var text = string.Concat(r.Elements<W.Text>().Select(t => t.Text));
         if (text.Length == 0) return "";
@@ -261,6 +628,10 @@ public sealed class ReverseImportService
         bool strike = rPr?.GetFirstChild<W.Strike>() is not null;
         bool highlight = rPr?.GetFirstChild<W.Highlight>() is not null;
         bool isCode = rPr?.GetFirstChild<W.RunFonts>()?.Ascii?.Value == "Consolas";
+        // Underline (C7): Markdown has no native underline, so emit HTML. A present <w:u val="none"/>
+        // means "explicitly no underline" and must not wrap the text.
+        var underlineVal = rPr?.GetFirstChild<W.Underline>()?.Val?.Value;
+        bool underline = underlineVal is not null && underlineVal != W.UnderlineValues.None;
         // OpenXml 3.x models these as structs, not C# enums — compare the values, never ToString().
         var vertAlign = rPr?.GetFirstChild<W.VerticalTextAlignment>()?.Val?.Value;
 
@@ -270,6 +641,7 @@ public sealed class ReverseImportService
         if (bold && italic) s = "***" + s + "***";
         else if (bold) s = "**" + s + "**";
         else if (italic) s = "*" + s + "*";
+        if (underline) s = "<u>" + s + "</u>";
         if (strike) s = "~~" + s + "~~";
         if (highlight) s = "==" + s + "==";
         if (vertAlign == W.VerticalPositionValues.Subscript) s = "~" + s + "~";
@@ -277,7 +649,7 @@ public sealed class ReverseImportService
         return s;
     }
 
-    private string ConvertHyperlink(W.Hyperlink h, MainDocumentPart main)
+    private string ConvertHyperlink(W.Hyperlink h)
     {
         var text = string.Concat(h.Descendants<W.Text>().Select(t => t.Text));
         var anchor = h.Anchor?.Value;
@@ -289,9 +661,9 @@ public sealed class ReverseImportService
             return "[" + text + "](#" + slug + ")";
         }
         var relId = h.Id?.Value;
-        if (!string.IsNullOrEmpty(relId))
+        if (!string.IsNullOrEmpty(relId) && _main is not null)
         {
-            var rel = main.HyperlinkRelationships.FirstOrDefault(x => x.Id == relId);
+            var rel = _main.HyperlinkRelationships.FirstOrDefault(x => x.Id == relId);
             if (rel is not null) return "[" + text + "](" + rel.Uri + ")";
         }
         return text;
@@ -345,21 +717,37 @@ public sealed class ReverseImportService
             }
         }
 
-        // Regular table: header row + separator + data rows.
-        var mdRows = new List<string>();
+        // Regular table (C6): honor gridSpan merges, detect a header row, pad short rows.
+        var mdRows = new List<List<string>>();
         int colCount = 0;
         foreach (var row in rows)
         {
-            var cells = row.Elements<W.TableCell>()
-                .Select(c => string.Concat(c.Descendants<W.Text>().Select(x => x.Text)).Trim())
-                .ToList();
+            var cells = new List<string>();
+            foreach (var cell in row.Elements<W.TableCell>())
+            {
+                var span = cell.GetFirstChild<W.TableCellProperties>()?.GetFirstChild<W.GridSpan>()?.Val?.Value ?? 1;
+                var cellText = string.Concat(cell.Descendants<W.Text>().Select(x => x.Text)).Trim();
+                cells.Add(cellText);
+                for (int s = 1; s < span; s++) cells.Add(""); // merged cell → empty filler columns
+            }
             colCount = Math.Max(colCount, cells.Count);
-            mdRows.Add("| " + string.Join(" | ", cells) + " |");
+            mdRows.Add(cells);
         }
+
         if (mdRows.Count == 0) return new TableBlock("");
-        var separator = "| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |";
-        mdRows.Insert(1, separator);
-        return new TableBlock(string.Join("\n", mdRows));
+        foreach (var c in mdRows)
+            while (c.Count < colCount) c.Add("");
+
+        // GFM requires a header row; use the first row (bold/shading detection only informs future
+        // enhancements — the first row is the header regardless, matching the prior behavior).
+        var lines = new List<string>
+        {
+            "| " + string.Join(" | ", mdRows[0]) + " |",
+            "| " + string.Join(" | ", Enumerable.Repeat("---", colCount)) + " |",
+        };
+        foreach (var c in mdRows.Skip(1))
+            lines.Add("| " + string.Join(" | ", c) + " |");
+        return new TableBlock(string.Join("\n", lines));
     }
 
     private static string? AlertKindFromTitle(string title)

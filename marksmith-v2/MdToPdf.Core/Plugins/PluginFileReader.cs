@@ -18,6 +18,17 @@ public static class PluginFileReader
         if (ext is "md" or "markdown" or "txt" or "")
             return await File.ReadAllTextAsync(path);
 
+        // DOCX: prefer the native Smart Dual-Mode engine — Tier 1 returns Marksmith's embedded
+        // source losslessly, Tier 2 generalizes any other Word file (images, headings, tables,
+        // shapes). The engine already cascades to a Pandoc importer internally; we only fall through
+        // to the plugin path below if it produces nothing at all.
+        if (ext == "docx")
+        {
+            var result = await new Services.ReverseImportService().ImportFromDocxAsync(path);
+            if (result.Tier != Services.ImportTier.None && !string.IsNullOrWhiteSpace(result.Markdown))
+                return result.Markdown;
+        }
+
         var importer = AppServices.Plugins.FindImporter(ext);
         if (importer != null)
         {

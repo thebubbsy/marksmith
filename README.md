@@ -223,9 +223,14 @@ Marksmith stays 100% offline; the AI you *already use* in the browser does the c
    pushed to the browser extension over the loopback command channel. The extension finds your
    active ChatGPT / Gemini / Claude / Copilot tab, pastes the prompt into the composer, and hits
    send. If the page's DOM has drifted, the popup shows a one‑click **Copy Prompt** instead.
+
+   ![The engineered prompt auto-injected into a web AI, which replies with a strict ThemeDefinition JSON](docs/images/housestyle-ai-prompt.png)
+
 3. **Your AI answers, Marksmith listens** — the reply is a strict `ThemeDefinition` JSON. Marksmith
    parses it (tolerant of code fences, prose, trailing commas), saves it as a custom theme, and
    applies it to preview, PDF, and DOCX.
+
+   ![A document rendered in Marksmith using the brand-matched custom theme](docs/images/housestyle-themed-preview.png)
 
 The result: exports that look like they came straight from your brand kit. And when a custom
 house‑style theme is active, Marksmith **strips its own provenance** — no `Marksmith` creator
