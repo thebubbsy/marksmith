@@ -147,16 +147,14 @@ public sealed class ApiServer : IDisposable
     // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
     // A browser-originated request (a web page OR any extension). Used to bar governance reads,
     // which must not be reachable from a page/extension even though IsAllowedOrigin permits the
-    // extension for its normal ingest/report flow. Empty/"null" (non-browser or opaque) is NOT a
-    // browser origin.
+    // extension for its normal ingest/report flow.
     private bool IsBrowserOrigin(string? origin) =>
-        !string.IsNullOrEmpty(origin) && origin != "null";
+        !string.IsNullOrEmpty(origin);
 
     private bool IsAllowedOrigin(string? origin)
     {
         // No Origin header: a non-browser client (script, curl, the extension's direct fetch).
-        // "null": file:// pages and sandboxed/opaque contexts (a locally-opened dashboard).
-        if (string.IsNullOrEmpty(origin) || origin == "null") return true;
+        if (string.IsNullOrEmpty(origin)) return true;
 
         // Browser-extension origins (chrome/moz/safari). An MV3 service-worker fetch sends
         // Origin: chrome-extension://<id>, so the bundled extension MUST be admitted here or every
