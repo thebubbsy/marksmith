@@ -1,0 +1,9 @@
+{
+    "name": "marksmith-selector-tests",
+    "private": true,
+    "version": "1.0.0",
+    "description": "DOM fixture tests for extension/selectors.js drift detection",
+    "dependencies": {
+        "jsdom": "^24.0.0"
+    }
+}

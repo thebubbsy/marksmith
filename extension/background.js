@@ -54,8 +54,10 @@ chrome.runtime.onInstalled.addListener(() => {
 // Polls /api/health once a minute so the icon tells you at a glance whether sends
 // will work, without you having to open the popup.
 chrome.alarms.create("health-poll", { periodInMinutes: 1 });
+chrome.alarms.create("command-poll", { periodInMinutes: 0.5 }); // reverse command channel
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "health-poll") refreshBadge();
+    if (alarm.name === "command-poll") pollCommands();
 });
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && changes.port) refreshBadge();
@@ -71,6 +73,105 @@ async function refreshBadge() {
         chrome.action.setBadgeBackgroundColor({ color: "#f85149" });
         chrome.action.setBadgeText({ text: "!" });
     }
+}
+
+// ── Reverse Command Channel (App → Extension) ──────────────────────────────
+// The desktop app enqueues jobs (e.g. 'theme-prompt') via its loopback API. We poll
+// every 30 s, attempt auto-injection into the active web-AI composer, and fall back
+// to a 1-click 'Copy Prompt' stored in chrome.storage.local for the popup UI.
+async function pollCommands() {
+    try {
+        const port = await getPort();
+        const resp = await fetch(`http://127.0.0.1:${port}/api/commands`);
+        if (!resp.ok) return;
+        const jobs = await resp.json();
+        if (!Array.isArray(jobs) || !jobs.length) return;
+        for (const job of jobs) {
+            if (job.type === "theme-prompt") await handleThemePrompt(port, job);
+        }
+    } catch {
+        // App offline or transient network error — silently skip.
+    }
+}
+
+async function handleThemePrompt(port, job) {
+    // Attempt auto-inject into the active web-AI chat composer & submit.
+    const tab = await activeTab();
+    if (tab?.id && tab.url) {
+        try {
+            const [res] = await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: injectPromptIntoComposer,
+                args: [job.prompt],
+            });
+            if (res?.result?.ok) {
+                // Success — post the AI's reply back once it arrives (best-effort poll).
+                scheduleResultCollection(port, job.id, tab.id);
+                return;
+            }
+        } catch {
+            // DOM injection failed — fall through to manual fallback.
+        }
+    }
+    // Fallback: store prompt for the popup's 'Copy Prompt' UI.
+    await chrome.storage.local.set({
+        pendingPrompt: { id: job.id, prompt: job.prompt, ts: Date.now() },
+    });
+    notify("Marksmith: Prompt Ready", "Auto-inject unavailable — open the popup to copy the theme prompt.");
+}
+
+// Injected into the page: locate the composer via selectors.js, paste prompt, click send.
+function injectPromptIntoComposer(prompt) {
+    // selectors.js is loaded as a content script before this executes.
+    const sites = globalThis.MARKSMITH_SITES || [];
+    const site = sites.find((s) => s.host.test(location.hostname));
+    if (!site) return { ok: false, reason: "unsupported-site" };
+
+    const composer = document.querySelector(site.composer);
+    if (!composer) return { ok: false, reason: "composer-not-found" };
+
+    // Set value depending on element type.
+    if (composer.tagName === "TEXTAREA" || composer.tagName === "INPUT") {
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+            HTMLTextAreaElement.prototype, "value"
+        )?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        if (nativeSetter) nativeSetter.call(composer, prompt);
+        else composer.value = prompt;
+        composer.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+        // contenteditable div
+        composer.focus();
+        composer.textContent = prompt;
+        composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    }
+
+    // Click send after a short delay so the framework registers the input.
+    const sendBtn = document.querySelector(site.sendBtn);
+    if (!sendBtn) return { ok: false, reason: "send-button-not-found" };
+    setTimeout(() => sendBtn.click(), 300);
+    return { ok: true };
+}
+
+// After auto-inject, wait for the AI reply then post it back to the app.
+function scheduleResultCollection(port, jobId, tabId) {
+    // Give the AI ~20 s to respond, then grab the latest reply.
+    setTimeout(async () => {
+        try {
+            const [res] = await chrome.scripting.executeScript({
+                target: { tabId },
+                func: extractMarkdown,
+                args: ["latest"],
+            });
+            const reply = res?.result?.ok ? res.result.markdown : "";
+            await fetch(`http://127.0.0.1:${port}/api/commands/result`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: jobId, replyMarkdown: reply }),
+            });
+        } catch {
+            // Best-effort — the user can still manually paste in the app.
+        }
+    }, 20000);
 }
 
 // ── context-menu clicks ─────────────────────────────────────────────────────

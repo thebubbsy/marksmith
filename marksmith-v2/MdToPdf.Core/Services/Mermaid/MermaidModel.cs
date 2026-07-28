@@ -44,6 +44,11 @@ public sealed class MShape
     public double StrokeWidth { get; set; } = 1.25; // pt
     public double AdjStartDeg { get; set; }     // Pie only
     public double AdjEndDeg { get; set; }       // Pie only
+
+    // Reverse-import identity (optional). When a renderer knows the semantic Mermaid node behind a
+    // shape, it sets NodeId so DocxShapeEmitter can tag the shape's wps:cNvPr name (ms:node=...) and
+    // the DOCX->Mermaid importer can recover it. Null for generic harvested geometry (no identity).
+    public string? NodeId { get; set; }
 }
 
 public sealed class MConnector
@@ -74,6 +79,10 @@ public sealed class MConnector
     // exactly these points instead of a straight/bent line — used by the exact-layout path to
     // reproduce mermaid's own curved edge routing. The arrowhead lands on the final point.
     public IReadOnlyList<(double X, double Y)>? Points { get; set; }
+
+    // Reverse-import identity (optional): the structured ms:edge=... tag DocxShapeEmitter writes into
+    // the connector's wps:cNvPr name when a renderer supplies it. Null for generic harvested geometry.
+    public string? EdgeKey { get; set; }
 }
 
 public sealed class MDiagram
