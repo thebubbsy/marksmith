@@ -310,7 +310,7 @@
   - Strip privacy-sensitive EXIF metadata (GPS, camera model, timestamp) from embedded images prior to export.
   - Verification: `ImageExifStripperServiceTests.cs`.
 
-### [ ] 46. Markdown Document Summarizer & Excerpt Generator
+### [x] 46. Markdown Document Summarizer & Excerpt Generator
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/DocumentExcerptService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentExcerptServiceTests.cs`
@@ -318,7 +318,7 @@
   - Generate a concise 1-2 sentence plain-text summary or excerpt from the opening paragraphs of a Markdown document, stripping formatting and media.
   - Verification: `DocumentExcerptServiceTests.cs`.
 
-### [ ] 47. Relative Link Resolver & Path Normalizer Engine
+### [x] 47. Relative Link Resolver & Path Normalizer Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/RelativeLinkResolverService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/RelativeLinkResolverServiceTests.cs`
@@ -326,7 +326,7 @@
   - Resolve relative file links (`./doc.md`, `../img.png`) against a document root directory into normalized absolute file paths.
   - Verification: `RelativeLinkResolverServiceTests.cs`.
 
-### [ ] 48. Markdown Task List Progress Calculator Engine
+### [x] 48. Markdown Task List Progress Calculator Engine
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/TaskListProgressService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/TaskListProgressServiceTests.cs`
@@ -334,7 +334,7 @@
   - Parse `- [ ]` and `- [x]` task list items across the document, calculating overall completed count, total count, and completion percentage metric.
   - Verification: `TaskListProgressServiceTests.cs`.
 
-### [ ] 49. Document Outline Depth Filtering Service
+### [x] 49. Document Outline Depth Filtering Service
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/OutlineFilterService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/OutlineFilterServiceTests.cs`
@@ -342,7 +342,7 @@
   - Filter a TOC or heading outline by maximum depth (e.g. H1..H3 only) and prune empty sub-trees.
   - Verification: `OutlineFilterServiceTests.cs`.
 
-### [ ] 50. Markdown Block Quote Stylizer & Callout Transformer
+### [x] 50. Markdown Block Quote Stylizer & Callout Transformer
 - **Target Files**:
   - `marksmith-v2/MdToPdf.Core/Services/BlockquoteTransformerService.cs`
   - `marksmith-v2/tests/MdToPdf.Core.Tests/BlockquoteTransformerServiceTests.cs`

@@ -158,7 +158,20 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Card 3: Cloud Storage Sync (Task 9) -->
+                    <!-- Card 3: House-Style Template Import (Zero-Click Pipeline) -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <TextBlock Text="Company House-Style Template" FontWeight="SemiBold" />
+                            <TextBlock Text="Import a .dotx template to extract your brand colors and fonts. The extension sends the style summary to your web AI to generate a matching Marksmith theme."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            <Button Content="Import Company Template (.dotx)"
+                                    IsEnabled="{Binding ExtensionConnected}"
+                                    ToolTipService.ToolTip="Connect Marksmith Browser Extension to enable"
+                                    Click="OnImportDotxClick" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 4: Cloud Storage Sync (Task 9) -->
                     <Border Style="{StaticResource PipelineCardStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <Grid ColumnSpacing="12">

@@ -115,6 +115,11 @@ public sealed class AppSettings
     public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
     public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
     public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
+    public string BrandTemplatePath { get; set; } = ""; // .dotx corporate template for house-style extraction
+
+    // Author name stamped in DOCX package properties (Creator field). Empty = no attribution,
+    // so the document looks like the user made it themselves. Replaces the old hardcoded "Marksmith".
+    public string AuthorName { get; set; } = "";
 
     // Typography (Task 16): preset id ("System", "Serif", "Sans-Serif", "Monospace",
     // "Dyslexic-friendly" — see FontManagerService) applied to rendered documents, plus an optional
@@ -280,6 +285,8 @@ public sealed class AppSettings
         BrandCoverPage = other.BrandCoverPage;
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
+        BrandTemplatePath = other.BrandTemplatePath;
+        AuthorName = other.AuthorName;
         FontPreset = other.FontPreset;
         CustomFontPath = other.CustomFontPath;
         PdfEncrypt = other.PdfEncrypt;

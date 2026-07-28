@@ -93,6 +93,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _brandCoverPage;
     [ObservableProperty] private string _brandLogoPath = "";
     [ObservableProperty] private string _brandFontFamily = "";
+    [ObservableProperty] private string _brandTemplatePath = "";
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
     [ObservableProperty] private int _dashMode;
@@ -106,6 +107,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
+
+    /// <summary>True when the browser extension has polled within the last 90 seconds.</summary>
+    public bool ExtensionConnected =>
+        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ApiServer.LastExtensionPollTs < 90_000;
 
     // Cloud storage auto-publish (Task 9).
     [ObservableProperty] private bool _cloudAutoPublish;
@@ -408,6 +413,7 @@ public sealed partial class MainViewModel : ObservableObject
         _brandCoverPage = settings.BrandCoverPage;
         _brandLogoPath = settings.BrandLogoPath;
         _brandFontFamily = settings.BrandFontFamily;
+        _brandTemplatePath = settings.BrandTemplatePath;
         _showAttribution = settings.ShowAttribution;
         _noEmoji = settings.NoEmoji;
         _dashMode = settings.DashMode;
@@ -509,6 +515,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; SaveSettingsDebounced(); }
     partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; SaveSettingsDebounced(); }
     partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; SaveSettingsDebounced(); }
+    partial void OnBrandTemplatePathChanged(string value) { _settingsService.Current.BrandTemplatePath = value; SaveSettingsDebounced(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; SaveSettingsDebounced(); }
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; SaveSettingsDebounced(); }
     partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; SaveSettingsDebounced(); }

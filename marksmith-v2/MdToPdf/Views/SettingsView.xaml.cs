@@ -259,5 +259,36 @@ public sealed partial class SettingsView : UserControl
 
         sb.Begin();
     }
+
+    // House-style template import: pick a .dotx, parse locally, enqueue the prompt for the extension.
+    private async void OnImportDotxClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainAppWindow);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.FileTypeFilter.Add(".dotx");
+        picker.FileTypeFilter.Add(".docx");
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            var summary = Services.TemplateThemeService.ParseDotx(file.Path);
+            var prompt = Services.TemplateThemeService.BuildPrompt(summary);
+            Services.ApiServer.EnqueueCommand("theme-prompt", prompt);
+            App.ViewModel.BrandTemplatePath = file.Path;
+        }
+        catch (Exception ex)
+        {
+            var dlg = new ContentDialog
+            {
+                Title = "Template Error",
+                Content = $"Could not parse the template:\n{ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = XamlRoot,
+            };
+            await dlg.ShowAsync();
+        }
+    }
 }
 
