@@ -50,7 +50,7 @@ namespace MdToPdf.Services;
 // path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
 // MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
 // code-block fallback.
-public sealed class DocxExportService
+public sealed partial class DocxExportService
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -2873,6 +2873,10 @@ public sealed class DocxExportService
         }
     }
 
+    // Using GeneratedRegex to compile pattern at build time and avoid re-allocating a Regex object inside the path tokenization loop
+    [GeneratedRegex(@"[a-zA-Z]|[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")]
+    private static partial Regex SvgPathTokenizer();
+
     private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
 
     private static int _globalRevisionId = 0;
@@ -3575,7 +3579,7 @@ public sealed class DocxExportService
 
         foreach (var d in paths)
         {
-            var tokens = Regex.Matches(d, @"[a-zA-Z]|[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?").Cast<Match>().Select(m => m.Value).ToList();
+            var tokens = SvgPathTokenizer().Matches(d).Cast<Match>().Select(m => m.Value).ToList();
             var aPath = new A.Path() { Width = shapeWidthEmu, Height = shapeHeightEmu };
             
             char currentCommand = 'M';
