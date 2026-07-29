@@ -25,7 +25,7 @@
         </Border>
 
         <Button x:Name="BrowseButton" Click="OnBrowseClick" HorizontalAlignment="Stretch"
-                ToolTipService.ToolTip="Pick an image file from this PC">
+                ToolTipService.ToolTip="Pick an image file from this PC" AutomationProperties.Name="Pick an image file from this PC">
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                 <TextBlock Text="Browse for an image…" />
@@ -52,7 +52,7 @@
 
         <Button x:Name="UrlInsertButton" Click="OnUrlInsertClick" HorizontalAlignment="Stretch"
                 Style="{StaticResource AccentButtonStyle}"
-                ToolTipService.ToolTip="Insert the image from the web address above">
+                ToolTipService.ToolTip="Insert the image from the web address above" AutomationProperties.Name="Insert the image from the web address above">
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                 <FontIcon Glyph="&#xE71B;" FontSize="14" />
                 <TextBlock Text="Insert from URL" />
