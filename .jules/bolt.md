@@ -1,0 +1,3 @@
+## 2024-07-29 - [Emoji Stripper Optimization]
+**Learning:** `EmojiStripper.Strip` is heavily called, especially when `NoEmoji` setting is enabled. Unconditionally building a `StringBuilder` and doing a per-rune copy for emoji-free text creates substantial GC overhead and slows down text processing.
+**Action:** Always check if an operation is necessary before allocating strings or string builders. Fast-forward scanning (like `IndexOf` or an equivalent rune-level scan) and bypassing allocations entirely for the hot path (e.g. text without emojis) can yield massive speedups with zero regression. Also, when modifying shared text manipulation services, check both v1 and v2 paths to maintain consistency across the codebase.

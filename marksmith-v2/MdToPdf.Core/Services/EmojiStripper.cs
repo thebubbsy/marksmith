@@ -12,9 +12,26 @@ public static class EmojiStripper
     public static string Strip(string text)
     {
         if (string.IsNullOrEmpty(text)) return text;
-        var sb = new StringBuilder(text.Length);
-        Span<char> utf16 = stackalloc char[2];
+
+        int firstEmojiIndex = -1;
+        int currentIndex = 0;
         foreach (var rune in text.EnumerateRunes())
+        {
+            if (IsEmojiRune(rune.Value))
+            {
+                firstEmojiIndex = currentIndex;
+                break;
+            }
+            currentIndex += rune.Utf16SequenceLength;
+        }
+
+        if (firstEmojiIndex == -1) return text;
+
+        var sb = new StringBuilder(text.Length);
+        sb.Append(text.AsSpan(0, firstEmojiIndex));
+
+        Span<char> utf16 = stackalloc char[2];
+        foreach (var rune in text.AsSpan(firstEmojiIndex).EnumerateRunes())
         {
             if (IsEmojiRune(rune.Value)) continue;
             sb.Append(utf16[..rune.EncodeToUtf16(utf16)]);
