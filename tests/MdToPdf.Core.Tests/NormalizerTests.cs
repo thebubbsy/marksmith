@@ -43,6 +43,11 @@ public class NormalizerTests
     [Fact] public void Plain_alert_untouched_by_fold_rewrite() { var s = AdmonitionNormalizer.Apply("> [!NOTE]\n> plain"); Assert.Contains("> [!NOTE]", s); Assert.DoesNotContain("<details", s); }
 
     // ---- dialect ------------------------------------------------------------------------------
+    [Fact] public void Claude_Artifact_Tags_Are_Stripped() => Assert.Equal("text  here", DialectNormalizer.Apply("text <antArtifact id=\"123\"> here"));
+    [Fact] public void Claude_Thinking_Tags_Are_Stripped() => Assert.Equal("text  here", DialectNormalizer.Apply("text <antThinking> here"));
+    [Fact] public void Claude_Tags_Inside_Code_Are_Untouched() => Assert.Contains("`<antArtifact>`", DialectNormalizer.Apply("text `<antArtifact>` here"));
+    [Fact] public void Claude_Tags_Inside_Fenced_Code_Are_Untouched() => Assert.Contains("<antThinking>", DialectNormalizer.Apply("```\n<antThinking>\n```"));
+
     [Fact] public void Wikilink_rewritten() => Assert.Contains("class=\"wikilink\"", DialectNormalizer.Apply("see [[Page Name]]"));
     [Fact] public void Wikilink_multiple_on_line() { var s = DialectNormalizer.Apply("[[A]] and [[B]]"); Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(s, "wikilink").Count); }
     [Fact] public void Tag_rewritten() => Assert.Contains("class=\"md-tag\"", DialectNormalizer.Apply("plan #roadmap now"));

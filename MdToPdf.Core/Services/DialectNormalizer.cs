@@ -39,6 +39,7 @@ public static class DialectNormalizer
     private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
     private static readonly Regex CriticComment = new(@"\{>>((?:(?!<<\}).)*)\<<\}", RegexOptions.Compiled);
+    private static readonly Regex ClaudeXmlTag = new(@"</?(?:antArtifact|antThinking)[^>]*>", RegexOptions.Compiled);
 
     public static string Apply(string markdown) => Apply(markdown, -1);
 
@@ -176,6 +177,9 @@ public static class DialectNormalizer
             line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>");
             line = ReplaceOutsideInlineCode(line, CriticComment, m => "");
 
+            // ---- Claude XML Tag normalization ----
+            line = ReplaceOutsideInlineCode(line, ClaudeXmlTag, m => "", protectHtml: false);
+
             // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
             if (trimmed.StartsWith('|') && Regex.IsMatch(trimmed, @"^\|[\s|:\-]+$"))
             {
@@ -225,17 +229,20 @@ public static class DialectNormalizer
     }
 
     // Applies `rx` replacements to the parts of a single line NOT inside `inline code` spans or HTML tags.
-    private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator)
+    private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator, bool protectHtml = true)
     {
         if (!rx.IsMatch(line)) return line;
         
         var codeSpans = InlineCode.Matches(line);
-        var htmlSpans = HtmlTag.Matches(line);
-        if (codeSpans.Count == 0 && htmlSpans.Count == 0) return rx.Replace(line, evaluator);
+        var htmlSpans = protectHtml ? HtmlTag.Matches(line) : null;
+        if (codeSpans.Count == 0 && (htmlSpans == null || htmlSpans.Count == 0)) return rx.Replace(line, evaluator);
 
         var protectedRanges = new List<(int Start, int End)>();
         foreach (Match m in codeSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
-        foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        if (htmlSpans != null)
+        {
+            foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        }
 
         protectedRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
 
