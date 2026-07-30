@@ -340,19 +340,19 @@
                             <StackPanel Grid.Row="1" Spacing="6" HorizontalAlignment="Center">
                                 <!-- Row 1: Basic Markdown Elements -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-                                    <Button ToolTipService.ToolTip="Bold" Width="32" Height="32" Padding="0" Click="OnBoldClick">
+                                    <Button ToolTipService.ToolTip="Bold" AutomationProperties.Name="Bold" Width="32" Height="32" Padding="0" Click="OnBoldClick">
                                         <FontIcon Glyph="&#xE19B;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Italic" Width="32" Height="32" Padding="0" Click="OnItalicClick">
+                                    <Button ToolTipService.ToolTip="Italic" AutomationProperties.Name="Italic" Width="32" Height="32" Padding="0" Click="OnItalicClick">
                                         <FontIcon Glyph="&#xE19D;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Strikethrough" Width="32" Height="32" Padding="0" Click="OnStrikethroughClick">
+                                    <Button ToolTipService.ToolTip="Strikethrough" AutomationProperties.Name="Strikethrough" Width="32" Height="32" Padding="0" Click="OnStrikethroughClick">
                                         <FontIcon Glyph="&#xE19E;" FontSize="14" />
                                     </Button>
                                     
                                     <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
                                     
-                                    <DropDownButton ToolTipService.ToolTip="Headings" Height="32" Padding="8,0">
+                                    <DropDownButton ToolTipService.ToolTip="Headings" AutomationProperties.Name="Headings" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE8C0;" FontSize="14" />
                                             <TextBlock Text="Heading" FontSize="12" VerticalAlignment="Center" />
@@ -369,31 +369,31 @@
                                     
                                     <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
                                     
-                                    <Button ToolTipService.ToolTip="Link" Width="32" Height="32" Padding="0" Click="OnLinkClick">
+                                    <Button ToolTipService.ToolTip="Link" AutomationProperties.Name="Link" Width="32" Height="32" Padding="0" Click="OnLinkClick">
                                         <FontIcon Glyph="&#xE71B;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Image" Width="32" Height="32" Padding="0" Click="OnImageClick">
+                                    <Button ToolTipService.ToolTip="Image" AutomationProperties.Name="Image" Width="32" Height="32" Padding="0" Click="OnImageClick">
                                         <FontIcon Glyph="&#xEB9F;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Table" Width="32" Height="32" Padding="0" Click="OnTableClick">
+                                    <Button ToolTipService.ToolTip="Table" AutomationProperties.Name="Table" Width="32" Height="32" Padding="0" Click="OnTableClick">
                                         <FontIcon Glyph="&#xEA37;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Code Block" Width="32" Height="32" Padding="0" Click="OnCodeBlockClick">
+                                    <Button ToolTipService.ToolTip="Code Block" AutomationProperties.Name="Code Block" Width="32" Height="32" Padding="0" Click="OnCodeBlockClick">
                                         <FontIcon Glyph="&#xE943;" FontSize="14" />
                                     </Button>
                                     
                                     <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center"/>
                                     
-                                    <Button ToolTipService.ToolTip="Bullet List" Width="32" Height="32" Padding="0" Click="OnBulletListClick">
+                                    <Button ToolTipService.ToolTip="Bullet List" AutomationProperties.Name="Bullet List" Width="32" Height="32" Padding="0" Click="OnBulletListClick">
                                         <FontIcon Glyph="&#xE292;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Numbered List" Width="32" Height="32" Padding="0" Click="OnNumberedListClick">
+                                    <Button ToolTipService.ToolTip="Numbered List" AutomationProperties.Name="Numbered List" Width="32" Height="32" Padding="0" Click="OnNumberedListClick">
                                         <FontIcon Glyph="&#xE293;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Task List" Width="32" Height="32" Padding="0" Click="OnTaskListClick">
+                                    <Button ToolTipService.ToolTip="Task List" AutomationProperties.Name="Task List" Width="32" Height="32" Padding="0" Click="OnTaskListClick">
                                         <FontIcon Glyph="&#xE73A;" FontSize="14" />
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Blockquote" Width="32" Height="32" Padding="0" Click="OnBlockquoteClick">
+                                    <Button ToolTipService.ToolTip="Blockquote" AutomationProperties.Name="Blockquote" Width="32" Height="32" Padding="0" Click="OnBlockquoteClick">
                                         <FontIcon Glyph="&#xE9F9;" FontSize="14" />
                                     </Button>
                                 </StackPanel>
@@ -402,43 +402,43 @@
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
                                     <TextBlock Text="Insert:" VerticalAlignment="Center" FontSize="11" Opacity="0.6" Margin="4,0,8,0" FontWeight="SemiBold" />
                                     
-                                    <Button ToolTipService.ToolTip="Insert Tab Group" Height="32" Padding="8,0" Click="OnInsertTabsClick">
+                                    <Button ToolTipService.ToolTip="Insert Tab Group" AutomationProperties.Name="Insert Tab Group" Height="32" Padding="8,0" Click="OnInsertTabsClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xF7ED;" FontSize="12" />
                                             <TextBlock Text="Tabs" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Web Embed" Height="32" Padding="8,0" Click="OnInsertEmbedClick">
+                                    <Button ToolTipService.ToolTip="Insert Web Embed" AutomationProperties.Name="Insert Web Embed" Height="32" Padding="8,0" Click="OnInsertEmbedClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xEE7A;" FontSize="12" />
                                             <TextBlock Text="Embed" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Native Chart" Height="32" Padding="8,0" Click="OnInsertChartClick">
+                                    <Button ToolTipService.ToolTip="Insert Native Chart" AutomationProperties.Name="Insert Native Chart" Height="32" Padding="8,0" Click="OnInsertChartClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE99A;" FontSize="12" />
                                             <TextBlock Text="Chart" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Data Grid" Height="32" Padding="8,0" Click="OnInsertDatagridClick">
+                                    <Button ToolTipService.ToolTip="Insert Data Grid" AutomationProperties.Name="Insert Data Grid" Height="32" Padding="8,0" Click="OnInsertDatagridClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xF0E2;" FontSize="12" />
                                             <TextBlock Text="Datagrid" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Multi-column Section" Height="32" Padding="8,0" Click="OnInsertColumnsClick">
+                                    <Button ToolTipService.ToolTip="Insert Multi-column Section" AutomationProperties.Name="Insert Multi-column Section" Height="32" Padding="8,0" Click="OnInsertColumnsClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE8F1;" FontSize="12" />
                                             <TextBlock Text="Columns" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert Drawing Canvas" Height="32" Padding="8,0" Click="OnInsertCanvasClick">
+                                    <Button ToolTipService.ToolTip="Insert Drawing Canvas" AutomationProperties.Name="Insert Drawing Canvas" Height="32" Padding="8,0" Click="OnInsertCanvasClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xEE56;" FontSize="12" />
                                             <TextBlock Text="Canvas" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <DropDownButton ToolTipService.ToolTip="Insert Diagram" Height="32" Padding="8,0">
+                                    <DropDownButton ToolTipService.ToolTip="Insert Diagram" AutomationProperties.Name="Insert Diagram" Height="32" Padding="8,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE8DA;" FontSize="12" />
                                             <TextBlock Text="Diagram" FontSize="11" />
@@ -453,13 +453,13 @@
                                             </MenuFlyout>
                                         </DropDownButton.Flyout>
                                     </DropDownButton>
-                                    <Button ToolTipService.ToolTip="Insert Bibliography / References" Height="32" Padding="8,0" Click="OnInsertReferencesClick">
+                                    <Button ToolTipService.ToolTip="Insert Bibliography / References" AutomationProperties.Name="Insert Bibliography / References" Height="32" Padding="8,0" Click="OnInsertReferencesClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE113;" FontSize="12" />
                                             <TextBlock Text="References" FontSize="11" />
                                         </StackPanel>
                                     </Button>
-                                    <Button ToolTipService.ToolTip="Insert AI Context metadata" Height="32" Padding="8,0" Click="OnInsertAiContextClick">
+                                    <Button ToolTipService.ToolTip="Insert AI Context metadata" AutomationProperties.Name="Insert AI Context metadata" Height="32" Padding="8,0" Click="OnInsertAiContextClick">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon Glyph="&#xE945;" FontSize="12" />
                                             <TextBlock Text="AI Context" FontSize="11" />
@@ -539,7 +539,7 @@
                         </StackPanel>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button ToolTipService.ToolTip="Export history">
+                        <Button ToolTipService.ToolTip="Export history" AutomationProperties.Name="Export history">
                             <FontIcon Glyph="&#xE81C;" FontSize="14" />
                             <Button.Flyout>
                                 <Flyout Placement="Bottom">
@@ -565,10 +565,10 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
-                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour">
+                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTipService.ToolTip="Take a quick tour" AutomationProperties.Name="Take a quick tour">
                             <FontIcon Glyph="&#xE897;" FontSize="14" />
                         </Button>
-                        <Button x:Name="SettingsButton" Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
+                        <Button x:Name="SettingsButton" Click="OnSettingsClick" ToolTipService.ToolTip="Settings" AutomationProperties.Name="Settings">
                             <FontIcon Glyph="&#xE713;" FontSize="14" />
                         </Button>
                     </StackPanel>
@@ -588,11 +588,11 @@
                                           PlaceholderText="Apply a saved preset…" HorizontalAlignment="Stretch"
                                           SelectionChanged="OnPresetSelected" />
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
-                                        ToolTipService.ToolTip="Save current settings as a preset">
+                                        ToolTipService.ToolTip="Save current settings as a preset" AutomationProperties.Name="Save current settings as a preset">
                                     <FontIcon Glyph="&#xE74E;" FontSize="14" />
                                 </Button>
                                 <Button Grid.Column="4" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
-                                        ToolTipService.ToolTip="Delete the selected preset">
+                                        ToolTipService.ToolTip="Delete the selected preset" AutomationProperties.Name="Delete the selected preset">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                 </Button>
                             </Grid>
@@ -607,7 +607,7 @@
                                           SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}"
                                           HorizontalAlignment="Stretch" />
                                 <Button Grid.Column="1" Content="🎨" Click="OnCreateThemeClick"
-                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
+                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" AutomationProperties.Name="Create a theme — pick your own colors for every element (starts from the selected theme)" />
                             </Grid>
 
                             <ToggleSwitch Header="Light Theme Influence"
@@ -797,12 +797,12 @@
                              IsSpellCheckEnabled="False" ToolTipService.ToolTip="Output folder" />
 
                     <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
-                            ToolTipService.ToolTip="Choose output folder">
+                            ToolTipService.ToolTip="Choose output folder" AutomationProperties.Name="Choose output folder">
                         <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                     </Button>
 
                     <Button Grid.Column="2" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
-                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output">
+                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output" AutomationProperties.Name="Open last output">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE8E5;" FontSize="14" />
                             <TextBlock Text="Open output" />

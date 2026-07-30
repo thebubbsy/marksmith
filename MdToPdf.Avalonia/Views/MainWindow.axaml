@@ -208,9 +208,9 @@
                                               SelectionChanged="OnPresetSelected" />
                                 </StackPanel>
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick" Content="Save"
-                                        ToolTip.Tip="Save current settings as a preset" Margin="4,0,0,0" />
+                                        ToolTip.Tip="Save current settings as a preset" AutomationProperties.Name="Save current settings as a preset" Margin="4,0,0,0" />
                                 <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick" Content="Del"
-                                        ToolTip.Tip="Delete the selected preset" Margin="4,0,0,0" />
+                                        ToolTip.Tip="Delete the selected preset" AutomationProperties.Name="Delete the selected preset" Margin="4,0,0,0" />
                             </Grid>
                             <Rectangle Height="1" Fill="{DynamicResource CardStrokeColorDefaultBrush}" />
 
@@ -219,7 +219,7 @@
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
                                     <ComboBox Grid.Column="0" ItemsSource="{Binding ThemeNames}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <Button Grid.Column="1" Content="🎨" Click="OnCreateThemeClick"
-                                            ToolTip.Tip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
+                                            ToolTip.Tip="Create a theme — pick your own colors for every element (starts from the selected theme)" AutomationProperties.Name="Create a theme — pick your own colors for every element (starts from the selected theme)" />
                                 </Grid>
                             </StackPanel>
 
@@ -360,7 +360,7 @@
                                 VerticalAlignment="Center" IsVisible="{Binding DetectedSourceText, Converter={x:Static conv:StringNotEmptyConverter.Instance}}">
                             <TextBlock Text="{Binding DetectedSourceText}" FontSize="12" Foreground="White" />
                         </Border>
-                        <Button ToolTip.Tip="Export history">
+                        <Button ToolTip.Tip="Export history" AutomationProperties.Name="Export history">
                             <TextBlock Text="History" FontSize="12" />
                             <Button.Flyout>
                                 <Flyout Placement="Bottom">
@@ -381,8 +381,8 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
-                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTip.Tip="Take a quick tour" Content="?" />
-                        <Button Click="OnSettingsClick" ToolTip.Tip="Settings" Content="Settings" />
+                        <Button x:Name="TourButton" Click="OnTakeTourClick" ToolTip.Tip="Take a quick tour" AutomationProperties.Name="Take a quick tour" Content="?" />
+                        <Button Click="OnSettingsClick" ToolTip.Tip="Settings" AutomationProperties.Name="Settings" Content="Settings" />
                     </StackPanel>
                 </Grid>
 
@@ -399,9 +399,9 @@
                              PlaceholderText="Output folder (defaults to next to the input file)"
                              ToolTip.Tip="Output folder" />
                     <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
-                            ToolTip.Tip="Choose output folder" Content="…" Margin="4,0,0,0" />
+                            ToolTip.Tip="Choose output folder" AutomationProperties.Name="Choose output folder" Content="…" Margin="4,0,0,0" />
                     <Button Grid.Column="2" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
-                            IsEnabled="{Binding HasOutput}" ToolTip.Tip="Open last output" Content="Open output" Margin="4,0,0,0" />
+                            IsEnabled="{Binding HasOutput}" ToolTip.Tip="Open last output" AutomationProperties.Name="Open last output" Content="Open output" Margin="4,0,0,0" />
                 </Grid>
 
                 <Grid Grid.Row="4" ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="0,8,0,0">

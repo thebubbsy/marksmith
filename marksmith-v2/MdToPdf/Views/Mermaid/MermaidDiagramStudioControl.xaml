@@ -80,7 +80,7 @@
 
                 <!-- Left Tools -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram"
+                    <Button Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram" AutomationProperties.Name="Start from a template diagram"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="#4CC9F0" />
@@ -89,7 +89,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes"
+                    <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes" AutomationProperties.Name="Auto Arrange Nodes"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8D7;" FontSize="14" Foreground="#4CC9F0" />
@@ -103,7 +103,7 @@
                                   IsOn="{Binding IsGridSnapEnabled, Mode=TwoWay}"
                                   Margin="8,0,0,0" />
 
-                    <Button Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete Selected Item"
+                    <Button Click="OnDeleteSelectedClick" ToolTipService.ToolTip="Delete Selected Item" AutomationProperties.Name="Delete Selected Item"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
@@ -113,7 +113,7 @@
 
                     <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
                          current multi-selection; each op is one undo step. -->
-                    <Button ToolTipService.ToolTip="Align &amp; Distribute selected nodes"
+                    <Button ToolTipService.ToolTip="Align &amp; Distribute selected nodes" AutomationProperties.Name="Align &amp; Distribute selected nodes"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8FD;" FontSize="14" Foreground="#4CC9F0" />
@@ -152,12 +152,12 @@
                         </Button.Flyout>
                     </Button>
 
-                    <Button Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)"
+                    <Button Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo (Ctrl+Z)"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A7;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
-                    <Button Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y)"
+                    <Button Click="OnRedoClick" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo (Ctrl+Y)"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
@@ -197,7 +197,7 @@
 
                 <!-- Right Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file"
+                    <Button Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file" AutomationProperties.Name="Export the canvas as an SVG file"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE896;" FontSize="14" Foreground="#4CC9F0" />
@@ -205,7 +205,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard"
+                    <Button Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard" AutomationProperties.Name="Copy the diagram as SVG to the clipboard"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
@@ -213,7 +213,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block"
+                    <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block" AutomationProperties.Name="Write the diagram back into the document's Mermaid block"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#4CC9F0" />
@@ -321,7 +321,7 @@
 
                                 <Button Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
-                                        ToolTipService.ToolTip="Node fill color">
+                                        ToolTipService.ToolTip="Node fill color" AutomationProperties.Name="Node fill color">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
                                                    Fill="{Binding SelectedNode.FillColor, Converter={StaticResource HexToBrush}}"
@@ -343,7 +343,7 @@
 
                                 <Button Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
                                         Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
-                                        ToolTipService.ToolTip="Node border color">
+                                        ToolTipService.ToolTip="Node border color" AutomationProperties.Name="Node border color">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
                                                    Fill="{Binding SelectedNode.StrokeColor, Converter={StaticResource HexToBrush}}"

@@ -58,7 +58,7 @@
             <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
                 <InfoBar.ActionButton>
                     <Button Content="Upgrade to Pro" Click="OnUpgradeClick"
-                            ToolTipService.ToolTip="Unlock MarkSmith Pro — DOCX export, automation and no export footer" />
+                            ToolTipService.ToolTip="Unlock MarkSmith Pro — DOCX export, automation and no export footer" AutomationProperties.Name="Unlock MarkSmith Pro — DOCX export, automation and no export footer" />
                 </InfoBar.ActionButton>
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's
@@ -95,7 +95,7 @@
                         VerticalAlignment="Center" Margin="0,0,150,0">
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Export as PDF (.pdf)">
+                        ToolTipService.ToolTip="Export as PDF (.pdf)" AutomationProperties.Name="Export as PDF (.pdf)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE749;" FontSize="12" />
                         <TextBlock Text="Export PDF" FontSize="12" />
@@ -103,7 +103,7 @@
                 </Button>
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertDocxClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Export as Word (.docx)">
+                        ToolTipService.ToolTip="Export as Word (.docx)" AutomationProperties.Name="Export as Word (.docx)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE74E;" FontSize="12" />
                         <TextBlock Text="Export Word" FontSize="12" />
@@ -111,7 +111,7 @@
                 </Button>
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Import a DOCX or PDF document into Markdown">
+                        ToolTipService.ToolTip="Import a DOCX or PDF document into Markdown" AutomationProperties.Name="Import a DOCX or PDF document into Markdown">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8B5;" FontSize="12" />
                         <TextBlock Text="Import" FontSize="12" />
@@ -120,12 +120,12 @@
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
-                        ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio">
+                        ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio" AutomationProperties.Name="Open the visual Mermaid Diagram Studio">
                     <TextBlock Text="Diagram Studio 🎨" FontSize="12" />
                 </Button>
                 <Button Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
                         Click="OnSettingsClick"
-                        ToolTipService.ToolTip="Settings (Ctrl+,)">
+                        ToolTipService.ToolTip="Settings (Ctrl+,)" AutomationProperties.Name="Settings (Ctrl+,)">
                     <FontIcon Glyph="&#xE713;" FontSize="14" />
                 </Button>
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
@@ -206,7 +206,7 @@
                                     <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
                                                Style="{StaticResource CaptionTextBlockStyle}" />
                                     <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center"
-                                            ToolTipService.ToolTip="Browse for a Markdown file to open" />
+                                            ToolTipService.ToolTip="Browse for a Markdown file to open" AutomationProperties.Name="Browse for a Markdown file to open" />
                                 </StackPanel>
                             </Border>
 
@@ -218,7 +218,7 @@
                                 <TextBox Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                          PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnTogglePinFileClick"
-                                        ToolTipService.ToolTip="Pin/unpin this file to the top of the file list">
+                                        ToolTipService.ToolTip="Pin/unpin this file to the top of the file list" AutomationProperties.Name="Pin/unpin this file to the top of the file list">
                                     <Grid>
                                         <FontIcon Glyph="&#xE734;" FontSize="14"
                                                   Visibility="{Binding IsCurrentFilePinned, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -303,7 +303,7 @@
                                             <TextBox Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
                                                      PlaceholderText="e.g. C:\Docs\AI-notebook.docx" IsSpellCheckEnabled="False" />
                                             <Button Grid.Column="1" Click="OnBrowseRunningDocClick"
-                                                    ToolTipService.ToolTip="Choose the running .docx document">
+                                                    ToolTipService.ToolTip="Choose the running .docx document" AutomationProperties.Name="Choose the running .docx document">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
@@ -331,7 +331,7 @@
                                             <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
                                                      PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
                                             <Button Grid.Column="1" Click="OnBrowseWatchFolderClick"
-                                                    ToolTipService.ToolTip="Choose the folder to watch">
+                                                    ToolTipService.ToolTip="Choose the folder to watch" AutomationProperties.Name="Choose the folder to watch">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
@@ -353,7 +353,7 @@
                                         </ComboBox>
 
                                         <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                                ToolTipService.ToolTip="Pick a folder — every .md file inside becomes a themed PDF">
+                                                ToolTipService.ToolTip="Pick a folder — every .md file inside becomes a themed PDF" AutomationProperties.Name="Pick a folder — every .md file inside becomes a themed PDF">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <FontIcon Glyph="&#xE8B9;" FontSize="14" />
                                                 <TextBlock Text="Batch convert a folder to PDF…" />
@@ -481,15 +481,15 @@
                                                   VerticalAlignment="Center" ToolTipService.ToolTip="Match case"
                                                   Checked="OnMatchCaseChanged" Unchecked="OnMatchCaseChanged" />
                                         <Button Grid.Column="3" Height="30" Padding="8,0" Click="OnFindPrevClick"
-                                                ToolTipService.ToolTip="Previous match (Shift+Enter)">
+                                                ToolTipService.ToolTip="Previous match (Shift+Enter)" AutomationProperties.Name="Previous match (Shift+Enter)">
                                             <FontIcon Glyph="&#xE70E;" FontSize="13" />
                                         </Button>
                                         <Button Grid.Column="4" Height="30" Padding="8,0" Click="OnFindNextClick"
-                                                ToolTipService.ToolTip="Next match (Enter)">
+                                                ToolTipService.ToolTip="Next match (Enter)" AutomationProperties.Name="Next match (Enter)">
                                             <FontIcon Glyph="&#xE70D;" FontSize="13" />
                                         </Button>
                                         <Button Grid.Column="5" Height="30" Padding="8,0" Click="OnFindCloseClick"
-                                                ToolTipService.ToolTip="Close (Escape)">
+                                                ToolTipService.ToolTip="Close (Escape)" AutomationProperties.Name="Close (Escape)">
                                             <FontIcon Glyph="&#xE711;" FontSize="13" />
                                         </Button>
                                     </Grid>
@@ -502,11 +502,11 @@
                                         <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with..."
                                                  Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown" />
                                         <Button Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
-                                                ToolTipService.ToolTip="Replace the current match (Enter)">
+                                                ToolTipService.ToolTip="Replace the current match (Enter)" AutomationProperties.Name="Replace the current match (Enter)">
                                             <TextBlock Text="Replace" FontSize="12" />
                                         </Button>
                                         <Button Grid.Column="2" Height="30" Padding="12,0" Click="OnReplaceAllClick"
-                                                ToolTipService.ToolTip="Replace every match">
+                                                ToolTipService.ToolTip="Replace every match" AutomationProperties.Name="Replace every match">
                                             <TextBlock Text="Replace all" FontSize="12" />
                                         </Button>
                                     </Grid>
@@ -544,13 +544,13 @@
                                 <!-- Editor font-size zoom (persisted): A− / A+ buttons plus Ctrl+wheel in the
                                      editor. The % readout is relative to the 13px default. -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                    <Button ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
+                                    <Button ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" AutomationProperties.Name="Decrease editor font size (Ctrl+wheel down)" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
                                         <TextBlock Text="A&#x2212;" FontSize="12" />
                                     </Button>
                                     <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
                                                Opacity="0.6" MinWidth="42" TextAlignment="Center"
                                                ToolTipService.ToolTip="Editor font size" />
-                                    <Button ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
+                                    <Button ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" AutomationProperties.Name="Increase editor font size (Ctrl+wheel up)" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
                                         <TextBlock Text="A+" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
@@ -562,7 +562,7 @@
                                 <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
                                     <Button x:Name="LintButton" Height="24" Padding="6,0"
-                                            ToolTipService.ToolTip="Markdown issues — click to review and jump">
+                                            ToolTipService.ToolTip="Markdown issues — click to review and jump" AutomationProperties.Name="Markdown issues — click to review and jump">
                                         <StackPanel Orientation="Horizontal" Spacing="5">
                                             <FontIcon Glyph="&#xE7BA;" FontSize="12" />
                                             <TextBlock x:Name="LintCountText" Text="No issues" FontSize="11" VerticalAlignment="Center" />
@@ -643,12 +643,12 @@
                     <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
                          the readout stays in sync via a light poll in code-behind. -->
                     <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
+                        <Button ToolTipService.ToolTip="Zoom preview out" AutomationProperties.Name="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
                             <FontIcon Glyph="&#xE738;" FontSize="11" />
                         </Button>
                         <TextBlock x:Name="PreviewZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
                                    Opacity="0.65" MinWidth="40" TextAlignment="Center" ToolTipService.ToolTip="Preview zoom (Ctrl+wheel)" />
-                        <Button ToolTipService.ToolTip="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
+                        <Button ToolTipService.ToolTip="Zoom preview in" AutomationProperties.Name="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
                             <FontIcon Glyph="&#xE710;" FontSize="11" />
                         </Button>
                     </StackPanel>
@@ -691,11 +691,11 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Width="32" Padding="0"
+                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" AutomationProperties.Name="Copy the rendered HTML to the clipboard" Height="32" Width="32" Padding="0"
                                 Click="OnCopyHtmlClick" VerticalAlignment="Center">
                             <FontIcon Glyph="&#xE8C8;" FontSize="13" />
                         </Button>
-                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
+                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" AutomationProperties.Name="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
                                 Click="OnPrintClick" VerticalAlignment="Center">
                             <FontIcon Glyph="&#xE749;" FontSize="13" />
                         </Button>
@@ -708,7 +708,7 @@
                         <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4">
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
 
-                            <DropDownButton ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
+                            <DropDownButton ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" AutomationProperties.Name="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE19B;" FontSize="14" />
                                     <TextBlock Text="Text Style" FontSize="12" VerticalAlignment="Center" />
@@ -733,7 +733,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
+                            <DropDownButton ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" AutomationProperties.Name="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE292;" FontSize="14" />
                                     <TextBlock Text="Lists" FontSize="12" VerticalAlignment="Center" />
@@ -757,7 +757,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
+                            <DropDownButton ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" AutomationProperties.Name="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="14" />
                                     <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
@@ -823,7 +823,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
+                            <DropDownButton ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" AutomationProperties.Name="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE90F;" FontSize="14" />
                                     <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />
@@ -881,7 +881,7 @@
                         <!-- Document outline (Task 17): H1–H6 flyout; clicking a node scrolls the
                              preview to that heading. Its own Button.Flyout (not an attached flyout)
                              so it doesn't collide with the ⋯ menu's history attached flyout. -->
-                        <Button x:Name="OutlineButton" ToolTipService.ToolTip="Document outline (H1–H6)">
+                        <Button x:Name="OutlineButton" ToolTipService.ToolTip="Document outline (H1–H6)" AutomationProperties.Name="Document outline (H1–H6)">
                             <FontIcon Glyph="&#xE8A4;" FontSize="14" />
                             <Button.Flyout>
                                 <Flyout Placement="Bottom">
@@ -905,7 +905,7 @@
                                 </Flyout>
                             </Button.Flyout>
                         </Button>
-                        <Button x:Name="MoreMenuButton" ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support">
+                        <Button x:Name="MoreMenuButton" ToolTipService.ToolTip="More — history, tour, shortcuts, settings, support" AutomationProperties.Name="More — history, tour, shortcuts, settings, support">
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="Bottom">
@@ -975,11 +975,11 @@
                                           PlaceholderText="Apply a saved preset…" HorizontalAlignment="Stretch"
                                           SelectionChanged="OnPresetSelected" />
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
-                                        ToolTipService.ToolTip="Save current settings as a preset">
+                                        ToolTipService.ToolTip="Save current settings as a preset" AutomationProperties.Name="Save current settings as a preset">
                                     <FontIcon Glyph="&#xE74E;" FontSize="14" />
                                 </Button>
                                 <Button Grid.Column="4" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
-                                        ToolTipService.ToolTip="Delete the selected preset">
+                                        ToolTipService.ToolTip="Delete the selected preset" AutomationProperties.Name="Delete the selected preset">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                 </Button>
                             </Grid>
@@ -1006,7 +1006,7 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                                 <Button Grid.Column="1" Click="OnToggleThemeFavoriteClick" VerticalAlignment="Bottom"
-                                        ToolTipService.ToolTip="Pin/unpin the selected theme to the top of the list">
+                                        ToolTipService.ToolTip="Pin/unpin the selected theme to the top of the list" AutomationProperties.Name="Pin/unpin the selected theme to the top of the list">
                                     <Grid>
                                         <FontIcon Glyph="&#xE734;" FontSize="14"
                                                   Visibility="{Binding IsCurrentThemeFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -1015,7 +1015,7 @@
                                     </Grid>
                                 </Button>
                                 <Button Grid.Column="2" Content="🎨" Click="OnCreateThemeClick"
-                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" />
+                                        VerticalAlignment="Bottom" ToolTipService.ToolTip="Create a theme — pick your own colors for every element (starts from the selected theme)" AutomationProperties.Name="Create a theme — pick your own colors for every element (starts from the selected theme)" />
                             </Grid>
 
                             <ToggleSwitch Header="Light Theme Influence"
@@ -1065,7 +1065,7 @@
                                      Message="{Binding DiagramHintText}"
                                      IsClosable="False" Margin="0,0,0,8">
                                 <InfoBar.ActionButton>
-                                    <Button Content="Diagram Studio 🎨" Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio" />
+                                    <Button Content="Diagram Studio 🎨" Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio" AutomationProperties.Name="Open the visual Mermaid Diagram Studio" />
                                 </InfoBar.ActionButton>
                             </InfoBar>
                             <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
@@ -1105,7 +1105,7 @@
                                                  Text="{Binding BrandLogoPath, Mode=TwoWay}"
                                                  PlaceholderText="Select logo image..." IsSpellCheckEnabled="False" />
                                         <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseLogoClick"
-                                                ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)">
+                                                ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)" AutomationProperties.Name="Choose a logo image (PNG/JPEG)">
                                             <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                         </Button>
                                     </Grid>
@@ -1182,7 +1182,7 @@
                                           <TextBox Grid.Column="0" Header="Logo (PNG/JPEG)" Text="{Binding BrandLogoPath, Mode=TwoWay}"
                                                    PlaceholderText="Optional — shown on the cover" IsSpellCheckEnabled="False" />
                                           <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseBrandLogoClick"
-                                                  ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)">
+                                                  ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)" AutomationProperties.Name="Choose a logo image (PNG/JPEG)">
                                               <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                           </Button>
                                       </Grid>
@@ -1207,12 +1207,12 @@
                              IsSpellCheckEnabled="False" ToolTipService.ToolTip="Output folder" />
 
                     <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFolderClick"
-                            ToolTipService.ToolTip="Choose output folder">
+                            ToolTipService.ToolTip="Choose output folder" AutomationProperties.Name="Choose output folder">
                         <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                     </Button>
 
                     <Button Grid.Column="2" VerticalAlignment="Stretch" Click="OnOpenOutputClick"
-                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output">
+                            IsEnabled="{Binding HasOutput}" ToolTipService.ToolTip="Open last output" AutomationProperties.Name="Open last output">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE8E5;" FontSize="14" />
                             <TextBlock Text="Open output" />
@@ -1266,7 +1266,7 @@
 
                     <Button Grid.Column="1" Height="40" Content="Cancel"
                             Command="{Binding CancelConversionCommand}" IsEnabled="{Binding IsBusy}"
-                            ToolTipService.ToolTip="Cancel the export in progress" />
+                            ToolTipService.ToolTip="Cancel the export in progress" AutomationProperties.Name="Cancel the export in progress" />
 
                     <ProgressRing Grid.Column="2" IsActive="{Binding IsBusy}" Width="22" Height="22"
                                   VerticalAlignment="Center" />

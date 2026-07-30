@@ -190,7 +190,7 @@
                                        Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             <Button Content="Import Company Template (.dotx)"
                                     IsEnabled="{Binding ExtensionConnected}"
-                                    ToolTipService.ToolTip="Connect Marksmith Browser Extension to enable"
+                                    ToolTipService.ToolTip="Connect Marksmith Browser Extension to enable" AutomationProperties.Name="Connect Marksmith Browser Extension to enable"
                                     Click="OnImportDotxClick" />
                             <TextBlock Text="{Binding HouseStyleStatus}" TextWrapping="Wrap"
                                        Style="{StaticResource StepCaptionStyle}"
@@ -224,21 +224,21 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBox x:Name="KeyBox" PlaceholderText="Paste your license key" Width="290" IsSpellCheckEnabled="False" />
                             <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense"
-                                    ToolTipService.ToolTip="Validate the key and unlock Pro features" />
+                                    ToolTipService.ToolTip="Validate the key and unlock Pro features" AutomationProperties.Name="Validate the key and unlock Pro features" />
                         </StackPanel>
                         <TextBlock x:Name="LicenseStatus" Text="" Style="{StaticResource StepCaptionStyle}"
                                    TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
 
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Click="OnBuyPro" Style="{StaticResource AccentButtonStyle}"
-                                    ToolTipService.ToolTip="Open the MarkSmith Pro purchase page">
+                                    ToolTipService.ToolTip="Open the MarkSmith Pro purchase page" AutomationProperties.Name="Open the MarkSmith Pro purchase page">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE719;" FontSize="14" />
                                     <TextBlock Text="Buy MarkSmith Pro" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
-                                    ToolTipService.ToolTip="Deactivate this PC — the key can be used on another machine" />
+                                    ToolTipService.ToolTip="Deactivate this PC — the key can be used on another machine" AutomationProperties.Name="Deactivate this PC — the key can be used on another machine" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -280,7 +280,7 @@
 
                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                             <Button x:Name="CheckButton" Click="OnCheckForUpdates"
-                                    ToolTipService.ToolTip="Check GitHub for a newer MarkSmith release">
+                                    ToolTipService.ToolTip="Check GitHub for a newer MarkSmith release" AutomationProperties.Name="Check GitHub for a newer MarkSmith release">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE895;" FontSize="14" />
                                     <TextBlock Text="Check for updates" />
