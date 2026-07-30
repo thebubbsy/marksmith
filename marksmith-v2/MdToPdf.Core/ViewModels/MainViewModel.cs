@@ -16,6 +16,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DocxExportService _docxExport = new();
     private readonly PptxExportService _pptxExport = new();
     private readonly EpubExportService _epubExport = new();
+private readonly MarkdownExportService _mdExport = new();
     private readonly MermaidHarvestService _mermaidHarvest = new();
 
     private CancellationTokenSource? _conversionCts;
@@ -103,6 +104,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _italicMode;
     [ObservableProperty] private bool _advancedMode;
     [ObservableProperty] private bool _proMode;
+    [ObservableProperty] private bool _hardwareAcceleration = true;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
@@ -111,6 +113,80 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>True when the browser extension has polled within the last 90 seconds.</summary>
     public bool ExtensionConnected =>
         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ApiServer.LastExtensionPollTs < 90_000;
+
+    // ---- House-style template pipeline (extension round-trip) ---------------------------------
+    // The .dotx import (Settings ▸ Automation card) parses the template locally, then hands a
+    // prompt to the browser extension via the reverse command channel (ApiServer.EnqueueCommand).
+    // The extension feeds the prompt to the user's OWN web AI — Marksmith never calls an LLM —
+    // and posts the reply back to POST /api/commands/result, which PollThemeJobResult consumes.
+
+    /// <summary>The generated AI prompt, surfaced in Settings as a copyable manual fallback.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHouseStylePrompt))]
+    private string _houseStylePrompt = "";
+
+    /// <summary>Status line under the house-style import button in Settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHouseStyleStatus))]
+    private string _houseStyleStatus = "";
+
+    public bool HasHouseStylePrompt => !string.IsNullOrWhiteSpace(HouseStylePrompt);
+    public bool HasHouseStyleStatus => !string.IsNullOrWhiteSpace(HouseStyleStatus);
+
+    private string? _pendingThemeJobId;
+
+    /// <summary>Parses a .dotx/.docx template, builds the style prompt and enqueues it for the
+    /// browser extension. Returns the command-channel job id. Throws when the template cannot be
+    /// parsed (the caller surfaces the error dialog).</summary>
+    public string BeginHouseStyleImport(string dotxPath)
+    {
+        var summary = TemplateThemeService.ParseDotx(dotxPath);
+        var prompt = TemplateThemeService.BuildPrompt(summary);
+        HouseStylePrompt = prompt;
+        var jobId = ApiServer.EnqueueCommand("theme-prompt", prompt);
+        _pendingThemeJobId = jobId;
+        BrandTemplatePath = dotxPath;
+        HouseStyleStatus = "Prompt sent to the browser extension — waiting for your web AI's reply…";
+        return jobId;
+    }
+
+    /// <summary>Checks the reverse command channel for the pending house-style result and applies
+    /// it: parse the AI reply, save the custom theme, and select it (selecting triggers the
+    /// preview refresh). Returns true when a result was consumed.</summary>
+    public bool PollThemeJobResult()
+    {
+        if (_pendingThemeJobId is null) return false;
+        var result = ApiServer.GetResult(_pendingThemeJobId);
+        if (result is null) return false;
+        _pendingThemeJobId = null;
+
+        var theme = TemplateThemeService.ParseAiResponse(result.ReplyMarkdown);
+        if (theme is null)
+        {
+            HouseStyleStatus = "The AI reply wasn't valid theme JSON — copy the prompt below into your web chat and try again.";
+            StatusText = "House-style import failed: the AI reply wasn't a valid theme JSON.";
+            StatusSeverity = StatusSeverity.Error;
+            return true;
+        }
+
+        TemplateThemeService.SaveTheme(theme);
+        var ordered = BuildOrderedThemeNames(_settingsService.Current.FavoriteThemes);
+        ThemeNames.Clear();
+        foreach (var name in ordered) ThemeNames.Add(name);
+        SelectedThemeName = theme.Name;
+        HouseStyleStatus = $"Theme “{theme.Name}” created and selected.";
+        StatusText = $"House-style theme “{theme.Name}” applied.";
+        StatusSeverity = StatusSeverity.Success;
+        return true;
+    }
+
+    /// <summary>Heartbeat tick driven by the UI-layer timer: refreshes the extension-connected
+    /// flag and polls for a pending house-style theme result on the dispatcher thread.</summary>
+    public void TickExtensionChannel()
+    {
+        OnPropertyChanged(nameof(ExtensionConnected));
+        PollThemeJobResult();
+    }
 
     // Cloud storage auto-publish (Task 9).
     [ObservableProperty] private bool _cloudAutoPublish;
@@ -423,6 +499,7 @@ public sealed partial class MainViewModel : ObservableObject
         _italicMode = settings.ItalicMode;
         _advancedMode = settings.AdvancedMode;
         _proMode = settings.ProMode;
+        _hardwareAcceleration = settings.HardwareAcceleration;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
         _allowedExtensionId = settings.AllowedExtensionId;
@@ -525,6 +602,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; SaveSettingsDebounced(); }
     partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; SaveSettingsDebounced(); }
     partial void OnProModeChanged(bool value) { _settingsService.Current.ProMode = value; SaveSettingsDebounced(); }
+    partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
@@ -636,6 +714,10 @@ public sealed partial class MainViewModel : ObservableObject
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
     public string BuildPreviewHtml(string markdown, bool interactive = false) =>
         _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
+
+    /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
+    public string? BuildPreviewCanvasHtml(string markdown) =>
+        _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
 
     // Classification + normalization for content that did NOT arrive through IngestMarkdown —
     // manual paste and browsed/dropped files. Without this, the "Normalize AI formatting quirks"
@@ -881,7 +963,7 @@ public sealed partial class MainViewModel : ObservableObject
             // complex inputs — the generic SVG-primitive path guarantees native shapes, never a picture.
             List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
             if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
-                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings);
+                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings, CurrentTheme);
 
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
             // families) — the renderer needs the platform's web host, which the caller wires up.
@@ -938,6 +1020,26 @@ public sealed partial class MainViewModel : ObservableObject
             RecordExport("EPUB", outPath, markdown);
             RaiseExportCompleted("EPUB", outPath);
             StatusText = $"EPUB export done: {outPath}";
+        });
+    }
+
+    // Markdown is a free (ungated) format — the counterpart to the DOCX -> MD reverse pipeline:
+    // import a Word file (or paste AI output), then save the recovered/cleaned source back out as a
+    // canonical .md. Mirrors the EPUB path (no license check, same resolve/record/toast flow).
+    public async Task ConvertToMarkdownAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("Markdown", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, MarkdownExportService.Extension);
+            await _mdExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("MD", outPath, markdown);
+            RaiseExportCompleted("MD", outPath);
+            StatusText = $"Markdown export done: {outPath}";
         });
     }
 

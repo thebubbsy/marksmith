@@ -51,6 +51,13 @@ public sealed class HistoryEntry
         }
     }
 
+    // Cached compiled regexes — these used to be re-created via new Regex(...) on every
+    // history-list render (ExtractTitle runs once per history row).
+    private static readonly Regex FrontMatterTitleRegex = new(@"^title:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex HeadingRegex = new(@"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", RegexOptions.Compiled);
+    private static readonly Regex LinkRegex = new(@"\[([^\]]+)\]\([^)]*\)", RegexOptions.Compiled);
+    private static readonly Regex EmphasisRegex = new(@"[*_`~]", RegexOptions.Compiled);
+
     // Pull a human title from the Markdown: YAML front-matter title, else the first heading,
     // else the first meaningful line. Cleaned of Markdown syntax and length-capped.
     public static string ExtractTitle(string markdown)
@@ -62,15 +69,16 @@ public sealed class HistoryEntry
         {
             for (var i = 1; i < lines.Length; i++)
             {
-                if (lines[i].Trim() == "---") break;
-                var m = Regex.Match(lines[i].Trim(), @"^title:\s*(.+)$", RegexOptions.IgnoreCase);
+                var trimmed = lines[i].Trim();
+                if (trimmed == "---") break;
+                var m = FrontMatterTitleRegex.Match(trimmed);
                 if (m.Success) return Clean(m.Groups[1].Value);
             }
         }
 
         foreach (var raw in lines)
         {
-            var m = Regex.Match(raw, @"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$");
+            var m = HeadingRegex.Match(raw);
             if (m.Success) return Clean(m.Groups[1].Value);
         }
 
@@ -87,8 +95,8 @@ public sealed class HistoryEntry
 
     private static string Clean(string s)
     {
-        s = Regex.Replace(s, @"\[([^\]]+)\]\([^)]*\)", "$1"); // links -> text
-        s = Regex.Replace(s, @"[*_`~]", "");                  // emphasis / code / strikethrough
+        s = LinkRegex.Replace(s, "$1");   // links -> text
+        s = EmphasisRegex.Replace(s, ""); // emphasis / code / strikethrough
         s = s.Trim().Trim('"');
         return s.Length > 80 ? s[..79].TrimEnd() + "…" : s;
     }

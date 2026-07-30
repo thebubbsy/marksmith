@@ -107,6 +107,12 @@ public class OpenXmlSyntaxHighlighter
         public HashSet<string> Keywords { get; init; } = new(StringComparer.Ordinal);
         public HashSet<string> Types { get; init; } = new(StringComparer.Ordinal);
         public HashSet<string> Builtins { get; init; } = new(StringComparer.Ordinal);
+
+        // The tokenizer patterns depend only on this (immutable) profile, so build the compiled
+        // regex set ONCE per language and reuse it for every code block — it used to be rebuilt
+        // from scratch (15–20 new Regex(...) allocations) on every highlight pass.
+        private List<(Regex, TokenKind)>? _patterns;
+        public List<(Regex, TokenKind)> Patterns => _patterns ??= BuildPatterns(this);
     }
 
     private static HashSet<string> Kw(string words, bool caseInsensitive = false)
@@ -281,7 +287,7 @@ public class OpenXmlSyntaxHighlighter
 
     private static List<(string Text, TokenKind Kind)> Tokenize(string source, SyntaxProfile profile)
     {
-        var patterns = BuildPatterns(profile);
+        var patterns = profile.Patterns;
         var raw = new List<(string, TokenKind)>();
         int pos = 0;
         int len = source.Length;

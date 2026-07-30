@@ -67,14 +67,15 @@ async function init() {
     // Load from chrome.storage.sync with fallback to chrome.storage.local
     let s = {};
     try {
-        s = await chrome.storage.sync.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, output: OUT_DEFAULTS });
+        s = await chrome.storage.sync.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: OUT_DEFAULTS });
     } catch {
-        s = await chrome.storage.local.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, output: OUT_DEFAULTS });
+        s = await chrome.storage.local.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: OUT_DEFAULTS });
     }
 
     if ($("port")) $("port").value = s.port || 47821;
     if ($("autoSendIdle")) $("autoSendIdle").checked = !!s.autoSendIdle;
     if ($("idleSeconds")) $("idleSeconds").value = s.idleSeconds || 20;
+    if ($("imgEmbedPref")) $("imgEmbedPref").value = ["ask", "url", "base64"].includes(s.imgEmbedPref) ? s.imgEmbedPref : "ask";
 
     const out = { ...OUT_DEFAULTS, ...s.output };
 
@@ -97,8 +98,15 @@ if ($("save")) {
             port,
             idleSeconds,
             autoSendIdle: $("autoSendIdle") ? $("autoSendIdle").checked : false,
+            imgEmbedPref: $("imgEmbedPref") && ["ask", "url", "base64"].includes($("imgEmbedPref").value) ? $("imgEmbedPref").value : "ask",
             output: readOutput(),
         };
+
+        // Embedding defeats CORS via the optional host permission — request it here (a guaranteed
+        // user gesture in the Options UI) the moment the user commits to "always embed".
+        if (payload.imgEmbedPref === "base64") {
+            try { await chrome.permissions.request({ origins: ["<all_urls>"] }); } catch {}
+        }
 
         // Persist to both sync and local storage for maximum reliability across browsers/offline
         try { await chrome.storage.sync.set(payload); } catch {}

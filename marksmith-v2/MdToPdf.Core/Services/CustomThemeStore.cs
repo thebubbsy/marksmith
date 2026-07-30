@@ -16,6 +16,11 @@ public static class CustomThemeStore
     private static readonly object Gate = new();
     private static List<ThemeDefinition>? _cache;
 
+    // Bumped on every mutation so cached catalog snapshots (ThemeCatalog.All) can tell when their
+    // copy is stale and rebuild — instead of re-concatenating Builtin + customs on every access.
+    private static int _version;
+    public static int Version { get { lock (Gate) return _version; } }
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public static IReadOnlyList<ThemeDefinition> All
@@ -31,6 +36,7 @@ public static class CustomThemeStore
             _cache.RemoveAll(t => t.Name.Equals(theme.Name, StringComparison.OrdinalIgnoreCase));
             _cache.Add(theme);
             Save();
+            _version++;
         }
     }
 
@@ -40,7 +46,11 @@ public static class CustomThemeStore
         {
             _cache ??= Load();
             var removed = _cache.RemoveAll(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) > 0;
-            if (removed) Save();
+            if (removed)
+            {
+                Save();
+                _version++;
+            }
             return removed;
         }
     }

@@ -52,7 +52,7 @@ public static partial class DocumentStatsService
         // Walk lines so fenced code is handled exactly (a regex can't reliably tell an opening fence
         // from a closing one across the whole document). Everything OUTSIDE a fence is prose we scan
         // for headings/tables and accumulate for word counting; fence bodies are excluded wholesale.
-        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = TextNormalizer.Newlines(markdown).Split('\n');
         // Line count for the status bar: a single trailing newline shouldn't register as an extra
         // blank line ("hello\n" is one line), but a genuine blank line still counts ("a\n\n" = 2).
         int lineCount = lines.Length;
@@ -90,9 +90,12 @@ public static partial class DocumentStatsService
 
         var proseText = prose.ToString();
 
-        int images = ImageRe().Matches(proseText).Count;
-        // Links minus images: an ![...]() also matches the link shape, so subtract the images out.
-        int links = Math.Max(0, LinkRe().Matches(proseText).Count - images);
+        // Single-pass: count images/links WHILE stripping them for word-counting, so the
+        // regexes run once instead of twice (Matches here + Replace in CountWords).
+        int images = 0, links = 0;
+        proseText = ImageRe().Replace(proseText, m => { images++; return m.Groups[1].Value; });
+        // After images are stripped, [text](url) only matches genuine links (no ![...] overlap).
+        proseText = LinkRe().Replace(proseText, m => { links++; return m.Groups[1].Value; });
 
         int words = CountWords(proseText);
         var readingTime = TimeSpan.FromMinutes(words / WordsPerMinute);
@@ -129,10 +132,8 @@ public static partial class DocumentStatsService
 
     private static int CountWords(string prose)
     {
-        // Replace image/link markup with just their visible text so "see [the docs](url)" counts the
-        // words a reader sees ("see the docs"), not the URL. Images collapse to their alt text.
-        prose = ImageRe().Replace(prose, "$1");
-        prose = LinkRe().Replace(prose, "$1");
+        // Images and links have already been stripped to their visible text by the caller
+        // (counting them in the same pass). Only inline code and emphasis markers remain.
         prose = InlineCodeRe().Replace(prose, " ");
         prose = MarkerRe().Replace(prose, " ");
 

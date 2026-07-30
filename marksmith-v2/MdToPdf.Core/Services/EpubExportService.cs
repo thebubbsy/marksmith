@@ -16,10 +16,15 @@ public sealed class EpubExportService
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
 
-    private static readonly ThemeCatalog Themes = new();
+    // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
+    private static ThemeCatalog Themes => AppServices.Themes;
 
-    private static readonly string[] VoidTags =
-        { "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr" };
+    // Single alternation covering every HTML void tag, used to self-close them in ONE pass. The
+    // previous form was a string[] VoidTags iterated into 14 sequential Regex.Replace calls (one
+    // per tag) — each allocated a Regex and re-scanned the entire document.
+    private static readonly Regex VoidTagRegex = new(
+        @"<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public Task ExportAsync(string markdown, string epubPath, AppSettings settings) =>
         ExportAsync(markdown, epubPath, settings, null);
@@ -170,12 +175,8 @@ public sealed class EpubExportService
     private static string? NonEmpty(Dictionary<string, string> map, string key) =>
         map.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
-    private static string XhtmlSafe(string html)
-    {
-        foreach (var t in VoidTags)
-            html = Regex.Replace(html, $@"<{t}\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>", $"<{t}$1 />", RegexOptions.IgnoreCase);
-        return html;
-    }
+    private static string XhtmlSafe(string html) =>
+        VoidTagRegex.Replace(html, m => $"<{m.Groups[1].Value.ToLowerInvariant()}{m.Groups[2].Value} />");
 
     private static string? FirstHeading(string html)
     {

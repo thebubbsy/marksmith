@@ -16,7 +16,7 @@ public class Category1And3FixTests
     private static readonly ThemeCatalog Themes = new();
 
     // M1-01: HtmlSanitizer event handler regex \son\w+ -> allow slash prefix [\s/]on\w+
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_01_HtmlSanitizer_Strips_Slash_Delimited_Event_Handlers()
     {
         var html = "<img/onload=alert(1) src=\"x.png\">";
@@ -26,7 +26,7 @@ public class Category1And3FixTests
     }
 
     // M1-02: MarkdownHtmlService embedded Mermaid string literal -> WebUtility.HtmlEncode()
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_02_MarkdownHtmlService_Encodes_Mermaid_String_Literals()
     {
         var service = new MarkdownHtmlService();
@@ -40,7 +40,7 @@ public class Category1And3FixTests
     }
 
     // M1-03: AdvancedFeaturePipeline nested ::: containers -> stack depth tracking
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_03_AdvancedFeaturePipeline_Tracks_Container_Nesting_Depth()
     {
         var pipeline = new AdvancedFeaturePipeline();
@@ -55,7 +55,7 @@ public class Category1And3FixTests
     }
 
     // M1-04: DialectNormalizer double hyphen -> check AppSettings.DashMode
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_04_DialectNormalizer_Respects_DashMode_Keep()
     {
         var markdown = "hello -- world";
@@ -64,7 +64,7 @@ public class Category1And3FixTests
     }
 
     // M1-05: DashReplacer 4-space indented code blocks -> skip double hyphen replacement
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_05_DashReplacer_Skips_Indented_Code_Blocks()
     {
         var markdown = "    var x = a -- b;\nprose -- test";
@@ -74,7 +74,7 @@ public class Category1And3FixTests
     }
 
     // M1-06: AdmonitionNormalizer admonition body loop -> track code fences so ::: inside code blocks does not truncate
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_06_AdmonitionNormalizer_Ignores_Colons_Inside_Code_Fences()
     {
         var markdown = ":::tip Code Example\nHere is code:\n```\n:::\n```\nEnd of tip.\n:::";
@@ -87,7 +87,7 @@ public class Category1And3FixTests
     }
 
     // M1-07: EpubExportService void tag XHTML regex -> quote-aware attribute parsing
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_07_EpubExportService_Quote_Aware_Void_Tag_Regex()
     {
         var method = typeof(EpubExportService).GetMethod("XhtmlSafe", BindingFlags.NonPublic | BindingFlags.Static);
@@ -100,7 +100,7 @@ public class Category1And3FixTests
     }
 
     // M1-08: DiagramFenceSniffer fence marker length -> dynamic fence length matching
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_08_DiagramFenceSniffer_Matches_Opening_Fence_Length()
     {
         var markdown = "````\n```\ndigraph G { A -> B }\n```\n````";
@@ -111,7 +111,7 @@ public class Category1And3FixTests
     }
 
     // M1-09: MarkdownHtmlService TOC building regex -> preserve generic types like List<T>
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M1_09_MarkdownHtmlService_Toc_Preserves_Generic_Types()
     {
         var service = new MarkdownHtmlService();
@@ -125,7 +125,7 @@ public class Category1And3FixTests
     }
 
     // M3-01: SvgSanitizer -> HTML-decode SVG attribute values before checking javascript URIs
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M3_01_SvgSanitizer_Decodes_Attribute_Values_Before_Sanitizing()
     {
         var svg = "<svg><a href=\"java&#x73;cript:alert(1)\"><rect/></a></svg>";
@@ -137,7 +137,7 @@ public class Category1And3FixTests
     }
 
     // M3-02: MarkdownHtmlService plugin SVG output -> pass through SvgSanitizer.Sanitize(svg)
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M3_02_SvgSanitizer_Sanitizes_Malicious_Svg_Output()
     {
         var maliciousSvg = "<svg onload=\"alert(1)\"><script>evil()</script><rect/></svg>";
@@ -149,7 +149,7 @@ public class Category1And3FixTests
     }
 
     // M3-03: DialectNormalizer multi-backtick inline code -> regex matching multi-backtick delimiters
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M3_03_DialectNormalizer_Preserves_Multi_Backtick_Inline_Code()
     {
         var markdown = "Look at `` [[WikiLink]] `` and `#tag` in code";
@@ -160,7 +160,7 @@ public class Category1And3FixTests
     }
 
     // M3-04: MarkdownHtmlService SkiaSharp SKBitmap leak -> wrap in using block
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public void M3_04_MarkdownHtmlService_PrepareImageForInline_Handles_Memory_Cleanly()
     {
         var method = typeof(MarkdownHtmlService).GetMethod("PrepareImageForInline", BindingFlags.NonPublic | BindingFlags.Static);

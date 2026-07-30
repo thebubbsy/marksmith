@@ -175,6 +175,11 @@
         const MOVE_THRESHOLD = 8;  // px
 
         document.querySelectorAll('.mermaid').forEach((card, idx) => {
+            // Capture the diagram source on first sight — this runs before mermaid's startOnLoad
+            // render replaces the div's text with the SVG, so dataset.raw holds the real Mermaid
+            // code (card.innerText after render would just be the node labels). completeHold below
+            // prefers dataset.raw, so the Studio always receives the correct source.
+            if (!card.dataset.raw) card.dataset.raw = card.textContent;
             if (card.dataset.longpressAttached === 'true') return;
             card.dataset.longpressAttached = 'true';
 
@@ -362,8 +367,16 @@
         attachMermaidLongPress();
     }
     window.addEventListener('load', () => setTimeout(attachMermaidLongPress, 500));
-    
-    const observer = new MutationObserver(() => attachMermaidLongPress());
-    observer.observe(document.body, { childList: true, subtree: true });
+
+    // This script loads in <head>, where document.body is still null — observe() on null throws
+    // and would silently kill re-attachment for diagrams added after first paint. Defer the
+    // observer until the body exists.
+    function watchForNewDiagrams() {
+        if (!document.body) return;
+        new MutationObserver(() => attachMermaidLongPress())
+            .observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.body) watchForNewDiagrams();
+    else window.addEventListener('DOMContentLoaded', watchForNewDiagrams);
 })();
 

@@ -260,7 +260,9 @@ public sealed partial class SettingsView : UserControl
         sb.Begin();
     }
 
-    // House-style template import: pick a .dotx, parse locally, enqueue the prompt for the extension.
+    // House-style template import: pick a .dotx; the ViewModel parses it locally, shows the prompt
+    // as a copyable fallback, and enqueues it for the extension. The AI reply comes back through
+    // the command channel and is applied by the heartbeat poll in MainWindow.
     private async void OnImportDotxClick(object sender, RoutedEventArgs e)
     {
         var picker = new Windows.Storage.Pickers.FileOpenPicker();
@@ -273,10 +275,7 @@ public sealed partial class SettingsView : UserControl
 
         try
         {
-            var summary = Services.TemplateThemeService.ParseDotx(file.Path);
-            var prompt = Services.TemplateThemeService.BuildPrompt(summary);
-            Services.ApiServer.EnqueueCommand("theme-prompt", prompt);
-            App.ViewModel.BrandTemplatePath = file.Path;
+            App.ViewModel.BeginHouseStyleImport(file.Path);
         }
         catch (Exception ex)
         {

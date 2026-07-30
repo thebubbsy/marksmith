@@ -15,7 +15,8 @@ public sealed class PptxExportService
 {
     public const string Extension = "pptx";
 
-    private static readonly ThemeCatalog Themes = new();
+    // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
+    private static ThemeCatalog Themes => AppServices.Themes;
 
     public Task ExportAsync(string markdown, string pptxPath, AppSettings settings) => Task.Run(() =>
     {
@@ -55,6 +56,13 @@ public sealed class PptxExportService
 
     private sealed record Slide(string Title, List<(int Level, string Text)> Bullets);
 
+    // Slide-splitting patterns — compiled once and reused, instead of re-resolving the pattern
+    // strings for every line of every slide (heading / fence marker / bullet / emphasis strip).
+    private static readonly Regex HeadingRegex = new(@"^(#{1,6})\s+(.*)$", RegexOptions.Compiled);
+    private static readonly Regex FenceRegex = new(@"^\s*(```|~~~)", RegexOptions.Compiled);
+    private static readonly Regex BulletRegex = new(@"^(\s*)(?:[-*+]|\d+\.)\s+(.*)$", RegexOptions.Compiled);
+    private static readonly Regex EmphasisRegex = new(@"(\*\*|__|\*|_|`|~~)", RegexOptions.Compiled);
+
     // ---- markdown -> slides (headings split; lists/paragraphs become bullets) ----
     private static List<Slide> BuildSlides(string markdown, string deckTitle)
     {
@@ -63,7 +71,7 @@ public sealed class PptxExportService
         foreach (var raw in markdown.Replace("\r", "").Split('\n'))
         {
             var line = raw.TrimEnd();
-            var h = Regex.Match(line, @"^(#{1,6})\s+(.*)$");
+            var h = HeadingRegex.Match(line);
             if (h.Success)
             {
                 var level = h.Groups[1].Value.Length;
@@ -73,8 +81,8 @@ public sealed class PptxExportService
                 continue;
             }
             if (string.IsNullOrWhiteSpace(line)) continue;
-            if (Regex.IsMatch(line, @"^\s*(```|~~~)")) continue; // skip code fences markers
-            var bullet = Regex.Match(line, @"^(\s*)(?:[-*+]|\d+\.)\s+(.*)$");
+            if (FenceRegex.IsMatch(line)) continue; // skip code fences markers
+            var bullet = BulletRegex.Match(line);
             cur ??= NewSlide(deckTitle, slides);
             if (bullet.Success)
                 cur.Bullets.Add((Math.Min(4, bullet.Groups[1].Value.Length / 2), Plain(bullet.Groups[2].Value)));
@@ -88,7 +96,7 @@ public sealed class PptxExportService
     private static Slide NewSlide(string title, List<Slide> slides) { var s = new Slide(title, new()); slides.Add(s); return s; }
 
     private static string Plain(string md) =>
-        Regex.Replace(md, @"(\*\*|__|\*|_|`|~~)", "").Trim();
+        EmphasisRegex.Replace(md, "").Trim();
 
     private static string Hex(string css) => css.TrimStart('#').ToUpperInvariant().PadLeft(6, '0')[..6];
 

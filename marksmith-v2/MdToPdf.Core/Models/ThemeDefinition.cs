@@ -27,6 +27,12 @@ public sealed record ThemeDefinition(
         );
     }
 
+    // The palette ShapeForge uses when rebuilding a diagram as native Word shapes. Diagrams follow
+    // the document theme so the Word output matches the live preview — a Forest document gets a dark
+    // green diagram canvas and green lines, a light theme stays light. Text legibility on any node
+    // fill is still guaranteed by ContrastGuard.EnsureLegibleText (>=4.5:1) in DocxShapeEmitter.RunProps.
+    public ThemeDefinition ForDiagram() => this;
+
     private static string Darken(string hex)
     {
         if (!TryParseHex(hex, out var r, out var g, out var b)) return hex;
