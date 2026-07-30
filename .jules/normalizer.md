@@ -1,0 +1,3 @@
+## 2024-07-30 - Understand the normalizers
+**Learning:** `ProviderDialectNormalizer.cs` handles provider-specific normalization (e.g. DeepSeek and Perplexity), while `DialectNormalizer.cs` handles provider-agnostic standard quirks. The `ProviderDialectNormalizer.cs` file was in `marksmith-v2/MdToPdf.Core/Services/ProviderDialectNormalizer.cs` in the memory trace but here it does not exist, so I need to create it or add the rules to `DialectNormalizer.cs`. The task explicitly asks to implement ONE syntax normalization rule in `DialectNormalizer.cs`.
+**Action:** Identify a high-frequency AI quirk and implement it in `MdToPdf.Core/Services/DialectNormalizer.cs`.

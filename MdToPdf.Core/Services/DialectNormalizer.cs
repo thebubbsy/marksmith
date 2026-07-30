@@ -32,7 +32,8 @@ public static class DialectNormalizer
     private static readonly Regex TabHeader = new("^===\\s+\"([^\"]+)\"\\s*$", RegexOptions.Compiled);
     private static readonly Regex PageBreak = new(@"^\s*(<!--\s*page\s*-?break\s*-->|\\pagebreak|\\newpage|<div[^>]*page-break-after[^>]*>\s*(</div>)?)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex InlineCode = new(@"(`+)[^\n]*?\1", RegexOptions.Compiled);
-    private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
+    private static readonly Regex ClaudeXmlTag = new(@"</?(?:antArtifact|antThinking)[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex HtmlTag = new(@"</?(?!(?:antArtifact|antThinking)\b)[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
     private static readonly Regex CriticSub = new(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
     private static readonly Regex CriticDel = new(@"\{~~((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
@@ -175,6 +176,9 @@ public static class DialectNormalizer
             line = ReplaceOutsideInlineCode(line, CriticIns, m => $"<ins>{m.Groups[1].Value}</ins>");
             line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>");
             line = ReplaceOutsideInlineCode(line, CriticComment, m => "");
+
+            // ---- Claude XML artifacts (antArtifact, antThinking) normalization ----
+            line = ReplaceOutsideInlineCode(line, ClaudeXmlTag, m => "");
 
             // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
             if (trimmed.StartsWith('|') && Regex.IsMatch(trimmed, @"^\|[\s|:\-]+$"))
