@@ -63,3 +63,30 @@ public sealed class FolderIngestService : IDisposable
 
     public void Dispose() => Stop();
 }
+
+public static class AiAgentFolderPresets
+{
+    public record FolderPreset(string Name, string Description, string Path);
+
+    public static List<FolderPreset> GetAvailablePresets()
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+        return new List<FolderPreset>
+        {
+            new("Google Antigravity / Gemini CLI", "Default scratch output path for AGY CLI",
+                Path.Combine(userProfile, ".gemini", "antigravity", "scratch")),
+
+            new("Ollama Local Models", "Ollama export directory",
+                Path.Combine(documents, "Ollama")),
+
+            new("Claude Desktop", "Claude Desktop app exported conversations",
+                Path.Combine(appData, "Claude", "Exports")),
+
+            new("GPT-Engineer / Aider CLI", "CLI coding agent workspace output",
+                Path.Combine(userProfile, ".local", "share", "gpt-engineer"))
+        }.Where(p => Directory.Exists(p.Path) || Directory.Exists(Path.GetDirectoryName(p.Path))).ToList();
+    }
+}
