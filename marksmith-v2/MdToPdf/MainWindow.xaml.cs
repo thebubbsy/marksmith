@@ -108,6 +108,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private static readonly string RecoveryPath = Path.Combine(RecoveryDir, "autosave_recovery.md");
     private DispatcherQueueTimer? _autosaveTimer;
 
+    // Extension channel heartbeat: refreshes the "extension connected" flag (the house-style .dotx
+    // import in Settings is gated on it) and polls the reverse command channel for an AI-generated
+    // theme posted back by the extension. Runs on the dispatcher so ViewModel mutations are safe.
+    private DispatcherQueueTimer? _extensionHeartbeat;
+
     // Centre "Looking Glass" view mode: Code / Split (editor + preview side by side) / Preview.
     private enum ViewMode { Code, Split, Preview }
     private ViewMode _viewMode = ViewMode.Code;
@@ -215,6 +220,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PortalShapeCombo.SelectedItem is null) PortalShapeCombo.SelectedIndex = 0; // unknown value -> Circle
         _initializingPortalReveal = false;
 
+        // Centre pane bottom bar: sync the portal row + editing clusters with the persisted
+        // portal/view state now that both toggles are initialized.
+        UpdateCenterBottomBar();
+
         // Line numbers + Markdown lint refresh on every edit; the gutter's scroll is synced to the
         // editor's internal ScrollViewer once the TextBox template is realized.
         PasteTextBox.TextChanged += (_, _) => { RefreshLineNumbers(); UpdateLintIndicator(); };
@@ -266,6 +275,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _spinTimer.Interval = TimeSpan.FromMilliseconds(16);
         _spinTimer.IsRepeating = true;
         _spinTimer.Tick += (_, _) => OnSpinTick();
+
+        _extensionHeartbeat = DispatcherQueue.CreateTimer();
+        _extensionHeartbeat.Interval = TimeSpan.FromSeconds(5);
+        _extensionHeartbeat.IsRepeating = true;
+        _extensionHeartbeat.Tick += (_, _) => ViewModel.TickExtensionChannel();
+        _extensionHeartbeat.Start();
 
         _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
@@ -1516,7 +1531,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async Task InitializePreviewAsync()
     {
-        await PreviewWebView.EnsureCoreWebView2Async();
+        await PreviewWebView.EnsureCoreWebView2Async(await Services.WebView2EnvironmentFactory.CreateAsync());
         MapAssetHost(PreviewWebView.CoreWebView2);
         var core = PreviewWebView.CoreWebView2;
 
@@ -1741,7 +1756,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async Task<bool> EnsurePreviewWebViewAsync()
     {
         if (PreviewWebView.CoreWebView2 is not null) return true;
-        try { await PreviewWebView.EnsureCoreWebView2Async(); } catch { return false; }
+        try { await PreviewWebView.EnsureCoreWebView2Async(await Services.WebView2EnvironmentFactory.CreateAsync()); } catch { return false; }
         return PreviewWebView.CoreWebView2 is not null;
     }
 
@@ -2011,12 +2026,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (markdown == _lastLiveCanvasMd) return true; // canvas already shows exactly this source
 
         var vm = ViewModel;
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
-        const string startMark = "<!--ms-canvas-start-->", endMark = "<!--ms-canvas-end-->";
-        var s = html.IndexOf(startMark, StringComparison.Ordinal);
-        var e = html.IndexOf(endMark, StringComparison.Ordinal);
-        if (s < 0 || e < 0 || e <= s) return false;
-        var inner = html.Substring(s + startMark.Length, e - (s + startMark.Length));
+        // Canvas-only render: produces just the inner HTML (attribution + TOC + body + footer)
+        // without the ~50 KB page shell. Returns null for focused-diagram docs that need a full
+        // navigation (dedicated viewer page with zoom/pan controls).
+        var inner = vm.BuildPreviewCanvasHtml(vm.PrepareMarkdown(markdown));
+        if (inner is null) return false;
 
         var js = "(function(){var c=document.getElementById('canvas');if(!c)return 'nav';" +
                  "var h=" + System.Text.Json.JsonSerializer.Serialize(inner) + ";" +
@@ -2202,6 +2216,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ("Ctrl + S", "Save edits back to the source file"),
             ("Ctrl + F", "Find in the editor"),
             ("Ctrl + Alt + T", "Toggle debug mode"),
+            ("Ctrl + Alt + X", "Portal focus: blur / unblur the preview behind the aperture"),
             ("F1", "Show this cheatsheet"),
         };
 
@@ -2415,6 +2430,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToEpubAsync();
     }
 
+    private async void OnExportMarkdownClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToMarkdownAsync();
+    }
+
     // Primary action of the export SplitButton: generate a Word document — ISS-019 made .docx
     // the default export format (was PDF). The remaining formats live in the flyout and reuse
     // the individual OnConvert*Click handlers above. SplitButton.Click raises
@@ -2512,6 +2532,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             FocusModeToggle.IsChecked = mode == ViewMode.Split;
 
         if (showPreview) _ = RefreshPreviewAsync(heavy: mode == ViewMode.Preview);
+
+        // The bottom bar's editing clusters follow the view mode (portal mode is handled by the
+        // toggle handler, which also lands here via ApplyViewMode when the view changes).
+        UpdateCenterBottomBar();
     }
 
     // ---- Editor<->preview sync-scroll helpers ----
@@ -2839,7 +2863,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (_initializingLookingGlass) return;
         App.Settings.Current.LookingGlassMode = LookingGlassToggle?.IsChecked == true;
         App.Settings.Save();
+        UpdateCenterBottomBar();
         _ = RefreshPreviewAsync();
+    }
+
+    // Centre pane bottom bar: the editing clusters show whenever the editor is visible or portal
+    // mode turns the preview into an editor; the portal shape + size row only shows while portal
+    // mode is on. Copy HTML / Print are always available, so the bar itself never hides.
+    private void UpdateCenterBottomBar()
+    {
+        if (CenterBottomBar is null) return;
+        var portalOn = LookingGlassToggle?.IsChecked == true;
+        if (PortalControlsRow is not null)
+            PortalControlsRow.Visibility = portalOn ? Visibility.Visible : Visibility.Collapsed;
+        if (EditingClustersPanel is not null)
+            EditingClustersPanel.Visibility = portalOn || _viewMode is ViewMode.Code or ViewMode.Split
+                ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ISS-004: persist the portal reveal scope and push it straight into the page so an open
@@ -2857,16 +2896,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
     }
 
-    // ISS-004: persist the portal shape (circle spotlight vs full-width focus bands) and re-render
-    // through the same debounce as the size slider.
+    // ISS-004: persist the portal shape (circle spotlight vs full-width focus bands vs square vs
+    // logo cutout) and push it straight into the page so an open aperture morphs in real time —
+    // same in-place path as the size slider (__portalSetShape re-classes + resizes the aperture
+    // and rebuilds its fog mask, no re-navigation, so the caret survives). The value is also
+    // persisted so the next full render bakes the same shape in and nothing drifts.
     private void OnPortalShapeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_initializingPortalReveal) return;
-        App.Settings.Current.PortalShape =
-            (PortalShapeCombo?.SelectedItem as ComboBoxItem)?.Tag as string ?? "circle";
+        var shape = (PortalShapeCombo?.SelectedItem as ComboBoxItem)?.Tag as string ?? "circle";
+        App.Settings.Current.PortalShape = shape;
         App.Settings.Save();
-        _previewDebounce.Stop();
-        _previewDebounce.Start();
+        var js = "if (window.__portalSetShape) { window.__portalSetShape('" + shape + "'); }";
+        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
     }
 
     private void ApplyWordWrap(bool wrap, bool persist)
@@ -3193,6 +3235,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         args.Handled = true;
     }
 
+    // Ctrl+Alt+X: toggle the Looking Glass portal's focus blur — whether the rendered preview
+    // behind an open aperture blurs (focus WITH blur) or stays sharp (focus WITHOUT blur). The
+    // choice is persisted and pushed straight into the live page (__portalSetBlur); when no
+    // portal is open the page just stores it for the next aperture.
+    private void OnTogglePortalBlurInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        var on = !App.Settings.Current.PortalFocusBlur;
+        App.Settings.Current.PortalFocusBlur = on;
+        App.Settings.Save();
+        var js = "if (window.__portalSetBlur) { window.__portalSetBlur(" + (on ? "true" : "false") + "); }";
+        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
+        ViewModel.StatusText = on
+            ? "Portal focus: preview blurred behind the aperture — Ctrl+Alt+X for sharp."
+            : "Portal focus: preview sharp behind the aperture — Ctrl+Alt+X for blur.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        args.Handled = true;
+    }
+
     private void ApplyFocusMode(bool focus)
     {
         if (focus)
@@ -3444,9 +3504,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown("~~", "~~");
     }
 
-    private void OnCodeBlockClick(object sender, RoutedEventArgs e)
+    private async void OnCodeBlockClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n```\n", "\n```\n");
+        // Pro mode: the classic bare fence straight into the editor, no modal.
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n```\n", "\n```\n");
+            return;
+        }
+
+        var control = new Views.CodeBlockInsertControl();
+        if (await ShowInsertDialogAsync("Insert code block", control) != ContentDialogResult.Primary) return;
+        if (string.IsNullOrWhiteSpace(control.Body))
+        {
+            // No pasted code: insert prefix/suffix so the caret lands inside the fence.
+            InsertMarkdown($"\n```{control.SelectedLanguage}\n", "\n```\n");
+            return;
+        }
+        InsertMarkdown(Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body));
     }
 
     private void OnBlockquoteClick(object sender, RoutedEventArgs e)
@@ -3454,34 +3529,84 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown("> ", "");
     }
 
-    private void OnInsertWorkflowClick(object sender, RoutedEventArgs e)
+    private async void OnInsertWorkflowClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::workflow\n- Step 1\n- Step 2\n- Step 3\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::workflow\n- Step 1\n- Step 2\n- Step 3\n:::\n");
+            return;
+        }
+
+        var control = new Views.LinesInsertControl("One step per line:", "Step 1\nStep 2\nStep 3");
+        if (await ShowInsertDialogAsync("Insert workflow", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Workflow(control.Lines));
     }
 
-    private void OnInsertTimelineClick(object sender, RoutedEventArgs e)
+    private async void OnInsertTimelineClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::timeline\n- 2020: Started\n- 2023: Progress\n- 2026: Done\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::timeline\n- 2020: Started\n- 2023: Progress\n- 2026: Done\n:::\n");
+            return;
+        }
+
+        var control = new Views.LinesInsertControl("One entry per line (year: label):", "2020: Started\n2023: Progress\n2026: Done");
+        if (await ShowInsertDialogAsync("Insert timeline", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Timeline(control.Lines));
     }
 
-    private void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
+    private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::smartart type=\"process\"\n- Step 1\n- Step 2\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::smartart type=\"process\"\n- Step 1\n- Step 2\n:::\n");
+            return;
+        }
+
+        var control = new Views.TypeAndLinesInsertControl(
+            "Type", new[] { "process", "list", "cycle", "hierarchy" }, "process",
+            "One step per line:", "Step 1\nStep 2");
+        if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.SmartArt(control.SelectedType, control.Lines));
     }
 
-    private void OnInsertTabsClick(object sender, RoutedEventArgs e)
+    private async void OnInsertTabsClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::tabs\n=== Tab 1\nContent 1\n=== Tab 2\nContent 2\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::tabs\n=== Tab 1\nContent 1\n=== Tab 2\nContent 2\n:::\n");
+            return;
+        }
+
+        var control = new Views.LinesInsertControl("One tab title per line:", "Tab 1\nTab 2");
+        if (await ShowInsertDialogAsync("Insert tab group", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Tabs(control.Lines));
     }
 
-    private void OnInsertColumnsClick(object sender, RoutedEventArgs e)
+    private async void OnInsertColumnsClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::columns count=\"2\"\nColumn 1 content\n===\nColumn 2 content\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::columns count=\"2\"\nColumn 1 content\n===\nColumn 2 content\n:::\n");
+            return;
+        }
+
+        var control = new Views.NumbersInsertControl(("Columns", 2, 2, 4));
+        if (await ShowInsertDialogAsync("Insert multi-column section", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Columns(control.Value(0)));
     }
 
-    private void OnInsertCanvasClick(object sender, RoutedEventArgs e)
+    private async void OnInsertCanvasClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::canvas\n<svg viewBox=\"0 0 100 100\" width=\"200\" height=\"200\">\n  <circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n</svg>\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::canvas\n<svg viewBox=\"0 0 100 100\" width=\"200\" height=\"200\">\n  <circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" />\n</svg>\n:::\n");
+            return;
+        }
+
+        var control = new Views.NumbersInsertControl(("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
+        if (await ShowInsertDialogAsync("Insert drawing canvas", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Canvas(control.Value(0), control.Value(1)));
     }
 
     private void OnBulletListClick(object sender, RoutedEventArgs e)
@@ -3519,9 +3644,62 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown("#### ", "");
     }
 
-    private void OnLinkClick(object sender, RoutedEventArgs e)
+    private async void OnLinkClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("[", "](url)");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("[", "](url)");
+            return;
+        }
+
+        var control = new Views.LinkInsertControl();
+        if (await ShowInsertDialogAsync("Insert link", control) != ContentDialogResult.Primary) return;
+        var url = string.IsNullOrWhiteSpace(control.Url) ? "url" : control.Url.Trim();
+        if (string.IsNullOrWhiteSpace(control.Text))
+            InsertMarkdown("[", $"]({url})"); // empty text: caret lands between the brackets
+        else
+            InsertMarkdown(Services.InsertSnippetBuilder.Link(control.Text, url));
+    }
+
+    // Shared shell for every Insert-menu modal: builds the ContentDialog, resolves a guaranteed
+    // XamlRoot (RootGrid first, then the window Content), and never fails silently — a dialog
+    // that can't open reports itself in the status bar instead of vanishing without a trace.
+    // Returns the dialog result; errors and a missing root map to ContentDialogResult.None.
+    private async Task<ContentDialogResult> ShowInsertDialogAsync(
+        string title, FrameworkElement content,
+        string? primaryButtonText = "Insert", Action<ContentDialog>? configure = null)
+    {
+        try
+        {
+            var root = RootGrid?.XamlRoot ?? Content?.XamlRoot;
+            if (root is null)
+            {
+                ViewModel.StatusText = $"Couldn't open the '{title}' dialog — the window isn't ready yet.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+                return ContentDialogResult.None;
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = content,
+                CloseButtonText = "Cancel",
+                XamlRoot = root,
+            };
+            if (primaryButtonText is not null)
+            {
+                dialog.PrimaryButtonText = primaryButtonText;
+                dialog.DefaultButton = ContentDialogButton.Primary;
+            }
+            configure?.Invoke(dialog);
+            return await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Couldn't open the '{title}' dialog: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            return ContentDialogResult.None;
+        }
     }
 
     private async void OnImageClick(object sender, RoutedEventArgs e)
@@ -3535,19 +3713,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Default experience: an interactive picker — drag & drop, browse, or paste a URL.
         var control = new Views.ImageInsertControl();
-        var dialog = new ContentDialog
-        {
-            Title = "Insert image",
-            Content = control,
-            CloseButtonText = "Cancel",
-            XamlRoot = Content.XamlRoot,
-        };
+        ContentDialog? dialog = null;
         control.ImagePicked += source =>
         {
-            dialog.Hide();
+            dialog?.Hide();
             InsertImageMarkdown(source);
         };
-        await dialog.ShowAsync();
+        await ShowInsertDialogAsync("Insert image", control, primaryButtonText: null, configure: d => dialog = d);
     }
 
     // Turns a picked source (local path or URL) into markdown image syntax. Local paths get
@@ -3571,34 +3743,275 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown($"\n![{alt}]({src})\n");
     }
 
-    private void OnTableClick(object sender, RoutedEventArgs e)
+    private async void OnTableClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n| Header 1 | Header 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n");
+            return;
+        }
+
+        var control = new Views.TableInsertControl();
+        if (await ShowInsertDialogAsync("Insert table", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Table(control.Rows, control.Columns, control.IncludeHeaderRow));
     }
 
-    private void OnInsertEmbedClick(object sender, RoutedEventArgs e)
+    private async void OnInsertEmbedClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n");
+            return;
+        }
+
+        var control = new Views.EmbedInsertControl();
+        if (await ShowInsertDialogAsync("Insert web embed", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Embed(control.Provider, control.Url));
     }
 
-    private void OnInsertChartClick(object sender, RoutedEventArgs e)
+    private async void OnInsertChartClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::chart type=\"bar\"\nQ1,10\nQ2,25\nQ3,15\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::chart type=\"bar\"\nQ1,10\nQ2,25\nQ3,15\n:::\n");
+            return;
+        }
+
+        var control = new Views.TypeAndLinesInsertControl(
+            "Chart type", new[] { "bar", "line", "pie" }, "bar",
+            "One data point per line (label,value):", "Q1,10\nQ2,25\nQ3,15");
+        if (await ShowInsertDialogAsync("Insert chart", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Chart(control.SelectedType, control.Lines));
     }
 
-    private void OnInsertDatagridClick(object sender, RoutedEventArgs e)
+    private async void OnInsertDatagridClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::datagrid\nlabel,value\nQ1,10\nQ2,25\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::datagrid\nlabel,value\nQ1,10\nQ2,25\n:::\n");
+            return;
+        }
+
+        var control = new Views.LinesInsertControl(
+            "First line = column headers, then one row per line (comma-separated):",
+            "label,value\nQ1,10\nQ2,25");
+        if (await ShowInsertDialogAsync("Insert data grid", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.Datagrid(control.Lines));
     }
 
-    private void OnInsertReferencesClick(object sender, RoutedEventArgs e)
+    private async void OnInsertReferencesClick(object sender, RoutedEventArgs e)
     {
-        InsertMarkdown("\n:::references\n@paper-id\nauthor: Author Name\ntitle: Publication Title\nyear: 2026\n:::\n");
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::references\n@paper-id\nauthor: Author Name\ntitle: Publication Title\nyear: 2026\n:::\n");
+            return;
+        }
+
+        var control = new Views.ReferencesInsertControl();
+        if (await ShowInsertDialogAsync("Insert bibliography entry", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.References(control.Id, control.Author, control.Title, control.Year));
     }
 
     private void OnInsertAiContextClick(object sender, RoutedEventArgs e)
     {
         InsertMarkdown("\n:::ai-context\npromptHash: abc123\nmodel: Gemini Pro\ntimestamp: " + DateTime.Now.ToString("yyyy-MM-dd") + "\n:::\n");
+    }
+
+    // ---- D1: Reverse Document Import (DOCX / PDF → Markdown) ------------------------------------
+
+    private async void OnImportDocumentClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        picker.FileTypeFilter.Add(".docx");
+        picker.FileTypeFilter.Add(".pdf");
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            var importer = new Services.ReverseImportService();
+            Services.ReverseImportResult result;
+            var ext = Path.GetExtension(file.Path).ToLowerInvariant();
+
+            if (ext == ".pdf")
+                result = await importer.ImportFromPdfAsync(file.Path);
+            else
+                result = await importer.ImportFromDocxAsync(file.Path);
+
+            if (string.IsNullOrWhiteSpace(result.Markdown))
+            {
+                ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
+                return;
+            }
+
+            // Load the extracted Markdown into the editor.
+            ViewModel.PastedMarkdown = result.Markdown;
+            ViewModel.UsePasteSource = true;
+            ViewModel.StatusText = $"Imported {Path.GetFileName(file.Path)} ({result.Tier})";
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Import failed: {ex.Message}";
+        }
+    }
+
+    // ---- D4: Spreadsheet / CSV bidirectional sync ------------------------------------------------
+
+    private async void OnInsertSpreadsheetClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        picker.FileTypeFilter.Add(".csv");
+        picker.FileTypeFilter.Add(".xlsx");
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            Services.TableModel model;
+            var ext = Path.GetExtension(file.Path).ToLowerInvariant();
+
+            if (ext == ".xlsx")
+            {
+                using var stream = await file.OpenStreamForReadAsync();
+                var sheets = Services.SpreadsheetService.ReadXlsx(stream);
+                if (sheets.Count == 0)
+                {
+                    ViewModel.StatusText = "No data found in that workbook.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
+
+                // Single sheet → import directly. Multiple → let the user pick.
+                if (sheets.Count == 1)
+                {
+                    model = sheets[0].Model;
+                }
+                else
+                {
+                    var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+                    foreach (var (name, _) in sheets) combo.Items.Add(name);
+                    combo.SelectedIndex = 0;
+
+                    var dlg = new ContentDialog
+                    {
+                        Title = "Pick a sheet",
+                        Content = new StackPanel { Spacing = 8, Children = {
+                            new TextBlock { Text = "This workbook has multiple sheets. Which one should become the table?" },
+                            combo } },
+                        PrimaryButtonText = "Insert",
+                        CloseButtonText = "Cancel",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = Content.XamlRoot,
+                    };
+                    if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+                    model = sheets[combo.SelectedIndex].Model;
+                }
+            }
+            else
+            {
+                // CSV (or .tsv / .txt treated as CSV with auto-delimiter detection)
+                var text = await File.ReadAllTextAsync(file.Path);
+                model = Services.SpreadsheetService.ParseCsv(text);
+            }
+
+            if (model.ColumnCount == 0)
+            {
+                ViewModel.StatusText = "That file didn't contain any tabular data.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+
+            var markdown = Services.SpreadsheetService.ToMarkdownTable(model);
+            InsertMarkdown(markdown);
+
+            var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
+            ViewModel.StatusText = truncated
+                ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
+                : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(file.Path)}.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Import failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    private async void OnExportTableClick(object sender, RoutedEventArgs e)
+    {
+        var markdown = ViewModel.CurrentMarkdown ?? "";
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            ViewModel.StatusText = "Nothing to export — the editor is empty.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+
+        // Determine which tables to export: the one under the cursor, or all if the cursor isn't
+        // inside any table (the "export all tables" path).
+        var text = PasteTextBox.Text ?? "";
+        var cursorLine = GetCursorLine(text, PasteTextBox.SelectionStart);
+        var tableAtCursor = Services.SpreadsheetService.FindTableAtLine(markdown, cursorLine);
+
+        List<(string Name, Services.TableModel Model)> exports;
+        if (tableAtCursor is not null)
+        {
+            var name = tableAtCursor.NearestHeading ?? "Table1";
+            exports = new List<(string, Services.TableModel)> { (name, tableAtCursor.Model) };
+        }
+        else
+        {
+            var all = Services.SpreadsheetService.ExtractTables(markdown);
+            if (all.Count == 0)
+            {
+                ViewModel.StatusText = "No Markdown tables found in this document.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            exports = all.Select((t, i) => (t.NearestHeading ?? $"Table{i + 1}", t.Model)).ToList();
+        }
+
+        var picker = new FileSavePicker { SuggestedFileName = "table" };
+        picker.FileTypeChoices.Add("Excel workbook", new List<string> { ".xlsx" });
+        picker.FileTypeChoices.Add("CSV (single table)", new List<string> { ".csv" });
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            var outExt = Path.GetExtension(file.Path).ToLowerInvariant();
+            if (outExt == ".csv")
+            {
+                // CSV: write only the first table (CSV is single-table by nature).
+                var csv = Services.SpreadsheetService.WriteCsv(exports[0].Model);
+                await File.WriteAllTextAsync(file.Path, csv);
+            }
+            else
+            {
+                using var stream = await file.OpenStreamForWriteAsync();
+                Services.SpreadsheetService.WriteXlsx(exports, stream);
+            }
+
+            ViewModel.StatusText = $"Exported {exports.Count} table{(exports.Count == 1 ? "" : "s")} to {Path.GetFileName(file.Path)}.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Export failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    // 0-based line index of a character offset in the editor text.
+    private static int GetCursorLine(string text, int offset)
+    {
+        int line = 0;
+        for (int i = 0; i < offset && i < text.Length; i++)
+            if (text[i] == '\n') line++;
+        return line;
     }
 
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)

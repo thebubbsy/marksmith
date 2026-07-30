@@ -29,7 +29,11 @@ public static partial class DashReplacer
     {
         if (string.IsNullOrEmpty(markdown)) return markdown;
 
-        markdown = markdown.Replace("\r\n", "\n").Replace("\r", "\n");
+        markdown = TextNormalizer.Newlines(markdown);
+        // Fast-path: the transform only fires on a bare -- (not ---), so skip the
+        // split/process/join entirely when the document has no double-hyphen at all.
+        if (!markdown.Contains("--", StringComparison.Ordinal)) return markdown;
+
         var lines = markdown.Split('\n');
         var result = new List<string>(lines.Length);
 

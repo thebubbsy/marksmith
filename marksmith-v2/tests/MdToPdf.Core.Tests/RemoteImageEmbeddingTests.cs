@@ -15,7 +15,7 @@ public class RemoteImageEmbeddingTests
     private static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
     private static readonly XNamespace Pic = "http://schemas.openxmlformats.org/drawingml/2006/picture";
 
-    [Fact(Skip="Base64 Image flaky without SkiaSharp")]
+    [Fact]
     public void Base64DataUriImage_EmbedsAsRealDrawingInDocx()
     {
         AppServices.License.Load();
@@ -58,7 +58,7 @@ public class RemoteImageEmbeddingTests
         }
     }
 
-    [Fact(Skip="Network request flaky")]
+    [Fact(Skip="Requires live HTTPS network endpoint (https://dummyimage.com/100x100/000/fff.png); enable when outbound network access is available in CI environment")]
     public void RemoteHttpsImage_EmbedsAsRealDrawingInDocx()
     {
         AppServices.License.Load();

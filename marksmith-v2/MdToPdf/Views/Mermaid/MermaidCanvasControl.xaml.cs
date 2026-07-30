@@ -28,9 +28,27 @@ public sealed partial class MermaidCanvasControl : UserControl
     private double _panStartScrollX;
     private double _panStartScrollY;
 
+    // Right-click opens a context menu on release if the pointer barely moved; a right-DRAG still
+    // pans (so existing muscle memory isn't broken). Tracked here.
+    private bool _rightClickPending;
+    private Point _rightClickStartPos;
+    private DiagramNodeViewModel? _rightClickNode;
+    private DiagramConnectorViewModel? _rightClickConnector;
+
     private bool _isDrawingConnector;
     private DiagramNodeViewModel? _connectorSourceNode;
     private string _connectorSourceAnchor = "Bottom";
+
+    // Corner resize handles: drag a selected node's corner to change its Width/Height (and X/Y
+    // for the NW/NE/SW edges that move). One undo snapshot per resize gesture.
+    private bool _isResizingNode;
+    private DiagramNodeViewModel? _resizeNode;
+    private string _resizeDirection = string.Empty; // "ResizeNW" / "ResizeNE" / "ResizeSW" / "ResizeSE"
+    private Point _resizeStartPointer;
+    private double _resizeStartX, _resizeStartY, _resizeStartW, _resizeStartH;
+    private bool _resizeSnapshotTaken;
+    private const double MinNodeWidth = 40;
+    private const double MinNodeHeight = 24;
 
     private DiagramNodeViewModel? _editingNode;
     private DiagramConnectorViewModel? _editingConnector;
@@ -85,6 +103,29 @@ public sealed partial class MermaidCanvasControl : UserControl
     }
 
     private void OnZoomFitClick(object sender, RoutedEventArgs e)
+    {
+        FitToContent();
+    }
+
+    // Public zoom entry points so the Studio's keyboard accelerators (Ctrl+= / Ctrl+- / Ctrl+0) can
+    // drive the canvas without duplicating the zoom math here.
+    public void ZoomIn()
+    {
+        float newZoom = CanvasScrollViewer.ZoomFactor + 0.2f;
+        if (newZoom <= CanvasScrollViewer.MaxZoomFactor)
+            CanvasScrollViewer.ChangeView(null, null, newZoom);
+    }
+
+    public void ZoomOut()
+    {
+        float newZoom = CanvasScrollViewer.ZoomFactor - 0.2f;
+        if (newZoom >= CanvasScrollViewer.MinZoomFactor)
+            CanvasScrollViewer.ChangeView(null, null, newZoom);
+    }
+
+    public void ZoomReset() => CanvasScrollViewer.ChangeView(null, null, 1.0f);
+
+    public void FitToContent()
     {
         var vm = ViewModel;
         if (vm == null || vm.Nodes.Count == 0)
@@ -173,6 +214,30 @@ public sealed partial class MermaidCanvasControl : UserControl
     {
         if (e.OriginalSource is FrameworkElement element)
         {
+            // Check if user grabbed a corner RESIZE handle (must run before the anchor check —
+            // both carry a string Tag + node DataContext, and a resize grab must not start a
+            // connector draw).
+            if (element.Tag is string resizeTag && resizeTag.StartsWith("Resize", StringComparison.Ordinal)
+                && element.DataContext is DiagramNodeViewModel resizeNodeVM)
+            {
+                _isResizingNode = true;
+                _resizeNode = resizeNodeVM;
+                _resizeDirection = resizeTag;
+                _resizeSnapshotTaken = false;
+                _resizeStartPointer = e.GetCurrentPoint(InfiniteCanvasGrid).Position;
+                _resizeStartX = resizeNodeVM.X;
+                _resizeStartY = resizeNodeVM.Y;
+                _resizeStartW = resizeNodeVM.Width;
+                _resizeStartH = resizeNodeVM.Height;
+
+                if (ViewModel != null && !resizeNodeVM.IsSelected)
+                    ViewModel.SelectNode(resizeNodeVM, false);
+
+                NodesItemsControl.CapturePointer(e.Pointer);
+                e.Handled = true;
+                return;
+            }
+
             // Check if user clicked an Anchor handle dot
             if (element.Tag is string anchorTag && element.DataContext is DiagramNodeViewModel anchorNodeVM)
             {
@@ -234,6 +299,22 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnNodesItemsControlPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_isResizingNode && _resizeNode != null && ViewModel != null)
+        {
+            // One undo step per resize gesture (taken on the first real move).
+            if (!_resizeSnapshotTaken)
+            {
+                ViewModel.SnapshotForUndo();
+                _resizeSnapshotTaken = true;
+            }
+
+            Point cur = e.GetCurrentPoint(InfiniteCanvasGrid).Position;
+            ApplyResize(cur.X - _resizeStartPointer.X, cur.Y - _resizeStartPointer.Y);
+            ViewModel.UpdateConnectedConnectors(_resizeNode);
+            e.Handled = true;
+            return;
+        }
+
         if (_isDraggingNode && _draggedNode != null && ViewModel != null && _initialSelectedNodePositions != null)
         {
             // Snapshot once per drag (on the first real move) so a whole reposition is a single undo
@@ -271,6 +352,15 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnNodesItemsControlPointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_isResizingNode)
+        {
+            _isResizingNode = false;
+            _resizeNode = null;
+            NodesItemsControl.ReleasePointerCapture(e.Pointer);
+            e.Handled = true;
+            return;
+        }
+
         if (_isDraggingNode)
         {
             _isDraggingNode = false;
@@ -293,6 +383,45 @@ public sealed partial class MermaidCanvasControl : UserControl
         }
     }
 
+    // Applies a corner-resize delta to the node being resized. The grabbed corner moves with the
+    // pointer while the opposite corner stays anchored; minimum size is enforced so a node can
+    // never be collapsed out of existence. Honors grid snap when enabled.
+    private void ApplyResize(double dx, double dy)
+    {
+        var n = _resizeNode!;
+        double x = _resizeStartX, y = _resizeStartY, w = _resizeStartW, h = _resizeStartH;
+
+        bool left = _resizeDirection.Contains('W');
+        bool right = _resizeDirection.Contains('E');
+        bool top = _resizeDirection.Contains('N');
+        bool bottom = _resizeDirection.Contains('S');
+
+        if (right) w = _resizeStartW + dx;
+        if (bottom) h = _resizeStartH + dy;
+        if (left) { w = _resizeStartW - dx; x = _resizeStartX + dx; }
+        if (top) { h = _resizeStartH - dy; y = _resizeStartY + dy; }
+
+        // Clamp to the minimum size, keeping the opposite edge fixed.
+        if (w < MinNodeWidth) { if (left) x = _resizeStartX + (_resizeStartW - MinNodeWidth); w = MinNodeWidth; }
+        if (h < MinNodeHeight) { if (top) y = _resizeStartY + (_resizeStartH - MinNodeHeight); h = MinNodeHeight; }
+
+        if (ViewModel!.IsGridSnapEnabled)
+        {
+            double g = ViewModel.GridSnapSize;
+            x = Math.Round(x / g) * g;
+            y = Math.Round(y / g) * g;
+            w = Math.Round(w / g) * g;
+            h = Math.Round(h / g) * g;
+            if (w < MinNodeWidth) w = MinNodeWidth;
+            if (h < MinNodeHeight) h = MinNodeHeight;
+        }
+
+        n.X = x;
+        n.Y = y;
+        n.Width = w;
+        n.Height = h;
+    }
+
     #endregion
 
     #region Anchor Line Connectors Canvas Handlers & Marquee Selection
@@ -306,7 +435,24 @@ public sealed partial class MermaidCanvasControl : UserControl
             bool isRightButton = pointerPoint.Properties.IsRightButtonPressed;
             bool isCtrlClick = (e.KeyModifiers & Windows.System.VirtualKeyModifiers.Control) != 0 && pointerPoint.Properties.IsLeftButtonPressed;
 
-            if (isMiddleButton || isRightButton || isCtrlClick)
+            // Right-click: defer to release — a stationary right-click opens the context menu, a
+            // right-DRAG pans. Capture the element under the cursor so the menu knows its target.
+            if (isRightButton)
+            {
+                _rightClickPending = true;
+                _rightClickStartPos = e.GetCurrentPoint(CanvasScrollViewer).Position;
+                _rightClickNode = (e.OriginalSource as FrameworkElement)?.DataContext as DiagramNodeViewModel;
+                _rightClickConnector = (e.OriginalSource as FrameworkElement)?.DataContext as DiagramConnectorViewModel;
+                _isPanning = true; // becomes a pan if it turns into a drag
+                _panStartMousePos = _rightClickStartPos;
+                _panStartScrollX = CanvasScrollViewer.HorizontalOffset;
+                _panStartScrollY = CanvasScrollViewer.VerticalOffset;
+                InfiniteCanvasGrid.CapturePointer(e.Pointer);
+                e.Handled = true;
+                return;
+            }
+
+            if (isMiddleButton || isCtrlClick)
             {
                 _isPanning = true;
                 _panStartMousePos = e.GetCurrentPoint(CanvasScrollViewer).Position;
@@ -385,8 +531,25 @@ public sealed partial class MermaidCanvasControl : UserControl
     {
         if (_isPanning)
         {
+            bool wasRightClick = _rightClickPending;
             _isPanning = false;
+            _rightClickPending = false;
             InfiniteCanvasGrid.ReleasePointerCapture(e.Pointer);
+
+            // A stationary right-click (moved < 5px) opens the context menu instead of panning.
+            if (wasRightClick)
+            {
+                var endPos = e.GetCurrentPoint(CanvasScrollViewer).Position;
+                double dx = endPos.X - _rightClickStartPos.X;
+                double dy = endPos.Y - _rightClickStartPos.Y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist < 5)
+                {
+                    ShowContextMenu(e.GetCurrentPoint(InfiniteCanvasGrid).Position);
+                }
+                _rightClickNode = null;
+                _rightClickConnector = null;
+            }
             e.Handled = true;
             return;
         }
@@ -554,6 +717,100 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingNode = null;
         _editingConnector = null;
         InPlaceEditorCanvas.Visibility = Visibility.Collapsed;
+    }
+
+    #endregion
+
+    #region Context Menu
+
+    // Builds and opens an adaptive right-click menu. The target (node / connector / empty canvas)
+    // was captured on pointer-press; the menu offers the most useful ops for each, mirroring
+    // dedicated diagram editors.
+    private void ShowContextMenu(Point canvasPos)
+    {
+        var vm = ViewModel;
+        if (vm is null) return;
+
+        var flyout = new Microsoft.UI.Xaml.Controls.MenuFlyout();
+
+        if (_rightClickNode is { } node)
+        {
+            // Ensure the right-clicked node is selected so menu ops act on it.
+            if (!node.IsSelected) vm.SelectNode(node, false);
+
+            flyout.Items.Add(MenuItem("Edit Label", "\uE8BF", (s, e) => StartNodeInPlaceEdit(node)));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Duplicate (Ctrl+D)", "\uE8C8", (s, e) => vm.DuplicateSelected()));
+            flyout.Items.Add(MenuItem("Copy (Ctrl+C)", "\uE8C8", (s, e) => vm.CopySelected()));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Bring to Front", "\uE74A", (s, e) => BringToFront(node)));
+            flyout.Items.Add(MenuItem("Send to Back", "\uE74B", (s, e) => SendToBack(node)));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Delete (Del)", "\uE74D", (s, e) => vm.DeleteSelected()));
+        }
+        else if (_rightClickConnector is { } conn)
+        {
+            vm.SelectedConnector = conn;
+            vm.SelectedNode = null;
+
+            flyout.Items.Add(MenuItem("Edit Label", "\uE8BF", (s, e) => StartConnectorInPlaceEdit(conn)));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Delete Connector", "\uE74D", (s, e) => vm.DeleteSelected()));
+        }
+        else
+        {
+            // Empty canvas.
+            flyout.Items.Add(MenuItem("Add Node Here", "\uE710", (s, e) => AddNodeAt(canvasPos)));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Paste (Ctrl+V)", "\uE77F", (s, e) => vm.PasteClipboard()));
+            flyout.Items.Add(MenuItem("Select All (Ctrl+A)", "\uE8B3", (s, e) => vm.SelectAll()));
+            flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
+            flyout.Items.Add(MenuItem("Fit to Content", "\uE73F", (s, e) => FitToContent()));
+            flyout.Items.Add(MenuItem("Reset Zoom (Ctrl+0)", "\uE8A3", (s, e) => ZoomReset()));
+        }
+
+        // Anchor the flyout to the canvas at the pointer position.
+        var anchor = new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+        {
+            Position = canvasPos
+        };
+        flyout.ShowAt(InfiniteCanvasGrid, anchor);
+    }
+
+    private static Microsoft.UI.Xaml.Controls.MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler handler)
+    {
+        var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
+        {
+            Text = text,
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = glyph }
+        };
+        item.Click += handler;
+        return item;
+    }
+
+    private void BringToFront(DiagramNodeViewModel node)
+    {
+        var vm = ViewModel; if (vm is null) return;
+        vm.SnapshotForUndo();
+        int maxZ = vm.Nodes.Max(n => n.ZIndex);
+        node.ZIndex = maxZ + 1;
+        vm.StatusText = $"Brought '{node.Id}' to front.";
+    }
+
+    private void SendToBack(DiagramNodeViewModel node)
+    {
+        var vm = ViewModel; if (vm is null) return;
+        vm.SnapshotForUndo();
+        int minZ = vm.Nodes.Min(n => n.ZIndex);
+        node.ZIndex = minZ - 1;
+        vm.StatusText = $"Sent '{node.Id}' to back.";
+    }
+
+    private void AddNodeAt(Point pos)
+    {
+        var vm = ViewModel; if (vm is null) return;
+        var item = new MermaidPaletteItem { Category = "Flowchart", ShapeType = "Rectangle", DefaultText = "New Node" };
+        vm.AddNodeFromPalette(item, pos.X, pos.Y);
     }
 
     #endregion

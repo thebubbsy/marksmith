@@ -44,6 +44,19 @@ public sealed class ApiServer : IDisposable
     public static CommandResult? GetResult(string id) =>
         CommandResults.TryRemove(id, out var r) ? r : null;
 
+    /// <summary>Drains every pending job (what GET /api/commands returns to the extension).
+    /// Internal so tests can simulate the extension's polling side.</summary>
+    internal static List<CommandJob> DrainCommands()
+    {
+        var jobs = new List<CommandJob>();
+        while (PendingCommands.TryDequeue(out var job)) jobs.Add(job);
+        return jobs;
+    }
+
+    /// <summary>Stores a completed job's result (what POST /api/commands/result does).
+    /// Internal so tests can simulate the extension posting an AI reply back.</summary>
+    internal static void PostResult(CommandResult result) => CommandResults[result.Id] = result;
+
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     // Ceiling for a request body (any real document paste fits comfortably). Enforced up front via
@@ -250,9 +263,7 @@ public sealed class ApiServer : IDisposable
                 {
                     // Extension polls for pending jobs. Drains the queue into the response.
                     LastExtensionPollTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var jobs = new List<CommandJob>();
-                    while (PendingCommands.TryDequeue(out var job)) jobs.Add(job);
-                    await WriteJsonAsync(ctx, 200, jobs);
+                    await WriteJsonAsync(ctx, 200, DrainCommands());
                     break;
                 }
 
@@ -263,7 +274,7 @@ public sealed class ApiServer : IDisposable
                         : JsonSerializer.Deserialize<CommandResult>(body, JsonOpts);
                     if (result?.Id is not { Length: > 0 })
                     { await WriteJsonAsync(ctx, 400, new { error = "id and replyMarkdown are required" }); break; }
-                    CommandResults[result.Id] = result;
+                    PostResult(result);
                     await WriteJsonAsync(ctx, 200, new { ok = true });
                     break;
                 }

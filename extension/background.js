@@ -27,7 +27,7 @@ const CHAT_URLS = [
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
         id: "mdpdfm-selection",
-        title: "Send selection to Marksmith",
+        title: "Send selection to MarkSmith",
         contexts: ["selection"],
     });
     chrome.contextMenus.create({
@@ -254,11 +254,11 @@ async function health() {
     }
 }
 
-async function extractFromTab(tabId, mode) {
+async function extractFromTab(tabId, mode, imgMode) {
     const [res] = await chrome.scripting.executeScript({
         target: { tabId },
         func: extractMarkdown,
-        args: [mode],
+        args: [mode, imgMode || "url"],
     });
     return res?.result;
 }
@@ -299,9 +299,29 @@ async function inspectActiveTab(mode) {
 async function grabAndSend(tab, mode, opts = {}) {
     const showNotify = opts.notify !== false;
 
+    // Image-embedding preference (selection sends only). Default is "ask": when the selection
+    // actually contains images, pop a one-tap chooser on the page (link vs embed, with an optional
+    // "remember my choice"). Linking (URL) stays the default — embedding is opt-in and best-effort.
+    let imgMode = "url";
+    if (mode === "selection") {
+        try {
+            const { imgEmbedPref } = await chrome.storage.sync.get({ imgEmbedPref: "ask" });
+            if (imgEmbedPref === "ask") {
+                const [q] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: detectAndQueryImagePref });
+                const ans = q?.result || {};
+                if (ans.needed) {
+                    imgMode = ans.choice === "base64" ? "base64" : "url";
+                    if (ans.remember) await chrome.storage.sync.set({ imgEmbedPref: imgMode });
+                }
+            } else if (imgEmbedPref === "base64") {
+                imgMode = "base64";
+            }
+        } catch { imgMode = "url"; /* never let the prompt block a send */ }
+    }
+
     let extracted;
     try {
-        extracted = await extractFromTab(tab.id, mode);
+        extracted = await extractFromTab(tab.id, mode, imgMode);
     } catch (e) {
         if (showNotify) notify("Cannot read this page", e.message);
         return { ok: false, error: "Cannot read this page — " + e.message };
@@ -311,6 +331,12 @@ async function grabAndSend(tab, mode, opts = {}) {
         const err = extracted?.error || "Could not find assistant content on this page.";
         if (showNotify) notify("Nothing to send", err);
         return { ok: false, error: err };
+    }
+
+    // Opt-in embedding: the in-page pass already inlined any CORS-friendly images; now use the
+    // optional host permission to fetch the rest (e.g. GitHub's camo proxy) from the background.
+    if (imgMode === "base64") {
+        extracted.markdown = await embedRemainingRemoteImages(extracted.markdown);
     }
 
     try {
@@ -413,6 +439,42 @@ function bufferToDataUrl(buffer, mime) {
     return `data:${mime};base64,` + btoa(binary);
 }
 
+// The optional host permission that lets the background fetch image bytes regardless of CORS.
+// Requested lazily, and only, when the user opts into embedding. Best-effort: the request needs a
+// user gesture, so if it's triggered outside one it simply returns false and we fall back to
+// linking — the Options page is the guaranteed place to grant it.
+async function ensureImagePermission() {
+    const origins = ["<all_urls>"];
+    try {
+        if (await chrome.permissions.contains({ origins })) return true;
+        return await chrome.permissions.request({ origins });
+    } catch { return false; }
+}
+
+// Background embedding pass (only when the user opts in AND grants the optional host permission):
+// fetch any images the page-context pass couldn't — CORS-blocked hosts like GitHub's camo proxy —
+// and swap their links for base64 data-URIs. The service worker isn't bound by CORS for hosts it
+// has permission for, which is what makes embedding work everywhere. Best-effort: no permission or
+// any fetch failure just leaves the link in place, so the send never breaks.
+async function embedRemainingRemoteImages(markdown) {
+    if (!(await ensureImagePermission())) return markdown;
+    const re = /(!\[[^\]]*\])\((https?:\/\/[^)\s]+)\)/g;
+    const urls = [...new Set([...markdown.matchAll(re)].map((m) => m[2]))];
+    if (!urls.length) return markdown;
+    const dataByUrl = new Map();
+    await Promise.all(urls.map(async (url) => {
+        try {
+            const resp = await fetch(url, { credentials: "omit" });
+            if (!resp.ok) return;
+            const buf = await resp.arrayBuffer();
+            if (!buf.byteLength || buf.byteLength > 20 * 1024 * 1024) return; // skip empty / >20 MB
+            const mime = (resp.headers.get("content-type") || "image/png").split(";")[0].trim() || "image/png";
+            dataByUrl.set(url, bufferToDataUrl(buf, mime));
+        } catch { /* leave as a link */ }
+    }));
+    return markdown.replace(re, (full, alt, url) => (dataByUrl.has(url) ? `${alt}(${dataByUrl.get(url)})` : full));
+}
+
 // Turn the captured conversation title into a safe, friendly filename.
 function buildFilename(meta, format) {
     const raw = (meta?.title || "").trim() || "marksmith-export";
@@ -428,17 +490,162 @@ function notify(title, message) {
     chrome.notifications.create({ type: "basic", iconUrl: "icons/icon128.png", title, message });
 }
 
+// Injected into the page when a selection-send runs with the image preference set to "ask".
+// Counts the images the selection actually captured and, if any, pops a small chooser asking
+// whether to send them as links (URL — small, the default) or embedded pixels (base64 —
+// permanent, larger), with an optional "remember my choice". Resolves { needed, count, choice,
+// remember }. Best-effort: any failure just means we proceed with the default (link).
+async function detectAndQueryImagePref() {
+    let count = 0;
+    try {
+        const sel = getSelection();
+        if (sel && sel.rangeCount > 0) {
+            const holder = document.createElement("div");
+            for (let i = 0; i < sel.rangeCount; i++) holder.appendChild(sel.getRangeAt(i).cloneContents());
+            count = holder.querySelectorAll("img").length;
+        }
+    } catch { count = 0; }
+    if (!count) return { needed: false, count: 0, choice: "url", remember: false };
+
+    return await new Promise((resolve) => {
+        const STYLE = `
+            #mk-imgpref-root{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(8,9,14,.55);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;}
+            #mk-imgpref-root .mk-card{width:470px;max-width:calc(100vw - 40px);background:#1c1c28;color:#e8e8f0;border:1px solid #2a2a3a;border-radius:16px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+            #mk-imgpref-root h3{margin:0 0 4px;font-size:17px;font-weight:700;}
+            #mk-imgpref-root .mk-sub{margin:0 0 16px;font-size:13px;color:#9a9ab0;line-height:1.5;}
+            #mk-imgpref-root .mk-opt{display:block;border:1px solid #2a2a3a;border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,background .15s;}
+            #mk-imgpref-root .mk-opt:hover{border-color:#7c4dff;background:rgba(124,77,255,.09);}
+            #mk-imgpref-root .mk-opt b{display:block;font-size:14px;margin-bottom:4px;}
+            #mk-imgpref-root .mk-opt .mk-rec{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#3fb950;background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.35);border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:1px;}
+            #mk-imgpref-root .mk-opt .mk-desc{display:block;font-size:12.5px;color:#9a9ab0;line-height:1.5;}
+            #mk-imgpref-root .mk-remember{display:flex;align-items:center;gap:8px;font-size:13px;color:#c8c8d8;margin:14px 0 2px;cursor:pointer;user-select:none;}
+            #mk-imgpref-root .mk-remember input{accent-color:#7c4dff;width:15px;height:15px;cursor:pointer;}
+            #mk-imgpref-root .mk-actions{display:flex;justify-content:flex-end;margin-top:12px;}
+            #mk-imgpref-root .mk-skip{background:none;border:none;color:#9a9ab0;font-size:13px;cursor:pointer;padding:4px 6px;margin-right:auto;}
+            #mk-imgpref-root .mk-skip:hover{color:#e8e8f0;}
+        `;
+        const styleEl = document.createElement("style");
+        styleEl.textContent = STYLE;
+        const root = document.createElement("div");
+        root.id = "mk-imgpref-root";
+        root.innerHTML = `
+            <div class="mk-card" role="dialog" aria-modal="true" aria-label="Image embedding preference">
+                <h3>\u{1F4F7} <span id="mk-imgpref-count"></span> in your selection</h3>
+                <p class="mk-sub">How should Marksmith receive the images? You can change this later in the extension's Options.</p>
+                <div class="mk-opt" data-choice="url">
+                    <b>Link to the image<span class="mk-rec">recommended</span></b>
+                    <span class="mk-desc">Sends the image's web address. Small &amp; fast, keeps the document lean. Downside: the picture breaks if the page is private, deleted, or the link expires.</span>
+                </div>
+                <div class="mk-opt" data-choice="base64">
+                    <b>Embed the image itself</b>
+                    <span class="mk-desc">Downloads the pixels and bakes them into the document — permanent, works offline forever. Downside: a much larger, slower send; protected images may still fall back to a link.</span>
+                </div>
+                <label class="mk-remember"><input type="checkbox" id="mk-imgpref-remember"> Remember my choice — don't ask again</label>
+                <div class="mk-actions"><button class="mk-skip" type="button">Skip — just link them</button></div>
+            </div>`;
+        document.documentElement.appendChild(styleEl);
+        document.documentElement.appendChild(root);
+        root.querySelector("#mk-imgpref-count").textContent = count + (count === 1 ? " image" : " images");
+        const isRemember = () => root.querySelector("#mk-imgpref-remember").checked;
+        const finish = (choice, rem) => {
+            try { root.remove(); styleEl.remove(); } catch {}
+            document.removeEventListener("keydown", onKey, true);
+            resolve({ needed: true, count, choice, remember: !!rem });
+        };
+        const onKey = (e) => { if (e.key === "Escape") finish("url", false); };
+        document.addEventListener("keydown", onKey, true);
+        root.addEventListener("click", (e) => { if (e.target === root) finish("url", false); });
+        root.querySelector(".mk-skip").addEventListener("click", () => finish("url", false));
+        for (const opt of root.querySelectorAll(".mk-opt")) {
+            opt.addEventListener("click", () => finish(opt.dataset.choice, isRemember()));
+        }
+    });
+}
+
 // Injected into the page. Finds assistant messages via per-site selectors and converts their
 // HTML to Markdown with a small recursive walker (headings, lists, tables, code fences, links).
 // mode: "latest" = newest assistant reply, "all" = whole conversation, "selection" = user selection.
 // Async because the mermaid pre-pass may need to click a "code" toggle and wait for the raw
 // fenced source to appear before the walker runs.
-async function extractMarkdown(mode) {
+async function extractMarkdown(mode, imgMode) {
+    // First token of real Mermaid diagram source — shared by the fence labeller in `conv`
+    // (GitHub keeps the source in <pre lang="mermaid"> with no language-* class) and by the
+    // rendered-diagram source recovery below.
+    const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|xychart-beta|sankey-beta|block-beta|packet-beta|kanban|architecture-beta)\b/;
+
+    // Resolve the REAL, absolute URL of an <img> so a highlighted image ships as a working
+    // ![alt](url) embed. Lazy loaders park the true URL in a data-* attribute while `src` holds
+    // a placeholder; responsive images expose the size actually rendered via `currentSrc`
+    // (srcset/<picture>). Relative URLs are resolved against the page so the embed survives
+    // leaving the site. Tracking pixels / tiny inline placeholders yield "" so we never ship a
+    // 1×1 grey dot as if it were content.
+    function bestFromSrcset(set) {
+        let best = "", bestW = -1;
+        for (const cand of set.split(",")) {
+            const [url, desc = ""] = cand.trim().split(/\s+/);
+            if (!url) continue;
+            const w = parseFloat(desc) || 0; // "2x" → 2, "300w" → 300 — good enough to pick the biggest
+            if (w >= bestW) { bestW = w; best = url; }
+        }
+        return best;
+    }
+    function bestImgSrc(n) {
+        const abs = (u) => { try { return new URL(u, document.baseURI).href; } catch { return ""; } };
+        // 1) Lazy-load data attributes (real URL parked until the image scrolls into view).
+        for (const attr of ["data-src", "data-lazy-src", "data-original", "data-lazy", "data-srcset", "data-lazyload"]) {
+            const v = (n.getAttribute(attr) || "").trim();
+            if (!v) continue;
+            const pick = v.includes(",") ? bestFromSrcset(v) : v.split(/\s+/)[0];
+            if (pick && !pick.startsWith("data:")) return abs(pick);
+        }
+        // 2) What the browser actually rendered (respects srcset/<picture>), else the authored src.
+        const rendered = n.currentSrc || n.src || "";
+        if (!rendered) return "";
+        if (rendered.startsWith("data:")) return rendered.length >= 200 ? rendered : ""; // tiny inline = placeholder
+        if (n.getAttribute("width") === "1" && n.getAttribute("height") === "1") return ""; // tracking pixel
+        return rendered; // currentSrc / src are already absolute
+    }
+
+    // Fetch each captured image's bytes and stash a base64 data-URI on the clone so `conv` embeds
+    // the pixels instead of a link. Used only when the user opts into embedding. Best-effort per
+    // image: anything that can't be fetched (CORS, auth, timeout, oversize) silently falls back to
+    // its URL so the send never fails.
+    async function embedImagesAsBase64(root) {
+        const toDataUrl = async (url) => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 12000);
+            try {
+                const resp = await fetch(url, { mode: "cors", credentials: "omit", signal: ctrl.signal });
+                if (!resp.ok) return "";
+                const blob = await resp.blob();
+                if (!blob.size || blob.size > 20 * 1024 * 1024) return ""; // skip empty / >20 MB
+                return await new Promise((res) => {
+                    const fr = new FileReader();
+                    fr.onload = () => res(typeof fr.result === "string" ? fr.result : "");
+                    fr.onerror = () => res("");
+                    fr.readAsDataURL(blob);
+                });
+            } catch { return ""; } finally { clearTimeout(timer); }
+        };
+        await Promise.all([...root.querySelectorAll("img")].map(async (img) => {
+            try {
+                const url = bestImgSrc(img);
+                if (!url || url.startsWith("data:")) return; // nothing to fetch / already inline
+                const data = await toDataUrl(url);
+                if (data) img.dataset.mkImg = data;
+            } catch { /* fall back to the URL in conv */ }
+        }));
+    }
+
     function conv(n) {
         if (n.nodeType === Node.TEXT_NODE) return n.textContent;
         if (n.nodeType !== Node.ELEMENT_NODE) return "";
 
         const cls = typeof n.className === "string" ? n.className : (n.className?.baseVal || "");
+        // Screen-reader-only chrome (GitHub's "Loading" spinners, "Copy code" labels, …) is a
+        // hidden duplicate of visible content by definition — drop it so it never leaks into
+        // the Markdown as stray text.
+        if (/(^|\s)(sr-only|visually-hidden)(-\S+)?(\s|$)/.test(cls)) return "";
         if (cls.includes("katex") || cls.includes("math-inline") || cls.includes("math-display")) {
             const tex = n.querySelector('annotation[encoding="application/x-tex"], script[type="math/tex"]');
             if (tex) {
@@ -472,8 +679,16 @@ async function extractMarkdown(mode) {
                 return n.closest("pre") ? kids() : "`" + kids() + "`";
             case "pre": {
                 const code = n.querySelector("code");
-                const lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
+                let lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
                 const txt = (code || n).textContent.replace(/\n$/, "");
+                // GitHub keeps mermaid source in <pre lang="mermaid" aria-label="Raw mermaid code">
+                // with no language-* class; recognise the attribute — and sniff BARE fences for a
+                // leading diagram keyword — so the block is labelled ```mermaid and Marksmith
+                // renders it as a first-class diagram instead of an anonymous code block.
+                if (!lang) {
+                    const attrLang = (n.getAttribute("lang") || code?.getAttribute("lang") || "").toLowerCase();
+                    if (attrLang === "mermaid" || MERMAID_HEAD.test(txt.trim())) lang = "mermaid";
+                }
                 return `\n\`\`\`${lang}\n${txt}\n\`\`\`\n`;
             }
             case "ul": {
@@ -488,7 +703,10 @@ async function extractMarkdown(mode) {
             }
             case "li": return kids();
             case "a": return n.href && !n.href.startsWith("javascript:") ? `[${kids()}](${n.href})` : kids();
-            case "img": return n.src ? `![${n.alt || ""}](${n.src})` : "";
+            case "img": {
+                const src = (n.dataset && n.dataset.mkImg) || bestImgSrc(n);
+                return src ? `![${n.alt || ""}](${src})` : "";
+            }
             case "blockquote":
                 return "\n" + kids().trim().split("\n").map((l) => `> ${l}`).join("\n") + "\n";
             case "hr": return "\n---\n";
@@ -516,7 +734,6 @@ async function extractMarkdown(mode) {
     // toggle and reading what it reveals. Best-effort — never lets extraction fail.
     async function recoverMermaidSources(rootsArr) {
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        const MERMAID_HEAD = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|xychart-beta|sankey-beta|block-beta|packet-beta|kanban|architecture-beta)\b/;
         const grab = (c) => (c.tagName === "TEXTAREA" ? c.value : c.textContent) || "";
 
         // Pull the message's RAW markdown straight out of React's internal state — this is the
@@ -720,7 +937,42 @@ async function extractMarkdown(mode) {
         const selText = sel?.toString();
         if (selText?.trim()) {
             const anchor = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
-            return { ok: true, markdown: selText.trim(), meta: buildMeta(anchor || document.body) };
+            // Prefer a FORMATTED capture: clone the selection's DOM fragment and run it through
+            // the same HTML→Markdown walker used for full replies, so headings, bold, lists,
+            // links, tables and code fences arrive as Markdown instead of flat text. Best-effort —
+            // anything the walker can't turn into Markdown falls back to the raw selected text.
+            let markdown = "";
+            try {
+                if (sel.rangeCount > 0) {
+                    const holder = document.createElement("div");
+                    for (let i = 0; i < sel.rangeCount; i++) {
+                        holder.appendChild(sel.getRangeAt(i).cloneContents());
+                    }
+                    // Rendered diagrams (GitHub): the selection may have grabbed only the VISIBLE
+                    // diagram (SVG), while its raw source sits in a sibling <pre lang="mermaid">
+                    // outside the selected range — and the walker strips the SVG itself. Pull every
+                    // source the selection touched BUT didn't already clone into the fragment, so
+                    // the diagram still ships as a proper ```mermaid fence. (A range that intersects
+                    // the pre has already cloned it — even when it's display:none — so those are
+                    // skipped to avoid duplicates.)
+                    for (const pre of document.querySelectorAll('pre[lang="mermaid"]')) {
+                        const zone = pre.closest(".js-render-enrichment-fallback")
+                            || pre.parentElement?.parentElement || pre.parentElement || pre;
+                        let hit = false, inClone = false;
+                        for (let i = 0; i < sel.rangeCount; i++) {
+                            const r = sel.getRangeAt(i);
+                            if (r.intersectsNode(pre)) inClone = true;
+                            else if (r.intersectsNode(zone)) hit = true;
+                        }
+                        if (hit && !inClone) holder.appendChild(pre.cloneNode(true));
+                    }
+                    // Opt-in: bake the images' pixels in as base64 instead of linking them.
+                    if (imgMode === "base64") await embedImagesAsBase64(holder);
+                    markdown = clean(conv(holder)).trim();
+                }
+            } catch { markdown = ""; }
+            if (!markdown) markdown = selText.trim();
+            return { ok: true, markdown, meta: buildMeta(anchor || document.body) };
         }
         return { ok: false, error: "Nothing selected." };
     }

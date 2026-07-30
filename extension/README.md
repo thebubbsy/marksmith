@@ -56,7 +56,7 @@ minute), so you know before you click.
 | *Send full conversation to Marksmith* | Sends **every assistant reply**, separated by rules |
 | *Download latest reply as PDF* | Converts the newest reply and saves a `.pdf` |
 | *Download latest reply as DOCX* | Converts the newest reply and saves a `.docx` |
-| *Send selection to Marksmith* (any site) | Sends the selected text as-is |
+| *Send selection to MarkSmith* (any site) | Converts the selected fragment to Markdown (headings, bold, lists, code fences…) — falls back to raw text when there's nothing to format |
 
 A Windows notification confirms each send/download.
 
@@ -92,5 +92,21 @@ Leave the profile untouched to just use whatever the app is set to.
 - Change the port via the extension's **Options** page if you changed it in the app.
 - Chat sites redesign their DOM occasionally; if "latest reply" extraction misses,
   the selection method always works.
+- **Mermaid diagrams are captured as real diagrams.** On GitHub (and anywhere else that
+  keeps the source in `<pre lang="mermaid">` or hides it behind a rendered SVG), the
+  selection capture recovers the raw diagram source and ships it as a ` ```mermaid `
+  fence — so Marksmith re-renders every chart instead of dropping it. Screen-reader-only
+  chrome (GitHub's "Loading" spinners, "Copy code" labels) is stripped on the way out.
+- **Images in a selection are captured automatically.** Highlight over an `<img>` and it
+  ships with its **real, absolute URL** — lazy-loaded sources (`data-src`), responsive
+  `srcset`/`<picture>` picks, and relative paths are all resolved, while tracking pixels and
+  placeholder dots are skipped. By default images are sent as **links** (`![alt](url)` — small
+  & fast; Marksmith downloads them for the PDF/DOCX). Prefer the pixels baked in? You can
+  **embed them as base64** instead (permanent & offline-proof, but larger): when a selection
+  contains images you're asked which way, with a *remember my choice* tick box — and a
+  permanent default lives in **Options → Images in a selection**. Embedding uses an optional,
+  one-time permission to fetch images past site restrictions (asked only when you use it —
+  nothing extra at install, so it stays Chrome Web Store-friendly); anything it can't fetch
+  falls back to a link.
 - Downloads hand the file to your browser's download manager, so they respect your browser's
   download settings (folder, "ask where to save", etc.).

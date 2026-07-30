@@ -123,6 +123,18 @@
                 <label for="idleSeconds">Idle seconds before sending</label>
                 <input type="number" id="idleSeconds" min="5" max="300">
             </div>
+            <div class="field">
+                <label for="imgEmbedPref">Images in a selection</label>
+                <select id="imgEmbedPref">
+                    <option value="ask">Ask me every time</option>
+                    <option value="url">Always link (URL) &mdash; small &amp; fast</option>
+                    <option value="base64">Always embed (base64) &mdash; permanent, larger</option>
+                </select>
+                <div class="hint">When a selection you send contains images, whether to send a <b>link</b> or
+                    embed the <b>pixels</b>. <b>Ask me every time</b> pops a chooser on the page (link is the
+                    default). Embedding asks for one-time access to fetch images (so it can bypass site
+                    restrictions); anything it can't fetch falls back to a link.</div>
+            </div>
         </div>
 
         <div class="card">

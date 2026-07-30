@@ -73,7 +73,7 @@ public sealed class ExportCoordinator
                 if (settings.MermaidDocxMode == 1)
                 {
                     mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                    mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                    mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
                 }
             }
 
@@ -258,7 +258,7 @@ public sealed class ExportCoordinator
                     if (settings.MermaidDocxMode == 1)
                     {
                         mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                        mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                        mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
                     }
                 }
 
@@ -350,6 +350,10 @@ public sealed class ExportCoordinator
         int done = 0, failed = 0;
         var processedFiles = new List<string>();
 
+        // The theme is identical for every file in a batch (settings is fixed above), so resolve it
+        // once here instead of re-running Themes.GetOrDefault on every iteration of the loop below.
+        var batchTheme = AppServices.Themes.GetOrDefault(settings.Theme);
+
         foreach (var f in files)
         {
             await _convertLock.WaitAsync();
@@ -367,8 +371,7 @@ public sealed class ExportCoordinator
                 switch (fmt)
                 {
                     case "pdf":
-                        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                        var html = AppServices.MarkdownHtml.Render(md, settings, theme, null);
+                        var html = AppServices.MarkdownHtml.Render(md, settings, batchTheme, null);
                         // host is guaranteed non-null here: the fmt=="pdf" guard above throws otherwise.
                         await _pdfExport.ExportAsync(host!, html, outPath, settings);
                         break;
@@ -381,12 +384,11 @@ public sealed class ExportCoordinator
                         // exporter falls back to parser-based ShapeForge or a code block for diagrams.
                         if (host is not null && md.Contains("```mermaid", StringComparison.Ordinal))
                         {
-                            var docxTheme = AppServices.Themes.GetOrDefault(settings.Theme);
-                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, docxTheme);
+                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, batchTheme);
                             if (settings.MermaidDocxMode == 1)
                             {
-                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, docxTheme);
-                                mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, batchTheme);
+                                mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, batchTheme);
                             }
                         }
                         await _docxExport.ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);

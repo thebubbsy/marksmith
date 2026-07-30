@@ -2,7 +2,8 @@
 ; Builds a silent-capable per-machine installer from the self-contained publish output.
 ; Build:  iscc packaging\installer\marksmith.iss
 ;         (override the publish dir with:  iscc /DPublishDir="...\win-x64\publish" ...)
-; The produced Marksmith-Setup-x64.exe is the single artifact consumed by winget,
+;         (target ARM64 with:             iscc /DArch=arm64 packaging\installer\marksmith.iss)
+; The produced Marksmith-Setup-<arch>.exe is the single artifact consumed by winget,
 ; Chocolatey, and a Microsoft Store EXE/MSI submission.
 
 #define AppName "Marksmith"
@@ -11,8 +12,15 @@
 #define AppURL "https://github.com/thebubbsy/marksmith"
 #define AppExe "Marksmith.exe"
 
+; Target architecture: "x64" (default) or "arm64" (Windows on ARM — Snapdragon X Elite/Plus and
+; similar). The release workflow passes /DArch=arm64 to also emit a native ARM64 installer; plain
+; local builds keep the x64 default, so nothing about the existing flow changes.
+#ifndef Arch
+  #define Arch "x64"
+#endif
+
 #ifndef PublishDir
-  #define PublishDir "..\..\marksmith-v2\MdToPdf\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish"
+  #define PublishDir "..\..\marksmith-v2\MdToPdf\bin\" + Arch + "\Release\net8.0-windows10.0.19041.0\win-" + Arch + "\publish"
 #endif
 
 [Setup]
@@ -30,12 +38,17 @@ DefaultGroupName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 OutputDir=..\..\dist_installer
-OutputBaseFilename=Marksmith-Setup-x64
+OutputBaseFilename=Marksmith-Setup-{#Arch}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 LicenseFile=..\..\LICENSE
