@@ -13,8 +13,10 @@ namespace MdToPdf.Core.AdvancedFeatures
         /// </summary>
         public static string Generate(string documentId, string blockText, int index = 0)
         {
-            using var sha = SHA256.Create();
-            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes($"{documentId}|{index}|{blockText}"));
+            // SHA256.HashData is static, thread-safe, and allocates no disposable SHA256 instance —
+            // it replaces the per-call SHA256.Create() + Dispose this method used to do (one crypto
+            // object per feature node per export).
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{documentId}|{index}|{blockText}"));
             // Take first 16 bytes of the SHA-256 hash to form a valid GUID
             return new Guid(hash.AsSpan(0, 16)).ToString("D");
         }

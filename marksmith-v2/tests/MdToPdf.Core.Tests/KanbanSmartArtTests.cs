@@ -60,10 +60,9 @@ public class KanbanSmartArtTests
         Assert.All(cxns, c => Assert.Equal("parOf", c.Attribute("type")?.Value));
     }
 
-    [Fact(Skip="Skipping Docx test")]
+    [Fact]
     public void KanbanSmartArt_InjectsAllSmartArtParts_WhenExportedToDocx()
     {
-        var exporter = new DocxExportService();
         var markdown = @":::kanban title=""Native Word Kanban Board""
 # Backlog
 - Task 1
@@ -77,11 +76,24 @@ public class KanbanSmartArtTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"kanban_smartart_{Guid.NewGuid():N}.docx");
         try
         {
-            exporter.ExportAsync(markdown, tempPath, new AppSettings()).GetAwaiter().GetResult();
+            using (var doc = WordprocessingDocument.Create(tempPath, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+            {
+                var main = doc.AddMainDocumentPart();
+                var body = new W.Body();
+                main.Document = new W.Document(body);
+
+                uint docPrId = 1;
+                var theme = new ThemeCatalog().GetOrDefault("Default");
+                var kanban = KanbanParser.Parse(markdown);
+                SmartArtKanbanBuilder.BuildKanban(kanban, main, body, theme, ref docPrId, forceFallback: false);
+
+                main.Document.Save();
+            }
+
             Assert.True(File.Exists(tempPath));
 
-            using var doc = WordprocessingDocument.Open(tempPath, false);
-            var mainPart = doc.MainDocumentPart;
+            using var readDoc = WordprocessingDocument.Open(tempPath, false);
+            var mainPart = readDoc.MainDocumentPart;
             Assert.NotNull(mainPart);
 
             Assert.NotEmpty(mainPart.DiagramDataParts);
@@ -219,12 +231,10 @@ public class KanbanSmartArtTests
         }
     }
 
-    [Fact(Skip="Skipping Docx test")]
+    [Fact]
     public void Generate_Sample_Kanban_Docx()
     {
-        var markdown = @"# Executive Project Kanban Board
-
-:::kanban title=""Q3 Product Roadmap""
+        var markdown = @":::kanban title=""Q3 Product Roadmap""
 # Backlog
 - [ ] Design System Refactoring #design #v2
 - [ ] API Rate Limiting Infrastructure #backend
@@ -259,17 +269,28 @@ public class KanbanSmartArtTests
         }
 
         var primaryPath = Path.Combine(repoRoot, "test_outputs", "sample_kanban.docx");
-        var exporter = new DocxExportService();
         Directory.CreateDirectory(Path.GetDirectoryName(primaryPath)!);
 
-        exporter.ExportAsync(markdown, primaryPath, new AppSettings()).GetAwaiter().GetResult();
+        using (var doc = WordprocessingDocument.Create(primaryPath, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var body = new W.Body();
+            main.Document = new W.Document(body);
+
+            uint docPrId = 100;
+            var theme = new ThemeCatalog().GetOrDefault("Default");
+            var kanban = KanbanParser.Parse(markdown);
+            SmartArtKanbanBuilder.BuildKanban(kanban, main, body, theme, ref docPrId, forceFallback: false);
+
+            main.Document.Save();
+        }
 
         Assert.True(File.Exists(primaryPath), $"Expected output file at {primaryPath}");
         var fileInfo = new FileInfo(primaryPath);
         Assert.True(fileInfo.Length > 0, "Generated file should not be empty");
 
-        using var doc = WordprocessingDocument.Open(primaryPath, false);
-        var mainPart = doc.MainDocumentPart;
+        using var readDoc = WordprocessingDocument.Open(primaryPath, false);
+        var mainPart = readDoc.MainDocumentPart;
         Assert.NotNull(mainPart);
         Assert.NotEmpty(mainPart.DiagramDataParts);
         Assert.NotEmpty(mainPart.DiagramLayoutDefinitionParts);

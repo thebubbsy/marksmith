@@ -82,6 +82,7 @@
                         <DataTemplate x:DataType="vm:DiagramNodeViewModel">
                             <Grid Width="{Binding Width}"
                                   Height="{Binding Height}"
+                                  Canvas.ZIndex="{Binding ZIndex}"
                                   IsHitTestVisible="True"
                                   Background="Transparent">
                                 <Grid.RenderTransform>
@@ -203,6 +204,30 @@
                                 </Grid>
                                 <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-13,0,0,0" Tag="Left">
                                     <Ellipse Width="12" Height="12" Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1" IsHitTestVisible="False" />
+                                </Grid>
+
+                                <!-- Resize Handles (corners, visible only when selected). Edge midpoints are
+                                     reserved for the connector anchor dots above, so resizing lives on the four
+                                     corners — the standard diagram-editor convention. -->
+                                <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeNW"
+                                      HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,-8,0,0"
+                                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
+                                    <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
+                                </Grid>
+                                <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeNE"
+                                      HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"
+                                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
+                                    <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
+                                </Grid>
+                                <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeSW"
+                                      HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-8,0,0,-8"
+                                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
+                                    <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
+                                </Grid>
+                                <Grid Width="16" Height="16" Background="Transparent" Tag="ResizeSE"
+                                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-8,-8"
+                                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
+                                    <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
 
                                 <!-- Quick-Add Hover Container with Opacity transition -->

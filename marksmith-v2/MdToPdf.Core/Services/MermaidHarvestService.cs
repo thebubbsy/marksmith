@@ -10,6 +10,10 @@ namespace MdToPdf.Services;
 // methods sandwiched in that wrapper — see MainWindow.xaml.cs's RenderMermaidPngsAsync etc.
 public sealed class MermaidHarvestService
 {
+    // Shared deserialization options for the harvest payloads — allocated once for the process
+    // instead of being rebuilt inside each 150ms polling iteration.
+    private static readonly System.Text.Json.JsonSerializerOptions HarvestJson = new() { PropertyNameCaseInsensitive = true };
+
     private static List<string> ExtractFences(string markdown)
     {
         var doc = Markdig.Markdown.Parse(TextNormalizer.Newlines(markdown));
@@ -24,11 +28,27 @@ public sealed class MermaidHarvestService
         return fences;
     }
 
+    // A single DOCX export runs three harvest passes back-to-back on the SAME markdown (exact
+    // geometry, generic geometry, PNG rasterization). Each used to re-parse the whole document
+    // with Markdig to re-extract the identical fence list — memoize the last extraction instead.
+    // A different document (or a re-export after edits) simply re-extracts.
+    private string? _fenceSource;
+    private List<string> _fenceCache = new();
+    private List<string> FencesFor(string markdown)
+    {
+        if (!string.Equals(markdown, _fenceSource, StringComparison.Ordinal))
+        {
+            _fenceSource = markdown;
+            _fenceCache = ExtractFences(markdown);
+        }
+        return _fenceCache;
+    }
+
     // Rasterizes every ```mermaid fence to a PNG (2x scale). Returns one entry per fence, null
     // where a diagram failed to render — DocxExportService falls back per-diagram.
     public async Task<List<byte[]?>> RenderMermaidPngsAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = ExtractFences(markdown);
+        var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
@@ -105,7 +125,7 @@ public sealed class MermaidHarvestService
     // rebuild the diagram in Word node-for-node instead of re-laying-it-out.
     public async Task<List<Mermaid.HarvestedDiagram?>> HarvestMermaidGeometryAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = ExtractFences(markdown);
+        var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
@@ -120,6 +140,21 @@ public sealed class MermaidHarvestService
               flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" }, securityLevel: "strict" });
             function T(node, root) { // node centre in root coords (getCTM is relative to the svg)
               const m = node.getCTM ? node.getCTM() : null; return m ? [m.e, m.f] : [0, 0]; }
+            // Root-space bounding box: transform the local getBBox() corners through getCTM().
+            // A g.node is positioned by a translate transform, so its CTM carries the centre — but
+            // a g.cluster (subgraph) keeps an IDENTITY group transform and positions its rect with
+            // ABSOLUTE x/y, so getCTM().e/.f read ~0 and every subgraph collapses to the origin.
+            // Mapping the bbox corners through the CTM yields correct root coords for BOTH.
+            function rootBox(n) {
+              let bb = { x: 0, y: 0, width: 0, height: 0 }; try { bb = n.getBBox(); } catch (e) {}
+              const m = n.getCTM ? n.getCTM() : null;
+              if (!m) return { x: bb.x, y: bb.y, w: bb.width, h: bb.height };
+              const pts = [[bb.x, bb.y], [bb.x + bb.width, bb.y], [bb.x, bb.y + bb.height], [bb.x + bb.width, bb.y + bb.height]]
+                .map(([x, y]) => [x * m.a + y * m.c + m.e, x * m.b + y * m.d + m.f]);
+              const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+              const minX = Math.min(...xs), minY = Math.min(...ys);
+              return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
+            }
             function kindOf(n) {
               if (n.classList && n.classList.contains("cluster")) return "Subgraph";
               if (n.querySelector("circle")) return "Circle";
@@ -136,11 +171,8 @@ public sealed class MermaidHarvestService
             }
             function harvest(svgEl) {
               const nodes = [...svgEl.querySelectorAll("g.node, g.cluster")].map(n => {
-                const [cx, cy] = T(n); let bb = {width:0,height:0}; try { bb = n.getBBox(); } catch(e) {}
-                const r = n.querySelector("rect");
-                const w = r ? parseFloat(r.getAttribute("width")) : bb.width;
-                const h = r ? parseFloat(r.getAttribute("height")) : bb.height;
-                return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: cx, Cy: cy, W: w||bb.width, H: h||bb.height, Kind: kindOf(n), Label: lines(n) };
+                const rb = rootBox(n);
+                return { Id: n.id.replace(/^flowchart-/,"").replace(/-\d+$/,""), Cx: +(rb.x + rb.w / 2).toFixed(1), Cy: +(rb.y + rb.h / 2).toFixed(1), W: +rb.w.toFixed(1), H: +rb.h.toFixed(1), Kind: kindOf(n), Label: lines(n) };
               });
               const edges = [...svgEl.querySelectorAll("path.flowchart-link, .edgePath path")].map(p => {
                 const dashed = (p.getAttribute("class")||"").includes("dashed") || getComputedStyle(p).strokeDasharray !== "none";
@@ -180,7 +212,6 @@ public sealed class MermaidHarvestService
                   const { svg } = await mermaid.render("mg" + i, sources[i]);
                   holder.innerHTML = svg; const el = holder.querySelector("svg");
                   void el.getBoundingClientRect(); // force synchronous layout before measuring
-                  window.__svg = svg; // DUMP FOR DIAGNOSTICS
                   out.push(harvest(el)); holder.remove();
                 } catch (e) { window.__geo = "ERROR: " + (e && e.message); return; }
               }
@@ -199,10 +230,6 @@ public sealed class MermaidHarvestService
                 await Task.Delay(150);
                 var raw = await host.ExecuteScriptAsync("window.__geo");
                 var err = await host.ExecuteScriptAsync("window.__err");
-                var svg = await host.ExecuteScriptAsync("window.__svg");
-                if (svg != null && svg != "null") {
-                    try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "msvg.txt"), System.Text.Json.JsonSerializer.Deserialize<string>(svg)); } catch {}
-                }
                 if (err != null && err != "null") {
                     try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "merr.txt"), $"\n[JS_ERR] {err}\n"); } catch {}
                 }
@@ -210,8 +237,7 @@ public sealed class MermaidHarvestService
                 if (raw is null or "null" or "\"null\"") continue;
                 var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
                 if (string.IsNullOrEmpty(json) || json == "null") continue;
-                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                result = System.Text.Json.JsonSerializer.Deserialize<List<Mermaid.HarvestedDiagram?>>(json, opts) ?? new();
+                result = System.Text.Json.JsonSerializer.Deserialize<List<Mermaid.HarvestedDiagram?>>(json, HarvestJson) ?? new();
                 break;
             }
         }
@@ -228,9 +254,9 @@ public sealed class MermaidHarvestService
     // The "no fallback" harvester: for ANY mermaid diagram type, read every visual primitive —
     // shapes with mermaid's real colours, curved edge paths, text — from the rendered SVG so
     // ShapeForge can rebuild it as native Word shapes instead of falling back to a picture.
-    public async Task<List<Mermaid.GenericDiagram?>> HarvestGenericGeometryAsync(IWebRenderHost host, string markdown, AppSettings settings)
+    public async Task<List<Mermaid.GenericDiagram?>> HarvestGenericGeometryAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = ExtractFences(markdown);
+        var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
 
@@ -242,7 +268,11 @@ public sealed class MermaidHarvestService
             window.__gen = null;
             const sources = {{sourcesJson}};
             mermaid.initialize({ startOnLoad: false, theme: "base",
-              flowchart: { useMaxWidth: false, htmlLabels: true }, securityLevel: "strict" });
+              themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
+                primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
+                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
+              flowchart: { useMaxWidth: false, htmlLabels: true },
+              state: { useMaxWidth: false }, securityLevel: "strict" });
             function harvest(svgEl) {
               const nodes = [], edges = [], texts = [];
               const M = el => el.getCTM ? el.getCTM() : null, box = el => { try { return el.getBBox(); } catch(e) { return null; } }, cs = el => getComputedStyle(el);
@@ -264,8 +294,23 @@ public sealed class MermaidHarvestService
               });
               svgEl.querySelectorAll("foreignObject").forEach(fo => { const a = abs(fo); const t = (fo.textContent||"").trim(); const c = cs(fo.querySelector("*") || fo).color; if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: c }); });
               svgEl.querySelectorAll("text").forEach(tx => { if (tx.closest("foreignObject")) return; const a = abs(tx); const t = (tx.textContent||"").trim(); if (a && t) texts.push({ X:+a.x.toFixed(1), Y:+a.y.toFixed(1), W:+a.w.toFixed(1), H:+a.h.toFixed(1), Text: t, Color: cs(tx).fill }); });
-              const vb = (svgEl.getAttribute("viewBox")||"0 0 0 0").split(/\s+/).map(Number);
-              return { W: vb[2], H: vb[3], Nodes: nodes, Edges: edges, Texts: texts };
+              // Canvas size: prefer the viewBox, fall back to the width/height attributes, and always
+              // grow to enclose the harvested content. Without this, an SVG that omits its viewBox
+              // (some state-diagram renders) collapses to a 1pt canvas — a tiny backdrop card while the
+              // shapes, harvested at their real coordinates, spill off the right edge of the page.
+              const vb = (svgEl.getAttribute("viewBox")||"").split(/\s+/).map(Number);
+              let W = vb.length === 4 ? vb[2] : 0, H = vb.length === 4 ? vb[3] : 0;
+              if (!(W > 0 && H > 0)) {
+                const num = v => { const m = /[\d.]+/.exec(v||""); return m ? parseFloat(m[0]) : 0; };
+                W = num(svgEl.getAttribute("width")); H = num(svgEl.getAttribute("height"));
+              }
+              let maxX = 0, maxY = 0;
+              nodes.forEach(n => { maxX = Math.max(maxX, n.X + n.W); maxY = Math.max(maxY, n.Y + n.H); });
+              texts.forEach(t => { maxX = Math.max(maxX, t.X + t.W); maxY = Math.max(maxY, t.Y + t.H); });
+              edges.forEach(e => e.Points.forEach(p => { maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); }));
+              W = Math.max(W, maxX); H = Math.max(H, maxY);
+              if (!(W > 0)) W = 600; if (!(H > 0)) H = 400;
+              return { W: W, H: H, Nodes: nodes, Edges: edges, Texts: texts };
             }
             (async () => {
               const out = [];
@@ -297,8 +342,7 @@ public sealed class MermaidHarvestService
                 if (raw is null or "null" or "\"null\"") continue;
                 var json = System.Text.Json.JsonSerializer.Deserialize<string>(raw);
                 if (string.IsNullOrEmpty(json) || json == "null") continue;
-                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                result = System.Text.Json.JsonSerializer.Deserialize<List<Mermaid.GenericDiagram?>>(json, opts) ?? new();
+                result = System.Text.Json.JsonSerializer.Deserialize<List<Mermaid.GenericDiagram?>>(json, HarvestJson) ?? new();
                 break;
             }
         }

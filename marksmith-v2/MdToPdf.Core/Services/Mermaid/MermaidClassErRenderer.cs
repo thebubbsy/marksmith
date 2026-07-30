@@ -18,6 +18,13 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
     private const double GapY = 50.0;
     private const double Margin = 10.0;
 
+    // Mermaid paints ER attribute ROWS (not the page background): odd rows white, even rows light
+    // grey — fixed colours, independent of the theme (confirmed against mermaid's attributeBoxOdd /
+    // attributeBoxEven for both light and dark palettes). Reproducing them keeps the entity reading
+    // as a coloured header over a white table instead of one solid block of the theme colour.
+    private const string ErAttrOddFill = "#ffffff";
+    private const string ErAttrEvenFill = "#f2f2f2";
+
     public bool CanRender(string diagramType) =>
         diagramType is "classdiagram" or "erdiagram";
 
@@ -76,8 +83,9 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
         public ArrowHead EndHead;                  // at To end
         public bool Dashed;
         public string? Label;
-        public string? FromCard;                   // cardinality text near From end
+        public string? FromCard;                   // class: role-name text; ER: raw cardinality token
         public string? ToCard;
+        public bool IsEr;                          // erDiagram rel → graphical crow's-foot markers, not text
     }
 
     // ------------------------------------------------------------ preprocess
@@ -275,12 +283,14 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
                 {
                     From = GetOrAdd(rel.Groups[1].Value),
                     To = GetOrAdd(rel.Groups[5].Value),
-                    StartHead = ErHead(leftTok),
-                    EndHead = ErHead(rightTok),
+                    // ER crow's-foot notation has no arrowheads — the cardinality markers replace them.
+                    StartHead = ArrowHead.None,
+                    EndHead = ArrowHead.None,
                     Dashed = rel.Groups[3].Value == "..",       // non-identifying
                     Label = string.IsNullOrEmpty(label) ? null : label,
-                    FromCard = ErCardText(leftTok),
-                    ToCard = ErCardText(rightTok),
+                    FromCard = leftTok,                          // raw token → graphical marker at emit
+                    ToCard = rightTok,
+                    IsEr = true,
                 });
                 continue;
             }
@@ -322,20 +332,8 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
         return text;
     }
 
-    // Crow's-foot approximation: many => Open, zero-or-one => Oval, exactly-one => none.
-    private static ArrowHead ErHead(string token) =>
-        token.Contains('{') || token.Contains('}') ? ArrowHead.Open
-        : token.Contains('o') ? ArrowHead.Oval
-        : ArrowHead.None;
-
-    private static string ErCardText(string token) => token switch
-    {
-        "||" => "1",
-        "|o" or "o|" => "0..1",
-        "o{" or "}o" => "0..N",
-        "|{" or "}|" => "1..N",
-        _ => "N",
-    };
+    // Crow's-foot cardinality is drawn graphically at emit time (see DrawErCardinality) — mermaid
+    // never renders "1" / "0..N" text, so neither do we.
 
     private static void CountDegrees(List<Rel> rels)
     {
@@ -366,55 +364,110 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
 
     private static void Layout(List<Node> nodes, List<Rel> rels)
     {
-        int count = nodes.Count;
-        int cols = (int)Math.Ceiling(Math.Sqrt(count));
-        double cellW = nodes.Max(n => n.W) + GapX;
+        // Layered top-to-bottom layout — the same family as mermaid's dagre (rankdir TB). Edges
+        // flow From -> To downward, so a relationship chain A -> B -> C stacks vertically in
+        // declaration order instead of spilling into an L-shaped grid. Layers come from the longest
+        // path out of the sources (in-degree 0); nodes within a layer are ordered by the barycentre
+        // of their neighbours to uncross edges; each layer is centred horizontally.
+
+        // Directed adjacency (From -> To), ignoring self loops.
+        var children = new Dictionary<Node, List<Node>>();
+        var parents = new Dictionary<Node, List<Node>>();
+        var remaining = new Dictionary<Node, int>();
+        foreach (var n in nodes) { children[n] = new(); parents[n] = new(); remaining[n] = 0; }
+        foreach (var r in rels)
+        {
+            if (ReferenceEquals(r.From, r.To)) continue;
+            children[r.From].Add(r.To);
+            parents[r.To].Add(r.From);
+            remaining[r.To]++;
+        }
+
+        // Longest-path layering via Kahn's topological order (stable by declaration order).
+        var layer = new Dictionary<Node, int>();
+        var queue = new Queue<Node>(nodes.Where(n => remaining[n] == 0).OrderBy(n => n.Order));
+        foreach (var n in queue) layer[n] = 0;
+        while (queue.Count > 0)
+        {
+            var n = queue.Dequeue();
+            foreach (var c in children[n].OrderBy(x => x.Order))
+            {
+                layer[c] = Math.Max(layer.GetValueOrDefault(c, 0), layer[n] + 1);
+                if (--remaining[c] == 0) queue.Enqueue(c);
+            }
+        }
+        // Anything still unplaced sits on a cycle — park it below the deepest placed layer.
+        int maxLayer = layer.Count > 0 ? layer.Values.Max() : -1;
+        foreach (var n in nodes.Where(n => !layer.ContainsKey(n)).OrderBy(n => n.Order))
+            layer[n] = ++maxLayer;
+
+        // Group into layers, seeded in declaration order.
+        int layerCount = layer.Values.Max() + 1;
+        var layers = new List<List<Node>>(layerCount);
+        for (int i = 0; i < layerCount; i++) layers.Add(new());
+        foreach (var n in nodes.OrderBy(n => n.Order)) layers[layer[n]].Add(n);
+
+        // Barycentre sweeps: order each layer by the mean slot of its parents (sweeping down) then
+        // its children (sweeping up), so edges run straight down where the topology allows.
+        for (int iter = 0; iter < 4; iter++)
+        {
+            for (int li = 1; li < layerCount; li++)
+                OrderLayer(layers[li], n => parents[n], layers, layer, downward: true);
+            for (int li = layerCount - 2; li >= 0; li--)
+                OrderLayer(layers[li], n => children[n], layers, layer, downward: false);
+        }
+
+        // Coordinates: layer index -> Y (top to bottom); each layer centred on the widest one.
         double cellH = nodes.Max(n => n.H) + GapY;
+        double LayerWidth(List<Node> l) => l.Sum(n => n.W) + GapX * Math.Max(0, l.Count - 1);
+        double centerX = Margin + layers.Max(LayerWidth) / 2;
 
-        // Degree-descending row-major fill (hubs first), stable by declaration order.
-        var ordered = nodes.OrderByDescending(n => n.Degree).ThenBy(n => n.Order).ToList();
-        for (int i = 0; i < count; i++)
+        for (int li = 0; li < layerCount; li++)
         {
-            ordered[i].Row = i / cols;
-            ordered[i].Col = i % cols;
-        }
-
-        double SlotCost()
-        {
-            double sum = 0;
-            foreach (var r in rels)
+            var l = layers[li];
+            double x = centerX - LayerWidth(l) / 2;
+            for (int pi = 0; pi < l.Count; pi++)
             {
-                if (ReferenceEquals(r.From, r.To)) continue;
-                double dx = (r.From.Col - r.To.Col) * cellW;
-                double dy = (r.From.Row - r.To.Row) * cellH;
-                sum += Math.Sqrt(dx * dx + dy * dy);
-            }
-            return sum;
-        }
-
-        // One improvement pass: swap any pair if it shortens total connector length.
-        double best = SlotCost();
-        for (int i = 0; i < count; i++)
-        {
-            for (int j = i + 1; j < count; j++)
-            {
-                (ordered[i].Row, ordered[j].Row) = (ordered[j].Row, ordered[i].Row);
-                (ordered[i].Col, ordered[j].Col) = (ordered[j].Col, ordered[i].Col);
-                double cost = SlotCost();
-                if (cost < best - 1e-9) best = cost;
-                else
-                {
-                    (ordered[i].Row, ordered[j].Row) = (ordered[j].Row, ordered[i].Row);
-                    (ordered[i].Col, ordered[j].Col) = (ordered[j].Col, ordered[i].Col);
-                }
+                var n = l[pi];
+                n.Row = li;                       // routing heuristics read Row/Col
+                n.Col = pi;
+                n.X = x;
+                n.Y = Margin + li * cellH + (cellH - n.H) / 2;
+                x += n.W + GapX;
             }
         }
+    }
 
-        foreach (var n in nodes)
+    // Reorder `layerNodes` in place by the barycentre (mean slot) of their neighbours in the
+    // adjacent fixed layer — parents when sweeping down, children when sweeping up. Nodes with no
+    // neighbour in that layer keep their current slot so the order stays stable.
+    private static void OrderLayer(List<Node> layerNodes, Func<Node, List<Node>> neighbours,
+        List<List<Node>> layers, Dictionary<Node, int> layer, bool downward)
+    {
+        var pos = new Dictionary<Node, int>();
+        for (int i = 0; i < layerNodes.Count; i++) pos[layerNodes[i]] = i;
+
+        double Barycentre(Node n)
         {
-            n.X = Margin + n.Col * cellW + (cellW - n.W) / 2;
-            n.Y = Margin + n.Row * cellH + (cellH - n.H) / 2;
+            int adjLayer = layer[n] + (downward ? -1 : 1);
+            var adj = neighbours(n).Where(a => layer.GetValueOrDefault(a, -1) == adjLayer).ToList();
+            if (adj.Count == 0) return pos[n];
+            double sum = 0; int cnt = 0;
+            foreach (var a in adj)
+            {
+                int idx = layers[layer[a]].IndexOf(a);
+                if (idx >= 0) { sum += idx; cnt++; }
+            }
+            return cnt > 0 ? sum / cnt : pos[n];
         }
+
+        var ordered = layerNodes
+            .Select((n, i) => (n, key: Barycentre(n), i))
+            .OrderBy(t => t.key).ThenBy(t => t.i)
+            .Select(t => t.n)
+            .ToList();
+        layerNodes.Clear();
+        layerNodes.AddRange(ordered);
     }
 
     // ------------------------------------------------------------------- emit
@@ -453,16 +506,13 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
                 });
             }
 
-            // Members compartment(s) — one Rect; class boxes get an internal divider.
+            // Members compartment. Class boxes keep one shared theme-coloured panel with a divider
+            // between the attribute and method sections. ER entities instead paint each attribute
+            // ROW the way mermaid does — odd rows white, even rows light grey — so the entity reads
+            // as a coloured header over a white table, not one solid theme-coloured block.
             double membersY = n.Y + n.HeaderH;
-            d.Shapes.Add(new MShape
-            {
-                Kind = ShapeKind.Rect,
-                X = n.X, Y = membersY, W = n.W, H = n.AttrsH + n.MethodsH,
-                Fill = theme.Background, Stroke = theme.Line,
-            });
 
-            void AddMemberLines(List<string> members, double top)
+            void AddMemberLines(List<string> members, double top, string textColor)
             {
                 for (int i = 0; i < members.Count; i++)
                 {
@@ -471,15 +521,21 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
                         Kind = ShapeKind.Text,
                         X = n.X + 6, Y = top + 2 + i * LineH,
                         W = Math.Min(members[i].Length * CharW, n.W - 12), H = LineH,
-                        Text = members[i], FontSize = 9, TextColor = theme.Text,
+                        Text = members[i], FontSize = 9, TextColor = textColor,
                     });
                 }
             }
 
-            AddMemberLines(n.Attrs, membersY);
             if (n.IsClass)
             {
-                AddMemberLines(n.Methods, membersY + n.AttrsH);
+                d.Shapes.Add(new MShape
+                {
+                    Kind = ShapeKind.Rect,
+                    X = n.X, Y = membersY, W = n.W, H = n.AttrsH + n.MethodsH,
+                    Fill = theme.Background, Stroke = theme.Line,
+                });
+                AddMemberLines(n.Attrs, membersY, theme.Text);
+                AddMemberLines(n.Methods, membersY + n.AttrsH, theme.Text);
                 // Divider between the attribute and method compartments, spanning box width.
                 d.Connectors.Add(new MConnector
                 {
@@ -488,6 +544,22 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
                     StartHead = ArrowHead.None, EndHead = ArrowHead.None,
                     Stroke = theme.Border, StrokeWidth = 0.75,
                 });
+            }
+            else
+            {
+                // One bordered rect per attribute row, alternating white / light grey; the attribute
+                // text uses the theme's primary text colour (mermaid's primaryTextColor).
+                for (int i = 0; i < n.Attrs.Count; i++)
+                {
+                    d.Shapes.Add(new MShape
+                    {
+                        Kind = ShapeKind.Rect,
+                        X = n.X, Y = membersY + i * LineH, W = n.W, H = LineH,
+                        Fill = i % 2 == 0 ? ErAttrOddFill : ErAttrEvenFill,
+                        Stroke = theme.Line, StrokeWidth = 0.75,
+                    });
+                }
+                AddMemberLines(n.Attrs, membersY, theme.Primary);
             }
         }
 
@@ -546,6 +618,19 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
             }
         }
 
+        // erDiagram: cardinality is drawn as crow's-foot graphics (bars / punched circle / foot),
+        // never text, and the connector stays straight so the markers sit exactly on the line.
+        if (r.IsEr)
+        {
+            elbow = false;
+            double mdx = x2 - x1, mdy = y2 - y1;
+            double mlen = Math.Sqrt(mdx * mdx + mdy * mdy);
+            if (mlen < 1e-6) { mdx = 1; mdy = 0; mlen = 1; }
+            double ux = mdx / mlen, uy = mdy / mlen;      // unit vector From → To
+            if (r.FromCard != null) DrawErCardinality(d, r.FromCard, x1, y1, ux, uy, theme);
+            if (r.ToCard != null) DrawErCardinality(d, r.ToCard, x2, y2, -ux, -uy, theme);
+        }
+
         var conn = new MConnector
         {
             X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
@@ -564,8 +649,102 @@ public sealed class MermaidClassErRenderer : IMermaidRenderer
         }
         d.Connectors.Add(conn);
 
-        if (r.FromCard != null) AddEndText(d, r.FromCard, x1, y1, x2, y2, theme);
-        if (r.ToCard != null) AddEndText(d, r.ToCard, x2, y2, x1, y1, theme);
+        // classDiagram role names stay as text; ER cardinality was already drawn graphically above.
+        if (!r.IsEr)
+        {
+            if (r.FromCard != null) AddEndText(d, r.FromCard, x1, y1, x2, y2, theme);
+            if (r.ToCard != null) AddEndText(d, r.ToCard, x2, y2, x1, y1, theme);
+        }
+    }
+
+    // Crow's-foot cardinality markers for erDiagram, mirroring mermaid's graphical notation (which
+    // never emits "1" / "0..N" text): "|" → a bar across the line, "||" → two bars (the "double
+    // line"), "o" → a background-filled circle punched out of the line, "{" / "}" → a foot whose two
+    // side toes fan toward the entity (the relationship line itself is the middle toe).
+    // (ex,ey) is the point on the entity border; (ux,uy) points away from that entity along the line.
+    private static void DrawErCardinality(MDiagram d, string token, double ex, double ey,
+        double ux, double uy, ThemeDefinition theme)
+    {
+        double px = -uy, py = ux;                       // perpendicular unit vector
+        bool many = token.Contains('{') || token.Contains('}');
+        bool zero = token.Contains('o');
+        bool one = token.Contains('|');
+
+        if (many)
+        {
+            AddCrowsFoot(d, ex, ey, ux, uy, theme);
+            // Companion marker sits beyond the foot's convergence point: o{ → circle, |{ → bar.
+            if (zero) AddErCircle(d, ex, ey, ux, uy, 25, theme);
+            else if (one) AddErBar(d, ex, ey, ux, uy, px, py, 25, theme);
+        }
+        else if (zero && one)
+        {
+            AddErBar(d, ex, ey, ux, uy, px, py, 7, theme);      // |o / o|
+            AddErCircle(d, ex, ey, ux, uy, 17, theme);
+        }
+        else if (one)
+        {
+            AddErBar(d, ex, ey, ux, uy, px, py, 7, theme);      // || — the double line
+            AddErBar(d, ex, ey, ux, uy, px, py, 13, theme);
+        }
+        else if (zero)
+        {
+            AddErCircle(d, ex, ey, ux, uy, 10, theme);          // bare o
+        }
+    }
+
+    // A short bar perpendicular to the line, centered at `dist` from the entity border.
+    private static void AddErBar(MDiagram d, double ex, double ey, double ux, double uy,
+        double px, double py, double dist, ThemeDefinition theme)
+    {
+        const double half = 6;
+        double cx = ex + ux * dist, cy = ey + uy * dist;
+        d.Connectors.Add(new MConnector
+        {
+            X1 = cx - px * half, Y1 = cy - py * half,
+            X2 = cx + px * half, Y2 = cy + py * half,
+            StartHead = ArrowHead.None, EndHead = ArrowHead.None,
+            Stroke = theme.Line, StrokeWidth = 1.5,
+        });
+    }
+
+    // A small circle on the line, filled with the diagram background so it punches the line out.
+    private static void AddErCircle(MDiagram d, double ex, double ey, double ux, double uy,
+        double dist, ThemeDefinition theme)
+    {
+        const double r = 3.5;
+        double cx = ex + ux * dist, cy = ey + uy * dist;
+        d.Shapes.Add(new MShape
+        {
+            Kind = ShapeKind.Circle,
+            X = cx - r, Y = cy - r, W = r * 2, H = r * 2,
+            Fill = theme.Background, Stroke = theme.Line, StrokeWidth = 1.5,
+        });
+    }
+
+    // The "many" foot: two side toes fanning from a convergence point on the line back toward the
+    // entity border; the relationship line continues through as the middle toe.
+    private static void AddCrowsFoot(MDiagram d, double ex, double ey, double ux, double uy,
+        ThemeDefinition theme)
+    {
+        const double conv = 14;                         // convergence point distance from the border
+        const double toe = 14;                          // toe length
+        const double spread = 0.45;                     // radians ≈ 26°
+        double cx = ex + ux * conv, cy = ey + uy * conv;
+        double cos = Math.Cos(spread), sin = Math.Sin(spread);
+        foreach (double sgn in new[] { 1.0, -1.0 })
+        {
+            // (-ux,-uy) = toward the entity, rotated by ±spread.
+            double tx = -ux * cos + sgn * uy * sin;
+            double ty = -uy * cos - sgn * ux * sin;
+            d.Connectors.Add(new MConnector
+            {
+                X1 = cx, Y1 = cy,
+                X2 = cx + tx * toe, Y2 = cy + ty * toe,
+                StartHead = ArrowHead.None, EndHead = ArrowHead.None,
+                Stroke = theme.Line, StrokeWidth = 1.5,
+            });
+        }
     }
 
     // Small cardinality label near a connector end, nudged along + beside the line.

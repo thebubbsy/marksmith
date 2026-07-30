@@ -789,7 +789,7 @@
       </w:pPr>
       <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
         <m:r>
-          <m:t xml:space="preserve">ce</m:t>
+          <m:t xml:space="preserve">\ce</m:t>
         </m:r>
         <m:r>
           <m:t xml:space="preserve">N</m:t>
@@ -887,7 +887,7 @@
       </w:pPr>
       <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
         <m:r>
-          <m:t xml:space="preserve">ce</m:t>
+          <m:t xml:space="preserve">\ce</m:t>
         </m:r>
         <m:r>
           <m:t xml:space="preserve">2</m:t>
@@ -1023,6 +1023,7 @@
     </w:p>
     <w:p>
       <w:pPr>
+        <w:pStyle w:val="MSCode_rust" />
         <w:keepLines />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -1043,6 +1044,11 @@
         <w:t xml:space="preserve">// Rust server entrypoint showing error handling and concurrency</w:t>
       </w:r>
       <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+          <w:noProof />
+          <w:color w:val="24292F" />
+        </w:rPr>
         <w:br />
       </w:r>
       <w:r>
@@ -1077,8 +1083,6 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">;</w:t>
-      </w:r>
-      <w:r>
         <w:br />
       </w:r>
       <w:r>
@@ -1097,22 +1101,9 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> tokio::net::TcpListener;</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">#[tokio::main]</w:t>
-      </w:r>
-      <w:r>
         <w:br />
       </w:r>
       <w:r>
@@ -1213,16 +1204,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> std::error::Error&gt;&gt; {</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">    </w:t>
       </w:r>
       <w:r>
@@ -1290,16 +1272,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">?;</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">    </w:t>
       </w:r>
       <w:r>
@@ -1383,16 +1356,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">?);</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">    </w:t>
       </w:r>
       <w:r>
@@ -1426,19 +1390,8 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">);</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">    </w:t>
       </w:r>
       <w:r>
@@ -1457,16 +1410,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> {</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">        </w:t>
       </w:r>
       <w:r>
@@ -1526,16 +1470,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">?;</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">        </w:t>
       </w:r>
       <w:r>
@@ -1586,16 +1521,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">(&amp;state);</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">        tokio::</w:t>
       </w:r>
       <w:r>
@@ -1647,16 +1573,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> {</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">            </w:t>
       </w:r>
       <w:r>
@@ -1741,16 +1658,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> {</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">                </w:t>
       </w:r>
       <w:r>
@@ -1784,49 +1692,13 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve">, e);</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">            }</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">        });</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">    }</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">}</w:t>
       </w:r>
     </w:p>
@@ -2653,6 +2525,7 @@
     </w:p>
     <w:p>
       <w:pPr>
+        <w:pStyle w:val="MSCode_bash" />
         <w:keepLines />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -2712,16 +2585,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> \</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">  -H </w:t>
       </w:r>
       <w:r>
@@ -2739,16 +2603,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> \</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">  -H </w:t>
       </w:r>
       <w:r>
@@ -2766,16 +2621,7 @@
           <w:color w:val="24292F" />
         </w:rPr>
         <w:t xml:space="preserve"> \</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="24292F" />
-        </w:rPr>
         <w:t xml:space="preserve">  -d </w:t>
       </w:r>
       <w:r>
@@ -2820,6 +2666,7 @@
     </w:p>
     <w:p>
       <w:pPr>
+        <w:pStyle w:val="MSCode_powershell" />
         <w:keepLines />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -3367,6 +3214,7 @@
     </w:p>
     <w:p>
       <w:pPr>
+        <w:pStyle w:val="MSCode_sql" />
         <w:keepLines />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -3608,7 +3456,7 @@
           <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" distT="0" distB="0" distL="0" distR="0">
             <wp:extent cx="3968750" cy="3860800" />
             <wp:effectExtent l="0" t="0" r="0" b="0" />
-            <wp:docPr id="1000" name="Mermaid diagram" descr="Flowchart rendered as native Word shapes by Marksmith" />
+            <wp:docPr id="1000" name="Mermaid diagram" descr="Marksmith mermaid flowchart dir=TB" />
             <wp:cNvGraphicFramePr />
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
@@ -3623,7 +3471,7 @@
                     </a:xfrm>
                   </wpg:grpSpPr>
                   <wps:wsp>
-                    <wps:cNvPr id="100006" name="edge" />
+                    <wps:cNvPr id="100006" name="ms:edge=A--&gt;B;style=Solid;start=None;end=Triangle" />
                     <wps:cNvCnPr>
                       <a:stCxn id="100001" idx="2" />
                       <a:endCxn id="100002" idx="0" />
@@ -3648,7 +3496,7 @@
                     <wps:bodyPr />
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100007" name="edge" />
+                    <wps:cNvPr id="100007" name="ms:edge=B--&gt;C;style=Solid;start=None;end=Triangle" />
                     <wps:cNvCnPr>
                       <a:stCxn id="100002" idx="2" />
                       <a:endCxn id="100003" idx="0" />
@@ -3673,7 +3521,7 @@
                     <wps:bodyPr />
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100008" name="edge" />
+                    <wps:cNvPr id="100008" name="ms:edge=C--&gt;D;style=Solid;start=None;end=Triangle" />
                     <wps:cNvCnPr>
                       <a:stCxn id="100003" idx="2" />
                       <a:endCxn id="100004" idx="0" />
@@ -3698,7 +3546,7 @@
                     <wps:bodyPr />
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100009" name="edge" />
+                    <wps:cNvPr id="100009" name="ms:edge=C--&gt;E;style=Solid;start=None;end=Triangle" />
                     <wps:cNvCnPr>
                       <a:stCxn id="100003" idx="2" />
                       <a:endCxn id="100005" idx="0" />
@@ -3723,7 +3571,7 @@
                     <wps:bodyPr />
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100001" name="A" />
+                    <wps:cNvPr id="100001" name="ms:node=A;kind=Rectangle" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3765,7 +3613,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100002" name="B" />
+                    <wps:cNvPr id="100002" name="ms:node=B;kind=RoundedRectangle" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3807,7 +3655,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100003" name="C" />
+                    <wps:cNvPr id="100003" name="ms:node=C;kind=RhombusDiamond" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3849,7 +3697,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100004" name="D" />
+                    <wps:cNvPr id="100004" name="ms:node=D;kind=CylindricalDatabase" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3891,7 +3739,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100005" name="E" />
+                    <wps:cNvPr id="100005" name="ms:node=E;kind=CylindricalDatabase" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3933,7 +3781,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100010" name="edge label" />
+                    <wps:cNvPr id="100010" name="ms:edge=C--&gt;D;label=Valid" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -3972,7 +3820,7 @@
                     </wps:bodyPr>
                   </wps:wsp>
                   <wps:wsp>
-                    <wps:cNvPr id="100011" name="edge label" />
+                    <wps:cNvPr id="100011" name="ms:edge=C--&gt;E;label=Invalid" />
                     <wps:cNvSpPr />
                     <wps:spPr>
                       <a:xfrm>
@@ -4039,6 +3887,7 @@
     </w:p>
     <w:p>
       <w:pPr>
+        <w:pStyle w:val="MSCode_mermaid" />
         <w:keepLines />
         <w:pBdr>
           <w:top w:val="single" w:color="D1D5DA" w:sz="4" w:space="4" />
@@ -4056,82 +3905,19 @@
           <w:color w:val="f6f8fa" />
         </w:rPr>
         <w:t xml:space="preserve">stateDiagram-v2</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    [*] --&gt; Idle</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Idle --&gt; Processing : File Added</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Succeeded : Write OK</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Processing --&gt; Failed : Disk Full / Error</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Failed --&gt; Retrying : Backoff Timer</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Retrying --&gt; Processing</w:t>
-      </w:r>
-      <w:r>
         <w:br />
-      </w:r>
-      <w:r>
-        <w:rPr>
-          <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
-          <w:noProof />
-          <w:color w:val="f6f8fa" />
-        </w:rPr>
         <w:t xml:space="preserve">    Succeeded --&gt; Idle</w:t>
       </w:r>
     </w:p>
@@ -4414,8 +4200,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="Rcee1430ab620400f" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R7ded1d37500e46cc" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="Rcccb7e4c4e1d4b1a" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="R297397bbeddb46b2" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
     </w:sectPr>

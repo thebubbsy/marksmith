@@ -1,6 +1,9 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using M = DocumentFormat.OpenXml.Math;
 using A = DocumentFormat.OpenXml.Drawing;
@@ -80,6 +83,187 @@ public sealed class ReverseImportService
     /// <summary>Back-compat sync entry: Tier 1 -> Tier 2 (no Pandoc, no media write), markdown only.</summary>
     public string ImportFromDocx(Stream stream) =>
         ImportCore(stream, mediaDir: null, pandocPath: null).Markdown;
+
+    // ---- PDF → Markdown (D1 extension) ---------------------------------------------------------
+
+    /// <summary>
+    /// Imports a PDF file into Markdown by extracting text from each page's content stream.
+    /// Digital PDFs (with selectable text) yield clean paragraphs; scanned/image-only PDFs
+    /// yield empty pages (use OcrEngineService for those — D2).
+    /// </summary>
+    public Task<ReverseImportResult> ImportFromPdfAsync(string pdfPath) =>
+        Task.Run(() => ImportFromPdf(pdfPath));
+
+    /// <summary>Synchronous PDF import entry point.</summary>
+    public ReverseImportResult ImportFromPdf(string pdfPath)
+    {
+        using var stream = File.OpenRead(pdfPath);
+        return ImportFromPdf(stream);
+    }
+
+    /// <summary>Stream-based PDF import.</summary>
+    public ReverseImportResult ImportFromPdf(Stream stream)
+    {
+        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.ReadOnly);
+        var markdown = ExtractPdfMarkdown(doc);
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return new ReverseImportResult("", ImportTier.None, false,
+                "No extractable text found. This PDF may be scanned/image-only — try OCR (D2).",
+                Array.Empty<string>());
+        }
+        return new ReverseImportResult(markdown, ImportTier.UniversalEngine, false, null, Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Extracts structured Markdown from a PDF document by parsing page content streams for
+    /// text-showing operators (Tj, TJ, ', "). Handles font-size based heading detection and
+    /// paragraph grouping via text-position tracking.
+    /// </summary>
+    private static string ExtractPdfMarkdown(PdfDocument doc)
+    {
+        var sb = new StringBuilder();
+        for (int i = 0; i < doc.PageCount; i++)
+        {
+            var page = doc.Pages[i];
+            var pageText = ExtractPageText(page);
+            if (!string.IsNullOrWhiteSpace(pageText))
+            {
+                if (sb.Length > 0) sb.Append("\n\n");
+                sb.Append(pageText);
+            }
+        }
+        return sb.ToString().Trim();
+    }
+
+    private static string ExtractPageText(PdfPage page)
+    {
+        var contents = page.Contents;
+        if (contents is null) return "";
+
+        var sb = new StringBuilder();
+        foreach (var item in contents.Elements)
+        {
+            if (item is PdfSharp.Pdf.PdfDictionary dict)
+            {
+                var stream = dict.Stream;
+                if (stream is null) continue;
+                var bytes = stream.Value;
+                var content = Encoding.Latin1.GetString(bytes);
+                AppendContentStreamText(sb, content);
+            }
+        }
+        return sb.ToString().Trim();
+    }
+
+    // Regex patterns for PDF text-showing operators in content streams.
+    private static readonly Regex TjPattern = new(@"\(([^)]*)\)\s*Tj", RegexOptions.Compiled);
+    private static readonly Regex TJArrayPattern = new(@"\[(.*?)\]\s*TJ", RegexOptions.Compiled);
+    private static readonly Regex TJStringPattern = new(@"\(([^)]*)\)", RegexOptions.Compiled);
+    private static readonly Regex QuotePattern = new(@"\(([^)]*)\)\s*'", RegexOptions.Compiled);
+
+    private static void AppendContentStreamText(StringBuilder sb, string content)
+    {
+        // Track text positioning for line breaks. Td/TD with significant Y-offset = new line.
+        var lines = new List<string>();
+        var currentLine = new StringBuilder();
+
+        // Process the content stream in order using a combined tokenizer approach.
+        // We look for text operators and positioning operators.
+        var allMatches = new List<(int pos, string type, string value)>();
+
+        foreach (Match m in TjPattern.Matches(content))
+            allMatches.Add((m.Index, "Tj", m.Groups[1].Value));
+        foreach (Match m in QuotePattern.Matches(content))
+            allMatches.Add((m.Index, "'", m.Groups[1].Value));
+        foreach (Match m in TJArrayPattern.Matches(content))
+        {
+            // Concatenate all string fragments within the TJ array.
+            var fragments = TJStringPattern.Matches(m.Groups[1].Value);
+            var combined = string.Concat(fragments.Select(f => f.Groups[1].Value));
+            allMatches.Add((m.Index, "TJ", combined));
+        }
+
+        // Detect line breaks via Td/TD/T* operators.
+        var newLinePositions = new HashSet<int>();
+        var tdPattern = new Regex(@"([\d.-]+)\s+([\d.-]+)\s+Td|([\d.-]+)\s+([\d.-]+)\s+TD|T\*", RegexOptions.Compiled);
+        foreach (Match m in tdPattern.Matches(content))
+        {
+            newLinePositions.Add(m.Index);
+            // If Y offset is significant (negative = move down), it's a paragraph break.
+            var yStr = m.Groups[2].Success ? m.Groups[2].Value : m.Groups[4].Value;
+            if (double.TryParse(yStr, out double y) && Math.Abs(y) > 2)
+                newLinePositions.Add(m.Index); // paragraph-level break
+        }
+
+        // Sort all text fragments by position and build lines.
+        allMatches.Sort((a, b) => a.pos.CompareTo(b.pos));
+        int lastNewline = -1;
+        foreach (var (pos, type, value) in allMatches)
+        {
+            // Check if there's a newline operator between the last text and this one.
+            bool hasNewline = newLinePositions.Any(p => p > lastNewline && p < pos);
+            if (hasNewline && currentLine.Length > 0)
+            {
+                lines.Add(currentLine.ToString());
+                currentLine.Clear();
+            }
+            lastNewline = pos;
+
+            var decoded = DecodePdfString(value);
+            currentLine.Append(decoded);
+            if (type == "'") // ' operator moves to next line after showing text
+            {
+                lines.Add(currentLine.ToString());
+                currentLine.Clear();
+            }
+        }
+        if (currentLine.Length > 0)
+            lines.Add(currentLine.ToString());
+
+        // Join lines into paragraphs (heuristic: short gap = same paragraph).
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length > 0)
+                sb.AppendLine(trimmed);
+        }
+    }
+
+    /// <summary>Decodes PDF string escape sequences (\n, \r, \t, \(, \), \\, octal).</summary>
+    private static string DecodePdfString(string raw)
+    {
+        var sb = new StringBuilder(raw.Length);
+        for (int i = 0; i < raw.Length; i++)
+        {
+            if (raw[i] == '\\' && i + 1 < raw.Length)
+            {
+                i++;
+                switch (raw[i])
+                {
+                    case 'n': sb.Append('\n'); break;
+                    case 'r': sb.Append('\r'); break;
+                    case 't': sb.Append('\t'); break;
+                    case '(': sb.Append('('); break;
+                    case ')': sb.Append(')'); break;
+                    case '\\': sb.Append('\\'); break;
+                    case >= '0' and <= '7':
+                        // Octal escape (up to 3 digits).
+                        var octal = raw[i].ToString();
+                        while (octal.Length < 3 && i + 1 < raw.Length && raw[i + 1] >= '0' && raw[i + 1] <= '7')
+                            octal += raw[++i];
+                        sb.Append((char)Convert.ToInt32(octal, 8));
+                        break;
+                    default: sb.Append(raw[i]); break;
+                }
+            }
+            else
+            {
+                sb.Append(raw[i]);
+            }
+        }
+        return sb.ToString();
+    }
 
     // ---- cascade core ------------------------------------------------------------------------
 

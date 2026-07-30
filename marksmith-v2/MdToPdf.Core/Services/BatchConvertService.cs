@@ -86,7 +86,7 @@ public sealed class BatchConvertService
                                 var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
                                 if (!usable) geometry = null;
                             }
-                            genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(host, mdContent, settings);
+                            genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(host, mdContent, settings, theme);
                         }
                         mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, mdContent, settings, theme);
                     }

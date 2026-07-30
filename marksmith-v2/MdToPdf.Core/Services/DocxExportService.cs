@@ -70,7 +70,9 @@ public sealed class DocxExportService
         .UseEmojiAndSmiley(enableSmileys: false)
         .Build();
 
-    private static readonly ThemeCatalog Themes = new();
+    // Shared AppServices.Themes singleton instead of a private instance — keeps a single catalog
+    // (and its cached All snapshot) across every exporter rather than 3 divergent copies.
+    private static ThemeCatalog Themes => AppServices.Themes;
 
     // Same alert accent colors as MarkdownHtmlService / the Python app's DOCX alert rendering.
     private static readonly Dictionary<string, (string Color, string Icon)> AlertStyles =
@@ -113,15 +115,26 @@ public sealed class DocxExportService
             markdown = DialectNormalizer.Apply(markdown);
             markdown = DiagramFenceSniffer.Apply(markdown);
             
-            var pipelineFeatures = new AdvancedFeaturePipeline();
+            var pipelineFeatures = AdvancedFeaturePipeline.Shared;
             var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
             var featureNodes = pipelineFeatures.Process(markdown, docId);
             
-            foreach (var node in featureNodes.OrderByDescending(n => n.Block.Start))
+            if (featureNodes.Count > 0)
             {
-                var before = markdown.Substring(0, node.Block.Start);
-                var after = markdown.Substring(node.Block.End);
-                markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
+                // Single-pass O(n) marker insertion. The previous descending Substring+concatenate
+                // loop rebuilt the ENTIRE markdown string once per feature node — O(n²) on documents
+                // with many advanced-feature blocks. Walk the nodes in ascending order and splice
+                // each marker into a StringBuilder instead (identical output, linear time).
+                var marked = new StringBuilder(markdown.Length + featureNodes.Count * 48);
+                var cursor = 0;
+                foreach (var node in featureNodes.OrderBy(n => n.Block.Start))
+                {
+                    marked.Append(markdown, cursor, node.Block.Start - cursor);
+                    marked.Append("<!-- MARKSMITH_FEATURE:").Append(node.StableId).Append(" -->");
+                    cursor = node.Block.End;
+                }
+                marked.Append(markdown, cursor, markdown.Length - cursor);
+                markdown = marked.ToString();
             }
             var featureDict = featureNodes.GroupBy(n => n.StableId).ToDictionary(g => g.Key, g => g.First());
 
@@ -236,15 +249,25 @@ public sealed class DocxExportService
         markdown = DialectNormalizer.Apply(markdown);
         markdown = DiagramFenceSniffer.Apply(markdown);
 
-        var pipelineFeatures = new AdvancedFeaturePipeline();
+        var pipelineFeatures = AdvancedFeaturePipeline.Shared;
         var docId = AdvancedFeaturePipeline.ContentBasedDocumentId(markdown);
         var featureNodes = pipelineFeatures.Process(markdown, docId);
-        
-        foreach (var node in featureNodes.OrderByDescending(n => n.Block.Start))
+
+        // Single-pass O(n) marker insertion (mirrors the main export path above) — the descending
+        // Substring+concatenate loop that was here rebuilt the whole string once per feature node,
+        // O(n²) on documents with many advanced-feature blocks.
+        if (featureNodes.Count > 0)
         {
-            var before = markdown.Substring(0, node.Block.Start);
-            var after = markdown.Substring(node.Block.End);
-            markdown = before + $"<!-- MARKSMITH_FEATURE:{node.StableId} -->" + after;
+            var marked = new StringBuilder(markdown.Length + featureNodes.Count * 48);
+            var cursor = 0;
+            foreach (var node in featureNodes.OrderBy(n => n.Block.Start))
+            {
+                marked.Append(markdown, cursor, node.Block.Start - cursor);
+                marked.Append("<!-- MARKSMITH_FEATURE:").Append(node.StableId).Append(" -->");
+                cursor = node.Block.End;
+            }
+            marked.Append(markdown, cursor, markdown.Length - cursor);
+            markdown = marked.ToString();
         }
         var featureDict = featureNodes.GroupBy(n => n.StableId).ToDictionary(g => g.Key, g => g.First());
 
@@ -358,6 +381,13 @@ public sealed class DocxExportService
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
+
+        // ShapeForge diagrams are rebuilt as native Word shapes that must stay readable on the
+        // PRINTED page no matter how dark the document theme is. A dark theme's Code/Secondary
+        // tokens (used as the default node/subgraph fills) would otherwise paint every shape near
+        // black — the "mostly black diagram" bug. Force a light, print-safe palette for all diagram
+        // rendering (fills, lines, text, background card); the surrounding document keeps its theme.
+        public ThemeDefinition DiagramTheme => Theme.ForDiagram();
 
         public string TextHex => Hex(Theme.Text);
         public string HeadingHex => Hex(Theme.Heading);
@@ -520,17 +550,16 @@ public sealed class DocxExportService
                 var gen = ctx.MermaidGenericGeometry is not null && idx < ctx.MermaidGenericGeometry.Count ? ctx.MermaidGenericGeometry[idx] : null;
 
                 System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: MermaidMode={ctx.MermaidMode}, ExactLayout={ctx.MermaidExactLayout}, geo={(geo is null ? "null" : $"Nodes={geo.Nodes.Count},Edges={geo.Edges.Count},IsEmpty={geo.IsEmpty}")}, gen={(gen is null ? "null" : $"IsEmpty={gen.IsEmpty}")}, png={(png is null ? "null" : $"{png.Length}B")}");
-                Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: MermaidMode={ctx.MermaidMode}, ExactLayout={ctx.MermaidExactLayout}, geo={(geo is null ? "null" : $"Nodes={geo.Nodes.Count},Edges={geo.Edges.Count},IsEmpty={geo.IsEmpty}")}, gen={(gen is null ? "null" : $"IsEmpty={gen.IsEmpty}")}, png={(png is null ? "null" : $"{png.Length}B")}");
 
                 // Exact-layout mode: rebuild mermaid's OWN geometry as native shapes (node-for-node,
                 // no reordering) and open the document in Web Layout so a wide diagram scrolls.
                 if (ctx.MermaidMode == 1 && ctx.MermaidExactLayout && geo is { IsEmpty: false })
                 {
-                    var md = geo.ToMDiagram(ctx.Theme);
+                    var md = geo.ToMDiagram(ctx.DiagramTheme);
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -543,7 +572,7 @@ public sealed class DocxExportService
                     }
                     else
                     {
-                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out _,
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out _,
                             oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
@@ -556,11 +585,10 @@ public sealed class DocxExportService
                     }
                 }
                 else if (ctx.MermaidMode == 1 &&
-                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.Settings, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
+                    MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.DiagramTheme, ctx.Settings, ctx.NextDrawingId++, out var diagram, out var oversizedDiagram,
                         forceFit: !ctx.MermaidExactLayout))
                 {
                     System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: TryRender succeeded");
-                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: TryRender succeeded");
                     ctx.ForceWebLayout |= oversizedDiagram;
                     target.Append(diagram);
                 }
@@ -569,11 +597,11 @@ public sealed class DocxExportService
                 // harvested SVG primitives as native shapes, instead of a flat picture.
                 else if (ctx.MermaidMode == 1 && gen is { IsEmpty: false })
                 {
-                    var md = gen.ToMDiagram(ctx.Theme);
+                    var md = gen.ToMDiagram(ctx.DiagramTheme);
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -586,7 +614,7 @@ public sealed class DocxExportService
                     }
                     else
                     {
-                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversizedGen,
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversizedGen,
                             oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
@@ -599,20 +627,17 @@ public sealed class DocxExportService
                 else if (png is not null)
                 {
                     System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to snapshot image ({png.Length} bytes)");
-                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to snapshot image ({png.Length} bytes)");
                     target.Append(SnapshotParagraph(png, ctx));
                 }
-                else if (MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.Theme, ctx.Settings, ctx.NextDrawingId++, out var fallbackDiagram, out var fallbackOversized, forceFit: true))
+                else if (MermaidDocxRenderer.TryRender(fence.Lines.ToString(), ctx.DiagramTheme, ctx.Settings, ctx.NextDrawingId++, out var fallbackDiagram, out var fallbackOversized, forceFit: true))
                 {
                     System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to native shapes succeeded");
-                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to native shapes succeeded");
                     ctx.ForceWebLayout |= fallbackOversized;
                     target.Append(fallbackDiagram);
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png or shapes available)");
-                    Console.WriteLine($"[MERMAID-DIAG] fence#{idx}: FALLBACK to code block (no png or shapes available)");
                     target.Append(CodeParagraph(fence.Lines.ToString(), fence.Info, ctx));
                 }
                 break;
@@ -636,11 +661,11 @@ public sealed class DocxExportService
                 if (svg is not null && ctx.MermaidMode == 1 &&
                     Mermaid.SvgShapeForge.Parse(svg) is { IsEmpty: false } forged)
                 {
-                    var md = forged.ToMDiagram(ctx.Theme);
+                    var md = forged.ToMDiagram(ctx.DiagramTheme);
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.Theme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -653,7 +678,7 @@ public sealed class DocxExportService
                     }
                     else
                     {
-                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.Theme, ctx.NextDrawingId++, out var oversized,
+                        var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversized,
                             oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
@@ -1036,31 +1061,33 @@ public sealed class DocxExportService
 
     private static readonly OpenXmlSyntaxHighlighter CodeSyntaxHighlighter = new();
 
+    // Cached font-color tag matcher — was rebuilt with new Regex(...) on every CodeParagraph call.
+    private static readonly Regex FontColorTagRegex = new(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static void AppendHighlightedCodeRuns(W.Paragraph para, IEnumerable<W.Run> runs)
     {
         foreach (var run in runs)
         {
             var textObj = run.GetFirstChild<W.Text>();
             var rawText = textObj?.Text ?? "";
-            var rPr = run.RunProperties?.CloneNode(true) as W.RunProperties;
 
             var lines = rawText.Replace("\r", "").Split('\n');
+            // Fold every line of the token into a SINGLE run interleaved with w:br, instead of
+            // emitting one run per line and deep-cloning the run-properties XML node per line —
+            // hundreds of CloneNode(true) calls on a long listing. The formatting is now cloned
+            // once per highlighted run. The reverse importer reads w:br/w:t position-independently
+            // (ExtractCodeContent), so the DOCX -> MD round-trip is unchanged.
+            var content = new List<OpenXmlElement>();
             for (int i = 0; i < lines.Length; i++)
             {
-                if (i > 0)
-                {
-                    para.Append(new W.Run(new W.Break()));
-                }
-                if (lines[i].Length > 0)
-                {
-                    var partRun = new W.Run(new W.Text(lines[i]) { Space = SpaceProcessingModeValues.Preserve });
-                    if (rPr != null)
-                    {
-                        partRun.RunProperties = rPr.CloneNode(true) as W.RunProperties;
-                    }
-                    para.Append(partRun);
-                }
+                if (i > 0) content.Add(new W.Break());
+                if (lines[i].Length > 0) content.Add(new W.Text(lines[i]) { Space = SpaceProcessingModeValues.Preserve });
             }
+            if (content.Count == 0) continue;
+            var singleRun = new W.Run(content);
+            if (run.RunProperties != null)
+                singleRun.RunProperties = run.RunProperties.CloneNode(true) as W.RunProperties;
+            para.Append(singleRun);
         }
     }
 
@@ -1082,13 +1109,13 @@ public sealed class DocxExportService
         // auto-detected fallback below is a highlight-only guess and is deliberately NOT persisted.
         // The MSCode_ prefix marks it as a Marksmith code-language carrier; Word ignores the
         // undefined style reference (all code formatting here is direct), so rendering is unchanged.
-        var explicitLang = SanitizeCodeLanguage(info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "");
+        var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
+        var explicitLang = SanitizeCodeLanguage(langToken);
         if (explicitLang.Length > 0 && !isDiff)
             pPr.ParagraphStyleId = new W.ParagraphStyleId { Val = "MSCode_" + explicitLang };
 
         var para = new W.Paragraph(pPr);
 
-        var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
         if (string.IsNullOrWhiteSpace(langToken) && !isDiff)
         {
             if (Regex.IsMatch(text, @"\b(def|import|print\(|elif|self\.)\b")) langToken = "python";
@@ -1108,7 +1135,7 @@ public sealed class DocxExportService
             }
         }
 
-        var regex = new Regex(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase);
+        var regex = FontColorTagRegex;
         var colorStack = new Stack<string>();
 
         var first = true;

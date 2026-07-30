@@ -55,6 +55,11 @@ namespace MdToPdf.Core.AdvancedFeatures
             };
         }
 
+        // Shared, stateless instance reused across every export. The constructor wires up the 12
+        // detectors, which used to happen on every single export; Process works entirely on locals
+        // plus the immutable detector array, so one instance is safe to share (even concurrently).
+        public static AdvancedFeaturePipeline Shared { get; } = new();
+
         public List<FeatureNode> Process(string markdown, string documentId)
         {
             var nodes = new List<FeatureNode>();
@@ -102,8 +107,8 @@ namespace MdToPdf.Core.AdvancedFeatures
         /// </summary>
         public static string ContentBasedDocumentId(string markdown)
         {
-            using var sha = SHA256.Create();
-            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(markdown));
+            // Static, thread-safe SHA256.HashData — no per-call SHA256.Create() allocation.
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(markdown));
             return Convert.ToHexString(hash[..8]).ToLowerInvariant();
         }
 
@@ -123,7 +128,7 @@ namespace MdToPdf.Core.AdvancedFeatures
         /// </summary>
         private static (string Inner, Dictionary<string, string> Attrs) ParseBlock(string rawBlock)
         {
-            var lines = rawBlock.Split('\n');
+            var lines = DetectorHelpers.SplitLines(rawBlock);
             var attrs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             // Parse attributes from the first line: :::feature key=value key="quoted value"

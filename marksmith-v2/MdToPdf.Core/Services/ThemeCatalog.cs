@@ -8,7 +8,29 @@ namespace MdToPdf.Services;
 // services keep their own long-lived ThemeCatalog).
 public sealed class ThemeCatalog
 {
-    public IReadOnlyList<ThemeDefinition> All => Builtin.Concat(CustomThemeStore.All).ToList();
+    // Cached snapshot of Builtin + custom themes. CustomThemeStore bumps its Version on every
+    // add/update/remove, so this list is rebuilt only when the catalog actually changes — instead
+    // of allocating two fresh lists (Concat + ToList, plus the store's own defensive copy) on every
+    // access. The snapshot is a reference type swapped atomically, so concurrent readers are safe;
+    // a stale read merely returns the previous (immutable) list, exactly as the live read did before.
+    private sealed class Snapshot
+    {
+        public required int Version { get; init; }
+        public required List<ThemeDefinition> List { get; init; }
+    }
+    private Snapshot? _allCache;
+
+    public IReadOnlyList<ThemeDefinition> All
+    {
+        get
+        {
+            var version = CustomThemeStore.Version;
+            if (_allCache is { } s && s.Version == version) return s.List;
+            var list = Builtin.Concat(CustomThemeStore.All).ToList();
+            _allCache = new Snapshot { Version = version, List = list };
+            return list;
+        }
+    }
 
     public bool IsBuiltin(string name) => Builtin.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
@@ -26,8 +48,11 @@ public sealed class ThemeCatalog
         new("Obsidian",        "#050000", "#e0e0e0", "#ff4500", "#1a0000", "#ff0000", "#ff4500", "#050000", "#ff0000"),
     };
 
-    public ThemeDefinition GetOrDefault(string name) =>
-        All.FirstOrDefault(t => t.Name == name) ?? All[0];
+    public ThemeDefinition GetOrDefault(string name)
+    {
+        var all = All; // single snapshot — used to call All twice (FirstOrDefault + fallback [0])
+        return all.FirstOrDefault(t => t.Name == name) ?? all[0];
+    }
 
     // Picks the built-in theme whose Heading (its accent-like color) is closest to `hex` in RGB
     // space, so a source site's brand accent maps to the nearest existing palette rather than

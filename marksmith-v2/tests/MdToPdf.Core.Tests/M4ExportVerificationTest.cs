@@ -74,7 +74,7 @@ public class M4ExportVerificationTest
         public Task EndHarvestAsync() => Task.CompletedTask;
     }
 
-    [Fact(Skip="SkiaSharp missing in test environment")]
+    [Fact]
     public async Task VerifyPdfAndDocxExportGeneration()
     {
         string exportDir = Path.Combine(AppContext.BaseDirectory, "ExportArtifacts");
