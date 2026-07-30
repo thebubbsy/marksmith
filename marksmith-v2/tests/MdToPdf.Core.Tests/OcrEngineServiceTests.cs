@@ -115,16 +115,17 @@ public class OcrEngineServiceTests
     [Fact]
     public void ComputeOtsuThreshold_bimodal_image()
     {
-        // Create a bimodal grayscale image: half black, half white.
-        using var bmp = new SKBitmap(100, 100, SKColorType.Gray8, SKAlphaType.Opaque);
+        // Create a bimodal image using Rgba8888 (SetPixel works reliably on this format).
+        using var bmp = new SKBitmap(100, 100, SKColorType.Rgba8888, SKAlphaType.Premul);
         for (int y = 0; y < 100; y++)
             for (int x = 0; x < 100; x++)
                 bmp.SetPixel(x, y, x < 50 ? new SKColor(30, 30, 30) : new SKColor(220, 220, 220));
 
         var threshold = OcrEngineService.ComputeOtsuThreshold(bmp);
 
-        // Threshold should be between the two modes (30 and 220).
-        Assert.InRange(threshold, (byte)50, (byte)200);
+        // For a perfectly bimodal image (30 and 220), any threshold in [30,219] is optimal.
+        // The algorithm picks the first maximum, which is at the lower mode boundary.
+        Assert.InRange(threshold, (byte)30, (byte)219);
     }
 
     // ---- Service integration with mock -----------------------------------------------------------
