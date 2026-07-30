@@ -1,0 +1,9 @@
+⚡ Bolt: Performance boost for DOCX regex parsing
+
+Replaced inline `Regex.IsMatch(...)` and `new Regex(...)` usages in `DocxExportService.cs` with source-generated `[GeneratedRegex]` attributes. This eliminates per-call regex parsing, hashing overhead, and regex cache pressure, enabling allocation-free, zero-lag document processing.
+
+Fixes applied:
+- Added `[GeneratedRegex]` partial methods for python, javascript, csharp, sql, and html language detection.
+- Added `[GeneratedRegex]` partial methods for hex color sniffing (3 and 6 lengths).
+- Added `[GeneratedRegex]` partial method for `<font color=...>` matching.
+- Made `DocxExportService` a `partial` class to support code generation.

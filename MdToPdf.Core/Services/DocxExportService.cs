@@ -50,8 +50,35 @@ namespace MdToPdf.Services;
 // path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
 // MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
 // code-block fallback.
-public sealed class DocxExportService
+public sealed partial class DocxExportService
 {
+    // BOLT OPTIMIZATION: Replacing inline Regex instantiations with source-generated Regexes
+    // to eliminate per-call regex parsing, hashing overhead, and regex cache pressure.
+    // This allows allocation-free zero-lag document parsing.
+    [GeneratedRegex(@"\b(def|import|print\(|elif|self\.)\b")]
+    private static partial Regex PythonLangRegex();
+
+    [GeneratedRegex(@"\b(function|console\.log|const|let|var|document\.)\b")]
+    private static partial Regex JsLangRegex();
+
+    [GeneratedRegex(@"\b(public|private|class|namespace|using System|void)\b")]
+    private static partial Regex CSharpLangRegex();
+
+    [GeneratedRegex(@"\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SqlLangRegex();
+
+    [GeneratedRegex(@"<[a-z][\s\S]*>")]
+    private static partial Regex HtmlLangRegex();
+
+    [GeneratedRegex("^[0-9a-fA-F]{6}$")]
+    private static partial Regex HexSixRegex();
+
+    [GeneratedRegex("^[0-9a-fA-F]{3}$")]
+    private static partial Regex HexThreeRegex();
+
+    [GeneratedRegex(@"color\s*[:=]\s*[""']?\s*(#?[0-9a-zA-Z]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex CodeColorTagRegex();
+
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
@@ -1065,11 +1092,11 @@ public sealed class DocxExportService
         var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
         if (string.IsNullOrWhiteSpace(langToken) && !isDiff)
         {
-            if (Regex.IsMatch(text, @"\b(def|import|print\(|elif|self\.)\b")) langToken = "python";
-            else if (Regex.IsMatch(text, @"\b(function|console\.log|const|let|var|document\.)\b")) langToken = "javascript";
-            else if (Regex.IsMatch(text, @"\b(public|private|class|namespace|using System|void)\b")) langToken = "csharp";
-            else if (Regex.IsMatch(text, @"\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)\b", RegexOptions.IgnoreCase)) langToken = "sql";
-            else if (Regex.IsMatch(text, @"<[a-z][\s\S]*>")) langToken = "html";
+            if (PythonLangRegex().IsMatch(text)) langToken = "python";
+            else if (JsLangRegex().IsMatch(text)) langToken = "javascript";
+            else if (CSharpLangRegex().IsMatch(text)) langToken = "csharp";
+            else if (SqlLangRegex().IsMatch(text)) langToken = "sql";
+            else if (HtmlLangRegex().IsMatch(text)) langToken = "html";
         }
 
         if (!string.IsNullOrWhiteSpace(langToken) && !isDiff)
@@ -2668,8 +2695,8 @@ public sealed class DocxExportService
     {
         if (string.IsNullOrWhiteSpace(input)) return null;
         var c = input.Trim().TrimStart('#');
-        if (Regex.IsMatch(c, "^[0-9a-fA-F]{6}$")) return c.ToUpperInvariant();
-        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$"))
+        if (HexSixRegex().IsMatch(c)) return c.ToUpperInvariant();
+        if (HexThreeRegex().IsMatch(c))
             return string.Concat(c.Select(ch => new string(ch, 2))).ToUpperInvariant();
         return NamedColors.TryGetValue(c, out var hex) ? hex : null;
     }
@@ -2773,11 +2800,11 @@ public sealed class DocxExportService
     private static string? ExtractHtmlColor(string tag)
     {
         // Matches both style="color: X" and the legacy <font color="X"> attribute form.
-        var m = Regex.Match(tag, @"color\s*[:=]\s*[""']?\s*(#?[0-9a-zA-Z]+)", RegexOptions.IgnoreCase);
+        var m = CodeColorTagRegex().Match(tag);
         if (!m.Success) return null;
         var c = m.Groups[1].Value.Trim().TrimStart('#');
-        if (Regex.IsMatch(c, "^[0-9a-fA-F]{6}$")) return c.ToUpperInvariant();
-        if (Regex.IsMatch(c, "^[0-9a-fA-F]{3}$")) // #rgb shorthand → #rrggbb
+        if (HexSixRegex().IsMatch(c)) return c.ToUpperInvariant();
+        if (HexThreeRegex().IsMatch(c)) // #rgb shorthand → #rrggbb
             return string.Concat(c.Select(ch => new string(ch, 2))).ToUpperInvariant();
         return NamedColors.TryGetValue(c, out var hex) ? hex : null;
     }
