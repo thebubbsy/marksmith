@@ -29,6 +29,14 @@ public sealed class AppSettings
     // native Ctrl+wheel inside the WebView; persisted so the preview opens at the last zoom.
     public double PreviewZoom { get; set; } = 1.0;
 
+    // GPU rendering for the WebView2 previews (main preview + Diagram Studio). On by default —
+    // Chromium composites on the GPU. Turning it off passes --disable-gpu to the browser process to
+    // work around graphics-driver bugs (black preview, flickering, crashes) on affected hardware,
+    // remote-desktop sessions and VMs — the same escape hatch Chrome and VS Code ship. It's a
+    // browser-process switch, locked in when the WebView2 environment is created, so it takes effect
+    // on the next app launch (the Settings toggle says so).
+    public bool HardwareAcceleration { get; set; } = true;
+
     // Whether the Markdown editor soft-wraps long lines. When off, the editor scrolls horizontally
     // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
     public bool EditorWordWrap { get; set; } = true;
@@ -49,6 +57,11 @@ public sealed class AppSettings
     // heights ("focus1".."focus3" — skinny to tall). The reveal slider acts as the size dial for
     // whichever shape is active. Persisted.
     public string PortalShape { get; set; } = "circle";
+
+    // Portal focus blur: while a portal aperture is open, the rendered preview behind it either
+    // blurs ("focus WITH blur" — the eye stays on the revealed source) or stays sharp ("focus
+    // WITHOUT blur"). Ctrl+Alt+X toggles it live in the preview. Persisted.
+    public bool PortalFocusBlur { get; set; } = true;
 
     // Default export format across the app UI and the browser extension (ISS-019): "docx",
     // "pdf", "pptx" or "epub". Word is the default per user request.
@@ -260,6 +273,7 @@ public sealed class AppSettings
         LookingGlassMode = other.LookingGlassMode;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
+        PortalFocusBlur = other.PortalFocusBlur;
         DefaultExportFormat = other.DefaultExportFormat;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
@@ -312,6 +326,7 @@ public sealed class AppSettings
         ApiPort = other.ApiPort;
         AdvancedMode = other.AdvancedMode;
         ProMode = other.ProMode;
+        HardwareAcceleration = other.HardwareAcceleration;
         AllowedExtensionId = other.AllowedExtensionId;
         CloudAutoPublish = other.CloudAutoPublish;
         CloudProviderId = other.CloudProviderId;

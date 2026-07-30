@@ -4,10 +4,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:conv="using:MdToPdf.Converters"
     mc:Ignorable="d"
     RequestedTheme="Dark">
 
     <UserControl.Resources>
+        <!-- Inspector color converters (hex string <-> Color / Brush) -->
+        <conv:HexStringToColorConverter x:Key="HexToColor" />
+        <conv:HexStringToBrushConverter x:Key="HexToBrush" />
+
         <!-- The Studio is always dark with a cyan accent, regardless of the user's Windows
              accent color (otherwise default-styled buttons/toggles bleed through purple or
              whatever the OS accent is, clashing with the grey main window). -->
@@ -26,6 +31,27 @@
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="Z" Invoked="OnUndoAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="Y" Invoked="OnRedoAcceleratorInvoked" />
+            <!-- World-class editing shortcuts -->
+            <KeyboardAccelerator Key="Delete" Invoked="OnDeleteAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Back" Invoked="OnDeleteAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="D" Invoked="OnDuplicateAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="C" Invoked="OnCopyAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="V" Invoked="OnPasteAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="A" Invoked="OnSelectAllAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAcceleratorInvoked" />
+            <!-- Arrow-key nudge (fine) and Shift+arrow (coarse) -->
+            <KeyboardAccelerator Key="Left" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Right" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Up" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Key="Down" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="Left" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="Right" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="Up" Invoked="OnNudgeAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Shift" Key="Down" Invoked="OnNudgeAcceleratorInvoked" />
+            <!-- Zoom shortcuts -->
+            <KeyboardAccelerator Modifiers="Control" Key="Add" Invoked="OnZoomInAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Subtract" Invoked="OnZoomOutAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control" Key="Number0" Invoked="OnZoomResetAcceleratorInvoked" />
         </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="40" /> <!-- App Title Bar Area -->
@@ -54,6 +80,15 @@
 
                 <!-- Left Tools -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnTemplatesClick" ToolTipService.ToolTip="Start from a template diagram"
+                            Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Templates" FontSize="12" Foreground="#EDF2F4" />
+                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#8D99AE" />
+                        </StackPanel>
+                    </Button>
+
                     <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -74,6 +109,47 @@
                             <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#EF476F" />
                             <TextBlock Text="Delete" FontSize="12" Foreground="#EDF2F4" />
                         </StackPanel>
+                    </Button>
+
+                    <!-- Align & Distribute flyout (draw.io / Whimsical parity). Acts on the
+                         current multi-selection; each op is one undo step. -->
+                    <Button ToolTipService.ToolTip="Align &amp; Distribute selected nodes"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Align" FontSize="12" Foreground="#EDF2F4" />
+                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#8D99AE" />
+                        </StackPanel>
+                        <Button.Flyout>
+                            <MenuFlyout Placement="Bottom">
+                                <MenuFlyoutItem Text="Align Left" Click="OnAlignLeftClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Align Center" Click="OnAlignHCenterClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Align Right" Click="OnAlignRightClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Text="Align Top" Click="OnAlignTopClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Align Middle" Click="OnAlignVMiddleClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Align Bottom" Click="OnAlignBottomClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Text="Distribute Horizontally" Click="OnDistributeHClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D7;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Distribute Vertically" Click="OnDistributeVClick">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D7;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
                     </Button>
 
                     <Button Click="OnUndoClick" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)"
@@ -121,6 +197,22 @@
 
                 <!-- Right Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnExportSvgClick" ToolTipService.ToolTip="Export the canvas as an SVG file"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE896;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Export SVG" FontSize="12" Foreground="#EDF2F4" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Click="OnCopySvgClick" ToolTipService.ToolTip="Copy the diagram as SVG to the clipboard"
+                            Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="14" Foreground="#4CC9F0" />
+                            <TextBlock Text="Copy SVG" FontSize="12" Foreground="#EDF2F4" />
+                        </StackPanel>
+                    </Button>
+
                     <Button Click="OnSyncToMarkdownClick" ToolTipService.ToolTip="Write the diagram back into the document's Mermaid block"
                             Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -140,8 +232,56 @@
                 <ColumnDefinition Width="280" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left Pane: Palette Container -->
-            <Border x:Name="PaletteContainer" Grid.Column="0" />
+            <!-- Left Pane: tabbed Shapes palette + Code editor (mermaid.live-style bidirectional
+                 editing — type Mermaid and the canvas updates, drag on the canvas and the code
+                 updates). -->
+            <Border Grid.Column="0" Background="#10121A" BorderBrush="#2B2D42" BorderThickness="0,0,1,0">
+                <Pivot x:Name="LeftPanePivot" SelectedIndex="0">
+                    <Pivot.Resources>
+                        <!-- Compact pivot headers to match the studio's dark chrome -->
+                        <Style TargetType="PivotHeaderItem">
+                            <Setter Property="FontSize" Value="12" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="Foreground" Value="#8D99AE" />
+                            <Setter Property="Padding" Value="10,6" />
+                        </Style>
+                    </Pivot.Resources>
+                    <PivotItem Header="SHAPES" Margin="0,6,0,0">
+                        <Border x:Name="PaletteContainer" />
+                    </PivotItem>
+                    <PivotItem Header="CODE" Margin="0,6,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBox x:Name="CodeEditorTextBox"
+                                     Grid.Row="0"
+                                     AcceptsReturn="True"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                                     FontSize="12"
+                                     Background="#0D0E14"
+                                     Foreground="#C8D3F5"
+                                     BorderThickness="0"
+                                     Padding="8"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ToolTipService.ToolTip="Edit the Mermaid source — the canvas updates live" />
+                            <Border Grid.Row="1" Background="#161822" Padding="8,4">
+                                <TextBlock x:Name="CodeStatusText" FontSize="10" Foreground="#8D99AE"
+                                           Text="Edits sync to the canvas automatically" />
+                            </Border>
+                        </Grid>
+                    </PivotItem>
+                    <!-- Rendered preview: the canonical mermaid.js output (exactly what lands in
+                         the exported PDF/HTML), rendered offline by the bundled mermaid.min.js.
+                         The WebView2 host is created lazily the first time this tab is opened. -->
+                    <PivotItem Header="PREVIEW" Tag="PREVIEW" Margin="0,6,0,0">
+                        <Border x:Name="PreviewContainer" Background="#0D0E14" />
+                    </PivotItem>
+                </Pivot>
+            </Border>
 
             <!-- Center Pane: Canvas Workspace Container -->
             <Border x:Name="CanvasContainer" Grid.Column="1" />
@@ -158,7 +298,72 @@
                             <TextBlock Text="Selected Node" FontWeight="SemiBold" FontSize="12" Foreground="#4CC9F0" />
                             <TextBox Header="Node ID" Text="{Binding SelectedNode.Id, Mode=TwoWay}" IsReadOnly="True" />
                             <TextBox Header="Label Text" Text="{Binding SelectedNode.LabelText, Mode=TwoWay}" AcceptsReturn="True" Height="60" />
-                            <TextBox Header="Shape" Text="{Binding SelectedNode.Shape, Mode=TwoWay}" />
+
+                            <!-- Visual shape picker (replaces the old free-text Shape box) -->
+                            <ComboBox Header="Shape"
+                                      SelectedItem="{Binding SelectedNode.Shape, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"
+                                      ToolTipService.ToolTip="Node shape">
+                                <x:String>Rectangle</x:String>
+                                <x:String>Circle</x:String>
+                                <x:String>Rhombus</x:String>
+                                <x:String>Hexagon</x:String>
+                                <x:String>Actor</x:String>
+                                <x:String>CylindricalDatabase</x:String>
+                            </ComboBox>
+
+                            <!-- Per-node Fill / Stroke color pickers -->
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0" HorizontalAlignment="Stretch" Padding="8,6"
+                                        Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
+                                        ToolTipService.ToolTip="Node fill color">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
+                                                   Fill="{Binding SelectedNode.FillColor, Converter={StaticResource HexToBrush}}"
+                                                   Stroke="#8D99AE" StrokeThickness="1" />
+                                        <TextBlock Text="Fill" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <Button.Flyout>
+                                        <Flyout Placement="Left">
+                                            <ColorPicker Color="{Binding SelectedNode.FillColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
+                                                         ColorSpectrumShape="Ring"
+                                                         IsAlphaEnabled="False"
+                                                         IsColorSliderVisible="True"
+                                                         IsColorChannelTextInputVisible="False"
+                                                         IsHexInputVisible="True"
+                                                         IsMoreButtonVisible="False" />
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+
+                                <Button Grid.Column="1" HorizontalAlignment="Stretch" Padding="8,6"
+                                        Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1"
+                                        ToolTipService.ToolTip="Node border color">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Rectangle Width="16" Height="16" RadiusX="3" RadiusY="3"
+                                                   Fill="{Binding SelectedNode.StrokeColor, Converter={StaticResource HexToBrush}}"
+                                                   Stroke="#8D99AE" StrokeThickness="1" />
+                                        <TextBlock Text="Border" FontSize="12" Foreground="#EDF2F4" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <Button.Flyout>
+                                        <Flyout Placement="Left">
+                                            <ColorPicker Color="{Binding SelectedNode.StrokeColor, Mode=TwoWay, Converter={StaticResource HexToColor}}"
+                                                         ColorSpectrumShape="Ring"
+                                                         IsAlphaEnabled="False"
+                                                         IsColorSliderVisible="True"
+                                                         IsColorChannelTextInputVisible="False"
+                                                         IsHexInputVisible="True"
+                                                         IsMoreButtonVisible="False" />
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </Grid>
+
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

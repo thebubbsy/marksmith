@@ -14,6 +14,12 @@ public static class DocxShapeEmitter
 {
     private const long EmuPerPt = 12700;
 
+    // Mermaid renders every diagram in its default font stack ("trebuchet ms", verdana, arial,
+    // sans-serif) — the preview never overrides it. Word falls back to the document's body font
+    // (Calibri) unless we name a face explicitly, so pin diagram text to Trebuchet MS to keep the
+    // exported shapes looking exactly like the live preview.
+    private const string DiagramFont = "Trebuchet MS";
+
     // Returns true when the diagram is too large for print layout even at the floor — the
     // caller opens the document in Word's Web Layout view (scrolls instead of clipping).
     // oversizedMode: 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
@@ -228,11 +234,25 @@ public static class DocxShapeEmitter
         sb.Append($"<wpg:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/>" +
                   $"<a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:noFill/></wpg:grpSpPr>");
 
+        // Full-bleed background card (first child => paints behind everything). The group canvas is
+        // transparent, so on a dark-themed page the page colour would otherwise show through the
+        // diagram; a solid card in the diagram's own (light) background keeps it crisp and readable.
+        sb.Append(BackgroundXml(d, theme, ++id));
+
         // Pre-assign XML IDs so connectors can reference them for smart anchoring.
         foreach (var s in d.Shapes) s.Id = ++id;
         if (smartConnectors) AssignTopologyHeuristics(d);
 
-        // Connectors first so nodes draw on top of lines.
+        // Z-order (Word paints later children on top): subgraph containers first, then edge lines,
+        // then the regular node boxes. A container is an opaque panel that must sit BEHIND its
+        // member nodes (otherwise it covers them — the "subgraph on top of the smaller squares"
+        // bug), while edge lines trace over the panel and nodes top everything. Matches mermaid,
+        // which draws cluster rects below edges below nodes.
+        foreach (var s in d.Shapes)
+        {
+            if (s.Kind == ShapeKind.Subgraph) sb.Append(ShapeXml(s, theme, s.Id));
+        }
+
         foreach (var c in d.Connectors)
         {
             sb.Append(ConnectorXml(c, theme, ++id, smartConnectors));
@@ -249,7 +269,7 @@ public static class DocxShapeEmitter
         }
         foreach (var s in d.Shapes)
         {
-            sb.Append(ShapeXml(s, theme, s.Id));
+            if (s.Kind != ShapeKind.Subgraph) sb.Append(ShapeXml(s, theme, s.Id));
         }
 
         sb.Append("</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>");
@@ -303,6 +323,19 @@ public static class DocxShapeEmitter
             sb.Append($"<wpg:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/>" +
                       $"<a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:noFill/></wpg:grpSpPr>");
 
+            // Background card for this band (see ToParagraphXml). Spans the full band height.
+            sb.Append(BackgroundXml(d, theme, ++id, bandHeight: thisBandH));
+
+            // Z-order matches ToParagraphXml: subgraph containers first (behind), then edges, then
+            // nodes. Emit the containers whose centre falls in this band before any connector.
+            foreach (var s in d.Shapes)
+            {
+                if (s.Kind != ShapeKind.Subgraph) continue;
+                double centerY = s.Y + s.H / 2;
+                if (centerY < yStart || centerY >= yEnd) continue;
+                sb.Append(ShapeXml(ShiftShape(s, yStart), theme, s.Id));
+            }
+
             // Emit connectors that overlap this band (at least one endpoint within the band,
             // or the connector spans across it).  Y coordinates are offset by -yStart.
             foreach (var c in d.Connectors)
@@ -334,21 +367,14 @@ public static class DocxShapeEmitter
                 }
             }
 
-            // Emit shapes whose vertical center falls within this band.
+            // Emit the remaining (non-subgraph) shapes whose vertical center falls within this band.
             foreach (var s in d.Shapes)
             {
+                if (s.Kind == ShapeKind.Subgraph) continue;
                 double centerY = s.Y + s.H / 2;
                 if (centerY < yStart || centerY >= yEnd) continue;
                 id++;
-                var shifted = new MShape
-                {
-                    Kind = s.Kind, X = s.X, Y = s.Y - yStart, W = s.W, H = s.H,
-                    Text = s.Text, FontSize = s.FontSize, Bold = s.Bold,
-                    Fill = s.Fill, Stroke = s.Stroke, StrokeWidth = s.StrokeWidth,
-                    Dashed = s.Dashed, TextColor = s.TextColor,
-                    AdjStartDeg = s.AdjStartDeg, AdjEndDeg = s.AdjEndDeg,
-                };
-                sb.Append(ShapeXml(shifted, theme, s.Id));
+                sb.Append(ShapeXml(ShiftShape(s, yStart), theme, s.Id));
             }
 
             sb.Append("</wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>");
@@ -366,6 +392,16 @@ public static class DocxShapeEmitter
         double centerY = s.Y + s.H / 2;
         return centerY >= yStart && centerY < yEnd;
     }
+
+    // Copy of a shape shifted into a band's local vertical space (Y offset by -yStart).
+    private static MShape ShiftShape(MShape s, double yStart) => new()
+    {
+        Kind = s.Kind, X = s.X, Y = s.Y - yStart, W = s.W, H = s.H,
+        Text = s.Text, FontSize = s.FontSize, Bold = s.Bold,
+        Fill = s.Fill, Stroke = s.Stroke, StrokeWidth = s.StrokeWidth,
+        Dashed = s.Dashed, TextColor = s.TextColor,
+        AdjStartDeg = s.AdjStartDeg, AdjEndDeg = s.AdjEndDeg,
+    };
 
     private static void AssignTopologyHeuristics(MDiagram d)
     {
@@ -394,6 +430,7 @@ public static class DocxShapeEmitter
         foreach (var s in d.Shapes)
         {
             if (s.Kind == ShapeKind.Text) continue;
+            if (s.NodeId is not null) continue; // decorative (e.g. the background card) — never anchor to it
 
             double cx = s.X + s.W / 2;
             double cy = s.Y + s.H / 2;
@@ -454,6 +491,28 @@ public static class DocxShapeEmitter
 
     // ---- shapes -------------------------------------------------------------------------------
 
+    // Solid full-bleed rectangle the group paints behind every connector/shape. Uses the diagram
+    // theme's (light) background so a dark document page never bleeds through the diagram. Named
+    // WITHOUT the ms:node=/ms:edge= round-trip tag so DocxShapeParser never recovers it as a real
+    // node (its fallback path also skips full-bleed text-less rectangles — see DocxShapeParser).
+    private static string BackgroundXml(MDiagram d, ThemeDefinition t, uint id, double? bandHeight = null)
+    {
+        long w = Emu(Math.Max(1, d.Width));
+        long h = Emu(Math.Max(1, bandHeight ?? d.Height));
+        var fill = Hex(t.Background) ?? "FFFFFF";
+        return "<wps:wsp>" +
+               $"<wps:cNvPr id=\"{id}\" name=\"Diagram background {id}\"/>" +
+               "<wps:cNvSpPr/>" +
+               "<wps:spPr>" +
+               $"<a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{w}\" cy=\"{h}\"/></a:xfrm>" +
+               "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>" +
+               $"<a:solidFill><a:srgbClr val=\"{fill}\"/></a:solidFill>" +
+               "<a:ln><a:noFill/></a:ln>" +
+               "</wps:spPr>" +
+               "<wps:bodyPr/>" +
+               "</wps:wsp>";
+    }
+
     private static string ShapeXml(MShape s, ThemeDefinition t, uint id)
     {
         var (prst, avLst) = Preset(s);
@@ -512,7 +571,10 @@ public static class DocxShapeEmitter
             ? " w:themeColor=\"background1\""
             : "";
 
-        return (s.Bold ? "<w:b/>" : "") +
+        // CT_RPr enforces a strict child order: rFonts precedes b, which precedes color, which
+        // precedes sz/szCs — emitting them out of sequence fails OpenXml validation.
+        return $"<w:rFonts w:ascii=\"{DiagramFont}\" w:hAnsi=\"{DiagramFont}\" w:cs=\"{DiagramFont}\"/>" +
+               (s.Bold ? "<w:b/>" : "") +
                $"<w:color w:val=\"{color}\"{themeAttr}/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
     }
 

@@ -1,10 +1,11 @@
 {
     "manifest_version": 3,
     "name": "Marksmith Connector",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Turn AI chats into polished PDF/DOCX/PPTX/EPUB — send to Marksmith or download straight from ChatGPT, Gemini, Claude and Copilot.",
     "permissions": ["contextMenus", "notifications", "storage", "scripting", "activeTab", "downloads", "alarms", "tabs"],
     "host_permissions": ["http://127.0.0.1/*"],
+    "optional_host_permissions": ["<all_urls>"],
     "background": { "service_worker": "background.js" },
     "action": {
         "default_title": "Marksmith — open the control center",

@@ -114,6 +114,15 @@ public static class DocxShapeParser
                 }
                 else if (geom is not null)
                 {
+                    // Skip the full-bleed background card DocxShapeEmitter paints behind a diagram
+                    // (a text-less rectangle pinned at the origin spanning the whole canvas) — it is
+                    // decoration, not a node; recovering it would dwarf every real shape and corrupt
+                    // edge inference in the untagged fallback.
+                    if (string.IsNullOrWhiteSpace(ReadText(wsp)) &&
+                        preset is null or "rect" &&
+                        cx <= 2 && cy <= 2 &&
+                        rawShapes.Count == 0 && rawConnectors.Count == 0)
+                        continue;
                     rawShapes.Add(new RawShape
                     {
                         XmlId = uint.TryParse((string?)wsp.Elements(Wps + "cNvPr").Attributes("id").FirstOrDefault(), out var parsed)

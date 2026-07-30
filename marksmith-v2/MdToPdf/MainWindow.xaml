@@ -27,6 +27,10 @@
             <KeyboardAccelerator Modifiers="Menu" Key="Up" Invoked="OnMoveLineUpAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Menu" Key="Down" Invoked="OnMoveLineDownAcceleratorInvoked" />
             <KeyboardAccelerator Key="F11" Invoked="OnFocusModeAcceleratorInvoked" />
+            <!-- Portal focus-blur toggle (Looking Glass): Ctrl+Alt+X switches an open portal between
+                 "focus with blur" (rendered preview behind the aperture blurs) and "focus without
+                 blur" (sharp preview). -->
+            <KeyboardAccelerator Modifiers="Control,Menu" Key="X" Invoked="OnTogglePortalBlurInvoked" />
             <KeyboardAccelerator Key="F1" Invoked="OnShortcutsCheatsheetInvoked" />
         </Grid.KeyboardAccelerators>
 
@@ -42,8 +46,11 @@
             <RowDefinition Height="48" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <!-- ISS-013: the old dedicated status-bar row is gone — the status UI is now a
-                 floating pill overlaid on the editor/preview pane (see MainLayoutGrid). -->
+            <!-- Persistent status-bar row along the bottom of the window: the changing status
+                 text sits bottom-left like a typical status bar, with the Ln/Col readout on the
+                 right. Replaced the ISS-013 floating pill that overlapped the editor's bottom
+                 buttons at the default launch size. -->
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="1" Spacing="6">
@@ -102,6 +109,14 @@
                         <TextBlock Text="Export Word" FontSize="12" />
                     </StackPanel>
                 </Button>
+                <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                        Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
+                        ToolTipService.ToolTip="Import a DOCX or PDF document into Markdown">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8B5;" FontSize="12" />
+                        <TextBlock Text="Import" FontSize="12" />
+                    </StackPanel>
+                </Button>
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
@@ -113,6 +128,15 @@
                         ToolTipService.ToolTip="Settings (Ctrl+,)">
                     <FontIcon Glyph="&#xE713;" FontSize="14" />
                 </Button>
+                <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                <!-- Focus mode moved up from the centre pane header (declutter): it's a window-level
+                     action, and the title bar stays visible even while the side panels are hidden. -->
+                <ToggleButton x:Name="FocusModeToggle" Height="30" Width="34" Padding="0"
+                              Background="Transparent" BorderThickness="0"
+                              ToolTipService.ToolTip="Focus mode — hide the side panels (F11)"
+                              Checked="OnFocusModeToggled" Unchecked="OnFocusModeToggled">
+                    <FontIcon Glyph="&#xE740;" FontSize="14" />
+                </ToggleButton>
             </StackPanel>
         </Grid>
 
@@ -397,51 +421,17 @@
                         </StackPanel>
                     </StackPanel>
                     
+                    <!-- Decluttered header: Copy HTML / Print moved to the pane's bottom bar, the
+                         portal shape + size dials moved to the portal bar (shown while portal mode
+                         is on), focus mode moved to the title bar, and the detected-source badge
+                         moved to the status bar. Only the portal toggle + view switcher remain, so
+                         this row can no longer overflow into the step title on the left at the
+                         default 1220×800 launch size. -->
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Border x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4"
-                                Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE945;" FontSize="12"
-                                          Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                <TextBlock Text="{Binding DetectedSourceText}" FontSize="12"
-                                           Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                            </StackPanel>
-                        </Border>
-                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Padding="8,0"
-                                Click="OnCopyHtmlClick" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE8C8;" FontSize="13" />
-                                <TextBlock Text="Copy HTML" FontSize="12" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
-                                Click="OnPrintClick" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE749;" FontSize="13" />
-                        </Button>
                         <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">
                             <FontIcon Glyph="&#xE7B3;" FontSize="13" />
-                        </ToggleButton>
-                        <!-- ISS-004: portal shape — circle spotlight, or full-width "focus" reading
-                             bands in three heights (skinny strip → tall panel) for line-oriented
-                             review. Takes effect on next preview render. -->
-                        <ComboBox x:Name="PortalShapeCombo" ToolTipService.ToolTip="Looking Glass shape — circle spotlight, focus band, square, or Marksmith logo cutout"
-                                  Width="125" Height="32" VerticalAlignment="Center" SelectionChanged="OnPortalShapeChanged">
-                            <ComboBoxItem Content="Circle" Tag="circle" />
-                            <ComboBoxItem Content="Focus" Tag="focus1" />
-                            <ComboBoxItem Content="Square" Tag="square" />
-                            <ComboBoxItem Content="Logo Cutout" Tag="logo" />
-                        </ComboBox>
-                        <!-- ISS-004: portal size — the dial scales whichever shape is active (circle
-                             diameter, or how fat a focus band is). Takes effect on next preview render. -->
-                        <Slider x:Name="PortalRevealSlider" ToolTipService.ToolTip="Looking Glass size — scales the active shape (circle diameter / focus band height)"
-                                Width="90" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="10"
-                                VerticalAlignment="Center" ValueChanged="OnPortalRevealChanged" />
-                        <ToggleButton x:Name="FocusModeToggle" ToolTipService.ToolTip="Focus mode — hide the side panels (F11)"
-                                      Height="32" Width="32" Padding="0" VerticalAlignment="Center"
-                                      Checked="OnFocusModeToggled" Unchecked="OnFocusModeToggled">
-                            <FontIcon Glyph="&#xE740;" FontSize="13" />
                         </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
@@ -454,28 +444,6 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- ISS-013: modern floating status pill, docked at the bottom-right of the
-                     editor/preview pane instead of the old full-width green bar. Same bindings as
-                     before (busy ring, severity-colored message, Ln/Col readout). -->
-                <Border Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                        Margin="0,0,24,18" Padding="12,6" CornerRadius="20"
-                        Background="{ThemeResource LayerFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" Canvas.ZIndex="100">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <ProgressRing IsActive="{Binding IsBusy}" Width="14" Height="14"
-                                      VerticalAlignment="Center" />
-                        <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
-                                   VerticalAlignment="Center" FontSize="12" Opacity="0.85"
-                                   Foreground="{Binding StatusSeverity, Converter={StaticResource StatusSeverityToBrushConverter}}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
-                        <MenuFlyoutSeparator Visibility="Visible" />
-                        <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1"
-                                   FontFamily="Consolas" FontSize="11.5" VerticalAlignment="Center" Opacity="0.7"
-                                   ToolTipService.ToolTip="Cursor position in the Markdown editor" />
-                    </StackPanel>
-                </Border>
-
                 <Grid Grid.Row="1" x:Name="LookingGlassGrid">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="SplitLeftCol" Width="*" />
@@ -486,7 +454,6 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
@@ -573,160 +540,7 @@
                                          ScrollViewer.VerticalScrollBarVisibility="Auto" />
                             </Grid>
                             
-                            <!-- Editor Toolbar Down Bottom -->
-                            <!-- Issue #6: the old two rows of 20+ buttons are consolidated into five
-                                 dropdown clusters on a single row (~100px of vertical workspace saved).
-                                 Every action keeps its original Click handler — just rehomed one menu deep. -->
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-                                <DropDownButton ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE19B;" FontSize="14" />
-                                        <TextBlock Text="Text Style" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Text="Bold" Click="OnBoldClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19B;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Italic" Click="OnItalicClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19D;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Strikethrough" Click="OnStrikethroughClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19E;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Heading 1 (#)" Click="OnH1Click" />
-                                            <MenuFlyoutItem Text="Heading 2 (##)" Click="OnH2Click" />
-                                            <MenuFlyoutItem Text="Heading 3 (###)" Click="OnH3Click" />
-                                            <MenuFlyoutItem Text="Heading 4 (####)" Click="OnH4Click" />
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-
-                                <DropDownButton ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE292;" FontSize="14" />
-                                        <TextBlock Text="Lists" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Text="Bullet List" Click="OnBulletListClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE292;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Numbered List" Click="OnNumberedListClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE293;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Task List" Click="OnTaskListClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73A;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Blockquote" Click="OnBlockquoteClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-
-                                <DropDownButton ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE710;" FontSize="14" />
-                                        <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Text="Link" Click="OnLinkClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Image" Click="OnImageClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Table" Click="OnTableClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA37;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Code Block" Click="OnCodeBlockClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutSubItem Text="Rich Components">
-                                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutSubItem.Icon>
-                                                <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF7ED;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Web Embed" Click="OnInsertEmbedClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE7A;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Native Chart" Click="OnInsertChartClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Data Grid" Click="OnInsertDatagridClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Multi-column Section" Click="OnInsertColumnsClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F1;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
-                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
-                                                </MenuFlyoutItem>
-                                            </MenuFlyoutSubItem>
-                                            <MenuFlyoutSubItem Text="Diagram">
-                                                <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
-                                                <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
-                                                <MenuFlyoutSeparator />
-                                                <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
-                                                <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
-                                                <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
-                                            </MenuFlyoutSubItem>
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE113;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="AI Context metadata" Click="OnInsertAiContextClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-
-                                <DropDownButton ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE90F;" FontSize="14" />
-                                        <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
-                                            <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
-                                            <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
-                                            <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
-                                            <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Clean up document" Click="OnCleanupClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-
-                                <DropDownButton ToolTipService.ToolTip="View &amp; zoom — editor font size and preview zoom" Height="32" Padding="8,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE71E;" FontSize="14" />
-                                        <TextBlock Text="View &amp; Zoom" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Text="Editor font larger (A+)" Click="OnEditorZoomInClick" />
-                                            <MenuFlyoutItem Text="Editor font smaller (A−)" Click="OnEditorZoomOutClick" />
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Zoom preview in" Click="OnPreviewZoomInClick" />
-                                            <MenuFlyoutItem Text="Zoom preview out" Click="OnPreviewZoomOutClick" />
-                                        </MenuFlyout>
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-                            </StackPanel>
-
-                            <Grid Grid.Row="3">
+                            <Grid Grid.Row="2">
                                 <!-- Editor font-size zoom (persisted): A− / A+ buttons plus Ctrl+wheel in the
                                      editor. The % readout is relative to the 13px default. -->
                                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -840,6 +654,198 @@
                     </StackPanel>
                 </Grid>
                 </Grid>
+                </Grid>
+
+                <!-- Centre pane bottom bar: Copy HTML / Print stay one click away in every mode,
+                     the editing clusters show whenever the editor is visible or portal mode turns
+                     the preview into an editor, and the portal shape + size dials live on their
+                     own row while portal mode is on (visibility managed from code-behind). Hosting
+                     the clusters here — instead of inside the editor pane — is what lets portal
+                     mode reuse them: the preview shrinks vertically to make room, the same way a
+                     writing app's formatting bar claims its strip. -->
+                <Grid x:Name="CenterBottomBar" Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ISS-004: portal shape + size — only relevant while portal mode is on, so the
+                         dials moved out of the always-visible header down to this portal-only row.
+                         Shape: circle spotlight, focus bands, square, or logo cutout; the slider
+                         scales the active shape live on every tick. -->
+                    <StackPanel x:Name="PortalControlsRow" Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,6"
+                                Visibility="Collapsed">
+                        <FontIcon Glyph="&#xE7B3;" FontSize="13" VerticalAlignment="Center" Opacity="0.7"
+                                  ToolTipService.ToolTip="Looking Glass portal dials" />
+                        <ComboBox x:Name="PortalShapeCombo" ToolTipService.ToolTip="Looking Glass shape — circle spotlight, focus band, square, or Marksmith logo cutout"
+                                  Width="125" Height="32" VerticalAlignment="Center" SelectionChanged="OnPortalShapeChanged">
+                            <ComboBoxItem Content="Circle" Tag="circle" />
+                            <ComboBoxItem Content="Focus" Tag="focus1" />
+                            <ComboBoxItem Content="Square" Tag="square" />
+                            <ComboBoxItem Content="Logo Cutout" Tag="logo" />
+                        </ComboBox>
+                        <Slider x:Name="PortalRevealSlider" ToolTipService.ToolTip="Looking Glass size — scales the active shape (circle diameter / focus band height)"
+                                Width="110" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="10"
+                                VerticalAlignment="Center" ValueChanged="OnPortalRevealChanged" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                        <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Width="32" Padding="0"
+                                Click="OnCopyHtmlClick" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="13" />
+                        </Button>
+                        <Button ToolTipService.ToolTip="Print the rendered document (Ctrl+P)" Height="32" Width="32" Padding="0"
+                                Click="OnPrintClick" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE749;" FontSize="13" />
+                        </Button>
+
+                        <!-- Issue #6: the old two rows of 20+ buttons, consolidated into dropdown
+                             clusters (every action keeps its original Click handler). The retired
+                             "View &amp; Zoom" cluster was redundant: editor font size lives on the
+                             A− / A+ strip under the editor, preview zoom on the width ruler under
+                             the preview. -->
+                        <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4">
+                            <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                            <DropDownButton ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE19B;" FontSize="14" />
+                                    <TextBlock Text="Text Style" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Bold" Click="OnBoldClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19B;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Italic" Click="OnItalicClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19D;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Strikethrough" Click="OnStrikethroughClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE19E;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Heading 1 (#)" Click="OnH1Click" />
+                                        <MenuFlyoutItem Text="Heading 2 (##)" Click="OnH2Click" />
+                                        <MenuFlyoutItem Text="Heading 3 (###)" Click="OnH3Click" />
+                                        <MenuFlyoutItem Text="Heading 4 (####)" Click="OnH4Click" />
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+
+                            <DropDownButton ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE292;" FontSize="14" />
+                                    <TextBlock Text="Lists" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Bullet List" Click="OnBulletListClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE292;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Numbered List" Click="OnNumberedListClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE293;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Task List" Click="OnTaskListClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Blockquote" Click="OnBlockquoteClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+
+                            <DropDownButton ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE710;" FontSize="14" />
+                                    <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Link" Click="OnLinkClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Image" Click="OnImageClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB9F;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Table" Click="OnTableClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEA37;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Code Block" Click="OnCodeBlockClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutSubItem Text="Rich Components">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF7ED;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Web Embed" Click="OnInsertEmbedClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE7A;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Native Chart" Click="OnInsertChartClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Data Grid" Click="OnInsertDatagridClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="From Spreadsheet…" Click="OnInsertSpreadsheetClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Table to Excel…" Click="OnExportTableClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE3;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Multi-column Section" Click="OnInsertColumnsClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F1;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
+                                        <MenuFlyoutSubItem Text="Diagram">
+                                            <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
+                                            <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
+                                            <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
+                                        </MenuFlyoutSubItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE113;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="AI Context metadata" Click="OnInsertAiContextClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+
+                            <DropDownButton ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE90F;" FontSize="14" />
+                                    <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
+                                        <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
+                                        <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
+                                        <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
+                                        <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Clean up document" Click="OnCleanupClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
             </Grid>
 
@@ -1246,6 +1252,10 @@
                                 <MenuFlyoutItem Text="Export as EPUB (.epub)" Click="OnExportEpubClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Export as Markdown (.md)" Click="OnExportMarkdownClick"
+                                                ToolTipService.ToolTip="Save the recovered/cleaned source as a Markdown file — the counterpart to importing a .docx">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem Text="Export all licensed formats" Click="OnExportAllClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
@@ -1265,8 +1275,35 @@
 
         </Grid>
 
-        <!-- ISS-013: the persistent status bar moved out of its own row into a floating pill
-             docked at the bottom-right of the editor/preview pane (inside MainLayoutGrid's
-             center column), so it no longer costs the layout a permanent vertical strip. -->
+        <!-- Persistent status bar: a full-width strip along the bottom of the window with the
+             changing status text docked bottom-left like a typical status bar (busy ring,
+             detected-source badge, severity-colored message) and the Ln/Col readout on the
+             right. Replaces the ISS-013 floating pill, which overlapped the editor's bottom
+             buttons at the default 1220×800 launch size. -->
+        <Border Grid.Row="3" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Left"
+                            VerticalAlignment="Center" Margin="16,5">
+                    <ProgressRing IsActive="{Binding IsBusy}" Width="14" Height="14" VerticalAlignment="Center" />
+                    <Border x:Name="DetectedBadge" Visibility="Collapsed" CornerRadius="12" Padding="10,4"
+                            Background="{ThemeResource AccentFillColorSecondaryBrush}" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE945;" FontSize="12"
+                                      Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding DetectedSourceText}" FontSize="12"
+                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
+                               VerticalAlignment="Center" FontSize="12" Opacity="0.85"
+                               Foreground="{Binding StatusSeverity, Converter={StaticResource StatusSeverityToBrushConverter}}"
+                               TextTrimming="CharacterEllipsis" MaxWidth="560" />
+                </StackPanel>
+                <TextBlock x:Name="CursorPosText" Text="Ln 1, Col 1" HorizontalAlignment="Right"
+                           VerticalAlignment="Center" Margin="16,5" FontFamily="Consolas" FontSize="11.5" Opacity="0.7"
+                           ToolTipService.ToolTip="Cursor position in the Markdown editor" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

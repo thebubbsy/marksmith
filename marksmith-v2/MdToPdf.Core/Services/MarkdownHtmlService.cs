@@ -94,6 +94,19 @@ public sealed partial class MarkdownHtmlService
         @"^(graph\s|flowchart\s|sequenceDiagram\b|classDiagram\b|stateDiagram(-v2)?\b|erDiagram\b|journey\b|gantt\b|pie\b|quadrantChart\b|requirementDiagram\b|gitGraph\b|mindmap\b|timeline\b|C4(Context|Container|Component|Dynamic|Deployment)\b|sankey(-beta)?\b|block-beta\b|packet-beta\b|kanban\b|radar(-beta)?\b|xychart-beta\b|zenuml\b)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static string NormalizeForRender(string markdown, AppSettings settings)
+    {
+        markdown = TextNormalizer.Newlines(markdown);
+        markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
+        markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = KanbanNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
+        markdown = DiagramFenceSniffer.Apply(markdown);
+        markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+        markdown = FormattingService.Apply(markdown, settings);
+        return markdown;
+    }
+
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
@@ -104,14 +117,7 @@ public sealed partial class MarkdownHtmlService
             theme = theme.ApplyLightInfluence();
         }
 
-        markdown = TextNormalizer.Newlines(markdown);
-        markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
-        markdown = AdmonitionNormalizer.Apply(markdown);
-        markdown = KanbanNormalizer.Apply(markdown);
-        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
-        markdown = DiagramFenceSniffer.Apply(markdown);
-        markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
-        markdown = FormattingService.Apply(markdown, settings);
+        markdown = NormalizeForRender(markdown, settings);
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
@@ -491,8 +497,10 @@ public sealed partial class MarkdownHtmlService
 
                 document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
 
-                // Page height at 96 DPI (A4 = 1123px, printable content block = 1040px)
-                const pageHeight = 1040;
+                // A4 page height at 96 DPI: the preview page is always at least one full A4 page
+                // tall (min-height on #canvas), so the dashed break markers sit on true page
+                // boundaries — every 1123px — and a document that fits on one page shows none.
+                const pageHeight = 1123;
                 const totalHeight = canvas.scrollHeight;
                 if (totalHeight <= pageHeight + 50) return;
 
@@ -646,9 +654,14 @@ public sealed partial class MarkdownHtmlService
         // a short Web Audio whir + iris animation play as each portal opens. Edits are synced back
         // to the app over the postMessage bridge (portal-open / portal-edit / portal-closed).
         var revealScope = Math.Clamp(settings.PortalRevealScope, 0, 100);
-        // Portal shape: a circle spotlight, or full-width "focus" reading bands in three heights.
-        // Sanitized to the known set so the value can be inlined into the script safely.
-        var portalShape = settings.PortalShape is "focus1" or "focus2" or "focus3" ? settings.PortalShape : "circle";
+        // Portal shape: a circle spotlight, full-width "focus" reading bands in three heights, a
+        // square, or the logo cutout. Sanitized to the known set so the value can be inlined into
+        // the script safely.
+        var portalShape = settings.PortalShape is "focus1" or "focus2" or "focus3" or "square" or "logo" ? settings.PortalShape : "circle";
+        // Focus-blur initial state for this render: whether the rendered preview behind an open
+        // portal blurs. Ctrl+Alt+X in the app toggles it live via __portalSetBlur; a full
+        // re-render re-inlines the persisted choice. Inlined as a bare true/false literal.
+        var portalFocusBlur = settings.PortalFocusBlur ? "true" : "false";
         var portalScript = interactive && settings.LookingGlassMode ? $$"""
             <script>
             function playPortalWhirSound() {
@@ -676,29 +689,35 @@ public sealed partial class MarkdownHtmlService
 
             (function () {
                 const REVEAL = {{revealScope}}; // size dial 0..100 — scales whichever shape is active
-                const SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "square" | "logo"
-                const isBand = SHAPE.indexOf("focus") === 0; // full-width reading band vs circle spotlight
-                const isSquare = SHAPE === "square";
-                const isLogo = SHAPE === "logo";
+                // Shape state is mutable: the app's shape picker pushes straight in via
+                // __portalSetShape, so the shape + its derived flags are lets, not consts.
+                let SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "square" | "logo"
+                let isBand = SHAPE.indexOf("focus") === 0; // full-width reading band vs circle spotlight
+                let isSquare = SHAPE === "square";
+                let isLogo = SHAPE === "logo";
                 const ring = document.createElement("div");
                 ring.id = "portal-cursor-ring";
                 document.body.appendChild(ring);
 
                 let portal = null, portalTa = null, editTimer = null, pendingText = "";
+                let blurFocus = {{portalFocusBlur}}; // focus WITH blur: preview behind the portal blurs
                 let dragging = false, dragStartX = 0, dragStartY = 0, dragScrollLeft = 0, dragScrollTop = 0; // middle-button source panning
                 let clickFrac = 0; // vertical document fraction of the opening click (0..1) — positional caret fallback
+                let clickFracX = 0; // horizontal document fraction of the opening click (0..1) — left/right source positioning
                 let curApH = 200;  // height of the currently-open aperture (circle diameter or band height)
 
                 const vh = window.innerHeight || 800;
                 // Focus bands: skinny full-width strips for line-oriented reading. The slider fattens
                 // the base band (~3 lines at 0) and the ×2/×3 presets multiply it — more line widths,
                 // more content — clamped so a band never swallows the whole viewport.
-                const bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
+                let bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
                 // Size dial -> aperture dimensions, split out into applyReveal so the live slider
                 // (__portalSetReveal) can recompute on the fly and grow/shrink an open portal in
                 // real time instead of waiting for a full re-render.
                 let apertureSize = 0, bandH = 0, clearStop = 0, fadeStop = 0;
+                let curReveal = REVEAL; // tracks the dial so a live shape swap can rebuild sizes
                 function applyReveal(reveal) {
+                    curReveal = reveal;
                     apertureSize = Math.round(200 + (reveal / 100) * (vh * 0.9 - 200)); // circle diameter / shape size
                     bandH = Math.round(Math.min(vh * 0.85, (60 + (reveal / 100) * 160) * bandMult));
                     clearStop = Math.round(35 + reveal * 0.4);       // % radius kept fully clear
@@ -747,6 +766,22 @@ public sealed partial class MarkdownHtmlService
                     return best;
                 }
 
+                // Focus blur (Ctrl+Alt+X in the app): while a portal is open, the rendered preview
+                // — the #canvas column, a SIBLING of the portal on <body> — blurs so the eye stays
+                // on the revealed source; the aperture and cursor ring stay sharp. The inline style
+                // survives in-place canvas swaps (only #canvas CONTENTS are replaced), and full
+                // re-renders re-inline the persisted choice.
+                function setPreviewBlur(on) {
+                    const canvas = document.getElementById("canvas");
+                    if (!canvas) return;
+                    canvas.style.transition = "filter 0.22s ease";
+                    canvas.style.filter = on ? "blur(6px)" : "";
+                }
+                window.__portalSetBlur = function (on) {
+                    blurFocus = !!on;
+                    if (portal) setPreviewBlur(blurFocus);
+                };
+
                 function closePortal(silent) {
                     if (!portal) return;
                     const p = portal;
@@ -754,6 +789,9 @@ public sealed partial class MarkdownHtmlService
                     dragging = false;
                     p.classList.add("portal-closing");
                     setTimeout(() => p.remove(), 200);
+                    // Silent closes are portal MOVES (openPortal re-opens immediately) — keep the
+                    // blur up; a real close restores the sharp preview.
+                    if (!silent) setPreviewBlur(false);
                     if (!silent) post({ type: "portal-closed" });
                 }
 
@@ -791,6 +829,10 @@ public sealed partial class MarkdownHtmlService
                     // Where in the document (0=top, 1=bottom) the portal was opened: the caret
                     // fallback in __portalSetSource lands at the same fraction of the source.
                     clickFrac = docH > 0 ? Math.min(1, Math.max(0, y / docH)) : 0;
+                    // Horizontal twin (0=left, 1=right): __portalSetSource pans the source to the
+                    // same left/right fraction, so clicking the right of the preview reveals the
+                    // right of the raw Markdown (and the left reveals the left).
+                    clickFracX = docW > 0 ? Math.min(1, Math.max(0, x / docW)) : 0;
                     portal.style.left = isBand ? pg.left + "px"
                         : Math.min(Math.max(x - apW / 2, 8), Math.max(8, docW - apW - 8)) + "px";
                     portal.style.top = Math.min(Math.max(y - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
@@ -815,6 +857,7 @@ public sealed partial class MarkdownHtmlService
                     portal.appendChild(portalTa);
 
                     document.body.appendChild(portal);
+                    if (blurFocus) setPreviewBlur(true);
                     playPortalWhirSound();
                     post({ type: "portal-open" });
 
@@ -885,6 +928,14 @@ public sealed partial class MarkdownHtmlService
                     portalTa.scrollTop = Math.max(0, line * lineH - curApH / 2 + lineH);
                     portalTa.scrollLeft = 0;
                     followCaret(); // settle the column too (long lines in skinny bands)
+                    // Horizontal twin of the vertical clickFrac landing: pan the source so the
+                    // left/right side of the raw Markdown that sits under the click is what shows
+                    // through the aperture — click the right of the preview, see the right of the
+                    // source; click the left, see the left. Applied AFTER followCaret so the
+                    // caret-centering pass (the caret lands at column 0) doesn't drag the view
+                    // straight back to the left edge; typing re-pans to the caret as usual.
+                    const maxScrollX = Math.max(0, portalTa.scrollWidth - portalTa.clientWidth);
+                    portalTa.scrollLeft = Math.round(clickFracX * maxScrollX);
                 };
 
                 // Live size dial: the app calls this on every slider tick so the open aperture
@@ -915,6 +966,24 @@ public sealed partial class MarkdownHtmlService
                 window.__portalSetReveal = function (reveal) {
                     reveal = Math.max(0, Math.min(100, Number(reveal) || 0));
                     applyReveal(reveal);
+                    resizeOpenPortal();
+                };
+                // Live shape switch: the app's shape picker pushes straight in so an open aperture
+                // morphs in real time — same in-place path as the size dial (no re-navigation, the
+                // portal and its caret survive). The derived flags + band multiplier are recomputed,
+                // the aperture re-classed (band / square / logo each carry their own CSS), and the
+                // size + fog-of-war mask rebuilt for the new shape at the current dial value.
+                window.__portalSetShape = function (shape) {
+                    if (["circle", "focus1", "focus2", "focus3", "square", "logo"].indexOf(shape) < 0) return;
+                    SHAPE = shape;
+                    isBand = SHAPE.indexOf("focus") === 0;
+                    isSquare = SHAPE === "square";
+                    isLogo = SHAPE === "logo";
+                    bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
+                    applyReveal(curReveal);
+                    if (portal) {
+                        portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
+                    }
                     resizeOpenPortal();
                 };
 
@@ -1056,7 +1125,7 @@ public sealed partial class MarkdownHtmlService
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
                    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
               @page { margin: 0 !important; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -1241,6 +1310,102 @@ public sealed partial class MarkdownHtmlService
             """;
     }
 
+    /// <summary>
+    /// Renders only the inner canvas content (attribution + TOC + body + footer) without the
+    /// surrounding HTML shell, CSS, or page scripts. Used by the live preview path which swaps
+    /// #canvas innerHTML in place — avoids materializing the ~50 KB static JS/CSS shell just to
+    /// discard it. Returns null when the document triggers the focused-diagram early return
+    /// (caller should fall back to a full navigation).
+    /// </summary>
+    public string? RenderCanvasOnly(string markdown, AppSettings settings, ThemeDefinition theme,
+        LlmClassification? classification = null)
+    {
+        if (settings.ThemeLightInfluence)
+            theme = theme.ApplyLightInfluence();
+
+        markdown = NormalizeForRender(markdown, settings);
+        var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
+
+        if (settings.NoEmoji) body = EmojiStripper.Strip(body);
+        body = HtmlSanitizer.Apply(body);
+        body = EmbedLocalImages(body);
+
+        body = MermaidFenceHtmlRe().Replace(body,
+            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
+
+        if (settings.MermaidEnabled)
+        {
+            body = AnyCodeBlockRe().Replace(body,
+                m =>
+                {
+                    var codeContent = m.Groups[1].Value;
+                    var extras = new StringBuilder();
+                    var whole = codeContent.Trim();
+                    if (MermaidDiagramStart.IsMatch(whole))
+                    {
+                        extras.Append($"<div class=\"mermaid mermaid-embedded\">{whole}</div>");
+                    }
+                    else
+                    {
+                        foreach (Match lit in QuotedLiteralRe().Matches(codeContent))
+                        {
+                            var group = lit.Groups[1].Success ? lit.Groups[1] : lit.Groups[2].Success ? lit.Groups[2] : lit.Groups[3];
+                            var candidate = group.Value.Trim();
+                            if (MermaidDiagramStart.IsMatch(candidate))
+                                extras.Append($"<div class=\"mermaid mermaid-embedded\">{System.Net.WebUtility.HtmlEncode(candidate)}</div>");
+                        }
+                    }
+                    return extras.Length > 0 ? m.Value + extras : m.Value;
+                });
+        }
+
+        var pluginTheme = Plugins.PluginTheme.From(theme);
+        body = PluginLangCodeRe().Replace(body,
+            m =>
+            {
+                var language = m.Groups[1].Value;
+                var installed = AppServices.Plugins.FindDiagramRenderer(language);
+                if (installed != null)
+                {
+                    var decoded = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value);
+                    var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded, pluginTheme);
+                    if (svg != null)
+                    {
+                        svg = Plugins.SvgSanitizer.Sanitize(svg);
+                        var cls = installed.IsThemeAware ? "plugin-diagram" : "plugin-diagram plugin-diagram-autoinvert";
+                        return $"<div class=\"{cls}\">{svg}</div>";
+                    }
+                    return m.Value + "<div class=\"plugin-diagram-error\">⚠ " + System.Net.WebUtility.HtmlEncode(installed.Name) + " couldn't render this diagram — check the syntax.</div>";
+                }
+
+                var known = AppServices.Plugins.FindAnyDiagramPlugin(language);
+                if (known != null)
+                    return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{System.Net.WebUtility.HtmlEncode(known.Name)}</b> plugin (Settings → Plugins) to render this diagram.</div>";
+
+                return m.Value;
+            });
+
+        // Focused-diagram documents get a dedicated full-page viewer — signal the caller to
+        // fall back to a full navigation (which builds the complete page with zoom/pan controls).
+        if (settings.MermaidEnabled)
+        {
+            var focus = AnalyzeDiagramFocus(markdown);
+            if (focus.Focused)
+            {
+                var mm = MermaidDivRe().Match(body);
+                if (mm.Success) return null;
+            }
+        }
+
+        var attribution = BuildAttribution(settings, classification, theme);
+        var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        var footer = AppServices.License.ShowFooter
+            ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
+            : "";
+
+        return attribution + toc + body + footer;
+    }
+
     private static readonly Regex MermaidFenceRe =
         new("```mermaid[ \\t]*\\n.*?```", RegexOptions.Singleline | RegexOptions.Compiled);
 
@@ -1322,6 +1487,17 @@ public sealed partial class MarkdownHtmlService
                 stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
             .mermaid .label { color: {{theme.Primary}} !important; }
+            /* Long-press (800ms hold) on the diagram opens it in the Diagram Studio — the same
+               gesture as the regular preview. A radial progress ring tracks the hold so the user
+               gets immediate feedback that the gesture is registering (and can tell it apart from
+               the pan/drag interaction, which cancels the hold as soon as the pointer moves). */
+            #dv-holdring { position: fixed; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+                           pointer-events: none; z-index: 20; display: none;
+                           filter: drop-shadow(0 2px 6px rgba(0,0,0,0.45)); }
+            #dv-holdring .track { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 3.5; }
+            #dv-holdring .bar { fill: none; stroke: #4cc9f0; stroke-width: 3.5; stroke-linecap: round;
+                                stroke-dasharray: 113; stroke-dashoffset: 113;
+                                transform: rotate(-90deg); transform-origin: 50% 50%; }
             </style></head>
             <body>
             <div id="dv">
@@ -1333,6 +1509,7 @@ public sealed partial class MarkdownHtmlService
                 <button id="dv-png" title="Save diagram as PNG">PNG</button>
                 <button id="dv-svg" title="Save diagram as SVG">SVG</button></div>
               <div id="dv-stage"><div id="dv-inner">{{mermaidDiv}}</div></div>
+              <svg id="dv-holdring" viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="18"/><circle class="bar" cx="20" cy="20" r="18"/></svg>
             </div>
             <script>
             mermaid.initialize({ startOnLoad: true, theme: "base",
@@ -1347,6 +1524,48 @@ public sealed partial class MarkdownHtmlService
             (function () {
               const stage = document.getElementById("dv-stage"), inner = document.getElementById("dv-inner");
               const pct = document.getElementById("dv-pct");
+
+              // Capture the diagram source NOW — this inline script runs during parsing, before
+              // mermaid's startOnLoad render replaces the .mermaid div's text with the SVG. The
+              // long-press gesture below sends this source back to the host to open the Studio.
+              const diagramSource = (document.querySelector(".mermaid") || { textContent: "" }).textContent || "";
+
+              // Export / interop helper — the host (C#) listens for these messages.
+              const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };
+
+              // ---- Long-press (800ms stationary hold) -> open in Diagram Studio --------------
+              // Integrated with the pan handler below: a drag past 8px cancels the hold (that's
+              // a pan), a stationary hold past 800ms opens the Studio. The progress ring gives
+              // live feedback so the gesture is discoverable and distinguishable from panning.
+              const ring = document.getElementById("dv-holdring");
+              const ringBar = ring.querySelector(".bar");
+              const HOLD_MS = 800, HOLD_MOVE = 8, RING_CIRC = 113;
+              let holdActive = false, holdRaf = 0, holdStart = 0, holdX = 0, holdY = 0;
+              function startHold(x, y) {
+                holdActive = true; holdStart = performance.now(); holdX = x; holdY = y;
+                ring.style.left = x + "px"; ring.style.top = y + "px"; ring.style.display = "block";
+                ringBar.style.strokeDashoffset = RING_CIRC;
+                (function frame() {
+                  if (!holdActive) return;
+                  const p = Math.min(1, (performance.now() - holdStart) / HOLD_MS);
+                  ringBar.style.strokeDashoffset = RING_CIRC * (1 - p);
+                  if (p >= 1) { completeHold(); return; }
+                  holdRaf = requestAnimationFrame(frame);
+                })();
+              }
+              function cancelHold() {
+                if (!holdActive) return;
+                holdActive = false; cancelAnimationFrame(holdRaf);
+                ring.style.display = "none";
+              }
+              function completeHold() {
+                holdActive = false; cancelAnimationFrame(holdRaf);
+                ring.style.display = "none";
+                // Clear the pan state so the view doesn't stick in drag mode once the Studio opens.
+                drag = null; stage.classList.remove("dragging");
+                post({ type: "launch-mermaid-studio", index: 0, code: diagramSource, gesture: "long-press-800ms" });
+              }
+
               let sc = 1, tx = 0, ty = 0, drag = null, fitted = false, lastW = 0, lastH = 0;
               const apply = () => { inner.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`;
                                     pct.textContent = Math.round(sc * 100) + "%"; };
@@ -1379,16 +1598,18 @@ public sealed partial class MarkdownHtmlService
                 tx = cx - (cx - tx) * f; ty = cy - (cy - ty) * f;
                 sc = Math.min(12, Math.max(0.1, sc * f)); apply(); }, { passive: false });
               stage.addEventListener("pointerdown", (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty };
-                stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId); });
-              stage.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); } });
-              stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); });
+                stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId);
+                if (e.button === 0) startHold(e.clientX, e.clientY); });
+              stage.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); }
+                if (holdActive && Math.hypot(e.clientX - holdX, e.clientY - holdY) > HOLD_MOVE) cancelHold(); });
+              stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); cancelHold(); });
+              stage.addEventListener("pointercancel", () => { drag = null; stage.classList.remove("dragging"); cancelHold(); });
               document.getElementById("dv-in").addEventListener("click", () => { sc = Math.min(12, sc * 1.25); apply(); });
               document.getElementById("dv-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
               document.getElementById("dv-reset").addEventListener("click", () => { fit(true); });
               window.addEventListener("resize", () => { if (fitted) fit(true); });
 
               // Export the diagram as a file — the host (C#) shows a save dialog and writes it.
-              const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };
               function svgText() {
                 const svg = inner.querySelector("svg"); if (!svg) return null;
                 const clone = svg.cloneNode(true);

@@ -37,9 +37,16 @@ jobs:
           gh release create "$tag" --draft --title "Marksmith $tag" --notes "Release in progress..." || true
 
   release-winui:
-    name: Build Marksmith v2 (Windows)
+    name: Build Marksmith v2 (${{ matrix.arch }})
     needs: create-release
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # x64 = standard 64-bit Windows; arm64 = native Windows on ARM (Snapdragon X Elite/Plus
+        # and similar Copilot+ PCs). Each leg publishes, zips, builds its own installer, and
+        # uploads its own assets, so a release ends up with both architectures.
+        arch: [x64, arm64]
     steps:
       - uses: actions/checkout@v4
 
@@ -48,32 +55,32 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained exe (marksmith-v2)
-        run: dotnet publish marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
+      - name: Publish self-contained exe (marksmith-v2, ${{ matrix.arch }})
+        run: dotnet publish marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none
 
       - name: Package portable zip
         shell: pwsh
         run: |
-          $pub = "marksmith-v2/MdToPdf/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64/publish"
+          $pub = "marksmith-v2/MdToPdf/bin/${{ matrix.arch }}/Release/net8.0-windows10.0.19041.0/win-${{ matrix.arch }}/publish"
           New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
           Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
-          Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-x64.zip -Force
+          Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-${{ matrix.arch }}.zip -Force
 
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "packaging\installer\marksmith.iss"
+          & $iscc "/DArch=${{ matrix.arch }}" "packaging\installer\marksmith.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
-      - name: Upload WinUI release assets
+      - name: Upload release assets (${{ matrix.arch }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
           $tag = "${{ inputs.tag || github.ref_name }}"
-          gh release upload $tag Marksmith-win-x64.zip dist_installer/Marksmith-Setup-x64.exe --clobber
+          gh release upload $tag Marksmith-win-${{ matrix.arch }}.zip dist_installer/Marksmith-Setup-${{ matrix.arch }}.exe --clobber
 
   publish-release:
     name: Publish GitHub Release
@@ -96,8 +103,8 @@ jobs:
           # Download all assets
           gh release download "$tag"
 
-          # Calculate checksums
-          sha256sum Marksmith-win-x64.zip Marksmith-Setup-x64.exe > checksums.txt
+          # Calculate checksums (x64 + arm64 installers and portable zips)
+          sha256sum Marksmith-win-x64.zip Marksmith-Setup-x64.exe Marksmith-win-arm64.zip Marksmith-Setup-arm64.exe > checksums.txt
 
           # Upload checksums file to release
           gh release upload "$tag" checksums.txt --clobber
@@ -106,8 +113,13 @@ jobs:
           cat > ../release-notes.md <<'BODY'
           ## Marksmith for Windows
 
+          **64-bit (x64)** — standard Windows PCs
           - `Marksmith-Setup-x64.exe` — installer (recommended)
           - `Marksmith-win-x64.zip` — portable, unzip and run
+
+          **ARM64** — Windows on ARM (Snapdragon X Elite/Plus and similar Copilot+ PCs)
+          - `Marksmith-Setup-arm64.exe` — installer (recommended)
+          - `Marksmith-win-arm64.zip` — portable, unzip and run
 
           This build ships the enhanced marksmith-v2 app: a full Markdown editor with live preview,
           find & replace, split view, line numbers, a Markdown lint panel, focus mode, text
