@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="website_style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <!-- Background Glow Effects -->
@@ -48,11 +48,11 @@
             </p>
             <div class="hero-cta-group" id="hero-cta-container">
                 <a href="#download" class="btn-primary btn-large" id="hero-btn-primary">
-                    <svg class="icon-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    <svg class="icon-dl" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                     Download for Windows 11
                 </a>
                 <a href="#video-demo" class="btn-secondary btn-large" id="hero-btn-video">
-                    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <svg class="icon-play" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                     Watch 2-Min Demo
                 </a>
             </div>
@@ -123,32 +123,32 @@ flowchart LR
 
             <div class="grid-3-col">
                 <div class="feature-card" id="feature-card-math">
-                    <div class="card-icon icon-math">∑</div>
+                    <div class="card-icon icon-math" aria-hidden="true">∑</div>
                     <h3>Native Word OMML Math</h3>
                     <p>Converts LaTeX and KaTeX formulas into native, fully editable Word equations. Edit numbers directly inside matrices in Microsoft Word.</p>
                 </div>
                 <div class="feature-card" id="feature-card-mermaid">
-                    <div class="card-icon icon-diagram">🎨</div>
+                    <div class="card-icon icon-diagram" aria-hidden="true">🎨</div>
                     <h3>Visual Mermaid Studio</h3>
                     <p>Full visual drag-and-drop designer. Instantly toggle diagram orientation (Left-to-Right `LR` / Top-to-Bottom `TD`) with smart orthogonal routing.</p>
                 </div>
                 <div class="feature-card" id="feature-card-browser">
-                    <div class="card-icon icon-ext">🌐</div>
+                    <div class="card-icon icon-ext" aria-hidden="true">🌐</div>
                     <h3>1-Click Extension Ingest</h3>
                     <p>Browser extension for ChatGPT, Gemini, Claude &amp; Copilot. Click "Send to Marksmith" or enable auto-send on conversation end.</p>
                 </div>
                 <div class="feature-card" id="feature-card-watch">
-                    <div class="card-icon icon-folder">📁</div>
+                    <div class="card-icon icon-folder" aria-hidden="true">📁</div>
                     <h3>Watch Folder Daemon</h3>
                     <p>Background folder watcher auto-compiles `.md` files dropped from Obsidian or Notion straight to PDF or Word presentations.</p>
                 </div>
                 <div class="feature-card" id="feature-card-dlp">
-                    <div class="card-icon icon-shield">🛡️</div>
+                    <div class="card-icon icon-shield" aria-hidden="true">🛡️</div>
                     <h3>Enterprise DLP &amp; Governance</h3>
                     <p>Client-side credential scanner masks API keys and secrets before export. Aggregates local usage metrics with zero cloud transmission.</p>
                 </div>
                 <div class="feature-card" id="feature-card-offline">
-                    <div class="card-icon icon-lock">🔒</div>
+                    <div class="card-icon icon-lock" aria-hidden="true">🔒</div>
                     <h3>100% Offline &amp; Air-Gapped</h3>
                     <p>Runs strictly on localhost (`127.0.0.1`). Your trade secrets, financial models, and code stay completely on your machine.</p>
                 </div>
@@ -209,7 +209,7 @@ flowchart LR
         <div class="footer-container">
             <div class="footer-brand">Marksmith v2 Engine • 100% Local &amp; Private</div>
             <div class="footer-links">
-                <a href="https://github.com" target="_blank">GitHub Repository</a>
+                <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
                 <a href="#features">Documentation</a>
                 <a href="#governance">Privacy Policy</a>
             </div>
