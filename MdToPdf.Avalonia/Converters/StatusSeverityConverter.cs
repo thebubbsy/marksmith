@@ -9,7 +9,7 @@ namespace MdToPdf.Avalonia.Converters
     {
         public static readonly StatusSeverityConverter Instance = new();
 
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             if (value is string status)
             {
@@ -21,7 +21,7 @@ namespace MdToPdf.Avalonia.Converters
             return InfoBarSeverity.Informational;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
         }

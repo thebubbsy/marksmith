@@ -209,9 +209,24 @@ public static class DocxShapeEmitter
     private const double MaxCanvasW = 460, MaxCanvasH = 640;
 
     public static string ToParagraphXml(MDiagram d, ThemeDefinition theme, uint docPrId, out bool oversized,
-        int oversizedMode = 0, int gridSize = 1, bool smartConnectors = true)
+        int oversizedMode = 0, int gridSize = 1, bool smartConnectors = true, string connectorRouting = "default")
     {
+        // Assign shape XML IDs and anchor every edge to its nodes BEFORE ScaleToFit runs. The
+        // topology heuristic matches edge endpoints against shape borders, which only agree on
+        // the original layout — the aggressive-shrink modes (6/7/8) then re-space the nodes and
+        // discard the sampled curves, so the anchors must be captured first or every edge comes
+        // out detached from its nodes (the "nothing is connected" regression).
+        uint id = 1;
+        foreach (var s in d.Shapes) s.Id = ++id; // shapes take 2,3,…; id 1 is reserved for the background card
+        if (smartConnectors) AssignTopologyHeuristics(d);
+
         oversized = ScaleToFit(d, oversizedMode, gridSize);
+
+        // The aggressive-shrink modes threw the curve paths away; snap each anchored edge back
+        // onto its (now moved) shapes' connection sites so the stored line touches the nodes and
+        // Word's smart-connector glue (stCxn/endCxn) keeps it attached.
+        if (smartConnectors && oversizedMode is 6 or 7 or 8)
+            ReanchorConnectorsToShapes(d);
 
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
                  "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
@@ -221,7 +236,6 @@ public static class DocxShapeEmitter
 
         long cx = Emu(Math.Max(1, d.Width)), cy = Emu(Math.Max(1, d.Height));
         var sb = new StringBuilder();
-        uint id = 1;
 
         sb.Append($"<w:r {ns}><w:drawing>");
         sb.Append($"<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">");
@@ -239,9 +253,7 @@ public static class DocxShapeEmitter
         // diagram; a solid card in the diagram's own (light) background keeps it crisp and readable.
         sb.Append(BackgroundXml(d, theme, ++id));
 
-        // Pre-assign XML IDs so connectors can reference them for smart anchoring.
-        foreach (var s in d.Shapes) s.Id = ++id;
-        if (smartConnectors) AssignTopologyHeuristics(d);
+        // Shape XML IDs and edge→node topology were assigned up top, before ScaleToFit ran.
 
         // Z-order (Word paints later children on top): subgraph containers first, then edge lines,
         // then the regular node boxes. A container is an opaque panel that must sit BEHIND its
@@ -255,7 +267,7 @@ public static class DocxShapeEmitter
 
         foreach (var c in d.Connectors)
         {
-            sb.Append(ConnectorXml(c, theme, ++id, smartConnectors));
+            sb.Append(ConnectorXml(c, theme, ++id, smartConnectors, connectorRouting));
             if (!string.IsNullOrWhiteSpace(c.Label))
             {
                 id++;
@@ -282,7 +294,7 @@ public static class DocxShapeEmitter
     /// page width (MaxCanvasW) but height is unconstrained — each band is at most MaxCanvasH tall.
     /// Returns one paragraph XML string per band (callers append all of them to the document body).
     /// </summary>
-    public static List<string> ToMultiPageParagraphXml(MDiagram d, ThemeDefinition theme, ref uint docPrId, bool smartConnectors = true)
+    public static List<string> ToMultiPageParagraphXml(MDiagram d, ThemeDefinition theme, ref uint docPrId, bool smartConnectors = true, string connectorRouting = "default")
     {
         // Scale width only — ScaleToFit with mode 3 handles this.
         ScaleToFit(d, oversizedMode: 3);
@@ -352,7 +364,7 @@ public static class DocxShapeEmitter
                 }
 
                 var shifted = ShiftConnector(c, yStart, thisBandH);
-                sb.Append(ConnectorXml(shifted, theme, ++id, smartConnectors));
+                sb.Append(ConnectorXml(shifted, theme, ++id, smartConnectors, connectorRouting));
                 if (!string.IsNullOrWhiteSpace(c.Label) &&
                     c.LabelY + c.LabelH > yStart && c.LabelY < yEnd)
                 {
@@ -408,15 +420,27 @@ public static class DocxShapeEmitter
         foreach (var c in d.Connectors)
         {
             if (c.FromShapeId.HasValue && c.ToShapeId.HasValue) continue;
-            if (c.Points == null || c.Points.Count < 2) continue;
 
-            var start = c.Points[0];
-            var end = c.Points[^1];
+            // Anchor from the curve's endpoints when a sampled path exists, otherwise fall back
+            // to the straight-line endpoints. Either way the endpoints sit on the shape borders,
+            // so this (the original layout) is the right moment to capture which node each end
+            // belongs to — after a shrink the coordinates no longer line up.
+            double sx, sy, ex, ey;
+            if (c.Points is { Count: >= 2 })
+            {
+                sx = c.Points[0].X; sy = c.Points[0].Y;
+                ex = c.Points[^1].X; ey = c.Points[^1].Y;
+            }
+            else
+            {
+                sx = c.X1; sy = c.Y1;
+                ex = c.X2; ey = c.Y2;
+            }
 
-            c.FromShapeId = FindClosestShape(d, start.X, start.Y, out int fromSite);
+            c.FromShapeId = FindClosestShape(d, sx, sy, out int fromSite);
             if (c.FromShapeId.HasValue) c.FromConnectionSite = fromSite;
 
-            c.ToShapeId = FindClosestShape(d, end.X, end.Y, out int toSite);
+            c.ToShapeId = FindClosestShape(d, ex, ey, out int toSite);
             if (c.ToShapeId.HasValue) c.ToConnectionSite = toSite;
         }
     }
@@ -453,6 +477,42 @@ public static class DocxShapeEmitter
         }
         return bestId;
     }
+
+    // After an aggressive shrink (modes 6/7/8) the nodes have moved and the sampled curves are
+    // gone; put each anchored edge's endpoints back onto its shapes' connection sites so the
+    // stored geometry touches the nodes. Word's stCxn/endCxn glue then keeps them attached.
+    private static void ReanchorConnectorsToShapes(MDiagram d)
+    {
+        foreach (var c in d.Connectors)
+        {
+            if (!c.FromShapeId.HasValue || !c.ToShapeId.HasValue) continue;
+            if (c.FromShapeId.Value == c.ToShapeId.Value) continue; // self-loop: leave as-is
+
+            var from = d.Shapes.FirstOrDefault(s => s.Id == c.FromShapeId.Value);
+            var to = d.Shapes.FirstOrDefault(s => s.Id == c.ToShapeId.Value);
+            if (from is null || to is null) continue;
+
+            (c.X1, c.Y1) = ConnectionSitePoint(from, c.FromConnectionSite);
+            (c.X2, c.Y2) = ConnectionSitePoint(to, c.ToConnectionSite);
+
+            // Keep the label centred on the re-routed line.
+            if (!string.IsNullOrWhiteSpace(c.Label))
+            {
+                c.LabelX = (c.X1 + c.X2) / 2 - c.LabelW / 2;
+                c.LabelY = (c.Y1 + c.Y2) / 2 - c.LabelH / 2;
+            }
+        }
+    }
+
+    // Connection-site index convention matches FindClosestShape: 0=top, 1=left, 2=bottom, 3=right.
+    private static (double X, double Y) ConnectionSitePoint(MShape s, int site) => site switch
+    {
+        0 => (s.X + s.W / 2, s.Y),
+        1 => (s.X, s.Y + s.H / 2),
+        2 => (s.X + s.W / 2, s.Y + s.H),
+        3 => (s.X + s.W, s.Y + s.H / 2),
+        _ => (s.X + s.W / 2, s.Y + s.H / 2),
+    };
 
     // Does any part of the connector fall within the vertical band [yStart, yEnd)?
     private static bool ConnectorOverlapsBand(MConnector c, double yStart, double yEnd)
@@ -674,7 +734,7 @@ public static class DocxShapeEmitter
             "</wps:wsp>";
     }
 
-    private static string ConnectorXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
+    private static string ConnectorXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors, string connectorRouting = "default")
     {
         if (c.Points is { Count: >= 2 }) return CurveXml(c, t, ++id, smartConnectors);
 
@@ -703,7 +763,13 @@ public static class DocxShapeEmitter
         double x = Math.Min(c.X1, c.X2), y = Math.Min(c.Y1, c.Y2);
         double w = Math.Abs(c.X2 - c.X1), h = Math.Abs(c.Y2 - c.Y1);
         bool flipH = c.X2 < c.X1, flipV = c.Y2 < c.Y1;
-        var prst = c.Elbow ? "bentConnector3" : "straightConnector1";
+        var prst = connectorRouting switch
+        {
+            "elbow" => "bentConnector3",
+            "curved" => "curveConnector3",
+            "straight" => "straightConnector1",
+            _ => c.Elbow ? "bentConnector3" : "straightConnector1", // "default": use harvested geometry
+        };
 
         var stroke = Hex(c.Stroke ?? t.Line);
         long lw = (long)Math.Round(c.StrokeWidth * EmuPerPt);

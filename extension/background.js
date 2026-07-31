@@ -340,7 +340,7 @@ async function grabAndSend(tab, mode, opts = {}) {
     }
 
     try {
-        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: null });
+        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
         // Fold the captured source metadata into the output profile so the app applies it on
         // ingest (definitive source, model, title, font, language/direction, brand accent). The
         // user's saved output profile keeps priority for any field it explicitly sets.
@@ -401,7 +401,7 @@ async function downloadFromTab(tab, mode, format, opts = {}) {
 }
 
 async function convertAndDownload(markdown, format, meta) {
-    const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: null });
+    const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
     // Honor the saved output profile (theme, width, diagram mode, …) but force the format
     // the user just asked for — a profile set to "pdf" must not block a DOCX download.
     const ovr = { ...(output || {}), format };

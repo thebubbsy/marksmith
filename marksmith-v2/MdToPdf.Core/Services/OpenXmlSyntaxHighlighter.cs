@@ -346,54 +346,74 @@ public class OpenXmlSyntaxHighlighter
         return merged;
     }
 
+    private static readonly Regex RxXmlComment = new(@"<!--[\s\S]*?(?:-->|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxBlockComment = new(@"/\*[\s\S]*?(?:\*/|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxLineComment = new(@"///?[^\n]*", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxDashComment = new(@"--[^\n]*", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxHashComment = new(@"#[^\n]*", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex RxTripleDQuote = new(@"""""""[\s\S]*?(?:""""""|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxTripleSQuote = new(@"'''[\s\S]*?(?:'''|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex RxVerbatim1 = new(@"\$@""(?:[^""]|"""")*?(?:""|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxVerbatim2 = new(@"@""(?:[^""]|"""")*?(?:""|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxVerbatim3 = new(@"\$""(?:\\.|[^""\\])*?(?:""|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex RxBacktickString = new(@"`(?:\\.|[^`\\])*?(?:`|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxDoubleQuoteString = new(@"""(?:\\.|[^""\\])*?(?:""|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxSingleQuoteString = new(@"'(?:\\.|[^'\\])*?(?:'|\z)", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex RxNumber = new(@"0[xX][0-9a-fA-F_]+[uUlL]*|0[bB][01_]+[uUlL]*|\d[\d_]*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?[fFdDmMuUlL]*", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxWord = new(@"[A-Za-z_]\w*", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex RxOpsPunct = new(@"[+\-*/%=<>!&|^~?:;,.()\[\]{}@#$\\]+|\s+", RegexOptions.Compiled | RegexOptions.Singleline);
+
     private static List<(Regex, TokenKind)> BuildPatterns(SyntaxProfile p)
     {
         var list = new List<(Regex, TokenKind)>();
-        const RegexOptions Opt = RegexOptions.Compiled | RegexOptions.Singleline;
 
         // ── comments (highest priority) ──
         if (p.HasXmlComment)
-            list.Add((new Regex(@"<!--[\s\S]*?(?:-->|\z)", Opt), TokenKind.Comment));
+            list.Add((RxXmlComment, TokenKind.Comment));
         if (p.HasDoubleSlashBlockComment)
-            list.Add((new Regex(@"/\*[\s\S]*?(?:\*/|\z)", Opt), TokenKind.Comment));
+            list.Add((RxBlockComment, TokenKind.Comment));
         if (p.HasSqlBlockComment)
-            list.Add((new Regex(@"/\*[\s\S]*?(?:\*/|\z)", Opt), TokenKind.Comment));
+            list.Add((RxBlockComment, TokenKind.Comment));
         if (p.HasLineComment)
-            list.Add((new Regex(@"///?[^\n]*", Opt), TokenKind.Comment));
+            list.Add((RxLineComment, TokenKind.Comment));
         if (p.HasDashComment)
-            list.Add((new Regex(@"--[^\n]*", Opt), TokenKind.Comment));
+            list.Add((RxDashComment, TokenKind.Comment));
         if (p.HasHashComment)
-            list.Add((new Regex(@"#[^\n]*", Opt), TokenKind.Comment));
+            list.Add((RxHashComment, TokenKind.Comment));
 
         // ── strings ──
         if (p.HasTripleStrings)
         {
-            list.Add((new Regex(@"""""""[\s\S]*?(?:""""""|\z)", Opt), TokenKind.String));
-            list.Add((new Regex(@"'''[\s\S]*?(?:'''|\z)", Opt), TokenKind.String));
+            list.Add((RxTripleDQuote, TokenKind.String));
+            list.Add((RxTripleSQuote, TokenKind.String));
         }
         if (p.HasVerbatimStrings)
         {
-            list.Add((new Regex(@"\$@""(?:[^""]|"""")*?(?:""|\z)", Opt), TokenKind.String));
-            list.Add((new Regex(@"@""(?:[^""]|"""")*?(?:""|\z)", Opt), TokenKind.String));
-            list.Add((new Regex(@"\$""(?:\\.|[^""\\])*?(?:""|\z)", Opt), TokenKind.String));
+            list.Add((RxVerbatim1, TokenKind.String));
+            list.Add((RxVerbatim2, TokenKind.String));
+            list.Add((RxVerbatim3, TokenKind.String));
         }
         if (p.HasBacktickStrings)
-            list.Add((new Regex(@"`(?:\\.|[^`\\])*?(?:`|\z)", Opt), TokenKind.String));
+            list.Add((RxBacktickString, TokenKind.String));
         foreach (var d in p.StringDelimiters)
         {
-            if (d == '"') list.Add((new Regex(@"""(?:\\.|[^""\\])*?(?:""|\z)", Opt), TokenKind.String));
-            else if (d == '\'') list.Add((new Regex(@"'(?:\\.|[^'\\])*?(?:'|\z)", Opt), TokenKind.String));
-            else if (d == '`') list.Add((new Regex(@"`(?:\\.|[^`\\])*?(?:`|\z)", Opt), TokenKind.String));
+            if (d == '"') list.Add((RxDoubleQuoteString, TokenKind.String));
+            else if (d == '\'') list.Add((RxSingleQuoteString, TokenKind.String));
+            else if (d == '`') list.Add((RxBacktickString, TokenKind.String));
         }
 
         // ── numbers ──
-        list.Add((new Regex(@"0[xX][0-9a-fA-F_]+[uUlL]*|0[bB][01_]+[uUlL]*|\d[\d_]*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?[fFdDmMuUlL]*", Opt), TokenKind.Number));
+        list.Add((RxNumber, TokenKind.Number));
 
         // ── words (classified as keyword / type / builtin / function / plain) ──
-        list.Add((new Regex(@"[A-Za-z_]\w*", Opt), TokenKind.Plain));
+        list.Add((RxWord, TokenKind.Plain));
 
         // ── operators & punctuation ──
-        list.Add((new Regex(@"[+\-*/%=<>!&|^~?:;,.()\[\]{}@#$\\]+|\s+", Opt), TokenKind.Plain));
+        list.Add((RxOpsPunct, TokenKind.Plain));
 
         return list;
     }

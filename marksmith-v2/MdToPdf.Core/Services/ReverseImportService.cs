@@ -104,7 +104,8 @@ public sealed class ReverseImportService
     /// <summary>Stream-based PDF import.</summary>
     public ReverseImportResult ImportFromPdf(Stream stream)
     {
-        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.ReadOnly);
+        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
+        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
         var markdown = ExtractPdfMarkdown(doc);
         if (string.IsNullOrWhiteSpace(markdown))
         {

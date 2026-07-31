@@ -20,15 +20,47 @@ public sealed class ExportCoordinator
 
     public SemaphoreSlim ConvertLock => _convertLock;
 
-    public static string[] ParseFormats(string? format)
+    public async Task ExportToPdfAsync(IWebRenderHost? host, string html, string outPath, AppSettings settings)
     {
-        if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
+        if (host is null || !await host.EnsureReadyAsync())
+        {
+            throw new InvalidOperationException("The preview engine couldn't start.");
+        }
+        await _pdfExport.ExportAsync(host, html, outPath, settings);
+    }
+
+    public async Task ExportToDocxAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _docxExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public async Task ExportToPptxAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _pptxExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public async Task ExportToEpubAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _epubExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public string ExportToHtml(string markdown, AppSettings settings)
+    {
+        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+        return AppServices.MarkdownHtml.Render(markdown, settings, theme, null);
+    }
+
+    public static string[] ParseFormats(string? format, string? defaultFormat = null)
+    {
+        var fallback = string.IsNullOrWhiteSpace(defaultFormat) ? "pdf" : defaultFormat.Trim().ToLowerInvariant();
+        if (fallback is not ("pdf" or "docx" or "pptx" or "epub")) fallback = "pdf";
+        if (string.IsNullOrWhiteSpace(format)) return new[] { fallback };
         if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
         var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(f => f.ToLowerInvariant())
             .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
             .Distinct().ToArray();
-        return fmts.Length > 0 ? fmts : new[] { "pdf" };
+        return fmts.Length > 0 ? fmts : new[] { fallback };
     }
 
     public async Task AutoExportIngestAsync(
@@ -60,7 +92,7 @@ public sealed class ExportCoordinator
 
             var produced = new List<string>();
             var pending = new List<string>();
-            var formats = ParseFormats(output?.Format);
+            var formats = ParseFormats(output?.Format, settings.DefaultExportFormat);
 
             IReadOnlyList<byte[]?>? mermaidImgs = null;
             IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
@@ -134,18 +166,27 @@ public sealed class ExportCoordinator
             // Cloud auto-publish (Task 9): mirror each produced file into the configured cloud drive
             // (a local sync-folder copy, or a WebDAV PUT). Best-effort — a failed sync must never
             // fail the export that just succeeded.
-            if (settings.CloudAutoPublish && produced.Count > 0 && !string.IsNullOrWhiteSpace(settings.CloudProviderId))
+            if (settings.CloudAutoPublish && produced.Count > 0)
             {
-                foreach (var p in produced)
+                if (string.IsNullOrWhiteSpace(settings.CloudProviderId))
                 {
-                    try
+                    // The user enabled cloud publish but never picked a provider — tell them.
+                    vm.StatusText += "  (Cloud publish skipped: no provider configured in Settings.)";
+                    vm.StatusSeverity = StatusSeverity.Warning;
+                }
+                else
+                {
+                    foreach (var p in produced)
                     {
-                        await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
-                            settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
-                    }
-                    catch (Exception cex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
+                        try
+                        {
+                            await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
+                                settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
+                        }
+                        catch (Exception cex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
+                        }
                     }
                 }
             }
@@ -190,14 +231,34 @@ public sealed class ExportCoordinator
             await _convertLock.WaitAsync();
             try
             {
-                var html = vm.BuildPreviewHtml(vm.PastedMarkdown);
-                var folder = AppServices.Settings.Current.OutputFolder;
+                var settings = AppServices.Settings.Current;
+                var md = vm.PastedMarkdown;
+                var folder = settings.OutputFolder;
                 Directory.CreateDirectory(folder);
-                var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                await _pdfExport.ExportAsync(host, html, outPath, AppServices.Settings.Current);
+
+                // Respect the user's target format instead of hardcoding PDF.
+                var fmt = (settings.TargetFormat ?? "pdf").ToLowerInvariant();
+                string outPath;
+
+                if (fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
+                {
+                    await _docxExport.ExportAppendAsync(md, settings.RunningDocPath, settings, null, null, null);
+                    outPath = settings.RunningDocPath;
+                }
+                else if (fmt == "docx")
+                {
+                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".docx");
+                    await _docxExport.ExportAsync(md, outPath, settings, null, null, null, null);
+                }
+                else
+                {
+                    var html = vm.BuildPreviewHtml(md);
+                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
+                    await _pdfExport.ExportAsync(host, html, outPath, settings);
+                }
 
                 vm.LastOutputPath = outPath;
-                vm.RecordExport("PDF", outPath, vm.PastedMarkdown);
+                vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
                 vm.StatusText = $"Auto-converted: {outPath}";
                 vm.StatusSeverity = StatusSeverity.Success;
                 showToast?.Invoke(outPath);

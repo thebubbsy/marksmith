@@ -12,7 +12,7 @@
 
     <!-- Tabbed so each concern gets its own page and nothing needs to scroll; Plugins in
          particular is expected to grow, so it lives apart from the always-there basics. -->
-    <Pivot MinWidth="500" MaxWidth="500" Height="480">
+    <Pivot MinWidth="500" MaxWidth="500" Height="560">
 
         <!-- ===== General ===== -->
         <PivotItem Header="General">
@@ -90,6 +90,60 @@
                         </ComboBox>
                     </StackPanel>
                 </Border>
+
+                <!-- Export + behavior preferences -->
+                <Border Style="{StaticResource PipelineCardStyle}">
+                    <StackPanel Padding="16,12" Spacing="10">
+                        <TextBlock Text="Export &amp; Behavior" FontWeight="SemiBold" />
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Default export format" Style="{StaticResource StepCaptionStyle}" />
+                            <ComboBox SelectedItem="{Binding DefaultExportFormat, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                <x:String>docx</x:String>
+                                <x:String>pdf</x:String>
+                                <x:String>pptx</x:String>
+                                <x:String>epub</x:String>
+                            </ComboBox>
+                            <TextBlock Text="Used by the browser extension, watch folder and quick-export shortcuts."
+                                       Style="{StaticResource StepCaptionStyle}" Opacity="0.6" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="When a choice is ambiguous" Style="{StaticResource StepCaptionStyle}" />
+                            <ComboBox SelectedIndex="{Binding AmbiguityMode, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                <x:String>Always ask me</x:String>
+                                <x:String>Use the default</x:String>
+                                <x:String>Remember my choices</x:String>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Check for updates on startup" />
+                                <TextBlock Text="Poll GitHub Releases once at launch and notify you when a newer MarkSmith is available."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding CheckForUpdatesOnStartup, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Word count in preview" />
+                                <TextBlock Text="Show the reading-time pill at the top of the live preview."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowWordCount, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </StackPanel>
             </ScrollViewer>
         </PivotItem>
@@ -135,6 +189,43 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <!-- Card 2: PDF Security — password protection + permissions (Task 18) -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Password Protection" FontWeight="SemiBold" />
+                                    <TextBlock Text="Encrypt the exported PDF and control who can open, print or edit it."
+                                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding PdfEncrypt, Mode=TwoWay}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <StackPanel Spacing="8" Visibility="{Binding PdfEncrypt, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
+                                <PasswordBox Header="Open password (required to view)"
+                                             Password="{Binding PdfUserPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             PlaceholderText="Leave blank for no open password" />
+                                <PasswordBox Header="Permissions password (required to change restrictions)"
+                                             Password="{Binding PdfOwnerPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             PlaceholderText="Auto-generated if left blank"
+                                             ToolTipService.ToolTip="If you restrict permissions below but leave both passwords blank, a random owner password is generated automatically." />
+
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Allowed actions" Style="{StaticResource StepCaptionStyle}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <CheckBox Content="Print" IsChecked="{Binding PdfAllowPrinting, Mode=TwoWay}" />
+                                        <CheckBox Content="Copy" IsChecked="{Binding PdfAllowCopying, Mode=TwoWay}" />
+                                        <CheckBox Content="Modify" IsChecked="{Binding PdfAllowModifying, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
         </PivotItem>
@@ -166,7 +257,65 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Card 2: Browser Extension Connector & Extension ID Pairing -->
+                    <!-- Card 2: Cloud Storage Auto-Publish (Task 9) -->
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Cloud Storage Sync" FontWeight="SemiBold" />
+                                    <TextBlock Text="Mirror every export into a cloud drive. Uses the provider's own desktop sync client — no API keys needed for local providers."
+                                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding CloudAutoPublish, Mode=TwoWay}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Provider" Style="{StaticResource StepCaptionStyle}" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding CloudProviders}"
+                                              SelectedValuePath="Id"
+                                              SelectedValue="{Binding CloudProviderId, Mode=TwoWay}"
+                                              DisplayMemberPath="DisplayName"
+                                              PlaceholderText="Select a cloud drive…"
+                                              HorizontalAlignment="Stretch" />
+                                    <Button Grid.Column="1" Click="OnRescanCloud" ToolTipService.ToolTip="Re-scan this PC for cloud sync folders">
+                                        <FontIcon Glyph="&#xE895;" FontSize="14" />
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Subfolder" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding CloudSubfolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="Marksmith" IsSpellCheckEnabled="False" />
+                                <TextBlock Text="Exports are saved into this folder inside your cloud drive."
+                                           Style="{StaticResource StepCaptionStyle}" Opacity="0.6" />
+                            </StackPanel>
+
+                            <!-- WebDAV fields (shown when the user picks the WebDAV provider) -->
+                            <StackPanel Spacing="4" Visibility="{Binding IsWebDavProvider, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
+                                <TextBlock Text="WebDAV Endpoint" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="https://dav.example.com/remote.php/dav/files/user/" IsSpellCheckEnabled="False" />
+                                <TextBlock Text="Username" Style="{StaticResource StepCaptionStyle}" />
+                                <TextBox Text="{Binding WebDavUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="user@example.com" IsSpellCheckEnabled="False" />
+                                <TextBlock Text="Token / Password" Style="{StaticResource StepCaptionStyle}" />
+                                <PasswordBox Password="{Binding WebDavToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             PlaceholderText="App password or access token" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 3: Browser Extension Connector & Extension ID Pairing -->
                     <Border Style="{StaticResource PipelineCardStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <TextBlock Text="Browser Extension Pairing Key" FontWeight="SemiBold" />
@@ -182,7 +331,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Card 3: House-Style Template Import (Zero-Click Pipeline) -->
+                    <!-- Card 4: House-Style Template Import (Zero-Click Pipeline) -->
                     <Border Style="{StaticResource PipelineCardStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <TextBlock Text="Company House-Style Template" FontWeight="SemiBold" />

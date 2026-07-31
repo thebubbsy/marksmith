@@ -988,11 +988,17 @@ public sealed partial class MarkdownHtmlService
                 };
 
                 // Split + portal: typing in the MAIN editor streams in here so the raw MD inside
-                // the shape stays live. The portal's own caret owns the text while the textarea is
-                // focused (its edits are already local), so only unfocused portals accept a push —
-                // which also kills the echo when a portal edit round-trips the app's debounce.
+                // the shape stays live. The portal's own caret owns the text while it is genuinely
+                // being edited (its edits are already local), so only portals that don't hold real
+                // focus accept a push — which also kills the echo when a portal edit round-trips
+                // the app's debounce. document.activeElement alone is NOT enough: when OS focus
+                // moves to the WinUI editor, WebView2 leaves activeElement stale on the textarea,
+                // which used to block legitimate editor→portal sync (one-way-only bug). Requiring
+                // document.hasFocus() means "the preview actually owns focus right now", so typing
+                // in the editor (WebView unfocused) always lands, while typing through the shape
+                // (WebView focused, textarea active) is still protected from stale pushes.
                 window.__portalUpdateSource = function (source) {
-                    if (!portalTa || document.activeElement === portalTa) return;
+                    if (!portalTa || (document.hasFocus() && document.activeElement === portalTa)) return;
                     source = source || "";
                     const old = portalTa.value;
                     if (old === source) return;
@@ -1657,6 +1663,16 @@ public sealed partial class MarkdownHtmlService
     // through the host's asset server, with no size limit, is the real fix — a follow-up.)
     private const long MaxInlineBudgetBytes = 1_200_000;
 
+    // Cache of already-inlined local images. Without it, every preview render re-read each image
+    // from disk, re-decoded it (Skia) and re-ran Convert.ToBase64String — a 1 MB screenshot cost a
+    // full disk read + decode + ~1.3 MB of base64 string on every debounced keystroke pause. The
+    // key folds in last-write-time + length, so an edited file misses naturally and is re-inlined.
+    // Bounded so a long session can't accumulate unbounded base64 strings.
+    private sealed record ImageCacheEntry(long ByteLength, string DataUri);
+    private static readonly Dictionary<string, ImageCacheEntry> ImageCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object ImageCacheLock = new();
+    private const int MaxImageCacheEntries = 64;
+
     private static string EmbedLocalImages(string body)
     {
         if (!body.Contains("<img", StringComparison.Ordinal)) return body;
@@ -1695,12 +1711,29 @@ public sealed partial class MarkdownHtmlService
                         // NavigateToString ceiling and take the whole preview down. Downscaling turns
                         // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
                         // pass through untouched; SVG is never rasterized.
-                        var (data, mime) = PrepareImageForInline(localPath, info);
-                        if (data is not null && mime is not null &&
-                            budgetUsed + data.Length * 4 / 3 <= MaxInlineBudgetBytes)
+                        // The resulting data URI is cached so a re-render reuses it instead of
+                        // re-reading/re-encoding the file (see ImageCache above).
+                        var cacheKey = $"{localPath}|{info.LastWriteTimeUtc.Ticks}|{info.Length}";
+                        ImageCacheEntry? entry;
+                        lock (ImageCacheLock) ImageCache.TryGetValue(cacheKey, out entry);
+                        if (entry is null)
                         {
-                            src = $"data:{mime};base64,{Convert.ToBase64String(data)}";
-                            budgetUsed += data.Length * 4 / 3;
+                            var (data, mime) = PrepareImageForInline(localPath, info);
+                            if (data is not null && mime is not null)
+                            {
+                                entry = new ImageCacheEntry(data.Length, $"data:{mime};base64,{Convert.ToBase64String(data)}");
+                                lock (ImageCacheLock)
+                                {
+                                    if (ImageCache.Count >= MaxImageCacheEntries) ImageCache.Clear();
+                                    ImageCache[cacheKey] = entry;
+                                }
+                            }
+                        }
+                        if (entry is not null &&
+                            budgetUsed + entry.ByteLength * 4 / 3 <= MaxInlineBudgetBytes)
+                        {
+                            src = entry.DataUri;
+                            budgetUsed += entry.ByteLength * 4 / 3;
                         }
                     }
                 }
