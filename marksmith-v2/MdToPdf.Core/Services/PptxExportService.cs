@@ -23,6 +23,7 @@ public sealed class PptxExportService
         markdown = TextNormalizer.Newlines(markdown);
         if (settings.NoEmoji) markdown = EmojiStripper.Strip(markdown);
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+        markdown = FormattingService.Apply(markdown, settings);
 
         var theme = Themes.GetOrDefault(settings.Theme);
         var slides = BuildSlides(markdown, HistoryEntry.ExtractTitle(markdown) ?? "Marksmith");

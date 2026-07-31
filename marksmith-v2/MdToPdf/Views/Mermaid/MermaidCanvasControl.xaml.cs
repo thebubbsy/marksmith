@@ -38,6 +38,9 @@ public sealed partial class MermaidCanvasControl : UserControl
     private bool _isDrawingConnector;
     private DiagramNodeViewModel? _connectorSourceNode;
     private string _connectorSourceAnchor = "Bottom";
+    // The node currently highlighted as the prospective connector drop target (so it can be
+    // un-highlighted when the pointer moves off it or the draw completes).
+    private DiagramNodeViewModel? _currentConnectionTarget;
 
     // Corner resize handles: drag a selected node's corner to change its Width/Height (and X/Y
     // for the NW/NE/SW edges that move). One undo snapshot per resize gesture.
@@ -77,10 +80,20 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnCanvasViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (ZoomLevelText != null && CanvasScrollViewer != null)
+        if (CanvasScrollViewer == null) return;
+
+        if (ZoomLevelText != null)
         {
             int zoomPercent = (int)Math.Round(CanvasScrollViewer.ZoomFactor * 100);
             ZoomLevelText.Text = $"{zoomPercent}%";
+        }
+
+        // Sync the ScrollViewer's zoom back to the ViewModel so the toolbar slider stays in sync.
+        if (ViewModel is MermaidStudioViewModel vm)
+        {
+            double rounded = Math.Round(CanvasScrollViewer.ZoomFactor, 2);
+            if (Math.Abs(vm.ZoomFactor - rounded) > 0.001)
+                vm.ZoomFactor = rounded;
         }
     }
 
@@ -124,6 +137,14 @@ public sealed partial class MermaidCanvasControl : UserControl
     }
 
     public void ZoomReset() => CanvasScrollViewer.ChangeView(null, null, 1.0f);
+
+    /// <summary>Sets the canvas zoom to an explicit factor (driven by the toolbar slider).</summary>
+    public void SetZoomFactor(double factor)
+    {
+        float clamped = (float)Math.Clamp(factor, CanvasScrollViewer.MinZoomFactor, CanvasScrollViewer.MaxZoomFactor);
+        if (Math.Abs(CanvasScrollViewer.ZoomFactor - clamped) > 0.001f)
+            CanvasScrollViewer.ChangeView(null, null, clamped);
+    }
 
     public void FitToContent()
     {
@@ -263,8 +284,15 @@ public sealed partial class MermaidCanvasControl : UserControl
             if (element.DataContext is DiagramNodeViewModel nodeVM)
             {
                 bool isMultiSelect = (e.KeyModifiers & (Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift)) != 0;
+                bool isAltDuplicate = (e.KeyModifiers & Windows.System.VirtualKeyModifiers.Menu) != 0;
 
-                if (ViewModel != null)
+                // Alt+drag: stamp a duplicate and drag the copy (Figma/Illustrator convention —
+                // Alt is used because Ctrl is already taken by multi-select).
+                if (isAltDuplicate && ViewModel != null)
+                {
+                    nodeVM = ViewModel.DuplicateSingleNodeForDrag(nodeVM);
+                }
+                else if (ViewModel != null)
                 {
                     if (!nodeVM.IsSelected && !isMultiSelect)
                     {
@@ -328,13 +356,20 @@ public sealed partial class MermaidCanvasControl : UserControl
             double deltaX = currentPos.X - _pointerStartPos.X;
             double deltaY = currentPos.Y - _pointerStartPos.Y;
 
+            // Smart alignment: compute a magnetic snap (and guide lines) against sibling nodes based
+            // on the primary node's proposed position, then apply the same offset to the whole
+            // selection so multi-drag stays coherent.
+            double primaryX = Math.Max(10, _nodeStartPos.X + deltaX);
+            double primaryY = Math.Max(10, _nodeStartPos.Y + deltaY);
+            var (snapDx, snapDy) = ComputeAlignmentSnap(_draggedNode, primaryX, primaryY);
+
             foreach (var kvp in _initialSelectedNodePositions)
             {
                 var node = kvp.Key;
                 var startPos = kvp.Value;
 
-                double newX = Math.Max(10, startPos.X + deltaX);
-                double newY = Math.Max(10, startPos.Y + deltaY);
+                double newX = Math.Max(10, startPos.X + deltaX + snapDx);
+                double newY = Math.Max(10, startPos.Y + deltaY + snapDy);
 
                 if (ViewModel.IsGridSnapEnabled)
                 {
@@ -366,6 +401,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             _isDraggingNode = false;
             _draggedNode = null;
             _initialSelectedNodePositions = null;
+            ClearAlignmentGuides();
             NodesItemsControl.ReleasePointerCapture(e.Pointer);
             e.Handled = true;
         }
@@ -381,6 +417,43 @@ public sealed partial class MermaidCanvasControl : UserControl
                 StartNodeInPlaceEdit(newNode);
             }
         }
+    }
+
+    // ---- Hover glow + anchor reveal -----------------------------------------------------------
+    // Setting IsHovered drives the hover ring and reveals the connector anchor dots (bound to
+    // ShowAnchors in the node template). Hover is suppressed mid-drag so the glow doesn't flicker
+    // as the pointer crosses other nodes during a move.
+    private void OnNodePointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isDraggingNode || _isResizingNode || _isDrawingConnector) return;
+        if (sender is FrameworkElement { DataContext: DiagramNodeViewModel node })
+            node.IsHovered = true;
+    }
+
+    private void OnNodePointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DiagramNodeViewModel node })
+            node.IsHovered = false;
+    }
+
+    // ---- Double-click empty canvas → drop a fresh node straight into inline edit --------------
+    private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        // Only act on a genuine empty-canvas double-tap (not on a node/connector, which have their
+        // own double-tap handlers for inline editing).
+        if (e.OriginalSource is FrameworkElement el && el.DataContext is DiagramNodeViewModel) return;
+        if (e.OriginalSource is FrameworkElement el2 && el2.DataContext is DiagramConnectorViewModel) return;
+
+        if (ViewModel is null) return;
+        Point pos = e.GetPosition(InfiniteCanvasGrid);
+        var item = new MermaidPaletteItem { Category = "Flowchart", ShapeType = "Rectangle", DefaultText = "New Node" };
+        var newNode = ViewModel.AddNodeFromPalette(item, pos.X, pos.Y);
+        if (newNode != null)
+        {
+            ViewModel.SelectNode(newNode, false);
+            StartNodeInPlaceEdit(newNode);
+        }
+        e.Handled = true;
     }
 
     // Applies a corner-resize delta to the node being resized. The grabbed corner moves with the
@@ -420,6 +493,99 @@ public sealed partial class MermaidCanvasControl : UserControl
         n.Y = y;
         n.Width = w;
         n.Height = h;
+    }
+
+    // ---- Smart alignment guides (Figma / draw.io-style) ---------------------------------------
+    // While a node is dragged, its left/center/right and top/center/bottom edges are compared
+    // against every sibling node. When an edge comes within AlignSnapThreshold px of a sibling's
+    // edge, the node magnetically snaps to it and a dashed guide line is drawn across both nodes.
+    private const double AlignSnapThreshold = 7;
+
+    private (double snapDx, double snapDy) ComputeAlignmentSnap(DiagramNodeViewModel dragged, double proposedX, double proposedY)
+    {
+        ClearAlignmentGuides();
+        var vm = ViewModel;
+        if (vm is null) return (0, 0);
+
+        double w = dragged.Width, h = dragged.Height;
+        // Proposed edges & centers of the dragged node.
+        double[] vEdges = { proposedX, proposedX + w / 2, proposedX + w };
+        double[] hEdges = { proposedY, proposedY + h / 2, proposedY + h };
+
+        double bestDx = 0, bestDy = 0;
+        double bestVDist = AlignSnapThreshold, bestHDist = AlignSnapThreshold;
+        double guideVx = double.NaN, guideHy = double.NaN;
+        DiagramNodeViewModel? vMatch = null, hMatch = null;
+
+        foreach (var sib in vm.Nodes)
+        {
+            if (sib == dragged) continue;
+            // Skip nodes moving together with the drag (they stay in relative position).
+            if (_initialSelectedNodePositions != null && _initialSelectedNodePositions.ContainsKey(sib)) continue;
+
+            double[] sibV = { sib.X, sib.X + sib.Width / 2, sib.X + sib.Width };
+            double[] sibH = { sib.Y, sib.Y + sib.Height / 2, sib.Y + sib.Height };
+
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    double dv = sibV[j] - vEdges[i];
+                    if (Math.Abs(dv) < bestVDist)
+                    {
+                        bestVDist = Math.Abs(dv);
+                        bestDx = dv;
+                        guideVx = sibV[j];
+                        vMatch = sib;
+                    }
+
+                    double dh = sibH[j] - hEdges[i];
+                    if (Math.Abs(dh) < bestHDist)
+                    {
+                        bestHDist = Math.Abs(dh);
+                        bestDy = dh;
+                        guideHy = sibH[j];
+                        hMatch = sib;
+                    }
+                }
+            }
+        }
+
+        // Show a vertical guide if we snapped horizontally (aligned on an X edge).
+        if (vMatch != null && !double.IsNaN(guideVx))
+        {
+            double top = Math.Min(proposedY, vMatch.Y) - 24;
+            double bottom = Math.Max(proposedY + h, vMatch.Y + vMatch.Height) + 24;
+            VerticalAlignGuide.X1 = guideVx; VerticalAlignGuide.X2 = guideVx;
+            VerticalAlignGuide.Y1 = top; VerticalAlignGuide.Y2 = bottom;
+            VerticalAlignGuide.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            bestDx = 0;
+        }
+
+        // Show a horizontal guide if we snapped vertically (aligned on a Y edge).
+        if (hMatch != null && !double.IsNaN(guideHy))
+        {
+            double left = Math.Min(proposedX, hMatch.X) - 24;
+            double right = Math.Max(proposedX + w, hMatch.X + hMatch.Width) + 24;
+            HorizontalAlignGuide.X1 = left; HorizontalAlignGuide.X2 = right;
+            HorizontalAlignGuide.Y1 = guideHy; HorizontalAlignGuide.Y2 = guideHy;
+            HorizontalAlignGuide.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            bestDy = 0;
+        }
+
+        return (bestDx, bestDy);
+    }
+
+    private void ClearAlignmentGuides()
+    {
+        VerticalAlignGuide.Visibility = Visibility.Collapsed;
+        HorizontalAlignGuide.Visibility = Visibility.Collapsed;
     }
 
     #endregion
@@ -523,6 +689,10 @@ public sealed partial class MermaidCanvasControl : UserControl
             pathGeo.Figures.Add(figure);
 
             DraftConnectorPath.Data = pathGeo;
+
+            // Highlight the node under the cursor as the prospective connection target so the user
+            // gets clear "drop here" feedback before releasing.
+            UpdateConnectionTargetHighlight(mousePos);
             e.Handled = true;
         }
     }
@@ -593,8 +763,40 @@ public sealed partial class MermaidCanvasControl : UserControl
 
             _isDrawingConnector = false;
             _connectorSourceNode = null;
+            ClearConnectionTargetHighlight();
             DraftConnectorPath.Visibility = Visibility.Collapsed;
             NodesItemsControl.ReleasePointerCapture(e.Pointer);
+        }
+    }
+
+    // Highlights the node under the pointer (excluding the connector's source) as the prospective
+    // drop target; un-highlights the previous target when the pointer moves off it.
+    private void UpdateConnectionTargetHighlight(Point mousePos)
+    {
+        var vm = ViewModel;
+        if (vm is null) return;
+
+        var target = vm.Nodes.FirstOrDefault(n =>
+            n != _connectorSourceNode &&
+            mousePos.X >= n.X && mousePos.X <= n.X + n.Width &&
+            mousePos.Y >= n.Y && mousePos.Y <= n.Y + n.Height);
+
+        if (target == _currentConnectionTarget) return;
+
+        if (_currentConnectionTarget != null)
+            _currentConnectionTarget.IsConnectionTarget = false;
+
+        _currentConnectionTarget = target;
+        if (target != null)
+            target.IsConnectionTarget = true;
+    }
+
+    private void ClearConnectionTargetHighlight()
+    {
+        if (_currentConnectionTarget != null)
+        {
+            _currentConnectionTarget.IsConnectionTarget = false;
+            _currentConnectionTarget = null;
         }
     }
 

@@ -130,7 +130,7 @@ public static class MermaidDocxRenderer
                 var d = renderer.Render(source, theme); // MermaidParseException → catch below
                 if (d.Shapes.Count == 0 && d.Connectors.Count == 0) return false;
                 
-                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized, smartConnectors: settings.SmartConnectors) };
+                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized, smartConnectors: settings.SmartConnectors, connectorRouting: settings.ConnectorRouting) };
                 paragraph.PrependChild(new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
                     new W.Justification { Val = W.JustificationValues.Center }));
@@ -625,7 +625,13 @@ public static class MermaidDocxRenderer
             cxnAttr = $"<a:stCxn id=\"{e.From.XmlId}\" idx=\"{stIdx}\"/><a:endCxn id=\"{e.To.XmlId}\" idx=\"{endIdx}\"/>";
         }
         
-        string prst = settings.ConnectorRouting == "elbow" ? "bentConnector3" : "straightConnector1";
+        string prst = settings.ConnectorRouting switch
+        {
+            "elbow" => "bentConnector3",
+            "curved" => "curveConnector3",
+            "straight" => "straightConnector1",
+            _ => "straightConnector1", // "default": straight (this renderer has no per-edge elbow data)
+        };
 
         return $"""
             <wps:wsp>

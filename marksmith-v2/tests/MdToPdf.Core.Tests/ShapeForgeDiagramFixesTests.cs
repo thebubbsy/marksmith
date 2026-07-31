@@ -236,4 +236,36 @@ public class ShapeForgeDiagramFixesTests
         Assert.True(m.Success, "expected a text-run colour in the emitted diagram");
         return m.Groups[1].Value.ToUpperInvariant();
     }
+
+    // ---- Aggressive shrink must keep edges glued to their nodes ------------------------------
+    // The oversized "shrink spacing / shapes / both" modes (6/7/8) re-space the nodes and throw
+    // away the harvested curve path. The edge therefore has to be re-anchored as a Word smart
+    // connector (a:stCxn/a:endCxn) so it stays attached to its nodes; before the fix the anchors
+    // were only inferred from the curve AFTER it was discarded, so nothing was ever connected.
+
+    [Theory]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    public void Emitter_aggressive_shrink_keeps_edges_connected_to_nodes(int mode)
+    {
+        // A diagram too large for the page, with one edge running from node A's right border to
+        // node B's left border (sampled curve points, as the harvester produces).
+        var d = new MDiagram { Width = 2000, Height = 1000 };
+        d.Shapes.Add(new MShape { Kind = ShapeKind.Rect, X = 0, Y = 0, W = 100, H = 50, Text = "A" });
+        d.Shapes.Add(new MShape { Kind = ShapeKind.Rect, X = 1900, Y = 950, W = 100, H = 50, Text = "B" });
+        d.Connectors.Add(new MConnector
+        {
+            X1 = 100, Y1 = 25, X2 = 1900, Y2 = 975,
+            Points = new[] { (100.0, 25.0), (1000.0, 500.0), (1900.0, 975.0) },
+        });
+
+        var xml = DocxShapeEmitter.ToParagraphXml(d, Light.ForDiagram(), 1, out _,
+            oversizedMode: mode, smartConnectors: true);
+
+        // Both ends must be glued to a shape — without stCxn/endCxn the edge is a bare line whose
+        // coordinates no longer match the re-spaced nodes, i.e. it floats free of the diagram.
+        Assert.Contains("<a:stCxn", xml);
+        Assert.Contains("<a:endCxn", xml);
+    }
 }

@@ -17,8 +17,8 @@
         .wrap { max-width: 460px; margin: 0 auto; }
         header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
         header img {
-            width: 56px; height: 56px; border-radius: 50%;
-            background: #fff; padding: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.4);
+            width: 56px; height: 56px; border-radius: 12px;
+            background: transparent; padding: 0; filter: drop-shadow(0 4px 12px rgba(0,0,0,.4));
         }
         header h1 { font-size: 20px; margin: 0; font-weight: 700; }
         header p { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
@@ -65,7 +65,6 @@
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
         .mini label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
         .mini input[type=number] { width: 100%; }
-        .toggle-mini { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13.5px; cursor: pointer; }
 
         .actions { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
         button {
@@ -73,6 +72,8 @@
             color: #fff; background: var(--accent); border: none; border-radius: 10px; transition: .15s;
         }
         button:hover { background: var(--accent-hi); }
+        button.ghost { background: transparent; border: 1px solid var(--line); color: var(--dim); }
+        button.ghost:hover { border-color: var(--accent); color: var(--text); background: rgba(124, 77, 255, .08); }
         .toast-banner {
             display: inline-flex; align-items: center; gap: 8px;
             padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
@@ -139,24 +140,28 @@
 
         <div class="card">
             <h2>Output profile</h2>
-            <div class="hint" style="margin:-4px 0 16px">Applied to PDFs Marksmith auto-generates from
-                what the extension sends — independent of the app's own Style settings.</div>
+            <div class="hint" style="margin:-4px 0 16px">Every field starts on <b>App default</b> —
+                the setting you've saved in the Marksmith app itself, followed <b>live</b>. Set a
+                field only if you want extension captures to <b>override</b> your in-app choice.
+                <span id="overrideCount" style="display:block;margin-top:6px;color:#c8c8d8"></span></div>
 
             <div class="grid2">
                 <div class="mini"><label for="o_theme">Theme</label><select id="o_theme"></select></div>
                 <div class="mini"><label for="o_contentWidth">Page width (px)</label>
-                    <input type="number" id="o_contentWidth" min="400" max="2400"></div>
+                    <input type="number" id="o_contentWidth" min="400" max="2400" placeholder="App default"></div>
                 <div class="mini"><label for="o_dashMode">Em dashes</label>
                     <select id="o_dashMode">
+                        <option value="">App default</option>
                         <option value="0">Keep</option><option value="1">Hyphen (-)</option>
                         <option value="2">Spaced ( - )</option><option value="3">Custom…</option>
                     </select></div>
                 <div class="mini"><label for="o_dashCustom">Custom dash</label>
                     <input type="text" id="o_dashCustom" placeholder="used when Custom"></div>
                 <div class="mini"><label for="o_headingShift">Heading shift</label>
-                    <input type="number" id="o_headingShift" min="-5" max="5"></div>
+                    <input type="number" id="o_headingShift" min="-5" max="5" placeholder="App default"></div>
                 <div class="mini"><label for="o_format">Output format</label>
                     <select id="o_format">
+                        <option value="">App default</option>
                         <option value="pdf">PDF</option>
                         <option value="docx">DOCX</option>
                         <option value="both">PDF + DOCX</option>
@@ -165,21 +170,27 @@
                     </select></div>
                 <div class="mini"><label for="o_mermaidDocxMode">Diagrams in Word</label>
                     <select id="o_mermaidDocxMode">
+                        <option value="">App default</option>
                         <option value="1">ShapeForge&trade; (editable shapes)</option>
                         <option value="0">Snapshot (picture)</option>
                     </select></div>
                 <div class="mini"><label for="o_oversizedDiagramMode">Oversized Diagrams</label>
                     <select id="o_oversizedDiagramMode">
-                        <option value="1">Exact (Web Layout)</option>
-                        <option value="2">Reflow to fit width</option>
-                        <option value="3">Split vertically</option>
-                        <option value="4">Grid (Poster pages)</option>
-                        <option value="5">Shrink to fit page</option>
+                        <option value="">App default</option>
+                        <option value="1">Keep Original Size (Web Layout)</option>
+                        <option value="2">Gentle Shrink (Max 75%)</option>
+                        <option value="3">Slice Vertically (Multiple pages)</option>
+                        <option value="4">Enlarge Page Size (2x2 Poster)</option>
+                        <option value="5">Aggressive Shrink (Force to 1 page)</option>
+                        <option value="6">Compress Gaps (ShapeForge)</option>
+                        <option value="7">Compress Nodes (ShapeForge)</option>
+                        <option value="8">Compress Both (ShapeForge)</option>
                     </select></div>
                 <div class="mini"><label for="o_diagramGridSize">Poster Grid Size</label>
-                    <input type="number" id="o_diagramGridSize" min="2" max="5" placeholder="2 (2x2)"></div>
+                    <input type="number" id="o_diagramGridSize" min="2" max="3" placeholder="App default"></div>
                 <div class="mini"><label for="o_connectorRouting">Line Routing</label>
                     <select id="o_connectorRouting">
+                        <option value="">App default</option>
                         <option value="default">Default</option>
                         <option value="straight">Straight</option>
                         <option value="elbow">Elbow</option>
@@ -187,33 +198,78 @@
                     </select></div>
                 <div class="mini"><label for="o_connectorArrowhead">Line Arrowheads</label>
                     <select id="o_connectorArrowhead">
+                        <option value="">App default</option>
                         <option value="default">Default</option>
                         <option value="triangle">Triangle</option>
                         <option value="open">Open</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="oval">Oval</option>
                         <option value="stealth">Stealth</option>
                         <option value="none">None</option>
                     </select></div>
+                <div class="mini"><label for="o_fontPreset">Font Preset</label>
+                    <select id="o_fontPreset">
+                        <option value="">App default</option>
+                        <option value="System">System</option>
+                        <option value="Serif">Serif</option>
+                        <option value="Sans-Serif">Sans-Serif</option>
+                        <option value="Monospace">Monospace</option>
+                        <option value="Dyslexic-friendly">Dyslexic-friendly</option>
+                    </select></div>
+                <div class="mini"><label for="o_pdfPageNumberPosition">PDF Page Numbers</label>
+                    <select id="o_pdfPageNumberPosition">
+                        <option value="">App default</option>
+                        <option value="None">None</option>
+                        <option value="BottomRight">Bottom Right</option>
+                        <option value="BottomCenter">Bottom Center</option>
+                        <option value="TopRight">Top Right</option>
+                    </select></div>
+                <div class="mini"><label for="o_fileNameTemplate">File Name Template</label>
+                    <input type="text" id="o_fileNameTemplate" placeholder="App default ({title})"></div>
                 <div class="mini"><label for="o_boldMode">Bold</label>
-                    <select id="o_boldMode"><option value="0">Keep</option><option value="1">Remove</option><option value="2">To italic</option></select></div>
+                    <select id="o_boldMode"><option value="">App default</option><option value="0">Keep</option><option value="1">Remove</option><option value="2">To italic</option></select></div>
                 <div class="mini"><label for="o_italicMode">Italic</label>
-                    <select id="o_italicMode"><option value="0">Keep</option><option value="1">Remove</option></select></div>
+                    <select id="o_italicMode"><option value="">App default</option><option value="0">Keep</option><option value="1">Remove</option></select></div>
             </div>
 
             <div class="field" style="margin-top:16px">
                 <label for="o_outputFolder">Output folder</label>
-                <input type="text" id="o_outputFolder" placeholder="e.g. C:\Users\you\Documents — blank uses the app's folder">
+                <input type="text" id="o_outputFolder" placeholder="App default — the app's own export folder">
             </div>
 
-            <div class="grid2" style="margin-top:18px">
-                <label class="toggle-mini"><span>Light influence (Theme)</span><span class="switch"><input type="checkbox" id="o_themeLightInfluence"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Generate Cover Page</span><span class="switch"><input type="checkbox" id="o_brandCoverPage"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Smart Connectors</span><span class="switch"><input type="checkbox" id="o_smartConnectors"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Lock to A4 width</span><span class="switch"><input type="checkbox" id="o_a4FixedWidth"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Single continuous page</span><span class="switch"><input type="checkbox" id="o_unlimitedHeight"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Table of contents</span><span class="switch"><input type="checkbox" id="o_includeToc"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Source attribution</span><span class="switch"><input type="checkbox" id="o_showAttribution"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>Normalize AI quirks</span><span class="switch"><input type="checkbox" id="o_normalizeLlm"><span class="slider"></span></span></label>
-                <label class="toggle-mini"><span>No emoji</span><span class="switch"><input type="checkbox" id="o_noEmoji"><span class="slider"></span></span></label>
+            <h2 style="margin-top:22px">On / Off overrides</h2>
+            <div class="hint" style="margin:-4px 0 14px">Tri-state: <b>App default</b> follows the
+                app's switch, or force <b>On</b> / <b>Off</b> for everything the extension sends.</div>
+            <div class="grid2">
+                <div class="mini"><label for="o_themeLightInfluence">Light influence (Theme)</label>
+                    <select id="o_themeLightInfluence"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_brandCoverPage">Generate Cover Page</label>
+                    <select id="o_brandCoverPage"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_smartConnectors">Smart Connectors</label>
+                    <select id="o_smartConnectors"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_a4FixedWidth">Lock to A4 width</label>
+                    <select id="o_a4FixedWidth"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_unlimitedHeight">Single continuous page</label>
+                    <select id="o_unlimitedHeight"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_includeToc">Table of contents</label>
+                    <select id="o_includeToc"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_showWordCount">Show Word Count</label>
+                    <select id="o_showWordCount"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_showAttribution">Source attribution</label>
+                    <select id="o_showAttribution"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_normalizeLlm">Normalize AI quirks</label>
+                    <select id="o_normalizeLlm"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_noEmoji">No emoji</label>
+                    <select id="o_noEmoji"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_pageBorder">Page Frame / Border</label>
+                    <select id="o_pageBorder"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                <div class="mini"><label for="o_trackChanges">Track Changes (Word)</label>
+                    <select id="o_trackChanges"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+            </div>
+
+            <div class="actions" style="margin-top:18px">
+                <button id="resetOutput" class="ghost">Reset to app defaults</button>
+                <div class="hint">Clears every override so the app's settings win across the board.</div>
             </div>
         </div>
 

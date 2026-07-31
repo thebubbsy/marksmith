@@ -70,21 +70,33 @@ and set an idle delay (seconds). When you stop typing/clicking in a chat for tha
 whole conversation is sent to Marksmith automatically — no button press. Pair it with the app's
 **Automation → Auto-generate from AI-chat ingests** to get a finished document every time.
 
-**Output profile.** The connector drives the app's output settings for anything it sends *or
-downloads*, independently of the app's own Style panel:
+**Output profile — your app's settings, live.** The extension does *not* keep its own copy of
+your output settings. Every field defaults to **App default**: whatever you've saved in the
+Marksmith app's Style panel at that moment wins, and changes there take effect on the very next
+capture — no re-saving here. Set a field in the extension only if you want extension captures
+to *override* your in-app choice (e.g. AI chats always get no-emoji + normalized dashes while
+your in-app work keeps its own style). The page shows how many fields you're currently
+overriding, and **Reset to app defaults** clears them all in one click.
 
-| Setting | What it controls |
+| Override | What it controls |
 | --- | --- |
-| **Output format** | Default format for auto-sends (PDF, DOCX, PDF + DOCX, PowerPoint, EPUB — non-PDF needs Marksmith Pro). Popup downloads override this per-click. |
-| **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture) |
 | **Theme** | Any of the app's themes (the list auto-populates from the running app) |
+| **Output format** | Format for auto-sends (PDF, DOCX, PDF + DOCX, PowerPoint, EPUB). Popup downloads always use the button you pressed. |
 | **Page width / A4 lock / single continuous page** | Layout of the exported document |
+| **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture) |
+| **Oversized diagrams** | All 8 strategies from the app: Keep Original Size, Gentle Shrink (max 75%), Slice Vertically, Enlarge Page Size (poster), Aggressive Shrink, and the Compress family (Gaps / Nodes / Both) |
+| **Poster grid size** | 2×2 or 3×3 for the Enlarge Page Size strategy |
+| **Smart connectors / line routing / line arrowheads** | ShapeForge connector styles — routing (straight / elbow / curved) and all 7 arrowheads including diamond & oval |
+| **Font preset / PDF page numbers / file name template** | Typography and export chrome |
+| **Table of contents / word count / source attribution / cover page** | Document extras |
 | **Normalize AI quirks / no-emoji / em-dash handling** | Cleanup applied on the way in |
-| **Heading shift / bold / italic** | Formatting personalization (Pro) |
-| **Output folder** | Where the app's own automated exports are written (browser downloads go to your browser's Downloads folder) |
+| **Heading shift / bold / italic** | Formatting personalization |
+| **Page border / Track Changes** | DOCX page chrome |
+| **Output folder** | Where the app's automated exports are written (browser downloads go to your browser's Downloads folder) |
 
-Click **Save** — the profile is stored in `chrome.storage.sync` and sent with every capture.
-Leave the profile untouched to just use whatever the app is set to.
+Click **Save** — only your explicit overrides are stored (`chrome.storage.sync`) and sent with
+each capture; everything else follows the app. Source details (which AI site, the model, chat
+title, language & accent color) are still captured automatically on every send.
 
 ## Notes
 

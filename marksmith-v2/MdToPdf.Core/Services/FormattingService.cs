@@ -49,10 +49,13 @@ public static partial class FormattingService
         }
 
         // Bold first — turning bold→italic can create emphasis the italic pass then acts on,
-        // which is the intended, composable behaviour.
-        if (s.BoldMode == Remove)
+        // which is the intended, composable behaviour. EXCEPTION: BoldMode=ToItalic + ItalicMode=Remove
+        // is self-defeating (bold→italic→strip deletes all bold content), so we collapse it to
+        // "remove bold" — the user's combined intent is "no bold, no italic".
+        var effectiveBold = (s.BoldMode == ToItalic && s.ItalicMode == Remove) ? Remove : s.BoldMode;
+        if (effectiveBold == Remove)
             text = Bold().Replace(text, m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
-        else if (s.BoldMode == ToItalic)
+        else if (effectiveBold == ToItalic)
             text = Bold().Replace(text, m => "*" + (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value) + "*");
 
         if (s.ItalicMode == Remove)

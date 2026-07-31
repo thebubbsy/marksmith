@@ -90,12 +90,14 @@ public sealed class GovernanceService
         }
     }
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     private void Save()
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(StorePath)!);
-            File.WriteAllText(StorePath, JsonSerializer.Serialize(_events));
+            File.WriteAllText(StorePath, JsonSerializer.Serialize(_events, JsonOpts));
         }
         catch { /* best-effort */ }
     }
@@ -105,7 +107,7 @@ public sealed class GovernanceService
         try
         {
             if (File.Exists(StorePath))
-                return JsonSerializer.Deserialize<List<UsageEvent>>(File.ReadAllText(StorePath)) ?? new();
+                return JsonSerializer.Deserialize<List<UsageEvent>>(File.ReadAllText(StorePath), JsonOpts) ?? new();
         }
         catch { }
         return new();

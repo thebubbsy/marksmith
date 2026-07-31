@@ -62,6 +62,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         {
             HighlightActivePalette();
             InitializeCodeEditor();
+
+            // Wire the toolbar zoom slider (ViewModel.ZoomFactor) to the canvas ScrollViewer.
+            if (e.NewValue is MermaidStudioViewModel vm)
+            {
+                vm.PropertyChanged += OnViewModelPropertyChanged;
+            }
         };
 
         // Live code editing: debounce keystrokes, then sync code -> canvas (and, when the editor
@@ -464,6 +470,18 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         _canvas.ZoomReset();
         args.Handled = true;
+    }
+
+    /// <summary>
+    /// Listens for ViewModel.ZoomFactor changes (driven by the toolbar slider) and pushes
+    /// the new zoom level into the canvas ScrollViewer.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MermaidStudioViewModel.ZoomFactor) && ViewModel is not null)
+        {
+            _canvas.SetZoomFactor(ViewModel.ZoomFactor);
+        }
     }
 
     private void OnSyncToMarkdownClick(object sender, RoutedEventArgs e)

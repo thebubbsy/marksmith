@@ -44,6 +44,9 @@ public static class AdmonitionNormalizer
     // so Markdig still parses **bold**, code, math inside). Group 3 captures the fold char.
     private static readonly Regex FoldedCallout = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]([-+])\s*(.*)$");
 
+    private static readonly Regex BlockquoteStartRx = new(@"^\s*>", RegexOptions.Compiled);
+    private static readonly Regex StripBlockquoteRx = new(@"^\s*>\s?", RegexOptions.Compiled);
+
     public static string Apply(string markdown)
     {
         if (string.IsNullOrEmpty(markdown)) return markdown;
@@ -85,9 +88,9 @@ public static class AdmonitionNormalizer
                 // Consume the rest of the blockquote as the callout body, stripping the "> " marker.
                 var body = new List<string>();
                 int j = i + 1;
-                while (j < lines.Length && Regex.IsMatch(lines[j], @"^\s*>"))
+                while (j < lines.Length && BlockquoteStartRx.IsMatch(lines[j]))
                 {
-                    body.Add(Regex.Replace(lines[j], @"^\s*>\s?", ""));
+                    body.Add(StripBlockquoteRx.Replace(lines[j], ""));
                     j++;
                 }
                 i = j - 1; // the for-loop's i++ lands on the first non-blockquote line

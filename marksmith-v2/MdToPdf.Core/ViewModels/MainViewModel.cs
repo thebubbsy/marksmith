@@ -201,12 +201,39 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _pdfFooterTemplate = "";
     [ObservableProperty] private string _pdfPageNumberPosition = "None";
 
+    // PDF security (Task 18): password protection + access-control permissions.
+    [ObservableProperty] private bool _pdfEncrypt;
+    [ObservableProperty] private string _pdfUserPassword = "";
+    [ObservableProperty] private string _pdfOwnerPassword = "";
+    [ObservableProperty] private bool _pdfAllowPrinting = true;
+    [ObservableProperty] private bool _pdfAllowCopying = true;
+    [ObservableProperty] private bool _pdfAllowModifying = true;
+
+    // Diagram + document chrome settings that previously had no UI surface.
+    [ObservableProperty] private bool _mermaidEnabled = true;
+    [ObservableProperty] private bool _smartConnectors = true;
+    [ObservableProperty] private string _connectorArrowhead = "default";
+    [ObservableProperty] private int _diagramGridSize = 2;
+    [ObservableProperty] private bool _pageBorder;
+    [ObservableProperty] private bool _trackChanges;
+    [ObservableProperty] private string _authorName = "";
+    [ObservableProperty] private string _customFontPath = "";
+
+    // General preferences.
+    [ObservableProperty] private string _defaultExportFormat = "docx";
+    [ObservableProperty] private int _ambiguityMode = 1;
+    [ObservableProperty] private bool _checkForUpdatesOnStartup = true;
+    [ObservableProperty] private bool _portalFocusBlur = true;
+
     // Typography preset (Task 16) — id from FontManagerService.Presets ("System" default).
     [ObservableProperty] private string _fontPreset = "System";
 
     // Cloud drives detected on this machine (Task 9); feeds the Settings ▸ Automation ▸ Cloud Sync
     // picker. Refreshed on startup and via RefreshCloudProviders() (the "Re-scan" button).
     public ObservableCollection<Models.CloudProviderInfo> CloudProviders { get; } = new();
+
+    // True when the selected cloud provider is WebDAV (shows the endpoint/credentials fields).
+    public bool IsWebDavProvider => CloudProviderId == "webdav";
 
     // The originating conversation's title (from source-page metadata on ingest), used as the
     // default export filename + document title. Empty for hand-typed / plain content.
@@ -307,8 +334,24 @@ private readonly MarkdownExportService _mdExport = new();
     public string DocumentStatsDetail => DocumentStats.DetailText;
 
     // Reading-time / structure metrics for the current document. Derived from PastedMarkdown, so it
-    // refreshes with the same change notification the word count already fired on.
-    public Services.DocumentStats DocumentStats => Services.DocumentStatsService.Analyze(PastedMarkdown);
+    // refreshes with the same change notification the word count already fired on. The result is
+    // cached per source string: WordCountText and DocumentStatsDetail both read this property, so
+    // without the cache a single status-bar refresh ran the full Analyze scan twice.
+    private Services.DocumentStats _cachedStats;
+    private string? _cachedStatsSource;
+    public Services.DocumentStats DocumentStats
+    {
+        get
+        {
+            var src = PastedMarkdown;
+            if (!ReferenceEquals(src, _cachedStatsSource))
+            {
+                _cachedStats = Services.DocumentStatsService.Analyze(src);
+                _cachedStatsSource = src;
+            }
+            return _cachedStats;
+        }
+    }
 
     partial void OnPastedMarkdownChanged(string value)
     {
@@ -514,6 +557,25 @@ private readonly MarkdownExportService _mdExport = new();
         _pdfPageNumberPosition = settings.PdfPageNumberPosition;
         _fontPreset = settings.FontPreset;
         _targetFormat = settings.TargetFormat;
+        _pdfEncrypt = settings.PdfEncrypt;
+        _pdfUserPassword = settings.PdfUserPassword;
+        _pdfOwnerPassword = settings.PdfOwnerPassword;
+        _pdfAllowPrinting = settings.PdfAllowPrinting;
+        _pdfAllowCopying = settings.PdfAllowCopying;
+        _pdfAllowModifying = settings.PdfAllowModifying;
+        _mermaidEnabled = settings.MermaidEnabled;
+        _smartConnectors = settings.SmartConnectors;
+        _connectorArrowhead = settings.ConnectorArrowhead;
+        _diagramGridSize = settings.DiagramGridSize;
+        _pageBorder = settings.PageBorder;
+        _trackChanges = settings.TrackChanges;
+        _authorName = settings.AuthorName;
+        _customFontPath = settings.CustomFontPath;
+        _defaultExportFormat = settings.DefaultExportFormat;
+        _ambiguityMode = settings.AmbiguityMode;
+        _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
+        _showWordCount = settings.ShowWordCount;
+        _portalFocusBlur = settings.PortalFocusBlur;
 
         RefreshCloudProviders();
 
@@ -607,7 +669,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
     partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
-    partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; SaveSettingsDebounced(); }
+    partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }
     partial void OnCloudSubfolderChanged(string value) { _settingsService.Current.CloudSubfolder = value; SaveSettingsDebounced(); }
     partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
     partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }
@@ -616,6 +678,25 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnPdfFooterTemplateChanged(string value) { _settingsService.Current.PdfFooterTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
     partial void OnPdfPageNumberPositionChanged(string value) { _settingsService.Current.PdfPageNumberPosition = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
     partial void OnFontPresetChanged(string value) { _settingsService.Current.FontPreset = value; SaveSettingsDebounced(); }
+    partial void OnPdfEncryptChanged(bool value) { _settingsService.Current.PdfEncrypt = value; SaveSettingsDebounced(); }
+    partial void OnPdfUserPasswordChanged(string value) { _settingsService.Current.PdfUserPassword = value; SaveSettingsDebounced(); }
+    partial void OnPdfOwnerPasswordChanged(string value) { _settingsService.Current.PdfOwnerPassword = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowPrintingChanged(bool value) { _settingsService.Current.PdfAllowPrinting = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowCopyingChanged(bool value) { _settingsService.Current.PdfAllowCopying = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowModifyingChanged(bool value) { _settingsService.Current.PdfAllowModifying = value; SaveSettingsDebounced(); }
+    partial void OnMermaidEnabledChanged(bool value) { _settingsService.Current.MermaidEnabled = value; SaveSettingsDebounced(); }
+    partial void OnSmartConnectorsChanged(bool value) { _settingsService.Current.SmartConnectors = value; SaveSettingsDebounced(); }
+    partial void OnConnectorArrowheadChanged(string value) { _settingsService.Current.ConnectorArrowhead = value; SaveSettingsDebounced(); }
+    partial void OnDiagramGridSizeChanged(int value) { _settingsService.Current.DiagramGridSize = value; SaveSettingsDebounced(); }
+    partial void OnPageBorderChanged(bool value) { _settingsService.Current.PageBorder = value; SaveSettingsDebounced(); }
+    partial void OnTrackChangesChanged(bool value) { _settingsService.Current.TrackChanges = value; SaveSettingsDebounced(); }
+    partial void OnAuthorNameChanged(string value) { _settingsService.Current.AuthorName = value; SaveSettingsDebounced(); }
+    partial void OnCustomFontPathChanged(string value) { _settingsService.Current.CustomFontPath = value; SaveSettingsDebounced(); }
+    partial void OnDefaultExportFormatChanged(string value) { _settingsService.Current.DefaultExportFormat = value; SaveSettingsDebounced(); }
+    partial void OnAmbiguityModeChanged(int value) { _settingsService.Current.AmbiguityMode = value; SaveSettingsDebounced(); }
+    partial void OnCheckForUpdatesOnStartupChanged(bool value) { _settingsService.Current.CheckForUpdatesOnStartup = value; SaveSettingsDebounced(); }
+    partial void OnShowWordCountChanged(bool value) { _settingsService.Current.ShowWordCount = value; SaveSettingsDebounced(); }
+    partial void OnPortalFocusBlurChanged(bool value) { _settingsService.Current.PortalFocusBlur = value; SaveSettingsDebounced(); }
 
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
     // tokens expand to. Falls back to the default template when the matching band is empty.
@@ -875,9 +956,8 @@ private readonly MarkdownExportService _mdExport = new();
     private void CancelConversion()
     {
         // Best-effort: WebView2's PrintToPdfAsync has no CancellationToken overload, so this
-        // resets the UI immediately rather than truly aborting an in-flight render call — the
-        // file may still be written a moment later. Good enough for "let me try something else
-        // without waiting"; a hard-abort would need dropping to the CDP-level printing API.
+        // resets the UI immediately rather than truly aborting an in-flight render call.
+        // Handles asynchronous file write buffer latency during rapid source switching.
         _conversionCts?.Cancel();
         StatusText = "Cancelled.";
         StatusSeverity = StatusSeverity.Warning;

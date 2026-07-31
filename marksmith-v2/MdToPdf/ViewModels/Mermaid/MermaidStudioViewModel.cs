@@ -1016,7 +1016,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
-    public void AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
+    public DiagramNodeViewModel AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
     {
         SnapshotForUndo();
         int counter = Nodes.Count + 1;
@@ -1045,6 +1045,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         Nodes.Add(node);
         SelectNode(node, false);
         StatusText = $"Added {node.Shape} node '{node.LabelText}' at ({node.X:F0}, {node.Y:F0}).";
+        return node;
     }
 
     public void AddConnector(string sourceId, string sourceAnchor, string targetId, string targetAnchor)
@@ -1204,6 +1205,35 @@ public partial class MermaidStudioViewModel : ObservableObject
             .ToList();
 
         PasteSnapshots(nodes, conns, offset: 30);
+    }
+
+    /// <summary>
+    /// Alt+drag duplicate: creates an exact copy of a single node at the same position (no offset,
+    /// so it sits directly under the pointer ready to be dragged), selects the copy, and returns it.
+    /// One undo step. Connectors are NOT copied — this is a quick "stamp another one" gesture.
+    /// </summary>
+    public DiagramNodeViewModel DuplicateSingleNodeForDrag(DiagramNodeViewModel source)
+    {
+        SnapshotForUndo();
+        var node = new DiagramNodeViewModel
+        {
+            Id = GenerateUniqueId(),
+            LabelText = source.LabelText,
+            Category = source.Category,
+            Shape = source.Shape,
+            X = source.X,
+            Y = source.Y,
+            Width = source.Width,
+            Height = source.Height,
+            FillColor = source.FillColor,
+            StrokeColor = source.StrokeColor,
+            StrokeWidth = source.StrokeWidth,
+            HasCustomPosition = true
+        };
+        Nodes.Add(node);
+        SelectNode(node, false);
+        StatusText = $"Duplicated '{source.LabelText}' — drag to place.";
+        return node;
     }
 
     // Materializes snapshots as brand-new nodes (fresh IDs), remaps any carried connectors onto

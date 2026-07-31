@@ -130,8 +130,8 @@ public sealed class AppSettings
     public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
     public string BrandTemplatePath { get; set; } = ""; // .dotx corporate template for house-style extraction
 
-    // Author name stamped in DOCX package properties (Creator field). Empty = no attribution,
-    // so the document looks like the user made it themselves. Replaces the old hardcoded "Marksmith".
+    // Author name stamped in DOCX package properties (Creator field). Empty = no attribution.
+    // Applies user-specified author branding to generated document metadata.
     public string AuthorName { get; set; } = "";
 
     // Typography (Task 16): preset id ("System", "Serif", "Sans-Serif", "Monospace",
@@ -247,6 +247,11 @@ public sealed class AppSettings
         if (o.ConnectorRouting is not null) s.ConnectorRouting = o.ConnectorRouting;
         if (o.ConnectorArrowhead is not null) s.ConnectorArrowhead = o.ConnectorArrowhead;
         if (o.BrandCoverPage is { } bcp) s.BrandCoverPage = bcp;
+        if (o.PageBorder is { } pb) s.PageBorder = pb;
+        if (o.TrackChanges is { } tc) s.TrackChanges = tc;
+        if (!string.IsNullOrWhiteSpace(o.PdfPageNumberPosition)) s.PdfPageNumberPosition = o.PdfPageNumberPosition;
+        if (!string.IsNullOrWhiteSpace(o.FontPreset)) s.FontPreset = o.FontPreset;
+        if (!string.IsNullOrWhiteSpace(o.FileNameTemplate)) s.FileNameTemplate = o.FileNameTemplate;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
         if (!string.IsNullOrWhiteSpace(o.SourceLanguage)) s.ContentLanguage = o.SourceLanguage;

@@ -257,7 +257,8 @@ public static class PdfCompressorService
         long totalSize = ms.Length;
         ms.Position = 0;
 
-        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.ReadOnly);
+        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
+        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
         int pageCount = doc.PageCount;
         int imageCount = 0;
         long estimatedImageBytes = 0;

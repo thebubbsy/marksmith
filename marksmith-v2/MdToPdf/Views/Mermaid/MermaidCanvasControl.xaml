@@ -32,7 +32,8 @@
                   Drop="OnCanvasDrop"
                   PointerPressed="OnCanvasPointerPressed"
                   PointerMoved="OnCanvasPointerMoved"
-                  PointerReleased="OnCanvasPointerReleased">
+                  PointerReleased="OnCanvasPointerReleased"
+                  DoubleTapped="OnCanvasDoubleTapped">
 
                 <!-- Layer 1: Background Grid Pattern -->
                 <Canvas x:Name="GridPatternCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
@@ -84,10 +85,22 @@
                                   Height="{Binding Height}"
                                   Canvas.ZIndex="{Binding ZIndex}"
                                   IsHitTestVisible="True"
-                                  Background="Transparent">
+                                  Background="Transparent"
+                                  PointerEntered="OnNodePointerEntered"
+                                  PointerExited="OnNodePointerExited">
                                 <Grid.RenderTransform>
                                     <TranslateTransform X="{Binding X}" Y="{Binding Y}" />
                                 </Grid.RenderTransform>
+
+                                <!-- Connection Target Highlight Ring (bright pulse while a connector
+                                     is being drawn and this node is the prospective drop target) -->
+                                <Border BorderBrush="#4CC9F0"
+                                        BorderThickness="3"
+                                        Background="#224CC9F0"
+                                        CornerRadius="14"
+                                        Margin="-7"
+                                        IsHitTestVisible="False"
+                                        Visibility="{Binding IsConnectionTarget, Converter={StaticResource BoolToVisConverter}}" />
 
                                 <!-- Visual Selection Indicator Border -->
                                 <Border BorderBrush="#4CC9F0"
@@ -98,6 +111,14 @@
                                         IsHitTestVisible="False"
                                         Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}" />
 
+                                <!-- Hover Glow Border (subtle lift on pointer-over) -->
+                                <Border BorderBrush="#664CC9F0"
+                                        BorderThickness="1.5"
+                                        CornerRadius="12"
+                                        Margin="-4"
+                                        IsHitTestVisible="False"
+                                        Visibility="{Binding IsHovered, Converter={StaticResource BoolToVisConverter}}" />
+
                                 <!-- Shapes Area -->
                                 <Grid>
                                     <!-- Fallback / Rectangular Shapes: visible for any shape that does not
@@ -107,7 +128,11 @@
                                             BorderThickness="{Binding StrokeWidth}"
                                             CornerRadius="10"
                                             Padding="10"
+                                            Translation="0,0,12"
                                             Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,Rhombus,RhombusDiamond,Choice,Hexagon,Actor,CylindricalDatabase'}">
+                                        <Border.Shadow>
+                                            <ThemeShadow />
+                                        </Border.Shadow>
                                         <TextBlock Text="{Binding LabelText}"
                                                    Foreground="#EDF2F4"
                                                    FontWeight="SemiBold"
@@ -192,17 +217,22 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Anchor Handles Overlay (Top, Right, Bottom, Left) -->
-                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-13,0,0" Tag="Top">
+                                <!-- Anchor Handles Overlay (Top, Right, Bottom, Left) — revealed on
+                                     hover/selection so the canvas stays clean at rest. -->
+                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-13,0,0" Tag="Top"
+                                      Visibility="{Binding ShowAnchors, Converter={StaticResource BoolToVisConverter}}">
                                     <Ellipse Width="12" Height="12" Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1" IsHitTestVisible="False" />
                                 </Grid>
-                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-13,0" Tag="Right">
+                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-13,0" Tag="Right"
+                                      Visibility="{Binding ShowAnchors, Converter={StaticResource BoolToVisConverter}}">
                                     <Ellipse Width="12" Height="12" Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1" IsHitTestVisible="False" />
                                 </Grid>
-                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-13" Tag="Bottom">
+                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-13" Tag="Bottom"
+                                      Visibility="{Binding ShowAnchors, Converter={StaticResource BoolToVisConverter}}">
                                     <Ellipse Width="12" Height="12" Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1" IsHitTestVisible="False" />
                                 </Grid>
-                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-13,0,0,0" Tag="Left">
+                                <Grid Width="26" Height="26" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-13,0,0,0" Tag="Left"
+                                      Visibility="{Binding ShowAnchors, Converter={StaticResource BoolToVisConverter}}">
                                     <Ellipse Width="12" Height="12" Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1" IsHitTestVisible="False" />
                                 </Grid>
 
@@ -273,6 +303,12 @@
                                StrokeThickness="1"
                                StrokeDashArray="3,3"
                                Visibility="Collapsed" />
+                    <!-- Smart alignment guides (Figma/draw.io-style snap lines). Shown while a
+                         node is dragged into edge/center alignment with a sibling node. -->
+                    <Line x:Name="VerticalAlignGuide" Stroke="#FF6EC7" StrokeThickness="1"
+                          StrokeDashArray="4,3" Visibility="Collapsed" />
+                    <Line x:Name="HorizontalAlignGuide" Stroke="#FF6EC7" StrokeThickness="1"
+                          StrokeDashArray="4,3" Visibility="Collapsed" />
                 </Canvas>
 
                 <!-- Layer 5: Floating Inline TextBox Editor -->
