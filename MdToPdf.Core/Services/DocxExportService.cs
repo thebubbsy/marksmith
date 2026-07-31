@@ -50,7 +50,7 @@ namespace MdToPdf.Services;
 // path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
 // MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
 // code-block fallback.
-public sealed class DocxExportService
+public sealed partial class DocxExportService
 {
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -1082,7 +1082,6 @@ public sealed class DocxExportService
             }
         }
 
-        var regex = new Regex(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase);
         var colorStack = new Stack<string>();
 
         var first = true;
@@ -1106,7 +1105,7 @@ public sealed class DocxExportService
             colorStack.Push(baseColor);
 
             int lastPos = 0;
-            foreach (Match m in regex.Matches(line))
+            foreach (Match m in CodeColorRegex().Matches(line))
             {
                 if (m.Index > lastPos)
                 {
@@ -1878,7 +1877,7 @@ public sealed class DocxExportService
 
     // ---------------------------------------------------------------- raw HTML blocks
 
-    private static readonly Regex HtmlTagStrip = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex HtmlTagStrip = new("<[^>]+>");
     private static readonly Regex HtmlTableRow = new(@"<tr\b[^>]*>(.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HtmlTableCell = new(@"<(t[hd])\b[^>]*>(.*?)</t[hd]>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
@@ -2873,20 +2872,26 @@ public sealed class DocxExportService
         }
     }
 
-    private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
+    // Using [GeneratedRegex] instead of new Regex() inside tight loops or even
+    // static fields eliminates repeated parsing/compilation overhead.
+    [GeneratedRegex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])")]
+    private static partial Regex EmojiRegex();
+
+    [GeneratedRegex(@"<(?:font\s+color\s*=\s*[""']?([^""'>]+)[""']?|span\s+style\s*=\s*[""']?color\s*:\s*([^;""'>]+)[^>]*|/(font|span))>", RegexOptions.IgnoreCase)]
+    private static partial Regex CodeColorRegex();
 
     private static int _globalRevisionId = 0;
 
     private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt, Ctx? ctx = null)
     {
         if (string.IsNullOrEmpty(text)) return;
-        var parts = EmojiRegex.Split(text);
+        var parts = EmojiRegex().Split(text);
         foreach (var part in parts)
         {
             if (string.IsNullOrEmpty(part)) continue;
             var run = new W.Run();
             var rPr = BuildRunProperties(fmt);
-            if (EmojiRegex.IsMatch(part))
+            if (EmojiRegex().IsMatch(part))
             {
                 rPr ??= new W.RunProperties();
                 rPr.RemoveAllChildren<W.Color>();
