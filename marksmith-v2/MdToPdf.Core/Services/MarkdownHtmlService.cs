@@ -581,24 +581,47 @@ public sealed partial class MarkdownHtmlService
             <script>
             function triggerRedRadarBeacon(lineNumber) {
                 const el = document.querySelector(`[data-line='${lineNumber}']`) || document.querySelector("h1, h2, p, pre");
-                if (!el) return;
+                if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el.classList.add("issue-target-highlight");
 
-                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                el.classList.add("issue-target-highlight");
+                    const rect = el.getBoundingClientRect();
+                    const beacon = document.createElement("div");
+                    beacon.className = "radar-beacon-container";
+                    beacon.style.left = (rect.left + 30) + "px";
+                    beacon.style.top = (rect.top + window.scrollY + rect.height / 2) + "px";
+                    beacon.innerHTML = '<div class="radar-beacon-ring"></div><div class="radar-beacon-ring"></div>';
 
-                const rect = el.getBoundingClientRect();
-                const beacon = document.createElement("div");
-                beacon.className = "radar-beacon-container";
-                beacon.style.left = (rect.left + 30) + "px";
-                beacon.style.top = (rect.top + window.scrollY + rect.height / 2) + "px";
-                beacon.innerHTML = '<div class="radar-beacon-ring"></div><div class="radar-beacon-ring"></div>';
+                    document.body.appendChild(beacon);
 
-                document.body.appendChild(beacon);
+                    setTimeout(() => {
+                        beacon.remove();
+                        el.classList.remove("issue-target-highlight");
+                    }, 2500);
+                }
 
-                setTimeout(() => {
-                    beacon.remove();
-                    el.classList.remove("issue-target-highlight");
-                }, 2500);
+                // Flash & scroll issue line inside open Looking Glass portal
+                const portalTa = document.getElementById("portal-textarea");
+                if (portalTa) {
+                    const text = portalTa.value || "";
+                    const lines = text.split("\n");
+                    let lineIdx = Math.max(0, lineNumber - 1);
+                    if (lineIdx < lines.length) {
+                        let offset = 0;
+                        for (let i = 0; i < lineIdx; i++) offset += lines[i].length + 1;
+                        portalTa.focus();
+                        try { portalTa.setSelectionRange(offset, offset + lines[lineIdx].length); } catch (x) {}
+                    }
+                    const aperture = document.getElementById("portal-aperture");
+                    if (aperture) {
+                        aperture.style.outline = "3px solid #ef4444";
+                        aperture.style.boxShadow = "0 0 25px rgba(239, 68, 68, 0.7)";
+                        setTimeout(() => {
+                            aperture.style.outline = "";
+                            aperture.style.boxShadow = "";
+                        }, 2500);
+                    }
+                }
             }
             </script>
             """ : "";
@@ -1026,9 +1049,49 @@ public sealed partial class MarkdownHtmlService
                     const s = portalTa.selectionStart || 0, e = portalTa.selectionEnd || 0;
                     const v = portalTa.value;
                     const sel = v.slice(s, e);
-                    portalTa.value = v.slice(0, s) + prefix + sel + suffix + v.slice(e);
-                    const at = s + prefix.length;
-                    try { portalTa.setSelectionRange(at, sel ? at + sel.length : at); } catch (x) {}
+                    if (!sel) {
+                        portalTa.value = v.slice(0, s) + prefix + suffix + v.slice(e);
+                        const at = s + prefix.length;
+                        try { portalTa.setSelectionRange(at, at); } catch (x) {}
+                    } else {
+                        let leadLen = 0;
+                        while (leadLen < sel.length && (sel[leadLen] === '\r' || sel[leadLen] === '\n')) leadLen++;
+                        let trailLen = 0;
+                        while (trailLen < (sel.length - leadLen) && (sel[sel.length - 1 - trailLen] === '\r' || sel[sel.length - 1 - trailLen] === '\n')) trailLen++;
+                        const lead = sel.slice(0, leadLen);
+                        const core = sel.slice(leadLen, sel.length - trailLen);
+                        const trail = sel.slice(sel.length - trailLen);
+
+                        const isInline = !!suffix;
+                        const coreHasFormat = isInline && core.length >= (prefix.length + suffix.length) && core.startsWith(prefix) && core.endsWith(suffix);
+                        const preIdx = s + leadLen - prefix.length;
+                        const folIdx = s + leadLen + core.length;
+                        const surroundingHasFormat = isInline && !coreHasFormat && preIdx >= 0 && (folIdx + suffix.length) <= v.length && v.slice(preIdx, preIdx + prefix.length) === prefix && v.slice(folIdx, folIdx + suffix.length) === suffix;
+
+                        if (coreHasFormat) {
+                            const unformatted = core.slice(prefix.length, core.length - suffix.length);
+                            portalTa.value = v.slice(0, s) + lead + unformatted + trail + v.slice(e);
+                            const coreStart = s + leadLen;
+                            try { portalTa.setSelectionRange(coreStart, coreStart + unformatted.length); } catch (x) {}
+                        } else if (surroundingHasFormat) {
+                            portalTa.value = v.slice(0, preIdx) + core + v.slice(folIdx + suffix.length);
+                            try { portalTa.setSelectionRange(preIdx, preIdx + core.length); } catch (x) {}
+                        } else {
+                            let rep = "";
+                            const pTrim = prefix.trim();
+                            if (!suffix && (pTrim === '#' || pTrim === '##' || pTrim === '###' || pTrim === '####' || pTrim === '-' || pTrim === '1.' || pTrim === '- []' || pTrim === '>')) {
+                                const lines = core.split('\n');
+                                const formatted = lines.map(line => line.length > 0 ? (line.endsWith('\r') ? prefix + line.slice(0, -1) + '\r' : prefix + line) : line).join('\n');
+                                rep = lead + formatted + trail;
+                            } else {
+                                rep = lead + prefix + core + suffix + trail;
+                            }
+
+                            portalTa.value = v.slice(0, s) + rep + v.slice(e);
+                            const coreStart = s + leadLen + prefix.length;
+                            try { portalTa.setSelectionRange(coreStart, coreStart + core.length); } catch (x) {}
+                        }
+                    }
                     portalTa.focus();
                     portalTa.dispatchEvent(new Event("input", { bubbles: true }));
                 };
