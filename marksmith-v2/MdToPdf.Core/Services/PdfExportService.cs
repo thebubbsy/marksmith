@@ -35,10 +35,7 @@ public sealed class PdfExportService
             // MarkdownHtmlService.cs is `max-width: {settings.ContentWidth}px` with
             // box-sizing:border-box (padding included in that width) inside a zero-padding body,
             // so the page must be exactly ContentWidth px wide to fill edge-to-edge with no blank
-            // margin. This used to be hardcoded to 800/1200px based on the unrelated A4FixedWidth
-            // toggle, completely ignoring ContentWidth — whenever a user's Page Width setting
-            // wasn't exactly 800 or 1200, the mismatch produced a narrow content column inside a
-            // too-wide (or too-narrow) page.
+            // margin. Calculates layout dimensions dynamically from configured page setup parameters.
             var pageWidthPx = settings.ContentWidth;
             var scrollHeightResult = await host.ExecuteScriptAsync("document.body.scrollHeight");
             var scrollHeightPx = double.TryParse(scrollHeightResult, out var h) ? h : 1000;
@@ -50,8 +47,13 @@ public sealed class PdfExportService
         }
         else
         {
+            // Paginated mode: page width follows ContentWidth so the HTML canvas (laid out at
+            // ContentWidth px in MarkdownHtmlService) maps edge-to-edge onto the printed page.
+            // Height stays A4-proportional; the previous hardcoded 8.27in clipped wider content.
+            var pageW = settings.ContentWidth / PxPerInch;
+            var pageH = pageW * (11.69 / 8.27); // maintain A4 aspect ratio
             setup = new PdfPageSetup(
-                PageWidthIn: 8.27, PageHeightIn: 11.69, // A4
+                PageWidthIn: pageW, PageHeightIn: pageH,
                 MarginTopIn: 0, MarginBottomIn: 0, MarginLeftIn: 0, MarginRightIn: 0, // Edge-to-edge theme background
                 PrintBackgrounds: true);
         }
@@ -60,8 +62,11 @@ public sealed class PdfExportService
         // present, reserve top/bottom margin space for it (Chromium draws the header/footer inside the
         // margin box, so a zero-margin page would clip them). Off by default — existing edge-to-edge
         // exports keep margin 0 and no header/footer until the user opts in via Settings.
+        // Skipped in UnlimitedHeight mode: the output is a single continuous page, so per-page
+        // header/footer chrome is semantically void (would render once at the very top/bottom of a
+        // giant scroll and contradict the zero-margin edge-to-edge contract of that mode).
         var docTitle = Path.GetFileNameWithoutExtension(pdfPath);
-        var (headerTpl, footerTpl) = BuildHeaderFooter(settings, docTitle);
+        var (headerTpl, footerTpl) = settings.UnlimitedHeight ? ("", "") : BuildHeaderFooter(settings, docTitle);
         if (headerTpl.Length > 0) setup = setup with { MarginTopIn = Math.Max(setup.MarginTopIn, 0.4), HeaderTemplate = headerTpl };
         if (footerTpl.Length > 0) setup = setup with { MarginBottomIn = Math.Max(setup.MarginBottomIn, 0.4), FooterTemplate = footerTpl };
 
@@ -79,11 +84,13 @@ public sealed class PdfExportService
         var ok = await host.PrintToPdfAsync(pdfPath, setup);
         if (!ok) throw new InvalidOperationException("PDF export failed (the web renderer reported failure).");
 
-        // Password protection / access control (Task 18): Chromium emits an unprotected PDF, so when a
-        // password is configured we post-process the written file with the standard security handler.
-        // A policy without any password is skipped — encryption needs a password to be meaningful.
+        // Password protection / access control (Task 18): Chromium emits an unprotected PDF, so when
+        // protection is configured we post-process the written file with the standard security handler.
+        // When the user restricts permissions but leaves both passwords blank, an owner password is
+        // auto-generated so the restrictions are actually enforced (the PDF still opens freely — no
+        // user password — but printing/copying/modifying are blocked until the owner password is given).
         var policy = PdfSecurityService.BuildPolicy(settings);
-        if (policy != null && policy.HasPassword)
+        if (policy != null && policy.IsProtected)
             PdfSecurityService.ApplyToFile(pdfPath, policy);
     }
 

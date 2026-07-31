@@ -21,6 +21,7 @@ namespace MdToPdf.Core.Services
     /// </summary>
     public class DocumentRecoveryVault
     {
+        private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
         private readonly string _vaultDirectory;
 
         public DocumentRecoveryVault(string? vaultDirectory = null)
@@ -65,7 +66,7 @@ namespace MdToPdf.Core.Services
             string snapshotPath = Path.Combine(_vaultDirectory, $"{safeId}.json");
             snapshot.FilePath = snapshotPath;
 
-            string json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
+            string json = JsonSerializer.Serialize(snapshot, JsonOpts);
             File.WriteAllText(snapshotPath, json);
 
             return snapshotPath;
@@ -83,7 +84,7 @@ namespace MdToPdf.Core.Services
             try
             {
                 string json = File.ReadAllText(snapshotPath);
-                return JsonSerializer.Deserialize<RecoverySnapshot>(json);
+                return JsonSerializer.Deserialize<RecoverySnapshot>(json, JsonOpts);
             }
             catch
             {
@@ -101,7 +102,7 @@ namespace MdToPdf.Core.Services
                 try
                 {
                     string json = File.ReadAllText(filePath);
-                    var snapshot = JsonSerializer.Deserialize<RecoverySnapshot>(json);
+                    var snapshot = JsonSerializer.Deserialize<RecoverySnapshot>(json, JsonOpts);
                     if (snapshot != null)
                     {
                         snapshots.Add(snapshot);

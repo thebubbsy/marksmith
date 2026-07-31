@@ -152,6 +152,11 @@ public sealed class MermaidChartsRenderer : IMermaidRenderer
         return (Math.Clamp(r, 0, 255), Math.Clamp(g, 0, 255), Math.Clamp(b, 0, 255));
     }
 
+    private static readonly Regex DataRx = new(@"^""(?<label>[^""]*)""\s*:\s*(?<val>[-+0-9.eE]+)\s*$", RegexOptions.Compiled);
+    private static readonly Regex PointRx = new(@"^(?<name>[^:\[\]]+?)\s*:\s*\[\s*(?<x>[-+0-9.eE]+)\s*,\s*(?<y>[-+0-9.eE]+)\s*\]", RegexOptions.Compiled);
+    private static readonly Regex AxisRx = new(@"^(?<low>.*?)\s*-->\s*(?<high>.*)$", RegexOptions.Compiled);
+    private static readonly Regex RangeRx = new(@"^(?<a>[-+0-9.eE]+)\s*-->\s*(?<b>[-+0-9.eE]+)$", RegexOptions.Compiled);
+
     // ============================================================ PIE
 
     private static MDiagram RenderPie(List<string> lines, ThemeDefinition theme)
@@ -159,7 +164,7 @@ public sealed class MermaidChartsRenderer : IMermaidRenderer
         bool showData = false;
         string? title = null;
         var data = new List<(string Label, double Value)>();
-        var dataRx = new Regex("^\"(?<label>[^\"]*)\"\\s*:\\s*(?<val>[-+0-9.eE]+)\\s*$");
+        var dataRx = DataRx;
 
         // header: "pie [showData] [title ...]" — title/showData may also sit on later lines
         string header = lines[0][3..].Trim();
@@ -560,8 +565,8 @@ public sealed class MermaidChartsRenderer : IMermaidRenderer
         string xLow = "", xHigh = "", yLow = "", yHigh = "";
         var quadLabels = new string?[4];
         var points = new List<(string Name, double X, double Y)>();
-        var pointRx = new Regex(@"^(?<name>[^:\[\]]+?)\s*:\s*\[\s*(?<x>[-+0-9.eE]+)\s*,\s*(?<y>[-+0-9.eE]+)\s*\]");
-        var axisRx = new Regex(@"^(?<low>.*?)\s*-->\s*(?<high>.*)$");
+        var pointRx = PointRx;
+        var axisRx = AxisRx;
 
         foreach (var line in lines.Skip(1))
         {
@@ -715,7 +720,7 @@ public sealed class MermaidChartsRenderer : IMermaidRenderer
         double? yMinGiven = null, yMaxGiven = null;
         var series = new List<XySeries>();
 
-        var rangeRx = new Regex(@"^(?<a>[-+0-9.eE]+)\s*-->\s*(?<b>[-+0-9.eE]+)$");
+        var rangeRx = RangeRx;
 
         static (string? quoted, string rest) TakeQuoted(string s)
         {

@@ -154,7 +154,8 @@ public static class PdfSignatureService
         PdfDocument doc;
         try
         {
-            doc = PdfReader.Open(docStream, PdfDocumentOpenMode.ReadOnly);
+            // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
+            doc = PdfReader.Open(docStream, PdfDocumentOpenMode.Import);
         }
         catch
         {
@@ -196,7 +197,8 @@ public static class PdfSignatureService
         pdfStream.CopyTo(ms);
         ms.Position = 0;
 
-        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.ReadOnly);
+        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
+        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
         var info = doc.Info;
         var storedHash = info.Elements.GetString(SignatureHashKey);
         var storedSignatureB64 = info.Elements.GetString("/MarksmithSignature");

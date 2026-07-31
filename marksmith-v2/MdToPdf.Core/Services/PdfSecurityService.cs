@@ -64,6 +64,8 @@ public static class PdfSecurityService
     /// <summary>
     /// Builds a policy from settings, or null when encryption is disabled. The three "allow" toggles
     /// map onto the granular permission flags (printing also grants high-quality printing, etc.).
+    /// When permissions are restricted but no password is supplied, an owner password is auto-generated
+    /// so the restrictions are actually enforced (the PDF opens freely but the permissions stick).
     /// </summary>
     public static PdfSecurityPolicy? BuildPolicy(AppSettings? settings)
     {
@@ -74,10 +76,19 @@ public static class PdfSecurityService
         if (settings.PdfAllowCopying) perms |= PdfPermissions.CopyContents | PdfPermissions.ExtractForAccessibility;
         if (settings.PdfAllowModifying) perms |= PdfPermissions.ModifyContents | PdfPermissions.ModifyAnnotations | PdfPermissions.FillForms | PdfPermissions.Assemble;
 
+        var user = settings.PdfUserPassword ?? "";
+        var owner = settings.PdfOwnerPassword ?? "";
+
+        // The PDF standard security handler requires an owner password to enforce permissions.
+        // If the user restricted permissions but left both passwords blank, generate a random owner
+        // password so the restrictions actually apply (the document still opens without a user password).
+        if (user.Length == 0 && owner.Length == 0 && perms != PdfPermissions.All)
+            owner = Guid.NewGuid().ToString("N")[..16];
+
         return new PdfSecurityPolicy
         {
-            UserPassword = settings.PdfUserPassword ?? "",
-            OwnerPassword = settings.PdfOwnerPassword ?? "",
+            UserPassword = user,
+            OwnerPassword = owner,
             Permissions = perms,
         };
     }

@@ -20,6 +20,8 @@ public sealed class HistoryService
 
     public IReadOnlyList<HistoryEntry> All => _entries;
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     public void Add(HistoryEntry entry)
     {
         _entries.Insert(0, entry);
@@ -27,7 +29,7 @@ public sealed class HistoryService
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
-            AtomicFile.WriteAllText(HistoryPath, JsonSerializer.Serialize(_entries));
+            AtomicFile.WriteAllText(HistoryPath, JsonSerializer.Serialize(_entries, JsonOpts));
         }
         catch { /* history is best-effort; never fail an export over it */ }
     }
@@ -37,7 +39,7 @@ public sealed class HistoryService
         try
         {
             if (File.Exists(HistoryPath))
-                return JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(HistoryPath)) ?? new();
+                return JsonSerializer.Deserialize<List<HistoryEntry>>(File.ReadAllText(HistoryPath), JsonOpts) ?? new();
         }
         catch { }
         return new();

@@ -248,7 +248,8 @@ public sealed class OcrEngineService
     {
         var bitmaps = new List<SKBitmap>();
         using var stream = File.OpenRead(pdfPath);
-        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(stream, PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
+        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(stream, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
 
         for (int i = 0; i < doc.PageCount; i++)
         {

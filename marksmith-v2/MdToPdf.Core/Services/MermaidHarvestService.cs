@@ -50,7 +50,7 @@ public sealed class MermaidHarvestService
     {
         var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
+        if (!await host.EnsureReadyAsync()) return new();
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
@@ -127,7 +127,7 @@ public sealed class MermaidHarvestService
     {
         var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
+        if (!await host.EnsureReadyAsync()) return new();
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""
@@ -258,7 +258,7 @@ public sealed class MermaidHarvestService
     {
         var fences = FencesFor(markdown);
         if (fences.Count == 0) return new();
-        if (!await host.EnsureReadyAsync()) { System.IO.File.WriteAllText("geo_dump.txt", "TIMEOUT"); return new(); }
+        if (!await host.EnsureReadyAsync()) return new();
 
         var sourcesJson = System.Text.Json.JsonSerializer.Serialize(fences);
         var html = $$"""

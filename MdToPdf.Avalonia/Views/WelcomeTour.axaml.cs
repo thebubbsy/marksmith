@@ -7,13 +7,14 @@ namespace MdToPdf.Avalonia.Views
 {
     public partial class WelcomeTour : UserControl
     {
-        public event EventHandler Completed; public bool LoadSampleRequested { get; set; }
+        public event EventHandler? Completed;
+        public bool LoadSampleRequested { get; set; }
 
         private int _currentIndex = 0;
-        private Carousel _carousel;
-        private Button _backButton;
-        private Button _nextButton;
-        private Button _skipButton;
+        private Carousel? _carousel;
+        private Button? _backButton;
+        private Button? _nextButton;
+        private Button? _skipButton;
 
         public WelcomeTour()
         {

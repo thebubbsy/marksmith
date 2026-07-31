@@ -53,17 +53,18 @@ public class WikiLinkAdversarialTests
     [Fact]
     public void WikiLinksWithDoubleHyphens_NormalizesAndPreservesNoProof()
     {
+        // DashMode=1 enables the -- → — → - pipeline; the test verifies noProof survives that.
         var md = "WikiLink with dashes: [[Link -- Dash|Alias -- Dash]] and [[Direct--Link]].";
-        var doc = ExportToXml(md);
+        var doc = ExportToXml(md, new AppSettings { DashMode = 1 });
         var xmlString = doc.ToString();
 
-        Assert.Contains("Alias — Dash", xmlString);
-        Assert.Contains("Direct—Link", xmlString);
+        Assert.Contains("Alias-Dash", xmlString);
+        Assert.Contains("Direct-Link", xmlString);
         Assert.DoesNotContain("[[", xmlString);
 
         var runs = doc.Descendants(W + "r").ToList();
-        var aliasRun = runs.FirstOrDefault(r => r.Element(W + "t")?.Value == "Alias — Dash");
-        var directRun = runs.FirstOrDefault(r => r.Element(W + "t")?.Value == "Direct—Link");
+        var aliasRun = runs.FirstOrDefault(r => r.Element(W + "t")?.Value == "Alias-Dash");
+        var directRun = runs.FirstOrDefault(r => r.Element(W + "t")?.Value == "Direct-Link");
 
         Assert.NotNull(aliasRun);
         Assert.NotNull(directRun);

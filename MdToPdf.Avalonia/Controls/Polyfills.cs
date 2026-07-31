@@ -34,11 +34,11 @@ namespace MdToPdf.Avalonia.Controls
 
     public class ContentDialog : Window
     {
-        public new string Title { get; set; }
-        public new object Content { get; set; }
-        public string PrimaryButtonText { get; set; }
-        public string SecondaryButtonText { get; set; }
-        public string CloseButtonText { get; set; }
+        public new string? Title { get; set; }
+        public new object? Content { get; set; }
+        public string? PrimaryButtonText { get; set; }
+        public string? SecondaryButtonText { get; set; }
+        public string? CloseButtonText { get; set; }
         public ContentDialogButton DefaultButton { get; set; }
         public new global::Avalonia.Controls.ResourceDictionary Resources { get; set; } = new global::Avalonia.Controls.ResourceDictionary();
 
@@ -98,7 +98,7 @@ namespace MdToPdf.Avalonia.Controls
             this.Content = sp;
 
             // Find main window to use as owner
-            Window owner = null;
+            Window? owner = null;
             if (Application.Current != null && Application.Current.ApplicationLifetime is global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
             {
                 owner = desktop.MainWindow;
@@ -139,7 +139,7 @@ namespace MdToPdf.Avalonia.Controls
 
         public bool IsOpen { get => GetValue(IsOpenProperty); set => SetValue(IsOpenProperty, value); }
         public InfoBarSeverity Severity { get => GetValue(SeverityProperty); set => SetValue(SeverityProperty, value); }
-        public new string Title { get => GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
+        public string Title { get => GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
         public string Message { get => GetValue(MessageProperty); set => SetValue(MessageProperty, value); }
         public bool IsClosable { get => GetValue(IsClosableProperty); set => SetValue(IsClosableProperty, value); }
         public object ActionButton { get => GetValue(ActionButtonProperty); set => SetValue(ActionButtonProperty, value); }

@@ -24,8 +24,18 @@ public class EmDashAndWikiLinkTests
     [Fact]
     public void EmDash_InProse_ConvertsDoubleHyphenToEmDash()
     {
+        // DashMode=1 (Hyphen): normalizes -- → — then replaces — (with surrounding spaces) → -
+        var xml = Export("text -- text", new AppSettings { DashMode = 1 });
+        Assert.Contains("text-text", xml);
+    }
+
+    [Fact]
+    public void EmDash_DashModeKeep_PreservesDoubleHyphen()
+    {
+        // DashMode=0 (Keep): the user's -- must survive untouched (matches HTML preview behavior).
         var xml = Export("text -- text");
-        Assert.Contains("text — text", xml);
+        Assert.Contains("text -- text", xml);
+        Assert.DoesNotContain("—", xml);
     }
 
     [Fact]

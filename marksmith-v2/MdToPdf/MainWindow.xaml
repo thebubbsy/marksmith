@@ -688,6 +688,14 @@
                         <Slider x:Name="PortalRevealSlider" ToolTipService.ToolTip="Looking Glass size — scales the active shape (circle diameter / focus band height)"
                                 Width="110" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="10"
                                 VerticalAlignment="Center" ValueChanged="OnPortalRevealChanged" />
+                        <ToggleButton ToolTipService.ToolTip="Blur the preview behind the portal (Ctrl+Alt+X)"
+                                      IsChecked="{Binding PortalFocusBlur, Mode=TwoWay}"
+                                      Click="OnPortalBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE8FD;" FontSize="13" />
+                                <TextBlock Text="Blur" FontSize="12" />
+                            </StackPanel>
+                        </ToggleButton>
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
@@ -1035,6 +1043,13 @@
                             <TextBlock Text="A PDF-only layout. In DOCX there's no page-less print mode, so Word opens the file in Web Layout view instead — one continuous flow, not meant for printing."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
+                            <ToggleSwitch Header="Page border (DOCX)" IsOn="{Binding PageBorder, Mode=TwoWay}" />
+                            <TextBlock Text="Draws a decorative full-page frame around the content in Word exports."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <ToggleSwitch Header="Track Changes (DOCX)" IsOn="{Binding TrackChanges, Mode=TwoWay}" />
+                            <TextBlock Text="Turns on Word revision tracking in the exported file so edits are visible."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
 
                             <TextBlock Text="AI documents" FontWeight="SemiBold" />
@@ -1046,6 +1061,10 @@
                                           IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
                             <ToggleSwitch Header="Table of contents"
                                           IsOn="{Binding IncludeToc, Mode=TwoWay}" />
+
+                            <ToggleSwitch Header="Render Mermaid diagrams" IsOn="{Binding MermaidEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="When off, mermaid code fences are shown as plain code blocks instead of rendered diagrams."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
                             <ComboBox Header="Diagrams in Word exports" HorizontalAlignment="Stretch"
                                       SelectedIndex="{Binding MermaidDocxMode, Mode=TwoWay}">
@@ -1059,6 +1078,19 @@
                                           IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
                             <TextBlock Text="When enabled, lines stay glued to shapes when dragged in Word."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+
+                            <ComboBox Header="Connector arrowheads" HorizontalAlignment="Stretch"
+                                      SelectedItem="{Binding ConnectorArrowhead, Mode=TwoWay}">
+                                <x:String>default</x:String>
+                                <x:String>triangle</x:String>
+                                <x:String>open</x:String>
+                                <x:String>diamond</x:String>
+                                <x:String>oval</x:String>
+                                <x:String>stealth</x:String>
+                                <x:String>none</x:String>
+                            </ComboBox>
+                            <TextBlock Text="Fallback arrowhead style for connectors that don't specify one in the diagram source."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
                             <InfoBar IsOpen="{Binding HasMermaidDiagram}"
                                      Severity="{Binding DiagramHintSeverity, Converter={StaticResource StatusSeverityConverter}}"
@@ -1082,7 +1114,11 @@
                             </ComboBox>
                             <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let MarkSmith re-wrap it to fit standard pages."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <Expander HorizontalAlignment="Stretch" Margin="0,10,0,0">
+                            <NumberBox Header="Poster grid size (Enlarge Page mode)" Value="{Binding DiagramGridSize, Mode=TwoWay}"
+                                       SpinButtonPlacementMode="Inline" Minimum="2" Maximum="3" SmallChange="1" />
+                            <TextBlock Text="2 = 2×2 poster (4 pages), 3 = 3×3 (9 pages). Only used by the Enlarge Page Size strategy."
+                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <Expander x:Name="ExportBrandingExpander" HorizontalAlignment="Stretch" Margin="0,10,0,0">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8D4;" FontSize="14" />
@@ -1112,6 +1148,22 @@
                                     <TextBox Header="Custom Document Font Family" 
                                              Text="{Binding BrandFontFamily, Mode=TwoWay}"
                                              PlaceholderText="e.g. Segoe UI, Inter (leave blank for default)" IsSpellCheckEnabled="False" />
+                                    <TextBox Header="Author name (document metadata)"
+                                             Text="{Binding AuthorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             PlaceholderText="Shown as the document's author in Word/PDF properties" IsSpellCheckEnabled="False" />
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Header="Custom font file (TTF/OTF)"
+                                                 Text="{Binding CustomFontPath, Mode=TwoWay}"
+                                                 PlaceholderText="Embed a font that isn't installed system-wide" IsSpellCheckEnabled="False" />
+                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseFontClick"
+                                                ToolTipService.ToolTip="Choose a .ttf or .otf font file">
+                                            <FontIcon Glyph="&#xE8D4;" FontSize="14" />
+                                        </Button>
+                                    </Grid>
                                     <TextBlock Text="Requires MarkSmith Pro license to apply to DOCX exports."
                                                Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
                                 </StackPanel>
