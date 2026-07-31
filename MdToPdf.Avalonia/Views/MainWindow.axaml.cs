@@ -12,22 +12,6 @@ using MdToPdf.Avalonia.Hosting;
 using MdToPdf.Services;
 using MdToPdf.ViewModels;
 using Microsoft.Web.WebView2.Core;
-
-using MdToPdf.Avalonia.Controls;
-using System.Linq;
-using global::Avalonia;
-using global::Avalonia.Controls;
-using global::Avalonia.Input;
-using global::Avalonia.Interactivity;
-using global::Avalonia.Media;
-using global::Avalonia.Platform;
-using global::Avalonia.Platform.Storage;
-
-using MdToPdf.Avalonia.Hosting;
-using MdToPdf.Services;
-using MdToPdf.ViewModels;
-using Microsoft.Web.WebView2.Core;
-
 namespace MdToPdf.Avalonia.Views;
 
 public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
@@ -360,11 +344,13 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
             var baseTheme = AppServices.Themes.GetOrDefault(ViewModel.SelectedThemeName);
             var editingCustom = !AppServices.Themes.IsBuiltin(baseTheme.Name);
 
+            #pragma warning disable CS0618
             var nameBox = new TextBox
             {
                 Watermark = "Theme name",
                 Text = editingCustom ? baseTheme.Name : $"My {baseTheme.Name}",
             };
+            #pragma warning restore CS0618
 
             (string Label, string Hint, string Hex)[] elements =
             {
@@ -406,7 +392,7 @@ public partial class MainWindow : Window, IWebRenderHost, IUiPrompts
                 Title = editingCustom ? $"Edit “{baseTheme.Name}”" : "Create a theme",
                 Content = new ScrollViewer { Content = rows, MaxHeight = 520 },
                 PrimaryButtonText = "Save theme",
-                SecondaryButtonText = editingCustom ? "Delete" : null,
+                SecondaryButtonText = editingCustom ? "Delete" : string.Empty,
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
             };

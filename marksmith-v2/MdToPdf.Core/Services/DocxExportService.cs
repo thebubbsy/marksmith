@@ -112,7 +112,7 @@ public sealed class DocxExportService
             var originalSource = markdown;
             markdown = TextNormalizer.Newlines(markdown);
             markdown = AdmonitionNormalizer.Apply(markdown);
-            markdown = DialectNormalizer.Apply(markdown);
+            markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
             markdown = DiagramFenceSniffer.Apply(markdown);
             
             var pipelineFeatures = AdvancedFeaturePipeline.Shared;
@@ -200,8 +200,12 @@ public sealed class DocxExportService
 
             // Written after rendering: an oversized ShapeForge diagram flips the doc to Web Layout,
             // where a wider-than-page drawing scrolls instead of clipping (the user's own idea).
+            // PageBorder requires Print Layout (Word doesn't render pgBorders in Web Layout), so when
+            // the user explicitly opted into a border we keep Print Layout unless a diagram forced it.
+            var wantWeb = ctx.ForceWebLayout || (!settings.PageBorder && settings.UnlimitedHeight)
+                          || !ThemeDefinition.IsLight(ctx.Theme.Background);
             AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, trackChanges: settings.TrackChanges,
-                webLayout: settings.UnlimitedHeight || ctx.ForceWebLayout || !ThemeDefinition.IsLight(ctx.Theme.Background));
+                webLayout: wantWeb);
 
             body.Append(BuildSectionProperties(main, ctx, settings, title));
             // Tier 1 enabler: tuck the original source away so this file reopens byte-for-byte.
@@ -209,8 +213,8 @@ public sealed class DocxExportService
             main.Document.Save();
         });
 
-    // A genuine Word comment (review pane, margin bubble) anchored on the first paragraph,
-    // disclosing every normalization the AI-cleanup engine applied. Transparency, not magic.
+    // A genuine Word comment (review pane, margin bubble) anchored on the first paragraph.
+    // Generates an audit trail of structural transformations performed by the normalization pipeline.
     private static void AddCleanupComment(MainDocumentPart main, W.Body body, IReadOnlyList<string> notes)
     {
         var part = main.WordprocessingCommentsPart ?? main.AddNewPart<WordprocessingCommentsPart>();
@@ -559,7 +563,7 @@ public sealed class DocxExportService
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors, ctx.Settings.ConnectorRouting);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -573,7 +577,8 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out _,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
@@ -601,7 +606,7 @@ public sealed class DocxExportService
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors, ctx.Settings.ConnectorRouting);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -615,7 +620,8 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversizedGen,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
@@ -665,7 +671,7 @@ public sealed class DocxExportService
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
-                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors);
+                        var bands = Mermaid.DocxShapeEmitter.ToMultiPageParagraphXml(md, ctx.DiagramTheme, ref drawId, ctx.SmartConnectors, ctx.Settings.ConnectorRouting);
                         ctx.NextDrawingId = drawId;
                         foreach (var bandXml in bands)
                         {
@@ -679,7 +685,8 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversized,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors);
+                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
@@ -926,8 +933,8 @@ public sealed class DocxExportService
 
     // Embeds a diagram plugin's SVG as a Word picture: the SVG itself (Word 2016+ renders it
     // crisply at any zoom) plus a rasterized PNG fallback (older Word, and thumbnails/print). The
-    // <asvg:svgBlip> ext under the PNG blip is exactly what Word writes when you Insert > Picture an
-    // .svg — so the round-trip is native, not a hack. Returns null if the SVG can't be rasterized
+    // <asvg:svgBlip> ext under the PNG blip is exactly what Word writes when you Insert > Picture an SVG.
+    // Preserves vector SVG definitions natively to ensure loss-free document round-trips. Returns null if the SVG can't be rasterized
     // (caller then falls back to the code block).
     private static W.Paragraph? SvgDiagramParagraph(string svg, Ctx ctx)
     {
@@ -2245,8 +2252,7 @@ public sealed class DocxExportService
         // triangle and fold the following body under it) plus w15:collapsed so it starts folded,
         // matching <details>'s default-closed semantics. Outline level 8 keeps it out of the
         // document's TOC field (which collects levels 1–3 only) so a summary line never pollutes
-        // the table of contents. No literal "▸" glyph — Word draws its own toggle, and a fake one
-        // next to the real one reads as a control that does nothing.
+        // the table of contents. Avoids manual glyph insertion; leverages native Word outline expand/collapse rendering.
         var details = Regex.Match(raw, @"<details\b[^>]*>(.*?)</details>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (details.Success)
         {
@@ -2422,8 +2428,9 @@ public sealed class DocxExportService
         new W.SpacingBetweenLines { Before = "0", After = "0" },
         new W.ParagraphMarkRunProperties(new W.FontSize { Val = "8" })));
 
-    // Real TOC field over Heading1-3 with hyperlinks (\h) — combined with w:updateFields, Word
-    // rebuilds it (page numbers and all) the moment the document opens.
+    // Real TOC field over Heading1-N with hyperlinks (\h) — combined with w:updateFields, Word
+    // rebuilds it (page numbers and all) the moment the document opens. The upper bound adapts to
+    // HeadingShift so shifted headings still appear (e.g. shift +3 pushes H1→H4, so range becomes 1-6).
     private static void AppendTocField(W.Body body, Ctx ctx)
     {
         var heading = new W.Paragraph();
@@ -2431,9 +2438,11 @@ public sealed class DocxExportService
         heading.Descendants<W.RunProperties>().First().FontSize = new W.FontSize { Val = "32" };
         body.Append(heading);
 
+        var tocMax = Math.Clamp(3 + Math.Max(0, ctx.Settings.HeadingShift), 3, 6);
+        var fieldCode = $" TOC \\o \"1-{tocMax}\" \\h \\z \\u ";
         body.Append(new W.Paragraph(
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Begin, Dirty = true }),
-            new W.Run(new W.FieldCode(" TOC \\o \"1-3\" \\h \\z \\u ") { Space = SpaceProcessingModeValues.Preserve }),
+            new W.Run(new W.FieldCode(fieldCode) { Space = SpaceProcessingModeValues.Preserve }),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.Separate }),
             new W.Run(new W.Text("Table of contents — Word fills this in when the document opens.")),
             new W.Run(new W.FieldChar { FieldCharType = W.FieldCharValues.End })));
@@ -3102,6 +3111,23 @@ public sealed class DocxExportService
 
     // ------------------------------------------------------- document parts
 
+    // Maps the typography preset / custom font to a DOCX-compatible font family name.
+    // Presets use their primary (first) family; a custom font file uses its file-name-derived family.
+    private static string ResolveDocxFont(AppSettings settings)
+    {
+        if (FontManagerService.IsEmbeddableFontFile(settings.CustomFontPath))
+            return FontManagerService.GetFontFamilyName(settings.CustomFontPath);
+
+        return (settings.FontPreset ?? "System").ToLowerInvariant() switch
+        {
+            "serif" => "Cambria",
+            "sans-serif" => "Segoe UI",
+            "monospace" => "Cascadia Code",
+            "dyslexic-friendly" => "Comic Sans MS",
+            _ => "Segoe UI Variable",
+        };
+    }
+
     private static void AddStyles(MainDocumentPart main, Ctx ctx)
     {
         var part = main.AddNewPart<StyleDefinitionsPart>();
@@ -3109,12 +3135,18 @@ public sealed class DocxExportService
 
         // Doc-wide defaults carry the theme text color and kerning; the w14 OpenType features are
         // stamped per-run in BuildRunProperties (the only place they're schema-legal).
-        // Segoe UI Variable is the Windows 11 system UI font — optical sizing keeps small body text
-        // crisp and large headings elegant; it reads as a native, premium document rather than the
-        // generic Office default. A branding kit can still restyle the whole document.
-        var baseFont = ctx.BrandFont ?? "Segoe UI Variable";
+        // Font priority: BrandFont (corporate template) > CustomFontPath (embedded TTF/OTF) >
+        // FontPreset (typography setting) > Segoe UI Variable (Windows 11 system UI font).
+        var baseFont = ctx.BrandFont ?? ResolveDocxFont(ctx.Settings);
         var defaultText = ContrastGuard.EnsureLegibleText(ctx.Theme.Text, ctx.Theme.Background);
         var headingColor = ContrastGuard.EnsureLegibleText(ctx.HeadingHex, ctx.Theme.Background);
+
+        // RTL support: when the document's content direction is right-to-left, set w:bidi on the
+        // default paragraph properties so all paragraphs inherit RTL reading order in Word.
+        var isRtl = string.Equals(ctx.Settings.ContentDirection, "rtl", StringComparison.OrdinalIgnoreCase);
+        var basePPr = new W.ParagraphPropertiesBaseStyle(
+            new W.SpacingBetweenLines { After = "160", Line = "259", LineRule = W.LineSpacingRuleValues.Auto });
+        if (isRtl) basePPr.Append(new W.BiDi());
 
         styles.Append(new W.DocDefaults(
             new W.RunPropertiesDefault(new W.RunPropertiesBaseStyle(
@@ -3123,8 +3155,7 @@ public sealed class DocxExportService
                 new W.Kern { Val = 16u },
                 new W.FontSize { Val = "22" },
                 new W.FontSizeComplexScript { Val = "22" })),
-            new W.ParagraphPropertiesDefault(new W.ParagraphPropertiesBaseStyle(
-                new W.SpacingBetweenLines { After = "160", Line = "259", LineRule = W.LineSpacingRuleValues.Auto }))));
+            new W.ParagraphPropertiesDefault(basePPr)));
 
         styles.Append(new W.Style(new W.StyleName { Val = "Normal" })
         {
@@ -3265,11 +3296,12 @@ public sealed class DocxExportService
                 new W.Justification { Val = W.JustificationValues.Center }),
             FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
 
-        // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active, so the
-        // document looks like the user's own work. Built-in themes keep the attribution.
+        // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active OR the
+        // user explicitly disabled attribution, so the document looks like the user's own work.
+        // Built-in themes with ShowAttribution=true keep the attribution.
         // We check settings.Theme (the requested name) rather than ctx.Theme.Name (the resolved
         // fallback) so an unregistered custom theme name still suppresses branding.
-        if (Themes.IsBuiltin(settings.Theme))
+        if (settings.ShowAttribution && Themes.IsBuiltin(settings.Theme))
         {
             footerPart.Footer = new W.Footer(new W.Paragraph(
                 new W.ParagraphProperties(

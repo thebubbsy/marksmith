@@ -4,22 +4,31 @@ let toastTimer = null;
 const THEMES_FALLBACK = ["GitHub Light", "GitHub Dark", "Solarized Light", "Solarized Dark",
     "Dracula", "Monokai Pro", "Cyberpunk", "Nordic", "Forest", "Obsidian"];
 
-// Output profile fields -> the keys the app's OutputOverride expects (camelCase).
-const OUT_DEFAULTS = {
-    theme: "GitHub Light", themeLightInfluence: false, contentWidth: 800, a4FixedWidth: true, unlimitedHeight: true,
-    includeToc: false, showAttribution: true, noEmoji: false, dashMode: 0, dashCustom: "",
-    headingShift: 0, boldMode: 0, italicMode: 0, normalizeLlm: true,
-    format: "docx", outputFolder: "", mermaidDocxMode: 1, oversizedDiagramMode: 1,
-    diagramGridSize: 2, smartConnectors: true, connectorRouting: "default", connectorArrowhead: "default",
-    brandCoverPage: false
+// Output profile — OVERRIDE model. Every field is optional: when a control is left on
+// "App default" (empty value) the key is OMITTED from the stored profile and from the payload
+// sent to the app, so the app's own saved setting wins (OutputOverride contract: a missing
+// field falls back to whatever the app currently has). Only explicit choices are sent — the
+// extension tracks the app's settings live instead of snapshotting them.
+// Types: "str" = pass through, "int" = Number(), "bool" = tri-state select ("1"/"0"/"").
+const FIELD_TYPES = {
+    theme: "str", contentWidth: "int", dashMode: "int", dashCustom: "str",
+    headingShift: "int", format: "str", mermaidDocxMode: "int", oversizedDiagramMode: "int",
+    diagramGridSize: "int", connectorRouting: "str", connectorArrowhead: "str",
+    fontPreset: "str", pdfPageNumberPosition: "str", fileNameTemplate: "str",
+    boldMode: "int", italicMode: "int", outputFolder: "str",
+    themeLightInfluence: "bool", brandCoverPage: "bool", smartConnectors: "bool",
+    a4FixedWidth: "bool", unlimitedHeight: "bool", includeToc: "bool", showWordCount: "bool",
+    showAttribution: "bool", normalizeLlm: "bool", noEmoji: "bool", pageBorder: "bool",
+    trackChanges: "bool"
 };
-const NUMS = new Set(["contentWidth", "dashMode", "headingShift", "boldMode", "italicMode", "mermaidDocxMode", "oversizedDiagramMode", "diagramGridSize"]);
-const BOOLS = new Set(["a4FixedWidth", "unlimitedHeight", "includeToc", "showAttribution", "noEmoji", "normalizeLlm", "themeLightInfluence", "smartConnectors", "brandCoverPage"]);
 
 function fillThemes(list, selected) {
     const sel = $("o_theme");
     if (!sel) return;
     sel.innerHTML = "";
+    const def = document.createElement("option");
+    def.value = ""; def.textContent = "App default";
+    sel.appendChild(def);
     for (const name of list) {
         const o = document.createElement("option");
         o.value = name; o.textContent = name;
@@ -28,27 +37,32 @@ function fillThemes(list, selected) {
     }
 }
 
+// Build the sparse override object to persist + send. Empty control = App default = omitted.
 function readOutput() {
     const out = {};
-    for (const k of Object.keys(OUT_DEFAULTS)) {
+    for (const [k, type] of Object.entries(FIELD_TYPES)) {
         const el = $("o_" + k);
-        if (!el) {
-            out[k] = OUT_DEFAULTS[k];
-            continue;
+        if (!el) continue;
+        const raw = el.value;
+        if (raw === "" || raw === null || raw === undefined) continue; // App default
+        if (type === "bool") out[k] = raw === "1";
+        else if (type === "int") {
+            const n = Number(raw);
+            if (Number.isFinite(n)) out[k] = n;
         }
-        if (BOOLS.has(k)) out[k] = el.checked;
-        else if (NUMS.has(k)) out[k] = Number(el.value);
-        else out[k] = el.value;
+        else out[k] = raw;
     }
     return out;
 }
 
+// Reflect a stored (sparse) profile onto the controls. Missing keys land on "App default".
 function writeOutput(out) {
-    for (const k of Object.keys(OUT_DEFAULTS)) {
+    for (const [k, type] of Object.entries(FIELD_TYPES)) {
         const el = $("o_" + k);
         if (!el) continue;
-        if (BOOLS.has(k)) el.checked = !!out[k];
-        else el.value = out[k] !== undefined && out[k] !== null ? out[k] : OUT_DEFAULTS[k];
+        const v = out ? out[k] : undefined;
+        if (v === undefined || v === null || v === "") { el.value = ""; continue; }
+        el.value = type === "bool" ? (v ? "1" : "0") : String(v);
     }
 }
 
@@ -67,9 +81,9 @@ async function init() {
     // Load from chrome.storage.sync with fallback to chrome.storage.local
     let s = {};
     try {
-        s = await chrome.storage.sync.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: OUT_DEFAULTS });
+        s = await chrome.storage.sync.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: {} });
     } catch {
-        s = await chrome.storage.local.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: OUT_DEFAULTS });
+        s = await chrome.storage.local.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: {} });
     }
 
     if ($("port")) $("port").value = s.port || 47821;
@@ -77,7 +91,10 @@ async function init() {
     if ($("idleSeconds")) $("idleSeconds").value = s.idleSeconds || 20;
     if ($("imgEmbedPref")) $("imgEmbedPref").value = ["ask", "url", "base64"].includes(s.imgEmbedPref) ? s.imgEmbedPref : "ask";
 
-    const out = { ...OUT_DEFAULTS, ...s.output };
+    // Sparse overrides only — never merge in defaults. A field that isn't stored tracks the
+    // app's live setting. (Profiles saved by older extension versions stored every key; those
+    // simply load as explicit overrides and can be cleared with "Reset to app defaults".)
+    const out = s.output || {};
 
     // Populate themes from the running app if reachable, else a static list.
     let themes = THEMES_FALLBACK;
@@ -87,19 +104,43 @@ async function init() {
     } catch { /* app not running — fallback list */ }
     fillThemes(themes, out.theme);
     writeOutput(out);
-    if ($("o_theme")) $("o_theme").value = out.theme;
+    if ($("o_theme")) $("o_theme").value = out.theme || "";
+
+    // Show how many fields are currently overridden, so the model is visible at a glance.
+    updateOverrideCount(out);
+}
+
+function updateOverrideCount(out) {
+    const el = $("overrideCount");
+    if (!el) return;
+    const n = out ? Object.keys(out).filter((k) => k in FIELD_TYPES).length : 0;
+    el.textContent = n === 0
+        ? "Everything tracks the app's settings."
+        : `${n} field${n === 1 ? "" : "s"} overridden — the rest track the app's settings.`;
+}
+
+if ($("resetOutput")) {
+    $("resetOutput").addEventListener("click", () => {
+        for (const k of Object.keys(FIELD_TYPES)) {
+            const el = $("o_" + k);
+            if (el) el.value = "";
+        }
+        updateOverrideCount({});
+        showToast("All fields reset to App default — click Save to apply");
+    });
 }
 
 if ($("save")) {
     $("save").addEventListener("click", async () => {
         const port = Math.min(65535, Math.max(1024, Number($("port") ? $("port").value : 47821) || 47821));
         const idleSeconds = Math.min(300, Math.max(5, Number($("idleSeconds") ? $("idleSeconds").value : 20) || 20));
+        const output = readOutput();
         const payload = {
             port,
             idleSeconds,
             autoSendIdle: $("autoSendIdle") ? $("autoSendIdle").checked : false,
             imgEmbedPref: $("imgEmbedPref") && ["ask", "url", "base64"].includes($("imgEmbedPref").value) ? $("imgEmbedPref").value : "ask",
-            output: readOutput(),
+            output,
         };
 
         // Embedding defeats CORS via the optional host permission — request it here (a guaranteed
@@ -112,6 +153,7 @@ if ($("save")) {
         try { await chrome.storage.sync.set(payload); } catch {}
         try { await chrome.storage.local.set(payload); } catch {}
 
+        updateOverrideCount(output);
         showToast("✓ Options saved successfully");
     });
 }

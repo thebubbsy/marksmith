@@ -9,7 +9,7 @@
 // still streaming keeps the timer alive. A content hash prevents re-sending an unchanged conversation.
 
 (async () => {
-  const cfg = await chrome.storage.sync.get({ autoSendIdle: false, idleSeconds: 20, port: 47821, output: null });
+  const cfg = await chrome.storage.sync.get({ autoSendIdle: false, idleSeconds: 20, port: 47821, output: {} });
   if (!cfg.autoSendIdle) return;
 
   let lastActivity = Date.now();
@@ -32,7 +32,7 @@
       await fetch(`http://127.0.0.1:${cfg.port}/api/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown: md, output: cfg.output || undefined }),
+        body: JSON.stringify({ markdown: md, output: Object.keys(cfg.output || {}).length ? cfg.output : undefined }),
       });
     } catch { /* app not running — try again next idle window */ }
   }, 4000);

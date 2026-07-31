@@ -179,6 +179,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         RootGrid.DataContext = ViewModel;
 
+        // Style-panel expanders auto-scroll their newly-revealed fields into view. Wired in
+        // code-behind because the XAML Expanded="…" attribute crashes XamlCompiler (it exits 1 with
+        // no output.json), whereas subscribing here is equivalent and build-safe. Note the control
+        // exposes Expanding/Collapsed (there is no Expanded event in this Windows App SDK).
+        ExportBrandingExpander.Expanding += OnStyleExpanderExpanded;
+        AdvancedStyleExpander.Expanding += OnStyleExpanderExpanded;
+
         // Ctrl+, opens Settings. This can't be a XAML KeyboardAccelerator: WinUI can't represent the
         // comma key in an accelerator (a raw "188" fails XAML parsing, and VirtualKey.OemComma crashes
         // the framework's accelerator-string builder — see microsoft-ui-xaml#708), so it's handled here.
@@ -1073,7 +1080,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (folder is not null) ViewModel.WatchFolder = folder.Path;
     }
 
-    // ISS-011: quick-pick a known AI-agent export folder as the watch target.
+    // Preset directory selector for standard AI pipeline output locations.
     private void OnWatchFolderPresetSelected(object sender, SelectionChangedEventArgs e)
     {
         if (WatchFolderPresets.SelectedItem is Services.AiAgentFolderPresets.FolderPreset preset)
@@ -1421,6 +1428,37 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ViewModel.BrandLogoPath = file.Path;
         }
+    }
+
+    private async void OnBrowseFontClick(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        picker.FileTypeFilter.Add(".ttf");
+        picker.FileTypeFilter.Add(".otf");
+        var file = await picker.PickSingleFileAsync();
+        if (file is not null)
+        {
+            ViewModel.CustomFontPath = file.Path;
+        }
+    }
+
+    // The Style-panel expanders (Export Branding / Advanced Options) reveal content that usually
+    // lands below the panel ScrollViewer's fold. After the expand animation settles, bring the last
+    // revealed element into view so the new fields are immediately visible instead of requiring a
+    // manual scroll.
+    private void OnStyleExpanderExpanded(object sender, ExpanderExpandingEventArgs e)
+    {
+        if (sender is not Expander exp) return;
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(350);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            if (exp.Content is StackPanel sp && sp.Children.Count > 0)
+                sp.Children[sp.Children.Count - 1].StartBringIntoView();
+        };
+        timer.Start();
     }
 
     private void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
@@ -3241,16 +3279,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // portal is open the page just stores it for the next aperture.
     private void OnTogglePortalBlurInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
-        var on = !App.Settings.Current.PortalFocusBlur;
-        App.Settings.Current.PortalFocusBlur = on;
-        App.Settings.Save();
+        ViewModel.PortalFocusBlur = !ViewModel.PortalFocusBlur;
+        PushPortalBlurToPage(ViewModel.PortalFocusBlur);
+        args.Handled = true;
+    }
+
+    // Pushes the portal focus-blur state into the live preview page and reports it in the status
+    // bar. Called from both the Ctrl+Alt+X accelerator and the portal-row blur toggle button.
+    private void PushPortalBlurToPage(bool on)
+    {
         var js = "if (window.__portalSetBlur) { window.__portalSetBlur(" + (on ? "true" : "false") + "); }";
         _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
         ViewModel.StatusText = on
             ? "Portal focus: preview blurred behind the aperture — Ctrl+Alt+X for sharp."
             : "Portal focus: preview sharp behind the aperture — Ctrl+Alt+X for blur.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-        args.Handled = true;
+    }
+
+    private void OnPortalBlurToggled(object sender, RoutedEventArgs e)
+    {
+        // The TwoWay binding has already written ViewModel.PortalFocusBlur; push it to the page.
+        PushPortalBlurToPage(ViewModel.PortalFocusBlur);
     }
 
     private void ApplyFocusMode(bool focus)

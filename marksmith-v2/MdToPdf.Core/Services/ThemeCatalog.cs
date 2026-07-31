@@ -17,8 +17,9 @@ public sealed class ThemeCatalog
     {
         public required int Version { get; init; }
         public required List<ThemeDefinition> List { get; init; }
+        public required Dictionary<string, ThemeDefinition> Lookup { get; init; }
     }
-    private Snapshot? _allCache;
+    private volatile Snapshot? _allCache;
 
     public IReadOnlyList<ThemeDefinition> All
     {
@@ -27,7 +28,13 @@ public sealed class ThemeCatalog
             var version = CustomThemeStore.Version;
             if (_allCache is { } s && s.Version == version) return s.List;
             var list = Builtin.Concat(CustomThemeStore.All).ToList();
-            _allCache = new Snapshot { Version = version, List = list };
+            var dict = new Dictionary<string, ThemeDefinition>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in list)
+            {
+                dict.TryAdd(t.Name, t);
+            }
+            s = new Snapshot { Version = version, List = list, Lookup = dict };
+            _allCache = s;
             return list;
         }
     }
@@ -50,8 +57,17 @@ public sealed class ThemeCatalog
 
     public ThemeDefinition GetOrDefault(string name)
     {
-        var all = All; // single snapshot — used to call All twice (FirstOrDefault + fallback [0])
-        return all.FirstOrDefault(t => t.Name == name) ?? all[0];
+        var version = CustomThemeStore.Version;
+        if (_allCache is not { } s || s.Version != version)
+        {
+            _ = All; // Rebuilds snapshot and dictionary atomically
+            s = _allCache!;
+        }
+        if (!string.IsNullOrEmpty(name) && s.Lookup.TryGetValue(name, out var theme))
+        {
+            return theme;
+        }
+        return s.List[0];
     }
 
     // Picks the built-in theme whose Heading (its accent-like color) is closest to `hex` in RGB
