@@ -3025,7 +3025,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             $"if (typeof triggerRedRadarBeacon === 'function') {{ triggerRedRadarBeacon({line}); }}");
     }
 
-    // Move the caret to the start of the given 1-based line and bring it into view.
+    // Move the caret to the start of the given 1-based line, select the line, and bring it into view.
     private void GoToLine(int lineNo)
     {
         var text = PasteTextBox.Text ?? string.Empty;
@@ -3036,9 +3036,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (text[offset] == '\n') line++;
             offset++;
         }
+
+        int lineStart = Math.Clamp(offset, 0, text.Length);
+        int lineEnd = lineStart;
+        while (lineEnd < text.Length && text[lineEnd] != '\r' && text[lineEnd] != '\n')
+        {
+            lineEnd++;
+        }
+
         PasteTextBox.Focus(FocusState.Programmatic);
-        PasteTextBox.Select(Math.Clamp(offset, 0, text.Length), 0);
+        PasteTextBox.Select(lineStart, lineEnd - lineStart);
         UpdateCursorPosition();
+
+        try
+        {
+            var sv = FindEditorScrollViewer();
+            if (sv != null)
+            {
+                double targetY = Math.Max(0, (lineNo - 4) * 20.0);
+                sv.ChangeView(null, targetY, null, disableAnimation: false);
+            }
+        }
+        catch { }
     }
 
     // ---- Text transforms (the Transform dropdown) ----
@@ -3513,29 +3532,108 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var tb = PasteTextBox;
         if (tb == null) return;
-        try
+
+        int selStart = tb.SelectionStart;
+        int selLen = tb.SelectionLength;
+        string text = tb.Text ?? "";
+        string selected = tb.SelectedText ?? "";
+
+        // If selection is empty, insert prefix + suffix at caret and place caret inside
+        if (string.IsNullOrEmpty(selected))
         {
-            var selected = tb.SelectedText;
-            tb.SelectedText = prefix + selected + suffix;
-            if (string.IsNullOrEmpty(selected))
-            {
-                tb.SelectionStart = tb.SelectionStart - suffix.Length;
-                tb.SelectionLength = 0;
-            }
-            tb.Focus(FocusState.Programmatic);
-        }
-        catch
-        {
-            int selStart = tb.SelectionStart;
-            int selLen = tb.SelectionLength;
-            string text = tb.Text ?? "";
-            string sel = text.Substring(selStart, selLen);
-            string rep = prefix + sel + suffix;
-            tb.Text = text.Remove(selStart, selLen).Insert(selStart, rep);
+            tb.SelectedText = prefix + suffix;
             tb.SelectionStart = selStart + prefix.Length;
-            tb.SelectionLength = sel.Length;
+            tb.SelectionLength = 0;
             tb.Focus(FocusState.Programmatic);
+            return;
         }
+
+        // Split leading and trailing line breaks (\r, \n) from selected text
+        int leadEnd = 0;
+        while (leadEnd < selected.Length && (selected[leadEnd] == '\r' || selected[leadEnd] == '\n'))
+        {
+            leadEnd++;
+        }
+
+        int trailStart = selected.Length;
+        while (trailStart > leadEnd && (selected[trailStart - 1] == '\r' || selected[trailStart - 1] == '\n'))
+        {
+            trailStart--;
+        }
+
+        string leadingBreak = selected.Substring(0, leadEnd);
+        string coreText = selected.Substring(leadEnd, trailStart - leadEnd);
+        string trailingBreak = selected.Substring(trailStart);
+
+        bool isInlineFormat = !string.IsNullOrEmpty(suffix);
+        bool coreHasFormat = isInlineFormat && coreText.Length >= (prefix.Length + suffix.Length) &&
+                            coreText.StartsWith(prefix) && coreText.EndsWith(suffix);
+
+        int precedeIdx = selStart + leadEnd - prefix.Length;
+        int followIdx = selStart + trailStart;
+        bool surroundingHasFormat = isInlineFormat && !coreHasFormat &&
+                                   precedeIdx >= 0 && (followIdx + suffix.Length) <= text.Length &&
+                                   text.Substring(precedeIdx, prefix.Length) == prefix &&
+                                   text.Substring(followIdx, suffix.Length) == suffix;
+
+        if (coreHasFormat)
+        {
+            // Toggle OFF: selection itself contains surrounding formatting markers
+            string unformatted = coreText.Substring(prefix.Length, coreText.Length - prefix.Length - suffix.Length);
+            string rep = leadingBreak + unformatted + trailingBreak;
+            tb.SelectedText = rep;
+            tb.SelectionStart = Math.Clamp(selStart + leadingBreak.Length, 0, (tb.Text ?? "").Length);
+            tb.SelectionLength = Math.Clamp(unformatted.Length, 0, (tb.Text ?? "").Length - tb.SelectionStart);
+            tb.Focus(FocusState.Programmatic);
+            return;
+        }
+        else if (surroundingHasFormat)
+        {
+            // Toggle OFF: formatting markers surround the selection in full text
+            string newFullText = text.Remove(followIdx, suffix.Length).Remove(precedeIdx, prefix.Length);
+            tb.Text = newFullText;
+            tb.SelectionStart = Math.Clamp(precedeIdx + leadingBreak.Length, 0, (tb.Text ?? "").Length);
+            tb.SelectionLength = Math.Clamp(coreText.Length, 0, (tb.Text ?? "").Length - tb.SelectionStart);
+            tb.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        string replacement;
+        int newCoreStartOffset;
+        int newCoreLength;
+
+        // Line-level prefix formatting (e.g. # , - , 1. , > ) when suffix is empty
+        if (string.IsNullOrEmpty(suffix) && (prefix.TrimEnd() == "#" || prefix.TrimEnd() == "##" || prefix.TrimEnd() == "###" || prefix.TrimEnd() == "####" || prefix.TrimEnd() == "-" || prefix.TrimEnd() == "1." || prefix.TrimEnd() == "- []" || prefix.TrimEnd() == ">"))
+        {
+            string[] lines = coreText.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (line.Length > 0)
+                {
+                    if (line.EndsWith("\r"))
+                        lines[i] = prefix + line.Substring(0, line.Length - 1) + "\r";
+                    else
+                        lines[i] = prefix + line;
+                }
+            }
+            string formattedCore = string.Join("\n", lines);
+            replacement = leadingBreak + formattedCore + trailingBreak;
+            newCoreStartOffset = selStart + leadingBreak.Length;
+            newCoreLength = formattedCore.Length;
+        }
+        else
+        {
+            // Inline formatting (e.g. **bold**, *italic*, ~~strikethrough~~, ==highlight==, `code`, [text](url))
+            replacement = leadingBreak + prefix + coreText + suffix + trailingBreak;
+            newCoreStartOffset = selStart + leadingBreak.Length + prefix.Length;
+            newCoreLength = coreText.Length;
+        }
+
+        tb.SelectedText = replacement;
+        tb.SelectionStart = Math.Clamp(newCoreStartOffset, 0, (tb.Text ?? "").Length);
+        tb.SelectionLength = Math.Clamp(newCoreLength, 0, (tb.Text ?? "").Length - tb.SelectionStart);
+        tb.Focus(FocusState.Programmatic);
     }
 
     private void OnBoldClick(object sender, RoutedEventArgs e)
