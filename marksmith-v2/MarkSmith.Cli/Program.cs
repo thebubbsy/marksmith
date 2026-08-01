@@ -6,6 +6,9 @@ using MarkSmith.Core.Glox;
 using MarkSmith.Core.Mosaic;
 using MarkSmith.Core.Resolver;
 using MarkSmith.Core.Solver;
+using System.Text.Json;
+using MarkSmith.Core.Glox.Builder;
+using MarkSmith.Core.Glox.Packager;
 
 namespace MarkSmith.Cli
 {
@@ -19,15 +22,33 @@ namespace MarkSmith.Cli
             if (args.Length < 2)
             {
                 Console.WriteLine("Usage: marksmith <input.md|input.json|input.png> <output.docx> [layout_alias]");
+                Console.WriteLine("       marksmith build-layout <input_layout.json> <output.glox>");
                 return;
             }
 
-            string inputPath = args[0];
-            string outputPath = args[1];
-            string? layoutOverride = args.Length > 2 ? args[2] : null;
+            string commandOrInput = args[0];
+            string arg2 = args[1];
 
             try
             {
+                if (commandOrInput.Equals("build-layout", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("Invoking GLOX Packager...");
+                    string json = File.ReadAllText(arg2);
+                    string outputGlox = args.Length > 2 ? args[2] : arg2.Replace(".json", ".glox");
+                    
+                    var def = JsonLayoutParser.Parse(json);
+                    var xml = GloxXmlSerializer.Serialize(def);
+                    MarkSmith.Core.Glox.Packager.GloxPackager.Package(xml, outputGlox);
+                    
+                    Console.WriteLine($"Successfully generated custom SmartArt GLOX package: {outputGlox}");
+                    return;
+                }
+
+                string inputPath = commandOrInput;
+                string outputPath = arg2;
+                string? layoutOverride = args.Length > 2 ? args[2] : null;
+
                 var resolver = new UrnResolver();
                 var assembly = typeof(MarkSmith.Core.Glox.GloxExtractor).Assembly;
                 foreach (string resourceName in assembly.GetManifestResourceNames())
