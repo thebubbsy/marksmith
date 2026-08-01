@@ -27,16 +27,9 @@ namespace MdToPdf.Controls
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void OnGetExtensionClick(object sender, RoutedEventArgs e)
+        private async void OnGetExtensionClick(object sender, RoutedEventArgs e)
         {
-            try 
-            { 
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "https://github.com/thebubbsy/MarkSmith/tree/main/extension",
-                    UseShellExecute = true
-                }); 
-            }
+            try { await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/MarkSmith/tree/main/extension")); }
             catch { }
             IsOpen = false;
         }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,44 @@ public sealed class ApiServer : IDisposable
     // Bumped (unix ms) when the app wants the extension's "Copy as Markdown" buttons to pulse —
     // e.g. after a plain-text paste. Static so UI code can set it without holding the server.
     public static long AttentionTs;
+
+    // Bumped (unix ms) every time the extension polls /api/commands — used by the UI to show
+    // whether the browser extension is connected (heartbeat within last 90 s = connected).
+    public static long LastExtensionPollTs;
+
+    // ---- Reverse command channel (App -> Extension) ----------------------------------------
+    // The app enqueues jobs (e.g. "send this prompt to the user's web AI"); the extension polls
+    // GET /api/commands, executes, and posts the result back to POST /api/commands/result.
+    public sealed record CommandJob(string Id, string Type, string Prompt);
+    public sealed record CommandResult(string Id, string ReplyMarkdown);
+
+    private static readonly ConcurrentQueue<CommandJob> PendingCommands = new();
+    private static readonly ConcurrentDictionary<string, CommandResult> CommandResults = new();
+
+    /// <summary>Enqueues a job for the extension to pick up. Returns the job id.</summary>
+    public static string EnqueueCommand(string type, string prompt)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        PendingCommands.Enqueue(new CommandJob(id, type, prompt));
+        return id;
+    }
+
+    /// <summary>Checks whether a result has been posted for the given job id.</summary>
+    public static CommandResult? GetResult(string id) =>
+        CommandResults.TryRemove(id, out var r) ? r : null;
+
+    /// <summary>Drains every pending job (what GET /api/commands returns to the extension).
+    /// Internal so tests can simulate the extension's polling side.</summary>
+    internal static List<CommandJob> DrainCommands()
+    {
+        var jobs = new List<CommandJob>();
+        while (PendingCommands.TryDequeue(out var job)) jobs.Add(job);
+        return jobs;
+    }
+
+    /// <summary>Stores a completed job's result (what POST /api/commands/result does).
+    /// Internal so tests can simulate the extension posting an AI reply back.</summary>
+    internal static void PostResult(CommandResult result) => CommandResults[result.Id] = result;
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -132,14 +171,22 @@ public sealed class ApiServer : IDisposable
         // "null": file:// pages and sandboxed/opaque contexts (a locally-opened dashboard).
         if (string.IsNullOrEmpty(origin) || origin == "null") return true;
 
-        // Browser extensions — specifically matching the configured AllowedExtensionId.
-        var allowedId = _allowedExtensionId?.Invoke();
-        if (!string.IsNullOrWhiteSpace(allowedId) &&
-            (origin.Equals($"chrome-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
-             origin.Equals($"moz-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
-             origin.Equals($"safari-web-extension://{allowedId}", StringComparison.OrdinalIgnoreCase)))
+        // Browser-extension origins (chrome/moz/safari). An MV3 service-worker fetch sends
+        // Origin: chrome-extension://<id>, so the bundled extension MUST be admitted here or every
+        // /api/ingest and /api/convert call 403s — the "popup says Connected but export returns
+        // HTTP 403" bug. When a specific AllowedExtensionId is pinned, only that exact ID passes
+        // (strict). When it is left blank (the default) any installed extension is trusted: an
+        // extension has to be deliberately installed by the user, and the real threat model for
+        // this loopback API is drive-by web pages (http/https origins), still rejected below.
+        if (origin.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+            origin.StartsWith("moz-extension://", StringComparison.OrdinalIgnoreCase) ||
+            origin.StartsWith("safari-web-extension://", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            var allowedId = _allowedExtensionId?.Invoke();
+            if (string.IsNullOrWhiteSpace(allowedId)) return true; // not pinned → trust any extension
+            return origin.Equals($"chrome-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+                   origin.Equals($"moz-extension://{allowedId}", StringComparison.OrdinalIgnoreCase) ||
+                   origin.Equals($"safari-web-extension://{allowedId}", StringComparison.OrdinalIgnoreCase);
         }
 
         // Loopback only, matched on the exact host so look-alike public hosts can't slip through.
@@ -211,6 +258,26 @@ public sealed class ApiServer : IDisposable
                     // Markdown" buttons pulse (set when the app detects a plain-text paste).
                     await WriteJsonAsync(ctx, 200, new { flashTs = AttentionTs });
                     break;
+
+                case ("GET", "/api/commands"):
+                {
+                    // Extension polls for pending jobs. Drains the queue into the response.
+                    LastExtensionPollTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    await WriteJsonAsync(ctx, 200, DrainCommands());
+                    break;
+                }
+
+                case ("POST", "/api/commands/result"):
+                {
+                    var body = await ReadBoundedBodyAsync(ctx);
+                    var result = string.IsNullOrWhiteSpace(body) ? null
+                        : JsonSerializer.Deserialize<CommandResult>(body, JsonOpts);
+                    if (result?.Id is not { Length: > 0 })
+                    { await WriteJsonAsync(ctx, 400, new { error = "id and replyMarkdown are required" }); break; }
+                    PostResult(result);
+                    await WriteJsonAsync(ctx, 200, new { ok = true });
+                    break;
+                }
 
                 case ("POST", "/api/classify"):
                 {

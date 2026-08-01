@@ -64,7 +64,22 @@ public partial class DiagramNodeViewModel : ObservableObject
     private int _zIndex = 10;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAnchors))]
     private bool _isSelected;
+
+    /// <summary>True while the pointer hovers the node — drives the hover glow and reveals
+    /// the connector anchor dots (world-class editors only show anchors on hover/selection).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAnchors))]
+    private bool _isHovered;
+
+    /// <summary>True while a connector is being drawn and this node is the prospective drop
+    /// target — drives the bright "connect here" highlight ring.</summary>
+    [ObservableProperty]
+    private bool _isConnectionTarget;
+
+    /// <summary>Anchor dots are revealed when the node is hovered OR selected.</summary>
+    public bool ShowAnchors => IsSelected || IsHovered;
 
     [ObservableProperty]
     private string _fillColor = "#2B2D42";

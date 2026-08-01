@@ -20,15 +20,47 @@ public sealed class ExportCoordinator
 
     public SemaphoreSlim ConvertLock => _convertLock;
 
-    public static string[] ParseFormats(string? format)
+    public async Task ExportToPdfAsync(IWebRenderHost? host, string html, string outPath, AppSettings settings)
     {
-        if (string.IsNullOrWhiteSpace(format)) return new[] { "pdf" };
+        if (host is null || !await host.EnsureReadyAsync())
+        {
+            throw new InvalidOperationException("The preview engine couldn't start.");
+        }
+        await _pdfExport.ExportAsync(host, html, outPath, settings);
+    }
+
+    public async Task ExportToDocxAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _docxExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public async Task ExportToPptxAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _pptxExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public async Task ExportToEpubAsync(string markdown, string outPath, AppSettings settings)
+    {
+        await _epubExport.ExportAsync(markdown, outPath, settings);
+    }
+
+    public string ExportToHtml(string markdown, AppSettings settings)
+    {
+        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+        return AppServices.MarkdownHtml.Render(markdown, settings, theme, null);
+    }
+
+    public static string[] ParseFormats(string? format, string? defaultFormat = null)
+    {
+        var fallback = string.IsNullOrWhiteSpace(defaultFormat) ? "pdf" : defaultFormat.Trim().ToLowerInvariant();
+        if (fallback is not ("pdf" or "docx" or "pptx" or "epub")) fallback = "pdf";
+        if (string.IsNullOrWhiteSpace(format)) return new[] { fallback };
         if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
         var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(f => f.ToLowerInvariant())
             .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
             .Distinct().ToArray();
-        return fmts.Length > 0 ? fmts : new[] { "pdf" };
+        return fmts.Length > 0 ? fmts : new[] { fallback };
     }
 
     public async Task AutoExportIngestAsync(
@@ -60,7 +92,7 @@ public sealed class ExportCoordinator
 
             var produced = new List<string>();
             var pending = new List<string>();
-            var formats = ParseFormats(output?.Format);
+            var formats = ParseFormats(output?.Format, settings.DefaultExportFormat);
 
             IReadOnlyList<byte[]?>? mermaidImgs = null;
             IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
@@ -73,7 +105,7 @@ public sealed class ExportCoordinator
                 if (settings.MermaidDocxMode == 1)
                 {
                     mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                    mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                    mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
                 }
             }
 
@@ -130,6 +162,34 @@ public sealed class ExportCoordinator
                 vm.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
                 vm.StatusSeverity = StatusSeverity.Warning;
             }
+
+            // Cloud auto-publish (Task 9): mirror each produced file into the configured cloud drive
+            // (a local sync-folder copy, or a WebDAV PUT). Best-effort — a failed sync must never
+            // fail the export that just succeeded.
+            if (settings.CloudAutoPublish && produced.Count > 0)
+            {
+                if (string.IsNullOrWhiteSpace(settings.CloudProviderId))
+                {
+                    // The user enabled cloud publish but never picked a provider — tell them.
+                    vm.StatusText += "  (Cloud publish skipped: no provider configured in Settings.)";
+                    vm.StatusSeverity = StatusSeverity.Warning;
+                }
+                else
+                {
+                    foreach (var p in produced)
+                    {
+                        try
+                        {
+                            await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
+                                settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
+                        }
+                        catch (Exception cex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
+                        }
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -171,14 +231,34 @@ public sealed class ExportCoordinator
             await _convertLock.WaitAsync();
             try
             {
-                var html = vm.BuildPreviewHtml(vm.PastedMarkdown);
-                var folder = AppServices.Settings.Current.OutputFolder;
+                var settings = AppServices.Settings.Current;
+                var md = vm.PastedMarkdown;
+                var folder = settings.OutputFolder;
                 Directory.CreateDirectory(folder);
-                var outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                await _pdfExport.ExportAsync(host, html, outPath, AppServices.Settings.Current);
+
+                // Respect the user's target format instead of hardcoding PDF.
+                var fmt = (settings.TargetFormat ?? "pdf").ToLowerInvariant();
+                string outPath;
+
+                if (fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
+                {
+                    await _docxExport.ExportAppendAsync(md, settings.RunningDocPath, settings, null, null, null);
+                    outPath = settings.RunningDocPath;
+                }
+                else if (fmt == "docx")
+                {
+                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".docx");
+                    await _docxExport.ExportAsync(md, outPath, settings, null, null, null, null);
+                }
+                else
+                {
+                    var html = vm.BuildPreviewHtml(md);
+                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
+                    await _pdfExport.ExportAsync(host, html, outPath, settings);
+                }
 
                 vm.LastOutputPath = outPath;
-                vm.RecordExport("PDF", outPath, vm.PastedMarkdown);
+                vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
                 vm.StatusText = $"Auto-converted: {outPath}";
                 vm.StatusSeverity = StatusSeverity.Success;
                 showToast?.Invoke(outPath);
@@ -239,7 +319,7 @@ public sealed class ExportCoordinator
                     if (settings.MermaidDocxMode == 1)
                     {
                         mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                        mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                        mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
                     }
                 }
 
@@ -300,14 +380,15 @@ public sealed class ExportCoordinator
         OutputOverride? ovr,
         IWebRenderHost? host,
         Func<IDisposable>? beginOffscreen = null,
-        Func<Task>? onCompletedRefresh = null)
+        Func<Task>? onCompletedRefresh = null,
+        bool recursive = false)
     {
         if (!Directory.Exists(folderPath))
         {
             throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
         }
 
-        var files = Directory.GetFiles(folderPath, "*.md", SearchOption.TopDirectoryOnly);
+        var files = Directory.GetFiles(folderPath, "*.md", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
         if (files.Length == 0)
         {
             return new { done = 0, failed = 0, message = "No .md files found." };
@@ -330,19 +411,28 @@ public sealed class ExportCoordinator
         int done = 0, failed = 0;
         var processedFiles = new List<string>();
 
+        // The theme is identical for every file in a batch (settings is fixed above), so resolve it
+        // once here instead of re-running Themes.GetOrDefault on every iteration of the loop below.
+        var batchTheme = AppServices.Themes.GetOrDefault(settings.Theme);
+
         foreach (var f in files)
         {
             await _convertLock.WaitAsync();
             try
             {
                 var md = vm.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                var outPath = Path.Combine(outFolder, Path.GetFileNameWithoutExtension(f) + "." + fmt);
+                // Mirror the source's relative folder structure under the output folder so a
+                // recursive batch doesn't collide same-named files from different subfolders.
+                // (For a top-level-only batch relDir is "" and this is the same flat path as before.)
+                var relDir = Path.GetDirectoryName(Path.GetRelativePath(folderPath, f)) ?? "";
+                var outDir = Path.Combine(outFolder, relDir);
+                Directory.CreateDirectory(outDir);
+                var outPath = Path.Combine(outDir, Path.GetFileNameWithoutExtension(f) + "." + fmt);
 
                 switch (fmt)
                 {
                     case "pdf":
-                        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                        var html = AppServices.MarkdownHtml.Render(md, settings, theme, null);
+                        var html = AppServices.MarkdownHtml.Render(md, settings, batchTheme, null);
                         // host is guaranteed non-null here: the fmt=="pdf" guard above throws otherwise.
                         await _pdfExport.ExportAsync(host!, html, outPath, settings);
                         break;
@@ -355,12 +445,11 @@ public sealed class ExportCoordinator
                         // exporter falls back to parser-based ShapeForge or a code block for diagrams.
                         if (host is not null && md.Contains("```mermaid", StringComparison.Ordinal))
                         {
-                            var docxTheme = AppServices.Themes.GetOrDefault(settings.Theme);
-                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, docxTheme);
+                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, batchTheme);
                             if (settings.MermaidDocxMode == 1)
                             {
-                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, docxTheme);
-                                mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings);
+                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, batchTheme);
+                                mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, batchTheme);
                             }
                         }
                         await _docxExport.ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);

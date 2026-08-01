@@ -207,4 +207,19 @@ var errors = validator.Validate(wordDocument);
 Assert.Empty(errors); // Zero-corruption guarantee
 ```
 
+---
+
+## 8. SMARTART ENGINE & GLOX AUTHORING GOVERNANCE
+
+Marksmith contains a reverse-engineered SmartArt engine (`MarkSmith.Core`) that parses Office OpenXML `.glox` layout definitions and compiles them into standard `drawingml/2006/diagram` OpenXML parts (`DiagramDataPart`).
+
+### AI Directives for SmartArt & GLOX:
+1. **Layout Definitions (` layoutDef `)**: Always ensure `uniqueId` follows URN structure (e.g., `urn:microsoft.com/office/officeart/2005/8/layout/process1` or `urn:marksmith.com/layout/custom1`).
+2. **GLOX Packaging Standard**: `.glox` files are zipped OPC packages containing:
+   - `[Content_Types].xml` with overrides for `diagramLayout+xml` and `diagramLayoutHeader+xml`.
+   - `_rels/.rels` linking `rId1` -> `diagrams/layout1.xml` and `rId2` -> `diagrams/layoutHeader1.xml`.
+   - `diagrams/layout1.xml` containing `<dgm:layoutDef>`.
+   - `diagrams/layoutHeader1.xml` containing `<dgm:layoutDefHdr>`.
+3. **CLI Compiler Integration**: Use `marksmith build-layout <input.json> <output.glox>` to transform JSON layout nodes into compliant `.glox` files.
+
 **END OF DIRECTIVE.**

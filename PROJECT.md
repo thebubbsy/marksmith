@@ -1,28 +1,107 @@
-# Project: Visual Mermaid Diagram Studio Overhaul
+# Project: Universal OpenXML SmartArt Compiler
 
-## Overview
-Overhaul the Visual Mermaid Diagram Studio in Marksmith (`MdToPdf.Avalonia` and `MdToPdf.Core`) to achieve professional-grade usability (mimicking tools like draw.io or FigJam) and ensure the visual editor can seamlessly round-trip full Mermaid text capabilities without data loss.
+## Architecture
+The Universal OpenXML SmartArt Compiler is a programmable DrawingML graphics engine integrated into `MdToPdf.Core`.
+It consists of 3 core subsystems:
+1. **Parser & AST Pipeline (`MdToPdf.Core/SmartArt/Parser`)**:
+   - Converts Markdown nested bullet/numbered lists and JSON hierarchy definitions into a unified `SmartArtAst` model.
+2. **Layout Routing & URN Registry (`MdToPdf.Core/SmartArt/Routing`)**:
+   - Maps AST semantics (hierarchy depth, cycle loops, sequential lists, Venn intersections) to standard Microsoft `.glox` URNs and layout headers.
+3. **OpenXML DrawingML Graph Generator (`MdToPdf.Core/Services/UniversalSmartArtBuilder.cs` & `MdToPdf.Core/SmartArt/Generator`)**:
+   - Synthesizes `diagramData.xml` containing compliant `dgm:ptLst` (nodes & trans points) and `dgm:cxnLst` (parent-child graph connection edges), along with accompanying `diagramLayoutHeader.xml`, `diagramColors.xml`, and `diagramStyle.xml`.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Exploration & Architecture Analysis | Investigate existing Mermaid parser, visual canvas control, node/connector data structures, line routing, hover menu mechanisms, drag-and-drop, and unit test harness | None | DONE |
-| 2 | Absolute Positioning via Metadata Injection | Implement parser/serializer for hidden metadata comments (`%% {"id":"nodeId", "x":100, "y":200}`) in Mermaid Markdown blocks; integrate canvas coordinate sync; write C# unit tests for round-trip verification without corrupting Mermaid syntax | M1 | DONE |
-| 3 | Professional UI/UX Usability Enhancements | Implement Multi-Select & Bulk Move, Smart Orthogonal Routing (90-degree angle pathfinding around nodes), and Quick-Add Hover Menus (directional arrows to spawn and connect new nodes) | M2 | DONE |
-| 4 | Verification & Forensic Integrity Audit | Execute full build & test suite, verify programmatic acceptance criteria, run Reviewers, Challengers, and Forensic Auditor | M3 | DONE |
+| E2E | E2E Testing Track | Requirement-driven test suite & `TEST_READY.md` | none | DONE |
+| 1 | AST Memory Model & Generic Parsers | Markdown list & JSON parsing to `SmartArtAst` (R1) | none | DONE |
+| 2 | Layout Algorithm Router & URN Registry | AST semantic routing to `.glox` layout types & URN resolution (R2) | M1 | DONE |
+| 3 | OpenXML DrawingML Graph Generator | `diagramData.xml` `ptLst`/`cxnLst` generation & DOCX packaging (R3) | M2 | DONE |
+| 4 | Final E2E Pass & Hardening | Pass 100% E2E tests & Tier 5 white-box coverage hardening | M3, E2E | IN_PROGRESS |
+
+## Interface Contracts
+
+### AST & Memory Model
+```csharp
+namespace MdToPdf.Core.SmartArt.Model;
+
+public enum SmartArtLayoutType
+{
+    Hierarchy,
+    Cycle,
+    List,
+    Venn,
+    Pyramid,
+    Matrix
+}
+
+public class SmartArtNode
+{
+    public string Id { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public int Depth { get; set; }
+    public Dictionary<string, string> Attributes { get; set; } = new();
+    public List<SmartArtNode> Children { get; set; } = new();
+}
+
+public class SmartArtRelationship
+{
+    public string SourceId { get; set; } = string.Empty;
+    public string TargetId { get; set; } = string.Empty;
+    public string Type { get; set; } = "parent-child";
+}
+
+public class SmartArtAst
+{
+    public string Title { get; set; } = string.Empty;
+    public SmartArtLayoutType PreferredLayout { get; set; } = SmartArtLayoutType.Hierarchy;
+    public List<SmartArtNode> RootNodes { get; set; } = new();
+    public List<SmartArtRelationship> Relationships { get; set; } = new();
+}
+```
+
+### Parser Interface
+```csharp
+namespace MdToPdf.Core.SmartArt.Parser;
+
+public interface ISmartArtParser
+{
+    bool CanParse(string input);
+    SmartArtAst Parse(string input);
+}
+```
+
+### Router & Generator Interface
+```csharp
+namespace MdToPdf.Core.SmartArt.Routing;
+
+public record SmartArtLayoutDefinition(
+    string LayoutUrn,
+    string HeaderXml,
+    string ColorsXml,
+    string StyleXml
+);
+
+public interface ISmartArtLayoutRouter
+{
+    SmartArtLayoutDefinition ResolveLayout(SmartArtAst ast);
+}
+
+namespace MdToPdf.Core.SmartArt.Generator;
+
+public interface ISmartArtGenerator
+{
+    byte[] GenerateDiagramDataXml(SmartArtAst ast, SmartArtLayoutDefinition layoutDef);
+    void EmbedSmartArtIntoDocx(DocumentFormat.OpenXml.Packaging.MainDocumentPart mainPart, SmartArtAst ast);
+}
+```
 
 ## Code Layout
-- `MdToPdf/` & `MdToPdf.Avalonia/` — Visual Mermaid Diagram Studio UI controls (`MermaidCanvasControl`), XAML canvas, interactive handlers, node rendering, hover menus.
-- `MdToPdf.Core/` — Mermaid text parser, AST models, metadata comment injection/extraction logic (`MermaidMetadataService`, `NodePositionMetadata`, `OrthogonalRouter`).
-- `tests/MdToPdf.Core.Tests/` — Unit test project verifying round-trip layout metadata parsing, multi-select, orthogonal routing, and quick-add creation.
-- `.agents/` — Agent metadata and state files.
-
-## Acceptance Criteria Status
-1. Metadata layout comments (`%% {"id":"A", "x":100, "y":200}`) load into XAML Canvas coordinates: **PASSED (100% verified)**.
-2. Modifying XAML Canvas coordinates saves back cleanly into `%%` comments without corrupting Mermaid syntax: **PASSED (100% verified)**.
-3. Multi-Select & Bulk Move implemented: **PASSED (100% verified)**.
-4. Smart Orthogonal Routing (90-degree angles around nodes) implemented: **PASSED (100% verified)**.
-5. Quick-Add Hover Menus (directional arrows spawn & connect node) implemented: **PASSED (100% verified)**.
-6. C# Unit Test written & passing for round-trip: **PASSED (100% passing)**.
-7. Build succeeds clean without errors: **PASSED (0 Errors, 0 Warnings)**.
-8. Forensic Integrity Audit VERDICT CLEAN: **PASSED (VERDICT CLEAN / VICTORY CONFIRMED)**.
+- Core Project: `MdToPdf.Core/`
+  - `SmartArt/Model/` -> AST data structures
+  - `SmartArt/Parser/` -> Markdown & JSON parsers
+  - `SmartArt/Routing/` -> Glox Layout Router & URN Registry
+  - `SmartArt/Generator/` -> DrawingML Graph Generator & OpenXML Packaging
+- Test Project: `tests/MdToPdf.Core.Tests/`
+  - `SmartArt/` -> Unit & Integration tests for SmartArt
+  - `SmartArtE2ETests.cs` -> E2E acceptance test suite

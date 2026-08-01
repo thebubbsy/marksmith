@@ -17,6 +17,8 @@ public sealed class SettingsService
         Current = Load();
     }
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     private static AppSettings Load()
     {
         try
@@ -24,7 +26,7 @@ public sealed class SettingsService
             if (File.Exists(SettingsPath))
             {
                 var json = File.ReadAllText(SettingsPath);
-                var settings = JsonSerializer.Deserialize<AppSettings>(json);
+                var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOpts);
                 if (settings is not null) return settings;
             }
         }
@@ -38,7 +40,7 @@ public sealed class SettingsService
     public void Save()
     {
         Directory.CreateDirectory(ConfigDir);
-        var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(Current, JsonOpts);
         AtomicFile.WriteAllText(SettingsPath, json);
     }
 }

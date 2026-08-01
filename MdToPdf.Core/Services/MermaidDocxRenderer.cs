@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using MdToPdf.Mermaid.Ast;
 using MdToPdf.Models;
 using MdToPdf.Services.Mermaid;
 using W = DocumentFormat.OpenXml.Wordprocessing;
@@ -26,6 +27,11 @@ public static class MermaidDocxRenderer
         public required string Id;
         public string Label = "";
         public string Shape = "rect"; // rect | round | ellipse | diamond | parallelogram | hexagon
+        // The lossless Mermaid shape this node was parsed from — carried into the emitted shape's
+        // structured name so the reverse importer (DocxShapeParser) can rebuild the exact AST node.
+        // `Shape` above is lossy (several FlowNodeShapes collapse onto one Word preset), so this is
+        // the source of truth for round-tripping.
+        public FlowNodeShape FlowShape = FlowNodeShape.Rectangle;
         public int Rank;
         public double X, Y, W, H;
         public uint XmlId;
@@ -36,6 +42,7 @@ public static class MermaidDocxRenderer
     private sealed class Graph
     {
         public bool LeftRight;
+        public string Dir = "TD"; // the declared flow direction (TD|TB|LR|RL|BT) — tagged for round-trip
         public readonly List<Node> Nodes = new();
         public readonly Dictionary<string, Node> ById = new();
         public readonly List<Edge> Edges = new();
@@ -123,7 +130,7 @@ public static class MermaidDocxRenderer
                 var d = renderer.Render(source, theme); // MermaidParseException → catch below
                 if (d.Shapes.Count == 0 && d.Connectors.Count == 0) return false;
                 
-                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized, smartConnectors: settings.SmartConnectors) };
+                paragraph = new W.Paragraph { InnerXml = Mermaid.DocxShapeEmitter.ToParagraphXml(d, theme, drawingId, out oversized, smartConnectors: settings.SmartConnectors, connectorRouting: settings.ConnectorRouting) };
                 paragraph.PrependChild(new W.ParagraphProperties( // schema order: spacing before jc
                     new W.SpacingBetweenLines { Before = "120", After = "120" },
                     new W.Justification { Val = W.JustificationValues.Center }));
@@ -201,6 +208,7 @@ public static class MermaidDocxRenderer
             }
         }
         if (dir is null) return null;
+        g.Dir = dir;
         g.LeftRight = dir is "LR" or "RL";
         return g;
     }
@@ -281,13 +289,23 @@ public static class MermaidDocxRenderer
     private static readonly Regex IdRe = new(@"\G\s*([A-Za-z0-9_](?:(?!--|-\.)[A-Za-z0-9_.:-])*)", RegexOptions.Compiled);
     private static readonly Regex AmpRe = new(@"\G\s*&\s*", RegexOptions.Compiled);
 
-    // Bracket pairs, longest openers first, mapped to Word preset geometries.
-    private static readonly (string Open, string Close, string Shape)[] Brackets =
+    // Bracket pairs, longest openers first, mapped to Word preset geometries AND the lossless
+    // Mermaid FlowNodeShape each opener denotes (carried on the node for reverse-import tagging).
+    private static readonly (string Open, string Close, string Shape, FlowNodeShape Flow)[] Brackets =
     {
-        ("((", "))", "ellipse"), ("([", "])", "round"), ("[[", "]]", "rect"),
-        ("[/", "/]", "parallelogram"), ("[\\", "\\]", "parallelogram"), ("{{", "}}", "hexagon"),
-        ("[(", ")]", "database"),
-        ("[", "]", "rect"), ("(", ")", "round"), ("{", "}", "diamond"), (">", "]", "rect"),
+        ("((", "))", "ellipse", FlowNodeShape.Circle),
+        ("([", "])", "round", FlowNodeShape.Stadium),
+        ("[[", "]]", "rect", FlowNodeShape.Subroutine),
+        ("[/", "/]", "parallelogram", FlowNodeShape.Parallelogram),
+        ("[\\", "\\]", "parallelogram", FlowNodeShape.Parallelogram),
+        ("[/", "\\]", "trapezoid", FlowNodeShape.Trapezoid),
+        ("[\\", "/]", "trapezoid", FlowNodeShape.Trapezoid),
+        ("{{", "}}", "hexagon", FlowNodeShape.Hexagon),
+        ("[(", ")]", "database", FlowNodeShape.CylindricalDatabase),
+        ("[", "]", "rect", FlowNodeShape.Rectangle),
+        ("(", ")", "round", FlowNodeShape.RoundedRectangle),
+        ("{", "}", "diamond", FlowNodeShape.RhombusDiamond),
+        (">", "]", "rect", FlowNodeShape.Asymmetric),
     };
 
     private static List<Node>? ReadNodeGroup(string s, ref int i, Graph g)
@@ -318,13 +336,14 @@ public static class MermaidDocxRenderer
             g.Nodes.Add(node);
         }
 
-        foreach (var (open, close, shape) in Brackets)
+        foreach (var (open, close, shape, flow) in Brackets)
         {
             if (i + open.Length > s.Length || s.Substring(i, open.Length) != open) continue;
             var end = s.IndexOf(close, i + open.Length, StringComparison.Ordinal);
             if (end < 0) return null; // unterminated bracket → unsupported line
             node.Label = Clean(s.Substring(i + open.Length, end - i - open.Length));
             node.Shape = shape;
+            node.FlowShape = flow;
             i = end + close.Length;
             break;
         }
@@ -495,7 +514,7 @@ public static class MermaidDocxRenderer
             <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
               <wp:extent cx="{CX}" cy="{CY}"/>
               <wp:effectExtent l="0" t="0" r="0" b="0"/>
-              <wp:docPr id="{drawingId}" name="Mermaid diagram" descr="Flowchart rendered as native Word shapes by Marksmith"/>
+              <wp:docPr id="{drawingId}" name="Mermaid diagram" descr="Marksmith mermaid flowchart dir={g.Dir}"/>
               <wp:cNvGraphicFramePr/>
               <a:graphic>
                 <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
@@ -521,7 +540,7 @@ public static class MermaidDocxRenderer
         };
         return $"""
             <wps:wsp>
-              <wps:cNvPr id="{id}" name="{XmlEsc(n.Id)}"/>
+              <wps:cNvPr id="{id}" name="{XmlEsc(NodeTag(n))}"/>
               <wps:cNvSpPr/>
               <wps:spPr>
                 <a:xfrm><a:off x="{Emu(n.X)}" y="{Emu(n.Y)}"/><a:ext cx="{Emu(n.W)}" cy="{Emu(n.H)}"/></a:xfrm>
@@ -606,11 +625,17 @@ public static class MermaidDocxRenderer
             cxnAttr = $"<a:stCxn id=\"{e.From.XmlId}\" idx=\"{stIdx}\"/><a:endCxn id=\"{e.To.XmlId}\" idx=\"{endIdx}\"/>";
         }
         
-        string prst = settings.ConnectorRouting == "elbow" ? "bentConnector3" : "straightConnector1";
+        string prst = settings.ConnectorRouting switch
+        {
+            "elbow" => "bentConnector3",
+            "curved" => "curveConnector3",
+            "straight" => "straightConnector1",
+            _ => "straightConnector1", // "default": straight (this renderer has no per-edge elbow data)
+        };
 
         return $"""
             <wps:wsp>
-              <wps:cNvPr id="{id}" name="edge"/>
+              <wps:cNvPr id="{id}" name="{XmlEsc(EdgeTag(e))}"/>
               <wps:cNvCnPr>{cxnAttr}</wps:cNvCnPr>
               <wps:spPr>
                 <a:xfrm{flips}><a:off x="{ox}" y="{oy}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>
@@ -658,7 +683,7 @@ public static class MermaidDocxRenderer
         double w = Math.Clamp((10 + e.Label!.Length * 4.6) * scale, 20, 160), h = 15 * scale;
         return $"""
             <wps:wsp>
-              <wps:cNvPr id="{id}" name="edge label"/>
+              <wps:cNvPr id="{id}" name="{XmlEsc(EdgeLabelTag(e))}"/>
               <wps:cNvSpPr/>
               <wps:spPr>
                 <a:xfrm><a:off x="{Emu(mx - w / 2)}" y="{Emu(my - h / 2)}"/><a:ext cx="{Emu(w)}" cy="{Emu(h)}"/></a:xfrm>
@@ -683,4 +708,19 @@ public static class MermaidDocxRenderer
     private static string Hex(string css) => css.TrimStart('#').ToUpperInvariant().PadLeft(6, '0')[..6];
     private static string XmlEsc(string s) =>
         s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
+
+    // ---- reverse-import identity tags --------------------------------------------------------
+    // Structured names written into each shape's wps:cNvPr name so the DOCX->Mermaid importer
+    // (DocxShapeParser) can recover the diagram losslessly. Convention:
+    //   node:  ms:node=<id>;kind=<FlowNodeShape>
+    //   edge:  ms:edge=<from>--><to>;style=<Solid|Dashed|Thick>;start=<ArrowHead>;end=<ArrowHead>
+    //   label: ms:edge=<from>--><to>;label=<text>          (label is LAST — may contain ';')
+    private static string NodeTag(Node n) => $"ms:node={n.Id};kind={n.FlowShape}";
+
+    private static string EdgeTag(Edge e) =>
+        $"ms:edge={e.From.Id}-->{e.To.Id};style={EdgeStyleTag(e)};start={e.StartHead};end={e.EndHead}";
+
+    private static string EdgeLabelTag(Edge e) => $"ms:edge={e.From.Id}-->{e.To.Id};label={e.Label}";
+
+    private static string EdgeStyleTag(Edge e) => e.Thick ? "Thick" : e.Dashed ? "Dashed" : "Solid";
 }

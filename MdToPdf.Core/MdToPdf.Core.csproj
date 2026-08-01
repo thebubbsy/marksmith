@@ -7,6 +7,9 @@
          this project for everything else. -->
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>MdToPdf</RootNamespace>
+    <Version>2.0.0</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -26,10 +29,19 @@
          can be embedded into DOCX as the raster fallback beside the crisp SVG (see
          DocxExportService's plugin-diagram FencedCodeBlock case). -->
     <PackageReference Include="Svg.Skia" Version="2.0.0.5" />
+    <!-- Managed PDF read/write used to apply optional password protection + access-control
+         permissions (Task 18) to the Chromium-printed PDF after export (see PdfSecurityService). -->
+    <PackageReference Include="PDFsharp" Version="6.1.1" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>MdToPdf.Core.Tests</_Parameter1>
     </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\SmartArtLayouts\*.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
   </ItemGroup>
 </Project>

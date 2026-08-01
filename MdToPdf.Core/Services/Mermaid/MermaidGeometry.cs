@@ -94,16 +94,57 @@ public sealed class GenericDiagram
         foreach (var t in Texts)
         {
             if (string.IsNullOrWhiteSpace(t.Text)) continue;
+            // A label sits ON a node, not on the page. Record the fill of the node beneath it so
+            // the emitter's ContrastGuard judges the text colour against the actual surface it is
+            // painted on (the shape fill), not the page background. Nearly every shape carries
+            // words, so a font colour too close to its own shape's fill is always corrected. This
+            // Fill only feeds the legibility check — FillXml emits noFill for Text shapes, so the
+            // rendered label stays transparent.
+            var underFill = NodeFillUnder(t.X + t.W / 2, t.Y + t.H / 2);
             d.Shapes.Add(new MShape
             {
                 Kind = ShapeKind.Text,
                 X = t.X, Y = t.Y, W = Math.Max(8, t.W + 4), H = Math.Max(8, t.H),
                 Text = t.Text.Replace("\r", ""),
                 TextColor = Css(t.Color),
+                Fill = underFill,
                 FontSize = Math.Clamp(t.H * 0.62, 6, 14),
             });
         }
+
+        // The harvester's JS grows the canvas to enclose the content, but guard here too: a canvas
+        // smaller than its own shapes would paint a too-small backdrop card while the shapes, at
+        // their real coordinates, spill off the page (the "tiny state diagram" bug when the SVG
+        // omits its viewBox and the harvest size collapses toward zero).
+        double maxX = 0, maxY = 0;
+        foreach (var s in d.Shapes) { maxX = Math.Max(maxX, s.X + s.W); maxY = Math.Max(maxY, s.Y + s.H); }
+        foreach (var c in d.Connectors)
+        {
+            if (c.Points is { Count: > 0 })
+                foreach (var p in c.Points) { maxX = Math.Max(maxX, p.X); maxY = Math.Max(maxY, p.Y); }
+            else { maxX = Math.Max(maxX, Math.Max(c.X1, c.X2)); maxY = Math.Max(maxY, Math.Max(c.Y1, c.Y2)); }
+        }
+        d.Width = Math.Max(d.Width, maxX);
+        d.Height = Math.Max(d.Height, maxY);
+
         return d;
+    }
+
+    // The fill of the smallest node whose bounds contain the point (cx, cy), or null when the
+    // point sits on open canvas. "Smallest" picks the innermost box when nodes nest (a subgraph
+    // panel contains its member nodes), so a label is judged against the tightest surface under
+    // it — the one it visually rests on.
+    private string? NodeFillUnder(double cx, double cy)
+    {
+        GNode? best = null;
+        double bestArea = double.MaxValue;
+        foreach (var n in Nodes)
+        {
+            if (cx < n.X || cx > n.X + n.W || cy < n.Y || cy > n.Y + n.H) continue;
+            var area = n.W * n.H;
+            if (area < bestArea) { bestArea = area; best = n; }
+        }
+        return Css(best?.Fill);
     }
 
     // css "rgb(r, g, b)" / "rgba(...)" / "#rrggbb" -> "#RRGGBB"; "none"/transparent/empty -> null.
@@ -168,39 +209,44 @@ public sealed class HarvestedDiagram
     {
         var d = new MDiagram { Width = Math.Max(1, W), Height = Math.Max(1, H) };
 
+        // Subgraphs (clusters) harvest BEFORE their member nodes in DOM order, but must paint
+        // BEHIND them. Emit non-subgraph nodes first, then subgraphs as back containers.
+        var regular = new List<HNode>();
+        var subgraphs = new List<HNode>();
         foreach (var n in Nodes)
+            (n.Kind == "Subgraph" ? subgraphs : regular).Add(n);
+
+        foreach (var n in regular)
+            d.Shapes.Add(ToShape(n));
+
+        foreach (var sg in subgraphs)
         {
-            // Fall back to a label-derived box when the harvest couldn't measure the shape (0-size).
-            double w = n.W, h = n.H;
-            if (w < 2 || h < 2)
+            var shape = ToShape(sg);
+            // Safety net: an older harvester measured a cluster's centre from getCTM().e/.f, which
+            // reads ~0 for a cluster (identity group transform, absolute rect coords) — collapsing
+            // every subgraph onto the origin. Detect a subgraph stranded at the top-left while its
+            // members live elsewhere and grow it to enclose them, so the container still makes sense.
+            if (sg.Cx < 4 && sg.Cy < 4)
             {
-                var lines = string.IsNullOrEmpty(n.Label) ? new[] { "" } : n.Label.Split('\n');
-                int longest = lines.Max(l => l.Length);
-                w = Math.Clamp(24 + longest * 7.0, 60, 260);
-                h = 30 + Math.Max(0, lines.Length - 1) * 15;
+                var members = d.Shapes.Where(s =>
+                    s.Kind != ShapeKind.Subgraph && s.Kind != ShapeKind.Text &&
+                    !string.IsNullOrEmpty(s.Text) && sg.Label.Contains(s.Text.Split('\n')[0], StringComparison.Ordinal)).ToList();
+                if (members.Count == 0)
+                    members = d.Shapes.Where(s => s.Kind != ShapeKind.Subgraph && s.Kind != ShapeKind.Text).ToList();
+                if (members.Count > 0)
+                {
+                    double pad = 18, header = 22;
+                    double minX = members.Min(m => m.X) - pad;
+                    double minY = members.Min(m => m.Y) - pad - header;
+                    double maxX = members.Max(m => m.X + m.W) + pad;
+                    double maxY = members.Max(m => m.Y + m.H) + pad;
+                    shape.X = Math.Max(0, minX);
+                    shape.Y = Math.Max(0, minY);
+                    shape.W = Math.Max(shape.W, maxX - minX);
+                    shape.H = Math.Max(shape.H, maxY - minY);
+                }
             }
-            var kind = n.Kind switch
-            {
-                "RoundRect" => ShapeKind.RoundRect,
-                "Diamond" => ShapeKind.Diamond,
-                "Ellipse" => ShapeKind.Ellipse,
-                "Circle" => ShapeKind.Circle,
-                "Hexagon" => ShapeKind.Hexagon,
-                "Cylinder" => ShapeKind.Cylinder,
-                "Subgraph" => ShapeKind.Subgraph,
-                _ => ShapeKind.Rect,
-            };
-            d.Shapes.Add(new MShape
-            {
-                Kind = kind,
-                X = n.Cx - w / 2,
-                Y = n.Cy - h / 2,
-                W = w,
-                H = h,
-                Text = n.Label,
-                Fill = GenericDiagram.Css(n.Fill),
-                FontSize = 9,
-            });
+            d.Shapes.Add(shape);
         }
 
         foreach (var e in Edges)
@@ -226,5 +272,41 @@ public sealed class HarvestedDiagram
         }
 
         return d;
+    }
+
+    // One harvested node -> one MShape, centred on the harvested point. Falls back to a label-derived
+    // box when the harvest couldn't measure the shape (0-size).
+    private static MShape ToShape(HNode n)
+    {
+        double w = n.W, h = n.H;
+        if (w < 2 || h < 2)
+        {
+            var lines = string.IsNullOrEmpty(n.Label) ? new[] { "" } : n.Label.Split('\n');
+            int longest = lines.Max(l => l.Length);
+            w = Math.Clamp(24 + longest * 7.0, 60, 260);
+            h = 30 + Math.Max(0, lines.Length - 1) * 15;
+        }
+        var kind = n.Kind switch
+        {
+            "RoundRect" => ShapeKind.RoundRect,
+            "Diamond" => ShapeKind.Diamond,
+            "Ellipse" => ShapeKind.Ellipse,
+            "Circle" => ShapeKind.Circle,
+            "Hexagon" => ShapeKind.Hexagon,
+            "Cylinder" => ShapeKind.Cylinder,
+            "Subgraph" => ShapeKind.Subgraph,
+            _ => ShapeKind.Rect,
+        };
+        return new MShape
+        {
+            Kind = kind,
+            X = n.Cx - w / 2,
+            Y = n.Cy - h / 2,
+            W = w,
+            H = h,
+            Text = n.Label,
+            Fill = GenericDiagram.Css(n.Fill),
+            FontSize = 9,
+        };
     }
 }

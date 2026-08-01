@@ -11,6 +11,7 @@ public sealed class OutputOverride
     public bool? A4FixedWidth { get; set; }
     public bool? UnlimitedHeight { get; set; }
     public bool? IncludeToc { get; set; }
+    public bool? ShowWordCount { get; set; }
     public bool? ShowAttribution { get; set; }
     public bool? NoEmoji { get; set; }
     public int? DashMode { get; set; }
@@ -32,6 +33,13 @@ public sealed class OutputOverride
 
     // Cover Page setting
     public bool? BrandCoverPage { get; set; }
+
+    // Page chrome & formatting extras
+    public bool? PageBorder { get; set; }
+    public bool? TrackChanges { get; set; }
+    public string? PdfPageNumberPosition { get; set; }
+    public string? FontPreset { get; set; }
+    public string? FileNameTemplate { get; set; }
 
     // Where automated exports are written (folder path). Blank = leave the app's setting.
     public string? OutputFolder { get; set; }
