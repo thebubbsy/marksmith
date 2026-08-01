@@ -339,9 +339,15 @@ classDiagram
     [Fact]
     public void WebView2_MermaidInteropJs_ContainsRequiredGestureAndAudioLogic()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var repoRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."));
-        var jsPath = Path.Combine(repoRoot, "MdToPdf", "Assets", "web", "mermaid_interop.js");
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? assetsDir = null;
+        while (curr != null)
+        {
+            var p = Path.Combine(curr.FullName, "MarkSmith.Desktop", "Assets", "web");
+            if (Directory.Exists(p)) { assetsDir = p; break; }
+            curr = curr.Parent;
+        }
+        var jsPath = Path.Combine(assetsDir ?? "", "mermaid_interop.js");
 
         Assert.True(File.Exists(jsPath), $"mermaid_interop.js must exist at {jsPath}");
         var jsContent = File.ReadAllText(jsPath);
@@ -383,9 +389,15 @@ classDiagram
     [Fact]
     public void WebView2_LiquidFillCss_ContainsRequiredAnimationsAndOverlayStyles()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var repoRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."));
-        var cssPath = Path.Combine(repoRoot, "MdToPdf", "Assets", "web", "liquid_fill.css");
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? assetsDir = null;
+        while (curr != null)
+        {
+            var p = Path.Combine(curr.FullName, "MarkSmith.Desktop", "Assets", "web");
+            if (Directory.Exists(p)) { assetsDir = p; break; }
+            curr = curr.Parent;
+        }
+        var cssPath = Path.Combine(assetsDir ?? "", "liquid_fill.css");
 
         Assert.True(File.Exists(cssPath), $"liquid_fill.css must exist at {cssPath}");
         var cssContent = File.ReadAllText(cssPath);

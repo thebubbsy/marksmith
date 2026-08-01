@@ -86,4 +86,40 @@ public static class ContrastGuard
         double bgLuminance = GetLuminance(bgContextHex);
         return bgLuminance < 0.45 ? "FFFFFF" : "121212";
     }
+
+    /// <summary>
+    /// Scans SVG text elements (<text fill="..."> and <tspan fill="...">) and automatically enforces
+    /// WCAG 2.1 4.5:1 minimum contrast ratio against the document/card background context.
+    /// Prevents white-on-white or dark-on-dark text in PlantUML, Graphviz, or third-party SVG output.
+    /// </summary>
+    public static string EnsureSvgLegibility(string svg, string? bgContextHex = null)
+    {
+        if (string.IsNullOrWhiteSpace(svg)) return svg;
+        if (string.IsNullOrWhiteSpace(bgContextHex)) bgContextHex = "FFFFFF";
+
+        return System.Text.RegularExpressions.Regex.Replace(svg,
+            @"(<(?:text|tspan)\b[^>]*?\bfill\s*=\s*[""'])(#?[a-zA-Z0-9]+)([""'])",
+            m =>
+            {
+                var colorStr = m.Groups[2].Value;
+                var hex = NormalizeHex(colorStr);
+                if (hex != null)
+                {
+                    var legibleHex = EnsureLegibleText(hex, bgContextHex);
+                    return $"{m.Groups[1].Value}#{legibleHex}{m.Groups[3].Value}";
+                }
+                return m.Value;
+            },
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    private static string? NormalizeHex(string colorStr)
+    {
+        if (colorStr.Equals("white", StringComparison.OrdinalIgnoreCase)) return "FFFFFF";
+        if (colorStr.Equals("black", StringComparison.OrdinalIgnoreCase)) return "000000";
+        var s = colorStr.TrimStart('#');
+        if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
+        if (s.Length == 6) return s;
+        return null;
+    }
 }
