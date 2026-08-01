@@ -1,0 +1,20 @@
+{
+  "UniqueId": "urn:marksmith.com/layout/customKanban",
+  "Title": "Custom Kanban Board",
+  "Desc": "A 3-column kanban board layout",
+  "Category": "list",
+  "RootNode": {
+    "Name": "diagram",
+    "Algorithm": "linear",
+    "Shape": "roundRect",
+    "ForEach": {
+      "Axis": "ch",
+      "RefNode": "column",
+      "Child": {
+        "Name": "column",
+        "Algorithm": "tx",
+        "Shape": "roundRect"
+      }
+    }
+  }
+}
