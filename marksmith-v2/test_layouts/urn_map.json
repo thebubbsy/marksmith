@@ -1,0 +1,706 @@
+[
+  {
+    "File": "layout1.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/default"
+  },
+  {
+    "File": "layout10.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList1"
+  },
+  {
+    "File": "layout100.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle4"
+  },
+  {
+    "File": "layout101.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/RadialCluster"
+  },
+  {
+    "File": "layout102.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1"
+  },
+  {
+    "File": "layout103.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pictureOrgChart+Icon"
+  },
+  {
+    "File": "layout104.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/NameandTitleOrganizationalChart"
+  },
+  {
+    "File": "layout105.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/HalfCircleOrganizationChart"
+  },
+  {
+    "File": "layout106.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/layout/CirclePictureHierarchy"
+  },
+  {
+    "File": "layout107.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1"
+  },
+  {
+    "File": "layout108.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy6"
+  },
+  {
+    "File": "layout109.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/HorizontalOrganizationChart"
+  },
+  {
+    "File": "layout11.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/SquareAccentList"
+  },
+  {
+    "File": "layout110.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/HorizontalMultiLevelHierarchy"
+  },
+  {
+    "File": "layout111.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy2"
+  },
+  {
+    "File": "layout112.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy5"
+  },
+  {
+    "File": "layout113.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/balance1"
+  },
+  {
+    "File": "layout114.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/CircleRelationship"
+  },
+  {
+    "File": "layout115.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/HexagonCluster"
+  },
+  {
+    "File": "layout116.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/OpposingIdeas"
+  },
+  {
+    "File": "layout117.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/PlusandMinus"
+  },
+  {
+    "File": "layout118.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/layout/ReverseList"
+  },
+  {
+    "File": "layout119.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow3"
+  },
+  {
+    "File": "layout12.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList2"
+  },
+  {
+    "File": "layout120.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pyramid4"
+  },
+  {
+    "File": "layout121.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/target2"
+  },
+  {
+    "File": "layout122.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial4"
+  },
+  {
+    "File": "layout123.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial2"
+  },
+  {
+    "File": "layout124.xml",
+    "Urn": "urn:diagrams.loki3.com/TabbedArc+Icon"
+  },
+  {
+    "File": "layout125.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/target1"
+  },
+  {
+    "File": "layout126.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/venn1"
+  },
+  {
+    "File": "layout127.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/venn3"
+  },
+  {
+    "File": "layout128.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/venn2"
+  },
+  {
+    "File": "layout129.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/rings+Icon"
+  },
+  {
+    "File": "layout13.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/bList2"
+  },
+  {
+    "File": "layout130.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/matrix3"
+  },
+  {
+    "File": "layout131.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/matrix1"
+  },
+  {
+    "File": "layout132.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/matrix2"
+  },
+  {
+    "File": "layout133.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pyramid1"
+  },
+  {
+    "File": "layout134.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pyramid3"
+  },
+  {
+    "File": "layout135.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/AccentedPicture"
+  },
+  {
+    "File": "layout136.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/CircularPictureCallout"
+  },
+  {
+    "File": "layout137.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/RadialPictureList"
+  },
+  {
+    "File": "layout138.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/SnapshotPictureList"
+  },
+  {
+    "File": "layout139.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/SpiralPicture"
+  },
+  {
+    "File": "layout14.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList9"
+  },
+  {
+    "File": "layout140.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/CaptionedPictures"
+  },
+  {
+    "File": "layout141.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/BendingPictureCaption"
+  },
+  {
+    "File": "layout142.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/Picture Frame"
+  },
+  {
+    "File": "layout143.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/BendingPictureSemiTransparentText"
+  },
+  {
+    "File": "layout144.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/BendingPictureBlocks"
+  },
+  {
+    "File": "layout145.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/BendingPictureCaptionList"
+  },
+  {
+    "File": "layout146.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/TitledPictureBlocks"
+  },
+  {
+    "File": "layout147.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/PictureGrid"
+  },
+  {
+    "File": "layout148.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/PictureAccentBlocks"
+  },
+  {
+    "File": "layout149.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/ThemePictureAccent"
+  },
+  {
+    "File": "layout15.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/VerticalActionList"
+  },
+  {
+    "File": "layout150.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/ThemePictureGrid"
+  },
+  {
+    "File": "layout151.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/ThemePictureAlternatingAccent"
+  },
+  {
+    "File": "layout152.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/AlternatingPictureCircles"
+  },
+  {
+    "File": "layout153.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/TitlePictureLineup"
+  },
+  {
+    "File": "layout154.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/PictureLineup"
+  },
+  {
+    "File": "layout155.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/FramedTextPicture"
+  },
+  {
+    "File": "layout156.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/BubblePictureList"
+  },
+  {
+    "File": "layout157.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/AlternatingCircleProcess"
+  },
+  {
+    "File": "layout158.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/NumberedDotsHorizontal"
+  },
+  {
+    "File": "layout159.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/NumberedDotsVertical"
+  },
+  {
+    "File": "layout16.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/IncreasingCircleProcess"
+  },
+  {
+    "File": "layout160.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/SmallDotsHorizontal"
+  },
+  {
+    "File": "layout161.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/SmallDotsVertical"
+  },
+  {
+    "File": "layout162.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/MeetTheTeam"
+  },
+  {
+    "File": "layout163.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/MeetTheTeamCard"
+  },
+  {
+    "File": "layout164.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/MeetTheTeamCardVertical"
+  },
+  {
+    "File": "layout165.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/MeetTheTeamOval"
+  },
+  {
+    "File": "layout166.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardSideLineNumbered"
+  },
+  {
+    "File": "layout167.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardSideLineIcon"
+  },
+  {
+    "File": "layout168.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardSideLineQuote"
+  },
+  {
+    "File": "layout169.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardSideLineWideImage"
+  },
+  {
+    "File": "layout17.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/PieProcess"
+  },
+  {
+    "File": "layout170.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardShortLine"
+  },
+  {
+    "File": "layout171.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardShortLineNumber"
+  },
+  {
+    "File": "layout172.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardShortLineQuote"
+  },
+  {
+    "File": "layout173.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2026/layout/TextCardShortLineWide"
+  },
+  {
+    "File": "layout174.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/HorizontalActionList"
+  },
+  {
+    "File": "layout175.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/NumberedTitleCardList"
+  },
+  {
+    "File": "layout176.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/NumberedTitleList"
+  },
+  {
+    "File": "layout18.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess7"
+  },
+  {
+    "File": "layout19.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/lProcess2"
+  },
+  {
+    "File": "layout2.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/AlternatingHexagons"
+  },
+  {
+    "File": "layout20.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pList2"
+  },
+  {
+    "File": "layout21.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList7"
+  },
+  {
+    "File": "layout22.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/PictureStrips"
+  },
+  {
+    "File": "layout23.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vList4"
+  },
+  {
+    "File": "layout24.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/AlternatingPictureBlocks"
+  },
+  {
+    "File": "layout25.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vList3"
+  },
+  {
+    "File": "layout26.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/PictureAccentList"
+  },
+  {
+    "File": "layout27.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vList5"
+  },
+  {
+    "File": "layout28.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/chevron2"
+  },
+  {
+    "File": "layout29.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/VerticalAccentList"
+  },
+  {
+    "File": "layout3.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pList1"
+  },
+  {
+    "File": "layout30.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vList6"
+  },
+  {
+    "File": "layout31.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList6"
+  },
+  {
+    "File": "layout32.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/BlockDescendingList"
+  },
+  {
+    "File": "layout33.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/IconCircleLabelList"
+  },
+  {
+    "File": "layout34.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hList3"
+  },
+  {
+    "File": "layout35.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/process4"
+  },
+  {
+    "File": "layout36.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/VerticalCurvedList"
+  },
+  {
+    "File": "layout37.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/pyramid2"
+  },
+  {
+    "File": "layout38.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/target3"
+  },
+  {
+    "File": "layout39.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy3"
+  },
+  {
+    "File": "layout4.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/LinedList"
+  },
+  {
+    "File": "layout40.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/VerticalCircleList"
+  },
+  {
+    "File": "layout41.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy4"
+  },
+  {
+    "File": "layout42.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/architecture"
+  },
+  {
+    "File": "layout43.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/process1"
+  },
+  {
+    "File": "layout44.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/StepUpProcess"
+  },
+  {
+    "File": "layout45.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/StepDownProcess"
+  },
+  {
+    "File": "layout46.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/NumberedLinearArrowProcess"
+  },
+  {
+    "File": "layout47.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/process3"
+  },
+  {
+    "File": "layout48.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess10"
+  },
+  {
+    "File": "layout49.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess4"
+  },
+  {
+    "File": "layout5.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vList2"
+  },
+  {
+    "File": "layout50.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess9"
+  },
+  {
+    "File": "layout51.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/IncreasingArrowsProcess"
+  },
+  {
+    "File": "layout52.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/InterconnectedBlockProcess"
+  },
+  {
+    "File": "layout53.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess3"
+  },
+  {
+    "File": "layout54.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/ConvergingText"
+  },
+  {
+    "File": "layout55.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess6"
+  },
+  {
+    "File": "layout56.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/BulletTimeline"
+  },
+  {
+    "File": "layout57.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2024/layout/BulletTimelineInverted"
+  },
+  {
+    "File": "layout58.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/CircleAccentTimeline"
+  },
+  {
+    "File": "layout59.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11"
+  },
+  {
+    "File": "layout6.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/list1"
+  },
+  {
+    "File": "layout60.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/CircleProcess"
+  },
+  {
+    "File": "layout61.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/chevron1"
+  },
+  {
+    "File": "layout62.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/chevronAccent+Icon"
+  },
+  {
+    "File": "layout63.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/hChevron3"
+  },
+  {
+    "File": "layout64.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/lProcess3"
+  },
+  {
+    "File": "layout65.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/SubStepProcess"
+  },
+  {
+    "File": "layout66.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/PhasedProcess"
+  },
+  {
+    "File": "layout67.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/RandomtoResultProcess"
+  },
+  {
+    "File": "layout68.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/process2"
+  },
+  {
+    "File": "layout69.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/vProcess5"
+  },
+  {
+    "File": "layout7.xml",
+    "Urn": "urn:diagrams.loki3.com/BracketList"
+  },
+  {
+    "File": "layout70.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/lProcess1"
+  },
+  {
+    "File": "layout71.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/layout/CircleArrowProcess"
+  },
+  {
+    "File": "layout72.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/process5"
+  },
+  {
+    "File": "layout73.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/bProcess3"
+  },
+  {
+    "File": "layout74.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/bProcess4"
+  },
+  {
+    "File": "layout75.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2008/layout/AscendingPictureAccentProcess"
+  },
+  {
+    "File": "layout76.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow2"
+  },
+  {
+    "File": "layout77.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2009/3/layout/DescendingProcess"
+  },
+  {
+    "File": "layout78.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/bProcess2"
+  },
+  {
+    "File": "layout79.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/equation1"
+  },
+  {
+    "File": "layout8.xml",
+    "Urn": "urn:diagrams.loki3.com/VaryingWidthList"
+  },
+  {
+    "File": "layout80.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/equation2"
+  },
+  {
+    "File": "layout81.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/funnel1"
+  },
+  {
+    "File": "layout82.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/gear1"
+  },
+  {
+    "File": "layout83.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow6"
+  },
+  {
+    "File": "layout84.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow4"
+  },
+  {
+    "File": "layout85.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow5"
+  },
+  {
+    "File": "layout86.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/arrow1"
+  },
+  {
+    "File": "layout87.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle2"
+  },
+  {
+    "File": "layout88.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle1"
+  },
+  {
+    "File": "layout89.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle5"
+  },
+  {
+    "File": "layout9.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/TabList"
+  },
+  {
+    "File": "layout90.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle6"
+  },
+  {
+    "File": "layout91.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle3"
+  },
+  {
+    "File": "layout92.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle7"
+  },
+  {
+    "File": "layout93.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/cycle8"
+  },
+  {
+    "File": "layout94.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/chart3"
+  },
+  {
+    "File": "layout95.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2011/layout/HexagonRadial"
+  },
+  {
+    "File": "layout96.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial6"
+  },
+  {
+    "File": "layout97.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial1"
+  },
+  {
+    "File": "layout98.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial5"
+  },
+  {
+    "File": "layout99.xml",
+    "Urn": "urn:microsoft.com/office/officeart/2005/8/layout/radial3"
+  }
+]
