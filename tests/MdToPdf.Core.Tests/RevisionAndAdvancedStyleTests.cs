@@ -15,10 +15,10 @@ namespace MdToPdf.Core.Tests;
 
 public class RevisionAndAdvancedStyleTests
 {
-    private static WordprocessingDocument OpenGeneratedDoc(string md, out string path)
+    private static WordprocessingDocument OpenGeneratedDoc(string md, out string path, AppSettings? settings = null)
     {
         path = Path.Combine(Path.GetTempPath(), $"mk-rev-test-{Guid.NewGuid():N}.docx");
-        new DocxExportService().ExportAsync(md, path, new AppSettings()).GetAwaiter().GetResult();
+        new DocxExportService().ExportAsync(md, path, settings ?? new AppSettings()).GetAwaiter().GetResult();
         return WordprocessingDocument.Open(path, false);
     }
 
@@ -174,7 +174,8 @@ public class RevisionAndAdvancedStyleTests
     [Fact]
     public void TrackChanges_DocumentSettings_Has_TrackRevisions()
     {
-        using var doc = OpenGeneratedDoc("Sample text", out var path);
+        // Track Changes is opt-in (default off); enable it to verify the setting is then emitted.
+        using var doc = OpenGeneratedDoc("Sample text", out var path, new AppSettings { TrackChanges = true });
         try
         {
             var settings = doc.MainDocumentPart?.DocumentSettingsPart?.Settings;
@@ -341,7 +342,7 @@ This document demonstrates native Word revision tracking, CriticMarkup processin
 - Custom RGB Shading #3399FF: <span style=""background-color: #3399FF"">Sky blue background text</span>
 ";
 
-        new DocxExportService().ExportAsync(markdown, outputPath, new AppSettings()).GetAwaiter().GetResult();
+        new DocxExportService().ExportAsync(markdown, outputPath, new AppSettings { TrackChanges = true }).GetAwaiter().GetResult();
 
         Assert.True(File.Exists(outputPath), $"Sample .docx not found at {outputPath}");
 

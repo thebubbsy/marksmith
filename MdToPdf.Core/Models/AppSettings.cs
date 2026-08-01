@@ -9,6 +9,64 @@ public sealed class AppSettings
     public bool MermaidEnabled { get; set; } = true;
     public string OutputFolder { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+
+    // Template for export file names. Tokens: {title} (document title), {date} (yyyy-MM-dd),
+    // {time} (HH-mm-ss), {format} (pdf/docx/pptx). Default "{title}" keeps the historic behavior.
+    public string FileNameTemplate { get; set; } = "{title}";
+
+    // Theme names the user has pinned; favorites are surfaced at the top of the theme dropdown.
+    public List<string> FavoriteThemes { get; set; } = new();
+
+    // Full paths of files the user has explicitly pinned; they always sit at the very top of the
+    // Step-1 file picker (above the auto-surfaced recents) so a go-to document is one click away.
+    public List<string> PinnedFiles { get; set; } = new();
+
+    // Editor (Markdown source) font size in px. Zoomable at runtime (A+/A- buttons, Ctrl+wheel)
+    // and persisted so the editor comes back at the size the user last chose. 13 matches the XAML default.
+    public double EditorFontSize { get; set; } = 13;
+
+    // Live-preview zoom factor (1.0 = 100%). Settable via the preview zoom buttons and the browser's
+    // native Ctrl+wheel inside the WebView; persisted so the preview opens at the last zoom.
+    public double PreviewZoom { get; set; } = 1.0;
+
+    // GPU rendering for the WebView2 previews (main preview + Diagram Studio). On by default —
+    // Chromium composites on the GPU. Turning it off passes --disable-gpu to the browser process to
+    // work around graphics-driver bugs (black preview, flickering, crashes) on affected hardware,
+    // remote-desktop sessions and VMs — the same escape hatch Chrome and VS Code ship. It's a
+    // browser-process switch, locked in when the WebView2 environment is created, so it takes effect
+    // on the next app launch (the Settings toggle says so).
+    public bool HardwareAcceleration { get; set; } = true;
+
+    // Whether the Markdown editor soft-wraps long lines. When off, the editor scrolls horizontally
+    // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
+    public bool EditorWordWrap { get; set; } = true;
+
+    // Looking Glass portal mode (ISS-004): fuses editor + preview into one canvas. The rendered
+    // preview is the default surface; clicking it opens a "portal" aperture that reveals the
+    // editable Markdown source behind the preview through a fog-of-war blur, with a glowing
+    // cursor ring, iris animation and whir. Preview-only; never affects an export. Persisted.
+    public bool LookingGlassMode { get; set; }
+
+    // Portal reveal scope (ISS-004): how much of the Markdown source a portal reveals, 0..100.
+    // 0 = tight focus (~3 clear lines with a blurred falloff back to the preview); 100 = the
+    // full section/document is visible the moment the caret lands. Maps to the portal aperture
+    // radius. Persisted.
+    public int PortalRevealScope { get; set; } = 45;
+
+    // Portal shape (ISS-004): "circle" spotlight, or full-width "focus" reading bands in three
+    // heights ("focus1".."focus3" — skinny to tall). The reveal slider acts as the size dial for
+    // whichever shape is active. Persisted.
+    public string PortalShape { get; set; } = "circle";
+
+    // Portal focus blur: while a portal aperture is open, the rendered preview behind it either
+    // blurs ("focus WITH blur" — the eye stays on the revealed source) or stays sharp ("focus
+    // WITHOUT blur"). Ctrl+Alt+X toggles it live in the preview. Persisted.
+    public bool PortalFocusBlur { get; set; } = true;
+
+    // Default export format across the app UI and the browser extension (ISS-019): "docx",
+    // "pdf", "pptx" or "epub". Word is the default per user request.
+    public string DefaultExportFormat { get; set; } = "docx";
+
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
 
@@ -58,16 +116,43 @@ public sealed class AppSettings
     public string ConnectorRouting { get; set; } = "default"; // "default", "straight", "elbow", "curved"
     public string ConnectorArrowhead { get; set; } = "default"; // "default", "triangle", "open", "diamond", "oval", "stealth", "none"
 
-    // First-run guided tour: shown once automatically, replayable from the title-bar tour button.
+    // First-run guided tour: shown once automatically, replayable from the ⋯ menu.
     public bool HasSeenWelcome { get; set; }
+
+    // Total app launches, for the one-time "enjoying it? there's a tip jar in the ⋯ menu" nudge
+    // shown on the third launch (three launches = they're getting value from it).
+    public int LaunchCount { get; set; }
+    public bool HasSeenCoffeeReminder { get; set; }
 
     // Branding kit (Pro): make exports look like YOUR documents, not converted markdown.
     public bool BrandCoverPage { get; set; }          // title cover page (logo, title, date)
     public string BrandLogoPath { get; set; } = "";   // PNG/JPEG shown on the cover
     public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
+    public string BrandTemplatePath { get; set; } = ""; // .dotx corporate template for house-style extraction
+
+    // Author name stamped in DOCX package properties (Creator field). Empty = no attribution.
+    // Applies user-specified author branding to generated document metadata.
+    public string AuthorName { get; set; } = "";
+
+    // Typography (Task 16): preset id ("System", "Serif", "Sans-Serif", "Monospace",
+    // "Dyslexic-friendly" — see FontManagerService) applied to rendered documents, plus an optional
+    // custom TTF/OTF that is embedded into the output via @font-face.
+    public string FontPreset { get; set; } = "System";
+    public string CustomFontPath { get; set; } = "";
+
+    // PDF security (Task 18): optional password protection + access control applied to the PDF after
+    // export (see PdfSecurityService). The "allow" toggles default to true so an enabled-but-unconfigured
+    // policy still permits everything until the user restricts it.
+    public bool PdfEncrypt { get; set; }
+    public string PdfUserPassword { get; set; } = "";
+    public string PdfOwnerPassword { get; set; } = "";
+    public bool PdfAllowPrinting { get; set; } = true;
+    public bool PdfAllowCopying { get; set; } = true;
+    public bool PdfAllowModifying { get; set; } = true;
 
     // Export extras
     public bool IncludeToc { get; set; }
+    public bool ShowWordCount { get; set; } = true;
     public bool ShowAttribution { get; set; } = true;
     public bool NoEmoji { get; set; } // strip all emoji from preview + every export format
     public int DashMode { get; set; } // em-dash handling: 0 keep, 1 hyphen, 2 spaced, 3 custom
@@ -102,8 +187,37 @@ public sealed class AppSettings
     // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
     public bool AdvancedMode { get; set; }
 
+    // Pro mode skips the interactive pickers: Insert ▸ Image drops the raw markdown placeholder
+    // directly (the classic one-keystroke behavior) instead of opening the drag & drop / URL modal.
+    public bool ProMode { get; set; }
+
     // Security: Specific extension ID allowed to call the local API (resolves SAST warning)
     public string AllowedExtensionId { get; set; } = "";
+
+    // Cloud storage auto-publish (Task 9): mirror every export into a cloud drive. The provider id
+    // selects a detected local sync folder ("onedrive"/"googledrive"/"dropbox"/"box"/"icloud") that
+    // the provider's own desktop client then syncs, or "webdav" for an endpoint-driven HTTP PUT.
+    public bool CloudAutoPublish { get; set; }
+    public string CloudProviderId { get; set; } = "";
+    public string CloudSubfolder { get; set; } = "Marksmith";
+    public string WebDavEndpoint { get; set; } = "";
+    public string WebDavUser { get; set; } = "";
+    public string WebDavToken { get; set; } = "";
+
+    // PDF header / footer engine (Task 10): per-page header and footer template strings. Tokens:
+    // {title} (document title), {page} (current page no.), {pages} (total pages), {date} (print date).
+    // Chromium fills {page}/{pages}/{date} per page at print time; {title} is embedded literally.
+    // Both default to empty so existing edge-to-edge zero-margin PDFs are unchanged until opted in.
+    public string PdfHeaderTemplate { get; set; } = "";
+    public string PdfFooterTemplate { get; set; } = "";
+    // Where the page-number chrome sits: "None" (off), "BottomRight", "BottomCenter" or "TopRight".
+    // When not "None" and the matching template is empty, a default "Page {page} of {pages}" is used.
+    public string PdfPageNumberPosition { get; set; } = "None";
+
+    // Auto-updater (Task 13): poll the GitHub Releases feed for a newer version once at startup and
+    // surface an in-app notification when one is found. The manual "Check for updates" button in
+    // Settings -> About always works regardless of this toggle. Default on.
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
 
     // Returns a copy with any non-null override fields applied — used so an API/extension caller can
     // export with its own output profile without mutating the app's persistent settings.
@@ -117,6 +231,7 @@ public sealed class AppSettings
         if (o.A4FixedWidth is { } a4) s.A4FixedWidth = a4;
         if (o.UnlimitedHeight is { } uh) s.UnlimitedHeight = uh;
         if (o.IncludeToc is { } toc) s.IncludeToc = toc;
+        if (o.ShowWordCount is { } swc) s.ShowWordCount = swc;
         if (o.ShowAttribution is { } sa) s.ShowAttribution = sa;
         if (o.NoEmoji is { } ne) s.NoEmoji = ne;
         if (o.DashMode is { } dm) s.DashMode = dm;
@@ -132,6 +247,11 @@ public sealed class AppSettings
         if (o.ConnectorRouting is not null) s.ConnectorRouting = o.ConnectorRouting;
         if (o.ConnectorArrowhead is not null) s.ConnectorArrowhead = o.ConnectorArrowhead;
         if (o.BrandCoverPage is { } bcp) s.BrandCoverPage = bcp;
+        if (o.PageBorder is { } pb) s.PageBorder = pb;
+        if (o.TrackChanges is { } tc) s.TrackChanges = tc;
+        if (!string.IsNullOrWhiteSpace(o.PdfPageNumberPosition)) s.PdfPageNumberPosition = o.PdfPageNumberPosition;
+        if (!string.IsNullOrWhiteSpace(o.FontPreset)) s.FontPreset = o.FontPreset;
+        if (!string.IsNullOrWhiteSpace(o.FileNameTemplate)) s.FileNameTemplate = o.FileNameTemplate;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
         if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
         if (!string.IsNullOrWhiteSpace(o.SourceLanguage)) s.ContentLanguage = o.SourceLanguage;
@@ -149,6 +269,17 @@ public sealed class AppSettings
         ContentWidth = other.ContentWidth;
         MermaidEnabled = other.MermaidEnabled;
         OutputFolder = other.OutputFolder;
+        FileNameTemplate = other.FileNameTemplate;
+        FavoriteThemes = new List<string>(other.FavoriteThemes);
+        PinnedFiles = new List<string>(other.PinnedFiles);
+        EditorFontSize = other.EditorFontSize;
+        PreviewZoom = other.PreviewZoom;
+        EditorWordWrap = other.EditorWordWrap;
+        LookingGlassMode = other.LookingGlassMode;
+        PortalRevealScope = other.PortalRevealScope;
+        PortalShape = other.PortalShape;
+        PortalFocusBlur = other.PortalFocusBlur;
+        DefaultExportFormat = other.DefaultExportFormat;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
         NormalizeLlm = other.NormalizeLlm;
@@ -168,10 +299,23 @@ public sealed class AppSettings
         ConnectorRouting = other.ConnectorRouting;
         ConnectorArrowhead = other.ConnectorArrowhead;
         HasSeenWelcome = other.HasSeenWelcome;
+        LaunchCount = other.LaunchCount;
+        HasSeenCoffeeReminder = other.HasSeenCoffeeReminder;
         BrandCoverPage = other.BrandCoverPage;
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
+        BrandTemplatePath = other.BrandTemplatePath;
+        AuthorName = other.AuthorName;
+        FontPreset = other.FontPreset;
+        CustomFontPath = other.CustomFontPath;
+        PdfEncrypt = other.PdfEncrypt;
+        PdfUserPassword = other.PdfUserPassword;
+        PdfOwnerPassword = other.PdfOwnerPassword;
+        PdfAllowPrinting = other.PdfAllowPrinting;
+        PdfAllowCopying = other.PdfAllowCopying;
+        PdfAllowModifying = other.PdfAllowModifying;
         IncludeToc = other.IncludeToc;
+        ShowWordCount = other.ShowWordCount;
         ShowAttribution = other.ShowAttribution;
         PageBorder = other.PageBorder;
         TrackChanges = other.TrackChanges;
@@ -186,7 +330,19 @@ public sealed class AppSettings
         ApiEnabled = other.ApiEnabled;
         ApiPort = other.ApiPort;
         AdvancedMode = other.AdvancedMode;
+        ProMode = other.ProMode;
+        HardwareAcceleration = other.HardwareAcceleration;
         AllowedExtensionId = other.AllowedExtensionId;
+        CloudAutoPublish = other.CloudAutoPublish;
+        CloudProviderId = other.CloudProviderId;
+        CloudSubfolder = other.CloudSubfolder;
+        WebDavEndpoint = other.WebDavEndpoint;
+        WebDavUser = other.WebDavUser;
+        WebDavToken = other.WebDavToken;
+        PdfHeaderTemplate = other.PdfHeaderTemplate;
+        PdfFooterTemplate = other.PdfFooterTemplate;
+        PdfPageNumberPosition = other.PdfPageNumberPosition;
+        CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }

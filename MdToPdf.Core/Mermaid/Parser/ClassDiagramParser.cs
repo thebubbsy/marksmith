@@ -5,7 +5,7 @@ using MdToPdf.Mermaid.Ast;
 
 public static class ClassDiagramParser
 {
-    private static readonly Regex RelationshipRegex = new(@"^(?:""([^""]+)""\s+)?([^\s""]+)\s*(?:""([^""]+)""\s*)?(<\|--|<\|\.\.|-->|\.\.>|o--|\*--|--|\.\.)\s*(?:""([^""]+)""\s*)?([^\s""]+)(?:\s+""([^""]+)""\s*)?(?:\s*:\s*(.*))?$", RegexOptions.IgnoreCase);
+    private static readonly Regex RelationshipRegex = new(@"^(?:""([^""]+)""\s+)?([^\s""]+)\s*(?:""([^""]+)""\s*)?(<\|\.\.|<\|--|\.\.\|>|--\|>|-->|\.\.>|<--|<\.\.|o--|\*--|--o|--\*|--|\.\.)\s*(?:""([^""]+)""\s*)?([^\s""]+)(?:\s+""([^""]+)""\s*)?(?:\s*:\s*(.*))?$", RegexOptions.IgnoreCase);
     private static readonly Regex InlineMemberRegex = new(@"^([^\s:]+)\s*:\s*([+\-#~])?([^\(\)]+?)(\(.*?\))?\s*([^\(\)]+)?$", RegexOptions.IgnoreCase);
     private static readonly Regex AnnotationRegex = new(@"^<<([^>]+)>>\s*([^\s]+)?$", RegexOptions.IgnoreCase);
 
@@ -112,17 +112,28 @@ public static class ClassDiagramParser
                 string fromCard = !string.IsNullOrEmpty(fromCard1) ? fromCard1 : fromCard2;
                 string toCard = !string.IsNullOrEmpty(toCard1) ? toCard1 : toCard2;
 
+                // Right-pointing operators (e.g. `Dog --|> Animal`) are normalized to their
+                // left-pointing canonical form (`Animal <|-- Dog`) so the generator — which only
+                // emits left-pointing operators — round-trips them without losing the relationship
+                // or reversing its meaning. Normalizing swaps the two ends and their cardinalities.
+                bool swapEnds = relOp is "--|>" or "..|>" or "<--" or "<.." or "--o" or "--*";
+                if (swapEnds)
+                {
+                    (fromCls, toCls) = (toCls, fromCls);
+                    (fromCard, toCard) = (toCard, fromCard);
+                }
+
                 GetOrCreateClass(ast, fromCls);
                 GetOrCreateClass(ast, toCls);
 
                 var relType = relOp switch
                 {
-                    "<|--" => ClassRelationshipType.Inheritance,
-                    "<|.." => ClassRelationshipType.Realization,
-                    "-->" or "--" => ClassRelationshipType.Association,
-                    "..>" or ".." => ClassRelationshipType.Dependency,
-                    "o--" => ClassRelationshipType.Aggregation,
-                    "*--" => ClassRelationshipType.Composition,
+                    "<|--" or "--|>" => ClassRelationshipType.Inheritance,
+                    "<|.." or "..|>" => ClassRelationshipType.Realization,
+                    "-->" or "--" or "<--" => ClassRelationshipType.Association,
+                    "..>" or ".." or "<.." => ClassRelationshipType.Dependency,
+                    "o--" or "--o" => ClassRelationshipType.Aggregation,
+                    "*--" or "--*" => ClassRelationshipType.Composition,
                     _ => ClassRelationshipType.Association
                 };
 

@@ -33,40 +33,69 @@ public static class DiagramFenceSniffer
         if (string.IsNullOrEmpty(markdown) || (!markdown.Contains("```", StringComparison.Ordinal) && !markdown.Contains("~~~", StringComparison.Ordinal)))
             return markdown;
 
+        markdown = markdown.Replace("\r\n", "\n").Replace('\r', '\n');
+
         var lines = markdown.Split('\n');
         var changed = false;
+        bool inFence = false;
+        string fenceMarker = "";
 
         for (int i = 0; i < lines.Length; i++)
         {
-            // An opener with NO info string (a language already present means it's already routed).
-            var open = FenceOpen.Match(lines[i]);
-            if (!open.Success) continue;
+            var line = lines[i];
+            var trimmed = line.TrimStart();
 
-            var indent = open.Groups[1].Value;
-            var marker = open.Groups[2].Value;
-
-            // Collect the fence body up to the matching closing marker.
-            int close = -1;
-            var body = new System.Text.StringBuilder();
-            for (int j = i + 1; j < lines.Length; j++)
+            if (inFence)
             {
-                if (lines[j].TrimStart().StartsWith(marker, StringComparison.Ordinal)) { close = j; break; }
-                body.Append(lines[j]).Append('\n');
-            }
-            if (close < 0) break; // unterminated fence — leave the rest of the document alone
-
-            var content = body.ToString();
-            foreach (var (signature, language) in Signatures)
-            {
-                if (signature.IsMatch(content))
+                if (trimmed.StartsWith(fenceMarker))
                 {
-                    lines[i] = $"{indent}{open.Groups[2].Value}{language}";
-                    changed = true;
-                    break;
+                    inFence = false;
+                    fenceMarker = "";
                 }
+                continue;
             }
 
-            i = close; // resume scanning after this fence (never re-enter its body)
+            if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+            {
+                var markerChar = trimmed[0];
+                int count = 0;
+                while (count < trimmed.Length && trimmed[count] == markerChar) count++;
+                var marker = new string(markerChar, count);
+
+                var open = FenceOpen.Match(line);
+                if (!open.Success)
+                {
+                    // Labeled fence (e.g. ```python) — skip until closing fence
+                    inFence = true;
+                    fenceMarker = marker;
+                    continue;
+                }
+
+                var indent = open.Groups[1].Value;
+
+                // Collect the fence body up to the matching closing marker.
+                int close = -1;
+                var body = new System.Text.StringBuilder();
+                for (int j = i + 1; j < lines.Length; j++)
+                {
+                    if (lines[j].TrimStart().StartsWith(marker, StringComparison.Ordinal)) { close = j; break; }
+                    body.Append(lines[j]).Append('\n');
+                }
+                if (close < 0) break; // unterminated fence — leave the rest of the document alone
+
+                var content = body.ToString();
+                foreach (var (signature, language) in Signatures)
+                {
+                    if (signature.IsMatch(content))
+                    {
+                        lines[i] = $"{indent}{open.Groups[2].Value}{language}";
+                        changed = true;
+                        break;
+                    }
+                }
+
+                i = close; // resume scanning after this fence
+            }
         }
 
         return changed ? string.Join("\n", lines) : markdown;

@@ -29,6 +29,14 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();
     [GeneratedRegex(@"\$\$?.+?\$\$?", RegexOptions.Singleline)] private static partial Regex DollarMath();
+    // A proper $$...$$ display-math block, used ONLY to protect already-delimited math from the
+    // recovery passes below. The looser DollarMath pattern (kept for HasMath detection) can mis-pair
+    // a lone $ with a $$ elsewhere in the document — e.g. an inline $...$ closing $ pairing with a
+    // following block's opening $$ — leaving a real $$...$$ block's \begin{...}...\end{...} body
+    // unprotected. That let RecoverMatrixEnvironments re-wrap an already-correct matrix in a SECOND
+    // set of $$, which Markdig then parsed as two empty math blocks around a literal
+    // "\begin 1 & 2 & 3 \ ..." paragraph (the reported sample-doc preview bug).
+    [GeneratedRegex(@"\$\$[\s\S]*?\$\$")] private static partial Regex DisplayMathBlock();
     // Seed commands for undelimited-math recovery: each is a self-contained structural construct
     // (fraction, root, binomial, box) that is ALWAYS real math — a bare one glued into text is never
     // prose, unlike a lone \times or \approx which might be. The unit's brace arguments are consumed
@@ -51,6 +59,15 @@ public sealed partial class LlmSourceService
     // A run of one or more backslashes NOT followed by a letter — i.e. mangled \\ row separators
     // (a lone "\" or "\ " between cells), as opposed to a real command like \frac. Normalized to \\.
     [GeneratedRegex(@"\\+(?![A-Za-z])")] private static partial Regex MangledRowBreak();
+
+    // Classification signals (Classify) — source-generated rather than inline Regex.IsMatch so the
+    // hot "which AI did this come from" path doesn't re-parse its patterns on every call.
+    [GeneratedRegex(@"^\s*Sources\s*$", RegexOptions.Multiline)] private static partial Regex SourcesHeading();
+    [GeneratedRegex(@"^\d+\.\s+\S+\.(com|org|net|io|dev)", RegexOptions.Multiline)] private static partial Regex NumberedSourceUrl();
+    [GeneratedRegex(@"^Would you like me to", RegexOptions.Multiline)] private static partial Regex TrailingOffer();
+    // Repair passes (RepairArtifacts / RecoverMatrixEnvironments) — same source-gen rationale.
+    [GeneratedRegex(@"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", RegexOptions.Singleline)] private static partial Regex SingleLineDisplayEnv();
+    [GeneratedRegex(@"[ \t]+")] private static partial Regex HorizontalWhitespace();
 
     private static readonly Dictionary<string, int> SeedArgCount = new()
     {
@@ -86,13 +103,12 @@ public sealed partial class LlmSourceService
         if (markdown.Contains("Gemini can make mistakes")) { gemini += 50; signals.Add("Gemini footer"); }
         if (BoldPseudoHeading().Matches(markdown).Count >= 2 && !markdown.Contains("\n# ") && !markdown.Contains("\n## "))
         { gemini += 25; signals.Add("bold-line pseudo-headings"); }
-        if (Regex.IsMatch(markdown, @"^\s*Sources\s*$", RegexOptions.Multiline) &&
-            Regex.IsMatch(markdown, @"^\d+\.\s+\S+\.(com|org|net|io|dev)", RegexOptions.Multiline))
+        if (SourcesHeading().IsMatch(markdown) && NumberedSourceUrl().IsMatch(markdown))
         { gemini += 25; signals.Add("trailing Sources block"); }
 
         if (ClaudeTagRemnants().IsMatch(markdown)) { claude += 50; signals.Add("Claude tag remnants"); }
         if (markdown.Contains("Claude can make mistakes")) { claude += 50; signals.Add("Claude footer"); }
-        if (Regex.IsMatch(markdown, @"^Would you like me to", RegexOptions.Multiline)) { claude += 15; signals.Add("trailing offer"); }
+        if (TrailingOffer().IsMatch(markdown)) { claude += 15; signals.Add("trailing offer"); }
 
         var (source, score) = (chatgpt, gemini, claude) switch
         {
@@ -149,14 +165,23 @@ public sealed partial class LlmSourceService
         // Format single-line $$\begin{...}...\end{...}$$ environments onto their own display lines
         // so Markdig parses them as <div class="math"> (display-mode) rather than inline <span class="math">,
         // preventing KaTeX inline syntax errors (which rendered matrices as red text).
-        text = Regex.Replace(text, @"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", "\n$$$$\n${1}\n$$$$\n", RegexOptions.Singleline);
+        text = SingleLineDisplayEnv().Replace(text, "\n$$$$\n${1}\n$$$$\n");
+
+        // Fenced code, inline code, and existing $-math are protected from the recovery passes.
+        // Both passes used to run the same four fence/math scans internally — compute the protected
+        // ranges ONCE here and share them, recomputing only if matrix recovery rewrote the text
+        // (Regex.Replace returns the same string instance when nothing matched, so a reference
+        // compare is a cheap, safe staleness check).
+        var protectedRanges = BuildProtectedRanges(text);
 
         // Rebuild browser-copied \begin…\end environments (matrices, aligned blocks) into clean,
         // $$-delimited LaTeX BEFORE WrapBareLatexMath, so the $$ it produces is protected from the
         // bare-command wrapper below.
-        text = RecoverMatrixEnvironments(text, fixes);
+        var beforeMatrix = text;
+        text = RecoverMatrixEnvironments(text, fixes, protectedRanges);
+        if (!ReferenceEquals(text, beforeMatrix)) protectedRanges = BuildProtectedRanges(text);
 
-        text = WrapBareLatexMath(text, fixes);
+        text = WrapBareLatexMath(text, fixes, protectedRanges);
 
         text = RestoreFencedCode(text, fencedBlocks).Trim();
         classification.AppliedFixes.AddRange(fixes);
@@ -225,6 +250,20 @@ public sealed partial class LlmSourceService
         return (styled, repairFixes.Concat(styleFixes).ToList());
     }
 
+    // The four "protected" spans (fenced code, inline code, $-math, $$-blocks) that the math
+    // recovery passes must not rewrite. Computed once in RepairArtifacts and shared by both
+    // RecoverMatrixEnvironments and WrapBareLatexMath (these four scans used to run twice).
+    private static List<(int Start, int End)> BuildProtectedRanges(string text)
+    {
+        var ranges = new List<(int Start, int End)>();
+        void Collect(Regex rx) { foreach (Match m in rx.Matches(text)) ranges.Add((m.Index, m.Index + m.Length)); }
+        Collect(FencedCode());
+        Collect(InlineCode());
+        Collect(DollarMath());
+        Collect(DisplayMathBlock());
+        return ranges;
+    }
+
     // Recovers a LaTeX \begin…\end environment (matrix / aligned system) that arrived as mangled
     // plain text from a browser copy of the RENDERED math — see MatrixEnvArtifact for the exact
     // shape. Rebuilds a clean, $$-delimited environment: re-injects the dropped environment name
@@ -232,13 +271,8 @@ public sealed partial class LlmSourceService
     // \\ row separators, and drops the glued-on flattened-glyph digit runs. Scoped to bodies
     // containing '&' and skipped inside code / existing $-math, so it only fires on genuine copied
     // matrices, never on prose or a code sample that happens to show \begin{…}.
-    private string RecoverMatrixEnvironments(string text, List<string> fixes)
+    private string RecoverMatrixEnvironments(string text, List<string> fixes, List<(int Start, int End)> protectedRanges)
     {
-        var protectedRanges = new List<(int Start, int End)>();
-        void Collect(Regex rx) { foreach (Match m in rx.Matches(text)) protectedRanges.Add((m.Index, m.Index + m.Length)); }
-        Collect(FencedCode());
-        Collect(InlineCode());
-        Collect(DollarMath());
         bool IsProtected(int index) => protectedRanges.Any(r => index >= r.Start && index < r.End);
 
         int count = 0;
@@ -254,7 +288,7 @@ public sealed partial class LlmSourceService
             // Collapse mangled row breaks (\, \ , \\) -> \\, then tidy internal whitespace so the
             // rebuilt source reads cleanly. Cell contents (e.g. a real \frac) are left intact.
             var cleanBody = MangledRowBreak().Replace(body, @"\\");
-            cleanBody = Regex.Replace(cleanBody, @"[ \t]+", " ").Trim();
+            cleanBody = HorizontalWhitespace().Replace(cleanBody, " ").Trim();
 
             count++;
             return $"\n\n$$\\begin{{{envName}}} {cleanBody} \\end{{{envName}}}$$\n\n";
@@ -285,13 +319,8 @@ public sealed partial class LlmSourceService
     // consumed by a brace-balance scanner so nested cases like \frac{\sqrt{x}}{y} wrap as one unit;
     // seeds landing inside an already-wrapped unit, or inside existing $-math / inline / fenced code,
     // are skipped so nothing double-wraps or mangles a code sample showing \frac as literal text.
-    private static string WrapBareLatexMath(string text, List<string> fixes)
+    private static string WrapBareLatexMath(string text, List<string> fixes, List<(int Start, int End)> protectedRanges)
     {
-        var protectedRanges = new List<(int Start, int End)>();
-        void Collect(Regex rx) { foreach (Match m in rx.Matches(text)) protectedRanges.Add((m.Index, m.Index + m.Length)); }
-        Collect(FencedCode());
-        Collect(InlineCode());
-        Collect(DollarMath());
         bool IsProtected(int index) => protectedRanges.Any(r => index >= r.Start && index < r.End);
 
         // Collect the [start,end) span of each seed's full \cmd{..}{..} unit, left to right,

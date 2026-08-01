@@ -87,83 +87,41 @@ public static class FlowchartParser
         return ast;
     }
 
+    private static readonly Regex EdgeRegex = new(@"^(.*?)\s*(--\s*\|[^|]+\|(?:-->|---|->)|==\s*\|[^|]+\|(?:==>|===|=>)|-\.-\s*\|[^|]+\|(?:-\.->|-.-|->|-->)|--\s*""[^""]+""\s*(?:-->|---|->)|==\s*""[^""]+""\s*(?:==>|===|=>)|-\.\s*""[^""]+""\s*(?:\.->|\.-)|-\.-\s*[^""=\->|]+\s*-\.->|--\s*[^""=\->|]+\s*(?:-->|---|->)|==\s*[^""=\->|]+\s*(?:==>|===|=>)|-\.\s*[^""=\->|]+\s*(?:\.->|\.-)|(?:-->|==>|-.->|<-->|---|===|-.-|->|=>)\s*\|[^|]+\||<-->|x--x|o--o|==>|===|-.->|-.-|-->|---|==)\s*(.*)$");
+
     private static void ParseLine(string line, FlowchartDiagramAst ast, FlowSubgraph? currentSubgraph)
     {
-        var edgeMatch = Regex.Match(line, @"^(.*?)\s*(--\s*\|[^|]+\|(?:-->|---|->)|==\s*\|[^|]+\|(?:==>|===|=>)|-\.-\s*\|[^|]+\|(?:-\.->|-.-|->|-->)|--\s*""[^""]+""\s*(?:-->|---|->)|==\s*""[^""]+""\s*(?:==>|===|=>)|-\.\s*""[^""]+""\s*(?:\.->|\.-)|--\s*[^""=\->|]+\s*(?:-->|---|->)|==\s*[^""=\->|]+\s*(?:==>|===|=>)|-\.\s*[^""=\->|]+\s*(?:\.->|\.-)|<-->|x--x|o--o|==>|===|-.->|-.-|-->|---|==)\s*(.*)$");
+        var edgeMatch = EdgeRegex.Match(line);
 
-        if (edgeMatch.Success)
+        if (!edgeMatch.Success)
+        {
+            ParseOrCreateNode(line, ast, currentSubgraph);
+            return;
+        }
+
+        // Chained edges share one line (A -->|Yes| B -->|No| C): walk the operators left to
+        // right, re-matching the remainder each pass so every segment becomes its own edge
+        // instead of "B -->|No| C" being swallowed as a single node id.
+        FlowNode? fromNode = null;
+        while (edgeMatch.Success)
         {
             string leftPart = edgeMatch.Groups[1].Value.Trim();
             string opPart = edgeMatch.Groups[2].Value.Trim();
             string rightPart = edgeMatch.Groups[3].Value.Trim();
 
-            var fromNode = ParseOrCreateNode(leftPart, ast, currentSubgraph);
-            string? edgeLabel = null;
-            FlowLineStyle style = FlowLineStyle.Solid;
-            FlowArrowHead startHead = FlowArrowHead.None;
-            FlowArrowHead endHead = FlowArrowHead.Normal;
+            fromNode ??= ParseOrCreateNode(leftPart, ast, currentSubgraph);
 
-            // Extract label and style from opPart
-            if (opPart.Contains("|"))
-            {
-                var lblMatch = Regex.Match(opPart, @"\|([^|]+)\|");
-                if (lblMatch.Success)
-                {
-                    edgeLabel = lblMatch.Groups[1].Value.Trim();
-                }
-            }
-            else if (opPart.Contains("\""))
-            {
-                var lblMatch = Regex.Match(opPart, @"""([^""]+)""");
-                if (lblMatch.Success)
-                {
-                    edgeLabel = lblMatch.Groups[1].Value.Trim();
-                }
-            }
-            else
-            {
-                var lblMatch = Regex.Match(opPart, @"(?:--|==|-\.)\s*([^=\->]+?)\s*(?:--+>?|==?>?|\.-\.?->?)");
-                if (lblMatch.Success)
-                {
-                    string matchedLbl = lblMatch.Groups[1].Value.Trim();
-                    if (!string.IsNullOrEmpty(matchedLbl))
-                    {
-                        edgeLabel = matchedLbl;
-                    }
-                }
-            }
+            // If the remainder holds another edge operator, this edge's target is only the
+            // remainder's left segment and the loop continues from that node. A match whose
+            // left segment has unclosed brackets is an arrow inside a node label
+            // (B[Go --> Stop]) — not a chain.
+            var nextMatch = EdgeRegex.Match(rightPart);
+            if (nextMatch.Success && HasUnbalancedBrackets(nextMatch.Groups[1].Value))
+                nextMatch = System.Text.RegularExpressions.Match.Empty;
+            string toText = nextMatch.Success ? nextMatch.Groups[1].Value.Trim() : rightPart;
+            var toNode = ParseOrCreateNode(toText, ast, currentSubgraph);
 
-            if (opPart.Contains("=="))
-            {
-                style = FlowLineStyle.Thick;
-                if (!opPart.EndsWith(">")) endHead = FlowArrowHead.None;
-            }
-            else if (opPart.Contains("-.-") || opPart.Contains("-."))
-            {
-                style = FlowLineStyle.Dashed;
-                if (!opPart.EndsWith(">")) endHead = FlowArrowHead.None;
-            }
-            else if (opPart.StartsWith("x") && opPart.EndsWith("x"))
-            {
-                startHead = FlowArrowHead.Cross;
-                endHead = FlowArrowHead.Cross;
-            }
-            else if (opPart.StartsWith("o") && opPart.EndsWith("o"))
-            {
-                startHead = FlowArrowHead.Circle;
-                endHead = FlowArrowHead.Circle;
-            }
-            else if (opPart.StartsWith("<"))
-            {
-                startHead = FlowArrowHead.Normal;
-                endHead = FlowArrowHead.Normal;
-            }
-            else if (!opPart.EndsWith(">"))
-            {
-                endHead = FlowArrowHead.None;
-            }
-
-            var toNode = ParseOrCreateNode(rightPart, ast, currentSubgraph);
+            var (edgeLabel, style, startHead, endHead) = ParseEdgeOperator(opPart);
 
             ast.Edges.Add(new FlowEdge
             {
@@ -174,11 +132,105 @@ public static class FlowchartParser
                 StartHead = startHead,
                 EndHead = endHead
             });
+
+            fromNode = toNode;
+            edgeMatch = nextMatch;
+        }
+    }
+
+    // True when the text opens more ( [ { or " than it closes — i.e. we're inside a node label.
+    private static bool HasUnbalancedBrackets(string text)
+    {
+        int round = 0, square = 0, curly = 0, quotes = 0;
+        foreach (var c in text)
+        {
+            switch (c)
+            {
+                case '(': round++; break;
+                case ')': round--; break;
+                case '[': square++; break;
+                case ']': square--; break;
+                case '{': curly++; break;
+                case '}': curly--; break;
+                case '"': quotes++; break;
+            }
+        }
+        return round != 0 || square != 0 || curly != 0 || quotes % 2 != 0;
+    }
+
+    private static (string? Label, FlowLineStyle Style, FlowArrowHead StartHead, FlowArrowHead EndHead) ParseEdgeOperator(string opPart)
+    {
+        string? edgeLabel = null;
+        FlowLineStyle style = FlowLineStyle.Solid;
+        FlowArrowHead startHead = FlowArrowHead.None;
+        FlowArrowHead endHead = FlowArrowHead.Normal;
+
+        // Extract label and style from opPart
+        if (opPart.Contains("|"))
+        {
+            var lblMatch = Regex.Match(opPart, @"\|([^|]+)\|");
+            if (lblMatch.Success)
+            {
+                edgeLabel = lblMatch.Groups[1].Value.Trim();
+            }
+        }
+        else if (opPart.Contains("\""))
+        {
+            var lblMatch = Regex.Match(opPart, @"""([^""]+)""");
+            if (lblMatch.Success)
+            {
+                edgeLabel = lblMatch.Groups[1].Value.Trim();
+            }
         }
         else
         {
-            ParseOrCreateNode(line, ast, currentSubgraph);
+            var lblMatch = Regex.Match(opPart, @"(?:--|==|-\.-|-\.)\s*([^=\->]+?)\s*(?:--+>?|==?>?|-?\.->|\.-)");
+            if (lblMatch.Success)
+            {
+                string matchedLbl = lblMatch.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(matchedLbl))
+                {
+                    edgeLabel = matchedLbl;
+                }
+            }
         }
+
+        // Arrowhead / line-style detection inspects the bare edge syntax, so drop any label
+        // that trails the arrow first — "-->|Yes|" ends in "|", not ">", and would otherwise
+        // lose its arrowhead.
+        var opCore = Regex.Replace(opPart, @"\|[^|]*\|\s*$", string.Empty).TrimEnd();
+
+        if (opCore.Contains("=="))
+        {
+            style = FlowLineStyle.Thick;
+            if (!opCore.EndsWith(">")) endHead = FlowArrowHead.None;
+        }
+        else if (opCore.Contains("-.-") || opCore.Contains("-."))
+        {
+            style = FlowLineStyle.Dashed;
+            if (!opCore.EndsWith(">")) endHead = FlowArrowHead.None;
+        }
+        else if (opCore.StartsWith("x") && opCore.EndsWith("x"))
+        {
+            startHead = FlowArrowHead.Cross;
+            endHead = FlowArrowHead.Cross;
+        }
+        else if (opCore.StartsWith("o") && opCore.EndsWith("o"))
+        {
+            startHead = FlowArrowHead.Circle;
+            endHead = FlowArrowHead.Circle;
+        }
+        else if (opCore.StartsWith("<"))
+        {
+            startHead = FlowArrowHead.Normal;
+            endHead = FlowArrowHead.Normal;
+        }
+        else if (!opCore.EndsWith(">"))
+        {
+            endHead = FlowArrowHead.None;
+        }
+
+        return (edgeLabel, style, startHead, endHead);
     }
 
     public static FlowNode ParseOrCreateNode(string text, FlowchartDiagramAst ast, FlowSubgraph? currentSubgraph)

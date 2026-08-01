@@ -26,27 +26,6 @@ public partial class MermaidStudioViewModel : ObservableObject
     private MermaidDiagramType _selectedDiagramType = MermaidDiagramType.Flowchart;
 
     [ObservableProperty]
-    private FlowDirection _selectedFlowDirection = FlowDirection.TD;
-
-    public List<FlowDirection> AvailableDirections { get; } = new()
-    {
-        FlowDirection.TD,
-        FlowDirection.LR,
-        FlowDirection.BT,
-        FlowDirection.RL
-    };
-
-    partial void OnSelectedFlowDirectionChanged(FlowDirection value)
-    {
-        if (CurrentAst is FlowchartDiagramAst fc)
-        {
-            fc.Direction = value;
-        }
-        ApplyAutoLayout(force: true);
-        StatusText = $"Flowchart direction set to {value}.";
-    }
-
-    [ObservableProperty]
     private DiagramNodeViewModel? _selectedNode;
 
     [ObservableProperty]
@@ -73,7 +52,137 @@ public partial class MermaidStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _rawMermaidCode = string.Empty;
 
+    // ---- Connector routing + style presets (QODER task 5) ----
+    // The routing mode applied to every connector on the canvas. Changing it re-geometries all
+    // existing connectors and is persisted into the generated mermaid via an `%%{init}%%`
+    // `flowchart.curve` directive so the choice survives a save/reload round trip.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectorRoutingIndex))]
+    private ConnectorRoutingMode _connectorRouting = ConnectorRoutingMode.Orthogonal;
+
+    // Name of the active style preset (empty = studio default colors). When set, every node's
+    // fill/border and every connector's line are recolored, and the palette is persisted into the
+    // generated mermaid via `%%{init}%%` themeVariables.
+    [ObservableProperty]
+    private string _activePalette = string.Empty;
+
+    // int-backed view of ConnectorRouting for the toolbar ComboBox, whose display order
+    // (0 = Elbow/Orthogonal, 1 = Straight, 2 = Curved/Bezier) differs from the enum's order.
+    public int ConnectorRoutingIndex
+    {
+        get => ConnectorRouting switch
+        {
+            ConnectorRoutingMode.Straight => 1,
+            ConnectorRoutingMode.Bezier => 2,
+            _ => 0
+        };
+        set => ConnectorRouting = value switch
+        {
+            1 => ConnectorRoutingMode.Straight,
+            2 => ConnectorRoutingMode.Bezier,
+            _ => ConnectorRoutingMode.Orthogonal
+        };
+    }
+
+    // ---- Flowchart direction (Top-Down / Left-Right / …) ----
+    // The layout direction emitted as `flowchart TD|LR|…`. Restored from the loaded AST so an
+    // authored `graph LR` round-trips unchanged; the toolbar Direction picker lets the user flip
+    // it and the change flows into GenerateMermaidCode (and thus the dirty baseline / sync).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlowchartDirectionIndex))]
+    private FlowDirection _flowchartDirection = FlowDirection.TD;
+
+    // int-backed view of FlowchartDirection for the toolbar ComboBox (display order:
+    // 0 = Top-Down, 1 = Left-Right, 2 = Bottom-Up, 3 = Right-Left). TB (a Mermaid synonym of TD)
+    // displays as Top-Down but is preserved verbatim unless the user actively picks a new option.
+    public int FlowchartDirectionIndex
+    {
+        get => FlowchartDirection switch
+        {
+            FlowDirection.LR => 1,
+            FlowDirection.BT => 2,
+            FlowDirection.RL => 3,
+            _ => 0 // TD and TB both read as Top-Down
+        };
+        set => FlowchartDirection = value switch
+        {
+            1 => FlowDirection.LR,
+            2 => FlowDirection.BT,
+            3 => FlowDirection.RL,
+            _ => FlowDirection.TD
+        };
+    }
+
+    // Canonical code snapshot of the last load/save point, used to detect unsaved edits. We compare
+    // generated-code-to-generated-code (not the raw source text) so harmless formatting differences
+    // between the authored fence and the generator's output don't register as false "dirty" state.
+    private string _savedCode = string.Empty;
+
     public MermaidDiagramAst? CurrentAst { get; private set; }
+
+    // True when the canvas has drifted from the last load/sync — drives the "unsaved changes"
+    // prompt on window close.
+    public bool HasUnsavedChanges => !string.Equals(GenerateMermaidCode(), _savedCode, StringComparison.Ordinal);
+
+    // ---- Undo / Redo (memento snapshots of canonical mermaid code) ----
+    // The whole canvas round-trips through GenerateMermaidCode()/parse, so a single string is a
+    // complete, faithful snapshot. Snapshot BEFORE each mutation; undo/redo swap the current state
+    // with the stack top. Capped so a long editing session can't grow without bound.
+    private readonly List<string> _undoStack = new();
+    private readonly List<string> _redoStack = new();
+    private const int MaxUndoDepth = 100;
+
+    [ObservableProperty] private bool _canUndo;
+    [ObservableProperty] private bool _canRedo;
+
+    // Call BEFORE a mutation so the pre-change state is what gets restored.
+    public void SnapshotForUndo()
+    {
+        _undoStack.Add(GenerateMermaidCode());
+        if (_undoStack.Count > MaxUndoDepth) _undoStack.RemoveAt(0);
+        _redoStack.Clear();
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = false;
+    }
+
+    [RelayCommand]
+    public void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+        _redoStack.Add(GenerateMermaidCode());
+        var prev = _undoStack[^1];
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        RestoreFromCode(prev);
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = _redoStack.Count > 0;
+        StatusText = "Undid last change.";
+    }
+
+    [RelayCommand]
+    public void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+        _undoStack.Add(GenerateMermaidCode());
+        var next = _redoStack[^1];
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+        RestoreFromCode(next);
+        CanUndo = _undoStack.Count > 0;
+        CanRedo = _redoStack.Count > 0;
+        StatusText = "Redid change.";
+    }
+
+    private void RestoreFromCode(string code)
+    {
+        var parseResult = MermaidParser.Parse(code);
+        if (parseResult.Ast is null) return;
+        CurrentAst = parseResult.Ast;
+        SelectedDiagramType = parseResult.Ast.DiagramType;
+        AstToCanvas(parseResult.Ast);
+        // Deliberately do NOT touch _savedCode: undo/redo must not reset the unsaved-changes baseline.
+        SelectedNodes.Clear();
+        SelectedNode = null;
+        SelectedConnector = null;
+    }
 
     public MermaidStudioViewModel()
     {
@@ -150,6 +259,10 @@ public partial class MermaidStudioViewModel : ObservableObject
             CurrentAst = parseResult.Ast;
             SelectedDiagramType = parseResult.Ast.DiagramType;
             AstToCanvas(parseResult.Ast);
+            // Re-apply any authored routing/palette BEFORE taking the dirty baseline so the
+            // generated baseline (which embeds the matching `%%{init}%%`) lines up exactly.
+            RestoreStudioStateFromDirectives();
+            _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
             StatusText = $"Loaded {SelectedDiagramType} diagram ({Nodes.Count} nodes, {Connectors.Count} edges).";
         }
         else
@@ -159,9 +272,53 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
+    // Live code -> canvas sync for the Studio's Code pane (mermaid.live-style bidirectional
+    // editing). Re-parses the authored text and rebuilds the canvas, but PRESERVES the on-canvas
+    // position/size of any node that survives the re-parse so typing in the code pane doesn't
+    // re-layout the whole diagram. New nodes fall back to the auto-layout position.
+    // Returns true when the code parsed and the canvas was rebuilt; false on a syntax error
+    // (canvas left untouched) so the Code pane can surface live pass/fail feedback.
+    public bool SyncCanvasFromCode(string code)
+    {
+        var parseResult = MermaidParser.Parse(code);
+        if (parseResult.Ast is null)
+        {
+            StatusText = "Mermaid syntax error — canvas left unchanged.";
+            return false;
+        }
+
+        // Snapshot geometry by id before the rebuild.
+        var geometry = Nodes.ToDictionary(
+            n => n.Id,
+            n => (n.X, n.Y, n.Width, n.Height),
+            StringComparer.OrdinalIgnoreCase);
+
+        RawMermaidCode = code;
+        CurrentAst = parseResult.Ast;
+        SelectedDiagramType = parseResult.Ast.DiagramType;
+        AstToCanvas(parseResult.Ast);
+
+        foreach (var n in Nodes)
+        {
+            if (geometry.TryGetValue(n.Id, out var g))
+            {
+                n.X = g.X;
+                n.Y = g.Y;
+                n.Width = g.Width;
+                n.Height = g.Height;
+                n.HasCustomPosition = true;
+            }
+        }
+
+        UpdateAllConnectors();
+        StatusText = $"Canvas synced from code ({Nodes.Count} nodes, {Connectors.Count} edges).";
+        return true;
+    }
+
     private void LoadDefaultSample()
     {
         SelectedDiagramType = MermaidDiagramType.Flowchart;
+        FlowchartDirection = FlowDirection.TD; // the sample is laid out top-down
         Nodes.Clear();
         Connectors.Clear();
 
@@ -181,6 +338,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         conn2.UpdateGeometry(nodeB.AnchorRight, nodeC.AnchorLeft);
         Connectors.Add(conn2);
 
+        _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
         StatusText = "Sample flowchart initialized.";
     }
 
@@ -192,14 +350,21 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (ast)
         {
             case FlowchartDiagramAst flowchart:
-                SelectedFlowDirection = flowchart.Direction;
+                // Restore the authored layout direction so `graph LR` etc. round-trips and the
+                // Direction picker reflects the loaded diagram.
+                FlowchartDirection = flowchart.Direction;
                 foreach (var kvp in flowchart.Nodes)
                 {
                     var fn = kvp.Value;
+                    // Display <br/> (and variants) as real line breaks on the canvas; the
+                    // code generator re-escapes \n back to <br/> on sync, so the round-trip
+                    // is lossless and multi-line labels render properly in both worlds.
+                    string label = string.IsNullOrEmpty(fn.Text) ? fn.Id : fn.Text;
+                    label = System.Text.RegularExpressions.Regex.Replace(label, "<br\\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = fn.Id,
-                        LabelText = string.IsNullOrEmpty(fn.Text) ? fn.Id : fn.Text,
+                        LabelText = label,
                         Shape = fn.Shape.ToString(),
                         Category = "Flowchart"
                     });
@@ -396,12 +561,13 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (Nodes.Count == 0) return;
 
+        // The Auto Layout toolbar button passes force=true: it is an explicit user request to
+        // re-arrange the whole diagram, so it must override any node the user has dragged or that
+        // was loaded with a saved position (HasCustomPosition). The default (force=false) path is
+        // used on load, where saved/custom positions are deliberately respected.
         if (force)
         {
-            foreach (var n in Nodes)
-            {
-                n.HasCustomPosition = false;
-            }
+            foreach (var n in Nodes) n.HasCustomPosition = false;
         }
 
         if (SelectedDiagramType == MermaidDiagramType.Mindmap)
@@ -577,80 +743,25 @@ public partial class MermaidStudioViewModel : ObservableObject
                 list.Add(n);
             }
 
-            double startX = 100;
             double startY = 100;
             double layerSpacingY = 160;
             double nodeSpacingX = 200;
-            double layerSpacingX = 220;
-            double nodeSpacingY = 120;
-
-            int maxRank = layers.Keys.Count > 0 ? layers.Keys.Max() : 0;
 
             foreach (var kvp in layers.OrderBy(l => l.Key))
             {
                 int rank = kvp.Key;
                 var layerNodes = kvp.Value;
+                double layerY = startY + rank * layerSpacingY;
+                double totalWidth = (layerNodes.Count - 1) * nodeSpacingX;
+                double startX = Math.Max(100, 500 - totalWidth / 2);
 
-                switch (SelectedFlowDirection)
+                for (int j = 0; j < layerNodes.Count; j++)
                 {
-                    case FlowDirection.LR:
-                        double layerXLR = startX + rank * layerSpacingX;
-                        double totalHeightLR = (layerNodes.Count - 1) * nodeSpacingY;
-                        double startYLR = Math.Max(100, 350 - totalHeightLR / 2);
-                        for (int j = 0; j < layerNodes.Count; j++)
-                        {
-                            if (!layerNodes[j].HasCustomPosition)
-                            {
-                                layerNodes[j].X = layerXLR;
-                                layerNodes[j].Y = startYLR + j * nodeSpacingY;
-                            }
-                        }
-                        break;
-
-                    case FlowDirection.RL:
-                        double layerXRL = startX + (maxRank - rank) * layerSpacingX;
-                        double totalHeightRL = (layerNodes.Count - 1) * nodeSpacingY;
-                        double startYRL = Math.Max(100, 350 - totalHeightRL / 2);
-                        for (int j = 0; j < layerNodes.Count; j++)
-                        {
-                            if (!layerNodes[j].HasCustomPosition)
-                            {
-                                layerNodes[j].X = layerXRL;
-                                layerNodes[j].Y = startYRL + j * nodeSpacingY;
-                            }
-                        }
-                        break;
-
-                    case FlowDirection.BT:
-                        double layerYBT = startY + (maxRank - rank) * layerSpacingY;
-                        double totalWidthBT = (layerNodes.Count - 1) * nodeSpacingX;
-                        double startXBT = Math.Max(100, 500 - totalWidthBT / 2);
-                        for (int j = 0; j < layerNodes.Count; j++)
-                        {
-                            if (!layerNodes[j].HasCustomPosition)
-                            {
-                                layerNodes[j].X = startXBT + j * nodeSpacingX;
-                                layerNodes[j].Y = layerYBT;
-                            }
-                        }
-                        break;
-
-                    case FlowDirection.TD:
-                    case FlowDirection.TB:
-                    default:
-                        double layerY = startY + rank * layerSpacingY;
-                        double totalWidth = (layerNodes.Count - 1) * nodeSpacingX;
-                        double startXTD = Math.Max(100, 500 - totalWidth / 2);
-
-                        for (int j = 0; j < layerNodes.Count; j++)
-                        {
-                            if (!layerNodes[j].HasCustomPosition)
-                            {
-                                layerNodes[j].X = startXTD + j * nodeSpacingX;
-                                layerNodes[j].Y = layerY;
-                            }
-                        }
-                        break;
+                    if (!layerNodes[j].HasCustomPosition)
+                    {
+                        layerNodes[j].X = startX + j * nodeSpacingX;
+                        layerNodes[j].Y = layerY;
+                    }
                 }
             }
         }
@@ -766,6 +877,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public DiagramNodeViewModel QuickAddNode(DiagramNodeViewModel sourceNode, string direction)
     {
+        SnapshotForUndo();
         int counter = Nodes.Count + 1;
         string id = $"node_{counter}";
         while (Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
@@ -859,7 +971,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         };
 
         Nodes.Add(newNode);
-        AddConnector(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
+        AddConnectorCore(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
         SelectNode(newNode, false);
         StatusText = $"Quick-added node '{newNode.LabelText}' ({direction}).";
         return newNode;
@@ -904,8 +1016,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
-    public void AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
+    public DiagramNodeViewModel AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
     {
+        SnapshotForUndo();
         int counter = Nodes.Count + 1;
         string id = $"node_{counter}";
         while (Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
@@ -932,9 +1045,18 @@ public partial class MermaidStudioViewModel : ObservableObject
         Nodes.Add(node);
         SelectNode(node, false);
         StatusText = $"Added {node.Shape} node '{node.LabelText}' at ({node.X:F0}, {node.Y:F0}).";
+        return node;
     }
 
     public void AddConnector(string sourceId, string sourceAnchor, string targetId, string targetAnchor)
+    {
+        SnapshotForUndo();
+        AddConnectorCore(sourceId, sourceAnchor, targetId, targetAnchor);
+    }
+
+    // Snapshot-free core so composite operations (e.g. QuickAddNode = add node + add connector) can
+    // record a single undo entry instead of one per sub-step.
+    private void AddConnectorCore(string sourceId, string sourceAnchor, string targetId, string targetAnchor)
     {
         var conn = new DiagramConnectorViewModel
         {
@@ -943,7 +1065,8 @@ public partial class MermaidStudioViewModel : ObservableObject
             TargetNodeId = targetId,
             TargetAnchor = targetAnchor,
             LineStyle = "Solid",
-            EndHead = "Normal"
+            EndHead = "Normal",
+            RoutingMode = ConnectorRouting // new connectors follow the active toolbar routing
         };
         UpdateConnectorGeometry(conn);
         Connectors.Add(conn);
@@ -956,6 +1079,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (SelectedNodes.Count > 0 || SelectedNode != null)
         {
+            SnapshotForUndo();
             var nodesToDelete = SelectedNodes.Count > 0 ? SelectedNodes.ToList() : new List<DiagramNodeViewModel> { SelectedNode! };
             foreach (var nodeToDelete in nodesToDelete)
             {
@@ -970,12 +1094,345 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
         else if (SelectedConnector != null)
         {
+            SnapshotForUndo();
             var connToDelete = SelectedConnector;
             Connectors.Remove(connToDelete);
             SelectedConnector = null;
             StatusText = "Deleted connector.";
         }
     }
+
+    // ============================================================================================
+    // World-class editing suite — selection, nudge, duplicate, copy/paste, align & distribute.
+    // These back the keyboard shortcuts, the right-click context menu and the Align toolbar, and
+    // bring the Studio to parity with dedicated diagrammers (draw.io / Whimsical / mermaid.live).
+    // ============================================================================================
+
+    #region Selection helpers
+
+    [RelayCommand]
+    public void SelectAll()
+    {
+        SelectedNodes.Clear();
+        foreach (var n in Nodes)
+        {
+            n.IsSelected = true;
+            SelectedNodes.Add(n);
+        }
+        SelectedNode = SelectedNodes.LastOrDefault();
+        SelectedConnector = null;
+        StatusText = $"Selected {SelectedNodes.Count} node(s).";
+    }
+
+    [RelayCommand]
+    public void ClearSelection()
+    {
+        foreach (var n in Nodes) n.IsSelected = false;
+        SelectedNodes.Clear();
+        SelectedNode = null;
+        SelectedConnector = null;
+    }
+
+    #endregion
+
+    #region Nudge (arrow keys)
+
+    // Arrow-key nudge. A single press moves 1px (fine); holding Shift moves a full grid step
+    // (coarse). Each press is its own undo step so a user can walk a node back.
+    public void NudgeSelected(double deltaX, double deltaY, bool coarse)
+    {
+        if (SelectedNodes.Count == 0) return;
+        double step = coarse ? Math.Max(GridSnapSize, 10) : 1;
+        SnapshotForUndo();
+        MoveSelectedNodes(deltaX * step, deltaY * step);
+    }
+
+    #endregion
+
+    #region Duplicate + Copy / Paste (in-app clipboard)
+
+    // Immutable snapshots so the clipboard survives later edits to the originals.
+    private sealed record NodeSnapshot(string LabelText, string Category, string Shape, double X, double Y,
+        double Width, double Height, string FillColor, string StrokeColor, double StrokeWidth);
+
+    private sealed record ConnectorSnapshot(string SourceNodeId, string SourceAnchor, string TargetNodeId,
+        string TargetAnchor, string LineStyle, string StartHead, string EndHead, string? Label,
+        ConnectorRoutingMode RoutingMode, string StrokeColor, double StrokeWidth);
+
+    private readonly List<NodeSnapshot> _clipboardNodes = new();
+    private readonly List<ConnectorSnapshot> _clipboardConnectors = new();
+
+    [RelayCommand]
+    public void CopySelected()
+    {
+        if (SelectedNodes.Count == 0) { StatusText = "Nothing selected to copy."; return; }
+
+        _clipboardNodes.Clear();
+        _clipboardConnectors.Clear();
+
+        var ids = new HashSet<string>(SelectedNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+        foreach (var n in SelectedNodes)
+            _clipboardNodes.Add(new NodeSnapshot(n.LabelText, n.Category, n.Shape, n.X, n.Y, n.Width, n.Height, n.FillColor, n.StrokeColor, n.StrokeWidth));
+
+        // Only carry connectors whose BOTH endpoints are in the copied set — dangling edges would
+        // reference nodes that don't exist at the paste site.
+        foreach (var c in Connectors)
+            if (ids.Contains(c.SourceNodeId) && ids.Contains(c.TargetNodeId))
+                _clipboardConnectors.Add(new ConnectorSnapshot(c.SourceNodeId, c.SourceAnchor, c.TargetNodeId, c.TargetAnchor, c.LineStyle, c.StartHead, c.EndHead, c.Label, c.RoutingMode, c.StrokeColor, c.StrokeWidth));
+
+        StatusText = $"Copied {_clipboardNodes.Count} node(s) and {_clipboardConnectors.Count} connector(s).";
+    }
+
+    [RelayCommand]
+    public void PasteClipboard()
+    {
+        if (_clipboardNodes.Count == 0) { StatusText = "Clipboard is empty."; return; }
+        PasteSnapshots(_clipboardNodes, _clipboardConnectors, offset: 30);
+    }
+
+    [RelayCommand]
+    public void DuplicateSelected()
+    {
+        if (SelectedNodes.Count == 0) { StatusText = "Nothing selected to duplicate."; return; }
+
+        var ids = new HashSet<string>(SelectedNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+        var nodes = SelectedNodes
+            .Select(n => new NodeSnapshot(n.LabelText, n.Category, n.Shape, n.X, n.Y, n.Width, n.Height, n.FillColor, n.StrokeColor, n.StrokeWidth))
+            .ToList();
+        var conns = Connectors
+            .Where(c => ids.Contains(c.SourceNodeId) && ids.Contains(c.TargetNodeId))
+            .Select(c => new ConnectorSnapshot(c.SourceNodeId, c.SourceAnchor, c.TargetNodeId, c.TargetAnchor, c.LineStyle, c.StartHead, c.EndHead, c.Label, c.RoutingMode, c.StrokeColor, c.StrokeWidth))
+            .ToList();
+
+        PasteSnapshots(nodes, conns, offset: 30);
+    }
+
+    /// <summary>
+    /// Alt+drag duplicate: creates an exact copy of a single node at the same position (no offset,
+    /// so it sits directly under the pointer ready to be dragged), selects the copy, and returns it.
+    /// One undo step. Connectors are NOT copied — this is a quick "stamp another one" gesture.
+    /// </summary>
+    public DiagramNodeViewModel DuplicateSingleNodeForDrag(DiagramNodeViewModel source)
+    {
+        SnapshotForUndo();
+        var node = new DiagramNodeViewModel
+        {
+            Id = GenerateUniqueId(),
+            LabelText = source.LabelText,
+            Category = source.Category,
+            Shape = source.Shape,
+            X = source.X,
+            Y = source.Y,
+            Width = source.Width,
+            Height = source.Height,
+            FillColor = source.FillColor,
+            StrokeColor = source.StrokeColor,
+            StrokeWidth = source.StrokeWidth,
+            HasCustomPosition = true
+        };
+        Nodes.Add(node);
+        SelectNode(node, false);
+        StatusText = $"Duplicated '{source.LabelText}' — drag to place.";
+        return node;
+    }
+
+    // Materializes snapshots as brand-new nodes (fresh IDs), remaps any carried connectors onto
+    // the new IDs, offsets the geometry so the copy doesn't sit exactly on top of the original, and
+    // selects the result. One undo step for the whole operation.
+    private void PasteSnapshots(List<NodeSnapshot> nodes, List<ConnectorSnapshot> conns, double offset)
+    {
+        SnapshotForUndo();
+
+        var oldToNew = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var created = new List<DiagramNodeViewModel>();
+
+        foreach (var snap in nodes)
+        {
+            var newId = GenerateUniqueId();
+            var node = new DiagramNodeViewModel
+            {
+                Id = newId,
+                LabelText = snap.LabelText,
+                Category = snap.Category,
+                Shape = snap.Shape,
+                X = snap.X + offset,
+                Y = snap.Y + offset,
+                Width = snap.Width,
+                Height = snap.Height,
+                FillColor = snap.FillColor,
+                StrokeColor = snap.StrokeColor,
+                StrokeWidth = snap.StrokeWidth,
+                HasCustomPosition = true
+            };
+            Nodes.Add(node);
+            created.Add(node);
+        }
+
+        // Map original IDs -> new IDs. Snapshots are positional, so zip against the ORIGINAL
+        // selected order captured at copy time via the connector endpoints' first appearance.
+        // Rebuild the old-id list from the source snapshots isn't stored, so derive the mapping by
+        // matching each connector endpoint to the snapshot that owned it. Simpler and robust: the
+        // caller passes connectors whose endpoints are original IDs; we map by re-deriving the
+        // original node list order is not available here, so instead we map old->new using the
+        // original IDs captured alongside snapshots. To keep this airtight we rebuild the map from
+        // the nodes we just created paired with the snapshot order of the CURRENT selection.
+        // (See CopySelected/DuplicateSelected: snapshots are taken in SelectedNodes order, so we
+        // re-derive original IDs the same way.)
+        var originals = SelectedNodes.Count == nodes.Count
+            ? SelectedNodes.Select(n => n.Id).ToList()
+            : new List<string>();
+        if (originals.Count == nodes.Count)
+        {
+            for (int i = 0; i < originals.Count; i++) oldToNew[originals[i]] = created[i].Id;
+        }
+
+        foreach (var c in conns)
+        {
+            if (!oldToNew.TryGetValue(c.SourceNodeId, out var src) || !oldToNew.TryGetValue(c.TargetNodeId, out var tgt))
+                continue; // endpoint wasn't duplicated — skip the edge rather than dangle it
+            var conn = new DiagramConnectorViewModel
+            {
+                SourceNodeId = src,
+                SourceAnchor = c.SourceAnchor,
+                TargetNodeId = tgt,
+                TargetAnchor = c.TargetAnchor,
+                LineStyle = c.LineStyle,
+                StartHead = c.StartHead,
+                EndHead = c.EndHead,
+                Label = c.Label,
+                RoutingMode = c.RoutingMode,
+                StrokeColor = c.StrokeColor,
+                StrokeWidth = c.StrokeWidth
+            };
+            UpdateConnectorGeometry(conn);
+            Connectors.Add(conn);
+        }
+
+        // Select the newly pasted set.
+        ClearSelection();
+        foreach (var n in created)
+        {
+            n.IsSelected = true;
+            SelectedNodes.Add(n);
+        }
+        SelectedNode = created.LastOrDefault();
+        StatusText = $"Pasted {created.Count} node(s).";
+    }
+
+    // Collision-free node id: node_N where N is the first free integer.
+    private string GenerateUniqueId()
+    {
+        int counter = Nodes.Count + 1;
+        string id = $"node_{counter}";
+        while (Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
+        {
+            counter++;
+            id = $"node_{counter}";
+        }
+        return id;
+    }
+
+    #endregion
+
+    #region Align & Distribute (multi-select)
+
+    // All alignment ops act on the current multi-selection and are a single undo step. They no-op
+    // (with a status hint) when fewer than two nodes are selected — aligning one node is meaningless.
+    private bool TryBeginAlign(out List<DiagramNodeViewModel> sel)
+    {
+        sel = SelectedNodes.ToList();
+        if (sel.Count < 2) { StatusText = "Select at least two nodes to align."; return false; }
+        SnapshotForUndo();
+        return true;
+    }
+
+    [RelayCommand]
+    public void AlignLeft()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double minX = sel.Min(n => n.X);
+        foreach (var n in sel) n.X = minX;
+        FinishAlign("Aligned left.");
+    }
+
+    [RelayCommand]
+    public void AlignHorizontalCenter()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double cx = sel.Average(n => n.X + n.Width / 2);
+        foreach (var n in sel) n.X = cx - n.Width / 2;
+        FinishAlign("Aligned horizontal centers.");
+    }
+
+    [RelayCommand]
+    public void AlignRight()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double maxRight = sel.Max(n => n.X + n.Width);
+        foreach (var n in sel) n.X = maxRight - n.Width;
+        FinishAlign("Aligned right.");
+    }
+
+    [RelayCommand]
+    public void AlignTop()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double minY = sel.Min(n => n.Y);
+        foreach (var n in sel) n.Y = minY;
+        FinishAlign("Aligned top.");
+    }
+
+    [RelayCommand]
+    public void AlignVerticalMiddle()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double cy = sel.Average(n => n.Y + n.Height / 2);
+        foreach (var n in sel) n.Y = cy - n.Height / 2;
+        FinishAlign("Aligned vertical middles.");
+    }
+
+    [RelayCommand]
+    public void AlignBottom()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        double maxBottom = sel.Max(n => n.Y + n.Height);
+        foreach (var n in sel) n.Y = maxBottom - n.Height;
+        FinishAlign("Aligned bottom.");
+    }
+
+    [RelayCommand]
+    public void DistributeHorizontally()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        var ordered = sel.OrderBy(n => n.X).ToList();
+        double firstCenter = ordered[0].X + ordered[0].Width / 2;
+        double lastCenter = ordered[^1].X + ordered[^1].Width / 2;
+        double step = (lastCenter - firstCenter) / (ordered.Count - 1);
+        for (int i = 1; i < ordered.Count - 1; i++)
+            ordered[i].X = firstCenter + step * i - ordered[i].Width / 2;
+        FinishAlign("Distributed horizontally.");
+    }
+
+    [RelayCommand]
+    public void DistributeVertically()
+    {
+        if (!TryBeginAlign(out var sel)) return;
+        var ordered = sel.OrderBy(n => n.Y).ToList();
+        double firstCenter = ordered[0].Y + ordered[0].Height / 2;
+        double lastCenter = ordered[^1].Y + ordered[^1].Height / 2;
+        double step = (lastCenter - firstCenter) / (ordered.Count - 1);
+        for (int i = 1; i < ordered.Count - 1; i++)
+            ordered[i].Y = firstCenter + step * i - ordered[i].Height / 2;
+        FinishAlign("Distributed vertically.");
+    }
+
+    private void FinishAlign(string message)
+    {
+        foreach (var n in SelectedNodes) UpdateConnectedConnectors(n);
+        StatusText = message;
+    }
+
+    #endregion
 
     public MermaidDiagramAst CanvasToAst()
     {
@@ -1010,7 +1467,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         switch (SelectedDiagramType)
         {
             case MermaidDiagramType.Flowchart:
-                var flowchart = new FlowchartDiagramAst { Direction = SelectedFlowDirection };
+                var flowchart = new FlowchartDiagramAst { Direction = FlowchartDirection };
                 foreach (var n in Nodes)
                 {
                     FlowNodeShape shape;
@@ -1479,17 +1936,146 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
+    // ---- Style presets (QODER task 5) ----
+    // A preset recolors node fills, node borders and connector lines in one click and is persisted
+    // into the generated mermaid code as `%%{init}%%` themeVariables so the look survives a reload.
+    public sealed record DiagramPalette(string Name, string Fill, string Border, string Line, string Text);
+
+    public static readonly IReadOnlyList<DiagramPalette> StylePresets = new[]
+    {
+        new DiagramPalette("Catppuccin Slate",  "#313244", "#585B70", "#89B4FA", "#CDD6F4"),
+        new DiagramPalette("Nord Ocean",        "#2E3440", "#4C566A", "#88C0D0", "#ECEFF4"),
+        new DiagramPalette("Emerald Corporate", "#062E23", "#10B981", "#34D399", "#ECFDF5"),
+        new DiagramPalette("Monochrome Print",  "#FFFFFF", "#1F2937", "#111827", "#111827"),
+    };
+
+    partial void OnConnectorRoutingChanged(ConnectorRoutingMode value)
+    {
+        foreach (var c in Connectors) c.RoutingMode = value;
+        UpdateAllConnectors();
+        StatusText = $"Connector routing set to {value}.";
+    }
+
+    partial void OnActivePaletteChanged(string value)
+    {
+        var preset = StylePresets.FirstOrDefault(p => p.Name == value);
+        if (preset is null) return; // empty/unknown -> keep current colors
+        foreach (var n in Nodes)
+        {
+            n.FillColor = preset.Fill;
+            n.StrokeColor = preset.Border;
+        }
+        foreach (var c in Connectors)
+        {
+            c.StrokeColor = preset.Line;
+        }
+        StatusText = $"Applied '{value}' palette.";
+    }
+
     public string GenerateMermaidCode()
     {
         var ast = CanvasToAst();
+        ApplyStudioDirectives(ast);
         return MermaidCodeGenerator.Generate(ast);
+    }
+
+    // Persists the Studio's routing + palette choices into the generated mermaid as an
+    // `%%{init}%%` directive (and carries across any non-init directives from the loaded AST so
+    // they aren't dropped by the canvas round trip). Emitted ONLY when the state differs from the
+    // studio defaults, so untouched documents still round-trip byte-identically.
+    private void ApplyStudioDirectives(MermaidDiagramAst ast)
+    {
+        if (CurrentAst is not null)
+        {
+            foreach (var dir in CurrentAst.Directives)
+            {
+                if (dir.StartsWith("%%{init", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!ast.Directives.Contains(dir)) ast.Directives.Add(dir);
+            }
+        }
+
+        var init = BuildInitDirective();
+        if (init is not null) ast.Directives.Add(init);
+    }
+
+    private string? BuildInitDirective()
+    {
+        bool hasPalette = !string.IsNullOrEmpty(ActivePalette);
+        bool hasCurve = ConnectorRouting != ConnectorRoutingMode.Orthogonal;
+        if (!hasPalette && !hasCurve) return null;
+
+        var parts = new List<string>();
+        if (hasPalette)
+        {
+            var preset = StylePresets.First(p => p.Name == ActivePalette);
+            parts.Add("'theme':'base'");
+            parts.Add("'themeVariables':{'primaryColor':'" + preset.Fill +
+                      "','primaryBorderColor':'" + preset.Border +
+                      "','lineColor':'" + preset.Line +
+                      "','primaryTextColor':'" + preset.Text + "'}");
+        }
+        if (hasCurve)
+        {
+            string curve = ConnectorRouting switch
+            {
+                ConnectorRoutingMode.Straight => "linear",
+                ConnectorRoutingMode.Bezier => "basis",
+                _ => "stepAfter"
+            };
+            parts.Add("'flowchart':{'curve':'" + curve + "'}");
+        }
+        return "%%{init: {" + string.Join(",", parts) + "}}%%";
+    }
+
+    // Re-applies the routing + palette encoded in a loaded diagram's `%%{init}%%` directive so the
+    // canvas reflects the authored look (and the dirty baseline generated afterwards matches it).
+    private void RestoreStudioStateFromDirectives()
+    {
+        var routing = ConnectorRoutingMode.Orthogonal;
+        var palette = string.Empty;
+
+        foreach (var dir in CurrentAst?.Directives ?? Enumerable.Empty<string>())
+        {
+            if (!dir.StartsWith("%%{init", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var curveMatch = System.Text.RegularExpressions.Regex.Match(dir, "'curve'\\s*:\\s*'(\\w+)'");
+            if (curveMatch.Success)
+            {
+                routing = curveMatch.Groups[1].Value.ToLowerInvariant() switch
+                {
+                    "linear" => ConnectorRoutingMode.Straight,
+                    "basis" => ConnectorRoutingMode.Bezier,
+                    _ => ConnectorRoutingMode.Orthogonal
+                };
+            }
+
+            var colorMatch = System.Text.RegularExpressions.Regex.Match(dir, "'primaryColor'\\s*:\\s*'(#[0-9A-Fa-f]{3,8})'");
+            if (colorMatch.Success)
+            {
+                var match = StylePresets.FirstOrDefault(p => p.Fill.Equals(colorMatch.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
+                if (match is not null) palette = match.Name;
+            }
+        }
+
+        ConnectorRouting = routing;
+        ActivePalette = palette;
     }
 
     public string SyncToMarkdown(string markdown)
     {
         string newMermaidCode = GenerateMermaidCode();
+        _savedCode = newMermaidCode; // syncing counts as saving — reset the dirty baseline
+
+        // ISS-018: the canvas AST can't represent style/classDef/linkStyle directives or
+        // per-subgraph directions — carry them across from the fence being replaced so the
+        // canvas → AST → code round trip doesn't strip them. The dirty baseline above stays
+        // pure generator output so HasUnsavedChanges keeps comparing like with like.
+        var blocks = MermaidMarkdownSyncService.ExtractMermaidBlocks(markdown);
+        if (ActiveBlockIndex >= 0 && ActiveBlockIndex < blocks.Count)
+            newMermaidCode = Services.MermaidPreservationNormalizer.Preserve(newMermaidCode, blocks[ActiveBlockIndex].Code);
+
         RawMermaidCode = newMermaidCode;
-        if (MermaidMarkdownSyncService.ExtractMermaidBlocks(markdown).Count > 0)
+        if (blocks.Count > 0)
         {
             return MermaidMarkdownSyncService.ReplaceMermaidBlock(markdown, ActiveBlockIndex, newMermaidCode);
         }

@@ -52,7 +52,11 @@ public static partial class DocumentStatsService
         // Walk lines so fenced code is handled exactly (a regex can't reliably tell an opening fence
         // from a closing one across the whole document). Everything OUTSIDE a fence is prose we scan
         // for headings/tables and accumulate for word counting; fence bodies are excluded wholesale.
-        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = TextNormalizer.Newlines(markdown).Split('\n');
+        // Line count for the status bar: a single trailing newline shouldn't register as an extra
+        // blank line ("hello\n" is one line), but a genuine blank line still counts ("a\n\n" = 2).
+        int lineCount = lines.Length;
+        if (lineCount > 1 && lines[^1].Length == 0) lineCount--;
         string? fenceMarker = null; // the ``` or ~~~ run that opened the current block, or null
 
         foreach (var line in lines)
@@ -86,17 +90,26 @@ public static partial class DocumentStatsService
 
         var proseText = prose.ToString();
 
-        int images = ImageRe().Matches(proseText).Count;
-        // Links minus images: an ![...]() also matches the link shape, so subtract the images out.
-        int links = Math.Max(0, LinkRe().Matches(proseText).Count - images);
+        // Single-pass: count images/links WHILE stripping them for word-counting, so the
+        // regexes run once instead of twice (Matches here + Replace in CountWords).
+        int images = 0, links = 0;
+        proseText = ImageRe().Replace(proseText, m => { images++; return m.Groups[1].Value; });
+        // After images are stripped, [text](url) only matches genuine links (no ![...] overlap).
+        proseText = LinkRe().Replace(proseText, m => { links++; return m.Groups[1].Value; });
 
         int words = CountWords(proseText);
         var readingTime = TimeSpan.FromMinutes(words / WordsPerMinute);
+
+        // Characters without whitespace — the "dense" character count some style guides prefer.
+        int charsNoSpaces = 0;
+        foreach (var ch in markdown) if (!char.IsWhiteSpace(ch)) charsNoSpaces++;
 
         return new DocumentStats
         {
             Words = words,
             Characters = markdown.Length,
+            CharactersNoSpaces = charsNoSpaces,
+            Lines = lineCount,
             Headings = headings,
             CodeBlocks = codeBlocks,
             Tables = tables,
@@ -119,10 +132,8 @@ public static partial class DocumentStatsService
 
     private static int CountWords(string prose)
     {
-        // Replace image/link markup with just their visible text so "see [the docs](url)" counts the
-        // words a reader sees ("see the docs"), not the URL. Images collapse to their alt text.
-        prose = ImageRe().Replace(prose, "$1");
-        prose = LinkRe().Replace(prose, "$1");
+        // Images and links have already been stripped to their visible text by the caller
+        // (counting them in the same pass). Only inline code and emphasis markers remain.
         prose = InlineCodeRe().Replace(prose, " ");
         prose = MarkerRe().Replace(prose, " ");
 
@@ -156,6 +167,8 @@ public readonly record struct DocumentStats
 {
     public int Words { get; init; }
     public int Characters { get; init; }
+    public int CharactersNoSpaces { get; init; }
+    public int Lines { get; init; }
     public int Headings { get; init; }
     public int CodeBlocks { get; init; }
     public int Tables { get; init; }
@@ -187,8 +200,8 @@ public readonly record struct DocumentStats
         get
         {
             var sb = new StringBuilder();
-            sb.Append($"{Words:N0} words · {Characters:N0} characters\n");
-            sb.Append($"Estimated reading time: {ReadingTimeText}");
+            sb.Append($"{Words:N0} words · {Characters:N0} characters ({CharactersNoSpaces:N0} without spaces)\n");
+            sb.Append($"{Lines:N0} lines · Estimated reading time: {ReadingTimeText}");
             AppendCount(sb, "heading", Headings);
             AppendCount(sb, "code block", CodeBlocks);
             AppendCount(sb, "table", Tables);
