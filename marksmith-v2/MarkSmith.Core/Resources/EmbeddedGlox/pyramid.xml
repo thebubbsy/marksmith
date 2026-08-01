@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+               uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/pyramid1"
+               title="Basic Pyramid"
+               desc="Pyramid hierarchical layout"
+               clrgName="Colorful"
+               clrType="colorful">
+  <dgm:title val="Basic Pyramid"/>
+  <dgm:desc val="Pyramid hierarchical layout"/>
+  <dgm:catLst>
+    <dgm:cat type="pyramid" pri="1"/>
+  </dgm:catLst>
+  <dgm:layoutNode name="diagram">
+    <dgm:alg type="pyramid"/>
+    <dgm:shape type="trapezoid"/>
+    <dgm:forEach axis="ch" refNode="node">
+      <dgm:layoutNode name="node">
+        <dgm:alg type="tx"/>
+        <dgm:shape type="trapezoid"/>
+        
+      </dgm:layoutNode>
+    </dgm:forEach>
+  </dgm:layoutNode>
+</dgm:layoutDef>
