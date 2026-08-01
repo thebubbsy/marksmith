@@ -38,13 +38,14 @@ public static class SvgSanitizer
             || compact.StartsWith("vbscript:", System.StringComparison.OrdinalIgnoreCase);
     }
 
-    public static string Sanitize(string svg)
+    public static string Sanitize(string svg, string? bgContextHex = null)
     {
         if (string.IsNullOrEmpty(svg)) return svg;
         svg = ScriptEl.Replace(svg, "");
         svg = ForeignObjectEl.Replace(svg, "");
         svg = EventHandlerAttr.Replace(svg, "");
         svg = HrefAttr.Replace(svg, m => IsJavascriptUrl(m.Groups[1].Value) ? "" : m.Value);
+        svg = Services.ContrastGuard.EnsureSvgLegibility(svg, bgContextHex);
         return svg;
     }
 }

@@ -315,14 +315,17 @@ public class AdversarialSecurityAndLicensingTests
     [Fact]
     public async Task LicenseService_R4_Pro_Feature_State_Activation_And_Deactivation()
     {
-        var privateKeyPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "licensing", "private-key.pem");
-        if (!File.Exists(privateKeyPath))
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? privateKeyPath = null;
+        while (curr != null)
         {
-            privateKeyPath = Path.Combine(Directory.GetCurrentDirectory(), "tools", "licensing", "private-key.pem");
+            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
+            if (File.Exists(p)) { privateKeyPath = p; break; }
+            curr = curr.Parent;
         }
 
         string privateKeyPem;
-        if (File.Exists(privateKeyPath))
+        if (privateKeyPath != null)
         {
             privateKeyPem = File.ReadAllText(privateKeyPath);
         }
