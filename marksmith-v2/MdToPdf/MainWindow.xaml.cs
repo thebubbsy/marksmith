@@ -3704,17 +3704,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
     {
-        if (App.Settings.Current.ProMode)
-        {
-            InsertMarkdown("\n:::smartart type=\"process\"\n- Step 1\n- Step 2\n:::\n");
-            return;
-        }
-
-        var control = new Views.TypeAndLinesInsertControl(
-            "Type", new[] { "process", "list", "cycle", "hierarchy" }, "process",
-            "One step per line:", "Step 1\nStep 2");
-        if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.SmartArt(control.SelectedType, control.Lines));
+        var control = new Views.SmartArtInsertControl();
+        if (await ShowInsertDialogAsync("Insert SmartArt Diagram", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(control.GeneratedSnippet);
     }
 
     private async void OnInsertTabsClick(object sender, RoutedEventArgs e)
