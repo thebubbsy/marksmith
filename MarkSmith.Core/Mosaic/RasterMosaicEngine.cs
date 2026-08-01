@@ -23,7 +23,6 @@ namespace MarkSmith.Core.Mosaic
             };
 
             int totalNodes = options.GridWidth * options.GridHeight;
-            int counter = 1;
 
             for (int y = 0; y < options.GridHeight; y++)
             {
