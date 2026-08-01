@@ -222,4 +222,22 @@ Marksmith contains a reverse-engineered SmartArt engine (`MarkSmith.Core`) that 
    - `diagrams/layoutHeader1.xml` containing `<dgm:layoutDefHdr>`.
 3. **CLI Compiler Integration**: Use `marksmith build-layout <input.json> <output.glox>` to transform JSON layout nodes into compliant `.glox` files.
 
+---
+
+## 9. UNIFIED SOLUTION STRUCTURE & NAMESPACE CONVENTIONS
+
+The solution is unified under the **`MarkSmith.*`** banner located in `marksmith-v2/`:
+
+- **`marksmith-v2/MarkSmith.Core/`** (`namespace MarkSmith.Core.*`): Platform-agnostic document exporters (`DocxExportService`, `PptxExportService`, `PdfExportService`, `EpubExportService`), AST parsers, GLOX/SmartArt layout solver, and MVVM ViewModels.
+- **`marksmith-v2/MarkSmith.Desktop/`** (`namespace MarkSmith.Desktop.*`): WinUI 3 presentation app shell, title bar controls, system tray integrations (`MarkSmith.Desktop.csproj`).
+- **`marksmith-v2/MarkSmith.Wasm/`** (`namespace MarkSmith.Wasm.*`): Client-side Blazor WebAssembly editor (`MarkSmith.Wasm.csproj`).
+- **`marksmith-v2/MarkSmith.Cli/`** (`namespace MarkSmith.Cli.*`): Command-line interface tool and GLOX compiler (`MarkSmith.Cli.csproj`).
+- **`marksmith-v2/MarkSmith.Api/`** (`namespace MarkSmith.Api.*`): Local loopback REST API server (`MarkSmith.Api.csproj`).
+- **`marksmith-v2/MarkSmith.Tests/`** (`namespace MarkSmith.Tests.*`): Consolidated xUnit test suite & OpenXML schema validator (`MarkSmith.Tests.csproj`).
+
+### AI Directives for New Code:
+1. **Always reference `MarkSmith.Core`**: Do not create duplicate exporter or viewmodel logic in presentation projects; put core logic in `MarkSmith.Core`.
+2. **Namespace Standard**: Use `MarkSmith.Core.*` for services, models, and solvers; `MarkSmith.Desktop.*` for WinUI 3 views; `MarkSmith.Wasm.*` for Blazor components.
+3. **Solution Path**: The Visual Studio solution is `marksmith-v2/marksmith-v2.sln`.
+
 **END OF DIRECTIVE.**
