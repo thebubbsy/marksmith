@@ -38,4 +38,10 @@
       <_Parameter1>MdToPdf.Core.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\SmartArtLayouts\*.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
+  </ItemGroup>
 </Project>

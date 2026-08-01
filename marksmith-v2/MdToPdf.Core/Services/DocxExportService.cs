@@ -1248,7 +1248,7 @@ public sealed class DocxExportService
             case "SmartArt":
             case "Workflow":
             case "Timeline":
-                RenderSmartArtFallback(node, target, ctx);
+                RenderNativeSmartArt(node, target, ctx);
                 break;
             case "References":
                 RenderReferences(node, target, ctx);
@@ -1621,6 +1621,97 @@ public sealed class DocxExportService
         target.Append(new W.Paragraph(new W.ParagraphProperties(
             new W.SpacingBetweenLines { After = "120" })));
     }
+
+        private static void RenderNativeSmartArt(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+        {
+            try
+            {
+                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : "process";
+                var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
+                ast.RequestedLayout = layoutType;
+
+                string resourceName = $"MarkSmith.Core.Resources.EmbeddedGlox.{layoutType}.xml";
+                string gloxXml;
+                using (var stream = typeof(MarkSmith.Core.Glox.GloxExtractor).Assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) throw new Exception($"SmartArt layout '{layoutType}' not found.");
+                    using var reader = new System.IO.StreamReader(stream);
+                    gloxXml = reader.ReadToEnd();
+                }
+                var gloxPkg = MarkSmith.Core.Glox.GloxExtractor.ExtractFromXmlString(gloxXml);
+                var solver = new MarkSmith.Core.Solver.ConstraintSolver();
+                var solved = solver.Solve(ast, gloxPkg);
+                
+                var generator = new MarkSmith.Core.Generator.OpenXmlDiagramGenerator();
+                var result = generator.Generate(solved, gloxPkg);
+
+                var dmPart = ctx.MainPart.AddNewPart<DiagramDataPart>();
+                using (var writer = new System.IO.StreamWriter(dmPart.GetStream(System.IO.FileMode.Create)))
+                    writer.Write(result.DiagramDataXml);
+
+                var loPart = ctx.MainPart.AddNewPart<DiagramLayoutDefinitionPart>();
+                using (var writer = new System.IO.StreamWriter(loPart.GetStream(System.IO.FileMode.Create)))
+                    writer.Write(result.DiagramLayoutXml);
+
+                var csPart = ctx.MainPart.AddNewPart<DiagramColorsPart>();
+                using (var writer = new System.IO.StreamWriter(csPart.GetStream(System.IO.FileMode.Create)))
+                    writer.Write(result.DiagramColorsXml);
+
+                var qsPart = ctx.MainPart.AddNewPart<DiagramStylePart>();
+                using (var writer = new System.IO.StreamWriter(qsPart.GetStream(System.IO.FileMode.Create)))
+                    writer.Write(result.DiagramStyleXml);
+
+                foreach (var kvp in result.ImageRelMap)
+                {
+                    string imgPath = kvp.Key;
+                    string rId = kvp.Value;
+                    string ext = System.IO.Path.GetExtension(imgPath).TrimStart('.').ToLower();
+                    
+                    var partType = DocumentFormat.OpenXml.Packaging.ImagePartType.Png;
+                    if (ext == "jpg" || ext == "jpeg") partType = DocumentFormat.OpenXml.Packaging.ImagePartType.Jpeg;
+                    
+                    var imgPart = dmPart.AddImagePart(partType, rId);
+                    if (System.IO.File.Exists(imgPath))
+                    {
+                        using var fs = new System.IO.FileStream(imgPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                        imgPart.FeedData(fs);
+                    }
+                }
+
+                string rDm = ctx.MainPart.GetIdOfPart(dmPart);
+                string rLo = ctx.MainPart.GetIdOfPart(loPart);
+                string rCs = ctx.MainPart.GetIdOfPart(csPart);
+                string rQs = ctx.MainPart.GetIdOfPart(qsPart);
+
+                ctx.NextDrawingId++;
+                var drawingXml = $@"<w:pPr><w:jc w:val=""center""/></w:pPr>
+<w:r>
+  <w:drawing>
+    <wp:inline distT=""0"" distB=""0"" distL=""0"" distR=""0"" xmlns:wp=""http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"">
+      <wp:extent cx=""5760000"" cy=""3600000""/>
+      <wp:effectExtent l=""0"" t=""0"" r=""0"" b=""0""/>
+      <wp:docPr id=""{ctx.NextDrawingId}"" name=""SmartArt Diagram {ctx.NextDrawingId}"" descr=""Native Word SmartArt""/>
+      <wp:cNvGraphicFramePr/>
+      <a:graphic xmlns:a=""http://schemas.openxmlformats.org/drawingml/2006/main"">
+        <a:graphicData uri=""http://schemas.openxmlformats.org/drawingml/2006/diagram"">
+          <dgm:relIds xmlns:dgm=""http://schemas.openxmlformats.org/drawingml/2006/diagram""
+                      xmlns:r=""http://schemas.openxmlformats.org/officeDocument/2006/relationships""
+                      r:dm=""{rDm}"" r:lo=""{rLo}"" r:qs=""{rQs}"" r:cs=""{rCs}""/>
+        </a:graphicData>
+      </a:graphic>
+    </wp:inline>
+  </w:drawing>
+</w:r>";
+
+                var para = new DocumentFormat.OpenXml.Wordprocessing.Paragraph { InnerXml = drawingXml };
+                target.Append(para);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Native SmartArt generation failed, falling back: {ex.Message}");
+                RenderSmartArtFallback(node, target, ctx);
+            }
+        }
 
     /// <summary>
     /// Renders :::smartart, :::workflow, and :::timeline as a styled numbered step-table.

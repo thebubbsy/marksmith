@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+               uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/relationship1"
+               title="Basic Relationship"
+               desc="Interconnected relationship diagram"
+               clrgName="Colorful"
+               clrType="colorful">
+  <dgm:title val="Basic Relationship"/>
+  <dgm:desc val="Interconnected relationship diagram"/>
+  <dgm:catLst>
+    <dgm:cat type="relationship" pri="1"/>
+  </dgm:catLst>
+  <dgm:layoutNode name="diagram">
+    <dgm:alg type="composite"/>
+    <dgm:shape type="ellipse"/>
+    <dgm:forEach axis="ch" refNode="node">
+      <dgm:layoutNode name="node">
+        <dgm:alg type="tx"/>
+        <dgm:shape type="ellipse"/>
+        
+      </dgm:layoutNode>
+    </dgm:forEach>
+  </dgm:layoutNode>
+</dgm:layoutDef>
