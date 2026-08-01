@@ -1440,7 +1440,7 @@ public sealed partial class MarkdownHtmlService
                     var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded, pluginTheme);
                     if (svg != null)
                     {
-                        svg = Plugins.SvgSanitizer.Sanitize(svg);
+                        svg = Plugins.SvgSanitizer.Sanitize(svg, theme.Background);
                         var cls = installed.IsThemeAware ? "plugin-diagram" : "plugin-diagram plugin-diagram-autoinvert";
                         return $"<div class=\"{cls}\">{svg}</div>";
                     }

@@ -5,8 +5,14 @@ namespace MdToPdf.Plugins;
 // placeholders, so this is public plugin-facing API — keep it small and stable.
 public sealed record PluginTheme(string Background, string Text, string Line, string Accent)
 {
-    public static PluginTheme From(Models.ThemeDefinition theme) =>
-        new(theme.Background, theme.Primary, theme.Line, theme.Heading);
+    public static PluginTheme From(Models.ThemeDefinition theme)
+    {
+        var bg = theme.Background;
+        var text = "#" + Services.ContrastGuard.EnsureLegibleText(theme.Primary, bg);
+        var line = "#" + Services.ContrastGuard.EnsureLegibleText(theme.Line, bg);
+        var accent = "#" + Services.ContrastGuard.EnsureLegibleText(theme.Heading, bg);
+        return new(bg, text, line, accent);
+    }
 }
 
 // A plugin that turns fenced-code-block text into an SVG diagram, the same role Mermaid plays
