@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+  <Default Extension="xml" ContentType="application/xml" />
+  <Override PartName="/diagrams/layout1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml" />
+  <Override PartName="/diagrams/layoutHeader1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayoutHeader+xml" />
+</Types>

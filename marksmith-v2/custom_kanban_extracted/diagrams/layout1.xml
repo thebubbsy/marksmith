@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-16"?>
+<dgm:layoutDef xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" uniqueId="urn:marksmith.com/layout/customKanban" title="Custom Kanban Board" desc="A 3-column kanban board layout" clrgName="Colorful" clrType="colorful" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <dgm:title val="Custom Kanban Board" />
+  <dgm:desc val="A 3-column kanban board layout" />
+  <dgm:catLst>
+    <dgm:cat type="list" pri="1" />
+  </dgm:catLst>
+  <dgm:layoutNode name="diagram">
+    <dgm:alg type="linear" />
+    <dgm:shape type="roundRect" />
+    <dgm:forEach axis="ch" refNode="column" />
+    <dgm:layoutNode name="column">
+      <dgm:alg type="tx" />
+      <dgm:shape type="roundRect" />
+    </dgm:layoutNode>
+  </dgm:layoutNode>
+</dgm:layoutDef>
