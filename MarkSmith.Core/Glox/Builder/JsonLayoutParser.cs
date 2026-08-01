@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MarkSmith.Core.Glox.Builder;
 
-namespace MarkSmith.Cli
+namespace MarkSmith.Core.Glox.Builder
 {
     public class JsonLayoutDef
     {
