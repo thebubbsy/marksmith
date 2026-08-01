@@ -49,23 +49,16 @@
 
 ```text
 marksmith-v2/
-├── MdToPdf/                                # WinUI 3 Presentation App
+├── MarkSmith.Core/                         # Unified Core Engine (DOCX, PDF, PPTX, EPUB, OMML Math, AST, SmartArt Solver, ViewModels)
+├── MarkSmith.Desktop/                      # WinUI 3 Desktop App (formerly MdToPdf)
 │   ├── Assets/                             # App icons, tray icons, brand assets (app.ico)
-│   ├── ViewModels/                         # CommunityToolkit.Mvvm ViewModels
 │   ├── Views/                              # XAML UI Views & Controls
 │   │   └── Mermaid/                        # Visual Diagram Studio (MermaidDiagramStudioControl.xaml)
 │   └── MainWindow.xaml                     # Main Application Window shell & title bar
-├── MdToPdf.Core/                           # Core Document & Rendering Engine
-│   ├── Mermaid/                            # Mermaid AST, Lexer, Parser & Code Generator
-│   ├── Plugins/                            # Extensible Plugin System
-│   └── Services/                           # Native Exporters:
-│       ├── DocxExportService.cs            # OpenXML DOCX & OMML Math generator
-│       ├── PptxExportService.cs            # PowerPoint (.pptx) deck generator
-│       ├── EpubExportService.cs            # EPUB eBook generator
-│       ├── PdfExportService.cs             # Chromium WebView2 PDF printer
-│       └── GovernanceService.cs            # Local DLP & Governance audit logger
-└── tests/                                  # Empirical Test Suite
-    └── MdToPdf.Core.Tests/                 # Unit tests & OpenXML validation checks
+├── MarkSmith.Wasm/                         # Client-Side Blazor WebAssembly App
+├── MarkSmith.Cli/                          # Standalone CLI & GLOX Layout Compiler
+├── MarkSmith.Api/                          # Local Loopback REST API Daemon
+└── MarkSmith.Tests/                        # Consolidated Empirical Test Suite
 ```
 
 ---
@@ -81,15 +74,15 @@ marksmith-v2/
 
 ```powershell
 # Clone the repository
-git clone https://github.com/antigravity/marksmith.git
-cd marksmith/marksmith-v2/MdToPdf
+git clone https://github.com/thebubbsy/marksmith.git
+cd marksmith/marksmith-v2/MarkSmith.Desktop
 
 # Restore dependencies & build Release x64
 dotnet restore
-dotnet build MdToPdf.csproj -c Release /p:Platform=x64
+dotnet build MarkSmith.Desktop.csproj -c Release /p:Platform=x64
 
 # Run locally
-dotnet run --project MdToPdf.csproj -c Release /p:Platform=x64
+dotnet run --project MarkSmith.Desktop.csproj -c Release /p:Platform=x64
 ```
 
 ### Publishing Standalone Single-File Executable (`Marksmith.exe`)
@@ -97,7 +90,7 @@ dotnet run --project MdToPdf.csproj -c Release /p:Platform=x64
 To publish a self-contained, zero-dependency executable bundled with the .NET 8 runtime, WinUI 3, and native WebView2 binaries:
 
 ```powershell
-dotnet publish MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+dotnet publish MarkSmith.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
 Output binary: `bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\Marksmith.exe` (~180 MB standalone).
