@@ -232,8 +232,8 @@ nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
 ## Architecture
 
 - **UI:** WinUI 3 (Windows App SDK 1.6), MVVM via CommunityToolkit.Mvvm
-- **Core Engine (`MarkSmith.Core`):** Reverse-engineered SmartArt layout engine, constraint solver, & GLOX Builder Suite
-- **CLI (`MarkSmith.Cli`):** Standalone zero-dependency command-line compiler
+- **Core Engine (`marksmith-v2/MarkSmith.Core`):** Reverse-engineered SmartArt layout engine, constraint solver, & GLOX Builder Suite
+- **CLI (`marksmith-v2/MarkSmith.Cli`):** Standalone zero-dependency command-line compiler
 - **Rendering:** Markdig (Markdown → HTML) → WebView2 (Chromium) for preview and PDF
 - **DOCX Exporter:** DocumentFormat.OpenXml, native AST‑to‑OOXML mapping & OMML math
 - **Automation:** `FileSystemWatcher`, clipboard polling, and `HttpListener` REST API
