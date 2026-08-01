@@ -54,6 +54,28 @@ public class LlmLatexRecoveryTests
     [Fact] public void Fenced_latex_delims_untouched() { var r = Repair("```\n\\(x\\)\n```"); Assert.Contains("\\(x\\)", r); }
     [Fact] public void Empty_ok() => Repair("");
     [Fact] public void Prose_unchanged_when_clean() => Assert.Contains("clean prose", Repair("clean prose with nothing special"));
+
+    // Regression for the sample-doc preview bug: an already-correct $$\begin{bmatrix}…\end{bmatrix}$$
+    // block must NOT be "recovered" a second time. Preceding single-$ text (table amounts, inline
+    // math) used to mis-pair the DollarMath protection ranges, exposing the block's \begin{bmatrix}
+    // body so RecoverMatrixEnvironments re-wrapped it in a SECOND set of $$ — which Markdig parsed as
+    // two empty math blocks around a literal "\begin 1 & 2 & 3 \ …" paragraph. Guard: the environment
+    // name survives and there is exactly one opening + one closing $$ (never double-wrapped).
+    [Fact]
+    public void Correct_ddollar_bmatrix_block_is_not_double_wrapped()
+    {
+        var md = "| A | $4.2M |\n\nReserves $R = x$ follow.\n\n$$\n\\begin{bmatrix}\n1 & 2 & 3 \\\\\n4 & 5 & 6 \\\\\n7 & 8 & 9\n\\end{bmatrix}\n$$";
+        var r = Repair(md);
+        Assert.Contains("\\begin{bmatrix}", r);
+        Assert.Equal(2, CountNonOverlapping(r, "$$"));
+    }
+
+    private static int CountNonOverlapping(string s, string sub)
+    {
+        int count = 0, i = 0;
+        while ((i = s.IndexOf(sub, i, System.StringComparison.Ordinal)) >= 0) { count++; i += sub.Length; }
+        return count;
+    }
 }
 
 public class DashAndFormattingTests

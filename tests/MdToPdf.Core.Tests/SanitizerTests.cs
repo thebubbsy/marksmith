@@ -19,6 +19,18 @@ public class HtmlSanitizerTests
     [Fact] public void Js_url_with_inner_double_quote_in_single_quoted_href_is_stripped() =>
         Assert.DoesNotContain("javascript:", S("<a href='javascript:alert(\"x\")'>c</a>"));
 
+    // ---- slash-delimiter bypasses (Sentinel PR #8): `/` is a valid HTML attribute delimiter ----
+    // `\s` does not match `/`, so `<img/onerror=…>` / `<a/href="javascript:…">` used to evade the
+    // stripper while browsers still parse `/` like a space and execute the payload.
+    [Fact] public void Handler_with_slash_delimiter_is_stripped() =>
+        Assert.DoesNotContain("onerror", S("<img/onerror=alert(1)>"));
+    [Fact] public void Js_url_with_slash_delimiter_is_stripped() =>
+        Assert.DoesNotContain("javascript:", S("<a/href=\"javascript:alert(1)\">x</a>"));
+    [Fact] public void Js_url_with_slash_delimiter_on_src_is_stripped() =>
+        Assert.DoesNotContain("javascript:", S("<img/src=\"javascript:alert(1)\">"));
+    [Fact] public void Normal_link_with_slash_delimiter_survives() =>
+        Assert.Contains("https://example.com", S("<a/href=\"https://example.com\">link</a>"));
+
     // ---- script / embed elements ---------------------------------------------------------------
     [Fact] public void Script_element_removed() => Assert.DoesNotContain("alert", S("<script>alert(1)</script>"));
     [Fact] public void Script_uppercase_removed() => Assert.DoesNotContain("alert", S("<SCRIPT>alert(1)</SCRIPT>"));

@@ -11,13 +11,33 @@ namespace MdToPdf.Core.AdvancedFeatures
     // ───────────────────────────────────────────────────────────────────
     internal static class DetectorHelpers
     {
+        // The pipeline tests every detector against one block at a time (sequentially), so a
+        // single-slot memo lets all detectors — plus the pipeline's own ParseBlock — share ONE
+        // Split('\n') of the raw block instead of re-splitting the same text up to a dozen times.
+        // The cache is a single immutable tuple swapped atomically, so it stays correct even if
+        // the pipeline is ever reused concurrently (worst case: a harmless redundant re-split).
+        private static (string Block, string[] Lines)? _splitCache;
+
+        /// <summary>
+        /// Splits a raw block into lines, memoized for the most recently seen block.
+        /// </summary>
+        public static string[] SplitLines(string rawBlock)
+        {
+            var cache = _splitCache;
+            if (cache is { } c && string.Equals(c.Block, rawBlock, StringComparison.Ordinal))
+                return c.Lines;
+            var lines = rawBlock.Split('\n');
+            _splitCache = (rawBlock, lines);
+            return lines;
+        }
+
         /// <summary>
         /// Extracts the inner lines of a ::: block (everything between the opening marker and
         /// the closing :::), stripping the first and last lines.
         /// </summary>
         public static List<string> GetInnerLines(string rawBlock)
         {
-            var lines = rawBlock.Split('\n');
+            var lines = SplitLines(rawBlock);
             var result = new List<string>();
             for (int i = 1; i < lines.Length; i++)
             {
@@ -154,7 +174,7 @@ namespace MdToPdf.Core.AdvancedFeatures
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
-            var firstLine = rawBlock.Split('\n')[0];
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
             // Check for type attribute
             var typeMatch = Regex.Match(firstLine, @"type=""?(\w+)""?", RegexOptions.IgnoreCase);
@@ -368,7 +388,7 @@ namespace MdToPdf.Core.AdvancedFeatures
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
-            var firstLine = rawBlock.Split('\n')[0];
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
             // Check for src attribute
             var srcMatch = Regex.Match(firstLine, @"src=""?([^""\s]+)""?", RegexOptions.IgnoreCase);
@@ -425,7 +445,7 @@ namespace MdToPdf.Core.AdvancedFeatures
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
-            var firstLine = rawBlock.Split('\n')[0];
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
             // Parse count attribute (default to 2 if missing — that's fine)
             var countMatch = Regex.Match(firstLine, @"count=(\d+)", RegexOptions.IgnoreCase);

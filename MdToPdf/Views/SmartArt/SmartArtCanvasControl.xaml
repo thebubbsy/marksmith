@@ -1,0 +1,71 @@
+<UserControl
+    x:Class="MdToPdf.Views.SmartArt.SmartArtCanvasControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:conv="using:MdToPdf.Converters"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter" />
+    </UserControl.Resources>
+
+    <Grid Background="#121216"
+          AllowDrop="True"
+          DragOver="OnCanvasDragOver"
+          Drop="OnCanvasDrop"
+          PointerPressed="OnCanvasPointerPressed"
+          PointerMoved="OnCanvasPointerMoved"
+          PointerReleased="OnCanvasPointerReleased">
+        
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled">
+            <Canvas x:Name="MainCanvas" Width="2000" Height="2000" Background="Transparent">
+                
+                <ItemsControl ItemsSource="{Binding CanvasNodes}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas Width="2000" Height="2000" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="{Binding Width}" Height="{Binding Height}"
+                                    Background="{Binding Color}"
+                                    BorderBrush="#FFFFFF" BorderThickness="2"
+                                    CornerRadius="8" Padding="8"
+                                    PointerPressed="OnNodePointerPressed"
+                                    PointerMoved="OnNodePointerMoved"
+                                    PointerReleased="OnNodePointerReleased"
+                                    DoubleTapped="OnNodeDoubleTapped">
+                                
+                                <Grid>
+                                    <TextBlock Text="{Binding Text}"
+                                               Foreground="White" FontWeight="Bold" FontSize="12"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding IsEditingText, Converter={StaticResource BoolToVisConverter}, ConverterParameter=Invert, FallbackValue=Visible}" />
+
+                                    <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="12" FontWeight="Bold" Foreground="Black"
+                                             HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                             LostFocus="OnNodeTextLostFocus"
+                                             KeyDown="OnNodeTextKeyDown"
+                                             Visibility="{Binding IsEditingText, Converter={StaticResource BoolToVisConverter}, FallbackValue=Collapsed}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Canvas>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

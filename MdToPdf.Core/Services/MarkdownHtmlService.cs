@@ -15,7 +15,7 @@ public sealed partial class MarkdownHtmlService
     // process-wide cache on each call. Hoisting them to source-generated [GeneratedRegex] matchers
     // makes each one a pre-compiled, allocation-free singleton with no per-call cache lookup —
     // the patterns are copied verbatim, so behavior is identical.
-    [GeneratedRegex(@"(?:\$\$\s*)?(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})(?:\s*\$\$)?", RegexOptions.Singleline)]
+    [GeneratedRegex(@"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", RegexOptions.Singleline)]
     private static partial Regex MathEnvBlockRe();
 
     [GeneratedRegex("<pre><code class=\"language-mermaid\">(.*?)</code></pre>", RegexOptions.Singleline)]
@@ -94,6 +94,19 @@ public sealed partial class MarkdownHtmlService
         @"^(graph\s|flowchart\s|sequenceDiagram\b|classDiagram\b|stateDiagram(-v2)?\b|erDiagram\b|journey\b|gantt\b|pie\b|quadrantChart\b|requirementDiagram\b|gitGraph\b|mindmap\b|timeline\b|C4(Context|Container|Component|Dynamic|Deployment)\b|sankey(-beta)?\b|block-beta\b|packet-beta\b|kanban\b|radar(-beta)?\b|xychart-beta\b|zenuml\b)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static string NormalizeForRender(string markdown, AppSettings settings)
+    {
+        markdown = TextNormalizer.Newlines(markdown);
+        markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
+        markdown = AdmonitionNormalizer.Apply(markdown);
+        markdown = KanbanNormalizer.Apply(markdown);
+        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
+        markdown = DiagramFenceSniffer.Apply(markdown);
+        markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
+        markdown = FormattingService.Apply(markdown, settings);
+        return markdown;
+    }
+
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
@@ -104,14 +117,7 @@ public sealed partial class MarkdownHtmlService
             theme = theme.ApplyLightInfluence();
         }
 
-        markdown = TextNormalizer.Newlines(markdown);
-        markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
-        markdown = AdmonitionNormalizer.Apply(markdown);
-        markdown = KanbanNormalizer.Apply(markdown);
-        markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
-        markdown = DiagramFenceSniffer.Apply(markdown);
-        markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
-        markdown = FormattingService.Apply(markdown, settings);
+        markdown = NormalizeForRender(markdown, settings);
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
@@ -233,6 +239,8 @@ public sealed partial class MarkdownHtmlService
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        var stats = DocumentStatsService.Analyze(markdown);
+        var statsPill = settings.ShowWordCount && stats.Words > 0 ? $"<div class=\"stats-pill\"><svg style=\"width:12px;height:12px;vertical-align:-1px;margin-right:4px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>{stats.SummaryText}</div>" : "";
         // Free tier stamps a subtle footer on every export/preview; Pro removes it.
         var footer = AppServices.License.ShowFooter
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
@@ -271,9 +279,34 @@ public sealed partial class MarkdownHtmlService
         // OutputOverride.SourceFontFamily / AppSettings.CloneWith) so the preview shows the reply in
         // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
         // the same font it had on the source AI-chat page, not just the DOCX export honoring it.
-        var bodyFontFamily = string.IsNullOrWhiteSpace(settings.BrandFontFamily)
-            ? (settings.TargetFormat == "docx" ? "\"Calibri\", \"Cambria\", sans-serif" : "-apple-system, \"Segoe UI\", sans-serif")
-            : $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
+        // Typography presets (Task 16) layer underneath the brand font: BrandFontFamily wins, then
+        // the selected preset, then the format-specific default. A custom TTF/OTF (CustomFontPath)
+        // is embedded via @font-face so Chromium's PDF print uses the exact font.
+        string bodyFontFamily;
+        if (!string.IsNullOrWhiteSpace(settings.BrandFontFamily))
+        {
+            bodyFontFamily = $"\"{settings.BrandFontFamily.Trim().Replace("\"", "")}\", -apple-system, \"Segoe UI\", sans-serif";
+        }
+        else
+        {
+            var preset = FontManagerService.FindPreset(settings.FontPreset);
+            bodyFontFamily = preset != null && preset.Id != FontManagerService.SystemPresetId
+                ? preset.CssStack
+                : (settings.TargetFormat == "docx" ? "\"Calibri\", \"Cambria\", sans-serif" : FontManagerService.DefaultStack);
+        }
+
+        // Custom font embedding (Task 16): inline the configured TTF/OTF as a base64 @font-face rule
+        // and prefer it for the body so the rendered document/PDF uses the exact font.
+        var fontFaceCss = "";
+        if (FontManagerService.IsEmbeddableFontFile(settings.CustomFontPath))
+        {
+            var face = FontManagerService.BuildFontFaceCss(settings.CustomFontPath);
+            if (face != null)
+            {
+                fontFaceCss = face;
+                bodyFontFamily = $"\"{FontManagerService.GetFontFamilyName(settings.CustomFontPath)}\", {bodyFontFamily}";
+            }
+        }
 
         // lang/dir come from the source page's metadata on ingest (see AppSettings.ContentLanguage/
         // ContentDirection). Emitting dir="rtl" on <html> makes the whole document lay out
@@ -341,7 +374,12 @@ public sealed partial class MarkdownHtmlService
                                       document.getElementById("mk-lens-pct").textContent = Math.round(sc * 100) + "%"; };
                 const openLens = (svg) => {
                     stage.innerHTML = ""; stage.appendChild(svg.cloneNode(true));
-                    const w = svg.getBoundingClientRect().width || 800;
+                    // Use the diagram's NATURAL width (viewBox/width attr), not getBoundingClientRect():
+                    // on-screen the SVG may be shrunk to fit its column (max-width:100%), but the lens
+                    // clone renders at natural size and we want the opening scale to fit that.
+                    const w = (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) ||
+                              parseFloat(svg.getAttribute("width")) ||
+                              svg.getBoundingClientRect().width || 800;
                     sc = Math.min(1, (innerWidth - 60) / w);
                     tx = Math.max(30, (innerWidth - w * sc) / 2); ty = 40;
                     lens.classList.add("open"); bar.style.display = "flex"; apply();
@@ -459,8 +497,10 @@ public sealed partial class MarkdownHtmlService
 
                 document.querySelectorAll(".page-break-gap").forEach(el => el.remove());
 
-                // Page height at 96 DPI (A4 = 1123px, printable content block = 1040px)
-                const pageHeight = 1040;
+                // A4 page height at 96 DPI: the preview page is always at least one full A4 page
+                // tall (min-height on #canvas), so the dashed break markers sit on true page
+                // boundaries — every 1123px — and a document that fits on one page shows none.
+                const pageHeight = 1123;
                 const totalHeight = canvas.scrollHeight;
                 if (totalHeight <= pageHeight + 50) return;
 
@@ -499,27 +539,676 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
+        // Mini-TOC scroll-spy (live preview only, and only when a TOC was emitted): as the document
+        // scrolls, the TOC entry for the heading nearest the top of the viewport gets .active. The
+        // heading ids come from Markdig's AutoIdentifiers — the same ids BuildToc links to.
+        var scrollSpyScript = interactive && toc.Length > 0 ? """
+            <script>
+            window.addEventListener("DOMContentLoaded", () => {
+                // Re-query #toc and the headings on every pass: live in-place canvas swaps
+                // (split typing / portal edits) replace them wholesale, so nodes cached at
+                // load would go stale after the first swap and the spy would freeze.
+                let active = null, ticking = false;
+                const spy = () => {
+                    ticking = false;
+                    const toc = document.getElementById("toc");
+                    if (!toc) return;
+                    let link = null;
+                    for (const a of toc.querySelectorAll('a[href^="#"]')) {
+                        const el = document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)));
+                        if (!el) continue;
+                        if (!link) link = a; // first resolvable heading is the default
+                        if (el.getBoundingClientRect().top <= 120) link = a; else break;
+                    }
+                    if (link !== active) {
+                        if (active) active.classList.remove("active");
+                        if (link) link.classList.add("active");
+                        active = link;
+                    }
+                };
+                const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(spy); } };
+                window.addEventListener("scroll", onScroll, { passive: true });
+                window.addEventListener("resize", onScroll, { passive: true });
+                spy();
+            });
+            </script>
+            """ : "";
+
+        // Issue-locator homing beacon (ISS-012, live preview only): the app calls
+        // triggerRedRadarBeacon(line) when the user clicks a lint issue in the sidebar; we scroll
+        // the matching element into view, flash a red highlight and drop a pulsing radar ring on it.
+        var radarScript = interactive ? """
+            <script>
+            function triggerRedRadarBeacon(lineNumber) {
+                const el = document.querySelector(`[data-line='${lineNumber}']`) || document.querySelector("h1, h2, p, pre");
+                if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el.classList.add("issue-target-highlight");
+
+                    const rect = el.getBoundingClientRect();
+                    const beacon = document.createElement("div");
+                    beacon.className = "radar-beacon-container";
+                    beacon.style.left = (rect.left + 30) + "px";
+                    beacon.style.top = (rect.top + window.scrollY + rect.height / 2) + "px";
+                    beacon.innerHTML = '<div class="radar-beacon-ring"></div><div class="radar-beacon-ring"></div>';
+
+                    document.body.appendChild(beacon);
+
+                    setTimeout(() => {
+                        beacon.remove();
+                        el.classList.remove("issue-target-highlight");
+                    }, 2500);
+                }
+
+                // Flash & scroll issue line inside open Looking Glass portal
+                const portalTa = document.getElementById("portal-textarea");
+                if (portalTa) {
+                    const text = portalTa.value || "";
+                    const lines = text.split("\n");
+                    let lineIdx = Math.max(0, lineNumber - 1);
+                    if (lineIdx < lines.length) {
+                        let offset = 0;
+                        for (let i = 0; i < lineIdx; i++) offset += lines[i].length + 1;
+                        portalTa.focus();
+                        try { portalTa.setSelectionRange(offset, offset + lines[lineIdx].length); } catch (x) {}
+                    }
+                    const aperture = document.getElementById("portal-aperture");
+                    if (aperture) {
+                        aperture.style.outline = "3px solid #ef4444";
+                        aperture.style.boxShadow = "0 0 25px rgba(239, 68, 68, 0.7)";
+                        setTimeout(() => {
+                            aperture.style.outline = "";
+                            aperture.style.boxShadow = "";
+                        }, 2500);
+                    }
+                }
+            }
+            </script>
+            """ : "";
+
+        // Interactive tabbed content (ISS-015, live preview only): switches the visible pane within
+        // a .md-tab-group when its tab button is clicked. Print ignores this (CSS shows all panes).
+        var tabScript = interactive ? """
+            <script>
+            function selectMdTab(btn, targetId) {
+                const group = btn.closest(".md-tab-group");
+                if (!group) return;
+
+                group.querySelectorAll(".md-tab-link").forEach(b => {
+                    b.classList.remove("active");
+                    b.setAttribute("aria-selected", "false");
+                });
+                group.querySelectorAll(".md-tab-content").forEach(c => {
+                    c.classList.remove("active");
+                });
+
+                btn.classList.add("active");
+                btn.setAttribute("aria-selected", "true");
+                const target = group.querySelector("#" + targetId);
+                if (target) {
+                    target.classList.add("active");
+                }
+            }
+
+            document.addEventListener("keydown", (e) => {
+                if (e.target && e.target.classList && e.target.classList.contains("md-tab-link")) {
+                    const nav = e.target.closest(".md-tab-nav");
+                    if (!nav) return;
+                    const tabs = Array.from(nav.querySelectorAll(".md-tab-link"));
+                    const idx = tabs.indexOf(e.target);
+                    if (e.key === "ArrowRight" && idx >= 0 && idx < tabs.length - 1) {
+                        e.preventDefault();
+                        tabs[idx + 1].focus();
+                        tabs[idx + 1].click();
+                    } else if (e.key === "ArrowLeft" && idx > 0) {
+                        e.preventDefault();
+                        tabs[idx - 1].focus();
+                        tabs[idx - 1].click();
+                    }
+                }
+            });
+            </script>
+            """ : "";
+
+        // Looking Glass portal mode (ISS-004, live preview only, opt-in): the rendered preview is
+        // the default surface; clicking it opens a circular "aperture" that reveals the editable
+        // Markdown source sitting BEHIND the preview, through a fog-of-war blur (clear at the
+        // caret, blurring back to the full preview). A glowing cursor ring tracks the pointer and
+        // a short Web Audio whir + iris animation play as each portal opens. Edits are synced back
+        // to the app over the postMessage bridge (portal-open / portal-edit / portal-closed).
+        var revealScope = Math.Clamp(settings.PortalRevealScope, 0, 100);
+        // Portal shape: a circle spotlight, full-width "focus" reading bands in three heights, a
+        // square, or the logo cutout. Sanitized to the known set so the value can be inlined into
+        // the script safely.
+        var portalShape = settings.PortalShape is "focus1" or "focus2" or "focus3" or "square" or "logo" ? settings.PortalShape : "circle";
+        // Focus-blur initial state for this render: whether the rendered preview behind an open
+        // portal blurs. Ctrl+Alt+X in the app toggles it live via __portalSetBlur; a full
+        // re-render re-inlines the persisted choice. Inlined as a bare true/false literal.
+        var portalFocusBlur = settings.PortalFocusBlur ? "true" : "false";
+        var portalScript = interactive && settings.LookingGlassMode ? $$"""
+            <script>
+            function playPortalWhirSound() {
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) return;
+                    const ctx = new AudioCtx();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(130, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(450, ctx.currentTime + 0.22);
+
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.22);
+                } catch(e) {}
+            }
+
+            (function () {
+                const REVEAL = {{revealScope}}; // size dial 0..100 — scales whichever shape is active
+                // Shape state is mutable: the app's shape picker pushes straight in via
+                // __portalSetShape, so the shape + its derived flags are lets, not consts.
+                let SHAPE = "{{portalShape}}"; // "circle" | "focus1" | "square" | "logo"
+                let isBand = SHAPE.indexOf("focus") === 0; // full-width reading band vs circle spotlight
+                let isSquare = SHAPE === "square";
+                let isLogo = SHAPE === "logo";
+                const ring = document.createElement("div");
+                ring.id = "portal-cursor-ring";
+                document.body.appendChild(ring);
+
+                let portal = null, portalTa = null, editTimer = null, pendingText = "";
+                let blurFocus = {{portalFocusBlur}}; // focus WITH blur: preview behind the portal blurs
+                let dragging = false, dragStartX = 0, dragStartY = 0, dragScrollLeft = 0, dragScrollTop = 0; // middle-button source panning
+                let clickFrac = 0; // vertical document fraction of the opening click (0..1) — positional caret fallback
+                let clickFracX = 0; // horizontal document fraction of the opening click (0..1) — left/right source positioning
+                let curApH = 200;  // height of the currently-open aperture (circle diameter or band height)
+
+                const vh = window.innerHeight || 800;
+                // Focus bands: skinny full-width strips for line-oriented reading. The slider fattens
+                // the base band (~3 lines at 0) and the ×2/×3 presets multiply it — more line widths,
+                // more content — clamped so a band never swallows the whole viewport.
+                let bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
+                // Size dial -> aperture dimensions, split out into applyReveal so the live slider
+                // (__portalSetReveal) can recompute on the fly and grow/shrink an open portal in
+                // real time instead of waiting for a full re-render.
+                let apertureSize = 0, bandH = 0, clearStop = 0, fadeStop = 0;
+                let curReveal = REVEAL; // tracks the dial so a live shape swap can rebuild sizes
+                function applyReveal(reveal) {
+                    curReveal = reveal;
+                    apertureSize = Math.round(200 + (reveal / 100) * (vh * 0.9 - 200)); // circle diameter / shape size
+                    bandH = Math.round(Math.min(vh * 0.85, (60 + (reveal / 100) * 160) * bandMult));
+                    clearStop = Math.round(35 + reveal * 0.4);       // % radius kept fully clear
+                    fadeStop = Math.min(clearStop + 28, 96);         // % radius hit fully transparent
+                }
+                applyReveal(REVEAL);
+
+                // Mouse events report unzoomed viewport pixels, but the ring/aperture are absolutely
+                // positioned inside the zoomed document (the app re-applies a CSS zoom on the root
+                // after every navigation) — so raw clientX/Y drift off the cursor at any zoom ≠ 100%.
+                // Map through the root's bounding rect + effective zoom to get true document coords.
+                function docPoint(e) {
+                    const r = document.documentElement.getBoundingClientRect();
+                    const z = document.documentElement.currentCSSZoom
+                        || parseFloat(document.documentElement.style.zoom || "1") || 1;
+                    return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+                }
+
+                document.addEventListener("mousemove", (e) => {
+                    const p = docPoint(e);
+                    ring.style.left = p.x + "px";
+                    ring.style.top = p.y + "px";
+                });
+
+                function post(msg) { try { chrome.webview.postMessage(JSON.stringify(msg)); } catch (e) {} }
+
+                // Light Markdown strip so rendered text can be matched back to a source line.
+                function stripMd(s) {
+                    return String(s).replace(/[#>*_`~\[\]()!|\\-]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+                }
+                // Match the clicked block's text back to a source line. Returns -1 when there's
+                // nothing to match — callers fall back to the click's document position instead of
+                // silently landing at the top. When the same text appears more than once (repeated
+                // headings, list items), the occurrence closest to the positional estimate wins.
+                function caretLineFromText(source, estimate) {
+                    const target = stripMd(pendingText).slice(0, 40);
+                    if (target.length < 4) return -1;
+                    const lines = source.split("\n");
+                    let best = -1;
+                    for (let i = 0; i < lines.length; i++) {
+                        const sl = stripMd(lines[i]);
+                        if (sl.length >= 4 && (sl.indexOf(target) >= 0 || target.indexOf(sl.slice(0, 40)) >= 0)) {
+                            if (best < 0 || Math.abs(i - estimate) < Math.abs(best - estimate)) best = i;
+                        }
+                    }
+                    return best;
+                }
+
+                // Focus blur (Ctrl+Alt+X in the app): while a portal is open, the rendered preview
+                // — the #canvas column, a SIBLING of the portal on <body> — blurs so the eye stays
+                // on the revealed source; the aperture and cursor ring stay sharp. The inline style
+                // survives in-place canvas swaps (only #canvas CONTENTS are replaced), and full
+                // re-renders re-inline the persisted choice.
+                function setPreviewBlur(on) {
+                    const canvas = document.getElementById("canvas");
+                    if (!canvas) return;
+                    canvas.style.transition = "filter 0.22s ease";
+                    canvas.style.filter = on ? "blur(6px)" : "";
+                }
+                window.__portalSetBlur = function (on) {
+                    blurFocus = !!on;
+                    if (portal) setPreviewBlur(blurFocus);
+                };
+
+                function closePortal(silent) {
+                    if (!portal) return;
+                    const p = portal;
+                    portal = null; portalTa = null;
+                    dragging = false;
+                    p.classList.add("portal-closing");
+                    setTimeout(() => p.remove(), 200);
+                    // Silent closes are portal MOVES (openPortal re-opens immediately) — keep the
+                    // blur up; a real close restores the sharp preview.
+                    if (!silent) setPreviewBlur(false);
+                    if (!silent) post({ type: "portal-closed" });
+                }
+
+                // The "page" is the #canvas column (fixed content width, centered in the preview) —
+                // NOT the whole scrollable document. Focus bands must span exactly that width and
+                // align to its left edge. getBoundingClientRect is zoomed, so divide the effective
+                // CSS zoom back out to get document coordinates (the portal lives in the same zoomed
+                // subtree, so these map 1:1 onto its style.left/width).
+                function pageRect() {
+                    const z = document.documentElement.currentCSSZoom
+                        || parseFloat(document.documentElement.style.zoom || "1") || 1;
+                    const canvas = document.getElementById("canvas");
+                    if (!canvas) return { left: 8, width: Math.max(240, (window.innerWidth || 800) / z - 16) };
+                    const r = canvas.getBoundingClientRect();
+                    const root = document.documentElement.getBoundingClientRect();
+                    return { left: (r.left - root.left) / z, width: r.width / z };
+                }
+
+                function openPortal(x, y, el) {
+                    closePortal(true);
+                    pendingText = el ? (el.textContent || "") : "";
+
+                    portal = document.createElement("div");
+                    portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
+                    const docW = document.documentElement.scrollWidth;
+                    const docH = document.documentElement.scrollHeight;
+                    const pg = pageRect(); // the #canvas page column — bands match it, not the whole preview
+                    // Bands span the page (#canvas) width and align to its left edge; circles stay
+                    // square on the click point.
+                    const apW = isBand ? Math.max(240, pg.width) : apertureSize;
+                    const apH = isBand ? bandH : apertureSize;
+                    curApH = apH;
+                    portal.style.width = apW + "px";
+                    portal.style.height = apH + "px";
+                    // Where in the document (0=top, 1=bottom) the portal was opened: the caret
+                    // fallback in __portalSetSource lands at the same fraction of the source.
+                    clickFrac = docH > 0 ? Math.min(1, Math.max(0, y / docH)) : 0;
+                    // Horizontal twin (0=left, 1=right): __portalSetSource pans the source to the
+                    // same left/right fraction, so clicking the right of the preview reveals the
+                    // right of the raw Markdown (and the left reveals the left).
+                    clickFracX = docW > 0 ? Math.min(1, Math.max(0, x / docW)) : 0;
+                    portal.style.left = isBand ? pg.left + "px"
+                        : Math.min(Math.max(x - apW / 2, 8), Math.max(8, docW - apW - 8)) + "px";
+                    portal.style.top = Math.min(Math.max(y - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+
+                    const closeBtn = document.createElement("div");
+                    closeBtn.className = "portal-close";
+                    closeBtn.textContent = "\u00D7";
+                    closeBtn.addEventListener("click", (ev) => { ev.stopPropagation(); closePortal(); });
+                    portal.appendChild(closeBtn);
+
+                    portalTa = document.createElement("textarea");
+                    portalTa.className = "portal-source";
+                    portalTa.spellcheck = false;
+                    portalTa.wrap = "off";
+                    // Circle keeps the radial fog-of-war; bands fade top/bottom only (the strip is
+                    // meant to read clean edge-to-edge across the line).
+                    const mask = isBand
+                        ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
+                        : (isSquare || isLogo) ? "none" : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                    portalTa.style.maskImage = mask;
+                    portalTa.style.webkitMaskImage = mask;
+                    portal.appendChild(portalTa);
+
+                    document.body.appendChild(portal);
+                    if (blurFocus) setPreviewBlur(true);
+                    playPortalWhirSound();
+                    post({ type: "portal-open" });
+
+                    portalTa.addEventListener("input", () => {
+                        followCaret();
+                        clearTimeout(editTimer);
+                        editTimer = setTimeout(() => post({ type: "portal-edit", text: portalTa ? portalTa.value : "" }), 400);
+                    });
+                    // Arrow keys / Home / End / clicks move the caret without firing "input".
+                    portalTa.addEventListener("keyup", followCaret);
+                    portalTa.addEventListener("click", followCaret);
+                    portalTa.addEventListener("keydown", (ev) => {
+                        if (ev.key === "Escape") { ev.stopPropagation(); closePortal(); }
+                    });
+                }
+
+                // The portal follows the | typing cursor: as the caret walks along (or down) a line,
+                // the source pans under the fixed aperture exactly as if the user were middle-mouse
+                // grab-dragging it, so what they type is always inside the clear centre of the shape.
+                let charW = 0;
+                function measureCharW() {
+                    if (charW || !portalTa) return charW || 8;
+                    try {
+                        const c2d = document.createElement("canvas").getContext("2d");
+                        const cs = getComputedStyle(portalTa);
+                        c2d.font = cs.fontSize + " " + cs.fontFamily;
+                        charW = c2d.measureText("M").width || 8; // monospace: every column is one M wide
+                    } catch (e) { charW = 8; }
+                    return charW;
+                }
+                function followCaret() {
+                    if (!portalTa) return;
+                    const pos = portalTa.selectionStart || 0;
+                    const before = portalTa.value.slice(0, pos);
+                    const nl = before.lastIndexOf("\n");
+                    const line = nl < 0 ? 0 : (before.match(/\n/g) || []).length;
+                    const col = pos - nl - 1;
+                    const pad = 80, lineH = 20; // mirror .portal-source padding / line-height
+                    const x = pad + col * measureCharW();
+                    const y = pad + line * lineH;
+                    // Comfort box: only pan when the caret drifts out of the middle of the aperture,
+                    // so the text doesn't slide on every single keystroke.
+                    const w = portalTa.clientWidth, h = portalTa.clientHeight;
+                    const cx = x - portalTa.scrollLeft, cy = y - portalTa.scrollTop;
+                    if (cx < w * 0.30) portalTa.scrollLeft = Math.max(0, x - w * 0.30);
+                    else if (cx > w * 0.70) portalTa.scrollLeft = x - w * 0.70;
+                    if (cy < h * 0.35) portalTa.scrollTop = Math.max(0, y - h * 0.35);
+                    else if (cy > h * 0.65) portalTa.scrollTop = y - h * 0.65;
+                }
+
+                // The app calls this with the editor's current Markdown to fill the open portal and
+                // land the caret on the line matching the clicked block. When text matching can't
+                // find that line, land at the same vertical fraction of the source as the click was
+                // down the document — clicking near the bottom must never dump you at the top.
+                window.__portalSetSource = function (source) {
+                    if (!portalTa) return;
+                    source = source || "";
+                    portalTa.value = source;
+                    const lines = source.split("\n");
+                    const estimate = Math.round(clickFrac * Math.max(0, lines.length - 1));
+                    let line = caretLineFromText(source, estimate);
+                    if (line < 0) line = estimate;
+                    let off = 0;
+                    for (let i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
+                    portalTa.focus();
+                    try { portalTa.setSelectionRange(off, off); } catch (e) {}
+                    const lineH = 20;
+                    portalTa.scrollTop = Math.max(0, line * lineH - curApH / 2 + lineH);
+                    portalTa.scrollLeft = 0;
+                    followCaret(); // settle the column too (long lines in skinny bands)
+                    // Horizontal twin of the vertical clickFrac landing: pan the source so the
+                    // left/right side of the raw Markdown that sits under the click is what shows
+                    // through the aperture — click the right of the preview, see the right of the
+                    // source; click the left, see the left. Applied AFTER followCaret so the
+                    // caret-centering pass (the caret lands at column 0) doesn't drag the view
+                    // straight back to the left edge; typing re-pans to the caret as usual.
+                    const maxScrollX = Math.max(0, portalTa.scrollWidth - portalTa.clientWidth);
+                    portalTa.scrollLeft = Math.round(clickFracX * maxScrollX);
+                };
+
+                // Live size dial: the app calls this on every slider tick so the open aperture
+                // grows/shrinks in real time — a cheap in-place resize, no re-navigation, so the
+                // portal and its caret survive the drag. The circle stays centered on itself and
+                // bands keep their vertical center; both are clamped to the document bounds. The
+                // fog-of-war mask is rebuilt too, since its clear/fade stops track the dial.
+                function resizeOpenPortal() {
+                    if (!portal || !portalTa) return;
+                    const docW = document.documentElement.scrollWidth;
+                    const docH = document.documentElement.scrollHeight;
+                    const pg = pageRect(); // bands stay locked to the #canvas page column
+                    const apW = isBand ? Math.max(240, pg.width) : apertureSize;
+                    const apH = isBand ? bandH : apertureSize;
+                    const cx = (parseFloat(portal.style.left) || 0) + (parseFloat(portal.style.width) || apW) / 2;
+                    const cy = (parseFloat(portal.style.top) || 0) + (parseFloat(portal.style.height) || apH) / 2;
+                    portal.style.width = apW + "px";
+                    portal.style.height = apH + "px";
+                    portal.style.left = (isBand ? pg.left : Math.min(Math.max(cx - apW / 2, 8), Math.max(8, docW - apW - 8))) + "px";
+                    portal.style.top = Math.min(Math.max(cy - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+                    curApH = apH;
+                    const mask = isBand
+                        ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
+                        : (isSquare || isLogo) ? "none" : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
+                    portalTa.style.maskImage = mask;
+                    portalTa.style.webkitMaskImage = mask;
+                }
+                window.__portalSetReveal = function (reveal) {
+                    reveal = Math.max(0, Math.min(100, Number(reveal) || 0));
+                    applyReveal(reveal);
+                    resizeOpenPortal();
+                };
+                // Live shape switch: the app's shape picker pushes straight in so an open aperture
+                // morphs in real time — same in-place path as the size dial (no re-navigation, the
+                // portal and its caret survive). The derived flags + band multiplier are recomputed,
+                // the aperture re-classed (band / square / logo each carry their own CSS), and the
+                // size + fog-of-war mask rebuilt for the new shape at the current dial value.
+                window.__portalSetShape = function (shape) {
+                    if (["circle", "focus1", "focus2", "focus3", "square", "logo"].indexOf(shape) < 0) return;
+                    SHAPE = shape;
+                    isBand = SHAPE.indexOf("focus") === 0;
+                    isSquare = SHAPE === "square";
+                    isLogo = SHAPE === "logo";
+                    bandMult = SHAPE === "focus2" ? 2 : SHAPE === "focus3" ? 3.2 : 1;
+                    applyReveal(curReveal);
+                    if (portal) {
+                        portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
+                    }
+                    resizeOpenPortal();
+                };
+
+                // Split + portal: typing in the MAIN editor streams in here so the raw MD inside
+                // the shape stays live. The portal's own caret owns the text while it is genuinely
+                // being edited (its edits are already local), so only portals that don't hold real
+                // focus accept a push — which also kills the echo when a portal edit round-trips
+                // the app's debounce. document.activeElement alone is NOT enough: when OS focus
+                // moves to the WinUI editor, WebView2 leaves activeElement stale on the textarea,
+                // which used to block legitimate editor→portal sync (one-way-only bug). Requiring
+                // document.hasFocus() means "the preview actually owns focus right now", so typing
+                // in the editor (WebView unfocused) always lands, while typing through the shape
+                // (WebView focused, textarea active) is still protected from stale pushes.
+                window.__portalUpdateSource = function (source) {
+                    if (!portalTa || (document.hasFocus() && document.activeElement === portalTa)) return;
+                    source = source || "";
+                    const old = portalTa.value;
+                    if (old === source) return;
+                    // Land the caret at the first divergence so followCaret pans the view to
+                    // wherever the user is typing in the editor — text appears inside the shape.
+                    let i = 0;
+                    const n = Math.min(old.length, source.length);
+                    while (i < n && old.charCodeAt(i) === source.charCodeAt(i)) i++;
+                    const st = portalTa.scrollTop, sl = portalTa.scrollLeft;
+                    portalTa.value = source;
+                    portalTa.scrollTop = st;
+                    portalTa.scrollLeft = sl;
+                    try { portalTa.setSelectionRange(i, i); } catch (e) {}
+                    followCaret();
+                };
+
+                // Formatting-toolbar routing: while a portal is open the app forwards the editor
+                // toolbar's wrap/insert here so it lands at the portal caret. Mirrors the TextBox
+                // behavior — wrap the selection, or insert and park the caret between the markers.
+                // The synthetic input event reuses the typing path (followCaret + debounced
+                // portal-edit post), so the app and preview sync exactly as if it was typed.
+                window.__portalApplyEdit = function (prefix, suffix) {
+                    if (!portalTa) return;
+                    prefix = prefix || ""; suffix = suffix || "";
+                    const s = portalTa.selectionStart || 0, e = portalTa.selectionEnd || 0;
+                    const v = portalTa.value;
+                    const sel = v.slice(s, e);
+                    if (!sel) {
+                        portalTa.value = v.slice(0, s) + prefix + suffix + v.slice(e);
+                        const at = s + prefix.length;
+                        try { portalTa.setSelectionRange(at, at); } catch (x) {}
+                    } else {
+                        let leadLen = 0;
+                        while (leadLen < sel.length && (sel[leadLen] === '\r' || sel[leadLen] === '\n')) leadLen++;
+                        let trailLen = 0;
+                        while (trailLen < (sel.length - leadLen) && (sel[sel.length - 1 - trailLen] === '\r' || sel[sel.length - 1 - trailLen] === '\n')) trailLen++;
+                        const lead = sel.slice(0, leadLen);
+                        const core = sel.slice(leadLen, sel.length - trailLen);
+                        const trail = sel.slice(sel.length - trailLen);
+
+                        const isInline = !!suffix;
+                        const coreHasFormat = isInline && core.length >= (prefix.length + suffix.length) && core.startsWith(prefix) && core.endsWith(suffix);
+                        const preIdx = s + leadLen - prefix.length;
+                        const folIdx = s + leadLen + core.length;
+                        const surroundingHasFormat = isInline && !coreHasFormat && preIdx >= 0 && (folIdx + suffix.length) <= v.length && v.slice(preIdx, preIdx + prefix.length) === prefix && v.slice(folIdx, folIdx + suffix.length) === suffix;
+
+                        if (coreHasFormat) {
+                            const unformatted = core.slice(prefix.length, core.length - suffix.length);
+                            portalTa.value = v.slice(0, s) + lead + unformatted + trail + v.slice(e);
+                            const coreStart = s + leadLen;
+                            try { portalTa.setSelectionRange(coreStart, coreStart + unformatted.length); } catch (x) {}
+                        } else if (surroundingHasFormat) {
+                            portalTa.value = v.slice(0, preIdx) + core + v.slice(folIdx + suffix.length);
+                            try { portalTa.setSelectionRange(preIdx, preIdx + core.length); } catch (x) {}
+                        } else {
+                            let rep = "";
+                            const pTrim = prefix.trim();
+                            if (!suffix && (pTrim === '#' || pTrim === '##' || pTrim === '###' || pTrim === '####' || pTrim === '-' || pTrim === '1.' || pTrim === '- []' || pTrim === '>')) {
+                                const lines = core.split('\n');
+                                const formatted = lines.map(line => line.length > 0 ? (line.endsWith('\r') ? prefix + line.slice(0, -1) + '\r' : prefix + line) : line).join('\n');
+                                rep = lead + formatted + trail;
+                            } else {
+                                rep = lead + prefix + core + suffix + trail;
+                            }
+
+                            portalTa.value = v.slice(0, s) + rep + v.slice(e);
+                            const coreStart = s + leadLen + prefix.length;
+                            try { portalTa.setSelectionRange(coreStart, coreStart + core.length); } catch (x) {}
+                        }
+                    }
+                    portalTa.focus();
+                    portalTa.dispatchEvent(new Event("input", { bubbles: true }));
+                };
+
+                // Middle-button (button 1) press-and-drag pans the Markdown source inside the open
+                // aperture — the circle stays put while the text behind it scrolls, so you can read
+                // up/down/left/right through the fixed window. Grab-and-pan like touch scrolling:
+                // drag down to see earlier content, drag up to see later. preventDefault + capture
+                // phase free the middle button from its default autoscroll and keep the caret still.
+                document.addEventListener("mousedown", (e) => {
+                    if (e.button !== 1 || !portalTa) return;
+                    dragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragScrollLeft = portalTa.scrollLeft;
+                    dragScrollTop = portalTa.scrollTop;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+                document.addEventListener("mousemove", (e) => {
+                    if (!dragging || !portalTa) return;
+                    if (!(e.buttons & 4)) { dragging = false; return; } // released (even outside the window)
+                    portalTa.scrollLeft = dragScrollLeft - (e.clientX - dragStartX);
+                    portalTa.scrollTop = dragScrollTop - (e.clientY - dragStartY);
+                    e.preventDefault();
+                }, true);
+                document.addEventListener("mouseup", (e) => { if (e.button === 1) dragging = false; }, true);
+
+                // In portal mode the whole preview is a "click to reveal the source behind it"
+                // surface: a click opens (or moves) a portal at that spot. Capture phase + default
+                // suppression so we win over links/tabs/selection while the mode is on.
+                document.addEventListener("click", (e) => {
+                    if (portal && portal.contains(e.target)) return; // clicks inside the portal pass through
+                    // Only take text from a real content block. Falling back to e.target here used to
+                    // hand caretLineFromText the whole page's text (body/#canvas), which "matched" the
+                    // first lines of the source and threw the caret to the top of the document.
+                    const el = (e.target && e.target.closest)
+                        ? e.target.closest("h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,table,code")
+                        : null;
+                    const p = docPoint(e);
+                    openPortal(p.x, p.y, el);
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+            })();
+            </script>
+            """ : "";
+
         return $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
+            <script>
+            // Deterministic export-readiness contract (see IWebRenderHost.WaitForExportReadyAsync):
+            // Mermaid completion via MutationObserver on data-processed, async image decodes via
+            // img.decode()/load/error, and layout settle via double requestAnimationFrame. No sleeps.
+            window.marksmithWaitForExportReady = function(checkMermaid) {
+                return new Promise((resolve) => {
+                    const done = () => resolve(true);
+                    let mDone = !checkMermaid, iDone = false;
+                    const tryDone = () => { if (mDone && iDone) requestAnimationFrame(() => requestAnimationFrame(done)); };
+
+                    if (checkMermaid) {
+                        const check = () => {
+                            const nodes = document.querySelectorAll('.mermaid');
+                            if (!nodes.length || Array.from(nodes).every(n => n.hasAttribute('data-processed'))) {
+                                mDone = true;
+                                tryDone();
+                                return true;
+                            }
+                            return false;
+                        };
+                        });
+                        setTimeout(() => { observer.disconnect(); callback(); }, 5000);
+                    };
+
+                    const waitForImages = (callback) => {
+                        const imgs = Array.from(document.images);
+                        if (imgs.length == 0) { callback(); return; }
+                        let remaining = imgs.length;
+                        const onImgDone = () => { remaining--; if (remaining <= 0) callback(); };
+                        imgs.forEach(img => {
+                            if (img.complete && img.naturalHeight > 0) { onImgDone(); }
+                            else if (typeof img.decode == 'function') { img.decode().then(onImgDone).catch(onImgDone); }
+                            else { img.addEventListener('load', onImgDone); img.addEventListener('error', onImgDone); }
+                        });
+                    };
+
+                    const settleLayout = () => {
+                        requestAnimationFrame(() => { requestAnimationFrame(() => { resolve("true"); }); });
+                    };
+
+                    waitForMermaidIfNeeded(() => { waitForImages(() => { settleLayout(); }); });
+                });
+            };
+            </script>
             {{mermaidScript}}
             {{lensScript}}
             {{extraHead}}
             <style>
+            {{fontFaceCss}}
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
                    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
               @page { margin: 0 !important; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; {{(settings.UnlimitedHeight ? "padding: 60px 40px !important;" : "padding: 48px 54px !important;")}} }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
             font[color] { color: revert; }
-            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Mono", Consolas, monospace; }
-            code { font-family: "Cascadia Mono", Consolas, monospace; }
+            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
+            code { font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
+            /* ASCII / box-drawing diagrams (ISS-006): ligatures and loose leading break column
+               alignment, so code blocks flagged as ascii/text get tight, uniform metrics. */
+            pre code.language-ascii, pre code.language-text, pre code.language-txt, pre.ascii-diagram { line-height: 1.15 !important; letter-spacing: 0px !important; font-size: 14px; display: block; overflow-x: auto; }
             table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
             th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
             th { background: {{theme.Code}}; font-weight: bold; }
@@ -527,16 +1216,18 @@ public sealed partial class MarkdownHtmlService
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
             {{calloutCss}}
-            /* Screen (the live preview): diagrams at NATURAL size. Wide ones break out of the text
-               column to the full preview width; anything larger scrolls, and clicking opens the
-               full-screen pan/zoom viewer. Print (the PDF export): fit-to-page-width. */
-            .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; page-break-inside: avoid; break-inside: avoid; }
-            .mermaid svg { max-width: none !important; }
+            /* Screen (the live preview): diagrams render at natural size when they fit, and shrink
+               to fit the column when they don't (max-width:100% + height:auto keeps the aspect ratio),
+               so a wide diagram is never clipped at the frame's edge nor hidden behind a subtle
+               horizontal scrollbar. Clicking still opens the full-screen pan/zoom viewer, which shows
+               the diagram at its natural size. Print (the PDF export): fit-to-page-width. */
+            .mermaid { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; cursor: zoom-in; }
+            .mermaid svg { max-width: 100%; height: auto; }
             /* Plugin diagrams get the same themed frame as .mermaid so they belong to the page.
                Theme-aware engines (see IsThemeAware) render on-theme and are shown as-is; engines
                that don't theme their own output get .plugin-diagram-autoinvert, whose line art is
                inverted on dark themes for legibility (pluginDiagramSvgFilter). */
-            .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; page-break-inside: avoid; break-inside: avoid; }
+            .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
             .plugin-diagram svg { max-width: 100%; height: auto; }
             .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
             .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
@@ -567,7 +1258,7 @@ public sealed partial class MarkdownHtmlService
               .page-break::after { content: ""; }
               {{(settings.UnlimitedHeight ? "hr { page-break-after: avoid !important; break-after: avoid !important; }" : "")}}
             }
-            img { max-width: 100%; page-break-inside: avoid; break-inside: avoid; }
+            img { max-width: 100%; }
             .footnotes { margin-top: 30px; padding-top: 12px; border-top: 1px solid {{theme.Border}}; font-size: 0.9em; }
             /* --- Capability-Aware Preview CSS --- */
             /* If the output format is DOCX and Mermaid ShapeForge mode is off, non-supported items could be dimmed here, but for now we rely on the backend. */
@@ -597,6 +1288,9 @@ public sealed partial class MarkdownHtmlService
             #toc li { margin: 3px 0; }
             #toc a { color: {{theme.Text}}; text-decoration: none; }
             #toc a:hover { color: {{theme.Heading}}; }
+            /* Scroll-spy (live preview only): the entry for the heading currently in view is bolded
+               and accented so a long document's place is always visible in the mini-TOC. */
+            #toc a.active { color: {{theme.Heading}}; font-weight: 700; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
             
             /* Custom styles for diagram errors and page overflow warnings */
@@ -641,8 +1335,144 @@ public sealed partial class MarkdownHtmlService
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
             @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             body.ms-dark #overflow-banner { background: rgba(45, 34, 18, 0.95); border-color: #d97706; color: #fef3c7; }
-            </style></head><body class="{{bodyClass}}"><div id="canvas">{{attribution}}{{toc}}{{body}}{{footer}}</div>{{overflowScript}}</body></html>
+            /* Issue-locator radar beacon (ISS-012): a pulsing red homing ring dropped onto the
+               element for the lint issue the user clicked in the sidebar. */
+            .radar-beacon-container { position: absolute; width: 60px; height: 60px; pointer-events: none; transform: translate(-50%, -50%); z-index: 999; }
+            .radar-beacon-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.15); animation: radarPulse 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+            .radar-beacon-ring:nth-child(2) { animation-delay: 0.4s; }
+            @keyframes radarPulse { 0% { transform: scale(0.1); opacity: 1; } 80% { opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+            .issue-target-highlight { background: rgba(239, 68, 68, 0.25) !important; outline: 2px dashed #ef4444 !important; transition: background 0.5s ease; }
+            /* Interactive tabbed content (ISS-015): MS Word Ribbon-style tab strip for live preview & print */
+            .md-tab-group { margin: 20px 0; border: 1px solid {{theme.Border}}; border-radius: 8px; background: {{theme.Background}}; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+            .md-tab-nav { display: flex; background: {{theme.Secondary}}; border-bottom: 1px solid {{theme.Border}}; padding: 6px 8px 0 8px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+            .md-tab-nav::-webkit-scrollbar { display: none; }
+            .md-tab-link { padding: 9px 18px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: {{theme.Text}}; opacity: 0.75; font-family: "Segoe UI", Calibri, sans-serif; font-weight: 600; font-size: 13.5px; cursor: pointer; transition: all 0.15s ease-in-out; outline: none; user-select: none; }
+            .md-tab-link:hover { opacity: 1.0; background: {{theme.Background}}; color: {{theme.Heading}}; }
+            .md-tab-link.active { opacity: 1.0; background: {{theme.Background}}; color: {{theme.Heading}}; border-color: {{theme.Border}}; border-top: 3px solid {{theme.Heading}}; border-bottom: 1px solid {{theme.Background}}; font-weight: 700; margin-bottom: -1px; }
+            .md-tab-content { display: none; padding: 18px; background: {{theme.Background}}; color: {{theme.Text}}; animation: mdTabFade 0.15s ease-in-out; }
+            .md-tab-content.active { display: block; }
+            @keyframes mdTabFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+            @media print { .md-tab-content { display: block !important; border-top: 1px dashed {{theme.Border}}; page-break-inside: avoid; } }
+            /* Looking Glass portal mode (ISS-004): the preview is the default surface; clicking
+               opens a circular aperture revealing the editable Markdown source behind it through a
+               fog-of-war blur (clear at the caret, blurring back to the preview). The ring/aperture
+               elements are only created by the portal script when the mode is on, so this CSS is
+               inert otherwise. */
+            #portal-cursor-ring { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(88, 166, 255, 0.65); box-shadow: 0 0 16px rgba(88, 166, 255, 0.35), inset 0 0 10px rgba(88, 166, 255, 0.15); pointer-events: none; transform: translate(-50%, -50%); animation: portalPulse 2s infinite ease-in-out; z-index: 60; }
+            @keyframes portalPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.75; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } }
+            .portal-aperture { position: absolute; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
+            @keyframes portalIris { from { transform: scale(0.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            /* Full-width "focus" reading bands: rounded strip instead of a circle, iris opens
+               vertically like a letterbox, and the close button moves to the right edge where a
+               skinny band actually has room for it. */
+            .portal-aperture.portal-band { border-radius: 14px; animation: portalIrisBand 0.22s ease-out; }
+            @keyframes portalIrisBand { from { transform: scaleY(0.15); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+            .portal-band .portal-close { left: auto; right: 12px; top: 50%; transform: translateY(-50%); }
+            .portal-aperture.portal-closing { animation: portalClose 0.2s ease-in forwards; }
+            @keyframes portalClose { from { transform: scale(1); opacity: 1; } to { transform: scale(0.25); opacity: 0; } }
+            /* 80px padding doubles as pan overscroll: native scrolling clamps at the content box, so
+               the generous inset lets middle-drag carry corner text ~80px past its natural bound into
+               the clear centre of the shape (the masked rim was otherwise unreadable). */
+            .portal-source { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: #dbe6f2; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 20px; padding: 80px; white-space: pre; overflow: auto; caret-color: #58a6ff; }
+            .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
+            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
             """;
+    }
+
+    /// <summary>
+    /// Renders only the inner canvas content (attribution + TOC + body + footer) without the
+    /// surrounding HTML shell, CSS, or page scripts. Used by the live preview path which swaps
+    /// #canvas innerHTML in place — avoids materializing the ~50 KB static JS/CSS shell just to
+    /// discard it. Returns null when the document triggers the focused-diagram early return
+    /// (caller should fall back to a full navigation).
+    /// </summary>
+    public string? RenderCanvasOnly(string markdown, AppSettings settings, ThemeDefinition theme,
+        LlmClassification? classification = null)
+    {
+        if (settings.ThemeLightInfluence)
+            theme = theme.ApplyLightInfluence();
+
+        markdown = NormalizeForRender(markdown, settings);
+        var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
+
+        if (settings.NoEmoji) body = EmojiStripper.Strip(body);
+        body = HtmlSanitizer.Apply(body);
+        body = EmbedLocalImages(body);
+
+        body = MermaidFenceHtmlRe().Replace(body,
+            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
+
+        if (settings.MermaidEnabled)
+        {
+            body = AnyCodeBlockRe().Replace(body,
+                m =>
+                {
+                    var codeContent = m.Groups[1].Value;
+                    var extras = new StringBuilder();
+                    var whole = codeContent.Trim();
+                    if (MermaidDiagramStart.IsMatch(whole))
+                    {
+                        extras.Append($"<div class=\"mermaid mermaid-embedded\">{whole}</div>");
+                    }
+                    else
+                    {
+                        foreach (Match lit in QuotedLiteralRe().Matches(codeContent))
+                        {
+                            var group = lit.Groups[1].Success ? lit.Groups[1] : lit.Groups[2].Success ? lit.Groups[2] : lit.Groups[3];
+                            var candidate = group.Value.Trim();
+                            if (MermaidDiagramStart.IsMatch(candidate))
+                                extras.Append($"<div class=\"mermaid mermaid-embedded\">{System.Net.WebUtility.HtmlEncode(candidate)}</div>");
+                        }
+                    }
+                    return extras.Length > 0 ? m.Value + extras : m.Value;
+                });
+        }
+
+        var pluginTheme = Plugins.PluginTheme.From(theme);
+        body = PluginLangCodeRe().Replace(body,
+            m =>
+            {
+                var language = m.Groups[1].Value;
+                var installed = AppServices.Plugins.FindDiagramRenderer(language);
+                if (installed != null)
+                {
+                    var decoded = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value);
+                    var svg = AppServices.Plugins.RenderToSvgCached(installed, decoded, pluginTheme);
+                    if (svg != null)
+                    {
+                        svg = Plugins.SvgSanitizer.Sanitize(svg);
+                        var cls = installed.IsThemeAware ? "plugin-diagram" : "plugin-diagram plugin-diagram-autoinvert";
+                        return $"<div class=\"{cls}\">{svg}</div>";
+                    }
+                    return m.Value + "<div class=\"plugin-diagram-error\">⚠ " + System.Net.WebUtility.HtmlEncode(installed.Name) + " couldn't render this diagram — check the syntax.</div>";
+                }
+
+                var known = AppServices.Plugins.FindAnyDiagramPlugin(language);
+                if (known != null)
+                    return m.Value + $"<div class=\"plugin-diagram-missing\">🧩 Install the <b>{System.Net.WebUtility.HtmlEncode(known.Name)}</b> plugin (Settings → Plugins) to render this diagram.</div>";
+
+                return m.Value;
+            });
+
+        // Focused-diagram documents get a dedicated full-page viewer — signal the caller to
+        // fall back to a full navigation (which builds the complete page with zoom/pan controls).
+        if (settings.MermaidEnabled)
+        {
+            var focus = AnalyzeDiagramFocus(markdown);
+            if (focus.Focused)
+            {
+                var mm = MermaidDivRe().Match(body);
+                if (mm.Success) return null;
+            }
+        }
+
+        var attribution = BuildAttribution(settings, classification, theme);
+        var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        var footer = AppServices.License.ShowFooter
+            ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
+            : "";
+
+        return attribution + toc + body + footer;
     }
 
     private static readonly Regex MermaidFenceRe =
@@ -726,6 +1556,17 @@ public sealed partial class MarkdownHtmlService
                 stroke: {{theme.Line}} !important; stroke-width: 2px !important; fill: {{theme.Background}} !important; }
             .mermaid .edgePath path { stroke: {{theme.Line}} !important; stroke-width: 2px !important; }
             .mermaid .label { color: {{theme.Primary}} !important; }
+            /* Long-press (800ms hold) on the diagram opens it in the Diagram Studio — the same
+               gesture as the regular preview. A radial progress ring tracks the hold so the user
+               gets immediate feedback that the gesture is registering (and can tell it apart from
+               the pan/drag interaction, which cancels the hold as soon as the pointer moves). */
+            #dv-holdring { position: fixed; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+                           pointer-events: none; z-index: 20; display: none;
+                           filter: drop-shadow(0 2px 6px rgba(0,0,0,0.45)); }
+            #dv-holdring .track { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 3.5; }
+            #dv-holdring .bar { fill: none; stroke: #4cc9f0; stroke-width: 3.5; stroke-linecap: round;
+                                stroke-dasharray: 113; stroke-dashoffset: 113;
+                                transform: rotate(-90deg); transform-origin: 50% 50%; }
             </style></head>
             <body>
             <div id="dv">
@@ -737,6 +1578,7 @@ public sealed partial class MarkdownHtmlService
                 <button id="dv-png" title="Save diagram as PNG">PNG</button>
                 <button id="dv-svg" title="Save diagram as SVG">SVG</button></div>
               <div id="dv-stage"><div id="dv-inner">{{mermaidDiv}}</div></div>
+              <svg id="dv-holdring" viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="18"/><circle class="bar" cx="20" cy="20" r="18"/></svg>
             </div>
             <script>
             mermaid.initialize({ startOnLoad: true, theme: "base",
@@ -751,6 +1593,48 @@ public sealed partial class MarkdownHtmlService
             (function () {
               const stage = document.getElementById("dv-stage"), inner = document.getElementById("dv-inner");
               const pct = document.getElementById("dv-pct");
+
+              // Capture the diagram source NOW — this inline script runs during parsing, before
+              // mermaid's startOnLoad render replaces the .mermaid div's text with the SVG. The
+              // long-press gesture below sends this source back to the host to open the Studio.
+              const diagramSource = (document.querySelector(".mermaid") || { textContent: "" }).textContent || "";
+
+              // Export / interop helper — the host (C#) listens for these messages.
+              const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };
+
+              // ---- Long-press (800ms stationary hold) -> open in Diagram Studio --------------
+              // Integrated with the pan handler below: a drag past 8px cancels the hold (that's
+              // a pan), a stationary hold past 800ms opens the Studio. The progress ring gives
+              // live feedback so the gesture is discoverable and distinguishable from panning.
+              const ring = document.getElementById("dv-holdring");
+              const ringBar = ring.querySelector(".bar");
+              const HOLD_MS = 800, HOLD_MOVE = 8, RING_CIRC = 113;
+              let holdActive = false, holdRaf = 0, holdStart = 0, holdX = 0, holdY = 0;
+              function startHold(x, y) {
+                holdActive = true; holdStart = performance.now(); holdX = x; holdY = y;
+                ring.style.left = x + "px"; ring.style.top = y + "px"; ring.style.display = "block";
+                ringBar.style.strokeDashoffset = RING_CIRC;
+                (function frame() {
+                  if (!holdActive) return;
+                  const p = Math.min(1, (performance.now() - holdStart) / HOLD_MS);
+                  ringBar.style.strokeDashoffset = RING_CIRC * (1 - p);
+                  if (p >= 1) { completeHold(); return; }
+                  holdRaf = requestAnimationFrame(frame);
+                })();
+              }
+              function cancelHold() {
+                if (!holdActive) return;
+                holdActive = false; cancelAnimationFrame(holdRaf);
+                ring.style.display = "none";
+              }
+              function completeHold() {
+                holdActive = false; cancelAnimationFrame(holdRaf);
+                ring.style.display = "none";
+                // Clear the pan state so the view doesn't stick in drag mode once the Studio opens.
+                drag = null; stage.classList.remove("dragging");
+                post({ type: "launch-mermaid-studio", index: 0, code: diagramSource, gesture: "long-press-800ms" });
+              }
+
               let sc = 1, tx = 0, ty = 0, drag = null, fitted = false, lastW = 0, lastH = 0;
               const apply = () => { inner.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`;
                                     pct.textContent = Math.round(sc * 100) + "%"; };
@@ -783,16 +1667,18 @@ public sealed partial class MarkdownHtmlService
                 tx = cx - (cx - tx) * f; ty = cy - (cy - ty) * f;
                 sc = Math.min(12, Math.max(0.1, sc * f)); apply(); }, { passive: false });
               stage.addEventListener("pointerdown", (e) => { drag = { x: e.clientX - tx, y: e.clientY - ty };
-                stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId); });
-              stage.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); } });
-              stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); });
+                stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId);
+                if (e.button === 0) startHold(e.clientX, e.clientY); });
+              stage.addEventListener("pointermove", (e) => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; apply(); }
+                if (holdActive && Math.hypot(e.clientX - holdX, e.clientY - holdY) > HOLD_MOVE) cancelHold(); });
+              stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); cancelHold(); });
+              stage.addEventListener("pointercancel", () => { drag = null; stage.classList.remove("dragging"); cancelHold(); });
               document.getElementById("dv-in").addEventListener("click", () => { sc = Math.min(12, sc * 1.25); apply(); });
               document.getElementById("dv-out").addEventListener("click", () => { sc = Math.max(0.1, sc / 1.25); apply(); });
               document.getElementById("dv-reset").addEventListener("click", () => { fit(true); });
               window.addEventListener("resize", () => { if (fitted) fit(true); });
 
               // Export the diagram as a file — the host (C#) shows a save dialog and writes it.
-              const post = (m) => { try { window.chrome.webview.postMessage(JSON.stringify(m)); } catch (e) {} };
               function svgText() {
                 const svg = inner.querySelector("svg"); if (!svg) return null;
                 const clone = svg.cloneNode(true);
@@ -840,6 +1726,16 @@ public sealed partial class MarkdownHtmlService
     // through the host's asset server, with no size limit, is the real fix — a follow-up.)
     private const long MaxInlineBudgetBytes = 1_200_000;
 
+    // Cache of already-inlined local images. Without it, every preview render re-read each image
+    // from disk, re-decoded it (Skia) and re-ran Convert.ToBase64String — a 1 MB screenshot cost a
+    // full disk read + decode + ~1.3 MB of base64 string on every debounced keystroke pause. The
+    // key folds in last-write-time + length, so an edited file misses naturally and is re-inlined.
+    // Bounded so a long session can't accumulate unbounded base64 strings.
+    private sealed record ImageCacheEntry(long ByteLength, string DataUri);
+    private static readonly Dictionary<string, ImageCacheEntry> ImageCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object ImageCacheLock = new();
+    private const int MaxImageCacheEntries = 64;
+
     private static string EmbedLocalImages(string body)
     {
         if (!body.Contains("<img", StringComparison.Ordinal)) return body;
@@ -878,12 +1774,29 @@ public sealed partial class MarkdownHtmlService
                         // NavigateToString ceiling and take the whole preview down. Downscaling turns
                         // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
                         // pass through untouched; SVG is never rasterized.
-                        var (data, mime) = PrepareImageForInline(localPath, info);
-                        if (data is not null && mime is not null &&
-                            budgetUsed + data.Length * 4 / 3 <= MaxInlineBudgetBytes)
+                        // The resulting data URI is cached so a re-render reuses it instead of
+                        // re-reading/re-encoding the file (see ImageCache above).
+                        var cacheKey = $"{localPath}|{info.LastWriteTimeUtc.Ticks}|{info.Length}";
+                        ImageCacheEntry? entry;
+                        lock (ImageCacheLock) ImageCache.TryGetValue(cacheKey, out entry);
+                        if (entry is null)
                         {
-                            src = $"data:{mime};base64,{Convert.ToBase64String(data)}";
-                            budgetUsed += data.Length * 4 / 3;
+                            var (data, mime) = PrepareImageForInline(localPath, info);
+                            if (data is not null && mime is not null)
+                            {
+                                entry = new ImageCacheEntry(data.Length, $"data:{mime};base64,{Convert.ToBase64String(data)}");
+                                lock (ImageCacheLock)
+                                {
+                                    if (ImageCache.Count >= MaxImageCacheEntries) ImageCache.Clear();
+                                    ImageCache[cacheKey] = entry;
+                                }
+                            }
+                        }
+                        if (entry is not null &&
+                            budgetUsed + entry.ByteLength * 4 / 3 <= MaxInlineBudgetBytes)
+                        {
+                            src = entry.DataUri;
+                            budgetUsed += entry.ByteLength * 4 / 3;
                         }
                     }
                 }
@@ -964,7 +1877,7 @@ public sealed partial class MarkdownHtmlService
                 <link rel="stylesheet" href="{{Services.WebAssets.KatexCss}}">
                 <script defer src="{{Services.WebAssets.KatexJs}}"></script>
                 {{mhchem}}<script defer src="{{Services.WebAssets.KatexAutoRender}}"
-                        onload="renderMathInElement(document.body, {
+                        onload="window.__msRenderMath = function (root) { renderMathInElement(root, {
                             delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],
                             // \tag is display-mode-only in KaTeX and hard-errors in inline math,
                             // which used to leave the WHOLE span as raw text. Override it to render
@@ -973,7 +1886,10 @@ public sealed partial class MarkdownHtmlService
                             // Any other unsupported command degrades to red text instead of
                             // aborting the span and dumping raw source at the reader.
                             throwOnError: false
-                        });"></script>
+                        }); };
+                        // Named + window-scoped so in-place canvas swaps (live typing / portal
+                        // edits) can re-render fresh math with the exact same options.
+                        window.__msRenderMath(document.body);"></script>
                 """;
         }
         if (body.Contains("language-"))

@@ -381,9 +381,8 @@ public static class SvgShapeForge
     }
 
     // Minimal SVG path flattener: M/L/H/V/C/S/Q/T/A/Z (absolute + relative). Curves are sampled at
-    // fixed steps — connectors only need a faithful polyline, not exact beziers, and the emitter
-    // draws through the sampled points. Arcs are approximated by their endpoint (good enough for
-    // the rounded corners engines draw with tiny arcs).
+    // fixed steps — connectors only need a faithful polyline, not exact beziers.
+    // Renders smooth bezier curves through sampled control points; approximates arc segments via endpoint tangents.
     private static List<double[]> FlattenPath(string data, Affine xf)
     {
         var result = new List<double[]>();
