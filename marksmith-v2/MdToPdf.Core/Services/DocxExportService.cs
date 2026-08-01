@@ -190,6 +190,14 @@ public sealed class DocxExportService
             AddStyles(main, ctx);
             CollectAnchors(doc, ctx);
 
+            var imageUrls = doc.Descendants<LinkInline>().Where(l => l.IsImage)
+                .Select(l => Uri.UnescapeDataString(l.GetDynamicUrl?.Invoke() ?? l.Url ?? ""))
+                .Where(u => !string.IsNullOrWhiteSpace(u)).Distinct().ToList();
+            System.Threading.Tasks.Parallel.ForEach(imageUrls, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 8 }, url => 
+            {
+                ctx.ImageCache[url] = FetchImageBytes(url);
+            });
+
             if (settings.BrandCoverPage) AppendCoverPage(body, ctx, settings, title);
             if (settings.IncludeToc) AppendTocField(body, ctx);
 
@@ -385,6 +393,7 @@ public sealed class DocxExportService
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
+        public System.Collections.Concurrent.ConcurrentDictionary<string, byte[]?> ImageCache { get; } = new();
 
         // ShapeForge diagrams are rebuilt as native Word shapes that must stay readable on the
         // PRINTED page no matter how dark the document theme is. A dark theme's Code/Secondary
@@ -2023,7 +2032,12 @@ public sealed class DocxExportService
         try
         {
             var rawUrl = Uri.UnescapeDataString(link.GetDynamicUrl?.Invoke() ?? link.Url ?? "");
-            var rawBytes = FetchImageBytes(rawUrl);
+            byte[]? rawBytes = null;
+            if (!ctx.ImageCache.TryGetValue(rawUrl, out rawBytes))
+            {
+                rawBytes = FetchImageBytes(rawUrl);
+                ctx.ImageCache[rawUrl] = rawBytes;
+            }
             if (rawBytes is null || rawBytes.Length == 0) return false;
 
             var alt = GetPlainText(link);
