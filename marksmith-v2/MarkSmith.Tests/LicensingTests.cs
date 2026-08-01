@@ -37,14 +37,17 @@ public class LicensingTests
     public void LicenseValidator_Verifies_Valid_Key_With_Embedded_PublicKey()
     {
         // Use the current embedded public key to verify a key signed by private-key.pem if available
-        var privateKeyPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "licensing", "private-key.pem");
-        if (!File.Exists(privateKeyPath))
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? privateKeyPath = null;
+        while (curr != null)
         {
-            privateKeyPath = Path.Combine(Directory.GetCurrentDirectory(), "tools", "licensing", "private-key.pem");
+            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
+            if (File.Exists(p)) { privateKeyPath = p; break; }
+            curr = curr.Parent;
         }
 
         string privateKeyPem;
-        if (File.Exists(privateKeyPath))
+        if (privateKeyPath != null)
         {
             privateKeyPem = File.ReadAllText(privateKeyPath);
         }
@@ -88,14 +91,17 @@ public class LicensingTests
     [Fact]
     public async Task LicenseService_Activates_Pro_Features_Successfully()
     {
-        var privateKeyPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools", "licensing", "private-key.pem");
-        if (!File.Exists(privateKeyPath))
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? privateKeyPath = null;
+        while (curr != null)
         {
-            privateKeyPath = Path.Combine(Directory.GetCurrentDirectory(), "tools", "licensing", "private-key.pem");
+            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
+            if (File.Exists(p)) { privateKeyPath = p; break; }
+            curr = curr.Parent;
         }
 
         string privateKeyPem;
-        if (File.Exists(privateKeyPath))
+        if (privateKeyPath != null)
         {
             privateKeyPem = File.ReadAllText(privateKeyPath);
         }

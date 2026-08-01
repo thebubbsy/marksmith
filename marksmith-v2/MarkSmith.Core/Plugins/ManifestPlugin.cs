@@ -300,8 +300,8 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
 
             // Plugin output is injected raw into the preview/export HTML — never allow active
             // content through, whatever the tool produced. Full SVG sanitize (script elements,
-            // on* handlers, javascript: hrefs, foreignObject), not just <script> stripping.
-            return SvgSanitizer.Sanitize(svg);
+            // on* handlers, javascript: hrefs, foreignObject), plus WCAG contrast enforcement.
+            return SvgSanitizer.Sanitize(svg, theme?.Background);
         }
         catch
         {

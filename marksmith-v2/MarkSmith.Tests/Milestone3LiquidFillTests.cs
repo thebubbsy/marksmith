@@ -31,11 +31,17 @@ public class Milestone3LiquidFillTests
     [Fact]
     public void PhysicalAssetFiles_ExistAndContainRequiredM3Logic()
     {
-        // Locate repo root based on AppContext
-        var baseDir = AppContext.BaseDirectory;
-        var repoRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", ".."));
-        var cssPath = Path.Combine(repoRoot, "MdToPdf", "Assets", "web", "liquid_fill.css");
-        var jsPath = Path.Combine(repoRoot, "MdToPdf", "Assets", "web", "mermaid_interop.js");
+        var curr = new DirectoryInfo(AppContext.BaseDirectory);
+        string? assetsDir = null;
+        while (curr != null)
+        {
+            var p = Path.Combine(curr.FullName, "MarkSmith.Desktop", "Assets", "web");
+            if (Directory.Exists(p)) { assetsDir = p; break; }
+            curr = curr.Parent;
+        }
+
+        var cssPath = Path.Combine(assetsDir ?? "", "liquid_fill.css");
+        var jsPath = Path.Combine(assetsDir ?? "", "mermaid_interop.js");
 
         Assert.True(File.Exists(cssPath), $"liquid_fill.css should exist at {cssPath}");
         Assert.True(File.Exists(jsPath), $"mermaid_interop.js should exist at {jsPath}");
