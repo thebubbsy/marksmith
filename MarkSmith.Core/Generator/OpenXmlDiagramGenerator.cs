@@ -80,7 +80,7 @@ namespace MarkSmith.Core.Generator
                     }
 
                     ptElem.Add(spPrElem);
-                    ptElem.Add(BuildTextElement(pt.Text));
+                    ptElem.Add(BuildTextElement(pt.Text ?? string.Empty));
                 }
                 else if (pt.PointType == "parTrans" || pt.PointType == "sibTrans")
                 {
