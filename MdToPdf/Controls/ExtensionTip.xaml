@@ -37,6 +37,7 @@
                                      VerticalAlignment="Center" Margin="16,0,8,0" />
 
                     <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
+                            ToolTipService.ToolTip="Dismiss this tip"
                             VerticalAlignment="Center" Padding="4">
                         <FontIcon Glyph="&#xE711;" FontSize="12" Opacity="0.6" />
                     </Button>

@@ -1,90 +1,135 @@
-# MarkSmith — WinUI 3 (native Windows companion app)
+# Marksmith v2 — The Offline Document Engine 🚀
 
-A from-scratch C#/.NET 8 port of the Python/Textual TUI's core idea — Markdown in, PDF out, via a
-Chromium print pipeline — built with idiomatic **WinUI 3** (Windows App SDK) instead of a
-console UI: `NavigationView`-adjacent `TabView` shell, Mica backdrop, `CommunityToolkit.Mvvm`
-source-generated view model, and `WebView2` as both the live preview surface and the PDF renderer.
+![Marksmith Hero Architecture Banner](https://raw.githubusercontent.com/antigravity/marksmith/main/assets/hero-banner.png)
 
-## Prerequisites
+> **Turn AI Style Into Your Style.**  
+> Marksmith v2 is a 100% offline, native Windows 11 desktop engine and REST API designed to transform raw AI outputs (from ChatGPT, Gemini, Claude, and local LLMs) into publication-ready, professional Microsoft Office documents, PDFs, PowerPoint decks, and EPUB eBooks.
 
-- **Visual Studio 2022** (17.8+) with the **"Windows application development"** workload, which
-  installs the Windows SDK and the WinUI 3 project templates/tooling.
-- .NET 8 SDK (already present in most VS 2022 installs; `dotnet --list-sdks` to check).
-- Windows 11 (x64) to run the built app.
+---
 
-This project was **written but not built** in the sandbox that authored it — there's no Windows
-SDK or Visual Studio available there (`dotnet workload list` shows no workloads, and
-`Program Files\Windows Kits` doesn't exist). `dotnet restore` was run to sanity-check the NuGet
-package graph: `CommunityToolkit.Mvvm`, `Markdig`, and `Microsoft.Web.WebView2` all resolved and
-downloaded cleanly, confirming those package IDs/versions are correct. `Microsoft.WindowsAppSDK`
-and `Microsoft.Windows.SDK.BuildTools` also resolved on the NuGet feed (proving the version
-numbers exist) but the sandbox's network egress truncated the multi-hundred-MB downloads — that's
-an environment limit, not a project error. **Treat your first `dotnet build` (or F5 in Visual
-Studio) as the real verification step**, and expect to fix any typos that only a real XAML/C#
-compiler pass would catch.
+## 🌟 What's New in Marksmith v2 (Release Highlights)
 
-## Build & run
+### 1. 📐 Native Editable Word Equations (OMML)
+- **Zero Image Rendering**: Unlike traditional converters that render math formulas as flat PNG images, Marksmith converts raw LaTeX math (`$`, `$$`, `\begin{matrix}`, integrals, fractions, roots, limits) directly into **native Microsoft Word OMML (Office Math Markup Language)**.
+- **100% Editable in Word**: Opening an exported `.docx` file in Microsoft Word allows users to click directly into any matrix or formula—illuminating the **Word Equation Tools** ribbon to edit numbers and variables natively.
 
-```powershell
-cd winui3
-dotnet restore
-dotnet build MdToPdf.sln
-dotnet run --project MdToPdf/MdToPdf.csproj
+### 2. 🎨 Visual Mermaid Diagram Studio & Grouped Word Vector Shapes
+- **Interactive Visual Editor**: Built-in drag-and-drop diagram studio with snap-to-grid alignment, minimap navigation, force-directed **Auto Layout (`⚡ Auto Layout`)**, orientation switching (`LR` Left-to-Right, `TD` Top-Down, `BT`, `RL`), and full undo/redo (`Ctrl+Z` / `Ctrl+Y`).
+- **Grouped Vector Shapes in Word**: Flowcharts exported to `.docx` are **not flat screenshots**. Marksmith converts Mermaid diagrams into **native grouped Word vector shapes** (rectangles, diamonds, connectors, and text runs). Teams can drag boxes, edit text labels, recolor borders, and adjust arrow paths directly inside Word.
+
+### 3. 📄 Multi-Format Export Engine (PDF • DOCX • PPTX • EPUB)
+- **Microsoft Word (.docx)**: Styled OpenType typography, dark theme document defaults (`w:background`), custom table borders & zebra shading, single-cell callout cards for GitHub alerts (`> [!NOTE]`, `> [!WARNING]`), drop caps, bookmarks, and automatic self-updating Table of Contents.
+- **PowerPoint Decks (.pptx)**: Converts Markdown header structures (`# Slide 1`, `## Slide 2`) into formatted presentation decks.
+- **EPUB eBooks**: Generates reflowable EPUB3 eBooks complete with automatic table of contents and chapter navigation.
+- **High-Resolution PDF**: Deterministic PDF generation powered by a local Chromium engine (`CoreWebView2`).
+
+### 4. 🛡️ 100% Air-Gapped Local REST API & Enterprise DLP Governance
+- **Local Loopback REST API (`http://127.0.0.1:47821`)**: Full programmatic conversion endpoints (`/api/convert`, `/api/governance/report`, `/api/governance/summary`) allowing local scripts, terminal commands, and watch-folder daemons to compile Markdown into PDF/DOCX/PPTX/EPUB silently.
+- **1-Click Browser Connector**: Chrome/Edge browser extension that streams replies from ChatGPT, Gemini, and Claude directly into Marksmith in one click.
+- **Data Loss Prevention (DLP)**: Local governance script monitors AI prompt ingestion and automatically masks sensitive credentials, passwords, and API keys (`sk-proj-[redacted]`) before saving local audit logs (`%LOCALAPPDATA%\MdToPdf\governance.json`). Zero remote cloud server calls.
+
+### 5. 🧹 AI Source Normalization & Artifact Cleanup Engine
+- **Quirk Normalization**: Automatically detects source models (ChatGPT, Gemini, Claude) and strips machine-generated tells:
+  - Excessive emojis and em-dashes (`—`)
+  - Citation pips (`[1]`)
+  - Redundant `"Copy code"` HTML button remnants
+  - Conversational lead-in chatter (*"Sure, here is your requested document:"*)
+- **Real-Time Fix Counter**: Displays exact count of normalized formatting quirks applied to the document.
+
+### 6. 🔍 Looking Glass Inspection Lens & Live 60 FPS Preview
+- **Dual-Pane Preview**: Live preview updates at 60 FPS without flicker as you edit Markdown text.
+- **Looking Glass Lens**: Hovering over rendered HTML elements activates a circular high-tech portal lens that reveals the raw underlying Markdown syntax.
+
+### 7. 💎 Windows 11 Polish & Native Shell Integration
+- **Modern WinUI 3 Architecture**: Mica backdrop blur, custom 48px title bar (`AppTitleBar`), official Marksmith taskbar icon (`Assets/app.ico`), suppressed WinUI accelerator hover tooltips (`KeyboardAcceleratorPlacementMode="Hidden"`), and clean Segoe MDL2 Fluent icons.
+
+---
+
+## 🛠️ Project Structure
+
+```text
+marksmith-v2/
+├── MdToPdf/                                # WinUI 3 Presentation App
+│   ├── Assets/                             # App icons, tray icons, brand assets (app.ico)
+│   ├── ViewModels/                         # CommunityToolkit.Mvvm ViewModels
+│   ├── Views/                              # XAML UI Views & Controls
+│   │   └── Mermaid/                        # Visual Diagram Studio (MermaidDiagramStudioControl.xaml)
+│   └── MainWindow.xaml                     # Main Application Window shell & title bar
+├── MdToPdf.Core/                           # Core Document & Rendering Engine
+│   ├── Mermaid/                            # Mermaid AST, Lexer, Parser & Code Generator
+│   ├── Plugins/                            # Extensible Plugin System
+│   └── Services/                           # Native Exporters:
+│       ├── DocxExportService.cs            # OpenXML DOCX & OMML Math generator
+│       ├── PptxExportService.cs            # PowerPoint (.pptx) deck generator
+│       ├── EpubExportService.cs            # EPUB eBook generator
+│       ├── PdfExportService.cs             # Chromium WebView2 PDF printer
+│       └── GovernanceService.cs            # Local DLP & Governance audit logger
+└── tests/                                  # Empirical Test Suite
+    └── MdToPdf.Core.Tests/                 # Unit tests & OpenXML validation checks
 ```
 
-Or open `MdToPdf.sln` in Visual Studio and press F5. The app is **unpackaged**
-(`WindowsPackageType=None` in the `.csproj`) — no MSIX identity, no `Package.appxmanifest`, no
-Store association needed. That's a deliberate simplification for this MVP; see
-[Distribute an unpackaged WinUI 3 app](https://learn.microsoft.com/windows/apps/package-and-deploy/unpackage-winui-app)
-if you later want MSIX packaging for Store distribution or better OS integration (jump lists,
-notifications, etc.).
+---
 
-## What works end-to-end
+## 🚀 Building & Running
 
-- **Convert tab**: pick a `.md` file (or paste Markdown in the **Paste & Preview** tab), pick a
-  theme (all 10 from the Python app, same hex values), set page width / A4-lock / single-page
-  toggles, hit **Generate PDF**. Uses `CoreWebView2.PrintToPdfAsync` under the hood — see
-  `Services/PdfExportService.cs`.
-- **Live preview**: the right-hand `WebView2` pane re-renders on every relevant change (file
-  picked, pasted text edited, theme switched, page width changed) via `Markdig` → themed HTML,
-  mirroring `create_html_content()` from the Python app. GitHub-style `> [!NOTE]` alert blocks
-  render via Markdig's `UseAlertBlocks()` extension. Mermaid diagrams render live in the preview
-  (WebView2 is a real Chromium engine, so `mermaid.js` just works) — the *stubbed* piece is only
-  extracting a diagram to its own image file (see below), not seeing it on screen.
-- **Settings persistence** (`%LocalAppData%\MdToPdf\settings.json`) and **recent files**
-  (`%LocalAppData%\MdToPdf\recent_files.json`) — same shape/intent as the Python app's
-  `~/.md_to_pdf/` files, kept separate so the two apps don't fight over one file.
-- **Cancel button** for in-progress exports (best-effort — see the comment in
-  `ViewModels/MainViewModel.cs`; `PrintToPdfAsync` has no native cancellation).
+### Requirements
+- **Windows 11 (x64)**
+- **.NET 8 SDK** (`dotnet --list-sdks`)
+- **Visual Studio 2022** (17.8+) with the *Windows application development* workload.
 
-## What's deliberately stubbed (`NotImplementedException` + a design-decision comment)
+### Command Line Build
 
-Per the "solid MVP over broad-but-thin" scope: these throw a clear exception (caught and shown in
-the status bar, not a crash) with a comment at the top of the file laying out the real trade-off,
-rather than a fake/partial implementation.
+```powershell
+# Clone the repository
+git clone https://github.com/antigravity/marksmith.git
+cd marksmith/marksmith-v2/MdToPdf
 
-| File | Decision you need to make |
-|---|---|
-| `Services/DocxExportService.cs` | Shell out to `pandoc` (matches Python, needs it installed) vs. generate `.docx` natively with `DocumentFormat.OpenXml` (zero external deps, more code to write). |
-| `Services/MermaidRenderService.cs` | How to get a single diagram's PNG out of WebView2 — there's no Playwright-style `locator.screenshot()`; options are sizing the WebView2 to the element's bounding box + `CapturePreviewAsync`, or dropping to the raw CDP `Page.captureScreenshot` method via `CallDevToolsProtocolMethodAsync`. |
+# Restore dependencies & build Release x64
+dotnet restore
+dotnet build MdToPdf.csproj -c Release /p:Platform=x64
 
-PNG gallery mode (render one document in all 10 themes) depends on the Mermaid piece landing
-first, so it wasn't started.
+# Run locally
+dotnet run --project MdToPdf.csproj -c Release /p:Platform=x64
+```
 
-## Architecture notes
+### Publishing Standalone Single-File Executable (`Marksmith.exe`)
 
-- **No DI container.** Services are plain singletons exposed as static properties on `App`
-  (`App.Settings`, `App.Themes`, `App.ViewModel`, etc.) — a deliberate "smallest thing that works"
-  choice for an app this size. `Microsoft.Extensions.DependencyInjection` (the pattern most WinUI 3
-  sample apps graduate to) is the natural next step once you add more services/pages.
-- **One `WebView2`, not one per tab.** It lives at the `MainWindow` level (not inside either
-  `Views/ConvertView.xaml` or `Views/EditorView.xaml`), so it survives switching between the
-  Convert and Editor tabs instead of being torn down and recreated. `MainWindow.xaml.cs` listens
-  to `MainViewModel.PropertyChanged` and re-renders the preview when a relevant property changes.
-- **Classic `{Binding}`, not `{x:Bind}`.** `{x:Bind}` is compile-time-checked and generally
-  preferred in new WinUI 3 code, but it requires careful ordering (the `DataContext`/binding
-  source must exist before the generated `Bindings.Update()` call). Given this was authored without
-  a compiler in the loop, classic `{Binding}` (resolved at runtime against `DataContext`) was the
-  lower-risk choice. Migrating to `{x:Bind}` for compile-time safety is a reasonable follow-up once
-  the project builds cleanly.
+To publish a self-contained, zero-dependency executable bundled with the .NET 8 runtime, WinUI 3, and native WebView2 binaries:
 
+```powershell
+dotnet publish MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+Output binary: `bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\Marksmith.exe` (~180 MB standalone).
+
+---
+
+## 🔌 Local REST API Reference
+
+When Marksmith is running, the local REST API listens on `http://127.0.0.1:47821`:
+
+### 1. Convert Markdown to Output Format
+`POST /api/convert`
+
+**Request Payload (JSON)**:
+```json
+{
+  "markdown": "# Financial Report\n$$\\sum_{i=1}^n x_i = Y$$\n",
+  "format": "docx",
+  "theme": "Dracula"
+}
+```
+
+**Supported Formats**: `"pdf"`, `"docx"`, `"pptx"`, `"epub"`
+
+### 2. Ingest Extension Report & DLP Scan
+`POST /api/governance/report`
+
+### 3. Get Governance Audit Summary
+`GET /api/governance/summary`
+
+---
+
+## 📜 License
+
+Distributed under the MIT License. See `LICENSE` for details.

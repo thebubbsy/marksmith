@@ -11,6 +11,8 @@ public sealed class RecentFilesService
 
     private static readonly string RecentFilesPath = Path.Combine(ConfigDir, "recent_files.json");
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     public List<string> Load()
     {
         try
@@ -18,7 +20,7 @@ public sealed class RecentFilesService
             if (File.Exists(RecentFilesPath))
             {
                 var json = File.ReadAllText(RecentFilesPath);
-                var files = JsonSerializer.Deserialize<List<string>>(json);
+                var files = JsonSerializer.Deserialize<List<string>>(json, JsonOpts);
                 if (files is not null) return files.Take(MaxRecentFiles).ToList();
             }
         }
@@ -40,7 +42,7 @@ public sealed class RecentFilesService
         // Persisting the recent list must never break the file-open flow it's part of — a
         // read-only/full/locked config dir should degrade to "recents not saved", not throw out of
         // the caller's open-document path. (Load is already guarded the same way.)
-        try { AtomicFile.WriteAllText(RecentFilesPath, JsonSerializer.Serialize(files)); }
+        try { AtomicFile.WriteAllText(RecentFilesPath, JsonSerializer.Serialize(files, JsonOpts)); }
         catch { /* non-critical feature; keep the in-memory list */ }
         return files;
     }

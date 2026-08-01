@@ -386,8 +386,10 @@ internal static class LatexToOmml
                 return new() { run };
             }
 
-            // Unknown command — emit its name so nothing silently disappears.
-            return new() { TextRun(cmd) };
+            // Unknown command — emit it verbatim (backslash included) so nothing silently disappears
+            // and the reverse import (OmmlToLatex) recovers the exact source byte-for-byte. Dropping
+            // the backslash here is what turned `\cdotL` into literal "cdotL" and broke the round-trip.
+            return new() { TextRun("\\" + cmd) };
         }
 
         // Reads a {...} group whose content is \\-separated lines and stacks them as a single-column

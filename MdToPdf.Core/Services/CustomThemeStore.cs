@@ -16,6 +16,11 @@ public static class CustomThemeStore
     private static readonly object Gate = new();
     private static List<ThemeDefinition>? _cache;
 
+    // Bumped on every mutation so cached catalog snapshots (ThemeCatalog.All) can tell when their
+    // copy is stale and rebuild — instead of re-concatenating Builtin + customs on every access.
+    private static int _version;
+    public static int Version { get { lock (Gate) return _version; } }
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public static IReadOnlyList<ThemeDefinition> All
@@ -31,6 +36,7 @@ public static class CustomThemeStore
             _cache.RemoveAll(t => t.Name.Equals(theme.Name, StringComparison.OrdinalIgnoreCase));
             _cache.Add(theme);
             Save();
+            _version++;
         }
     }
 
@@ -40,7 +46,11 @@ public static class CustomThemeStore
         {
             _cache ??= Load();
             var removed = _cache.RemoveAll(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) > 0;
-            if (removed) Save();
+            if (removed)
+            {
+                Save();
+                _version++;
+            }
             return removed;
         }
     }
@@ -50,10 +60,28 @@ public static class CustomThemeStore
         try
         {
             if (File.Exists(StorePath))
-                return JsonSerializer.Deserialize<List<ThemeDefinition>>(File.ReadAllText(StorePath), JsonOpts) ?? new();
+            {
+                var loaded = JsonSerializer.Deserialize<List<ThemeDefinition>>(File.ReadAllText(StorePath), JsonOpts) ?? new();
+                // Drop leaked debug/test artifacts (e.g. "Test Theme <32-hex guid>") so they never
+                // surface in the user-facing theme dropdown. Legitimate user themes are unaffected.
+                loaded.RemoveAll(t => IsTestArtifactName(t.Name));
+                return loaded;
+            }
         }
         catch { /* corrupt store: start fresh rather than crash the app at startup */ }
         return new();
+    }
+
+    // Matches the naming pattern used by automated tests ("Test Theme " + 32-hex GUID, see
+    // ShapeForgeAndThemeTests). A real user would never name a theme this, so it is a safe,
+    // precise filter for debug artifacts that escaped cleanup.
+    private static bool IsTestArtifactName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        const string prefix = "Test Theme ";
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+        var suffix = name.Substring(prefix.Length);
+        return suffix.Length == 32 && suffix.All(Uri.IsHexDigit);
     }
 
     private static void Save()

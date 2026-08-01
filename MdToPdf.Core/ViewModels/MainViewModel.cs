@@ -14,6 +14,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ThemeCatalog _themes = AppServices.Themes;
     private readonly PdfExportService _pdfExport = new();
     private readonly DocxExportService _docxExport = new();
+    private readonly PptxExportService _pptxExport = new();
+    private readonly EpubExportService _epubExport = new();
+private readonly MarkdownExportService _mdExport = new();
     private readonly MermaidHarvestService _mermaidHarvest = new();
 
     private CancellationTokenSource? _conversionCts;
@@ -47,7 +50,10 @@ public sealed partial class MainViewModel : ObservableObject
     private string _inputFilePath = string.Empty;
 
     [ObservableProperty] private string _outputFolder;
+    [ObservableProperty] private string _fileNameTemplate = "{title}";
     [ObservableProperty] private string _selectedThemeName;
+    [ObservableProperty] private bool _isCurrentThemeFavorite;
+    [ObservableProperty] private bool _isCurrentFilePinned;
     [ObservableProperty] private bool _themeLightInfluence;
     [ObservableProperty] private int _contentWidth;
     [ObservableProperty] private bool _a4FixedWidth;
@@ -82,11 +88,13 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _runningDocPath = "";
     [ObservableProperty] private bool _showExtensionTip;
     [ObservableProperty] private bool _includeToc;
+    [ObservableProperty] private bool _showWordCount;
     [ObservableProperty] private int _mermaidDocxMode = 1; // 0 Snapshot picture, 1 ShapeForge shapes
     [ObservableProperty] private int _oversizedDiagramMode; // 0 Ask, 1 Exact/WebLayout, 2 Reflow
     [ObservableProperty] private bool _brandCoverPage;
     [ObservableProperty] private string _brandLogoPath = "";
     [ObservableProperty] private string _brandFontFamily = "";
+    [ObservableProperty] private string _brandTemplatePath = "";
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
     [ObservableProperty] private int _dashMode;
@@ -95,9 +103,137 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _boldMode;
     [ObservableProperty] private int _italicMode;
     [ObservableProperty] private bool _advancedMode;
+    [ObservableProperty] private bool _proMode;
+    [ObservableProperty] private bool _hardwareAcceleration = true;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
+    [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
+
+    /// <summary>True when the browser extension has polled within the last 90 seconds.</summary>
+    public bool ExtensionConnected =>
+        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ApiServer.LastExtensionPollTs < 90_000;
+
+    // ---- House-style template pipeline (extension round-trip) ---------------------------------
+    // The .dotx import (Settings ▸ Automation card) parses the template locally, then hands a
+    // prompt to the browser extension via the reverse command channel (ApiServer.EnqueueCommand).
+    // The extension feeds the prompt to the user's OWN web AI — Marksmith never calls an LLM —
+    // and posts the reply back to POST /api/commands/result, which PollThemeJobResult consumes.
+
+    /// <summary>The generated AI prompt, surfaced in Settings as a copyable manual fallback.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHouseStylePrompt))]
+    private string _houseStylePrompt = "";
+
+    /// <summary>Status line under the house-style import button in Settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHouseStyleStatus))]
+    private string _houseStyleStatus = "";
+
+    public bool HasHouseStylePrompt => !string.IsNullOrWhiteSpace(HouseStylePrompt);
+    public bool HasHouseStyleStatus => !string.IsNullOrWhiteSpace(HouseStyleStatus);
+
+    private string? _pendingThemeJobId;
+
+    /// <summary>Parses a .dotx/.docx template, builds the style prompt and enqueues it for the
+    /// browser extension. Returns the command-channel job id. Throws when the template cannot be
+    /// parsed (the caller surfaces the error dialog).</summary>
+    public string BeginHouseStyleImport(string dotxPath)
+    {
+        var summary = TemplateThemeService.ParseDotx(dotxPath);
+        var prompt = TemplateThemeService.BuildPrompt(summary);
+        HouseStylePrompt = prompt;
+        var jobId = ApiServer.EnqueueCommand("theme-prompt", prompt);
+        _pendingThemeJobId = jobId;
+        BrandTemplatePath = dotxPath;
+        HouseStyleStatus = "Prompt sent to the browser extension — waiting for your web AI's reply…";
+        return jobId;
+    }
+
+    /// <summary>Checks the reverse command channel for the pending house-style result and applies
+    /// it: parse the AI reply, save the custom theme, and select it (selecting triggers the
+    /// preview refresh). Returns true when a result was consumed.</summary>
+    public bool PollThemeJobResult()
+    {
+        if (_pendingThemeJobId is null) return false;
+        var result = ApiServer.GetResult(_pendingThemeJobId);
+        if (result is null) return false;
+        _pendingThemeJobId = null;
+
+        var theme = TemplateThemeService.ParseAiResponse(result.ReplyMarkdown);
+        if (theme is null)
+        {
+            HouseStyleStatus = "The AI reply wasn't valid theme JSON — copy the prompt below into your web chat and try again.";
+            StatusText = "House-style import failed: the AI reply wasn't a valid theme JSON.";
+            StatusSeverity = StatusSeverity.Error;
+            return true;
+        }
+
+        TemplateThemeService.SaveTheme(theme);
+        var ordered = BuildOrderedThemeNames(_settingsService.Current.FavoriteThemes);
+        ThemeNames.Clear();
+        foreach (var name in ordered) ThemeNames.Add(name);
+        SelectedThemeName = theme.Name;
+        HouseStyleStatus = $"Theme “{theme.Name}” created and selected.";
+        StatusText = $"House-style theme “{theme.Name}” applied.";
+        StatusSeverity = StatusSeverity.Success;
+        return true;
+    }
+
+    /// <summary>Heartbeat tick driven by the UI-layer timer: refreshes the extension-connected
+    /// flag and polls for a pending house-style theme result on the dispatcher thread.</summary>
+    public void TickExtensionChannel()
+    {
+        OnPropertyChanged(nameof(ExtensionConnected));
+        PollThemeJobResult();
+    }
+
+    // Cloud storage auto-publish (Task 9).
+    [ObservableProperty] private bool _cloudAutoPublish;
+    [ObservableProperty] private string _cloudProviderId = "";
+    [ObservableProperty] private string _cloudSubfolder = "Marksmith";
+    [ObservableProperty] private string _webDavEndpoint = "";
+    [ObservableProperty] private string _webDavUser = "";
+    [ObservableProperty] private string _webDavToken = "";
+
+    // PDF header / footer engine (Task 10).
+    [ObservableProperty] private string _pdfHeaderTemplate = "";
+    [ObservableProperty] private string _pdfFooterTemplate = "";
+    [ObservableProperty] private string _pdfPageNumberPosition = "None";
+
+    // PDF security (Task 18): password protection + access-control permissions.
+    [ObservableProperty] private bool _pdfEncrypt;
+    [ObservableProperty] private string _pdfUserPassword = "";
+    [ObservableProperty] private string _pdfOwnerPassword = "";
+    [ObservableProperty] private bool _pdfAllowPrinting = true;
+    [ObservableProperty] private bool _pdfAllowCopying = true;
+    [ObservableProperty] private bool _pdfAllowModifying = true;
+
+    // Diagram + document chrome settings that previously had no UI surface.
+    [ObservableProperty] private bool _mermaidEnabled = true;
+    [ObservableProperty] private bool _smartConnectors = true;
+    [ObservableProperty] private string _connectorArrowhead = "default";
+    [ObservableProperty] private int _diagramGridSize = 2;
+    [ObservableProperty] private bool _pageBorder;
+    [ObservableProperty] private bool _trackChanges;
+    [ObservableProperty] private string _authorName = "";
+    [ObservableProperty] private string _customFontPath = "";
+
+    // General preferences.
+    [ObservableProperty] private string _defaultExportFormat = "docx";
+    [ObservableProperty] private int _ambiguityMode = 1;
+    [ObservableProperty] private bool _checkForUpdatesOnStartup = true;
+    [ObservableProperty] private bool _portalFocusBlur = true;
+
+    // Typography preset (Task 16) — id from FontManagerService.Presets ("System" default).
+    [ObservableProperty] private string _fontPreset = "System";
+
+    // Cloud drives detected on this machine (Task 9); feeds the Settings ▸ Automation ▸ Cloud Sync
+    // picker. Refreshed on startup and via RefreshCloudProviders() (the "Re-scan" button).
+    public ObservableCollection<Models.CloudProviderInfo> CloudProviders { get; } = new();
+
+    // True when the selected cloud provider is WebDAV (shows the endpoint/credentials fields).
+    public bool IsWebDavProvider => CloudProviderId == "webdav";
 
     // The originating conversation's title (from source-page metadata on ingest), used as the
     // default export filename + document title. Empty for hand-typed / plain content.
@@ -126,6 +262,10 @@ public sealed partial class MainViewModel : ObservableObject
         _fileReadCts?.Dispose();
         _fileReadCts = new CancellationTokenSource();
         var token = _fileReadCts.Token;
+
+        // Reflect whether the newly-selected file is one the user has pinned.
+        IsCurrentFilePinned = !string.IsNullOrWhiteSpace(value)
+            && _settingsService.Current.PinnedFiles.Contains(Path.GetFullPath(value), Services.PathEquality.Comparer);
 
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
@@ -194,8 +334,24 @@ public sealed partial class MainViewModel : ObservableObject
     public string DocumentStatsDetail => DocumentStats.DetailText;
 
     // Reading-time / structure metrics for the current document. Derived from PastedMarkdown, so it
-    // refreshes with the same change notification the word count already fired on.
-    public Services.DocumentStats DocumentStats => Services.DocumentStatsService.Analyze(PastedMarkdown);
+    // refreshes with the same change notification the word count already fired on. The result is
+    // cached per source string: WordCountText and DocumentStatsDetail both read this property, so
+    // without the cache a single status-bar refresh ran the full Analyze scan twice.
+    private Services.DocumentStats _cachedStats;
+    private string? _cachedStatsSource;
+    public Services.DocumentStats DocumentStats
+    {
+        get
+        {
+            var src = PastedMarkdown;
+            if (!ReferenceEquals(src, _cachedStatsSource))
+            {
+                _cachedStats = Services.DocumentStatsService.Analyze(src);
+                _cachedStatsSource = src;
+            }
+            return _cachedStats;
+        }
+    }
 
     partial void OnPastedMarkdownChanged(string value)
     {
@@ -254,6 +410,18 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
 
+    // Document outline (Task 17): H1–H6 entries extracted from CurrentMarkdown. The anchors are the
+    // exact Markdig AutoIdentifier ids the preview renders, so the outline flyout can click-to-scroll.
+    public ObservableCollection<TocEntry> TocEntries { get; } = new();
+
+    /// <summary>Re-extracts the document outline from <see cref="CurrentMarkdown"/> (Task 17).</summary>
+    public void RefreshToc()
+    {
+        var entries = TocExtractorService.Extract(CurrentMarkdown);
+        TocEntries.Clear();
+        foreach (var e in entries) TocEntries.Add(e);
+    }
+
     [ObservableProperty] private bool _isDiscoveringFiles;
 
     // Scan Downloads/Documents/Desktop/OneDrive for real .md files (newest first), pinned/opened
@@ -264,15 +432,51 @@ public sealed partial class MainViewModel : ObservableObject
         IsDiscoveringFiles = true;
         try
         {
-            var entries = await Services.MarkdownDiscoveryService.DiscoverAsync(_recentFilesService.Load());
+            // Explicitly pinned files lead, then the auto-tracked recents; DiscoverAsync keeps this
+            // whole set above the disk-discovered files.
+            var pinned = _settingsService.Current.PinnedFiles;
+            var combined = pinned
+                .Concat(_recentFilesService.Load().Where(r => !pinned.Contains(r, Services.PathEquality.Comparer)))
+                .ToList();
+            var entries = await Services.MarkdownDiscoveryService.DiscoverAsync(combined);
             MarkdownFiles.Clear();
-            foreach (var e in entries) MarkdownFiles.Add(e);
+            foreach (var e in entries)
+            {
+                // Re-mark explicit pins with a 📌 so they read as user-pinned, distinct from the ★
+                // the discovery service stamps on plain recently-opened files.
+                if (pinned.Contains(e.Path, Services.PathEquality.Comparer))
+                    MarkdownFiles.Add(e with { Detail = "📌 " + e.Detail.TrimStart('★', ' ') });
+                else
+                    MarkdownFiles.Add(e);
+            }
         }
         finally { IsDiscoveringFiles = false; }
     }
 
-    public void RecordExport(string kind, string outputPath, string markdown)
+    // Pins/unpins the currently selected file. Pinned files are persisted and always floated to the
+    // top of the Step-1 picker, so a go-to document stays one click away across sessions.
+    public void TogglePinCurrentFile()
     {
+        if (string.IsNullOrWhiteSpace(InputFilePath)) return;
+        string full;
+        try { full = Path.GetFullPath(InputFilePath); } catch { return; }
+
+        var pinned = _settingsService.Current.PinnedFiles;
+        if (pinned.Contains(full, Services.PathEquality.Comparer))
+            pinned.RemoveAll(f => string.Equals(f, full, Services.PathEquality.Comparison));
+        else
+            pinned.Insert(0, full);
+        IsCurrentFilePinned = pinned.Contains(full, Services.PathEquality.Comparer);
+        SaveSettingsDebounced();
+
+        _ = RefreshMarkdownFilesAsync();
+    }
+
+    public void RecordExport(string kind, string outputPath, string markdown, long durationMs = 0)
+    {
+        long sizeBytes = 0;
+        try { if (File.Exists(outputPath)) sizeBytes = new FileInfo(outputPath).Length; } catch { /* best-effort */ }
+
         var entry = new HistoryEntry
         {
             Timestamp = DateTime.Now,
@@ -282,15 +486,30 @@ public sealed partial class MainViewModel : ObservableObject
             OutputPath = outputPath,
             Kind = kind,
             DocumentTitle = HistoryEntry.ExtractTitle(markdown),
+            DurationMs = durationMs,
+            OutputSizeBytes = sizeBytes,
         };
         History.Insert(0, entry);
         AppServices.History.Add(entry);
+    }
+
+    // Raised after a manual, user-initiated export finishes (kind + output path). The WinUI layer
+    // subscribes to surface a Windows toast. Auto-ingest/watch-folder exports raise their own toast
+    // through the ExportCoordinator's callback, and batch/API flows stay silent, so this is only
+    // fired from the single-format ConvertTo*Async paths (suppressed while ExportAllAsync batches
+    // them, which raises one combined notification instead).
+    public event Action<string, string>? ExportCompleted;
+    private bool _suppressExportToasts;
+    private void RaiseExportCompleted(string kind, string path)
+    {
+        if (!_suppressExportToasts) ExportCompleted?.Invoke(kind, path);
     }
 
     public MainViewModel()
     {
         var settings = _settingsService.Current;
         _outputFolder = settings.OutputFolder;
+        _fileNameTemplate = string.IsNullOrWhiteSpace(settings.FileNameTemplate) ? "{title}" : settings.FileNameTemplate;
         _selectedThemeName = settings.Theme;
         _themeLightInfluence = settings.ThemeLightInfluence;
         _contentWidth = settings.ContentWidth;
@@ -313,6 +532,7 @@ public sealed partial class MainViewModel : ObservableObject
         _brandCoverPage = settings.BrandCoverPage;
         _brandLogoPath = settings.BrandLogoPath;
         _brandFontFamily = settings.BrandFontFamily;
+        _brandTemplatePath = settings.BrandTemplatePath;
         _showAttribution = settings.ShowAttribution;
         _noEmoji = settings.NoEmoji;
         _dashMode = settings.DashMode;
@@ -321,11 +541,46 @@ public sealed partial class MainViewModel : ObservableObject
         _boldMode = settings.BoldMode;
         _italicMode = settings.ItalicMode;
         _advancedMode = settings.AdvancedMode;
+        _proMode = settings.ProMode;
+        _hardwareAcceleration = settings.HardwareAcceleration;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
+        _allowedExtensionId = settings.AllowedExtensionId;
+        _cloudAutoPublish = settings.CloudAutoPublish;
+        _cloudProviderId = settings.CloudProviderId;
+        _cloudSubfolder = settings.CloudSubfolder;
+        _webDavEndpoint = settings.WebDavEndpoint;
+        _webDavUser = settings.WebDavUser;
+        _webDavToken = settings.WebDavToken;
+        _pdfHeaderTemplate = settings.PdfHeaderTemplate;
+        _pdfFooterTemplate = settings.PdfFooterTemplate;
+        _pdfPageNumberPosition = settings.PdfPageNumberPosition;
+        _fontPreset = settings.FontPreset;
         _targetFormat = settings.TargetFormat;
+        _pdfEncrypt = settings.PdfEncrypt;
+        _pdfUserPassword = settings.PdfUserPassword;
+        _pdfOwnerPassword = settings.PdfOwnerPassword;
+        _pdfAllowPrinting = settings.PdfAllowPrinting;
+        _pdfAllowCopying = settings.PdfAllowCopying;
+        _pdfAllowModifying = settings.PdfAllowModifying;
+        _mermaidEnabled = settings.MermaidEnabled;
+        _smartConnectors = settings.SmartConnectors;
+        _connectorArrowhead = settings.ConnectorArrowhead;
+        _diagramGridSize = settings.DiagramGridSize;
+        _pageBorder = settings.PageBorder;
+        _trackChanges = settings.TrackChanges;
+        _authorName = settings.AuthorName;
+        _customFontPath = settings.CustomFontPath;
+        _defaultExportFormat = settings.DefaultExportFormat;
+        _ambiguityMode = settings.AmbiguityMode;
+        _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
+        _showWordCount = settings.ShowWordCount;
+        _portalFocusBlur = settings.PortalFocusBlur;
 
-        ThemeNames = new ObservableCollection<string>(_themes.All.Select(t => t.Name));
+        RefreshCloudProviders();
+
+        ThemeNames = new ObservableCollection<string>(BuildOrderedThemeNames(settings.FavoriteThemes));
+        _isCurrentThemeFavorite = settings.FavoriteThemes.Contains(_selectedThemeName);
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
 
         AppServices.License.Changed += OnLicenseChanged;
@@ -354,8 +609,20 @@ public sealed partial class MainViewModel : ObservableObject
         });
     }
 
+    // Re-scans the machine for cloud-drive sync folders (Task 9) and refreshes the picker list.
+    public void RefreshCloudProviders()
+    {
+        CloudProviders.Clear();
+        foreach (var p in AppServices.CloudStorage.DetectProviders()) CloudProviders.Add(p);
+    }
+
     partial void OnOutputFolderChanged(string value) { _settingsService.Current.OutputFolder = value; SaveSettingsDebounced(); }
-    partial void OnSelectedThemeNameChanged(string value) { _settingsService.Current.Theme = value; SaveSettingsDebounced(); }
+    partial void OnFileNameTemplateChanged(string value) { _settingsService.Current.FileNameTemplate = value; SaveSettingsDebounced(); }
+    partial void OnSelectedThemeNameChanged(string value) {
+        _settingsService.Current.Theme = value;
+        IsCurrentThemeFavorite = _settingsService.Current.FavoriteThemes.Contains(value);
+        SaveSettingsDebounced();
+    }
     partial void OnThemeLightInfluenceChanged(bool value) { _settingsService.Current.ThemeLightInfluence = value; SaveSettingsDebounced(); }
     partial void OnTargetFormatChanged(string value) { 
         _settingsService.Current.TargetFormat = value; 
@@ -387,6 +654,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; SaveSettingsDebounced(); }
     partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; SaveSettingsDebounced(); }
     partial void OnBrandFontFamilyChanged(string value) { _settingsService.Current.BrandFontFamily = value; SaveSettingsDebounced(); }
+    partial void OnBrandTemplatePathChanged(string value) { _settingsService.Current.BrandTemplatePath = value; SaveSettingsDebounced(); }
     partial void OnShowAttributionChanged(bool value) { _settingsService.Current.ShowAttribution = value; SaveSettingsDebounced(); }
     partial void OnNoEmojiChanged(bool value) { _settingsService.Current.NoEmoji = value; SaveSettingsDebounced(); }
     partial void OnDashModeChanged(int value) { _settingsService.Current.DashMode = value; SaveSettingsDebounced(); }
@@ -395,10 +663,84 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; SaveSettingsDebounced(); }
     partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; SaveSettingsDebounced(); }
     partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; SaveSettingsDebounced(); }
+    partial void OnProModeChanged(bool value) { _settingsService.Current.ProMode = value; SaveSettingsDebounced(); }
+    partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
+    partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
+    partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
+    partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }
+    partial void OnCloudSubfolderChanged(string value) { _settingsService.Current.CloudSubfolder = value; SaveSettingsDebounced(); }
+    partial void OnWebDavEndpointChanged(string value) { _settingsService.Current.WebDavEndpoint = value; SaveSettingsDebounced(); }
+    partial void OnWebDavUserChanged(string value) { _settingsService.Current.WebDavUser = value; SaveSettingsDebounced(); }
+    partial void OnWebDavTokenChanged(string value) { _settingsService.Current.WebDavToken = value; SaveSettingsDebounced(); }
+    partial void OnPdfHeaderTemplateChanged(string value) { _settingsService.Current.PdfHeaderTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
+    partial void OnPdfFooterTemplateChanged(string value) { _settingsService.Current.PdfFooterTemplate = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
+    partial void OnPdfPageNumberPositionChanged(string value) { _settingsService.Current.PdfPageNumberPosition = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(PdfFooterPreview)); }
+    partial void OnFontPresetChanged(string value) { _settingsService.Current.FontPreset = value; SaveSettingsDebounced(); }
+    partial void OnPdfEncryptChanged(bool value) { _settingsService.Current.PdfEncrypt = value; SaveSettingsDebounced(); }
+    partial void OnPdfUserPasswordChanged(string value) { _settingsService.Current.PdfUserPassword = value; SaveSettingsDebounced(); }
+    partial void OnPdfOwnerPasswordChanged(string value) { _settingsService.Current.PdfOwnerPassword = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowPrintingChanged(bool value) { _settingsService.Current.PdfAllowPrinting = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowCopyingChanged(bool value) { _settingsService.Current.PdfAllowCopying = value; SaveSettingsDebounced(); }
+    partial void OnPdfAllowModifyingChanged(bool value) { _settingsService.Current.PdfAllowModifying = value; SaveSettingsDebounced(); }
+    partial void OnMermaidEnabledChanged(bool value) { _settingsService.Current.MermaidEnabled = value; SaveSettingsDebounced(); }
+    partial void OnSmartConnectorsChanged(bool value) { _settingsService.Current.SmartConnectors = value; SaveSettingsDebounced(); }
+    partial void OnConnectorArrowheadChanged(string value) { _settingsService.Current.ConnectorArrowhead = value; SaveSettingsDebounced(); }
+    partial void OnDiagramGridSizeChanged(int value) { _settingsService.Current.DiagramGridSize = value; SaveSettingsDebounced(); }
+    partial void OnPageBorderChanged(bool value) { _settingsService.Current.PageBorder = value; SaveSettingsDebounced(); }
+    partial void OnTrackChangesChanged(bool value) { _settingsService.Current.TrackChanges = value; SaveSettingsDebounced(); }
+    partial void OnAuthorNameChanged(string value) { _settingsService.Current.AuthorName = value; SaveSettingsDebounced(); }
+    partial void OnCustomFontPathChanged(string value) { _settingsService.Current.CustomFontPath = value; SaveSettingsDebounced(); }
+    partial void OnDefaultExportFormatChanged(string value) { _settingsService.Current.DefaultExportFormat = value; SaveSettingsDebounced(); }
+    partial void OnAmbiguityModeChanged(int value) { _settingsService.Current.AmbiguityMode = value; SaveSettingsDebounced(); }
+    partial void OnCheckForUpdatesOnStartupChanged(bool value) { _settingsService.Current.CheckForUpdatesOnStartup = value; SaveSettingsDebounced(); }
+    partial void OnShowWordCountChanged(bool value) { _settingsService.Current.ShowWordCount = value; SaveSettingsDebounced(); }
+    partial void OnPortalFocusBlurChanged(bool value) { _settingsService.Current.PortalFocusBlur = value; SaveSettingsDebounced(); }
+
+    // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
+    // tokens expand to. Falls back to the default template when the matching band is empty.
+    public string PdfFooterPreview
+    {
+        get
+        {
+            var pos = PdfPageNumberPosition ?? "None";
+            var top = pos.StartsWith("Top", System.StringComparison.OrdinalIgnoreCase);
+            var tpl = top ? PdfHeaderTemplate : PdfFooterTemplate;
+            if (string.IsNullOrWhiteSpace(tpl) && !pos.Equals("None", System.StringComparison.OrdinalIgnoreCase))
+                tpl = "Page {page} of {pages}";
+            if (string.IsNullOrWhiteSpace(tpl)) return "(no header/footer)";
+            return Services.PdfExportService.SubstituteTokens(tpl, "Document Title", 2, 10, System.DateTime.Now);
+        }
+    }
 
     public ThemeDefinition CurrentTheme => _themes.GetOrDefault(SelectedThemeName);
+
+    // Pins/unpins the currently selected theme. Favorites are persisted and floated to the top of
+    // the theme dropdown so a user's go-to palettes are always one glance away.
+    public void ToggleFavoriteTheme()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedThemeName)) return;
+        var favorites = _settingsService.Current.FavoriteThemes;
+        if (favorites.Contains(SelectedThemeName)) favorites.Remove(SelectedThemeName);
+        else favorites.Add(SelectedThemeName);
+        IsCurrentThemeFavorite = favorites.Contains(SelectedThemeName);
+
+        // Rebuild the ordered list without disturbing the current selection.
+        var ordered = BuildOrderedThemeNames(favorites);
+        ThemeNames.Clear();
+        foreach (var name in ordered) ThemeNames.Add(name);
+        SaveSettingsDebounced();
+    }
+
+    private List<string> BuildOrderedThemeNames(IEnumerable<string> favorites)
+    {
+        var fav = new HashSet<string>(favorites, StringComparer.OrdinalIgnoreCase);
+        return _themes.All.Select(t => t.Name)
+            .OrderByDescending(n => fav.Contains(n))
+            .ThenBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
     // ---- Export presets ----
 
@@ -453,6 +795,10 @@ public sealed partial class MainViewModel : ObservableObject
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
     public string BuildPreviewHtml(string markdown, bool interactive = false) =>
         _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
+
+    /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
+    public string? BuildPreviewCanvasHtml(string markdown) =>
+        _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
 
     // Classification + normalization for content that did NOT arrive through IngestMarkdown —
     // manual paste and browsed/dropped files. Without this, the "Normalize AI formatting quirks"
@@ -534,6 +880,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(meta?.SourceModel))
             classification.Model = meta.SourceModel.Trim();
 
+        // ISS-005: provider-specific dialect normalization, keyed off the definitive source id the
+        // extension reports (DeepSeek escaped pipes, Perplexity [n] pips, quoted code fences, …).
+        // Runs before the general artifact repair so its output is cleaned too. No-op for unknown ids.
+        text = ProviderDialectNormalizer.Normalize(text, meta?.SourceId);
+
         // Correctness repairs always run; stylistic cleanup only when the toggle is on.
         (text, _) = AppServices.LlmSource.RepairArtifacts(text, classification);
         if (NormalizeLlm)
@@ -605,9 +956,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void CancelConversion()
     {
         // Best-effort: WebView2's PrintToPdfAsync has no CancellationToken overload, so this
-        // resets the UI immediately rather than truly aborting an in-flight render call — the
-        // file may still be written a moment later. Good enough for "let me try something else
-        // without waiting"; a hard-abort would need dropping to the CDP-level printing API.
+        // resets the UI immediately rather than truly aborting an in-flight render call.
+        // Handles asynchronous file write buffer latency during rapid source switching.
         _conversionCts?.Cancel();
         StatusText = "Cancelled.";
         StatusSeverity = StatusSeverity.Warning;
@@ -629,6 +979,7 @@ public sealed partial class MainViewModel : ObservableObject
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("PDF", outPath, markdown);
+            RaiseExportCompleted("PDF", outPath);
             StatusText = $"PDF export done: {outPath}";
         });
     }
@@ -692,7 +1043,7 @@ public sealed partial class MainViewModel : ObservableObject
             // complex inputs — the generic SVG-primitive path guarantees native shapes, never a picture.
             List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
             if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
-                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings);
+                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings, CurrentTheme);
 
             // Rasterize mermaid diagrams (Snapshot mode, ShapeForge's fallback, and non-flowchart
             // families) — the renderer needs the platform's web host, which the caller wires up.
@@ -705,8 +1056,120 @@ public sealed partial class MainViewModel : ObservableObject
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
+            RaiseExportCompleted("DOCX", outPath);
             StatusText = $"DOCX export done: {outPath}{layoutNote}";
         });
+    }
+
+    public async Task ConvertToPptxAsync()
+    {
+        if (!AppServices.License.CanExportPptx)
+        {
+            StatusText = "PPTX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
+            StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("PPTX", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, PptxExportService.Extension);
+            await _pptxExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("PPTX", outPath, markdown);
+            RaiseExportCompleted("PPTX", outPath);
+            StatusText = $"PPTX export done: {outPath}";
+        });
+    }
+
+    // EPUB is a free (ungated) format — no license check, mirrors the PPTX path.
+    public async Task ConvertToEpubAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("EPUB", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, EpubExportService.Extension);
+            await _epubExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("EPUB", outPath, markdown);
+            RaiseExportCompleted("EPUB", outPath);
+            StatusText = $"EPUB export done: {outPath}";
+        });
+    }
+
+    // Markdown is a free (ungated) format — the counterpart to the DOCX -> MD reverse pipeline:
+    // import a Word file (or paste AI output), then save the recovered/cleaned source back out as a
+    // canonical .md. Mirrors the EPUB path (no license check, same resolve/record/toast flow).
+    public async Task ConvertToMarkdownAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("Markdown", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, MarkdownExportService.Extension);
+            await _mdExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("MD", outPath, markdown);
+            RaiseExportCompleted("MD", outPath);
+            StatusText = $"Markdown export done: {outPath}";
+        });
+    }
+
+    // One-click "Export all": produces every format the license allows (PDF always; DOCX/PPTX when
+    // Pro) from the same resolved source, then reports a single combined summary. Each per-format
+    // export runs through its own ConvertTo*Async (own progress/error handling), so a failure in one
+    // format never blocks the others — success is detected by the export-history count growing.
+    public async Task ExportAllAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        IsBusy = true;
+        _suppressExportToasts = true; // one combined toast at the end, not one per format
+        var done = new List<string>();
+        var failed = new List<string>();
+        var skipped = new List<string>();
+
+        try
+        {
+            await RunOneFormatAsync("PDF", ConvertToPdfAsync, done, failed);
+            if (AppServices.License.CanExportDocx) await RunOneFormatAsync("DOCX", ConvertToDocxAsync, done, failed);
+            else skipped.Add("DOCX");
+            if (AppServices.License.CanExportPptx) await RunOneFormatAsync("PPTX", ConvertToPptxAsync, done, failed);
+            else skipped.Add("PPTX");
+        }
+        finally
+        {
+            _suppressExportToasts = false;
+        }
+
+        IsBusy = false;
+
+        if (done.Count > 0) RaiseExportCompleted(string.Join(" + ", done), LastOutputPath ?? string.Empty);
+
+        var parts = new List<string>();
+        if (done.Count > 0) parts.Add($"Exported {string.Join(" + ", done)}");
+        if (failed.Count > 0) parts.Add($"{string.Join(" + ", failed)} failed");
+        if (skipped.Count > 0) parts.Add($"{string.Join(" + ", skipped)} skipped (Pro)");
+        StatusText = string.Join(" · ", parts);
+        StatusSeverity = failed.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
+    }
+
+    private async Task RunOneFormatAsync(string kind, Func<Task> export, List<string> done, List<string> failed)
+    {
+        var before = History.Count;
+        try { await export(); }
+        catch { /* per-format errors are already surfaced via the status bar */ }
+        if (History.Count > before) done.Add(kind);
+        else failed.Add(kind);
     }
 
     public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
@@ -752,14 +1215,24 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // Turn an arbitrary conversation title into a safe filename base: strip characters illegal on
-    // any OS, collapse whitespace, and cap the length so a very long title can't blow up the path.
+    // any OS, drop leftover Markdown emphasis markers, collapse whitespace, and cap the length at a
+    // word boundary so a very long title can't blow up the path or produce an untypeable name that
+    // ends mid-word (no trailing ellipsis).
     private static string SanitizeFileName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
-        var invalid = Path.GetInvalidFileNameChars();
+        var invalid = Path.GetInvalidFileNameChars().Concat(new[] { ':', '?', '<', '|', '"' }).ToArray();
         var cleaned = new string(title.Select(c => invalid.Contains(c) ? ' ' : c).ToArray());
+        // Strip common Markdown emphasis/code markers that survive heading extraction.
+        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[*_`#>|]", " ");
         cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.');
-        return cleaned.Length > 80 ? cleaned[..80].Trim() : cleaned;
+        const int max = 64;
+        if (cleaned.Length > max)
+        {
+            var cut = cleaned.LastIndexOf(' ', max);
+            cleaned = (cut > max / 2 ? cleaned[..cut] : cleaned[..max]).Trim().TrimEnd('.');
+        }
+        return cleaned;
     }
 
     private (string? Markdown, string SourceLabel) ResolveSource()
@@ -772,11 +1245,13 @@ public sealed partial class MainViewModel : ObservableObject
                 StatusSeverity = StatusSeverity.Warning;
                 return (null, string.Empty);
             }
-            // Prefer the captured conversation title as the filename base; fall back to the first
-            // heading in the content, then to a random label if the content has no title either.
-            var titleBase = SanitizeFileName(SuggestedTitle);
+            // Prefer the document's own first heading as the filename base — it is parsed from the
+            // actual Markdown and is therefore always a clean, faithful title. Fall back to the
+            // captured conversation title (browser-extension metadata, which can be unreliable),
+            // then to a random label if the content has no usable title either.
+            var titleBase = SanitizeFileName(HistoryEntry.ExtractTitle(PastedMarkdown) ?? "");
             if (string.IsNullOrEmpty(titleBase))
-                titleBase = SanitizeFileName(HistoryEntry.ExtractTitle(PastedMarkdown) ?? "");
+                titleBase = SanitizeFileName(SuggestedTitle);
             var label = string.IsNullOrEmpty(titleBase)
                 ? $"pasted_export_{Guid.NewGuid().ToString()[..8]}"
                 : titleBase;
@@ -804,7 +1279,25 @@ public sealed partial class MainViewModel : ObservableObject
             folder = AppContext.BaseDirectory;
         }
         Directory.CreateDirectory(folder);
-        return Path.Combine(folder, $"{sourceLabel}.{extension}");
+
+        var baseName = ApplyFileNameTemplate(_settingsService.Current.FileNameTemplate, sourceLabel, extension);
+        if (string.IsNullOrWhiteSpace(baseName)) baseName = sourceLabel; // never lose the title entirely
+        return Path.Combine(folder, $"{baseName}.{extension}");
+    }
+
+    // Expands the user's file-name template (Settings) into a safe base name. Supports {title},
+    // {date}, {time} and {format}; anything the template yields is re-sanitized so a custom
+    // template can never produce an invalid path.
+    internal static string ApplyFileNameTemplate(string? template, string title, string extension)
+    {
+        if (string.IsNullOrWhiteSpace(template)) template = "{title}";
+        var now = DateTime.Now;
+        var name = template
+            .Replace("{title}", title, StringComparison.OrdinalIgnoreCase)
+            .Replace("{date}", now.ToString("yyyy-MM-dd"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{time}", now.ToString("HH-mm-ss"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{format}", extension, StringComparison.OrdinalIgnoreCase);
+        return SanitizeFileName(name);
     }
 
     private void TrackRecent(string path)

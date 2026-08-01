@@ -16,13 +16,24 @@ public sealed class EpubExportService
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions().UseYamlFrontMatter().UseAlertBlocks().UseMathematics().Build();
 
-    private static readonly ThemeCatalog Themes = new();
+    // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
+    private static ThemeCatalog Themes => AppServices.Themes;
 
-    private static readonly string[] VoidTags =
-        { "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr" };
+    // Single alternation covering every HTML void tag, used to self-close them in ONE pass. The
+    // previous form was a string[] VoidTags iterated into 14 sequential Regex.Replace calls (one
+    // per tag) — each allocated a Regex and re-scanned the entire document.
+    private static readonly Regex VoidTagRegex = new(
+        @"<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public Task ExportAsync(string markdown, string epubPath, AppSettings settings) => Task.Run(() =>
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings) =>
+        ExportAsync(markdown, epubPath, settings, null);
+
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings, EpubMetadata? meta) => Task.Run(() =>
     {
+        // Front matter is metadata for the OPF (Dublin Core) — read it before normalization.
+        var frontMatter = ExtractFrontMatter(markdown);
+
         markdown = TextNormalizer.Newlines(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
@@ -32,7 +43,64 @@ public sealed class EpubExportService
 
         var theme = Themes.GetOrDefault(settings.Theme);
         var bodyHtml = XhtmlSafe(Markdown.ToHtml(markdown, Pipeline));
-        var bookTitle = HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
+        
+        var bookTitle = NonEmpty(meta?.Title)
+                        ?? NonEmpty(frontMatter, "title")
+                        ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
+
+        var author = NonEmpty(meta?.Author)
+                     ?? NonEmpty(frontMatter, "author") ?? "Marksmith";
+
+        var language = NonEmpty(meta?.Language)
+                       ?? NonEmpty(frontMatter, "language")
+                       ?? (string.IsNullOrWhiteSpace(settings.ContentLanguage) ? "en" : settings.ContentLanguage);
+
+        var publisher = NonEmpty(meta?.Publisher) ?? NonEmpty(frontMatter, "publisher");
+        var identifier = NonEmpty(meta?.Identifier)
+                          ?? NonEmpty(frontMatter, "isbn")
+                          ?? NonEmpty(frontMatter, "identifier");
+        var description = NonEmpty(meta?.Description) ?? NonEmpty(frontMatter, "description");
+        var rights = NonEmpty(meta?.Rights) ?? NonEmpty(frontMatter, "rights");
+
+        // Cover Image resolution: explicit EpubMetadata path -> Front matter cover -> BrandLogoPath
+        var explicitCoverPath = NonEmpty(meta?.CoverImagePath)
+                                ?? NonEmpty(frontMatter, "cover")
+                                ?? NonEmpty(frontMatter, "cover_image");
+
+        string? logoPath = null;
+        if (!string.IsNullOrWhiteSpace(explicitCoverPath) && File.Exists(explicitCoverPath))
+        {
+            logoPath = explicitCoverPath;
+        }
+        else if (settings.BrandCoverPage && !string.IsNullOrWhiteSpace(settings.BrandLogoPath) && File.Exists(settings.BrandLogoPath))
+        {
+            logoPath = settings.BrandLogoPath;
+        }
+
+        string? coverFile = null, coverMediaType = null;
+        byte[]? coverBytes = null;
+        if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
+        {
+            var ext = Path.GetExtension(logoPath).ToLowerInvariant();
+            coverMediaType = ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".svg" => "image/svg+xml",
+                _ => null,
+            };
+            if (coverMediaType is not null)
+            {
+                coverFile = ext switch
+                {
+                    ".png" => "cover.png",
+                    ".jpg" or ".jpeg" => "cover.jpg",
+                    ".svg" => "cover.svg",
+                    _ => "cover.img"
+                };
+                coverBytes = File.ReadAllBytes(logoPath);
+            }
+        }
 
         // Split into chapters on each <h1>. Content before the first heading becomes its own chapter.
         var segments = Regex.Split(bodyHtml, @"(?=<h1[ >])")
@@ -55,8 +123,13 @@ public sealed class EpubExportService
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, chapters));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters));
+        if (coverFile is not null && coverBytes is not null)
+        {
+            WriteEntry(zip, $"OEBPS/{coverFile}", coverBytes);
+            WriteEntry(zip, "OEBPS/cover.xhtml", CoverXhtml(coverFile));
+        }
         foreach (var c in chapters)
             WriteEntry(zip, $"OEBPS/{c.File}", ChapterXhtml(c));
     });
@@ -71,12 +144,39 @@ public sealed class EpubExportService
         s.Write(bytes, 0, bytes.Length);
     }
 
-    private static string XhtmlSafe(string html)
+    private static void WriteEntry(ZipArchive zip, string path, byte[] bytes)
     {
-        foreach (var t in VoidTags)
-            html = Regex.Replace(html, $@"<{t}\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>", $"<{t}$1 />", RegexOptions.IgnoreCase);
-        return html;
+        var entry = zip.CreateEntry(path, CompressionLevel.Optimal);
+        using var s = entry.Open();
+        s.Write(bytes, 0, bytes.Length);
     }
+
+    private static Dictionary<string, string> ExtractFrontMatter(string markdown)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var lines = markdown.Split('\n');
+        int i = 0;
+        while (i < lines.Length && string.IsNullOrWhiteSpace(lines[i])) i++;
+        if (i >= lines.Length || lines[i].Trim() != "---") return map;
+        for (i++; i < lines.Length; i++)
+        {
+            var t = lines[i].Trim();
+            if (t == "---" || t == "...") break;
+            var colon = t.IndexOf(':');
+            if (colon <= 0) continue;
+            var key = t[..colon].Trim();
+            var value = t[(colon + 1)..].Trim().Trim('"', '\'');
+            if (key.Length > 0 && value.Length > 0) map[key] = value;
+        }
+        return map;
+    }
+
+    private static string? NonEmpty(string? val) => string.IsNullOrWhiteSpace(val) ? null : val;
+    private static string? NonEmpty(Dictionary<string, string> map, string key) =>
+        map.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
+
+    private static string XhtmlSafe(string html) =>
+        VoidTagRegex.Replace(html, m => $"<{m.Groups[1].Value.ToLowerInvariant()}{m.Groups[2].Value} />");
 
     private static string? FirstHeading(string html)
     {
@@ -99,26 +199,41 @@ public sealed class EpubExportService
         </container>
         """;
 
-    private static string Opf(string title, List<Chapter> chapters)
+    private static string Opf(string title, string author, string language, string? publisher, string? identifier,
+                               string? description, string? rights, List<Chapter> chapters,
+                               string? coverFile, string? coverMediaType)
     {
         var manifest = new StringBuilder();
         var spine = new StringBuilder();
+        if (coverFile is not null)
+        {
+            manifest.Append("    <item id=\"cover\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n");
+            manifest.Append($"    <item id=\"cover-image\" href=\"{coverFile}\" media-type=\"{coverMediaType}\" properties=\"cover-image\"/>\n");
+            spine.Append("    <itemref idref=\"cover\"/>\n");
+        }
         foreach (var c in chapters)
         {
             manifest.Append($"    <item id=\"{c.Id}\" href=\"{c.File}\" media-type=\"application/xhtml+xml\"/>\n");
             spine.Append($"    <itemref idref=\"{c.Id}\"/>\n");
         }
         var modified = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-        var uid = Guid.NewGuid().ToString();
+        var uid = string.IsNullOrWhiteSpace(identifier) ? $"urn:uuid:{Guid.NewGuid()}" : identifier;
+        
+        var metaXml = new StringBuilder();
+        metaXml.AppendLine($"    <dc:identifier id=\"bookid\">{Esc(uid)}</dc:identifier>");
+        metaXml.AppendLine($"    <dc:title>{Esc(title)}</dc:title>");
+        metaXml.AppendLine($"    <dc:language>{Esc(language)}</dc:language>");
+        metaXml.AppendLine($"    <dc:creator>{Esc(author)}</dc:creator>");
+        if (!string.IsNullOrWhiteSpace(publisher)) metaXml.AppendLine($"    <dc:publisher>{Esc(publisher)}</dc:publisher>");
+        if (!string.IsNullOrWhiteSpace(description)) metaXml.AppendLine($"    <dc:description>{Esc(description)}</dc:description>");
+        if (!string.IsNullOrWhiteSpace(rights)) metaXml.AppendLine($"    <dc:rights>{Esc(rights)}</dc:rights>");
+        metaXml.AppendLine($"    <meta property=\"dcterms:modified\">{modified}</meta>");
+
         return $"""
         <?xml version="1.0" encoding="utf-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-            <dc:identifier id="bookid">urn:uuid:{uid}</dc:identifier>
-            <dc:title>{Esc(title)}</dc:title>
-            <dc:language>en</dc:language>
-            <dc:creator>Marksmith</dc:creator>
-            <meta property="dcterms:modified">{modified}</meta>
+        {metaXml.ToString().TrimEnd()}
           </metadata>
           <manifest>
             <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -129,6 +244,19 @@ public sealed class EpubExportService
         </package>
         """;
     }
+
+    private static string CoverXhtml(string coverFile) =>
+        $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+        <head><title>Cover</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+        <body>
+          <section epub:type="cover">
+            <img src="{coverFile}" alt="Cover" style="max-width:100%;max-height:100%;"/>
+          </section>
+        </body>
+        </html>
+        """;
 
     private static string Nav(List<Chapter> chapters)
     {

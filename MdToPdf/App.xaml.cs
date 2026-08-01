@@ -50,8 +50,8 @@ public partial class App : Application
 
             var window = new MainWindow();
             MainAppWindow = window;
-            ViewModel.Host = window._renderHost;
-            ViewModel.Prompts = new Services.WinUiDialogService(window);
+            ViewModel.Host = window;
+            ViewModel.Prompts = window;
             MainAppWindow.Activate();
         }
         catch (Exception ex)

@@ -59,6 +59,14 @@ public static class MermaidMarkdownSyncService
     public static string SyncAstToMarkdown(string markdown, int blockIndex, MermaidDiagramAst ast, GeneratorOptions? options = null)
     {
         string generatedCode = MermaidCodeGenerator.Generate(ast, options);
+
+        // ISS-018: the AST has no storage for style/classDef/linkStyle directives or per-subgraph
+        // directions, so a bare Generate() round trip silently strips them. Carry them across from
+        // the fence being replaced and lock subgraph orientations before writing back.
+        var blocks = ExtractMermaidBlocks(markdown);
+        string? original = blockIndex >= 0 && blockIndex < blocks.Count ? blocks[blockIndex].Code : null;
+        generatedCode = Services.MermaidPreservationNormalizer.Preserve(generatedCode, original);
+
         return ReplaceMermaidBlock(markdown, blockIndex, generatedCode);
     }
 
