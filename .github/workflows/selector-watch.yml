@@ -37,7 +37,7 @@ jobs:
 
       - name: Open remediation PR
         if: steps.drift.outcome == 'failure'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "fix(extension): update selectors for DOM drift"
           title: "fix(extension): selector drift detected"
