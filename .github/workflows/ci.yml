@@ -24,7 +24,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Build (Release, x64)
-        run: dotnet build marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -p:Platform=x64
+        run: dotnet build marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -p:Platform=x64
 
   extension:
     name: Validate extension
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Validate JSON (manifest + managed schema)
         run: node -e "require('./extension/manifest.json'); require('./extension/managed_schema.json'); console.log('JSON OK')"
