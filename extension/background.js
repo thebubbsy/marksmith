@@ -678,16 +678,18 @@ async function extractMarkdown(mode, imgMode) {
             case "code":
                 return n.closest("pre") ? kids() : "`" + kids() + "`";
             case "pre": {
+                if (n.dataset?.mkMermaidSource || n.querySelector("[data-mk-mermaid-source]")) return "";
                 const code = n.querySelector("code");
                 let lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
                 const txt = (code || n).textContent.replace(/\n$/, "");
-                // GitHub keeps mermaid source in <pre lang="mermaid" aria-label="Raw mermaid code">
-                // with no language-* class; recognise the attribute — and sniff BARE fences for a
-                // leading diagram keyword — so the block is labelled ```mermaid and Marksmith
-                // renders it as a first-class diagram instead of an anonymous code block.
                 if (!lang) {
                     const attrLang = (n.getAttribute("lang") || code?.getAttribute("lang") || "").toLowerCase();
                     if (attrLang === "mermaid" || MERMAID_HEAD.test(txt.trim())) lang = "mermaid";
+                }
+                if (/^(code\s*snippet|code|text)$/i.test(lang.trim()) && MERMAID_HEAD.test(txt.trim())) lang = "mermaid";
+                if (lang === "mermaid") {
+                    const scope = n.closest('[data-message-id], [data-message-author-role], message-content, model-response') || n.parentElement;
+                    if (scope && scope.querySelector('[data-mk-mermaid]')) return "";
                 }
                 return `\n\`\`\`${lang}\n${txt}\n\`\`\`\n`;
             }
@@ -831,10 +833,10 @@ async function extractMarkdown(mode, imgMode) {
                     //    diagram wrapper — the source often sits in a sibling panel.
                     const scope = el.closest('[data-message-id], [data-message-author-role]') || el.parentElement || el;
                     const codeEl = scope.querySelector('code[class*="language-mermaid"]');
-                    if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+                    if (codeEl && codeEl.textContent.trim()) { source = codeEl.textContent; codeEl.dataset.mkMermaidSource = "true"; }
                     if (!source) {
                         for (const cand of scope.querySelectorAll("code, pre, textarea")) {
-                            if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); break; }
+                            if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); cand.dataset.mkMermaidSource = "true"; break; }
                         }
                     }
 
