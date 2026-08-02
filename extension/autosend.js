@@ -86,9 +86,19 @@
       case "em": case "i": return `*${kids()}*`;
       case "code": return n.closest("pre") ? kids() : "`" + kids() + "`";
       case "pre": {
+        if (n.dataset?.mkMermaidSource || n.querySelector("[data-mk-mermaid-source]")) return "";
         const code = n.querySelector("code");
-        const lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
-        return `\n\`\`\`${lang}\n${(code || n).textContent.replace(/\n$/, "")}\n\`\`\`\n`;
+        let lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "";
+        const txt = (code || n).textContent.replace(/\n$/, "");
+
+        if (!lang && MERMAID_HEAD.test(txt.trim())) lang = "mermaid";
+        if (/^(code\s*snippet|code|text)$/i.test(lang.trim()) && MERMAID_HEAD.test(txt.trim())) lang = "mermaid";
+
+        if (lang === "mermaid") {
+          const scope = n.closest('[data-message-id], [data-message-author-role], message-content, model-response') || n.parentElement;
+          if (scope && scope.querySelector('[data-mk-mermaid]')) return "";
+        }
+        return `\n\`\`\`${lang}\n${txt}\n\`\`\`\n`;
       }
       case "ul": return "\n" + [...n.children].filter((c) => c.tagName === "LI").map((li) => "- " + conv(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n";
       case "ol": return "\n" + [...n.children].filter((c) => c.tagName === "LI").map((li, i) => `${i + 1}. ` + conv(li).trim().replace(/\n/g, "\n   ")).join("\n") + "\n";
@@ -191,10 +201,10 @@
           let source = "";
           const scope = el.closest('[data-message-id], [data-message-author-role]') || el.parentElement || el;
           const codeEl = scope.querySelector('code[class*="language-mermaid"]');
-          if (codeEl && codeEl.textContent.trim()) source = codeEl.textContent;
+          if (codeEl && codeEl.textContent.trim()) { source = codeEl.textContent; codeEl.dataset.mkMermaidSource = "true"; }
           if (!source) {
             for (const cand of scope.querySelectorAll("code, pre, textarea")) {
-              if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); break; }
+              if (MERMAID_HEAD.test(grab(cand).trim())) { source = grab(cand); cand.dataset.mkMermaidSource = "true"; break; }
             }
           }
           if (!source) {
