@@ -208,4 +208,23 @@ public class DialectNormalizerTests
         Assert.Equal("", N("", "deepseek"));
         Assert.Equal("   ", N("   ", "perplexity"));
     }
+
+    [Fact]
+    public void Gemini_Code_Snippet_Fence_Is_Normalized_To_Mermaid()
+    {
+        var input = "Here is the diagram:\n\n```code snippet\nflowchart TD\nStart --> Stop\n```";
+        var result = N(input, "gemini");
+        Assert.Contains("```mermaid", result);
+        Assert.DoesNotContain("```code snippet", result);
+    }
+
+    [Fact]
+    public void Duplicate_Mermaid_Blocks_Are_Deduplicated()
+    {
+        var input = "### 1. Decision Tree\n\n```mermaid\nflowchart TD\nStart --> Finish\n```\n\n```mermaid\nflowchart TD\nStart --> Finish\n```";
+        var result = N(input, "gemini");
+        int count = System.Text.RegularExpressions.Regex.Matches(result, "```mermaid").Count;
+        Assert.Equal(1, count);
+        Assert.Contains("flowchart TD", result);
+    }
 }
