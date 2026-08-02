@@ -6,21 +6,21 @@
     <title>Marksmith Connector — Options</title>
     <style>
         :root {
-            --bg: #0c0d14;
-            --card: #151722;
-            --card-hover: #1a1c2a;
-            --card-inner: #10111a;
-            --line: #26283b;
-            --line-focus: #7c4dff;
-            --text: #f0f0f8;
-            --dim: #8e90a6;
-            --dim-bright: #b8b9cf;
+            --bg: #181a26;
+            --card: #222436;
+            --card-hover: #292b40;
+            --card-inner: #1c1e2d;
+            --line: #32354e;
+            --line-focus: #8f66ff;
+            --text: #f2f2fa;
+            --dim: #989ab3;
+            --dim-bright: #c4c5db;
             --accent: #7c4dff;
             --accent-hi: #9266ff;
-            --accent-glow: rgba(124, 77, 255, 0.22);
+            --accent-glow: rgba(124, 77, 255, 0.25);
             --ok: #3fb950;
-            --ok-bg: rgba(63, 185, 80, 0.12);
-            --ok-border: rgba(63, 185, 80, 0.35);
+            --ok-bg: rgba(63, 185, 80, 0.14);
+            --ok-border: rgba(63, 185, 80, 0.38);
         }
 
         * { box-sizing: border-box; }
@@ -30,7 +30,7 @@
             padding: 0;
             min-height: 100vh;
             background: var(--bg);
-            background-image: radial-gradient(1400px 600px at 50% -100px, rgba(124, 77, 255, 0.12) 0%, transparent 75%);
+            background-image: radial-gradient(1400px 600px at 50% -100px, rgba(124, 77, 255, 0.18) 0%, transparent 75%);
             color: var(--text);
             font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 13.5px;
@@ -53,7 +53,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(21, 23, 34, 0.75);
+            background: rgba(34, 36, 54, 0.82);
             backdrop-filter: blur(12px);
             border: 1px solid var(--line);
             border-radius: 16px;
@@ -192,11 +192,11 @@
         input[type=number]:focus, input[type=text]:focus, select:focus {
             border-color: var(--line-focus);
             box-shadow: 0 0 0 3px var(--accent-glow);
-            background: #131422;
+            background: #212338;
         }
 
         select option {
-            background: #161724;
+            background: #222436;
             color: var(--text);
         }
 
