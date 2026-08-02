@@ -1,287 +1,680 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marksmith Connector — Options</title>
     <style>
         :root {
-            --bg: #12131b; --card: #1c1c28; --line: #2a2a3a; --text: #e8e8f0;
-            --dim: #9a9ab0; --accent: #7c4dff; --accent-hi: #8f66ff; --ok: #3fb950;
+            --bg: #0c0d14;
+            --card: #151722;
+            --card-hover: #1a1c2a;
+            --card-inner: #10111a;
+            --line: #26283b;
+            --line-focus: #7c4dff;
+            --text: #f0f0f8;
+            --dim: #8e90a6;
+            --dim-bright: #b8b9cf;
+            --accent: #7c4dff;
+            --accent-hi: #9266ff;
+            --accent-glow: rgba(124, 77, 255, 0.22);
+            --ok: #3fb950;
+            --ok-bg: rgba(63, 185, 80, 0.12);
+            --ok-border: rgba(63, 185, 80, 0.35);
         }
+
         * { box-sizing: border-box; }
+
         body {
-            margin: 0; padding: 40px 20px; min-height: 100vh;
-            background: radial-gradient(1200px 400px at 50% -80px, #201f33 0%, var(--bg) 60%);
-            color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            background-image: radial-gradient(1400px 600px at 50% -100px, rgba(124, 77, 255, 0.12) 0%, transparent 75%);
+            color: var(--text);
+            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 13.5px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
-        .wrap { max-width: 460px; margin: 0 auto; }
-        header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
-        header img {
-            width: 56px; height: 56px; border-radius: 12px;
-            background: transparent; padding: 0; filter: drop-shadow(0 4px 12px rgba(0,0,0,.4));
-        }
-        header h1 { font-size: 20px; margin: 0; font-weight: 700; }
-        header p { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
 
+        /* 16:9 Landscape Optimized App Container */
+        .app-viewport {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px 32px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Top Navigation Header */
+        header.top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(21, 23, 34, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 16px 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            position: sticky;
+            top: 16px;
+            z-index: 100;
+        }
+
+        .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand-group img {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            filter: drop-shadow(0 4px 12px rgba(124, 77, 255, 0.3));
+        }
+
+        .brand-info h1 {
+            font-size: 19px;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            color: #fff;
+        }
+
+        .brand-info p {
+            margin: 2px 0 0;
+            color: var(--dim);
+            font-size: 12.5px;
+        }
+
+        .header-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: rgba(124, 77, 255, 0.1);
+            border: 1px solid rgba(124, 77, 255, 0.25);
+            border-radius: 20px;
+            color: #bfa5ff;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* 3-Column Landscape Dashboard Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 360px 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* Dashboard Cards */
         .card {
-            background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-            padding: 20px; margin-bottom: 16px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 20px 22px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        .card h2 {
-            font-size: 12px; text-transform: uppercase; letter-spacing: .6px;
-            color: var(--dim); margin: 0 0 14px; font-weight: 600;
-        }
-        label { display: block; font-weight: 600; margin-bottom: 6px; }
-        input[type=number] {
-            width: 130px; padding: 9px 12px; font-size: 14px; color: var(--text);
-            background: #14141d; border: 1px solid var(--line); border-radius: 9px; outline: none;
-        }
-        input[type=number]:focus { border-color: var(--accent); }
-        .hint { color: var(--dim); font-size: 12.5px; margin-top: 7px; line-height: 1.5; }
-        .hint b { color: #c8c8d8; }
-        .field + .field { margin-top: 18px; }
 
-        /* toggle */
-        .toggle-row { display: flex; align-items: flex-start; gap: 12px; }
-        .toggle-row .txt { flex: 1; }
-        .switch { position: relative; width: 42px; height: 24px; flex: none; margin-top: 2px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
+        .card:hover {
+            border-color: rgba(124, 77, 255, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .card-header h2 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--accent);
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .card-desc {
+            color: var(--dim);
+            font-size: 12px;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+
+        /* Forms & Fields */
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field + .field {
+            margin-top: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--dim-bright);
+        }
+
+        input[type=number], input[type=text], select {
+            width: 100%;
+            padding: 9px 12px;
+            font-size: 13.5px;
+            color: var(--text);
+            background: var(--card-inner);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            outline: none;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+
+        input[type=number]:focus, input[type=text]:focus, select:focus {
+            border-color: var(--line-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            background: #131422;
+        }
+
+        select option {
+            background: #161724;
+            color: var(--text);
+        }
+
+        .hint {
+            color: var(--dim);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .hint b {
+            color: var(--text);
+        }
+
+        /* Toggle Switches */
+        .toggle-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .toggle-row .txt {
+            flex: 1;
+        }
+
+        .switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex: none;
+            margin-top: 2px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
         .slider {
-            position: absolute; inset: 0; cursor: pointer; border-radius: 24px;
-            background: #3a3a4a; transition: .2s;
+            position: absolute;
+            inset: 0;
+            cursor: pointer;
+            border-radius: 24px;
+            background: #2a2c3f;
+            transition: 0.2s ease;
+            border: 1px solid var(--line);
         }
+
         .slider::before {
-            content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
-            background: #fff; border-radius: 50%; transition: .2s;
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
         }
-        .switch input:checked + .slider { background: var(--accent); }
-        .switch input:checked + .slider::before { transform: translateX(18px); }
 
-        select, input[type=text] {
-            width: 100%; padding: 9px 12px; font-size: 14px; color: var(--text);
-            background: #14141d; border: 1px solid var(--line); border-radius: 9px; outline: none;
+        .switch input:checked + .slider {
+            background: var(--accent);
+            border-color: var(--accent-hi);
         }
-        select:focus, input[type=text]:focus { border-color: var(--accent); }
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
-        .mini label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
-        .mini input[type=number] { width: 100%; }
 
-        .actions { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+        .switch input:checked + .slider::before {
+            transform: translateX(20px);
+        }
+
+        /* Mini Field Grids */
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 16px;
+        }
+
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px 16px;
+        }
+
+        .mini label {
+            font-weight: 600;
+            font-size: 12.5px;
+            margin-bottom: 5px;
+        }
+
+        /* Action Buttons & Toast */
         button {
-            padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
-            color: #fff; background: var(--accent); border: none; border-radius: 10px; transition: .15s;
+            padding: 9px 20px;
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+            box-shadow: 0 4px 14px var(--accent-glow);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
-        button:hover { background: var(--accent-hi); }
-        button.ghost { background: transparent; border: 1px solid var(--line); color: var(--dim); }
-        button.ghost:hover { border-color: var(--accent); color: var(--text); background: rgba(124, 77, 255, .08); }
+
+        button:hover {
+            background: var(--accent-hi);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(124, 77, 255, 0.35);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.ghost {
+            background: transparent;
+            border: 1px solid var(--line);
+            color: var(--dim-bright);
+            box-shadow: none;
+        }
+
+        button.ghost:hover {
+            border-color: var(--accent);
+            color: #fff;
+            background: rgba(124, 77, 255, 0.08);
+        }
+
         .toast-banner {
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
-            background: rgba(63, 185, 80, 0.15); border: 1px solid rgba(63, 185, 80, 0.4);
-            color: var(--ok); opacity: 0; transform: translateY(6px); transition: all .25s ease-out;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 12.5px;
+            font-weight: 600;
+            background: var(--ok-bg);
+            border: 1px solid var(--ok-border);
+            color: var(--ok);
+            opacity: 0;
+            transform: translateY(6px);
+            transition: all 0.25s ease-out;
             pointer-events: none;
         }
-        .toast-banner.show { opacity: 1; transform: translateY(0); }
-        footer { text-align: center; color: var(--dim); font-size: 12px; margin-top: 20px; }
-        footer a { color: #9a86ff; text-decoration: none; }
+
+        .toast-banner.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        footer {
+            text-align: center;
+            color: var(--dim);
+            font-size: 12px;
+            padding-top: 10px;
+        }
+
+        footer a {
+            color: #a48eff;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 1280px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 820px) {
+            .app-viewport {
+                padding: 16px;
+            }
+
+            header.top-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+                position: relative;
+                top: 0;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-2col, .grid-3col {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="wrap">
-        <header>
-            <img src="icons/icon128.png" alt="Marksmith">
-            <div>
-                <h1>Marksmith Connector</h1>
-                <p>Send AI chats to Marksmith &middot; export polished PDFs</p>
+    <div class="app-viewport">
+        <!-- Top Navigation Header -->
+        <header class="top-bar">
+            <div class="brand-group">
+                <img src="icons/icon128.png" alt="Marksmith">
+                <div class="brand-info">
+                    <h1>Marksmith Connector Options</h1>
+                    <p>Send AI chats to Marksmith &middot; export polished PDFs, DOCX &amp; presentations</p>
+                    <span id="overrideCount" class="header-status-pill">Everything tracks the app's settings.</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="resetOutput" class="ghost">Reset to app defaults</button>
+                <button id="save">Save changes</button>
+                <div id="toast" class="toast-banner">✓ Options saved successfully</div>
             </div>
         </header>
 
-        <div class="card">
-            <h2>Connection</h2>
-            <div class="field">
-                <label for="port">API port</label>
-                <input type="number" id="port" min="1024" max="65535">
-                <div class="hint">Must match <b>Automation &rarr; Local REST API &rarr; Port</b> in the
-                    Marksmith app (default 47821).</div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>Automation</h2>
-            <div class="field toggle-row">
-                <div class="txt">
-                    <label for="autoSendIdle">Auto-send the conversation when I stop interacting</label>
-                    <div class="hint">Sends the whole conversation to Marksmith after the assistant finishes
-                        and you've been idle. Turn on <b>Auto-generate PDF from AI-chat ingests</b> in the app
-                        to get a finished PDF each time. Never sends mid-reply.</div>
+        <!-- 3-Column 16:9 Landscape Dashboard Grid -->
+        <main class="dashboard-grid">
+            
+            <!-- Column 1: Connection & Capture Automation -->
+            <div class="column" style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Connection</h2>
+                    </div>
+                    <div class="field">
+                        <label for="port">API port</label>
+                        <input type="number" id="port" min="1024" max="65535" placeholder="47821">
+                        <div class="hint">Must match <b>Automation &rarr; Local REST API &rarr; Port</b> in Marksmith (default 47821).</div>
+                    </div>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="autoSendIdle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="field">
-                <label for="idleSeconds">Idle seconds before sending</label>
-                <input type="number" id="idleSeconds" min="5" max="300">
-            </div>
-            <div class="field">
-                <label for="imgEmbedPref">Images in a selection</label>
-                <select id="imgEmbedPref">
-                    <option value="ask">Ask me every time</option>
-                    <option value="url">Always link (URL) &mdash; small &amp; fast</option>
-                    <option value="base64">Always embed (base64) &mdash; permanent, larger</option>
-                </select>
-                <div class="hint">When a selection you send contains images, whether to send a <b>link</b> or
-                    embed the <b>pixels</b>. <b>Ask me every time</b> pops a chooser on the page (link is the
-                    default). Embedding asks for one-time access to fetch images (so it can bypass site
-                    restrictions); anything it can't fetch falls back to a link.</div>
-            </div>
-        </div>
 
-        <div class="card">
-            <h2>Output profile</h2>
-            <div class="hint" style="margin:-4px 0 16px">Every field starts on <b>App default</b> —
-                the setting you've saved in the Marksmith app itself, followed <b>live</b>. Set a
-                field only if you want extension captures to <b>override</b> your in-app choice.
-                <span id="overrideCount" style="display:block;margin-top:6px;color:#c8c8d8"></span></div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Automation &amp; Capture</h2>
+                    </div>
+                    <div class="field toggle-row">
+                        <div class="txt">
+                            <label for="autoSendIdle">Auto-send conversation when idle</label>
+                            <div class="hint">Sends conversation to Marksmith when the assistant finishes and you've been idle.</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="autoSendIdle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
 
-            <div class="grid2">
-                <div class="mini"><label for="o_theme">Theme</label><select id="o_theme"></select></div>
-                <div class="mini"><label for="o_contentWidth">Page width (px)</label>
-                    <input type="number" id="o_contentWidth" min="400" max="2400" placeholder="App default"></div>
-                <div class="mini"><label for="o_dashMode">Em dashes</label>
-                    <select id="o_dashMode">
-                        <option value="">App default</option>
-                        <option value="0">Keep</option><option value="1">Hyphen (-)</option>
-                        <option value="2">Spaced ( - )</option><option value="3">Custom…</option>
-                    </select></div>
-                <div class="mini"><label for="o_dashCustom">Custom dash</label>
-                    <input type="text" id="o_dashCustom" placeholder="used when Custom"></div>
-                <div class="mini"><label for="o_headingShift">Heading shift</label>
-                    <input type="number" id="o_headingShift" min="-5" max="5" placeholder="App default"></div>
-                <div class="mini"><label for="o_format">Output format</label>
-                    <select id="o_format">
-                        <option value="">App default</option>
-                        <option value="pdf">PDF</option>
-                        <option value="docx">DOCX</option>
-                        <option value="both">PDF + DOCX</option>
-                        <option value="pptx">PowerPoint (PPTX)</option>
-                        <option value="epub">EPUB</option>
-                    </select></div>
-                <div class="mini"><label for="o_mermaidDocxMode">Diagrams in Word</label>
-                    <select id="o_mermaidDocxMode">
-                        <option value="">App default</option>
-                        <option value="1">ShapeForge&trade; (editable shapes)</option>
-                        <option value="0">Snapshot (picture)</option>
-                    </select></div>
-                <div class="mini"><label for="o_oversizedDiagramMode">Oversized Diagrams</label>
-                    <select id="o_oversizedDiagramMode">
-                        <option value="">App default</option>
-                        <option value="1">Keep Original Size (Web Layout)</option>
-                        <option value="2">Gentle Shrink (Max 75%)</option>
-                        <option value="3">Slice Vertically (Multiple pages)</option>
-                        <option value="4">Enlarge Page Size (2x2 Poster)</option>
-                        <option value="5">Aggressive Shrink (Force to 1 page)</option>
-                        <option value="6">Compress Gaps (ShapeForge)</option>
-                        <option value="7">Compress Nodes (ShapeForge)</option>
-                        <option value="8">Compress Both (ShapeForge)</option>
-                    </select></div>
-                <div class="mini"><label for="o_diagramGridSize">Poster Grid Size</label>
-                    <input type="number" id="o_diagramGridSize" min="2" max="3" placeholder="App default"></div>
-                <div class="mini"><label for="o_connectorRouting">Line Routing</label>
-                    <select id="o_connectorRouting">
-                        <option value="">App default</option>
-                        <option value="default">Default</option>
-                        <option value="straight">Straight</option>
-                        <option value="elbow">Elbow</option>
-                        <option value="curved">Curved</option>
-                    </select></div>
-                <div class="mini"><label for="o_connectorArrowhead">Line Arrowheads</label>
-                    <select id="o_connectorArrowhead">
-                        <option value="">App default</option>
-                        <option value="default">Default</option>
-                        <option value="triangle">Triangle</option>
-                        <option value="open">Open</option>
-                        <option value="diamond">Diamond</option>
-                        <option value="oval">Oval</option>
-                        <option value="stealth">Stealth</option>
-                        <option value="none">None</option>
-                    </select></div>
-                <div class="mini"><label for="o_fontPreset">Font Preset</label>
-                    <select id="o_fontPreset">
-                        <option value="">App default</option>
-                        <option value="System">System</option>
-                        <option value="Serif">Serif</option>
-                        <option value="Sans-Serif">Sans-Serif</option>
-                        <option value="Monospace">Monospace</option>
-                        <option value="Dyslexic-friendly">Dyslexic-friendly</option>
-                    </select></div>
-                <div class="mini"><label for="o_pdfPageNumberPosition">PDF Page Numbers</label>
-                    <select id="o_pdfPageNumberPosition">
-                        <option value="">App default</option>
-                        <option value="None">None</option>
-                        <option value="BottomRight">Bottom Right</option>
-                        <option value="BottomCenter">Bottom Center</option>
-                        <option value="TopRight">Top Right</option>
-                    </select></div>
-                <div class="mini"><label for="o_fileNameTemplate">File Name Template</label>
-                    <input type="text" id="o_fileNameTemplate" placeholder="App default ({title})"></div>
-                <div class="mini"><label for="o_boldMode">Bold</label>
-                    <select id="o_boldMode"><option value="">App default</option><option value="0">Keep</option><option value="1">Remove</option><option value="2">To italic</option></select></div>
-                <div class="mini"><label for="o_italicMode">Italic</label>
-                    <select id="o_italicMode"><option value="">App default</option><option value="0">Keep</option><option value="1">Remove</option></select></div>
+                    <div class="field">
+                        <label for="idleSeconds">Idle seconds before sending</label>
+                        <input type="number" id="idleSeconds" min="5" max="300" placeholder="20">
+                    </div>
+
+                    <div class="field">
+                        <label for="imgEmbedPref">Images in a selection</label>
+                        <select id="imgEmbedPref">
+                            <option value="ask">Ask me every time</option>
+                            <option value="url">Always link (URL) &mdash; small &amp; fast</option>
+                            <option value="base64">Always embed (base64) &mdash; permanent, larger</option>
+                        </select>
+                        <div class="hint">When selection contains images, choose whether to link or embed raw pixels.</div>
+                    </div>
+                </div>
             </div>
 
-            <div class="field" style="margin-top:16px">
-                <label for="o_outputFolder">Output folder</label>
-                <input type="text" id="o_outputFolder" placeholder="App default — the app's own export folder">
+            <!-- Column 2: Document Profile & Formatting -->
+            <div class="column" style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Output Profile &amp; Typography</h2>
+                    </div>
+                    <div class="card-desc">
+                        Set a field to override your Marksmith in-app choices. Fields left on <b>App default</b> follow your live app settings.
+                    </div>
+
+                    <div class="grid-2col">
+                        <div class="mini">
+                            <label for="o_theme">Theme</label>
+                            <select id="o_theme"></select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_fontPreset">Font Preset</label>
+                            <select id="o_fontPreset">
+                                <option value="">App default</option>
+                                <option value="System">System</option>
+                                <option value="Serif">Serif</option>
+                                <option value="Sans-Serif">Sans-Serif</option>
+                                <option value="Monospace">Monospace</option>
+                                <option value="Dyslexic-friendly">Dyslexic-friendly</option>
+                            </select>
+                        </div>
+
+                        <div class="mini">
+                            <label for="o_contentWidth">Page width (px)</label>
+                            <input type="number" id="o_contentWidth" min="400" max="2400" placeholder="App default">
+                        </div>
+                        <div class="mini">
+                            <label for="o_headingShift">Heading shift</label>
+                            <input type="number" id="o_headingShift" min="-5" max="5" placeholder="App default">
+                        </div>
+
+                        <div class="mini">
+                            <label for="o_format">Output format</label>
+                            <select id="o_format">
+                                <option value="">App default</option>
+                                <option value="pdf">PDF</option>
+                                <option value="docx">DOCX</option>
+                                <option value="both">PDF + DOCX</option>
+                                <option value="pptx">PowerPoint (PPTX)</option>
+                                <option value="epub">EPUB</option>
+                            </select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfPageNumberPosition">PDF Page Numbers</label>
+                            <select id="o_pdfPageNumberPosition">
+                                <option value="">App default</option>
+                                <option value="None">None</option>
+                                <option value="BottomRight">Bottom Right</option>
+                                <option value="BottomCenter">Bottom Center</option>
+                                <option value="TopRight">Top Right</option>
+                            </select>
+                        </div>
+
+                        <div class="mini">
+                            <label for="o_dashMode">Em dashes</label>
+                            <select id="o_dashMode">
+                                <option value="">App default</option>
+                                <option value="0">Keep</option>
+                                <option value="1">Hyphen (-)</option>
+                                <option value="2">Spaced ( - )</option>
+                                <option value="3">Custom…</option>
+                            </select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_dashCustom">Custom dash</label>
+                            <input type="text" id="o_dashCustom" placeholder="used when Custom">
+                        </div>
+
+                        <div class="mini">
+                            <label for="o_boldMode">Bold</label>
+                            <select id="o_boldMode">
+                                <option value="">App default</option>
+                                <option value="0">Keep</option>
+                                <option value="1">Remove</option>
+                                <option value="2">To italic</option>
+                            </select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_italicMode">Italic</label>
+                            <select id="o_italicMode">
+                                <option value="">App default</option>
+                                <option value="0">Keep</option>
+                                <option value="1">Remove</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="field" style="margin-top: 14px;">
+                        <label for="o_fileNameTemplate">File Name Template</label>
+                        <input type="text" id="o_fileNameTemplate" placeholder="App default ({title})">
+                    </div>
+
+                    <div class="field" style="margin-top: 14px;">
+                        <label for="o_outputFolder">Output folder</label>
+                        <input type="text" id="o_outputFolder" placeholder="App default — the app's own export folder">
+                    </div>
+                </div>
             </div>
 
-            <h2 style="margin-top:22px">On / Off overrides</h2>
-            <div class="hint" style="margin:-4px 0 14px">Tri-state: <b>App default</b> follows the
-                app's switch, or force <b>On</b> / <b>Off</b> for everything the extension sends.</div>
-            <div class="grid2">
-                <div class="mini"><label for="o_themeLightInfluence">Light influence (Theme)</label>
-                    <select id="o_themeLightInfluence"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_brandCoverPage">Generate Cover Page</label>
-                    <select id="o_brandCoverPage"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_smartConnectors">Smart Connectors</label>
-                    <select id="o_smartConnectors"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_a4FixedWidth">Lock to A4 width</label>
-                    <select id="o_a4FixedWidth"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_unlimitedHeight">Single continuous page</label>
-                    <select id="o_unlimitedHeight"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_includeToc">Table of contents</label>
-                    <select id="o_includeToc"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_showWordCount">Show Word Count</label>
-                    <select id="o_showWordCount"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_showAttribution">Source attribution</label>
-                    <select id="o_showAttribution"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_normalizeLlm">Normalize AI quirks</label>
-                    <select id="o_normalizeLlm"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_noEmoji">No emoji</label>
-                    <select id="o_noEmoji"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_pageBorder">Page Frame / Border</label>
-                    <select id="o_pageBorder"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-                <div class="mini"><label for="o_trackChanges">Track Changes (Word)</label>
-                    <select id="o_trackChanges"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
-            </div>
+            <!-- Column 3: Diagrams & Tri-State Overrides -->
+            <div class="column" style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Diagrams &amp; ShapeForge&trade;</h2>
+                    </div>
+                    <div class="grid-2col">
+                        <div class="mini">
+                            <label for="o_mermaidDocxMode">Diagrams in Word</label>
+                            <select id="o_mermaidDocxMode">
+                                <option value="">App default</option>
+                                <option value="1">ShapeForge&trade; (editable shapes)</option>
+                                <option value="0">Snapshot (picture)</option>
+                            </select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_oversizedDiagramMode">Oversized Diagrams</label>
+                            <select id="o_oversizedDiagramMode">
+                                <option value="">App default</option>
+                                <option value="1">Keep Original Size (Web Layout)</option>
+                                <option value="2">Gentle Shrink (Max 75%)</option>
+                                <option value="3">Slice Vertically (Multiple pages)</option>
+                                <option value="4">Enlarge Page Size (2x2 Poster)</option>
+                                <option value="5">Aggressive Shrink (Force to 1 page)</option>
+                                <option value="6">Compress Gaps (ShapeForge)</option>
+                                <option value="7">Compress Nodes (ShapeForge)</option>
+                                <option value="8">Compress Both (ShapeForge)</option>
+                            </select>
+                        </div>
 
-            <div class="actions" style="margin-top:18px">
-                <button id="resetOutput" class="ghost">Reset to app defaults</button>
-                <div class="hint">Clears every override so the app's settings win across the board.</div>
-            </div>
-        </div>
+                        <div class="mini">
+                            <label for="o_diagramGridSize">Poster Grid Size</label>
+                            <input type="number" id="o_diagramGridSize" min="2" max="3" placeholder="App default">
+                        </div>
+                        <div class="mini">
+                            <label for="o_connectorRouting">Line Routing</label>
+                            <select id="o_connectorRouting">
+                                <option value="">App default</option>
+                                <option value="default">Default</option>
+                                <option value="straight">Straight</option>
+                                <option value="elbow">Elbow</option>
+                                <option value="curved">Curved</option>
+                            </select>
+                        </div>
 
-        <div class="actions">
-            <button id="save">Save changes</button>
-            <div id="toast" class="toast-banner">✓ Options saved successfully</div>
-        </div>
+                        <div class="mini" style="grid-column: span 2;">
+                            <label for="o_connectorArrowhead">Line Arrowheads</label>
+                            <select id="o_connectorArrowhead">
+                                <option value="">App default</option>
+                                <option value="default">Default</option>
+                                <option value="triangle">Triangle</option>
+                                <option value="open">Open</option>
+                                <option value="diamond">Diamond</option>
+                                <option value="oval">Oval</option>
+                                <option value="stealth">Stealth</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>On / Off Overrides</h2>
+                    </div>
+                    <div class="card-desc">
+                        Tri-state: <b>App default</b> follows the app switch, or force <b>On</b> / <b>Off</b> for everything captured.
+                    </div>
+                    <div class="grid-2col">
+                        <div class="mini"><label for="o_themeLightInfluence">Light influence (Theme)</label>
+                            <select id="o_themeLightInfluence"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_brandCoverPage">Generate Cover Page</label>
+                            <select id="o_brandCoverPage"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_smartConnectors">Smart Connectors</label>
+                            <select id="o_smartConnectors"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_a4FixedWidth">Lock to A4 width</label>
+                            <select id="o_a4FixedWidth"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_unlimitedHeight">Single continuous page</label>
+                            <select id="o_unlimitedHeight"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_includeToc">Table of contents</label>
+                            <select id="o_includeToc"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_showWordCount">Show Word Count</label>
+                            <select id="o_showWordCount"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_showAttribution">Source attribution</label>
+                            <select id="o_showAttribution"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_normalizeLlm">Normalize AI quirks</label>
+                            <select id="o_normalizeLlm"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_noEmoji">No emoji</label>
+                            <select id="o_noEmoji"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_pageBorder">Page Frame / Border</label>
+                            <select id="o_pageBorder"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                        <div class="mini"><label for="o_trackChanges">Track Changes (Word)</label>
+                            <select id="o_trackChanges"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select></div>
+                    </div>
+                </div>
+            </div>
+        </main>
 
         <footer>
-            Marksmith &middot; <a href="https://github.com/thebubbsy/marksmith" target="_blank">GitHub</a>
+            Marksmith Connector &middot; <a href="https://github.com/thebubbsy/marksmith" target="_blank">GitHub Repository</a>
         </footer>
     </div>
+
     <script src="options.js"></script>
 </body>
 </html>
