@@ -193,6 +193,112 @@ layout: picturelist
                 throw new Exception($"Mosaic grid node count mismatch: expected 16, got {ast.Root.Children.Count}");
             }
 
+            // Every tile must carry a 6-digit hex fill attribute (real quantization path).
+            foreach (var node in ast.Root.Children)
+            {
+                if (!node.Attributes.TryGetValue("hexColor", out string? hex)
+                    || string.IsNullOrWhiteSpace(hex)
+                    || hex.Length != 6
+                    || !hex.All(c => Uri.IsHexDigit(c)))
+                {
+                    throw new Exception($"Mosaic tile {node.NodeId} has invalid hexColor: '{hex}'");
+                }
+            }
+
+            Console.WriteLine("PASSED!");
+        }
+
+        public void TestMarkdownHeadingNesting()
+        {
+            Console.Write("Testing Markdown heading nesting... ");
+
+            var ast = MarkdownAstParser.Parse("# Root\n## Child A\n### Grandchild\n## Child B\n# Second Root");
+
+            var rootChildren = ast.Root.Children;
+            if (rootChildren.Count != 2)
+            {
+                throw new Exception($"Expected 2 top-level headings, got {rootChildren.Count}");
+            }
+
+            var first = rootChildren[0];
+            if (first.Text != "Root" || first.Children.Count != 2)
+            {
+                throw new Exception($"'Root' should have 2 children, got {first.Children.Count}");
+            }
+
+            var childA = first.Children[0];
+            if (childA.Text != "Child A" || childA.Children.Count != 1)
+            {
+                throw new Exception($"'Child A' should have 1 child, got {childA.Children.Count}");
+            }
+
+            if (childA.Children[0].Text != "Grandchild")
+            {
+                throw new Exception("'Grandchild' should nest under 'Child A'");
+            }
+
+            var childB = first.Children[1];
+            if (childB.Text != "Child B" || childB.Children.Count != 0)
+            {
+                throw new Exception("'Child B' should be a leaf sibling of 'Child A'");
+            }
+
+            if (first.Children.All(n => n.ParentId != first.NodeId))
+            {
+                throw new Exception("Children must reference the parent heading's NodeId");
+            }
+
+            Console.WriteLine("PASSED!");
+        }
+
+        public void TestGloxHeaderUrnExtraction()
+        {
+            Console.Write("Testing native glox header URN extraction... ");
+
+            // Mimics a native Office .glox: uniqueId lives in layoutHeader1.xml, layoutDef has none.
+            using var stream = new MemoryStream();
+            using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, true))
+            {
+                var layout = archive.CreateEntry("diagrams/layout1.xml");
+                using (var w = new StreamWriter(layout.Open()))
+                {
+                    w.Write(@"<dgm:layoutDef xmlns:dgm=""http://schemas.openxmlformats.org/drawingml/2006/diagram"">
+  <dgm:layoutNode name=""diagram""><dgm:alg type=""linear""/><dgm:shape type=""rect""/></dgm:layoutNode>
+  <dgm:choose name=""pick""><dgm:if name=""one""/><dgm:else/></dgm:choose>
+  <dgm:rule type=""primFontSz"" val=""0.5""/>
+</dgm:layoutDef>");
+                }
+                var header = archive.CreateEntry("diagrams/layoutHeader1.xml");
+                using (var w = new StreamWriter(header.Open()))
+                {
+                    w.Write(@"<layoutDefHdr xmlns=""http://schemas.openxmlformats.org/drawingml/2006/diagram"" uniqueId=""urn:microsoft.com/office/officeart/2005/8/layout/architecture""><title val=""Architecture Layout""/></layoutDefHdr>");
+                }
+            }
+
+            stream.Position = 0;
+            var pkg = GloxExtractor.ExtractFromZip(stream);
+
+            if (pkg.UniqueId != "urn:microsoft.com/office/officeart/2005/8/layout/architecture")
+            {
+                throw new Exception($"Header URN not extracted: '{pkg.UniqueId}'");
+            }
+            if (pkg.Title != "Architecture Layout")
+            {
+                throw new Exception($"Header title not extracted: '{pkg.Title}'");
+            }
+            if (pkg.ShapeMappings.GetValueOrDefault("diagram") != "rect")
+            {
+                throw new Exception($"Shape mapping not extracted: {string.Join(",", pkg.ShapeMappings)}");
+            }
+            if (pkg.ChooseBlocks.Count != 1 || pkg.ChooseBlocks[0].Conditions.Count != 2)
+            {
+                throw new Exception($"choose blocks not extracted: {pkg.ChooseBlocks.Count}");
+            }
+            if (pkg.Rules.Count != 1 || pkg.Rules[0].Type != "primFontSz")
+            {
+                throw new Exception($"rules not extracted: {pkg.Rules.Count}");
+            }
+
             Console.WriteLine("PASSED!");
         }
 
