@@ -119,6 +119,42 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void LoadMarkdown(string markdownBlock)
+    {
+        try
+        {
+            var parsed = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(markdownBlock);
+            if (parsed.Count == 0)
+            {
+                StatusMessage = "No shapes found in the markdown (need a :::shapes block).";
+                return;
+            }
+
+            Shapes.Clear();
+            foreach (var s in parsed)
+            {
+                Shapes.Add(new ShapeCanvasItemViewModel
+                {
+                    Prst = s.Prst,
+                    Name = s.Prst,
+                    X = s.X,
+                    Y = s.Y,
+                    Width = s.W,
+                    Height = s.H,
+                    Fill = s.Fill,
+                    Rotation = s.Rot
+                });
+            }
+            SelectedShape = null;
+            StatusMessage = $"Loaded {parsed.Count} shapes from markdown.";
+            CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Load error: {ex.Message}";
+        }
+    }
+
     [RelayCommand]
     public void ExportDocx()
     {

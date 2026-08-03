@@ -200,6 +200,43 @@ namespace MarkSmith.Core.AdvancedFeatures
     }
 
     // ───────────────────────────────────────────────────────────────────
+    // Shapes — validates :::shapes container blocks (MLShape compositions).
+    // ───────────────────────────────────────────────────────────────────
+    public class ShapesDetector : IFeatureDetector
+    {
+        public string FeatureName => "Shapes";
+        public double Threshold => 0.85;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.StartsWith(":::shapes", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var lines = DetectorHelpers.GetInnerLines(rawBlock);
+            int valid = 0;
+            foreach (var line in lines)
+            {
+                var t = line.Trim();
+                if (t.Length == 0 || t.StartsWith("#")) continue;
+                var parts = t.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 6)
+                {
+                    valid++;
+                }
+                else
+                {
+                    errors.Add($"Malformed shape line (need: shape x y w h hex): {t}");
+                }
+            }
+            if (valid == 0) errors.Add("No shape lines found.");
+
+            double conf = errors.Count == 0 ? 0.92 : 0.4;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
     // Kanban — validates :::kanban container blocks.
     // ───────────────────────────────────────────────────────────────────
     public class KanbanDetector : IFeatureDetector

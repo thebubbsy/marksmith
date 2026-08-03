@@ -118,6 +118,7 @@ public sealed partial class MarkdownHtmlService
         }
 
         markdown = NormalizeForRender(markdown, settings);
+        markdown = MarkSmith.Core.Composer.ShapeMarkdownHtml.PreTransform(markdown);
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
