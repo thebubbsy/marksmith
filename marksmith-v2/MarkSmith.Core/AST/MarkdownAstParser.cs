@@ -18,6 +18,10 @@ namespace MarkSmith.Core.AST
             var stack = new Stack<(int indent, AstNode node)>();
             stack.Push((-1, ast.Root));
 
+            // Headings form their own hierarchy, nested by '#' level.
+            var headingStack = new Stack<(int level, AstNode node)>();
+            headingStack.Push((0, ast.Root));
+
             bool inFrontmatter = false;
 
             foreach (var rawLine in lines)
@@ -81,20 +85,29 @@ namespace MarkSmith.Core.AST
                 }
                 else if (line.TrimStart().StartsWith("#"))
                 {
-                    // Heading format
+                    // Heading format — nested by level (## A / ### B => B is a child of A).
                     int level = 0;
                     while (level < line.Length && line[level] == '#') level++;
                     string content = line.Substring(level).Trim();
+                    if (string.IsNullOrWhiteSpace(content)) continue;
+
+                    while (headingStack.Count > 1 && headingStack.Peek().level >= level)
+                    {
+                        headingStack.Pop();
+                    }
+
+                    var parent = headingStack.Peek().node;
 
                     var node = new AstNode
                     {
                         NodeId = $"node_{nodeCounter++}",
                         Depth = level,
-                        ParentId = ast.Root.NodeId,
+                        ParentId = parent.NodeId,
                         Text = content
                     };
 
-                    ast.Root.Children.Add(node);
+                    parent.Children.Add(node);
+                    headingStack.Push((level, node));
                 }
             }
 
