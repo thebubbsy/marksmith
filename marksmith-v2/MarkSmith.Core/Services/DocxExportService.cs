@@ -1250,6 +1250,9 @@ public sealed class DocxExportService
             case "Timeline":
                 RenderNativeSmartArt(node, target, ctx);
                 break;
+            case "Shapes":
+                RenderShapes(node, target, ctx);
+                break;
             case "References":
                 RenderReferences(node, target, ctx);
                 break;
@@ -1621,6 +1624,34 @@ public sealed class DocxExportService
         target.Append(new W.Paragraph(new W.ParagraphProperties(
             new W.SpacingBetweenLines { After = "120" })));
     }
+
+        /// <summary>
+        /// Renders a :::shapes block as ONE native DrawingML shape group (wps:wsp in wpg:wgp) —
+        /// every shape individually editable in Word, exactly like the Mermaid→DrawingML path.
+        /// </summary>
+        private static void RenderShapes(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+        {
+            try
+            {
+                var shapes = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(node.InnerContent);
+                if (shapes.Count == 0) return;
+
+                var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(shapes);
+                string inlineXml = MarkSmith.Core.Composer.ShapeComposerDocxWriter.BuildInlineXml(shapes, w, h);
+
+                var drawing = new W.Drawing { InnerXml = inlineXml };
+                var run = new W.Run();
+                run.Append(drawing);
+                target.Append(new W.Paragraph(run));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Shapes render failed: {ex.Message}");
+                var p = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
+                AddText(p, $"[Shapes render error: {ex.Message}]", new Fmt { Bold = true, Color = "d73a49" });
+                target.Append(p);
+            }
+        }
 
         private static void RenderNativeSmartArt(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
         {

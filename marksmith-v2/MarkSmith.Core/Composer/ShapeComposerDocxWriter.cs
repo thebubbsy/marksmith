@@ -22,34 +22,7 @@ namespace MarkSmith.Core.Composer
         {
             if (File.Exists(outputPath)) File.Delete(outputPath);
 
-            var sb = new StringBuilder();
-            int id = 2;
-            foreach (var s in shapes)
-            {
-                sb.Append(ShapeXml(s, (uint)id++));
-            }
-
-            long cx = (long)(canvasWidthInches * Emu);
-            long cy = (long)(canvasHeightInches * Emu);
-
-            string inline =
-                @"<wp:inline distT=""0"" distB=""0"" distL=""0"" distR=""0"" xmlns:wp=""http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"" xmlns:a=""http://schemas.openxmlformats.org/drawingml/2006/main"" xmlns:wpg=""" + Wpg + @""" xmlns:wps=""" + Wps + @""" xmlns:w=""http://schemas.openxmlformats.org/wordprocessingml/2006/main"">" +
-                $@"<wp:extent cx=""{cx}"" cy=""{cy}""/>" +
-                @"<wp:effectExtent l=""0"" t=""0"" r=""0"" b=""0""/>" +
-                @"<wp:docPr id=""1"" name=""Shape composition"" descr=""Composed from native DrawingML shapes""/>" +
-                @"<wp:cNvGraphicFramePr/>" +
-                @"<a:graphic>" +
-                @"<a:graphicData uri=""http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"">" +
-                @"<wpg:wgp>" +
-                @"<wpg:cNvGrpSpPr/>" +
-                @"<wpg:grpSpPr>" +
-                $@"<a:xfrm><a:off x=""0"" y=""0""/><a:ext cx=""{cx}"" cy=""{cy}""/><a:chOff x=""0"" y=""0""/><a:chExt cx=""{cx}"" cy=""{cy}""/></a:xfrm>" +
-                @"</wpg:grpSpPr>" +
-                sb.ToString() +
-                @"</wpg:wgp>" +
-                @"</a:graphicData>" +
-                @"</a:graphic>" +
-                @"</wp:inline>";
+            string inline = BuildInlineXml(shapes, canvasWidthInches, canvasHeightInches);
 
             string docXml =
                 @"<?xml version=""1.0"" encoding=""utf-8""?>" +
@@ -96,6 +69,43 @@ namespace MarkSmith.Core.Composer
             Write("_rels/.rels", rels);
             Write("word/document.xml", docXml);
             if (hasTheme) Write("word/theme/theme1.xml", themeXml!);
+        }
+
+        /// <summary>
+        /// Builds the wp:inline wps/wpg group XML for a shape composition — reusable by the
+        /// DOCX export path (embedded via W.Drawing.InnerXml) and the standalone writer.
+        /// </summary>
+        public static string BuildInlineXml(List<ComposedShape> shapes,
+            double canvasWidthInches, double canvasHeightInches)
+        {
+            var sb = new StringBuilder();
+            int id = 2;
+            foreach (var s in shapes)
+            {
+                sb.Append(ShapeXml(s, (uint)id++));
+            }
+
+            long cx = (long)(canvasWidthInches * Emu);
+            long cy = (long)(canvasHeightInches * Emu);
+
+            return
+                @"<wp:inline distT=""0"" distB=""0"" distL=""0"" distR=""0"" xmlns:wp=""http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"" xmlns:a=""http://schemas.openxmlformats.org/drawingml/2006/main"" xmlns:wpg=""" + Wpg + @""" xmlns:wps=""" + Wps + @""" xmlns:w=""http://schemas.openxmlformats.org/wordprocessingml/2006/main"">" +
+                $@"<wp:extent cx=""{cx}"" cy=""{cy}""/>" +
+                @"<wp:effectExtent l=""0"" t=""0"" r=""0"" b=""0""/>" +
+                @"<wp:docPr id=""1"" name=""Shape composition"" descr=""Composed from native DrawingML shapes""/>" +
+                @"<wp:cNvGraphicFramePr/>" +
+                @"<a:graphic>" +
+                @"<a:graphicData uri=""http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"">" +
+                @"<wpg:wgp>" +
+                @"<wpg:cNvGrpSpPr/>" +
+                @"<wpg:grpSpPr>" +
+                $@"<a:xfrm><a:off x=""0"" y=""0""/><a:ext cx=""{cx}"" cy=""{cy}""/><a:chOff x=""0"" y=""0""/><a:chExt cx=""{cx}"" cy=""{cy}""/></a:xfrm>" +
+                @"</wpg:grpSpPr>" +
+                sb.ToString() +
+                @"</wpg:wgp>" +
+                @"</a:graphicData>" +
+                @"</a:graphic>" +
+                @"</wp:inline>";
         }
 
         private static string ShapeXml(ComposedShape s, uint id)

@@ -109,6 +109,10 @@
                                 </StackPanel>
                                 <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
                                 <Button Content="Compose onto canvas" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Copy as Markdown" Click="OnCopyMarkdownClick" />
+                                    <Button Content="Load from Markdown" Click="OnLoadMarkdownClick" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -152,6 +156,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Width="{Binding Width}" Height="{Binding Height}"
+                                                  Background="Transparent"
                                                   RenderTransformOrigin="0.5,0.5"
                                                   PointerPressed="OnShapePointerPressed"
                                                   PointerMoved="OnShapePointerMoved"
@@ -160,10 +165,9 @@
                                                     <RotateTransform Angle="{Binding Rotation}" />
                                                 </Grid.RenderTransform>
                                                 <Path Stretch="Fill"
-                                                      Fill="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
-                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}"
                                                       Stroke="#FFFFFF" StrokeThickness="1.5"
-                                                      StrokeDashArray="{Binding IsSelected, Converter={StaticResource DashConverter}}" />
+                                                      StrokeDashArray="{Binding IsSelected, Converter={StaticResource DashConverter}}"
+                                                      Loaded="OnShapeLoaded" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
