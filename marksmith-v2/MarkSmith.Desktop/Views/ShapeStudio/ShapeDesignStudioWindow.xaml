@@ -8,14 +8,13 @@
     mc:Ignorable="d"
     Title="MLShape Design Studio">
 
-    <Window.Resources>
-        <conv:ShapeGeometryConverter x:Key="ShapeGeom" />
-        <conv:FillBrushConverter x:Key="FillBrushConverter" />
-        <conv:DashConverter x:Key="DashConverter" />
-        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
-    </Window.Resources>
-
     <Grid x:Name="RootGrid" Background="#1B1B1F">
+        <Grid.Resources>
+            <conv:ShapeGeometryConverter x:Key="ShapeGeom" />
+            <conv:FillBrushConverter x:Key="FillBrushConverter" />
+            <conv:DashConverter x:Key="DashConverter" />
+            <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -23,7 +22,7 @@
         </Grid.RowDefinitions>
 
         <!-- Command bar -->
-        <Grid Grid.Row="0" Height="52" Padding="16,0" Background="#232329">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="52" Padding="16,0" Background="#232329">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -103,8 +102,10 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Canvas — click to place, drag to move, select then edit" FontWeight="SemiBold" FontSize="12"
                                    Foreground="White" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding ActiveTool, StringFormat='Active: {0}'}" FontSize="12"
-                                   Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="Active:" FontSize="12" Foreground="#888888" />
+                            <TextBlock Text="{Binding ActiveTool}" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        </StackPanel>
                     </Grid>
 
                     <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled">
