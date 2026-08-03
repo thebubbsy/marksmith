@@ -17,6 +17,7 @@ namespace MarkSmith.Core.Solver
         public int PresStyleCnt { get; set; } = 1;
         public string? PresAssocId { get; set; }
         public string? CxnId { get; set; }
+        public Dictionary<string, string> Attributes { get; set; } = new Dictionary<string, string>();
     }
 
     public class DiagramConnectionSlot

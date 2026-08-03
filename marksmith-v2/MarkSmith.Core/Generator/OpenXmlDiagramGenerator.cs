@@ -68,7 +68,16 @@ namespace MarkSmith.Core.Generator
 
                     var spPrElem = new XElement(DgmNs + "spPr");
 
-                    if (!string.IsNullOrWhiteSpace(pt.ImagePath))
+                    // Mosaic tiles carry a quantized hex fill — emit it as a native solid fill.
+                    // When present it takes precedence over image embedding (no full-image
+                    // blipFill per tile).
+                    if (pt.Attributes.TryGetValue("hexColor", out string? hexColor)
+                        && !string.IsNullOrWhiteSpace(hexColor))
+                    {
+                        spPrElem.Add(new XElement(ANs + "solidFill",
+                            new XElement(ANs + "srgbClr", new XAttribute("val", hexColor.Trim()))));
+                    }
+                    else if (!string.IsNullOrWhiteSpace(pt.ImagePath))
                     {
                         string rId = $"rIdImg{imgCounter++}";
                         result.ImageRelMap[pt.ImagePath] = rId;
