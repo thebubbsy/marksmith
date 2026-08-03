@@ -2,11 +2,11 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Threading.Tasks;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // QODER task 7: EPUB3 branding — embedded cover image (BrandCoverPage + BrandLogoPath) and
 // Dublin Core metadata (dc:title / dc:creator / dc:language) driven by front matter or the

@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Data-loss-prevention scanner: flags categories of sensitive data in text destined for an AI
 // chat tool, captures a MASKED, remediation-identifying preview of each match — never the raw

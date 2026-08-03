@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Access-control permissions that can be granted to a password-protected PDF (Task 18). Mirrors the

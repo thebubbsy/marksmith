@@ -1,8 +1,8 @@
 using System;
-using MdToPdf.Core.Services;
+using MarkSmith.Core.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests
+namespace MarkSmith.Core.Tests
 {
     public class ClipboardNormalizerServiceTests
     {

@@ -8,11 +8,11 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // QODER Task 4a: the AllowedExtensionId pinning check in ApiServer.IsAllowedOrigin.
 // When an extension ID is pinned, ONLY that exact extension origin may call the API; when it is

@@ -1,10 +1,10 @@
 using System.Linq;
 using DocumentFormat.OpenXml.Wordprocessing;
-using MdToPdf.Services;
-using MdToPdf.Models;
+using MarkSmith.Services;
+using MarkSmith.Models;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class OpenXmlSyntaxHighlighterTests
 {

@@ -1,8 +1,8 @@
-using MdToPdf.Services;
-using MdToPdf.Models;
+using MarkSmith.Services;
+using MarkSmith.Models;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Edge cases for the normalizer chain and the LLM cleanup — each targets a behavior a naive
 // implementation gets wrong (fence guarding, delimiter conversion, over-eager wrapping).

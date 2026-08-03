@@ -4,7 +4,7 @@ using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace MdToPdf.Views;
+namespace MarkSmith.Views;
 
 // Small parameterized user controls hosted inside the Insert-menu ContentDialogs (the default,
 // ProMode-off experience). Each control only collects values; after the user confirms, the host

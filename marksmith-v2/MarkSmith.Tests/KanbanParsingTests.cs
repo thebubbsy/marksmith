@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Xunit;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Core.Kanban;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Core.Kanban;
+using MarkSmith.Models;
+using MarkSmith.Services;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class KanbanParsingTests
 {

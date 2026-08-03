@@ -1,9 +1,9 @@
 using System;
 using Microsoft.UI.Xaml;
-using MdToPdf.Services;
-using MdToPdf.ViewModels.SmartArt;
+using MarkSmith.Services;
+using MarkSmith.ViewModels.SmartArt;
 
-namespace MdToPdf.Views.SmartArt
+namespace MarkSmith.Views.SmartArt
 {
     public sealed partial class SmartArtDesignerWindow : Window
     {

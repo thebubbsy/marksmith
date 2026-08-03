@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace MdToPdf.Views;
+namespace MarkSmith.Views;
 
 // The first-run guided tour: 7 visibility-switched pages (NOT a FlipView — see the note in the
 // XAML: FlipView inside a detached UserControl fails Application.LoadComponent on WASDK 1.6)

@@ -1,7 +1,7 @@
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 public sealed class HistoryEntry
 {

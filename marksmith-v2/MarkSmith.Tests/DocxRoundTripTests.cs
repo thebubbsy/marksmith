@@ -1,12 +1,12 @@
 using System.IO;
 using System.Text.RegularExpressions;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // The headline guarantee: a canonical Markdown document exported to DOCX and re-imported must come
 // back BYTE-FOR-BYTE identical. This is a REAL reverse converter (ReverseImportService) — no copy of
@@ -79,7 +79,7 @@ public class DocxRoundTripTests
     [Fact]
     public async Task Sample_round_trips_byte_for_byte()
     {
-        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "..", "test_outputs"));
         Directory.CreateDirectory(outDir);
         var docxPath = Path.Combine(outDir, "rt_roundtrip.docx");
 
@@ -115,7 +115,7 @@ public class DocxRoundTripTests
         var canonical = MermaidCodeGenerator.Generate(ast).Replace("\r\n", "\n"); // canonical = LF (importer's form)
         var md = "# Diagram Round Trip\n\n```mermaid\n" + canonical + "\n```\n\nAfter the diagram.\n";
 
-        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "..", "test_outputs"));
         Directory.CreateDirectory(outDir);
         var docxPath = Path.Combine(outDir, "rt_mermaid.docx");
 

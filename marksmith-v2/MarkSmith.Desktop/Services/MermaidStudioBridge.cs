@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Interop bridge for launching Visual Mermaid Studio window/dialog from WebView2 host objects or web messages.

@@ -1,7 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Custom CSS Injection &amp; User Theme Stylesheet Manager (Task 27). Validates, scopes, and injects

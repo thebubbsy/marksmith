@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 // A partial set of output settings the browser extension (or any API caller) can supply so that
 // automated exports use the extension's own profile instead of the app's live UI settings. Every

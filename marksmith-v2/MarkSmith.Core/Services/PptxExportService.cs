@@ -1,11 +1,11 @@
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using A = DocumentFormat.OpenXml.Drawing;
 using P = DocumentFormat.OpenXml.Presentation;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // PPTX export. Splits the Markdown on H1/H2 headings (each becomes a slide), lays the body out as
 // bullet levels, and themes the deck from the selected Marksmith theme. Built with

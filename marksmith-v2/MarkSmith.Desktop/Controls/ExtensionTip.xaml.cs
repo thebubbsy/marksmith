@@ -2,7 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 
-namespace MdToPdf.Controls
+namespace MarkSmith.Controls
 {
     public sealed partial class ExtensionTip : UserControl
     {

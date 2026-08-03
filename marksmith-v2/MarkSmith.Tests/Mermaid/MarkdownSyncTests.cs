@@ -1,7 +1,7 @@
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Sync;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Sync;
 using Xunit;
 
 public class MarkdownSyncTests

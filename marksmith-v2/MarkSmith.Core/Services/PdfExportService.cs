@@ -1,7 +1,7 @@
 using System.Globalization;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Port of generate_pdf_core() from md_to_pdf_tui.py, driving whatever Chromium-based print
 // pipeline the host UI provides via IWebRenderHost (WebView2's PrintToPdfAsync on Windows; an

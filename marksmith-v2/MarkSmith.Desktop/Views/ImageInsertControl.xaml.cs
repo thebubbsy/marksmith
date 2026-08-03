@@ -9,7 +9,7 @@ using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
-namespace MdToPdf.Views;
+namespace MarkSmith.Views;
 
 // Interactive image picker behind Insert ▸ Image: drag & drop a file onto the zone, browse with
 // the native file picker, or paste a web URL. Raises ImagePicked with the chosen source (a local

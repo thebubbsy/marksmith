@@ -1,7 +1,7 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Persistence for user-created themes (the "Create a theme" color-wheel editor in the apps).
 // Stored as plain JSON beside settings.json so they survive updates and can be hand-edited or
@@ -11,7 +11,7 @@ namespace MdToPdf.Services;
 public static class CustomThemeStore
 {
     private static readonly string StorePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "custom-themes.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "custom-themes.json");
 
     private static readonly object Gate = new();
     private static List<ThemeDefinition>? _cache;

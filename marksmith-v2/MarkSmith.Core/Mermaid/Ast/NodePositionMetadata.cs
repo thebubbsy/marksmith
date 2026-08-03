@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Ast;
+namespace MarkSmith.Mermaid.Ast;
 
 using System.Text.Json.Serialization;
 

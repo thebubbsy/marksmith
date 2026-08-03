@@ -1,12 +1,12 @@
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
 using System.Collections.Generic;
 using System.Linq;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
-using MdToPdf.Mermaid.Parser;
-using MdToPdf.Mermaid.Sync;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
+using MarkSmith.Mermaid.Parser;
+using MarkSmith.Mermaid.Sync;
+using MarkSmith.ViewModels.Mermaid;
 using Xunit;
 
 public class MermaidEmpiricalChallengerR1Tests

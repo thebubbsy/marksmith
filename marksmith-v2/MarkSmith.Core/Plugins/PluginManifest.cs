@@ -1,13 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // The declarative "plugin language": everything a diagram plugin is — identity, what fence
 // languages it claims, what it downloads, and how to invoke it — expressed as a plugin.json
 // manifest instead of C#. Built-in plugins (PlantUML) are embedded manifests in
 // BuiltinPlugins.cs; user/community plugins are the same JSON dropped into
-// %LOCALAPPDATA%\MdToPdf\Plugins\<id>\plugin.json. The authoring spec lives in the
+// %LOCALAPPDATA%\MarkSmith\Plugins\<id>\plugin.json. The authoring spec lives in the
 // marksmith-plugins repo (SPEC.md + a JSON schema) — keep it in sync with these models.
 public sealed class PluginManifest
 {

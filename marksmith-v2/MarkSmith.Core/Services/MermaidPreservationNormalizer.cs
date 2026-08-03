@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // ISS-018: non-destructive preservation of the mermaid constructs the bespoke AST cannot
 // represent — `style` / `classDef` / `linkStyle` directives and per-subgraph `direction` —

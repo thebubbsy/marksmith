@@ -4,9 +4,9 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Dispatching;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.ViewModels.Mermaid;
 
-namespace MdToPdf.Views.Mermaid;
+namespace MarkSmith.Views.Mermaid;
 
 /// <summary>
 /// A miniature overview of the whole diagram canvas. It renders every node as a small block and

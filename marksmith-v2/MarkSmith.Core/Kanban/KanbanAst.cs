@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MdToPdf.Core.Kanban;
+namespace MarkSmith.Core.Kanban;
 
 /// <summary>
 /// Represents a Kanban Card (Level 2 Node) positioned beneath a Kanban Column header.

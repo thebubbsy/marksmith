@@ -11,9 +11,9 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
-using MdToPdf.Mermaid.Sync;
+using MarkSmith.Mermaid.Sync;
 
-namespace MdToPdf;
+namespace MarkSmith;
 
 public sealed partial class MainWindow : Window, Services.IWebRenderHost, Services.IUiPrompts
 {
@@ -104,7 +104,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Auto-recovery: the paste buffer is debounced-written to a recovery file so an unexpected exit
     // (crash, power loss, forced close) never loses an unsaved document; it's offered back on launch.
     private static readonly string RecoveryDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
     private static readonly string RecoveryPath = Path.Combine(RecoveryDir, "autosave_recovery.md");
     private DispatcherQueueTimer? _autosaveTimer;
 
@@ -1294,7 +1294,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var items = await e.DataView.GetStorageItemsAsync();
         // Importer plugins (e.g. Pandoc) widen what "a droppable document" means — see
-        // MdToPdf.Core/Plugins/PluginFileReader for where the conversion happens on read.
+        // MarkSmith.Core/Plugins/PluginFileReader for where the conversion happens on read.
         var importerExts = App.Plugins.AllImporterExtensions;
         var docs = items.OfType<StorageFile>()
             .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
@@ -1888,8 +1888,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // ---- IWebRenderHost / IUiPrompts: the portable seam MainViewModel and MermaidHarvestService
-    // (both in MdToPdf.Core) drive PDF export and mermaid harvesting through, instead of reaching
-    // into a WebView2 control directly. See MdToPdf.Core/Rendering/IWebRenderHost.cs.
+    // (both in MarkSmith.Core) drive PDF export and mermaid harvesting through, instead of reaching
+    // into a WebView2 control directly. See MarkSmith.Core/Rendering/IWebRenderHost.cs.
 
     public Task<bool> EnsureReadyAsync() => EnsurePreviewWebViewAsync();
 
@@ -1964,7 +1964,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // The mermaid render page must not be clobbered by the live preview's debounced auto-refresh
     // while a harvest is in flight; restore the live preview once the harvest ends. Exactly the
     // wrapper the three harvest methods used to inline before their bodies moved to
-    // MdToPdf.Core/Services/MermaidHarvestService.cs.
+    // MarkSmith.Core/Services/MermaidHarvestService.cs.
     public Task BeginHarvestAsync()
     {
         _mermaidHarvestActive = true;
@@ -4168,9 +4168,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         studioWindow.Activate();
     }
 
-    public Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity)
+    public Task<MarkSmith.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MarkSmith.Models.AmbiguityCase ambiguity)
     {
-        return Task.FromResult<MdToPdf.Models.RenderOption?>(null);
+        return Task.FromResult<MarkSmith.Models.RenderOption?>(null);
     }
 }
 

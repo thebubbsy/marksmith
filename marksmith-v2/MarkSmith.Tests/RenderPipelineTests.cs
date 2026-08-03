@@ -1,8 +1,8 @@
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // End-to-end render behavior through MarkdownHtmlService — deterministic cases that don't depend on
 // any installed plugin. Complements HtmlRenderTests with security-integration and robustness cases.

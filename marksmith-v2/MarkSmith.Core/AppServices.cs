@@ -1,8 +1,8 @@
-namespace MdToPdf;
+namespace MarkSmith;
 
 // Portable composition root (moved out of the WinUI App.xaml.cs so Core has no dependency on any
 // UI framework). Each UI project's own Application-equivalent class calls AppServices.License.Load()
-// once at startup and otherwise just forwards to these singletons — see MdToPdf/App.xaml.cs for the
+// once at startup and otherwise just forwards to these singletons — see MarkSmith/App.xaml.cs for the
 // WinUI side. A DI container (Microsoft.Extensions.DependencyInjection) is the natural next step
 // once the app grows past a couple of UI shells; this hand-rolled version is what let the WinUI ->
 // Avalonia port happen without restructuring every service constructor.

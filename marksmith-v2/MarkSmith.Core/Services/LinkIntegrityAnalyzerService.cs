@@ -6,7 +6,7 @@ using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public enum LinkIssueType
     {

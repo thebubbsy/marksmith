@@ -3,7 +3,7 @@ using System.Linq;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
-namespace MdToPdf.Views.SmartArt;
+namespace MarkSmith.Views.SmartArt;
 
 public sealed partial class SmartArtPaletteControl : UserControl
 {

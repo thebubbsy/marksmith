@@ -1,7 +1,7 @@
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class AtomicFileTests
 {
@@ -78,7 +78,7 @@ public class ApiServerBoundsTests
 public class LlmNormalizeTests
 {
     private static readonly LlmSourceService Svc = new();
-    private static string Repair(string md) { var (r, _) = Svc.RepairArtifacts(md, new MdToPdf.Models.LlmClassification()); return r; }
+    private static string Repair(string md) { var (r, _) = Svc.RepairArtifacts(md, new MarkSmith.Models.LlmClassification()); return r; }
 
     // The "Copy" over-match fix: a lone "Copy" in prose survives; a "Copy" button above a fence and
     // "Copy code" are still removed.

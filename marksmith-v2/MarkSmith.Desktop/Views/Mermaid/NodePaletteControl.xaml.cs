@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
-namespace MdToPdf.Views.Mermaid;
+namespace MarkSmith.Views.Mermaid;
 
 public sealed partial class NodePaletteControl : UserControl
 {

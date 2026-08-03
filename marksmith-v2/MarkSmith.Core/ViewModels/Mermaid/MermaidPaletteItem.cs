@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 public partial class MermaidPaletteItem : ObservableObject
 {

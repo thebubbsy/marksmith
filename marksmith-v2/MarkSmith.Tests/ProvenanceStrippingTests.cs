@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Verifies provenance stripping: Creator field and footer brand stamp behave correctly

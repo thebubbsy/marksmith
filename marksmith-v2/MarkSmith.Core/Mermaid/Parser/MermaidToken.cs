@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Parser;
+namespace MarkSmith.Mermaid.Parser;
 
 public enum MermaidTokenType
 {

@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 // Describes one cloud-storage provider that Marksmith can publish exports to (Task 9). For the
 // folder-sync providers (OneDrive / Google Drive / Dropbox / Box / iCloud) the "upload" is a plain

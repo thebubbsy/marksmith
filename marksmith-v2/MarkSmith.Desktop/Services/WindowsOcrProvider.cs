@@ -6,9 +6,9 @@ using SkiaSharp;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage.Streams;
-using MdToPdf.Services;
+using MarkSmith.Services;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Windows 10+ OCR provider using the built-in Windows.Media.Ocr engine.

@@ -4,7 +4,7 @@ using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 using SkiaSharp;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Compression result with before/after size metrics.

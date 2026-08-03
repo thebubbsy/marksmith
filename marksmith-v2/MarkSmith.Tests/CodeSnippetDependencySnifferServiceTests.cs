@@ -1,8 +1,8 @@
 using System.Linq;
-using MdToPdf.Core.Services;
+using MarkSmith.Core.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests
+namespace MarkSmith.Core.Tests
 {
     public class CodeSnippetDependencySnifferServiceTests
     {

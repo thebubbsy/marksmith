@@ -1,11 +1,11 @@
 <Window
-    x:Class="MdToPdf.Views.SmartArt.SmartArtDesignerWindow"
+    x:Class="MarkSmith.Views.SmartArt.SmartArtDesignerWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
-    xmlns:smartart="using:MdToPdf.Views.SmartArt"
+    xmlns:smartart="using:MarkSmith.Views.SmartArt"
     mc:Ignorable="d"
     Title="MarkSmith SmartArt Designer Studio">
 

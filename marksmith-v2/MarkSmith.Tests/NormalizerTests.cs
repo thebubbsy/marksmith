@@ -1,7 +1,7 @@
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Unit-level accuracy for the text normalizers: LLM cleanup, bare-math recovery, dialect rewrites,
 // diagram-fence sniffing. These run on raw strings so a failure pinpoints the transform itself.

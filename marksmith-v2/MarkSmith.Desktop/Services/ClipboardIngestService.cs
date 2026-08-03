@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Windows.ApplicationModel.DataTransfer;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Watches the clipboard for Markdown-looking text (copied out of ChatGPT / Gemini / Claude web
 // UIs) and hands it to the app. Polls Win32's clipboard sequence number instead of subscribing

@@ -5,9 +5,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
-using MdToPdf.Plugins;
+using MarkSmith.Plugins;
 
-namespace MdToPdf.Views;
+namespace MarkSmith.Views;
 
 public sealed partial class SettingsView : UserControl
 {
@@ -82,7 +82,7 @@ public sealed partial class SettingsView : UserControl
 
     // ---- Plugins tab ----
     // One card per registered plugin (built-ins + any plugin.json dropped into
-    // %LOCALAPPDATA%\MdToPdf\Plugins\<id>\), generated in code rather than a DataTemplate so this
+    // %LOCALAPPDATA%\MarkSmith\Plugins\<id>\), generated in code rather than a DataTemplate so this
     // and the Avalonia SettingsView share one obvious pattern for the install/remove/progress wiring.
 
     private void BuildPluginCards()

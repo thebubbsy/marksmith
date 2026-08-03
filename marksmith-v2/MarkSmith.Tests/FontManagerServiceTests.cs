@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 using System.Linq;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>Unit tests for the Task 16 typography preset + custom-font embedding engine.</summary>
 public sealed class FontManagerServiceTests : IDisposable

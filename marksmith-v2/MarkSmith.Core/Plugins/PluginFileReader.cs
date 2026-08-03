@@ -1,4 +1,4 @@
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // The single entry point both shells use to turn an input file into Markdown text. Markdown/text
 // files read straight through; anything an installed importer plugin claims (e.g. .rst/.org/.docx

@@ -1,10 +1,10 @@
 using System.IO;
 using System.IO.Compression;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Throwaway recon: export the built-in sample document to DOCX and dump the raw OOXML parts
 // (document.xml + styles.xml + numbering.xml) so we can learn the EXACT structure the forward
@@ -77,7 +77,7 @@ public class DocxRoundTripRecon
     [Fact]
     public async Task Dump_sample_docx_ooxml()
     {
-        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var outDir = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "..", "test_outputs"));
         Directory.CreateDirectory(outDir);
         var docxPath = Path.Combine(outDir, "rt_recon.docx");
 

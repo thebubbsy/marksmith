@@ -1,11 +1,11 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Resolves and persists the app's licensing state. Resolution order: a valid signed Pro key wins;
 // otherwise a time-limited Pro trial (first N days); otherwise Free. State lives in
-// %LOCALAPPDATA%\MdToPdf\license.json.
+// %LOCALAPPDATA%\MarkSmith\license.json.
 public sealed class LicenseService
 {
     public const int TrialDays = 14;
@@ -31,7 +31,7 @@ public sealed class LicenseService
     public LicenseService()
     {
         var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf");
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "license.json");
     }

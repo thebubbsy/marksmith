@@ -5,11 +5,11 @@ using System.Linq;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Models;
+using MarkSmith.Services.Mermaid;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Core.Kanban;
+namespace MarkSmith.Core.Kanban;
 
 /// <summary>
 /// Handles OpenXML SmartArt diagram part generation and shape emitter fallback for Kanban boards.

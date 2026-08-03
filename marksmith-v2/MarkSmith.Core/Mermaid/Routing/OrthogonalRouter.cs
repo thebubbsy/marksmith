@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MdToPdf.Core.Mermaid.Routing;
+namespace MarkSmith.Core.Mermaid.Routing;
 
 public record struct Point(double X, double Y);
 

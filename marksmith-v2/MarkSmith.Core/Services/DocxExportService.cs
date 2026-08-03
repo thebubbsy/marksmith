@@ -11,8 +11,8 @@ using Markdig.Extensions.TaskLists;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Models;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W14 = DocumentFormat.OpenXml.Office2010.Word;
 using W15 = DocumentFormat.OpenXml.Office2013.Word;
@@ -27,7 +27,7 @@ using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using S = DocumentFormat.OpenXml.Spreadsheet;
 using Wps = DocumentFormat.OpenXml.Office2010.Word.DrawingShape;
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Native DOCX export via DocumentFormat.OpenXml (option 2 of the design decision that used to live
 // here): the Python app shells out to pandoc (generate_docx_core in md_to_pdf_tui.py), which this
@@ -1455,7 +1455,7 @@ public sealed class DocxExportService
 
     private static void RenderKanban(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
-        var kanban = MdToPdf.Core.Kanban.KanbanParser.Parse(node.Block.RawText, node.InnerContent, node.Attributes);
+        var kanban = MarkSmith.Core.Kanban.KanbanParser.Parse(node.Block.RawText, node.InnerContent, node.Attributes);
         if (kanban.Columns.Count == 0) return;
 
         if (!string.IsNullOrWhiteSpace(kanban.Title))
@@ -1466,7 +1466,7 @@ public sealed class DocxExportService
             target.Append(titlePara);
         }
 
-        MdToPdf.Core.Kanban.SmartArtKanbanBuilder.BuildKanban(kanban, ctx.MainPart, target, ctx.Theme, ref ctx.NextDrawingId, forceFallback: true);
+        MarkSmith.Core.Kanban.SmartArtKanbanBuilder.BuildKanban(kanban, ctx.MainPart, target, ctx.Theme, ref ctx.NextDrawingId, forceFallback: true);
     }
 
     private static List<(string Title, string Content)> ParseTabsFromContent(string innerContent)

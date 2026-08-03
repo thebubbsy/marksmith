@@ -1,9 +1,9 @@
 using System.Linq;
 using Markdig;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>Unit tests for the Task 17 document-outline extractor.</summary>
 public sealed class TocExtractorServiceTests

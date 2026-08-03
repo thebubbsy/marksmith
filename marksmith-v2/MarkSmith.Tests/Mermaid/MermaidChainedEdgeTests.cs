@@ -1,8 +1,8 @@
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Parser;
-using MdToPdf.Mermaid.Sync;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Parser;
+using MarkSmith.Mermaid.Sync;
 using Xunit;
 
 // QODER task 2 (Issue #7 / ISS-020): chained arrow lines must yield one edge per operator,

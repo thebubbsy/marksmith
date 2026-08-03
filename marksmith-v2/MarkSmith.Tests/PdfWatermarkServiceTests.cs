@@ -1,10 +1,10 @@
 using System.IO;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class PdfWatermarkServiceTests
 {

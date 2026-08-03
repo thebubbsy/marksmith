@@ -1,6 +1,6 @@
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Markdown (.md) export — the natural counterpart to the DOCX -> MD reverse pipeline
 // (ReverseImportService). Import a Word file, let Marksmith clean it up, then save the recovered

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // The generic engine that turns a PluginManifest into a working IDiagramPlugin: installs the
 // declared runtime + artifacts into the plugin's private folder, and renders diagrams by running

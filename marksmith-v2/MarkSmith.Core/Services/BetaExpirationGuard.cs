@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // ISS-009: hard stop for the 30-day public beta. The pure date logic lives here (no UI — Core has
 // no WinUI) so it is testable and reusable; the WinUI prompt + Environment.Exit enforcement lives

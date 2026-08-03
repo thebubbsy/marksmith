@@ -4,7 +4,7 @@ using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace MdToPdf.Views;
+namespace MarkSmith.Views;
 
 public sealed partial class SmartArtInsertControl : UserControl
 {

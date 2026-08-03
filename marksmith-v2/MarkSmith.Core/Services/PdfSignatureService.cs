@@ -8,7 +8,7 @@ using System.Text;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// PDF digital signature and DRM enforcement service (D3). Provides:

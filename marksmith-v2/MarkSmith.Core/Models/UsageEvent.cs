@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 // One masked, remediation-identifying DLP finding attached to a UsageEvent. `Masked` is NEVER the
 // raw matched value — see DlpScanService for the masking rules per category. Storing this (instead

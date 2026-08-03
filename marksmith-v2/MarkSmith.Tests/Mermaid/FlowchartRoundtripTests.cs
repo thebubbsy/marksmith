@@ -1,8 +1,8 @@
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
-using MdToPdf.Mermaid.Parser;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
+using MarkSmith.Mermaid.Parser;
 using Xunit;
 
 public class FlowchartRoundtripTests

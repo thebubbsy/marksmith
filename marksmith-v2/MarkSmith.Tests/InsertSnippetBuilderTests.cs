@@ -1,7 +1,7 @@
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Unit coverage for InsertSnippetBuilder — the Markdown generation behind the Insert-menu

@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     /// <summary>
     /// Converts straight quotes, apostrophes, dashes, and ellipses into typographically correct smart punctuation outside code and math blocks.

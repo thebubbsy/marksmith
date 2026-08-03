@@ -1,12 +1,12 @@
-using MdToPdf.Services;
-using MdToPdf.ViewModels;
+using MarkSmith.Services;
+using MarkSmith.ViewModels;
 using Microsoft.UI.Xaml;
 
-namespace MdToPdf;
+namespace MarkSmith;
 
 public partial class App : Application
 {
-    // Thin forwarders to the portable composition root in MdToPdf.Core — kept here (rather than
+    // Thin forwarders to the portable composition root in MarkSmith.Core — kept here (rather than
     // switching every WinUI call site to `AppServices.X`) so this refactor didn't have to touch
     // every page in one pass. MainAppWindow is the one genuinely WinUI-only piece.
     public static SettingsService Settings => AppServices.Settings;
@@ -18,7 +18,7 @@ public partial class App : Application
     public static GovernanceService Governance => AppServices.Governance;
     public static UpdateService Updates => AppServices.Updates;
     public static LicenseService License => AppServices.License;
-    public static MdToPdf.Plugins.PluginManager Plugins => AppServices.Plugins;
+    public static MarkSmith.Plugins.PluginManager Plugins => AppServices.Plugins;
     public static ExportCoordinator ExportCoordinator => AppServices.ExportCoordinator;
     public static MainViewModel ViewModel => AppServices.ViewModel;
 

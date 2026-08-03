@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Data;
 using System;
 
-namespace MdToPdf.Converters
+namespace MarkSmith.Converters
 {
     public sealed class BoolToInverseConverter : IValueConverter
     {

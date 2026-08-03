@@ -1,7 +1,7 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Stores AI-usage governance events reported by managed browser extensions and produces the
 // aggregates the admin dashboard shows. Local JSON store for the single-machine MVP; in a real
@@ -11,7 +11,7 @@ public sealed class GovernanceService
     private const int MaxEvents = 5000;
 
     private static readonly string StorePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "governance.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "governance.json");
 
     private readonly object _lock = new();
     private readonly List<UsageEvent> _events;
