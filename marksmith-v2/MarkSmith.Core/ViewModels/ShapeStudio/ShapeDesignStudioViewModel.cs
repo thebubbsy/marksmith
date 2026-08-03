@@ -154,11 +154,15 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         }
     }
 
-    public void ComposeImage(string imagePath, int grid)
+    public void ComposeImage(string imagePath, int grid, IReadOnlyList<string> shapes)
     {
         try
         {
-            var composed = ImageShapeComposer.Compose(imagePath, new ShapeComposerOptions { Grid = grid });
+            var composed = ImageShapeComposer.Compose(imagePath, new ShapeComposerOptions
+            {
+                Grid = grid,
+                Shapes = shapes.Any() ? shapes.ToList() : new List<string> { "ellipse" }
+            });
             foreach (var s in composed)
             {
                 Shapes.Add(new ShapeCanvasItemViewModel
