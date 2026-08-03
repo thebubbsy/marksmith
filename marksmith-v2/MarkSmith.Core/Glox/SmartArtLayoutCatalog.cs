@@ -43,7 +43,8 @@ namespace MarkSmith.Core.Glox
         {
             var asm = typeof(GloxExtractor).Assembly;
             var resourceNames = asm.GetManifestResourceNames()
-                .Where(n => n.EndsWith(".glox", StringComparison.OrdinalIgnoreCase))
+                .Where(n => n.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                            && n.Contains("EmbeddedGlox.", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
 
             foreach (var name in resourceNames)
@@ -53,7 +54,12 @@ namespace MarkSmith.Core.Glox
 
                 try
                 {
-                    var pkg = GloxExtractor.ExtractFromZip(stream);
+                    using var reader = new System.IO.StreamReader(stream);
+                    string layoutXml = reader.ReadToEnd();
+                    // The .xml files are the readable, schema-valid layout definitions
+                    // (the single source of truth). Parse them directly.
+                    var pkg = GloxExtractor.ExtractFromXmlString(layoutXml);
+                    pkg.LayoutXml = layoutXml;
                     if (string.IsNullOrWhiteSpace(pkg.UniqueId)) continue;
                     if (!string.IsNullOrWhiteSpace(pkg.Title)) _byUrn[pkg.Title] = pkg;
                     _byUrn[pkg.UniqueId] = pkg;
