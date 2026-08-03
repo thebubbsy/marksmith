@@ -2,6 +2,7 @@ using System;
 using Microsoft.UI.Xaml;
 using MarkSmith.Services;
 using MarkSmith.ViewModels.SmartArt;
+using MarkSmith.Core.Composer;
 
 namespace MarkSmith.Views.SmartArt
 {
@@ -139,6 +140,85 @@ namespace MarkSmith.Views.SmartArt
         private void OnCompileGloxClick(object sender, RoutedEventArgs e)
         {
             ViewModel.ExportGloxCommand.Execute(null);
+        }
+
+        // ---- Image → Shapes Composer ----
+
+        private string? _composeImagePath;
+
+        private async void OnPickComposeImageClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                picker.FileTypeFilter.Add(".png");
+                picker.FileTypeFilter.Add(".jpg");
+                picker.FileTypeFilter.Add(".jpeg");
+                picker.FileTypeFilter.Add(".bmp");
+                picker.FileTypeFilter.Add(".gif");
+                WinRT.Interop.InitializeWithWindow.Initialize(
+                    picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+                var file = await picker.PickSingleFileAsync();
+                if (file == null) return;
+
+                _composeImagePath = file.Path;
+                ComposeImageLabel.Text = System.IO.Path.GetFileName(file.Path);
+                ViewModel.StatusMessage = $"Composer image: {file.Path}";
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Image pick error: {ex.Message}";
+            }
+        }
+
+        private void OnComposeImageClick(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_composeImagePath))
+            {
+                ViewModel.StatusMessage = "Composer: choose an image first.";
+                return;
+            }
+
+            try
+            {
+                var shapes = new System.Collections.Generic.List<string>();
+                if (ShapeEllipse.IsChecked == true) shapes.Add("ellipse");
+                if (ShapeRoundRect.IsChecked == true) shapes.Add("roundrect");
+                if (ShapeRect.IsChecked == true) shapes.Add("rect");
+                if (ShapeChevron.IsChecked == true) shapes.Add("chevron");
+                if (ShapeDiamond.IsChecked == true) shapes.Add("diamond");
+                if (ShapeHexagon.IsChecked == true) shapes.Add("hexagon");
+                if (ShapeTriangle.IsChecked == true) shapes.Add("triangle");
+                if (ShapeParallelogram.IsChecked == true) shapes.Add("parallelogram");
+                if (shapes.Count == 0) shapes.Add("ellipse");
+
+                var options = new ShapeComposerOptions
+                {
+                    Grid = (int)ComposeDensity.Value,
+                    Shapes = shapes,
+                    Dither = ComposeDither.IsChecked == true
+                };
+
+                var composed = ImageShapeComposer.Compose(_composeImagePath, options);
+
+                double width = ImageShapeComposer.DefaultCanvasWidthInches;
+                double height = width * 0.75; // aspect is recomputed inside Compose; close enough for canvas
+                string svg = ImageShapeComposer.RenderSvg(composed, width, height);
+                ViewModel.PreviewHtml = $"<div class=\"smartart-container\" style=\"width:100%;height:100%;background:#fff;border-radius:8px;overflow:hidden;\">{svg}</div>";
+                RefreshWebView();
+
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string outPath = System.IO.Path.Combine(desktop,
+                    $"Composed_{System.IO.Path.GetFileNameWithoutExtension(_composeImagePath)}_{string.Join("_", shapes)}.docx");
+                ShapeComposerDocxWriter.WriteDocx(outPath, composed, width, height,
+                    MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.ThemeXml);
+
+                ViewModel.StatusMessage = $"✓ Composed {composed.Count} {string.Join("/", shapes)} shapes → {outPath}";
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Compose error: {ex.Message}";
+            }
         }
     }
 }
