@@ -692,7 +692,8 @@ public static class DocxShapeEmitter
 
     // Freeform curved connector: a custGeom path following the harvested points, so a Word edge
     // traces mermaid's exact curve. Emitted as a shape (sp) with no fill and an arrow tail end.
-    private static string CurveXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
+    // Public: the MLShape sketch mode emits curved strokes through this exact path.
+    public static string CurveXml(MConnector c, ThemeDefinition t, uint id, bool smartConnectors)
     {
         var pts = c.Points!;
         double minX = pts.Min(p => p.X), minY = pts.Min(p => p.Y);

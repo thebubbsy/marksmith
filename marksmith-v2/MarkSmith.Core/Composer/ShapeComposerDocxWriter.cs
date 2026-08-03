@@ -112,40 +112,26 @@ namespace MarkSmith.Core.Composer
         {
             long x = (long)(s.X * Emu), y = (long)(s.Y * Emu);
             long w = (long)(s.W * Emu), h = (long)(s.H * Emu);
-            // Curved sketch strokes: custGeom open polyline, fill="none", drawn with a thick
-            // line — the exact pattern DocxShapeEmitter.CurveXml uses (Word-proven).
+            // Curved sketch strokes: emitted EXACTLY like the engine's old curve tracer
+            // (DocxShapeEmitter.CurveXml — the v1.2 "exact-layout edges trace mermaid's real
+            // curves" mechanism): an MConnector with harvested points, custGeom fill="none"
+            // polyline + noFill + thick ln. This is the Word-proven path.
             if (s.PathPoints is { Count: >= 2 })
             {
-                long cx = (long)(s.W * Emu);
-                long cy = (long)(s.H * Emu);
-                long offX = (long)(s.X * Emu);
-                long offY = (long)(s.Y * Emu);
-
-                var path = new StringBuilder();
-                path.Append("<a:moveTo><a:pt x=\"")
-                    .Append((long)(s.PathPoints[0].X / 100.0 * cx)).Append("\" y=\"")
-                    .Append((long)(s.PathPoints[0].Y / 100.0 * cy)).Append("\"/></a:moveTo>");
-                for (int pi = 1; pi < s.PathPoints.Count; pi++)
+                var conn = new MarkSmith.Services.Mermaid.MConnector
                 {
-                    path.Append("<a:lnTo><a:pt x=\"")
-                        .Append((long)(s.PathPoints[pi].X / 100.0 * cx)).Append("\" y=\"")
-                        .Append((long)(s.PathPoints[pi].Y / 100.0 * cy)).Append("\"/></a:lnTo>");
-                }
-
-                long lw = (long)Math.Round(s.StrokeWidthPt * 12700.0);
-
-                return
-                    @"<wps:wsp>" +
-                    $@"<wps:cNvPr id=""{id}"" name=""sketch stroke {id}""/>" +
-                    @"<wps:cNvSpPr/>" +
-                    @"<wps:spPr>" +
-                    $@"<a:xfrm rot=""{s.Rot}""><a:off x=""{offX}"" y=""{offY}""/><a:ext cx=""{cx}"" cy=""{cy}""/></a:xfrm>" +
-                    $@"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=""0"" t=""0"" r=""{cx}"" b=""{cy}""/><a:pathLst><a:path w=""{cx}"" h=""{cy}"" fill=""none"">{path}</a:path></a:pathLst></a:custGeom>" +
-                    @"<a:noFill/>" +
-                    $@"<a:ln w=""{lw}""><a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill></a:ln>" +
-                    @"</wps:spPr>" +
-                    @"<wps:bodyPr/>" +
-                    @"</wps:wsp>";
+                    Stroke = "#" + s.Fill,
+                    StrokeWidth = s.StrokeWidthPt,
+                    StartHead = MarkSmith.Services.Mermaid.ArrowHead.None,
+                    EndHead = MarkSmith.Services.Mermaid.ArrowHead.None,
+                    Points = s.PathPoints
+                        .Select(p => ((s.X + p.X / 100.0 * s.W) * 72.0, (s.Y + p.Y / 100.0 * s.H) * 72.0))
+                        .ToList()
+                };
+                return MarkSmith.Services.Mermaid.DocxShapeEmitter.CurveXml(
+                    conn, new MarkSmith.Models.ThemeDefinition(
+                        "Sketch", "#FFFFFF", "#111111", "#111111", "#F5F5F5", "#DDDDDD",
+                        "#0078D4", "#005A9E", "#E0E0E0"), id, smartConnectors: false);
             }
 
             string prst = s.Prst switch
