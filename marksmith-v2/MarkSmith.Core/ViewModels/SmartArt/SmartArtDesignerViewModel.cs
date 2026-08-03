@@ -51,6 +51,12 @@ public partial class SmartArtDesignerViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<SmartArtCanvasNodeViewModel> _canvasNodes = new();
 
+    [ObservableProperty]
+    private ObservableCollection<SmartArtCanvasNodeViewModel> _childCanvasNodes = new();
+
+    [ObservableProperty]
+    private ObservableCollection<ConnectorLineViewModel> _connectors = new();
+
     private readonly List<GloxLayoutItem> _allLayouts = new();
 
     public event EventHandler? PreviewHtmlChanged;
@@ -86,9 +92,37 @@ public partial class SmartArtDesignerViewModel : ObservableObject
         {
             MarkdownText = generatedMd;
         }
-        else
+
+        RebuildCanvasGeometry();
+    }
+
+    /// <summary>Recomputes child positions + connector lines after any canvas change.</summary>
+    public void RebuildCanvasGeometry()
+    {
+        ChildCanvasNodes.Clear();
+        Connectors.Clear();
+
+        foreach (var parent in CanvasNodes)
         {
-            UpdatePreviewHtml();
+            int n = parent.Children.Count;
+            double startX = parent.X + parent.Width / 2 - ((n - 1) * 150.0) / 2;
+            for (int j = 0; j < n; j++)
+            {
+                var child = parent.Children[j];
+                child.X = startX + j * 150;
+                child.Y = parent.Y + parent.Height + 70;
+                child.Width = 120;
+                child.Height = 50;
+                ChildCanvasNodes.Add(child);
+                Connectors.Add(new ConnectorLineViewModel
+                {
+                    X1 = parent.X + parent.Width / 2,
+                    Y1 = parent.Y + parent.Height,
+                    X2 = child.X + child.Width / 2,
+                    Y2 = child.Y,
+                    Color = parent.Color
+                });
+            }
         }
     }
 
@@ -125,6 +159,8 @@ public partial class SmartArtDesignerViewModel : ObservableObject
             CanvasNodes.Add(canvasNode);
             i++;
         }
+
+        RebuildCanvasGeometry();
     }
 
     public void UpdatePreviewHtml()
@@ -137,7 +173,7 @@ public partial class SmartArtDesignerViewModel : ObservableObject
 
             if (IsWordFidelityMode)
             {
-                PreviewHtml = WordFidelityPreviewEngine.RenderWordFidelitySnapshot(ast, alias, title);
+                PreviewHtml = RenderWordFidelitySnapshot(ast, alias, title);
             }
             else
             {
@@ -178,23 +214,98 @@ public partial class SmartArtDesignerViewModel : ObservableObject
         PaletteItems.Add(new SmartArtPaletteItem { DisplayName = "Mosaic Grid Node", ShapeType = "mosaic", Category = "Special", DefaultText = "Mosaic Cell", Color = "#008272", Tooltip = "Raster mosaic element" });
     }
 
-    private void LoadLayouts()
+    /// <summary>
+    /// Word fidelity: actually compiles the diagram through the real embedded glox catalog
+    /// into a native-SmartArt DOCX, then reports where it was written so the user can open
+    /// it in Word. This is the honest fidelity path (Word itself is the only exact renderer).
+    /// </summary>
+    private string RenderWordFidelitySnapshot(CanonicalAst ast, string alias, string title)
+    {
+        try
+        {
+            var pkg = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(alias)
+                      ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve("default")
+                      ?? throw new InvalidOperationException("No SmartArt layout resolved.");
+
+            var solved = new MarkSmith.Core.Solver.ConstraintSolver().Solve(ast, pkg);
+            var genRes = new OpenXmlDiagramGenerator().Generate(solved, pkg);
+
+            string outPath = Path.Combine(Path.GetTempPath(),
+                $"MarkSmith_fidelity_{alias}_{DateTime.Now:HHmmss}.docx");
+            DocxPackageWriter.WriteDocx(outPath, genRes);
+
+            StatusMessage = $"✓ Word-fidelity DOCX generated with native SmartArt ({pkg.UniqueId}) → {outPath}";
+
+            return $@"<div class=""word-fidelity-container"" style=""width: 100%; max-width: 800px; height: 500px; background: #1a2733; border: 1px solid #2d4a63; border-radius: 8px; position: relative; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; box-sizing: border-box; padding: 24px; color: #e8f1f8;"">
+  <div style=""font-size: 15px; font-weight: bold; margin-bottom: 12px;"">✓ Word-Fidelity Snapshot Generated</div>
+  <div style=""font-size: 13px; opacity: 0.85; margin-bottom: 8px;"">Layout: {WebUtility.HtmlEncode(title)} ({alias}) — native OOXML diagram, schema-valid.</div>
+  <div style=""font-size: 13px; opacity: 0.85; margin-bottom: 8px;"">Embedded layout URN: <code style=""background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;"">{WebUtility.HtmlEncode(pkg.UniqueId)}</code></div>
+  <div style=""font-size: 13px; opacity: 0.85; margin-bottom: 16px;"">DOCX written to:<br/><code style=""background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; word-break: break-all;"">{WebUtility.HtmlEncode(outPath)}</code></div>
+  <div style=""font-size: 12px; opacity: 0.7;"">Open the file in Microsoft Word to preview the exact final rendering — Word is the only 100% accurate renderer.</div>
+</div>";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Word-fidelity error: {ex.Message}";
+            return $"<div style='color:#ef4444;background:#2b1420;padding:16px;border-radius:6px;font-family:monospace;'>Word-fidelity error: {WebUtility.HtmlEncode(ex.Message)}</div>";
+        }
+    }
+
+    public void LoadLayouts()
     {
         _allLayouts.Clear();
-        _allLayouts.Add(new GloxLayoutItem { Name = "Hierarchy Layout", Alias = "hierarchy", Category = "Hierarchy" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Horizontal Org Chart", Alias = "orgchart", Category = "Hierarchy" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Basic Process", Alias = "process", Category = "Process" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Step Process", Alias = "step_process", Category = "Process" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Basic Cycle", Alias = "cycle", Category = "Cycle" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Multidirectional Cycle", Alias = "multi_cycle", Category = "Cycle" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Basic Matrix", Alias = "matrix", Category = "Matrix" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Grid Matrix", Alias = "grid_matrix", Category = "Matrix" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Basic Pyramid", Alias = "pyramid", Category = "Pyramid" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Basic Venn", Alias = "venn", Category = "Venn" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Linear Process Target", Alias = "target", Category = "Process" });
-        _allLayouts.Add(new GloxLayoutItem { Name = "Picture Accent List", Alias = "picturelist", Category = "Picture List" });
+
+        var catalog = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Prefer the friendly aliases so the gallery matches the resolver vocabulary.
+        string[] aliases = { "hierarchy", "orgchart", "process", "cycle", "matrix",
+                             "pyramid", "venn", "picturelist", "relationship", "list" };
+        foreach (var alias in aliases)
+        {
+            var pkg = catalog.TryResolve(alias);
+            if (pkg == null || !seen.Add(pkg.UniqueId)) continue;
+            _allLayouts.Add(new GloxLayoutItem
+            {
+                Name = string.IsNullOrWhiteSpace(pkg.Title) ? TailOf(pkg.UniqueId) : pkg.Title,
+                Alias = alias,
+                Category = GuessCategory(alias, pkg)
+            });
+        }
+
+        // Anything else registered in the catalog (imported .glox files, extra layouts).
+        foreach (var pkg in catalog.All)
+        {
+            if (!seen.Add(pkg.UniqueId)) continue;
+            _allLayouts.Add(new GloxLayoutItem
+            {
+                Name = string.IsNullOrWhiteSpace(pkg.Title) ? TailOf(pkg.UniqueId) : pkg.Title,
+                Alias = TailOf(pkg.UniqueId),
+                Category = GuessCategory(pkg.UniqueId, pkg)
+            });
+        }
 
         FilterLayouts();
+    }
+
+    private static string TailOf(string urn)
+    {
+        int idx = urn.LastIndexOf('/');
+        return idx >= 0 ? urn[(idx + 1)..] : urn;
+    }
+
+    private static string GuessCategory(string hint, GloxPackage pkg)
+    {
+        string combined = $"{hint} {pkg.Category} {pkg.UniqueId}".ToLowerInvariant();
+        if (combined.Contains("hier") || combined.Contains("org")) return "Hierarchy";
+        if (combined.Contains("process") || combined.Contains("workflow")) return "Process";
+        if (combined.Contains("cycle")) return "Cycle";
+        if (combined.Contains("matrix") || combined.Contains("grid")) return "Matrix";
+        if (combined.Contains("pyramid")) return "Pyramid";
+        if (combined.Contains("venn")) return "Venn";
+        if (combined.Contains("picture")) return "Picture List";
+        if (combined.Contains("relationship")) return "Relationship";
+        return "List";
     }
 
     private void FilterLayouts()
@@ -293,4 +404,23 @@ public partial class SmartArtDesignerViewModel : ObservableObject
     {
         IsWordFidelityMode = !IsWordFidelityMode;
     }
+}
+
+/// <summary>A parent→child connector line drawn on the canvas.</summary>
+public partial class ConnectorLineViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private double _x1;
+
+    [ObservableProperty]
+    private double _y1;
+
+    [ObservableProperty]
+    private double _x2;
+
+    [ObservableProperty]
+    private double _y2;
+
+    [ObservableProperty]
+    private string _color = "#0078d4";
 }

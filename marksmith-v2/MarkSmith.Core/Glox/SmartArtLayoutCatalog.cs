@@ -162,6 +162,20 @@ namespace MarkSmith.Core.Glox
                 ?? throw new UrnResolutionException(
                     $"Failed to resolve SmartArt layout for '{input}'. Zero-fallback guarantee strictly enforced.");
         }
+
+        /// <summary>
+        /// Registers a package imported at runtime (e.g. user-imported .glox) so the
+        /// designer gallery, DOCX export, and resolver pick it up immediately.
+        /// </summary>
+        public void RegisterPackage(GloxPackage pkg, string? alias = null)
+        {
+            if (pkg == null || string.IsNullOrWhiteSpace(pkg.UniqueId)) return;
+
+            if (!_all.Contains(pkg)) _all.Add(pkg);
+            _byUrn[pkg.UniqueId] = pkg;
+            if (!string.IsNullOrWhiteSpace(pkg.Title)) _byUrn[pkg.Title] = pkg;
+            if (!string.IsNullOrWhiteSpace(alias)) _byAlias[alias] = pkg;
+        }
     }
 
     /// <summary>Seam so consumers can depend on "any layout source" without binding to the static catalog.</summary>
