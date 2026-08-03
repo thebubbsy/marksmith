@@ -15,6 +15,19 @@ public class ShapeMarkdownTests
 {
     private static readonly string SampleBlock = ":::shapes\nellipse 1.0 0.5 0.9 0.7 FFD9B3\nheart 2.5 2.0 0.8 0.8 C0392B rot=15\n# comment\n:::\n";
 
+    private static string MakeTestPng(string path, int w = 24, int h = 24)
+    {
+        using var bmp = new SkiaSharp.SKBitmap(w, h);
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+            bmp.SetPixel(x, y, new SkiaSharp.SKColor((byte)(x * 255 / w), (byte)(y * 255 / h), 128));
+        using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+        using var fs = File.Create(path);
+        data.SaveTo(fs);
+        return path;
+    }
+
     [Fact]
     public void Codec_RoundTrips()
     {
@@ -44,6 +57,76 @@ public class ShapeMarkdownTests
         Assert.Contains("<svg", html);
         Assert.Contains("#FFD9B3", html);
         Assert.DoesNotContain(":::shapes", html); // block consumed
+    }
+
+    [Fact]
+    public void Sketch_ProducesCurvedStrokes_AsCustGeomPolylines()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"sketch-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png);
+            var shapes = ImageShapeComposer.ComposeSketch(png, new ShapeComposerOptions { Grid = 40 });
+
+            Assert.NotEmpty(shapes);
+            Assert.All(shapes, s =>
+            {
+                Assert.Equal("sketch", s.Prst);
+                Assert.True(s.PathPoints is { Count: >= 2 });
+                Assert.True(s.StrokeWidthPt > 0);
+                Assert.False(string.IsNullOrWhiteSpace(s.Fill));
+            });
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
+    public void Sketch_RoundTrips_ThroughMarkdown()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"sketch-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png);
+            var shapes = ImageShapeComposer.ComposeSketch(png, new ShapeComposerOptions { Grid = 24 });
+            string block = ShapeMarkdownCodec.Serialize(shapes.Take(5));
+
+            var parsed = ShapeMarkdownCodec.Parse(block);
+            Assert.Equal(5, parsed.Count);
+            Assert.Equal("sketch", parsed[0].Prst);
+            Assert.NotNull(parsed[0].PathPoints);
+            Assert.Equal(shapes[0].PathPoints!.Count, parsed[0].PathPoints!.Count);
+            Assert.Equal(shapes[0].StrokeWidthPt, parsed[0].StrokeWidthPt, 1);
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
+    public void Sketch_Docx_IsSchemaValid_WithCustGeomStrokes()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"sketch-{Guid.NewGuid():N}.png");
+        string docx = Path.Combine(Path.GetTempPath(), $"sketch-{Guid.NewGuid():N}.docx");
+        try
+        {
+            MakeTestPng(png);
+            var shapes = ImageShapeComposer.ComposeSketch(png, new ShapeComposerOptions { Grid = 32 });
+            ShapeComposerDocxWriter.WriteDocx(docx, shapes, 6.0, 6.0, null);
+
+            using var doc = WordprocessingDocument.Open(docx, false);
+            using var r = new StreamReader(doc.MainDocumentPart!.GetStream());
+            string xml = r.ReadToEnd();
+            Assert.Contains("custGeom", xml);
+            Assert.Contains("fill=\"none\"", xml);
+            Assert.Contains("<a:noFill/>", xml);
+            Assert.Contains("<a:lnTo>", xml);
+
+            var validator = new OpenXmlValidator();
+            Assert.Empty(validator.Validate(doc).ToList());
+        }
+        finally
+        {
+            if (File.Exists(png)) File.Delete(png);
+            if (File.Exists(docx)) File.Delete(docx);
+        }
     }
 
     [Fact]

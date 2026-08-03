@@ -108,6 +108,7 @@
                                     <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
                                 </StackPanel>
                                 <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
+                                <CheckBox x:Name="CompSketch" Content="Sketch mode — draw it with curved strokes" Foreground="White" IsChecked="False" />
                                 <Button Content="Compose onto canvas" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="Copy as Markdown" Click="OnCopyMarkdownClick" />

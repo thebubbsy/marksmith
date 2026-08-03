@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MarkSmith.Core.Composer
 {
@@ -29,6 +30,31 @@ namespace MarkSmith.Core.Composer
             {
                 var line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith("#")) continue;
+
+                // Pull the quoted pts="x1,y1;x2,y2;..." token out BEFORE splitting on whitespace.
+                var ptsList = new List<(double X, double Y)>();
+                double sw = 1.5;
+                var ptsMatch = Regex.Match(line, @"pts=""([^""]*)""", RegexOptions.IgnoreCase);
+                if (ptsMatch.Success)
+                {
+                    foreach (var pair in ptsMatch.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var xy = pair.Split(',');
+                        if (xy.Length == 2 &&
+                            double.TryParse(xy[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var px) &&
+                            double.TryParse(xy[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var py))
+                        {
+                            ptsList.Add((px, py));
+                        }
+                    }
+                    line = line.Remove(ptsMatch.Index, ptsMatch.Length);
+                }
+                var swMatch = Regex.Match(line, @"sw=(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+                if (swMatch.Success && double.TryParse(swMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var swParsed))
+                {
+                    sw = swParsed;
+                    line = line.Remove(swMatch.Index, swMatch.Length);
+                }
 
                 var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 6) continue;
@@ -58,7 +84,9 @@ namespace MarkSmith.Core.Composer
                     W = w,
                     H = h,
                     Fill = parts[5].TrimStart('#'),
-                    Rot = rot
+                    Rot = rot,
+                    PathPoints = ptsList.Count >= 2 ? ptsList : null,
+                    StrokeWidthPt = sw
                 });
             }
 
@@ -81,7 +109,16 @@ namespace MarkSmith.Core.Composer
         {
             string line = string.Create(CultureInfo.InvariantCulture,
                 $"{s.Prst,-14} {s.X:F2} {s.Y:F2} {s.W:F2} {s.H:F2} {s.Fill.TrimStart('#')}");
-            return s.Rot != 0 ? line + $" rot={s.Rot}" : line;
+            if (s.Rot != 0) line += $" rot={s.Rot}";
+            if (s.PathPoints is { Count: >= 2 })
+            {
+                line += " pts=\"";
+                line += string.Join(";", s.PathPoints.Select(p =>
+                    p.X.ToString("F1", CultureInfo.InvariantCulture) + "," +
+                    p.Y.ToString("F1", CultureInfo.InvariantCulture)));
+                line += $"\" sw={s.StrokeWidthPt.ToString("F1", CultureInfo.InvariantCulture)}";
+            }
+            return line;
         }
 
         public static (double Width, double Height) CanvasSize(IEnumerable<ComposedShape> shapes)
