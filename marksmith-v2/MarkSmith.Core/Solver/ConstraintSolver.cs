@@ -73,7 +73,8 @@ namespace MarkSmith.Core.Solver
                     AssociatedNodeId = astNode.NodeId,
                     Text = astNode.Text,
                     Description = astNode.Description,
-                    ImagePath = astNode.ImagePath
+                    ImagePath = astNode.ImagePath,
+                    Attributes = new Dictionary<string, string>(astNode.Attributes)
                 };
                 solved.Points.Add(dataPt);
                 astToPointMap[astNode.NodeId] = dataPt;
