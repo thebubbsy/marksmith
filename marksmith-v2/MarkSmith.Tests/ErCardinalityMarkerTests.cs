@@ -1,10 +1,10 @@
 using System.IO.Compression;
-using MdToPdf.Models;
-using MdToPdf.Services;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Models;
+using MarkSmith.Services;
+using MarkSmith.Services.Mermaid;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // erDiagram cardinality must be drawn the way mermaid draws it — as crow's-foot GRAPHICS (bars for
 // "one", a punched-out circle for "zero", a fanned foot for "many") — never as the literal text

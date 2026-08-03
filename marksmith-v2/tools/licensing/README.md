@@ -13,7 +13,7 @@ Marksmith Pro is unlocked by a **license key**. Two mechanisms are supported:
 pwsh tools/licensing/generate-keys.ps1
 ```
 This writes `private-key.pem` (**secret — gitignored, never commit**) and `public-key.pem`. Paste the
-public key into `MdToPdf/Services/LicenseValidator.cs` → `PublicKeyPem`, then rebuild.
+public key into `MarkSmith.Core/Services/LicenseValidator.cs` → `PublicKeyPem`, then rebuild.
 
 ## Issuing a key per sale
 
@@ -31,7 +31,7 @@ Paddle, Gumroad, Stripe) and email the key to the buyer.
 
 ## The paywall
 
-Defined in one place — `MdToPdf/Models/LicenseModels.cs` (`LicenseState`):
+Defined in one place — `MarkSmith.Core/Models/LicenseModels.cs` (`LicenseState`):
 
 | Entitlement | Free | Trial (14 days) | Pro |
 | --- | --- | --- | --- |

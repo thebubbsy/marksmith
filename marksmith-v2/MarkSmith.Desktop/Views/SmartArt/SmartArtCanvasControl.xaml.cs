@@ -4,9 +4,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
-using MdToPdf.ViewModels.SmartArt;
+using MarkSmith.ViewModels.SmartArt;
 
-namespace MdToPdf.Views.SmartArt;
+namespace MarkSmith.Views.SmartArt;
 
 public sealed partial class SmartArtCanvasControl : UserControl
 {

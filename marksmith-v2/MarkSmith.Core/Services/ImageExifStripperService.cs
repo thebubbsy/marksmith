@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using SkiaSharp;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public class ImageExifStripperService
     {

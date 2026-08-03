@@ -5,12 +5,12 @@ using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
 using W = DocumentFormat.OpenXml.Wordprocessing;
-using MdToPdf.Core.Kanban;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Core.Kanban;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class KanbanSmartArtTests
 {

@@ -1,12 +1,12 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
-using MdToPdf.Services;
-using MdToPdf.ViewModels;
+using MarkSmith.Models;
+using MarkSmith.Services;
+using MarkSmith.ViewModels;
 using Xunit;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// End-to-end ViewModel-level coverage of the house-style .dotx theme flow:

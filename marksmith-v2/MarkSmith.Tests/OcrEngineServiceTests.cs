@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using SkiaSharp;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Unit tests for OcrEngineService (D2) — preprocessing pipeline, Markdown formatting,

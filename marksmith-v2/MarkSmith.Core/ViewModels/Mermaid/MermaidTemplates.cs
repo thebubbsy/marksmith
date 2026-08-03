@@ -1,4 +1,4 @@
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 /// <summary>
 /// A starter diagram the user can load in one click from the Studio's template gallery.

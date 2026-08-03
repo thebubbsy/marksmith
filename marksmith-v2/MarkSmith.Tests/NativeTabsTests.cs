@@ -4,14 +4,14 @@ using System.Linq;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W15 = DocumentFormat.OpenXml.Office2013.Word;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class NativeTabsTests
 {

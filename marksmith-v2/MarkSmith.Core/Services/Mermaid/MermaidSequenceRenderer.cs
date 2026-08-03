@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // Renders mermaid `sequenceDiagram` sources into pure geometry per the MermaidModel contract:
 // participant boxes (duplicated at the bottom, like mermaid), dashed lifelines, horizontal

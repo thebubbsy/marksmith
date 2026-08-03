@@ -2,12 +2,12 @@ using System.IO;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Tests for the Smart Dual-Mode DOCX engine (ReverseImportService):
 //   Tier 1 — a Marksmith-made .docx carries its source and reopens byte-for-byte (with staleness).

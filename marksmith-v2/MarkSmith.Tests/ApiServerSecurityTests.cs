@@ -4,11 +4,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.Http;
 using System.Threading.Tasks;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class ApiServerSecurityTests
 {

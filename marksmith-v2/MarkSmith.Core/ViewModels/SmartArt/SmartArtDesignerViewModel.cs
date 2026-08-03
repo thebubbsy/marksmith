@@ -14,7 +14,7 @@ using MarkSmith.Core.Glox.Builder;
 using MarkSmith.Core.Glox.Packager;
 using MarkSmith.Core.Preview;
 
-namespace MdToPdf.ViewModels.SmartArt;
+namespace MarkSmith.ViewModels.SmartArt;
 
 public partial class SmartArtDesignerViewModel : ObservableObject
 {

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
-using MdToPdf.Core.Kanban;
+using MarkSmith.Core.Kanban;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Normalizes :::kanban fenced container blocks into HTML structure for live preview rendering.

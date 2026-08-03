@@ -1,12 +1,12 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Models;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Models;
+using MarkSmith.Services.Mermaid;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Renders Mermaid FLOWCHARTS as native, editable Word shapes — real boxes, diamonds and arrows built
 // from Word's own drawing machinery (a WordprocessingGroup of wps shapes), not an embedded picture.

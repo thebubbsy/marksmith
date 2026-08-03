@@ -335,7 +335,7 @@
     // Writes plain Markdown as text/plain (unchanged behavior for every paste target), plus a
     // text/html alternative carrying the source metadata in a leading HTML comment
     // (<!--marksmith-meta:{json}-->) that only Marksmith looks for — see
-    // MdToPdf.Services.ClipboardSourceMeta. Falls back to a plain-text-only copy if the rich write
+    // MarkSmith.Core.Services.ClipboardSourceMeta. Falls back to a plain-text-only copy if the rich write
     // isn't available or is rejected, so "Copy as Markdown" never breaks over this.
     async function copyWithMeta(md, meta) {
         const hasMeta = meta && Object.values(meta).some((v) => v);

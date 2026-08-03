@@ -1,11 +1,11 @@
 using System;
 using System.IO;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public sealed record PdfWatermarkOptions
 {

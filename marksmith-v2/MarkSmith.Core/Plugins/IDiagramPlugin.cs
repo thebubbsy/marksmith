@@ -1,4 +1,4 @@
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // The document theme's colors, as seen by diagram plugins. A subset of ThemeDefinition on
 // purpose: manifests reference these via {themeBackground}/{themeText}/{themeLine}/{themeAccent}

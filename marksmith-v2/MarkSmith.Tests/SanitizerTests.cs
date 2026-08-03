@@ -1,8 +1,8 @@
-using MdToPdf.Plugins;
-using MdToPdf.Services;
+using MarkSmith.Plugins;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // XSS / active-content stripping. HtmlSanitizer guards pasted HTML in the preview; SvgSanitizer
 // guards plugin-produced SVG (which is injected raw, post-HtmlSanitizer). Several of these encode

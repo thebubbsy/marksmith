@@ -1,13 +1,13 @@
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 using System;
 using System.IO;
 using System.Linq;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
-using MdToPdf.Mermaid.Parser;
-using MdToPdf.Mermaid.Sync;
-using MdToPdf.Services;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
+using MarkSmith.Mermaid.Parser;
+using MarkSmith.Mermaid.Sync;
+using MarkSmith.Services;
 using Xunit;
 using Xunit.Abstractions;
 

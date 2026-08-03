@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public class RecoverySnapshot
     {

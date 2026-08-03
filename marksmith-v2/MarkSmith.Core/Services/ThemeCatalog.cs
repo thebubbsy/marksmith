@@ -1,6 +1,6 @@
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // 1:1 port of the THEMES dict in md_to_pdf_tui.py — same hex values, same 10 themes — plus any
 // user-created themes from the in-app theme editor. Customs are read live from CustomThemeStore on

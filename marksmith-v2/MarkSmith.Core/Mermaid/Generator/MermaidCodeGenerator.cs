@@ -1,7 +1,7 @@
-namespace MdToPdf.Mermaid.Generator;
+namespace MarkSmith.Mermaid.Generator;
 
 using System.Text;
-using MdToPdf.Mermaid.Ast;
+using MarkSmith.Mermaid.Ast;
 
 public static class MermaidCodeGenerator
 {

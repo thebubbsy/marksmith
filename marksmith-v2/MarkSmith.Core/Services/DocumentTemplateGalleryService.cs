@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public class TemplatePreset
     {

@@ -1,15 +1,15 @@
 using System.Collections.Concurrent;
 
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // Registry of optional plugins: built-in manifests (BuiltinPlugins.cs) plus user/community
-// plugins discovered from %LOCALAPPDATA%\MdToPdf\Plugins\<id>\plugin.json — drop a manifest
+// plugins discovered from %LOCALAPPDATA%\MarkSmith\Plugins\<id>\plugin.json — drop a manifest
 // folder there and it appears in Settings -> Plugins on next launch. Authoring spec + examples:
 // the marksmith-plugins repo.
 public sealed class PluginManager
 {
     public static string PluginsBaseDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "Plugins");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
 
     public static string PluginsRoot(string pluginId) => Path.Combine(PluginsBaseDir, pluginId);
 

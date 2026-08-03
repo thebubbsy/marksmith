@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using MdToPdf.Core.AdvancedFeatures;
+using MarkSmith.Core.AdvancedFeatures;
 
-namespace MdToPdf.Core.Kanban;
+namespace MarkSmith.Core.Kanban;
 
 /// <summary>
 /// Parser for :::kanban Markdown container blocks into Kanban AST data structures.

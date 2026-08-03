@@ -1,9 +1,9 @@
 using System.IO;
 using System.Linq;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Unit coverage for SpreadsheetService (D4) — CSV parsing, XLSX read/write round-trip,

@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 /// <summary>
 /// Returns <see cref="Visibility.Visible"/> when the bound string value matches (case-insensitively)

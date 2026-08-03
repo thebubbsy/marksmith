@@ -1,11 +1,11 @@
 using System;
 using System.IO;
 using System.Linq;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using PdfSharp.Pdf;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Unit tests for PdfSignatureService (D3) — certificate generation, document hashing,

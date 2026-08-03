@@ -2,7 +2,7 @@ using System.Text;
 using DocumentFormat.OpenXml;
 using M = DocumentFormat.OpenXml.Math;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // The inverse of LatexToOmml: turns Office MathML (OMML) back into LaTeX source so a DOCX exported
 // by Marksmith can be imported back to Markdown with its equations intact. LatexToOmml is lossy in

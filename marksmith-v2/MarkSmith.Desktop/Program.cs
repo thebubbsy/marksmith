@@ -3,7 +3,7 @@ using System.IO;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
-namespace MdToPdf;
+namespace MarkSmith;
 
 // Custom entry point (replaces the SDK-generated one — see DisableXamlGeneratedMain in the
 // .csproj) so that any exception during startup — including ones from WinRT activation that

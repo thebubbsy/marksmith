@@ -11,7 +11,7 @@ using Markdig.Extensions.TaskLists;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using W14 = DocumentFormat.OpenXml.Office2010.Word;
 using W15 = DocumentFormat.OpenXml.Office2013.Word;
@@ -19,7 +19,7 @@ using MdTable = Markdig.Extensions.Tables.Table;
 using MdTableRow = Markdig.Extensions.Tables.TableRow;
 using MdTableCell = Markdig.Extensions.Tables.TableCell;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Native DOCX export via DocumentFormat.OpenXml (option 2 of the design decision that used to live
 // here): the Python app shells out to pandoc (generate_docx_core in md_to_pdf_tui.py), which this

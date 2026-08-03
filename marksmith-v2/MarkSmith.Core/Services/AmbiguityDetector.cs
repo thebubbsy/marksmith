@@ -1,11 +1,11 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
 public static class AmbiguityDetector
 {

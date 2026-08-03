@@ -5,7 +5,7 @@ using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>A single node in a document outline: a heading's level, visible text, and anchor id.</summary>
 /// <param name="Level">Heading level, 1 (H1) through 6 (H6).</param>

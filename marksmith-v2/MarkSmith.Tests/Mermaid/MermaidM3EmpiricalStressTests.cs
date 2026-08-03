@@ -1,9 +1,9 @@
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using MdToPdf.Mermaid.Sync;
+using MarkSmith.Mermaid.Sync;
 using Xunit;
 
 public class MermaidM3EmpiricalStressTests

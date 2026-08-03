@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 /// <summary>
 /// Metadata fields and cover image configuration for EPUB3 exports (Task 20).

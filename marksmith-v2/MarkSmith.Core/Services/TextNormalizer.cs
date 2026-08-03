@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // WinUI TextBoxes deliver pasted/edited text with bare-CR line endings (a documented XAML quirk);
 // clipboard and file sources vary between LF and CRLF. Everything downstream (Markdig, the mermaid

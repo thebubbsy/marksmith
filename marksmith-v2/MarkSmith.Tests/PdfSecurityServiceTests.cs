@@ -1,12 +1,12 @@
 using System;
 using System.IO;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>Unit tests for the Task 18 PDF password protection + access-control engine.</summary>
 public sealed class PdfSecurityServiceTests

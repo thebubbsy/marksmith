@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 public enum ConnectorRoutingMode
 {
@@ -105,17 +105,17 @@ public partial class DiagramConnectorViewModel : ObservableObject
             default:
                 if (sourceNodeBounds.HasValue && targetNodeBounds.HasValue)
                 {
-                    var srcR = (MdToPdf.Core.Mermaid.Routing.Rect)sourceNodeBounds.Value;
-                    var tgtR = (MdToPdf.Core.Mermaid.Routing.Rect)targetNodeBounds.Value;
-                    var obsR = obstacleNodeBounds?.Select(r => (MdToPdf.Core.Mermaid.Routing.Rect)r) ?? Array.Empty<MdToPdf.Core.Mermaid.Routing.Rect>();
-                    var srcP = new MdToPdf.Core.Mermaid.Routing.Point(SourceX, SourceY);
-                    var tgtP = new MdToPdf.Core.Mermaid.Routing.Point(TargetX, TargetY);
+                    var srcR = (MarkSmith.Core.Mermaid.Routing.Rect)sourceNodeBounds.Value;
+                    var tgtR = (MarkSmith.Core.Mermaid.Routing.Rect)targetNodeBounds.Value;
+                    var obsR = obstacleNodeBounds?.Select(r => (MarkSmith.Core.Mermaid.Routing.Rect)r) ?? Array.Empty<MarkSmith.Core.Mermaid.Routing.Rect>();
+                    var srcP = new MarkSmith.Core.Mermaid.Routing.Point(SourceX, SourceY);
+                    var tgtP = new MarkSmith.Core.Mermaid.Routing.Point(TargetX, TargetY);
 
-                    var routePoints = MdToPdf.Core.Mermaid.Routing.OrthogonalRouter.Route(srcR, tgtR, obsR, srcP, tgtP);
+                    var routePoints = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.Route(srcR, tgtR, obsR, srcP, tgtP);
 
                     if (routePoints.Count >= 2)
                     {
-                        PathData = MdToPdf.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(routePoints, 8.0);
+                        PathData = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(routePoints, 8.0);
 
                         int midIndex = routePoints.Count / 2;
                         MidpointX = (routePoints[midIndex - 1].X + routePoints[midIndex].X) / 2;
@@ -131,26 +131,26 @@ public partial class DiagramConnectorViewModel : ObservableObject
                 else if (SourceAnchor is "Left" or "Right" && TargetAnchor is "Left" or "Right")
                 {
                     double midX = (SourceX + TargetX) / 2;
-                    var pts = new List<MdToPdf.Core.Mermaid.Routing.Point>
+                    var pts = new List<MarkSmith.Core.Mermaid.Routing.Point>
                     {
                         new(SourceX, SourceY),
                         new(midX, SourceY),
                         new(midX, TargetY),
                         new(TargetX, TargetY)
                     };
-                    PathData = MdToPdf.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
+                    PathData = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
                 }
                 else
                 {
                     double midY = (SourceY + TargetY) / 2;
-                    var pts = new List<MdToPdf.Core.Mermaid.Routing.Point>
+                    var pts = new List<MarkSmith.Core.Mermaid.Routing.Point>
                     {
                         new(SourceX, SourceY),
                         new(SourceX, midY),
                         new(TargetX, midY),
                         new(TargetX, TargetY)
                     };
-                    PathData = MdToPdf.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
+                    PathData = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
                 }
                 break;
         }

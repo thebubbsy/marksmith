@@ -2,9 +2,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
-// Maps MainViewModel.StatusSeverity (portable enum, defined in MdToPdf.Core) to a themed
+// Maps MainViewModel.StatusSeverity (portable enum, defined in MarkSmith.Core) to a themed
 // foreground brush for the persistent status bar in MainWindow.xaml. Success reads green,
 // warning amber, error red, and plain information stays on the default secondary text color so
 // the bar doesn't shout when nothing noteworthy happened.

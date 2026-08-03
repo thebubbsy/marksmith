@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Ast;
+namespace MarkSmith.Mermaid.Ast;
 
 [Flags]
 public enum GanttTaskStatus

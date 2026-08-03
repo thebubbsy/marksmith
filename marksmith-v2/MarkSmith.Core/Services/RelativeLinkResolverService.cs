@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Resolves relative file links (<c>./doc.md</c>, <c>../img.png</c>) against a document's root

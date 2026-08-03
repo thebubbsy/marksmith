@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Rewrites the 2026-era Markdown dialect extensions — the syntax AI agents and modern tools
 // (Obsidian, Notion exports, MkDocs/Docusaurus docs, GitHub) emit beyond CommonMark — into forms

@@ -1,7 +1,7 @@
 using DocumentFormat.OpenXml;
 using M = DocumentFormat.OpenXml.Math;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Converts a practical subset of LaTeX math into Office MathML (OMML) so equations exported to DOCX
 // become *editable Word equations* (Cambria Math), not flat text. It covers what actually shows up

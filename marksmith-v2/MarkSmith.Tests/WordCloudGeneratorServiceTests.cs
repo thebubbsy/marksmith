@@ -1,8 +1,8 @@
-using MdToPdf.Core.Services;
+using MarkSmith.Core.Services;
 using System.Linq;
 using Xunit;
 
-namespace MdToPdf.Core.Tests
+namespace MarkSmith.Core.Tests
 {
     public class WordCloudGeneratorServiceTests
     {

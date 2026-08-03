@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Page geometry for a PDF print job, expressed platform-neutrally (inches, matching the print
 // settings both WebView2 and other Chromium-based print pipelines use). Each UI project's
@@ -145,5 +145,5 @@ public interface IUiPrompts
     Task<int> AskOversizedDiagramModeAsync();
     
     // Ask the user to resolve an ambiguous construct in the markdown.
-    Task<MdToPdf.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MdToPdf.Models.AmbiguityCase ambiguity);
+    Task<MarkSmith.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MarkSmith.Models.AmbiguityCase ambiguity);
 }

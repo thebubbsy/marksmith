@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // ISS-002: explicit `::emoji_name::` double-colon shortcode support. Markdig's UseEmojiAndSmiley
 // already converts the single-colon `:rocket:` form in body text (and leaves code blocks alone);

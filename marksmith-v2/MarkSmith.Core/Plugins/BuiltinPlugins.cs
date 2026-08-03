@@ -1,4 +1,4 @@
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // Curated, first-party plugin manifests shipped with the app (but whose payloads still download
 // only on explicit install). These use the exact same plugin.json format as community plugins —

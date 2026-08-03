@@ -1,6 +1,6 @@
 using Microsoft.Web.WebView2.Core;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Builds the CoreWebView2Environment that every WebView2 in the app is initialized from (the main
 // window preview AND the Diagram Studio preview). Browser-process switches — notably GPU/hardware

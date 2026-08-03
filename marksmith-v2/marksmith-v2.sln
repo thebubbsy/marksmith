@@ -12,8 +12,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Wasm", "MarkSmith
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Cli", "MarkSmith.Cli\MarkSmith.Cli.csproj", "{2494A34C-65A5-498A-8EE4-30BB894C1C70}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Api", "MarkSmith.Api\MarkSmith.Api.csproj", "{12345678-ABCD-EF12-3456-7890ABCDEF12}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 /// <summary>
 /// Renders the mermaid "chart" family — pie, gantt, quadrantChart and xychart(-beta) — as pure

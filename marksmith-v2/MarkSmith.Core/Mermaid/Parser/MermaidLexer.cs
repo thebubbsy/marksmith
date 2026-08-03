@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Parser;
+namespace MarkSmith.Mermaid.Parser;
 
 using System.Text.RegularExpressions;
 

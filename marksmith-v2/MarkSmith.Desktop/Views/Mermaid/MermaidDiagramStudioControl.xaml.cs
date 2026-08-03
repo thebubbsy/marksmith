@@ -2,14 +2,14 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using MdToPdf.Services;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.Services;
+using MarkSmith.ViewModels.Mermaid;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
-namespace MdToPdf.Views.Mermaid;
+namespace MarkSmith.Views.Mermaid;
 
 public sealed partial class MermaidDiagramStudioControl : UserControl
 {

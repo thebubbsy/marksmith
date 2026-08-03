@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Core.Kanban;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Core.Kanban;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class KanbanChallenger2Tests
 {

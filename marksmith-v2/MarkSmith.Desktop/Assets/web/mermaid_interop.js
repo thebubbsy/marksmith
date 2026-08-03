@@ -1,6 +1,6 @@
 /**
  * Visual Mermaid Diagram Long-Press Gesture & Liquid Fill Engine
- * MdToPdf / WinUI3 WebView2 Interop
+ * MarkSmith / WinUI3 WebView2 Interop
  */
 (function () {
     let audioCtx = null;

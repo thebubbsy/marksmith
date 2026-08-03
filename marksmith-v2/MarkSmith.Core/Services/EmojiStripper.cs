@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // "No emoji mode": removes every emoji/pictograph from text — including ZWJ sequences, skin-tone
 // modifiers, variation selectors, flags, and keycap combos — before rendering or export. Applied

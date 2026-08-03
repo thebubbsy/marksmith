@@ -1,9 +1,9 @@
 using System.IO.Compression;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class EmDashAndWikiLinkTests
 {
@@ -158,11 +158,12 @@ public class EmDashAndWikiLinkTests
     public void ExportSampleDocumentsForVerification()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "MdToPdf.sln")))
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "marksmith-v2.sln")))
         {
             dir = dir.Parent;
         }
-        var root = dir?.FullName ?? Path.GetTempPath();
+        // dir ends at the marksmith-v2/ folder containing the solution; the repo root is its parent
+        var root = dir?.Parent?.FullName ?? Path.GetTempPath();
         var outputDir = Path.Combine(root, "tests", "docx_verify_output");
         Directory.CreateDirectory(outputDir);
 

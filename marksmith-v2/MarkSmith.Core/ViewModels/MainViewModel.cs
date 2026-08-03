@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 
-namespace MdToPdf.ViewModels;
+namespace MarkSmith.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {

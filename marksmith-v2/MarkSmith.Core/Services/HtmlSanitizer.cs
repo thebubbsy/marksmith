@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Neutralizes active content in the RENDERED body before it reaches the preview WebView. Markdown
 // legitimately carries raw HTML (tables, <sub>, <details> — we support those on purpose), but AI
