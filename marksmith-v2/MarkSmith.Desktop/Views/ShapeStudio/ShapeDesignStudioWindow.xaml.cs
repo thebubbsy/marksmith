@@ -111,7 +111,25 @@ namespace MarkSmith.Views.ShapeStudio
                 ViewModel.StatusMessage = "Choose an image first.";
                 return;
             }
-            ViewModel.ComposeImage(_composeImagePath, (int)ComposeDensity.Value);
+
+            var shapes = new System.Collections.Generic.List<string>();
+            if (CompEllipse.IsChecked == true) shapes.Add("ellipse");
+            if (CompRoundRect.IsChecked == true) shapes.Add("roundrect");
+            if (CompRect.IsChecked == true) shapes.Add("rect");
+            if (CompChevron.IsChecked == true) shapes.Add("chevron");
+            if (CompDiamond.IsChecked == true) shapes.Add("diamond");
+            if (CompHexagon.IsChecked == true) shapes.Add("hexagon");
+            if (CompTriangle.IsChecked == true) shapes.Add("triangle");
+            if (CompParallelogram.IsChecked == true) shapes.Add("parallelogram");
+            if (CompLine.IsChecked == true) shapes.Add("line");
+            if (CompArc.IsChecked == true) shapes.Add("arc");
+            if (CompCloud.IsChecked == true) shapes.Add("cloud");
+            if (CompHeart.IsChecked == true) shapes.Add("heart");
+            if (CompMoon.IsChecked == true) shapes.Add("moon");
+            if (CompCircularArrow.IsChecked == true) shapes.Add("circulararrow");
+            if (CompSmiley.IsChecked == true) shapes.Add("smileyface");
+
+            ViewModel.ComposeImage(_composeImagePath, (int)ComposeDensity.Value, shapes);
         }
     }
 }
