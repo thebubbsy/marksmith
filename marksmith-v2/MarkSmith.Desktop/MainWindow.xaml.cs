@@ -62,6 +62,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // They're noise in the raw editor, so the editor shows stripped markdown and the removed
     // lines are stashed here (per mermaid block index) to be re-injected on save / studio open.
     private Dictionary<int, List<string>> _mermaidSpatialStash = new();
+    // Single-instance SmartArt Designer Studio window (kept alive for the window's lifetime)
+    private Views.SmartArt.SmartArtDesignerWindow? _smartArtDesignerWindow;
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -4156,8 +4158,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnOpenMermaidStudioClick(object sender, RoutedEventArgs e)
     {
         var fullMd = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
-            ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
-        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(fullMd);
+            ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);        var studioWindow = new Views.Mermaid.MermaidDiagramStudioWindow(fullMd);
         studioWindow.SyncToMarkdownRequested += (s, markdown) =>
         {
             var current = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
@@ -4166,6 +4167,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.CurrentMarkdown = Mermaid.Sync.MermaidSpatialMetadataService.Strip(synced, out _mermaidSpatialStash);
         };
         studioWindow.Activate();
+    }
+
+    // SmartArt Designer Studio (drag-and-drop canvas, palette, live HTML preview, DOCX/GLOX export)
+    private void OnOpenSmartArtDesignerClick(object sender, RoutedEventArgs e)
+    {
+        if (_smartArtDesignerWindow == null)
+        {
+            _smartArtDesignerWindow = new Views.SmartArt.SmartArtDesignerWindow();
+            _smartArtDesignerWindow.Closed += (s, args) => _smartArtDesignerWindow = null;
+        }
+
+        _smartArtDesignerWindow.Activate();
+        ViewModel.StatusText = "SmartArt Designer Studio opened.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 
     public Task<MarkSmith.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MarkSmith.Models.AmbiguityCase ambiguity)
