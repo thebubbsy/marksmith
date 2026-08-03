@@ -106,6 +106,8 @@ namespace MarkSmith.Core.Composer
             {
                 "roundrect" => "roundRect",
                 "ellipse" or "circle" => "ellipse",
+                "circulararrow" => "circularArrow",
+                "smileyface" => "smileyFace",
                 _ => s.Prst
             };
             return
