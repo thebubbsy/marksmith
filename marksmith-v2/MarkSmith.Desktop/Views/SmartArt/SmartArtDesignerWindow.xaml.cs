@@ -110,5 +110,35 @@ namespace MarkSmith.Views.SmartArt
         {
             ViewModel.MarkdownText = "- [Mosaic Node 1]\n  - [Mosaic Child 1A]\n  - [Mosaic Child 1B]\n- [Mosaic Node 2]";
         }
+
+        // Import a user-authored .glox package into the shared catalog so it appears in the
+        // gallery and is usable for preview + DOCX export immediately.
+        private async void OnImportGloxClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                picker.FileTypeFilter.Add(".glox");
+                WinRT.Interop.InitializeWithWindow.Initialize(
+                    picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+                var file = await picker.PickSingleFileAsync();
+                if (file == null) return;
+
+                using var stream = await file.OpenStreamForReadAsync();
+                var pkg = MarkSmith.Core.Glox.GloxExtractor.ExtractFromZip(stream);
+                MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.RegisterPackage(pkg);
+                ViewModel.LoadLayouts();
+                ViewModel.StatusMessage = $"✓ Imported layout: {pkg.Title} ({pkg.UniqueId})";
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Import error: {ex.Message}";
+            }
+        }
+
+        private void OnCompileGloxClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.ExportGloxCommand.Execute(null);
+        }
     }
 }
