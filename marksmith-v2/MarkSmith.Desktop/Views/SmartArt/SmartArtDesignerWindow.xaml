@@ -150,8 +150,12 @@
                                 <CheckBox x:Name="ShapeTriangle" Content="Triangle" />
                                 <CheckBox x:Name="ShapeParallelogram" Content="Parallelogram" />
                             </StackPanel>
-                            <TextBlock Text="Density:" FontSize="11" Opacity="0.8" />
-                            <Slider x:Name="ComposeDensity" Minimum="8" Maximum="48" Value="24" StepFrequency="2" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <CheckBox x:Name="ShapeLine" Content="Line" />
+                                <TextBlock Text="Line alone = full image drawn as scanline strokes" FontSize="10" Opacity="0.65" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <TextBlock Text="Density (strokes/cells per row — up to ~4000):" FontSize="11" Opacity="0.8" />
+                            <Slider x:Name="ComposeDensity" Minimum="24" Maximum="4096" Value="240" StepFrequency="16" />
                             <CheckBox x:Name="ComposeDither" Content="Dither colors (Floyd-Steinberg)" IsChecked="True" />
                             <Button Content="Compose &amp; Export .docx" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
                         </StackPanel>
