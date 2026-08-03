@@ -49,21 +49,7 @@ namespace MarkSmith.Cli
                 string outputPath = arg2;
                 string? layoutOverride = args.Length > 2 ? args[2] : null;
 
-                var resolver = new UrnResolver();
-                var assembly = typeof(MarkSmith.Core.Glox.GloxExtractor).Assembly;
-                foreach (string resourceName in assembly.GetManifestResourceNames())
-                {
-                    if (resourceName.EndsWith(".xml") && resourceName.Contains("EmbeddedGlox"))
-                    {
-                        using var stream = assembly.GetManifestResourceStream(resourceName);
-                        if (stream != null)
-                        {
-                            using var reader = new System.IO.StreamReader(stream);
-                            var glox = MarkSmith.Core.Glox.GloxExtractor.ExtractFromXmlString(reader.ReadToEnd());
-                            resolver.RegisterLayout(glox);
-                        }
-                    }
-                }
+                var resolver = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared;
 
                 CanonicalAst ast;
                 string ext = Path.GetExtension(inputPath).ToLower();

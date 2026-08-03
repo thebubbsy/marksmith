@@ -12,6 +12,12 @@ namespace MarkSmith.Core.Glox
         public string StyleXml { get; set; } = string.Empty;
         public string ColorXml { get; set; } = string.Empty;
 
+        /// <summary>UniqueId of the quickStyle part (e.g. urn:.../quickstyle/simple1).</summary>
+        public string StyleUniqueId { get; set; } = string.Empty;
+
+        /// <summary>UniqueId of the colors part (e.g. urn:.../colors/accent1_2).</summary>
+        public string ColorUniqueId { get; set; } = string.Empty;
+
         public List<GloxAlgorithm> Algorithms { get; set; } = new List<GloxAlgorithm>();
         public List<GloxConstraint> Constraints { get; set; } = new List<GloxConstraint>();
         public List<GloxRule> Rules { get; set; } = new List<GloxRule>();

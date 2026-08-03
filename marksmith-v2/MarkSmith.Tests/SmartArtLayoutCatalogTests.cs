@@ -32,17 +32,19 @@ public class SmartArtLayoutCatalogTests
     // layoutType -> expected root algorithm (genuine Office vocabulary) + expected shape.
     // Distinctness between types is provided by the uniqueId URN (how Word dispatches to its
     // built-in geometry), not by unique root-alg names (real Office layouts share "composite").
+    // Values verified against the genuine embedded Office layouts (from the native corpus):
+    // cycle1 roots with "cycle", pyramid1 with "pyra", the default list with "snake".
     private static readonly (string Alias, string ExpectedAlg, string ExpectedShape)[] KnownLayouts =
     {
         ("hierarchy",    "hierChild", "rect"),
         ("process",      "lin",       "chevron"),
-        ("cycle",        "composite", "ellipse"),
+        ("cycle",        "cycle",     "ellipse"),
         ("matrix",       "composite", "roundRect"),
-        ("pyramid",      "composite", "rect"),
+        ("pyramid",      "pyra",      "rect"),
         ("venn",         "composite", "ellipse"),
         ("relationship", "composite", "ellipse"),
         ("picturelist",  "snake",     "roundRect"),
-        ("list",         "lin",       "roundRect"),
+        ("list",         "snake",     "roundRect"),
     };
 
     [Fact]
@@ -54,7 +56,10 @@ public class SmartArtLayoutCatalogTests
         {
             Assert.False(string.IsNullOrWhiteSpace(p.UniqueId), "package must carry a UniqueId");
             Assert.False(string.IsNullOrWhiteSpace(p.LayoutXml), "package must carry LayoutXml");
+            Assert.False(string.IsNullOrWhiteSpace(p.StyleXml), "package must carry a real quickStyle (colored render)");
+            Assert.False(string.IsNullOrWhiteSpace(p.ColorXml), "package must carry real colors (colored render)");
         });
+        Assert.False(string.IsNullOrWhiteSpace(SmartArtLayoutCatalog.Shared.ThemeXml), "catalog must carry the document theme");
     }
 
     [Theory]
@@ -106,7 +111,7 @@ public class SmartArtLayoutCatalogTests
         // invented types ("cycle"/"venn"/"grid"/"pyramid") are NOT valid Office enums and caused
         // Word to reject the diagram -> basic blocks. Valid values include: composite, lin,
         // snake, hierChild, hierRoot, conn, cycle, sp, tx.
-        var validAlgs = new[] { "composite", "lin", "snake", "hierChild", "hierRoot", "conn", "cycle", "sp", "tx" };
+        var validAlgs = new[] { "composite", "lin", "snake", "hierChild", "hierRoot", "conn", "cycle", "pyra", "sp", "tx" };
         string rootAlg = XDocument.Parse(SmartArtLayoutCatalog.Shared.TryResolve(alias)!.LayoutXml)
             .Root!.Descendants(Dgm + "alg").First().Attribute("type")!.Value;
 
