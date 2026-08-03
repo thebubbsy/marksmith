@@ -1,25 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
-               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-               uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/pictureList1"
-               title="Picture List"
-               desc="List layout supporting picture nodes"
-               clrgName="Colorful"
-               clrType="colorful">
-  <dgm:title val="Picture List"/>
-  <dgm:desc val="List layout supporting picture nodes"/>
-  <dgm:catLst>
-    <dgm:cat type="pictureList" pri="1"/>
-  </dgm:catLst>
-  <dgm:layoutNode name="diagram">
-    <dgm:alg type="linear"/>
-    <dgm:shape type="roundRect"/>
-    <dgm:forEach axis="ch" refNode="node">
-      <dgm:layoutNode name="node">
-        <dgm:alg type="tx"/>
-        <dgm:shape type="roundRect"/>
-        <dgm:pic fill="blipFill" />
-      </dgm:layoutNode>
-    </dgm:forEach>
-  </dgm:layoutNode>
-</dgm:layoutDef>
+<layoutDef xmlns="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+           uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/pictureList1">
+  <title val="Picture List"/>
+  <desc val="Picture List"/>
+  <catLst>
+    <cat type="list" pri="1"/>
+  </catLst>
+  <layoutNode name="diagram">
+    <varLst>
+      <dir val="norm"/>
+      <resizeHandles val="rel"/>
+    </varLst>
+    <alg type="snake">
+      <param type="linDir" val="fromT"/>
+    </alg>
+    <shape type="roundRect"/>
+    <presOf/>
+    <forEach axis="ch" ptType="node">
+      <layoutNode name="node1" styleLbl="node1">
+        <varLst>
+          <bulletEnabled val="true"/>
+        </varLst>
+        <alg type="tx"/>
+        <shape type="roundRect"/>
+        <presOf axis="desOrSelf" ptType="node"/>
+      </layoutNode>
+    </forEach>
+  </layoutNode>
+</layoutDef>

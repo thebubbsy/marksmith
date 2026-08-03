@@ -1,25 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
-               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-               uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/process1"
-               title="Basic Process"
-               desc="Sequential linear process layout"
-               clrgName="Colorful"
-               clrType="colorful">
-  <dgm:title val="Basic Process"/>
-  <dgm:desc val="Sequential linear process layout"/>
-  <dgm:catLst>
-    <dgm:cat type="process" pri="1"/>
-  </dgm:catLst>
-  <dgm:layoutNode name="diagram">
-    <dgm:alg type="linear"/>
-    <dgm:shape type="chevron"/>
-    <dgm:forEach axis="ch" refNode="node">
-      <dgm:layoutNode name="node">
-        <dgm:alg type="tx"/>
-        <dgm:shape type="chevron"/>
-        
-      </dgm:layoutNode>
-    </dgm:forEach>
-  </dgm:layoutNode>
-</dgm:layoutDef>
+<layoutDef xmlns="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+           uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/process1">
+  <title val="Basic Process"/>
+  <desc val="Basic Process"/>
+  <catLst>
+    <cat type="process" pri="1"/>
+  </catLst>
+  <layoutNode name="diagram">
+    <varLst>
+      <dir val="norm"/>
+      <resizeHandles val="rel"/>
+    </varLst>
+    <alg type="lin">
+      <param type="linDir" val="fromL"/>
+    </alg>
+    <shape type="chevron"/>
+    <presOf/>
+    <forEach axis="ch" ptType="node">
+      <layoutNode name="node1" styleLbl="node1">
+        <varLst>
+          <bulletEnabled val="true"/>
+        </varLst>
+        <alg type="tx"/>
+        <shape type="chevron"/>
+        <presOf axis="desOrSelf" ptType="node"/>
+      </layoutNode>
+    </forEach>
+  </layoutNode>
+</layoutDef>
