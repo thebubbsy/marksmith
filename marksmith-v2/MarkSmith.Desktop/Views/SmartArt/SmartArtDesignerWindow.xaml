@@ -35,6 +35,7 @@
                 <Button Content="Render Exactly as Word Would" Click="OnRenderFidelityClick" Style="{ThemeResource AccentButtonStyle}" />
                 <Button Content="Export .docx" Click="OnExportDocxClick" />
                 <Button Content="Export .glox" Click="OnExportGloxClick" />
+                <Button Content="Import .glox..." Click="OnImportGloxClick" />
             </StackPanel>
         </Grid>
 
@@ -125,10 +126,13 @@
                                      PlaceholderText="- Executive Board&#x0a;  - CEO&#x0a;  - CTO" />
                         </PivotItem>
                         <PivotItem Header="Layout JSON">
-                            <TextBox AcceptsReturn="True" TextWrapping="Wrap" 
-                                     Text="{Binding JsonDefinitionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                     FontFamily="Consolas" FontSize="13" Margin="0,8,0,0"
-                                     PlaceholderText="{}{ 'Title': 'My Custom Layout' }" />
+                            <StackPanel Spacing="10" Margin="0,8,0,0">
+                                <TextBox AcceptsReturn="True" TextWrapping="Wrap" MinHeight="220"
+                                         Text="{Binding JsonDefinitionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas" FontSize="13"
+                                         PlaceholderText="{}{ 'Title': 'My Custom Layout' }" />
+                                <Button Content="Compile JSON → .glox (desktop)" Click="OnCompileGloxClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                            </StackPanel>
                         </PivotItem>
                         <PivotItem Header="Raster Mosaic">
                             <StackPanel Spacing="12" Margin="0,12,0,0">
