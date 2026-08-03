@@ -1630,15 +1630,13 @@ public sealed class DocxExportService
                 var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
                 ast.RequestedLayout = layoutType;
 
-                string resourceName = $"MarkSmith.Core.Resources.EmbeddedGlox.{layoutType}.xml";
-                string gloxXml;
-                using (var stream = typeof(MarkSmith.Core.Glox.GloxExtractor).Assembly.GetManifestResourceStream(resourceName))
-                {
-                    if (stream == null) throw new Exception($"SmartArt layout '{layoutType}' not found.");
-                    using var reader = new System.IO.StreamReader(stream);
-                    gloxXml = reader.ReadToEnd();
-                }
-                var gloxPkg = MarkSmith.Core.Glox.GloxExtractor.ExtractFromXmlString(gloxXml);
+                // Resolve the REAL embedded .glox (layout + quick style + colors) for this
+                // layout type. Word renders geometry from the layout's algorithm, so we must
+                // embed the genuine package rather than a hand-built stub. Falls back to the
+                // default list layout on unknown aliases instead of silently degrading.
+                var gloxPkg = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(layoutType)
+                              ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve("default")
+                              ?? throw new Exception($"SmartArt layout '{layoutType}' not found.");
                 var solver = new MarkSmith.Core.Solver.ConstraintSolver();
                 var solved = solver.Solve(ast, gloxPkg);
                 
