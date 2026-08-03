@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 /// <summary>
 /// Inverse of <see cref="ShapeToVisibilityConverter"/>: returns <see cref="Visibility.Collapsed"/>

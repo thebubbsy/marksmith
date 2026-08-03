@@ -1,7 +1,7 @@
 using System;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Top-level legibility guard for OpenXML DOCX and rendering engines.

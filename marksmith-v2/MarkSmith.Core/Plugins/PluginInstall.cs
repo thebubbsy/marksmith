@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // Download/extract/provision machinery shared by every manifest-driven plugin: platform ids,
 // progress-reporting HTTP download with optional sha256 verification, zip/tar.gz extraction, and

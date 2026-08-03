@@ -2,12 +2,12 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using MdToPdf.Models;
-using MdToPdf.Services;
-using MdToPdf.ViewModels;
+using MarkSmith.Models;
+using MarkSmith.Services;
+using MarkSmith.ViewModels;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Regression tests for headless/API batch conversion where no live web render host is available

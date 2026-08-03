@@ -1,13 +1,13 @@
 # Project: Universal OpenXML SmartArt Compiler
 
 ## Architecture
-The Universal OpenXML SmartArt Compiler is a programmable DrawingML graphics engine integrated into `MdToPdf.Core`.
+The Universal OpenXML SmartArt Compiler is a programmable DrawingML graphics engine integrated into `MarkSmith.Core`.
 It consists of 3 core subsystems:
-1. **Parser & AST Pipeline (`MdToPdf.Core/SmartArt/Parser`)**:
+1. **Parser & AST Pipeline (`MarkSmith.Core/SmartArt/Parser`)**:
    - Converts Markdown nested bullet/numbered lists and JSON hierarchy definitions into a unified `SmartArtAst` model.
-2. **Layout Routing & URN Registry (`MdToPdf.Core/SmartArt/Routing`)**:
+2. **Layout Routing & URN Registry (`MarkSmith.Core/SmartArt/Routing`)**:
    - Maps AST semantics (hierarchy depth, cycle loops, sequential lists, Venn intersections) to standard Microsoft `.glox` URNs and layout headers.
-3. **OpenXML DrawingML Graph Generator (`MdToPdf.Core/Services/UniversalSmartArtBuilder.cs` & `MdToPdf.Core/SmartArt/Generator`)**:
+3. **OpenXML DrawingML Graph Generator (`MarkSmith.Core/Services/UniversalSmartArtBuilder.cs` & `MarkSmith.Core/SmartArt/Generator`)**:
    - Synthesizes `diagramData.xml` containing compliant `dgm:ptLst` (nodes & trans points) and `dgm:cxnLst` (parent-child graph connection edges), along with accompanying `diagramLayoutHeader.xml`, `diagramColors.xml`, and `diagramStyle.xml`.
 
 ## Milestones
@@ -23,7 +23,7 @@ It consists of 3 core subsystems:
 
 ### AST & Memory Model
 ```csharp
-namespace MdToPdf.Core.SmartArt.Model;
+namespace MarkSmith.Core.SmartArt.Model;
 
 public enum SmartArtLayoutType
 {
@@ -62,7 +62,7 @@ public class SmartArtAst
 
 ### Parser Interface
 ```csharp
-namespace MdToPdf.Core.SmartArt.Parser;
+namespace MarkSmith.Core.SmartArt.Parser;
 
 public interface ISmartArtParser
 {
@@ -73,7 +73,7 @@ public interface ISmartArtParser
 
 ### Router & Generator Interface
 ```csharp
-namespace MdToPdf.Core.SmartArt.Routing;
+namespace MarkSmith.Core.SmartArt.Routing;
 
 public record SmartArtLayoutDefinition(
     string LayoutUrn,
@@ -87,7 +87,7 @@ public interface ISmartArtLayoutRouter
     SmartArtLayoutDefinition ResolveLayout(SmartArtAst ast);
 }
 
-namespace MdToPdf.Core.SmartArt.Generator;
+namespace MarkSmith.Core.SmartArt.Generator;
 
 public interface ISmartArtGenerator
 {
@@ -97,11 +97,11 @@ public interface ISmartArtGenerator
 ```
 
 ## Code Layout
-- Core Project: `MdToPdf.Core/`
+- Core Project: `MarkSmith.Core/`
   - `SmartArt/Model/` -> AST data structures
   - `SmartArt/Parser/` -> Markdown & JSON parsers
   - `SmartArt/Routing/` -> Glox Layout Router & URN Registry
   - `SmartArt/Generator/` -> DrawingML Graph Generator & OpenXML Packaging
-- Test Project: `tests/MdToPdf.Core.Tests/`
+- Test Project: `tests/MarkSmith.Core.Tests/`
   - `SmartArt/` -> Unit & Integration tests for SmartArt
   - `SmartArtE2ETests.cs` -> E2E acceptance test suite

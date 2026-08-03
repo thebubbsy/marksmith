@@ -2,9 +2,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Composition.SystemBackdrops;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.ViewModels.Mermaid;
 
-namespace MdToPdf.Views.Mermaid;
+namespace MarkSmith.Views.Mermaid;
 
 public sealed class MermaidDiagramStudioWindow : Window
 {

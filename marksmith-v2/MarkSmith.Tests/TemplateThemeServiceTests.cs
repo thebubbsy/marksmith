@@ -1,12 +1,12 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using A = DocumentFormat.OpenXml.Drawing;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Tests for TemplateThemeService: .dotx parsing, prompt engineering, and AI response parsing.

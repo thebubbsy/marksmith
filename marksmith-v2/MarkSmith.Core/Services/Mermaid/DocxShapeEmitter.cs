@@ -1,7 +1,7 @@
 using System.Text;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // ShapeForge's final stage: turns an MDiagram (pure geometry, points) into a single inline Word
 // drawing — a wpg (WordprocessingGroup) containing native wps shapes. The result is a REAL Word

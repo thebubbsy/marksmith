@@ -8,57 +8,57 @@
 
 ### [x] 10. PDF Page Numbering & Custom Header/Footer Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
-  - `marksmith-v2/MdToPdf/Views/SettingsView.xaml`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfExportServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfExportService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/AppSettings.cs`
+  - `marksmith-v2/MarkSmith/Views/SettingsView.xaml`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/PdfExportServiceTests.cs`
 - **Goal**:
   - Add configurable header and footer template strings for PDF exports (tokens: `{title}`, `{page}`, `{pages}`, `{date}`).
   - Verification: 14 unit tests in `PdfExportServiceTests.cs`. Suite: 798 passed / 0 failed / 819 total.
 
 ### [x] 11. Multi-File Drag & Drop Batch Queue & Watcher Debounce
 - **Target Files**:
-  - `marksmith-v2/MdToPdf/MainWindow.xaml.cs`
-  - `marksmith-v2/MdToPdf/Services/FolderIngestService.cs`
+  - `marksmith-v2/MarkSmith/MainWindow.xaml.cs`
+  - `marksmith-v2/MarkSmith/Services/FolderIngestService.cs`
 - **Goal**:
   - Support dragging multiple `.md` files onto the editor canvas, opening an interactive multi-file batch conversion queue card.
   - Implement file-lock retry and 300ms debounce in `FolderIngestService`.
 
 ### [x] 13. Auto-Updater & Release Channel Manager (GitHub Releases API)
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/UpdateService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/UpdateServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/UpdateService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/AppSettings.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/UpdateServiceTests.cs`
 - **Goal**:
   - Add asynchronous GitHub Release update checker against `https://api.github.com/repos/thebubbsy/marksmith/releases/latest`.
   - Verification: 17 unit tests in `UpdateServiceTests.cs`. Suite: 815 passed / 0 failed / 836 total.
 
 ### [x] 14. Real-time Word/Character Count & Reading Time Meter
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
-  - `marksmith-v2/MdToPdf/MainWindow.xaml` (Status Bar)
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/Services/DocumentStatsServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/MarkSmith/MainWindow.xaml` (Status Bar)
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/Services/DocumentStatsServiceTests.cs`
 - **Goal**:
   - Add live Markdown document metrics to the status bar: word count, character count (with/without spaces), line count, and estimated reading time (at 200 WPM).
   - Verification: 6 new unit tests in `DocumentStatsServiceTests.cs` (20 total). Suite: 820 passed / 0 failed / 841 total.
 
 ### [x] 15. Export History Log & Quick Re-Export Menu
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Models/HistoryEntry.cs`
-  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/HistoryEntryTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/HistoryEntry.cs`
+  - `marksmith-v2/MarkSmith.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/HistoryEntryTests.cs`
 - **Goal**:
   - Persist an export history journal (`%APPDATA%\Marksmith\export_history.json`) logging timestamp, source path, target format (PDF/DOCX/EPUB/PPTX), duration, and output size.
   - Verification: 19 unit tests in `HistoryEntryTests.cs` (title extraction, subtitle telemetry formatting, inFence tracking, size formatting). Suite: 839 passed / 0 failed / 860 total.
 
 ### [x] 16. Custom Font & Typography Management Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/FontManagerService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
-  - `marksmith-v2/MdToPdf.Core/ViewModels/MainViewModel.cs`
-  - `marksmith-v2/MdToPdf.Core/Services/MarkdownHtmlService.cs`
-  - `marksmith-v2/MdToPdf/Views/SettingsView.xaml`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/FontManagerServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/FontManagerService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/AppSettings.cs`
+  - `marksmith-v2/MarkSmith.Core/ViewModels/MainViewModel.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/MarkdownHtmlService.cs`
+  - `marksmith-v2/MarkSmith/Views/SettingsView.xaml`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/FontManagerServiceTests.cs`
 - **Goal**:
   - Add custom font family selection (Serif, Sans-Serif, Monospace, Dyslexic-friendly) for rendered documents.
   - Support embedding custom TTF/OTF fonts into PDF & EPUB output profiles.
@@ -66,8 +66,8 @@
 
 ### [x] 17. Interactive Document Outline / TOC Navigation Flyout
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/TocExtractorService.cs`
-  - `marksmith-v2/MdToPdf/Views/TocFlyoutControl.xaml`
+  - `marksmith-v2/MarkSmith.Core/Services/TocExtractorService.cs`
+  - `marksmith-v2/MarkSmith/Views/TocFlyoutControl.xaml`
 - **Goal**:
   - Generate a dynamic, interactive Table of Contents outline flyout from H1-H6 headers in the active Markdown document.
   - Allow clicking a header node in the flyout to scroll directly to that heading in the preview panel.
@@ -75,44 +75,44 @@
 
 ### [x] 18. PDF Password Encryption & Security Policy Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfSecurityService.cs`
-  - `marksmith-v2/MdToPdf.Core/Services/PdfExportService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
-  - `marksmith-v2/MdToPdf.Core/MdToPdf.Core.csproj` (PDFsharp dependency)
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfSecurityServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfSecurityService.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfExportService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/AppSettings.cs`
+  - `marksmith-v2/MarkSmith.Core/MarkSmith.Core.csproj` (PDFsharp dependency)
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/PdfSecurityServiceTests.cs`
 - **Goal**:
   - Add optional owner/user password protection and access control permissions (disable printing, copying, or modifying) for generated PDF exports.
   - Verification: 23 unit tests in `PdfSecurityServiceTests.cs`. Suite: 894 passed / 0 failed / 915 total.
 
 ### [x] 19. Custom PDF Watermark & Classification Stamp Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfWatermarkService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/AppSettings.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfWatermarkServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfWatermarkService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/AppSettings.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/PdfWatermarkServiceTests.cs`
 - **Goal**:
   - Support diagonal text watermarks (e.g. "CONFIDENTIAL", "DRAFT") or image watermarks overlayed/underlayed on exported PDF pages with configurable opacity, rotation angle, font size, and color using PDFsharp page graphics.
   - Verification: 3 unit tests in `PdfWatermarkServiceTests.cs`.
 
 ### [x] 20. EPUB Metadata & Cover Art Customization Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/EpubExportService.cs`
-  - `marksmith-v2/MdToPdf.Core/Models/EpubMetadata.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/EpubCoverAndMetadataTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/EpubExportService.cs`
+  - `marksmith-v2/MarkSmith.Core/Models/EpubMetadata.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/EpubCoverAndMetadataTests.cs`
 - **Goal**:
   - Add metadata fields for EPUB exports: Author, Language, Publisher, ISBN/UUID, Description, Rights, and custom cover image embedding.
   - Verification: `EpubCoverAndMetadataTests.cs`. Suite: 909 passed / 0 failed / 21 skipped / 930 total.
 
 ### [x] 21. MS Word-Styled HTML Tabbed Content Rendering Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/MarkdownHtmlService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/NativeTabsTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/MarkdownHtmlService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/NativeTabsTests.cs`
 - **Goal**:
   - Design HTML/CSS tabbed content container elements (`=== "Tab 1"` / `=== "Tab 2"`) in HTML/PDF exports to mirror Microsoft Word tab container aesthetics (Office ribbon-style active tab accent borders `#0078D4`, clean tab headers, subtle drop shadows, keyboard arrow key navigation, ARIA tab roles, and print-optimized active tab visibility for PDF printing).
 
 ### [x] 22. Custom Form Input Syntax Parser & HTML Interactive Element Generator
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/MarkdownFormInputParserService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/MarkdownFormInputParserServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/MarkdownFormInputParserService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/MarkdownFormInputParserServiceTests.cs`
 - **Goal**:
   - Parse custom Markdown form input annotations (`[input:name type "default"]` and `[select:name options=[a,b,c]]`).
   - Render interactive, styled HTML form input fields for web/PDF document preview and export pipelines.
@@ -120,232 +120,232 @@
 
 ### [x] 22. WebDAV & Cloud Export Provider Transport Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/CloudStorageService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/CloudStorageServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/CloudStorageService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/CloudStorageServiceTests.cs`
 - **Goal**:
   - Expand CloudStorageService to support WebDAV endpoint authentication (HTTP Basic / Bearer token), subfolder path resolution, `TestConnectionAsync` endpoint health checks, and automated remote upload of generated PDF, DOCX, and EPUB artifacts to user-configured WebDAV subfolders.
   - Verification: `CloudStorageServiceTests.cs`. Suite: 910 passed / 0 failed / 21 skipped / 931 total.
 
 ### [x] 23. Dynamic Header & Footer Page Template Interpolator
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/HeaderFooterTemplateService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/HeaderFooterTemplateServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/HeaderFooterTemplateService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/HeaderFooterTemplateServiceTests.cs`
 - **Goal**:
   - Build template token interpolator (`{page}`, `{pages}`, `{title}`, `{date}`, `{time}`, `{author}`) for custom header/footer HTML templates during Chromium PDF rendering.
   - Verification: `HeaderFooterTemplateServiceTests.cs`. Suite: 912 passed / 0 failed / 21 skipped / 933 total.
 
 ### [x] 24. MathJax & KaTeX Math Macro Preprocessor Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/MathMacroService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/MathMacroServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/MathMacroService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/MathMacroServiceTests.cs`
 - **Goal**:
   - Add inline custom TeX/LaTeX macro definitions (`\newcommand` / `\def`) expansion preprocessor for Markdown math blocks (`$$ ... $$`).
   - Verification: `MathMacroServiceTests.cs`. Suite: 916 passed / 0 failed / 21 skipped / 937 total.
 
 ### [x] 25. Export Batch & Command-Line CLI Runner
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/BatchExportRunner.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/BatchExportRunnerTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/BatchExportRunner.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/BatchExportRunnerTests.cs`
 - **Goal**:
   - Build multi-file batch export runner supporting directory globs (`*.md`) and multi-format output targets (`pdf`, `docx`, `epub`).
   - Verification: `BatchExportRunnerTests.cs`. Suite: 918 passed / 0 failed / 21 skipped / 939 total.
 
 ### [x] 26. Async Export Telemetry & Detailed Metric Diagnostics
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ExportDiagnosticsService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/ExportDiagnosticsServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/ExportDiagnosticsService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/ExportDiagnosticsServiceTests.cs`
 - **Goal**:
   - Track per-export step latency breakdown (markdown parsing, image embedding, layout generation, PDF rendering) and memory allocation metrics.
   - Verification: `ExportDiagnosticsServiceTests.cs`. Suite: 919 passed / 0 failed / 21 skipped / 940 total.
 
 ### [x] 27. Custom CSS Injection & User Theme Stylesheet Manager
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/UserThemeStylesheetService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/UserThemeStylesheetServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/UserThemeStylesheetService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/UserThemeStylesheetServiceTests.cs`
 - **Goal**:
   - Build user CSS stylesheet manager that validates, scopes, and injects custom user CSS overrides into HTML, PDF, and EPUB export pipelines.
   - Verification: `UserThemeStylesheetServiceTests.cs`. Suite: 922 passed / 0 failed / 21 skipped / 943 total.
 
 ### [x] 28. Markdown Frontmatter Metadata Parser Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/FrontmatterService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/FrontmatterServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/FrontmatterService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/FrontmatterServiceTests.cs`
 - **Goal**:
   - Parse YAML frontmatter headers delimited by `---` at the top of Markdown documents, returning extracted metadata dictionary and stripped document content.
   - Verification: `FrontmatterServiceTests.cs`. Suite: 924 passed / 0 failed / 21 skipped / 945 total.
 
 ### [x] 29. Rich Text Clipboard Copy/Paste Normalizer
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ClipboardNormalizerService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/ClipboardNormalizerServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/ClipboardNormalizerService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/ClipboardNormalizerServiceTests.cs`
 - **Goal**:
   - Normalize rich text HTML clipboard content into clean standard Markdown syntax during paste actions.
   - Verification: `ClipboardNormalizerServiceTests.cs`.
 
 ### [x] 30. Auto-Save Snapshot & Document Recovery Vault
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/DocumentRecoveryVault.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentRecoveryVaultTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/DocumentRecoveryVault.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/DocumentRecoveryVaultTests.cs`
 - **Goal**:
   - Implement periodic auto-save snapshot vault to local storage to prevent data loss during unexpected crashes or OS restarts.
   - Verification: `DocumentRecoveryVaultTests.cs`. Suite: 939 passed / 0 failed / 21 skipped / 960 total.
 
 ### [x] 31. Advanced Footnote & Endnote Cross-Referencing Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/FootnoteService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/FootnoteServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/FootnoteService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/FootnoteServiceTests.cs`
 - **Goal**:
   - Process inline Markdown footnotes (`[^1]`) and definitions (`[^1]: Footnote text`), re-numbering sequentially, generating back-links, and embedding footnote sections in HTML, PDF, and DOCX exports.
   - Verification: `FootnoteServiceTests.cs`.
 
 ### [x] 32. Smart Code Snippet Line Numbering & Line Highlighting Synthesizer
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/CodeBlockHighlighterService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeBlockHighlighterServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/CodeBlockHighlighterService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/CodeBlockHighlighterServiceTests.cs`
 - **Goal**:
   - Parse fence attributes (e.g. ````csharp {1,3-5} showLineNumbers````) to add line numbers and highlighted line background accents in code snippets across preview and PDF/HTML output.
   - Verification: `CodeBlockHighlighterServiceTests.cs`. Suite: 948 passed / 0 failed / 21 skipped / 969 total.
 
 ### [x] 33. Multi-Language Document Spell & Grammar Check Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/SpellCheckService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/SpellCheckServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/SpellCheckService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/SpellCheckServiceTests.cs`
 - **Goal**:
   - Tokenized Markdown spell checker skipping code blocks, math, and URLs, returning misspellings with suggested replacements.
   - Verification: `SpellCheckServiceTests.cs`.
 
 ### [x] 34. Markdown Table Auto-Formatter & Column Aligner Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/TableFormatterService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/TableFormatterServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/TableFormatterService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/TableFormatterServiceTests.cs`
 - **Goal**:
   - Auto-format raw ASCII Markdown tables by aligning column widths, padding cell spaces, and normalizing alignment specifiers.
   - Verification: `TableFormatterServiceTests.cs`.
 
 ### [x] 35. Document Template Presets & Snippets Gallery Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/DocumentTemplateGalleryService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentTemplateGalleryServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/DocumentTemplateGalleryService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/DocumentTemplateGalleryServiceTests.cs`
 - **Goal**:
   - Provide built-in Markdown document templates (Academic Paper, Technical Specification, Executive Brief, Meeting Minutes) with variable interpolation (`{{title}}`, `{{author}}`, `{{date}}`).
   - Verification: `DocumentTemplateGalleryServiceTests.cs`.
 
 ### [x] 36. Markdown Link Integrity & Broken Reference Analyzer
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/LinkIntegrityAnalyzerService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/LinkIntegrityAnalyzerServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/LinkIntegrityAnalyzerService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/LinkIntegrityAnalyzerServiceTests.cs`
 - **Goal**:
   - Parse Markdown document links and anchor references (`#section-id`, `[text][ref]`) and validate internal header anchor existence and local file path validity.
   - Verification: `LinkIntegrityAnalyzerServiceTests.cs`.
 
 ### [x] 37. Markdown Document Comparer & Semantic Diff Generator
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/MarkdownDiffService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/MarkdownDiffServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/MarkdownDiffService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/MarkdownDiffServiceTests.cs`
 - **Goal**:
   - Compare two versions of a Markdown document and produce line-by-line semantic diff models (Inserted, Deleted, Unchanged) for revision history preview.
   - Verification: `MarkdownDiffServiceTests.cs`.
 
 ### [x] 38. Markdown Readability Score & Complexity Analyzer Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ReadabilityAnalyzerService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/ReadabilityAnalyzerServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/ReadabilityAnalyzerService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/ReadabilityAnalyzerServiceTests.cs`
 - **Goal**:
   - Calculate Flesch Reading Ease and Flesch-Kincaid Grade Level scores for Markdown documents while ignoring code blocks, math expressions, and raw HTML tags.
   - Verification: `ReadabilityAnalyzerServiceTests.cs`.
 
 ### [x] 39. Markdown Citation & Bibliography Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/CitationEngineService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/CitationEngineServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/CitationEngineService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/CitationEngineServiceTests.cs`
 - **Goal**:
   - Parse inline citations ([@citekey]), resolve key metadata dictionary, format inline numeric/author-year citations, and generate an end-of-document formatted References / Bibliography section.
   - Verification: `CitationEngineServiceTests.cs`.
 
 ### [x] 40. Markdown Keyword & Tag Extractor Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/TagExtractorService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/TagExtractorServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/TagExtractorService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/TagExtractorServiceTests.cs`
 - **Goal**:
   - Extract hashtags (#tag, #multi-word-tag) and high-frequency TF-IDF key phrases from Markdown content while ignoring code fences, inline code, and URLs.
   - Verification: `TagExtractorServiceTests.cs`.
 
 ### [x] 41. Markdown Heading Anchor Slug Generator & TOC Injector Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/TocAnchorInjectorService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/TocAnchorInjectorServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/TocAnchorInjectorService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/TocAnchorInjectorServiceTests.cs`
 - **Goal**:
   - Automatically generate GitHub-compatible slug anchors (e.g. `#my-heading-name`) for all headings and inject a styled Table of Contents at the `[TOC]` placeholder tag.
   - Verification: `TocAnchorInjectorServiceTests.cs`.
 
 ### [x] 42. Markdown Smart Typography & Punctuation Converter
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/SmartPunctuationService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/SmartPunctuationServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/SmartPunctuationService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/SmartPunctuationServiceTests.cs`
 - **Goal**:
   - Convert straight quotes (`"` to `“`/`”`), apostrophes (`'` to `’`), en/em dashes (`--` to `–`, `---` to `—`), and ellipses (`...` to `…`) outside code/math blocks.
   - Verification: `SmartPunctuationServiceTests.cs`.
 
 ### [x] 43. Document Word Cloud Data Generator Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/WordCloudGeneratorService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/WordCloudGeneratorServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/WordCloudGeneratorService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/WordCloudGeneratorServiceTests.cs`
 - **Goal**:
   - Generate weighted word frequency data with font size scaling metrics for word cloud visualization, excluding stop words and markdown formatting.
   - Verification: `WordCloudGeneratorServiceTests.cs`.
 
 ### [x] 44. Markdown Code Snippet Dependency Sniffer
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/CodeSnippetDependencySnifferService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/CodeSnippetDependencySnifferServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/CodeSnippetDependencySnifferService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/CodeSnippetDependencySnifferServiceTests.cs`
 - **Goal**:
   - Detect imported libraries and dependencies inside code blocks (`import`, `require`, `#include`, `using`) and build a list of external packages referenced in the document.
   - Verification: `CodeSnippetDependencySnifferServiceTests.cs`.
 
 ### [x] 45. Image Metadata & Exif Stripper Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ImageExifStripperService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/ImageExifStripperServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/ImageExifStripperService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/ImageExifStripperServiceTests.cs`
 - **Goal**:
   - Strip privacy-sensitive EXIF metadata (GPS, camera model, timestamp) from embedded images prior to export.
   - Verification: `ImageExifStripperServiceTests.cs`.
 
 ### [x] 46. Markdown Document Summarizer & Excerpt Generator
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/DocumentExcerptService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/DocumentExcerptServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/DocumentExcerptService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/DocumentExcerptServiceTests.cs`
 - **Goal**:
   - Generate a concise 1-2 sentence plain-text summary or excerpt from the opening paragraphs of a Markdown document, stripping formatting and media.
   - Verification: `DocumentExcerptServiceTests.cs`.
 
 ### [x] 47. Relative Link Resolver & Path Normalizer Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/RelativeLinkResolverService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/RelativeLinkResolverServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/RelativeLinkResolverService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/RelativeLinkResolverServiceTests.cs`
 - **Goal**:
   - Resolve relative file links (`./doc.md`, `../img.png`) against a document root directory into normalized absolute file paths.
   - Verification: `RelativeLinkResolverServiceTests.cs`.
 
 ### [x] 48. Markdown Task List Progress Calculator Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/TaskListProgressService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/TaskListProgressServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/TaskListProgressService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/TaskListProgressServiceTests.cs`
 - **Goal**:
   - Parse `- [ ]` and `- [x]` task list items across the document, calculating overall completed count, total count, and completion percentage metric.
   - Verification: `TaskListProgressServiceTests.cs`.
 
 ### [x] 49. Document Outline Depth Filtering Service
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/OutlineFilterService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/OutlineFilterServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/OutlineFilterService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/OutlineFilterServiceTests.cs`
 - **Goal**:
   - Filter a TOC or heading outline by maximum depth (e.g. H1..H3 only) and prune empty sub-trees.
   - Verification: `OutlineFilterServiceTests.cs`.
 
 ### [x] 50. Markdown Block Quote Stylizer & Callout Transformer
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/BlockquoteTransformerService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/BlockquoteTransformerServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/BlockquoteTransformerService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/BlockquoteTransformerServiceTests.cs`
 - **Goal**:
   - Transform GitHub-style blockquote callouts (`> [!NOTE]`, `> [!WARNING]`, `> [!TIP]`) into custom CSS alert container elements.
   - Verification: `BlockquoteTransformerServiceTests.cs`.
@@ -359,55 +359,55 @@
 
 ### [x] D1. Reverse Document Importer (`DOCX` / `PDF` → `Markdown`)
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/ReverseImportService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/ReverseImportServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/ReverseImportService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/ReverseImportServiceTests.cs`
 - **Goal**:
   - Convert incoming DOCX and PDF documents into clean Markdown, allowing legacy document migration directly into Marksmith.
 - **Verification**: DOCX import (headings, lists, tables, bold/italic) + PDF text extraction via PDFsharp content-stream parsing. File▸Import button wired in `MainWindow.xaml`. Suite: 1172 passed / 0 failed.
 
 ### [x] D2. Optical Character Recognition Engine (Scanned PDF / Image → Markdown)
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/OcrEngineService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/OcrEngineServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/OcrEngineService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/OcrEngineServiceTests.cs`
 - **Goal**:
   - Extract text and tables from scanned PDFs, PNGs, and JPGs via local `Windows.Media.Ocr` or Tesseract into formatted Markdown.
 - **Verification**: Platform-agnostic `IOcrProvider` interface + SkiaSharp preprocessing (grayscale, Otsu threshold, upscale) + `WindowsOcrProvider` (Windows.Media.Ocr). 12 unit tests. Suite: 1172 passed / 0 failed.
 
 ### [x] D3. Enterprise PDF Encryption & Digital Rights Management (DRM)
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfSignatureService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/D3D5D6ServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfSignatureService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/D3D5D6ServiceTests.cs`
 - **Goal**:
   - Support AES 128/256-bit password encryption, digital signatures, and printing/copying permission restrictions.
 - **Verification**: RSA-2048 self-signed cert generation, SHA-256 document hashing, PDF signing + verification, AES-256 DRM with owner/user passwords + permission flags. 7 unit tests. Suite: 1172 passed / 0 failed.
 
 ### [x] D4. Spreadsheet / CSV Table Bidirectional Sync Engine
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/SpreadsheetService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/SpreadsheetServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/SpreadsheetService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/SpreadsheetServiceTests.cs`
 - **Goal**:
   - 1-click import from `.csv`/`.xlsx` files into Markdown tables and export Markdown tables directly to `.xlsx` workbooks.
 - **Verification**: CSV/XLSX → Markdown table import + Markdown table → XLSX export via OpenXml. 28 unit tests (round-trip, multi-sheet, edge cases). Suite: 1172 passed / 0 failed.
 
 ### [ ] D5. Visual Redline Document Diff Engine (`.md` / `.pdf` Comparison)
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/VisualDocumentDiffService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/VisualDocumentDiffServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/VisualDocumentDiffService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/VisualDocumentDiffServiceTests.cs`
 - **Goal**:
   - Provide a visual side-by-side redline diff viewer highlighting additions and deletions between document revisions.
 - **Note**: **ASK MATT BEFORE IMPLEMENTING**
 
 ### [ ] D6. High-Throughput PDF Size Compressor & Image Downsampler
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Core/Services/PdfCompressorService.cs`
-  - `marksmith-v2/tests/MdToPdf.Core.Tests/PdfCompressorServiceTests.cs`
+  - `marksmith-v2/MarkSmith.Core/Services/PdfCompressorService.cs`
+  - `marksmith-v2/tests/MarkSmith.Core.Tests/PdfCompressorServiceTests.cs`
 - **Goal**:
   - Post-process generated PDFs to compress embedded images, strip unused font metadata, and minimize PDF file sizes for email sharing.
 - **Note**: **ASK MATT BEFORE IMPLEMENTING**
 
 ### [x] D7. Client-Side WebAssembly (WASM) Single-Page Web Edition
 - **Target Files**:
-  - `marksmith-v2/MdToPdf.Wasm/`
+  - `marksmith-v2/MarkSmith.Wasm/`
 - **Goal**:
   - Compile the Marksmith core Markdown rendering pipeline to WebAssembly (Blazor WASM) for browser-based offline conversion without installation.
 - **Verification**: Blazor WASM project scaffolded, added to solution, Markdig 0.37.0 pipeline with advanced extensions + pipe tables + math. Split-pane editor with live preview. Build: 0 errors / 0 warnings.

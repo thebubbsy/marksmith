@@ -2,11 +2,11 @@ using System.IO.Compression;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Conversion accuracy: markdown in, real .docx out, assertions on the OOXML that Word will read.
 // Covers the constructs AI output leans on hardest — the "where does the conversion fail" list.

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Builds the Markdown snippets that the Insert-menu modals emit from the parameters the user

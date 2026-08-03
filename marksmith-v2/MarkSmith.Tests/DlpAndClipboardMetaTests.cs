@@ -1,8 +1,8 @@
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Coverage for two pure, previously-untested services flagged by static review:
 //  - DlpScanService.Scan: the regex/classification/masking core of the DLP scanner.

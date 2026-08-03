@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// The type of change for a diff segment.

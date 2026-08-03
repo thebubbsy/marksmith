@@ -4,7 +4,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     /// <summary>
     /// Normalizes rich text HTML content (e.g. copied from web browsers or MS Word)

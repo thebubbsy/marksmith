@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Replaces em-dashes (—) — the tell-tale AI-writing glyph — with a plainer dash or custom text.
 // Code fences and inline code are preserved verbatim, so an em-dash inside a code sample stays

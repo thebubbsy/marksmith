@@ -1,8 +1,8 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 // Portable stand-in for Microsoft.UI.Xaml.Controls.InfoBarSeverity (values match 1:1) so
 // MainViewModel's status property carries no WinUI dependency. Each UI project maps this to its
-// own native severity/status-bar type — see MdToPdf/Converters/StatusSeverityConverter.cs for the
+// own native severity/status-bar type — see MarkSmith/Converters/StatusSeverityConverter.cs for the
 // WinUI side.
 public enum StatusSeverity
 {

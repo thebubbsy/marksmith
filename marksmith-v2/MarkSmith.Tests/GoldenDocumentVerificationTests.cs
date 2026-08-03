@@ -3,11 +3,11 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Xml.Linq;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class GoldenDocumentVerificationTests
 {

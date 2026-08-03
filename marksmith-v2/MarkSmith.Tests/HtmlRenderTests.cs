@@ -1,8 +1,8 @@
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // The MD-viewer accuracy suite: markdown in, preview HTML out, asserted on what a careful reader
 // would expect. Each case documents an expectation the preview must honor; failures here are

@@ -1,7 +1,7 @@
 using SkiaSharp;
 using Svg.Skia;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Rasterizes SVG markup to a PNG via Svg.Skia (on top of SkiaSharp). Used to produce the raster
 // fallback Word requires alongside an embedded SVG — Word 2016+ renders the crisp SVG, everything

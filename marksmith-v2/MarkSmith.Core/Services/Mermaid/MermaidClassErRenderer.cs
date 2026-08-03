@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // Renders mermaid "classDiagram" and "erDiagram" sources into pure geometry (MDiagram).
 // Classes/entities become stacked compartment boxes (header Rect + members Rect with one Text

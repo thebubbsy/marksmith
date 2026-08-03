@@ -1,9 +1,9 @@
 using System;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public sealed record HeaderFooterContext
 {

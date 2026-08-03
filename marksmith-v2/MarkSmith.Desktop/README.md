@@ -26,7 +26,7 @@
 ### 4. 🛡️ 100% Air-Gapped Local REST API & Enterprise DLP Governance
 - **Local Loopback REST API (`http://127.0.0.1:47821`)**: Full programmatic conversion endpoints (`/api/convert`, `/api/governance/report`, `/api/governance/summary`) allowing local scripts, terminal commands, and watch-folder daemons to compile Markdown into PDF/DOCX/PPTX/EPUB silently.
 - **1-Click Browser Connector**: Chrome/Edge browser extension that streams replies from ChatGPT, Gemini, and Claude directly into Marksmith in one click.
-- **Data Loss Prevention (DLP)**: Local governance script monitors AI prompt ingestion and automatically masks sensitive credentials, passwords, and API keys (`sk-proj-[redacted]`) before saving local audit logs (`%LOCALAPPDATA%\MdToPdf\governance.json`). Zero remote cloud server calls.
+- **Data Loss Prevention (DLP)**: Local governance script monitors AI prompt ingestion and automatically masks sensitive credentials, passwords, and API keys (`sk-proj-[redacted]`) before saving local audit logs (`%LOCALAPPDATA%\MarkSmith\governance.json`). Zero remote cloud server calls.
 
 ### 5. 🧹 AI Source Normalization & Artifact Cleanup Engine
 - **Quirk Normalization**: Automatically detects source models (ChatGPT, Gemini, Claude) and strips machine-generated tells:
@@ -50,7 +50,7 @@
 ```text
 marksmith-v2/
 ├── MarkSmith.Core/                         # Unified Core Engine (DOCX, PDF, PPTX, EPUB, OMML Math, AST, SmartArt Solver, ViewModels)
-├── MarkSmith.Desktop/                      # WinUI 3 Desktop App (formerly MdToPdf)
+├── MarkSmith.Desktop/                      # WinUI 3 Desktop App (formerly MarkSmith)
 │   ├── Assets/                             # App icons, tray icons, brand assets (app.ico)
 │   ├── Views/                              # XAML UI Views & Controls
 │   │   └── Mermaid/                        # Visual Diagram Studio (MermaidDiagramStudioControl.xaml)

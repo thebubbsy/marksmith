@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 public enum Edition { Free, Trial, Pro }
 
@@ -21,7 +21,7 @@ public sealed class LicenseState
     public bool ShowFooter => !IsPro;     // "Made with Marksmith" footer on free exports
 }
 
-// What we persist to %LOCALAPPDATA%\MdToPdf\license.json.
+// What we persist to %LOCALAPPDATA%\MarkSmith\license.json.
 public sealed class StoredLicense
 {
     public string? Key { get; set; }

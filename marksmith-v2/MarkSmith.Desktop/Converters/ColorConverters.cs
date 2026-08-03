@@ -2,7 +2,7 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 /// <summary>
 /// Two-way converter between the hex color strings stored on the diagram ViewModels

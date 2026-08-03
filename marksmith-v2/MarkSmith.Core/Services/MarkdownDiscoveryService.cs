@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // One .md file surfaced in Step 1's picker. Pinned = the user explicitly opened it before (kept at
 // the top); the rest are discovered on disk and ordered by how recently they were modified.

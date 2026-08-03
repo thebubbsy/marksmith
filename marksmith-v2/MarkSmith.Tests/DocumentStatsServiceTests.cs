@@ -1,8 +1,8 @@
 using System;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 /// <summary>
 /// Unit tests for DocumentStatsService — the reading-time / structure metrics shown in the editor

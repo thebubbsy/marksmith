@@ -5,10 +5,10 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Task 9 — CloudStorageService: provider detection, sync-root resolution, local sync-folder
 // publishing and WebDAV upload. Detection runs against a throwaway "home"/"appdata" directory via

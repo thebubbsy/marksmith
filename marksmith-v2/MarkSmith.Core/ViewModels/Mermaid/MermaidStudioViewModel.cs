@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
-using MdToPdf.Mermaid.Parser;
-using MdToPdf.Mermaid.Sync;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
+using MarkSmith.Mermaid.Parser;
+using MarkSmith.Mermaid.Sync;
 
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 public partial class MermaidStudioViewModel : ObservableObject
 {

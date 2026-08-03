@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.UI.Dispatching;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Watches a folder (e.g. Downloads) for new .md/.markdown/.txt files — the "Export" buttons in
 // AI chat UIs drop conversation exports there — and hands the file path to the app.

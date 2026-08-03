@@ -1,6 +1,6 @@
-namespace MdToPdf.Mermaid.Parser;
+namespace MarkSmith.Mermaid.Parser;
 
-using MdToPdf.Mermaid.Ast;
+using MarkSmith.Mermaid.Ast;
 
 public sealed class MermaidDiagnostic
 {

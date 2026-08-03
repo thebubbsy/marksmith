@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>A node in a nested document outline: a heading plus its deeper child headings.</summary>
 public sealed class OutlineNode

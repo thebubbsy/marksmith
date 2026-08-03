@@ -3,7 +3,7 @@ using System.Text;
 using System.Xml.Linq;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Tier 2 last-resort for diagrams. When a <w:drawing> holds shapes that DocxShapeParser cannot
 // recover as Mermaid (SmartArt, freeform paths, hand-drawn grouped objects from another tool), this

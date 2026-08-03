@@ -3,7 +3,7 @@
 #   - Writes public-key.pem   (safe to share; this is what the app embeds)
 #
 # After running, paste the PUBLIC key into LicenseValidator.PublicKeyPem
-# (MdToPdf/Services/LicenseValidator.cs), replacing the placeholder key.
+# (MarkSmith.Core/Services/LicenseValidator.cs), replacing the placeholder key.
 #
 # Usage:  pwsh tools/licensing/generate-keys.ps1
 
@@ -15,6 +15,6 @@ Set-Content -Path (Join-Path $dir 'public-key.pem') -Value $pub -NoNewline
 
 Write-Host "Wrote private-key.pem (SECRET) and public-key.pem"
 Write-Host ""
-Write-Host "Paste this PUBLIC key into MdToPdf/Services/LicenseValidator.cs (PublicKeyPem):"
+Write-Host "Paste this PUBLIC key into MarkSmith.Core/Services/LicenseValidator.cs (PublicKeyPem):"
 Write-Host ""
 Write-Host $pub

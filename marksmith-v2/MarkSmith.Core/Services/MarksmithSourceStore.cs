@@ -1,9 +1,9 @@
 using System.Xml.Linq;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Tier 1 of the dual-mode DOCX engine: lossless round-trip by construction. On export Marksmith
 // tucks the ORIGINAL Markdown source into a private custom-XML part inside the .docx. On re-import

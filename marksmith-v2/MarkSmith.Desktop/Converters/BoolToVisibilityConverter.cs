@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 public sealed class BoolToVisibilityConverter : IValueConverter
 {

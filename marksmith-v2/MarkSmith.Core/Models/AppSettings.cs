@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 public sealed class AppSettings
 {

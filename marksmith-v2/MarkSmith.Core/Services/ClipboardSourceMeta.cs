@@ -1,7 +1,7 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // The "Copy as Markdown" browser-extension button writes an HTML clipboard entry alongside the
 // plain-text Markdown, carrying the source AI-chat page's metadata in a leading HTML comment so it

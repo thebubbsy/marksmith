@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using SkiaSharp;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// A single recognized word with its bounding box position (used for layout analysis).

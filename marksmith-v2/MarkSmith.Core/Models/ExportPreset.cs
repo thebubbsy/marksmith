@@ -1,4 +1,4 @@
-namespace MdToPdf.Models;
+namespace MarkSmith.Models;
 
 // A named snapshot of the output/style settings, so a look you like (theme + width + cleanup +
 // formatting + diagram mode + branding) can be re-applied in one click. Automation/API settings are

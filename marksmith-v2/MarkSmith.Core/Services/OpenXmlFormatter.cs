@@ -1,9 +1,9 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 internal static class OpenXmlFormatter
 {

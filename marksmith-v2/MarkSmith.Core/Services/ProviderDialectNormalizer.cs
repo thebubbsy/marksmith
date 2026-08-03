@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // ISS-005: provider-specific Markdown quirk normalization, keyed off the definitive source id the
 // browser extension reports (ground truth — see LlmSourceService.ParseSourceId). Complements the

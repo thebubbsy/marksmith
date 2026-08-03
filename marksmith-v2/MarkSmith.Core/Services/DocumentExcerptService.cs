@@ -4,7 +4,7 @@ using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Generates a concise plain-text excerpt (1-2 sentences by default) from the opening prose of a

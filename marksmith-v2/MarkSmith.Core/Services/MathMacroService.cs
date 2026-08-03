@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// MathJax &amp; KaTeX Math Macro Preprocessor Engine (Task 24). Pre-expands custom LaTeX macros

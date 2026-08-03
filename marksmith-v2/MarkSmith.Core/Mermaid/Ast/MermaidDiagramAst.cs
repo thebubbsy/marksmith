@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Ast;
+namespace MarkSmith.Mermaid.Ast;
 
 public enum MermaidDiagramType
 {

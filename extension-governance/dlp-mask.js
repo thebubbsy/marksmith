@@ -1,4 +1,4 @@
-// Client-side DLP scan + masking — mirrors MdToPdf/Services/DlpScanService.cs EXACTLY (rules,
+// Client-side DLP scan + masking — mirrors MarkSmith.Core/Services/DlpScanService.cs EXACTLY (rules,
 // mask styles, remediation text, redacted-context building, and secret-density scoring).
 //
 // Returns category labels, a MASKED preview of each match (never the raw value, except AWS Access

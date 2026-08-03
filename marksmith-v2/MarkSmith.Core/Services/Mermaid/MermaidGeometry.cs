@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // ---- Generic diagram harvest (the "no fallback" path) --------------------------------------------
 // Every Mermaid diagram type — state, C4, requirement, block, kanban, packet, sankey, architecture,

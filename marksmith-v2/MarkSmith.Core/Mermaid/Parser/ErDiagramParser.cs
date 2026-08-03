@@ -1,7 +1,7 @@
-namespace MdToPdf.Mermaid.Parser;
+namespace MarkSmith.Mermaid.Parser;
 
 using System.Text.RegularExpressions;
-using MdToPdf.Mermaid.Ast;
+using MarkSmith.Mermaid.Ast;
 
 public static class ErDiagramParser
 {

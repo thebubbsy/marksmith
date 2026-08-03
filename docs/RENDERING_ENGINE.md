@@ -1,7 +1,7 @@
 # Marksmith Rendering Engine — Governance Reference
 
 > **MANDATORY READING** for any agent or developer modifying `DocxExportService.cs`, `LatexToOmml.cs`,
-> `MermaidDocxRenderer.cs`, or any preprocessor in `MdToPdf.Core/Services/`.
+> `MermaidDocxRenderer.cs`, or any preprocessor in `MarkSmith.Core/Services/`.
 >
 > This document is the single source of truth for how Markdown becomes a Word document.
 > If you add a new feature, you MUST update this document.

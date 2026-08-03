@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class Milestone3AdversarialTests
 {
@@ -35,7 +35,7 @@ public class Milestone3AdversarialTests
     // Helper simulating block selection logic in ShowMermaidDiagramStudioWindowAsync
     private static string SelectOriginalBlock(string currentMd, int targetIndex, string sampleCode)
     {
-        var blocks = MdToPdf.Mermaid.Sync.MermaidMarkdownSyncService.ExtractMermaidBlocks(currentMd);
+        var blocks = MarkSmith.Mermaid.Sync.MermaidMarkdownSyncService.ExtractMermaidBlocks(currentMd);
         string originalBlock = "";
         string originalBody = "";
         if (targetIndex >= 0 && targetIndex < blocks.Count)

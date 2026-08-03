@@ -1,9 +1,9 @@
 using System;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Task 10 — PdfExportService header/footer engine: token substitution, Chromium template building
 // and position-driven header/footer assembly. These are pure string transforms, so they're fully

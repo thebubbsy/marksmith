@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Computes task-list completion metrics from a Markdown document (Task 48). Scans for GFM checkbox

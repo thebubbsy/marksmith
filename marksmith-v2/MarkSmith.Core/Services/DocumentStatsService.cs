@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Live document metrics for the editor status bar. The old inline counter in MainViewModel just did
 // PastedMarkdown.Split(' ') on the RAW markdown, so it counted `#`, `|`, `*`, fence backticks and

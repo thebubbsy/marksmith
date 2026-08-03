@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Labels UNLABELLED fenced code blocks with the diagram language their content clearly is, so the
 // downstream diagram-plugin path (preview + DOCX) can pick them up. AI assistants routinely emit a

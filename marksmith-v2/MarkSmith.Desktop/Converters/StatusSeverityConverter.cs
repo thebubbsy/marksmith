@@ -1,10 +1,10 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
-// Bridges MainViewModel.StatusSeverity (MdToPdf.Models.StatusSeverity, portable — defined in
-// MdToPdf.Core so the ViewModel carries no WinUI dependency) to the InfoBar control's own
+// Bridges MainViewModel.StatusSeverity (MarkSmith.Models.StatusSeverity, portable — defined in
+// MarkSmith.Core so the ViewModel carries no WinUI dependency) to the InfoBar control's own
 // severity enum for the status bar binding in MainWindow.xaml.
 public sealed class StatusSeverityConverter : IValueConverter
 {

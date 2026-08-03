@@ -1,13 +1,13 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Persists the user's saved export presets to presets.json alongside the other app data.
 public sealed class PresetsService
 {
     private static readonly string Dir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
     private static readonly string Path_ = Path.Combine(Dir, "presets.json");
     private static readonly JsonSerializerOptions Opts = new() { WriteIndented = true };
 

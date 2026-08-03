@@ -1,9 +1,9 @@
 using System.Xml.Linq;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // The inverse of the Mermaid shape emitters (MermaidDocxRenderer for flowcharts, DocxShapeEmitter
 // for the bespoke families). Given a <w:drawing> paragraph the forward engine produced, it rebuilds

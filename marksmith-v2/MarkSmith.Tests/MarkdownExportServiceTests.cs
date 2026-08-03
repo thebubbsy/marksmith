@@ -1,10 +1,10 @@
 using System.IO;
 using System.Text;
-using MdToPdf.Models;
-using MdToPdf.Services;
+using MarkSmith.Models;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Markdown (.md) export — the "Export as Markdown" output format and the counterpart to the
 // DOCX -> MD reverse pipeline (ReverseImportService). Verifies the recovered/cleaned source lands

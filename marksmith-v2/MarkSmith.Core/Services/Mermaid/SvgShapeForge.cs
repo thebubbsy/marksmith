@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // ShapeForge for diagram PLUGINS (Graphviz/D2/PlantUML/…): parses the SVG string a plugin's engine
 // emitted into the same GenericDiagram primitive model the mermaid generic harvest produces, so the

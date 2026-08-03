@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public sealed class BatchConvertService
 {

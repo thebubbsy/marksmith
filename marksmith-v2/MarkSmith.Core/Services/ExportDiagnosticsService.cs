@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public sealed record ExportStepMetric(string StepName, long DurationMs, long MemoryAllocatedBytes);
 

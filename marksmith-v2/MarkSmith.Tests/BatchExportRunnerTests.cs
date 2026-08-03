@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class BatchExportRunnerTests : IDisposable
 {

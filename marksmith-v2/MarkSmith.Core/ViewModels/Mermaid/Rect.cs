@@ -1,4 +1,4 @@
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 public readonly struct Rect
 {
@@ -26,9 +26,9 @@ public readonly struct Rect
     public bool IntersectsWith(Rect rect) =>
         !(rect.Left > Right || rect.Right < Left || rect.Top > Bottom || rect.Bottom < Top);
 
-    public static implicit operator MdToPdf.Core.Mermaid.Routing.Rect(Rect r) =>
-        new MdToPdf.Core.Mermaid.Routing.Rect(r.X, r.Y, r.Width, r.Height);
+    public static implicit operator MarkSmith.Core.Mermaid.Routing.Rect(Rect r) =>
+        new MarkSmith.Core.Mermaid.Routing.Rect(r.X, r.Y, r.Width, r.Height);
 
-    public static implicit operator Rect(MdToPdf.Core.Mermaid.Routing.Rect r) =>
+    public static implicit operator Rect(MarkSmith.Core.Mermaid.Routing.Rect r) =>
         new Rect(r.X, r.Y, r.Width, r.Height);
 }
