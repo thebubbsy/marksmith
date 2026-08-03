@@ -362,6 +362,24 @@ namespace MarkSmith.Core.Composer
                 // prstGeom "line" draws corner-to-corner; match that in SVG.
                 return $"<line x1=\"{x:F1}\" y1=\"{y:F1}\" x2=\"{x + w:F1}\" y2=\"{y + h:F1}\" stroke=\"{fill}\" stroke-width=\"{(s.H * 96 * 0.18):F1}\"{transform}/>";
             }
+
+            // Curved / sketch-vibe presets (approximate but recognizable).
+            switch (s.Prst)
+            {
+                case "heart":
+                    return $"<path d=\"M {cx:F1} {y + h * 0.72:F1} C {x:F1} {y + h * 0.30:F1}, {x + w * 0.08:F1} {y:F1}, {cx:F1} {y + h * 0.22:F1} C {x + w * 0.92:F1} {y:F1}, {x + w:F1} {y + h * 0.30:F1}, {cx:F1} {y + h * 0.72:F1} Z\" fill=\"{fill}\"{transform}/>";
+                case "moon":
+                    return $"<path d=\"M {x + w * 0.78:F1} {y:F1} A {w * 0.5:F1} {h * 0.5:F1} 0 1 1 {x + w * 0.22:F1} {y + h:F1} A {w * 0.42:F1} {h * 0.42:F1} 0 1 0 {x + w * 0.78:F1} {y:F1} Z\" fill=\"{fill}\"{transform}/>";
+                case "arc":
+                    return $"<path d=\"M {x + w * 0.06:F1} {y + h:F1} A {w * 0.44:F1} {h * 0.44:F1} 0 1 1 {x + w * 0.94:F1} {y + h:F1}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{(h * 96 * 0.18):F1}\" stroke-linecap=\"round\"{transform}/>";
+                case "circulararrow":
+                    return $"<g{transform}><path d=\"M {cx:F1} {y + h * 0.12:F1} A {w * 0.38:F1} {h * 0.38:F1} 0 1 1 {x + w * 0.96:F1} {cy:F1}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{(h * 96 * 0.14):F1}\" stroke-linecap=\"round\"/><polygon points=\"{x + w * 0.96:F1},{cy - h * 0.10:F1} {x + w:F1},{cy:F1} {x + w * 0.96:F1},{cy + h * 0.10:F1}\" fill=\"{fill}\"/></g>";
+                case "smileyface":
+                    return $"<g{transform}><circle cx=\"{cx:F1}\" cy=\"{cy:F1}\" r=\"{Math.Min(w, h) / 2:F1}\" fill=\"{fill}\"/><circle cx=\"{cx - w * 0.18:F1}\" cy=\"{cy - h * 0.12:F1}\" r=\"{Math.Min(w, h) * 0.07:F1}\" fill=\"#ffffff\"/><circle cx=\"{cx + w * 0.18:F1}\" cy=\"{cy - h * 0.12:F1}\" r=\"{Math.Min(w, h) * 0.07:F1}\" fill=\"#ffffff\"/><path d=\"M {cx - w * 0.22:F1} {cy + h * 0.05:F1} Q {cx:F1} {cy + h * 0.30:F1} {cx + w * 0.22:F1} {cy + h * 0.05:F1}\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"{(h * 96 * 0.06):F1}\" stroke-linecap=\"round\"/></g>";
+                case "cloud":
+                    return $"<g{transform}><ellipse cx=\"{cx:F1}\" cy=\"{y + h * 0.55:F1}\" rx=\"{w * 0.42:F1}\" ry=\"{h * 0.34:F1}\" fill=\"{fill}\"/><circle cx=\"{x + w * 0.30:F1}\" cy=\"{y + h * 0.40:F1}\" r=\"{h * 0.26:F1}\" fill=\"{fill}\"/><circle cx=\"{x + w * 0.70:F1}\" cy=\"{y + h * 0.40:F1}\" r=\"{h * 0.26:F1}\" fill=\"{fill}\"/></g>";
+            }
+
             return s.Prst switch
             {
                 "ellipse" or "circle" => $"<ellipse cx=\"{cx:F1}\" cy=\"{cy:F1}\" rx=\"{w / 2:F1}\" ry=\"{h / 2:F1}\" fill=\"{fill}\"{transform}/>",

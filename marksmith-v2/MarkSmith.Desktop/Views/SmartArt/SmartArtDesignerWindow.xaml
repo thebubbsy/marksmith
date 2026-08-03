@@ -152,8 +152,16 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <CheckBox x:Name="ShapeLine" Content="Line" />
-                                <TextBlock Text="Line alone = full image drawn as scanline strokes" FontSize="10" Opacity="0.65" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <CheckBox x:Name="ShapeArc" Content="Arc" />
+                                <CheckBox x:Name="ShapeCloud" Content="Cloud" />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <CheckBox x:Name="ShapeHeart" Content="Heart" />
+                                <CheckBox x:Name="ShapeMoon" Content="Moon" />
+                                <CheckBox x:Name="ShapeCircularArrow" Content="Circular Arrow" />
+                                <CheckBox x:Name="ShapeSmiley" Content="Smiley" />
+                            </StackPanel>
+                            <TextBlock Text="Line alone = full image drawn as scanline strokes" FontSize="10" Opacity="0.65" VerticalAlignment="Center" TextWrapping="Wrap" />
                             <TextBlock Text="Density (strokes/cells per row — up to ~4000):" FontSize="11" Opacity="0.8" />
                             <Slider x:Name="ComposeDensity" Minimum="24" Maximum="4096" Value="240" StepFrequency="16" />
                             <CheckBox x:Name="ComposeDither" Content="Dither colors (Floyd-Steinberg)" IsChecked="True" />
