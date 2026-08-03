@@ -56,12 +56,12 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Publish self-contained exe (marksmith-v2, ${{ matrix.arch }})
-        run: dotnet publish marksmith-v2/MdToPdf/MdToPdf.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none
+        run: dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none
 
       - name: Package portable zip
         shell: pwsh
         run: |
-          $pub = "marksmith-v2/MdToPdf/bin/${{ matrix.arch }}/Release/net8.0-windows10.0.19041.0/win-${{ matrix.arch }}/publish"
+          $pub = "marksmith-v2/MarkSmith.Desktop/bin/${{ matrix.arch }}/Release/net8.0-windows10.0.19041.0/win-${{ matrix.arch }}/publish"
           New-Item -ItemType Directory -Force -Path staging/Marksmith | Out-Null
           Copy-Item "$pub/*" staging/Marksmith -Recurse -Force
           Compress-Archive -Path staging/Marksmith -DestinationPath Marksmith-win-${{ matrix.arch }}.zip -Force
