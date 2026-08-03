@@ -22,7 +22,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            
+
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE81E;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                 <TextBlock Text="SmartArt Designer Studio" FontWeight="Bold" FontSize="15" VerticalAlignment="Center" />
@@ -30,7 +30,7 @@
                     <TextBlock Text="v2.0 Ecosystem" FontSize="11" Foreground="White" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
-            
+
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,150,0">
                 <Button Content="Render Exactly as Word Would" Click="OnRenderFidelityClick" Style="{ThemeResource AccentButtonStyle}" />
                 <Button Content="Export .docx" Click="OnExportDocxClick" />
@@ -39,33 +39,38 @@
             </StackPanel>
         </Grid>
 
-        <!-- Main Layout Split -->
+        <!-- Body: left panels | canvas | preview -->
         <Grid Grid.Row="1" ColumnSpacing="12" Padding="16,12,16,16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" /> <!-- Left: Gallery / Palette -->
+                <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="2*" />   <!-- Center: Visual Canvas / Editors -->
+                <ColumnDefinition Width="2*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="3*" />   <!-- Right: Preview -->
+                <ColumnDefinition Width="3*" />
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT: Gallery & Shape Palette Panel -->
-            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
-                <Pivot>
-                    <PivotItem Header="Layout Gallery">
-                        <Grid Padding="4">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+            <!-- LEFT: stacked panels (no tabs) -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10">
 
-                            <TextBox Grid.Row="0" PlaceholderText="Search 176+ layouts..." 
-                                     Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,8" />
+                    <!-- Shape Palette -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="13" />
+                            <TextBlock Text="Drag a shape onto the canvas." FontSize="11" Opacity="0.6" />
+                            <smartart:SmartArtPaletteControl />
+                        </StackPanel>
+                    </Border>
 
-                            <ComboBox Grid.Row="1" SelectedIndex="{Binding SelectedCategoryIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                    <!-- Layout Gallery -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Layout Gallery" FontWeight="SemiBold" FontSize="13" />
+                            <TextBox PlaceholderText="Search layouts..." MaxHeight="32"
+                                     Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <ComboBox SelectedIndex="{Binding SelectedCategoryIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" MaxHeight="34">
                                 <ComboBoxItem Content="All Categories" />
                                 <ComboBoxItem Content="Hierarchy" />
                                 <ComboBoxItem Content="Process" />
@@ -75,38 +80,58 @@
                                 <ComboBoxItem Content="Venn" />
                                 <ComboBoxItem Content="Picture List" />
                             </ComboBox>
-
-                            <ListView Grid.Row="2" ItemsSource="{Binding AvailableLayouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}">
+                            <ListView MaxHeight="210" ItemsSource="{Binding AvailableLayouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Padding="4,6">
+                                        <Grid Padding="2,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
-                                                <TextBlock Text="{Binding Alias}" FontSize="11" Opacity="0.6" />
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                                <TextBlock Text="{Binding Alias}" FontSize="10" Opacity="0.6" />
                                             </StackPanel>
                                             <Border Grid.Column="1" Background="{ThemeResource SystemControlBackgroundAccentBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Category}" FontSize="10" Foreground="White" />
+                                                <TextBlock Text="{Binding Category}" FontSize="9" Foreground="White" />
                                             </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                             </ListView>
-                        </Grid>
-                    </PivotItem>
+                        </StackPanel>
+                    </Border>
 
-                    <PivotItem Header="Drag Palette">
-                        <smartart:SmartArtPaletteControl />
-                    </PivotItem>
-                </Pivot>
-            </Border>
+                    <!-- Markdown Data -->
+                    <Expander HorizontalAlignment="Stretch" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Text="Markdown Data" FontWeight="SemiBold" FontSize="12" />
+                        </Expander.Header>
+                        <TextBox AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140"
+                                 Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 FontFamily="Consolas" FontSize="12"
+                                 PlaceholderText="- Executive Board&#x0a;  - CEO&#x0a;  - CTO" />
+                    </Expander>
+
+                    <!-- Layout JSON -->
+                    <Expander HorizontalAlignment="Stretch" IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Text="Layout JSON" FontWeight="SemiBold" FontSize="12" />
+                        </Expander.Header>
+                        <StackPanel Spacing="8">
+                            <TextBox AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140"
+                                     Text="{Binding JsonDefinitionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="Consolas" FontSize="12"
+                                     PlaceholderText="{}{ 'Title': 'My Custom Layout' }" />
+                            <Button Content="Compile JSON → .glox (desktop)" Click="OnCompileGloxClick" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </ScrollViewer>
 
             <controls:GridSplitter Grid.Column="1" Width="8" Background="Transparent" />
 
-            <!-- CENTER: Visual Canvas & Authoring Panel -->
+            <!-- CENTER: visual canvas -->
             <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
                 <Grid>
@@ -114,40 +139,15 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    
-                    <Pivot Grid.Row="1">
-                        <PivotItem Header="Visual Canvas">
-                            <smartart:SmartArtCanvasControl />
-                        </PivotItem>
-                        <PivotItem Header="Markdown Data">
-                            <TextBox AcceptsReturn="True" TextWrapping="Wrap" 
-                                     Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                     FontFamily="Consolas" FontSize="13" Margin="0,8,0,0"
-                                     PlaceholderText="- Executive Board&#x0a;  - CEO&#x0a;  - CTO" />
-                        </PivotItem>
-                        <PivotItem Header="Layout JSON">
-                            <StackPanel Spacing="10" Margin="0,8,0,0">
-                                <TextBox AcceptsReturn="True" TextWrapping="Wrap" MinHeight="220"
-                                         Text="{Binding JsonDefinitionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         FontFamily="Consolas" FontSize="13"
-                                         PlaceholderText="{}{ 'Title': 'My Custom Layout' }" />
-                                <Button Content="Compile JSON → .glox (desktop)" Click="OnCompileGloxClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
-                            </StackPanel>
-                        </PivotItem>
-                        <PivotItem Header="Raster Mosaic">
-                            <StackPanel Spacing="12" Margin="0,12,0,0">
-                                <TextBlock Text="Raster Mosaic Mode" FontWeight="SemiBold" FontSize="14" />
-                                <TextBlock Text="Transforms images into structured SmartArt node mosaics." Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap" />
-                                <Button Content="Generate Sample Mosaic AST" Click="OnGenerateMosaicClick" Style="{ThemeResource AccentButtonStyle}" />
-                            </StackPanel>
-                        </PivotItem>
-                    </Pivot>
+                    <TextBlock Grid.Row="0" Text="Visual Canvas — drag to move, double-click to edit text"
+                               FontWeight="SemiBold" FontSize="12" Margin="2,0,0,6" Opacity="0.8" />
+                    <smartart:SmartArtCanvasControl Grid.Row="1" />
                 </Grid>
             </Border>
 
             <controls:GridSplitter Grid.Column="3" Width="8" Background="Transparent" />
 
-            <!-- RIGHT: Visual Preview Pane -->
+            <!-- RIGHT: live preview -->
             <Border Grid.Column="4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <Grid>
@@ -155,7 +155,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    
+
                     <Grid Grid.Row="0" Padding="12" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
