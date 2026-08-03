@@ -112,6 +112,42 @@ namespace MarkSmith.Core.Composer
         {
             long x = (long)(s.X * Emu), y = (long)(s.Y * Emu);
             long w = (long)(s.W * Emu), h = (long)(s.H * Emu);
+            // Curved sketch strokes: custGeom open polyline, fill="none", drawn with a thick
+            // line — the exact pattern DocxShapeEmitter.CurveXml uses (Word-proven).
+            if (s.PathPoints is { Count: >= 2 })
+            {
+                long cx = (long)(s.W * Emu);
+                long cy = (long)(s.H * Emu);
+                long offX = (long)(s.X * Emu);
+                long offY = (long)(s.Y * Emu);
+
+                var path = new StringBuilder();
+                path.Append("<a:moveTo><a:pt x=\"")
+                    .Append((long)(s.PathPoints[0].X / 100.0 * cx)).Append("\" y=\"")
+                    .Append((long)(s.PathPoints[0].Y / 100.0 * cy)).Append("\"/></a:moveTo>");
+                for (int pi = 1; pi < s.PathPoints.Count; pi++)
+                {
+                    path.Append("<a:lnTo><a:pt x=\"")
+                        .Append((long)(s.PathPoints[pi].X / 100.0 * cx)).Append("\" y=\"")
+                        .Append((long)(s.PathPoints[pi].Y / 100.0 * cy)).Append("\"/></a:lnTo>");
+                }
+
+                long lw = (long)Math.Round(s.StrokeWidthPt * 12700.0);
+
+                return
+                    @"<wps:wsp>" +
+                    $@"<wps:cNvPr id=""{id}"" name=""sketch stroke {id}""/>" +
+                    @"<wps:cNvSpPr/>" +
+                    @"<wps:spPr>" +
+                    $@"<a:xfrm rot=""{s.Rot}""><a:off x=""{offX}"" y=""{offY}""/><a:ext cx=""{cx}"" cy=""{cy}""/></a:xfrm>" +
+                    $@"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=""0"" t=""0"" r=""{cx}"" b=""{cy}""/><a:pathLst><a:path w=""{cx}"" h=""{cy}"" fill=""none"">{path}</a:path></a:pathLst></a:custGeom>" +
+                    @"<a:noFill/>" +
+                    $@"<a:ln w=""{lw}""><a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill></a:ln>" +
+                    @"</wps:spPr>" +
+                    @"<wps:bodyPr/>" +
+                    @"</wps:wsp>";
+            }
+
             string prst = s.Prst switch
             {
                 "roundrect" => "roundRect",
@@ -120,6 +156,7 @@ namespace MarkSmith.Core.Composer
                 "smileyface" => "smileyFace",
                 _ => s.Prst
             };
+
             return
                 @"<wps:wsp>" +
                 $@"<wps:cNvPr id=""{id}"" name=""shape {s.Prst} {id}""/>" +

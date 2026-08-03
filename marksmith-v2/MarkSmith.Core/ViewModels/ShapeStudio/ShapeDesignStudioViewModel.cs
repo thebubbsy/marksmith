@@ -44,6 +44,12 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isEditingText;
+
+    /// <summary>Curved-stroke polyline (0..100 local space) for sketch shapes.</summary>
+    public System.Collections.Generic.List<(double X, double Y)>? PathPoints { get; set; }
+
+    /// <summary>Stroke thickness in points (sketch shapes).</summary>
+    public double StrokeWidthPt { get; set; } = 1.5;
 }
 
 /// <summary>
@@ -142,7 +148,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     Width = s.W,
                     Height = s.H,
                     Fill = s.Fill,
-                    Rotation = s.Rot
+                    Rotation = s.Rot,
+                    PathPoints = s.PathPoints,
+                    StrokeWidthPt = s.StrokeWidthPt
                 });
             }
             SelectedShape = null;
@@ -152,6 +160,36 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusMessage = $"Load error: {ex.Message}";
+        }
+    }
+
+    public void ComposeSketchImage(string imagePath, int grid)
+    {
+        try
+        {
+            var composed = ImageShapeComposer.ComposeSketch(imagePath, new ShapeComposerOptions { Grid = grid });
+            foreach (var s in composed)
+            {
+                Shapes.Add(new ShapeCanvasItemViewModel
+                {
+                    Prst = s.Prst,
+                    Name = s.Prst,
+                    X = s.X,
+                    Y = s.Y,
+                    Width = s.W,
+                    Height = s.H,
+                    Fill = s.Fill,
+                    Rotation = s.Rot,
+                    PathPoints = s.PathPoints,
+                    StrokeWidthPt = s.StrokeWidthPt
+                });
+            }
+            StatusMessage = $"Sketch: {composed.Count} curved strokes onto the canvas from {Path.GetFileName(imagePath)}";
+            CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Sketch error: {ex.Message}";
         }
     }
 
@@ -175,7 +213,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 W = s.Width,
                 H = s.Height,
                 Fill = s.Fill,
-                Rot = s.Rotation
+                Rot = s.Rotation,
+                PathPoints = s.PathPoints,
+                StrokeWidthPt = s.StrokeWidthPt
             }).ToList();
 
             string outPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
@@ -210,7 +250,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     Width = s.W,
                     Height = s.H,
                     Fill = s.Fill,
-                    Rotation = s.Rot
+                    Rotation = s.Rot,
+                    PathPoints = s.PathPoints,
+                    StrokeWidthPt = s.StrokeWidthPt
                 });
             }
             StatusMessage = $"Composed {composed.Count} shapes onto the canvas from {Path.GetFileName(imagePath)}";

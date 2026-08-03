@@ -84,12 +84,38 @@ namespace MarkSmith.Views.ShapeStudio
             // builder is not reliable inside a value converter at template-load time.
             if (sender is Microsoft.UI.Xaml.Shapes.Path p && p.DataContext is ShapeCanvasItemViewModel s)
             {
-                try { p.Data = MarkSmith.Converters.ShapeGeometries.For(s.Prst); } catch { }
-                try { p.Fill = BrushFromHex(s.Fill); } catch { }
+                try
+                {
+                    p.Data = s.PathPoints is { Count: >= 2 }
+                        ? ParsePathGeometry(s.PathPoints)          // curved sketch strokes
+                        : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
+                }
+                catch { }
+                try
+                {
+                    p.Fill = s.PathPoints is { Count: >= 2 } ? null : BrushFromHex(s.Fill);
+                    p.Stroke = BrushFromHex(s.Fill);
+                    p.StrokeThickness = s.PathPoints is { Count: >= 2 } ? Math.Max(1, s.StrokeWidthPt) : 1.5;
+                }
+                catch { }
 
                 s.PropertyChanged -= OnShapeItemChanged;
                 s.PropertyChanged += OnShapeItemChanged;
             }
+        }
+
+        private static Microsoft.UI.Xaml.Media.Geometry ParsePathGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
+        {
+            // Polyline (0..100 space) -> XAML Path.Data mini-language.
+            var d = new System.Text.StringBuilder("M");
+            foreach (var p in pts)
+            {
+                d.Append(' ').Append(p.X.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))
+                 .Append(' ').Append(p.Y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var path = (Microsoft.UI.Xaml.Shapes.Path)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                $"<Path xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Data='{d}'/>");
+            return path.Data;
         }
 
         private void OnShapeItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -142,7 +168,8 @@ namespace MarkSmith.Views.ShapeStudio
             {
                 var block = MarkSmith.Core.Composer.ShapeMarkdownCodec.Serialize(ViewModel.Shapes.Select(s => new MarkSmith.Core.Composer.ComposedShape
                 {
-                    Prst = s.Prst, X = s.X, Y = s.Y, W = s.Width, H = s.Height, Fill = s.Fill, Rot = s.Rotation
+                    Prst = s.Prst, X = s.X, Y = s.Y, W = s.Width, H = s.Height, Fill = s.Fill, Rot = s.Rotation,
+                    PathPoints = s.PathPoints, StrokeWidthPt = s.StrokeWidthPt
                 }));
                 var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dp.SetText(block);
@@ -226,6 +253,12 @@ namespace MarkSmith.Views.ShapeStudio
             if (CompMoon.IsChecked == true) shapes.Add("moon");
             if (CompCircularArrow.IsChecked == true) shapes.Add("circulararrow");
             if (CompSmiley.IsChecked == true) shapes.Add("smileyface");
+
+            if (CompSketch.IsChecked == true)
+            {
+                ViewModel.ComposeSketchImage(_composeImagePath, (int)ComposeDensity.Value);
+                return;
+            }
 
             ViewModel.ComposeImage(_composeImagePath, (int)ComposeDensity.Value, shapes);
         }
