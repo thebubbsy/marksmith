@@ -191,6 +191,12 @@ namespace MarkSmith.Views.SmartArt
                 if (ShapeTriangle.IsChecked == true) shapes.Add("triangle");
                 if (ShapeParallelogram.IsChecked == true) shapes.Add("parallelogram");
                 if (ShapeLine.IsChecked == true) shapes.Add("line");
+                if (ShapeArc.IsChecked == true) shapes.Add("arc");
+                if (ShapeCloud.IsChecked == true) shapes.Add("cloud");
+                if (ShapeHeart.IsChecked == true) shapes.Add("heart");
+                if (ShapeMoon.IsChecked == true) shapes.Add("moon");
+                if (ShapeCircularArrow.IsChecked == true) shapes.Add("circulararrow");
+                if (ShapeSmiley.IsChecked == true) shapes.Add("smileyface");
                 if (shapes.Count == 0) shapes.Add("ellipse");
 
                 var options = new ShapeComposerOptions
