@@ -29,18 +29,20 @@ public class SmartArtLayoutCatalogTests
     private static readonly XNamespace Dgm =
         "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 
-    // layoutType -> expected algorithm type that Word uses to compute geometry.
+    // layoutType -> expected root algorithm (genuine Office vocabulary) + expected shape.
+    // Distinctness between types is provided by the uniqueId URN (how Word dispatches to its
+    // built-in geometry), not by unique root-alg names (real Office layouts share "composite").
     private static readonly (string Alias, string ExpectedAlg, string ExpectedShape)[] KnownLayouts =
     {
         ("hierarchy",    "hierChild", "rect"),
-        ("process",      "linear",    "chevron"),
-        ("cycle",        "cycle",     "circle"),
-        ("matrix",       "grid",      "rect"),
-        ("pyramid",      "pyramid",   "trapezoid"),
-        ("venn",         "venn",      "circle"),
+        ("process",      "lin",       "chevron"),
+        ("cycle",        "composite", "ellipse"),
+        ("matrix",       "composite", "roundRect"),
+        ("pyramid",      "composite", "rect"),
+        ("venn",         "composite", "ellipse"),
         ("relationship", "composite", "ellipse"),
-        ("picturelist",  "linear",    "roundRect"),
-        ("list",         "linear",    "roundRect"),
+        ("picturelist",  "snake",     "roundRect"),
+        ("list",         "lin",       "roundRect"),
     };
 
     [Fact]
@@ -81,21 +83,35 @@ public class SmartArtLayoutCatalogTests
     }
 
     [Fact]
-    public void Catalog_DistinctTypes_ProduceDistinctRootAlgorithms()
+    public void Catalog_DistinctTypes_ProduceDistinctUniqueIds()
     {
-        // Cycle, pyramid, matrix, venn and relationship all engrave a DIFFERENT geometry
-        // algorithm. If any collapse to the same root algorithm, rendering is broken.
-        string RootAlg(string alias) => XDocument.Parse(SmartArtLayoutCatalog.Shared.TryResolve(alias)!.LayoutXml)
+        // Word dispatches each SmartArt type to its own built-in geometry via the layout's
+        // uniqueId URN. These must be distinct per type (and match the real Office URNs) so
+        // cycle != pyramid != matrix != venn actually render differently in Word.
+        string Urn(string alias) => SmartArtLayoutCatalog.Shared.TryResolve(alias)!.UniqueId;
+
+        var urns = new[] { "cycle", "pyramid", "matrix", "venn", "relationship", "hierarchy", "process" }
+            .Select(Urn).ToArray();
+
+        Assert.Equal(7, urns.Distinct().Count());
+        Assert.Contains("urn:microsoft.com/office/officeart/2005/8/layout/cycle1", urns);
+        Assert.Contains("urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1", urns);
+    }
+
+    [Theory]
+    [MemberData(nameof(KnownLayoutsData))]
+    public void Catalog_RootAlgorithmUsesGenuineOfficeVocabulary(string alias, string expectedAlg, string _)
+    {
+        // The layout's root algorithm must be one Word actually understands. Our earlier
+        // invented types ("cycle"/"venn"/"grid"/"pyramid") are NOT valid Office enums and caused
+        // Word to reject the diagram -> basic blocks. Valid values include: composite, lin,
+        // snake, hierChild, hierRoot, conn, cycle, sp, tx.
+        var validAlgs = new[] { "composite", "lin", "snake", "hierChild", "hierRoot", "conn", "cycle", "sp", "tx" };
+        string rootAlg = XDocument.Parse(SmartArtLayoutCatalog.Shared.TryResolve(alias)!.LayoutXml)
             .Root!.Descendants(Dgm + "alg").First().Attribute("type")!.Value;
 
-        var rootAlgs = new[] { "cycle", "pyramid", "matrix", "venn", "relationship" }
-            .Select(RootAlg).ToArray();
-
-        Assert.Equal(5, rootAlgs.Distinct().Count());
-        Assert.Contains("cycle", rootAlgs);
-        Assert.Contains("pyramid", rootAlgs);
-        Assert.Contains("grid", rootAlgs);
-        Assert.Contains("venn", rootAlgs);
+        Assert.Contains(rootAlg, validAlgs);
+        Assert.Equal(expectedAlg, rootAlg);
     }
 
     [Fact]
@@ -144,16 +160,14 @@ public class SmartArtLayoutCatalogTests
                 Assert.Equal(expectedAlg, algs[0]);
             }
 
-            // The data model, Colors, and Style parts must be schema-clean. The layout part is
-            // intentionally EXCLUDED from strict validation here: it is authored with custom
-            // algorithm names, and making it fully Office-schema compliant is the next
-            // reverse-engineering slice (needs visual confirmation in Word).
+            // FULL schema validation on ALL parts, including the layout part. This is the
+            // guarantee of this slice: the embedded layoutDef must be genuinely schema-valid so
+            // Word accepts it instead of falling back to basic blocks.
             using (var doc = WordprocessingDocument.Open(tempPath, false))
             {
                 var validator = new OpenXmlValidator(FileFormatVersions.Office2013);
                 var errors = validator.Validate(doc)
                     .Where(e => !e.Description.Contains("w14") && !e.Description.Contains("w15"))
-                    .Where(e => !(e.Part?.Uri?.ToString().Contains("layout1.xml") == true))
                     .ToList();
                 if (errors.Count > 0)
                 {
