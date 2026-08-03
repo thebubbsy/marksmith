@@ -44,6 +44,7 @@ namespace MarkSmith.Core.AdvancedFeatures
                 new DatagridDetector(),
                 new ChartDetector(),
                 new SmartArtDetector(),
+                new ShapesDetector(),
                 new KanbanDetector(),
                 new WorkflowDetector(),
                 new TimelineDetector(),

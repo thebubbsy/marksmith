@@ -78,6 +78,104 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        private void OnShapeLoaded(object sender, RoutedEventArgs e)
+        {
+            // Set geometry + fill from the item in code — the XamlReader-based geometry
+            // builder is not reliable inside a value converter at template-load time.
+            if (sender is Microsoft.UI.Xaml.Shapes.Path p && p.DataContext is ShapeCanvasItemViewModel s)
+            {
+                try { p.Data = MarkSmith.Converters.ShapeGeometries.For(s.Prst); } catch { }
+                try { p.Fill = BrushFromHex(s.Fill); } catch { }
+
+                s.PropertyChanged -= OnShapeItemChanged;
+                s.PropertyChanged += OnShapeItemChanged;
+            }
+        }
+
+        private void OnShapeItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (sender is not ShapeCanvasItemViewModel s) return;
+            if (e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst))
+            {
+                // The Path that loaded this item is its visual parent's child; find and update it.
+                // Simpler: selection re-triggers Loaded for new items only — fill changes are
+                // reflected on the next edit because the inspector writes to the VM, and we
+                // refresh the whole canvas cheaply here:
+                if (e.PropertyName == nameof(s.Prst))
+                {
+                    RefreshAllShapeVisuals();
+                }
+            }
+        }
+
+        private void RefreshAllShapeVisuals()
+        {
+            foreach (var item in MainCanvas.Children.OfType<Microsoft.UI.Xaml.Shapes.Path>())
+            {
+                if (item.DataContext is ShapeCanvasItemViewModel s)
+                {
+                    try { item.Data = MarkSmith.Converters.ShapeGeometries.For(s.Prst); } catch { }
+                    try { item.Fill = BrushFromHex(s.Fill); } catch { }
+                }
+            }
+        }
+
+        private static Microsoft.UI.Xaml.Media.SolidColorBrush BrushFromHex(string hex)
+        {
+            hex = (hex ?? "0078D4").Trim().TrimStart('#');
+            try
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
+            }
+            catch
+            {
+                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+            }
+        }
+
+        private void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var block = MarkSmith.Core.Composer.ShapeMarkdownCodec.Serialize(ViewModel.Shapes.Select(s => new MarkSmith.Core.Composer.ComposedShape
+                {
+                    Prst = s.Prst, X = s.X, Y = s.Y, W = s.Width, H = s.Height, Fill = s.Fill, Rot = s.Rotation
+                }));
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(block);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                ViewModel.StatusMessage = $"Copied {ViewModel.Shapes.Count} shapes as a :::shapes markdown block.";
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Copy error: {ex.Message}";
+            }
+        }
+
+        private void OnLoadMarkdownClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dpv = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (dpv.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    var text = dpv.GetTextAsync().AsTask().GetAwaiter().GetResult();
+                    ViewModel.LoadMarkdown(text);
+                }
+                else
+                {
+                    ViewModel.StatusMessage = "Clipboard has no text.";
+                }
+            }
+            catch (Exception ex)
+            {
+                ViewModel.StatusMessage = $"Load error: {ex.Message}";
+            }
+        }
+
         // ---- actions ----
 
         private void OnExportDocxClick(object sender, RoutedEventArgs e) => ViewModel.ExportDocxCommand.Execute(null);
