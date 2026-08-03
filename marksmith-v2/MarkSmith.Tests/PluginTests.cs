@@ -1,7 +1,7 @@
-using MdToPdf.Plugins;
+using MarkSmith.Plugins;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // A controllable in-memory diagram plugin, so cache/registry behavior can be tested without a real
 // subprocess. Records every source it's asked to render and echoes it back inside an <svg>.

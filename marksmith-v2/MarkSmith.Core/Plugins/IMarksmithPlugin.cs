@@ -1,4 +1,4 @@
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 public enum PluginInstallState { NotInstalled, Installing, Installed, Failed }
 

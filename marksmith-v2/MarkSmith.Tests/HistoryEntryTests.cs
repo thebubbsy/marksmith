@@ -1,8 +1,8 @@
 using System;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Task 15 — Export History. HistoryEntry is a pure model (formatting + title extraction), so these
 // are fully deterministic. Persistence (HistoryService) is best-effort file I/O and not unit-tested.

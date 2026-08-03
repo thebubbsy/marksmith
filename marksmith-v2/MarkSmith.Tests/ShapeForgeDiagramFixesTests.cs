@@ -1,9 +1,9 @@
-using MdToPdf.Models;
-using MdToPdf.Services;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Models;
+using MarkSmith.Services;
+using MarkSmith.Services.Mermaid;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Regression coverage for two ShapeForge export bugs surfaced by product-spec.md:
 //  (1) a dark document theme painted every diagram shape near-black ("mostly black diagram");

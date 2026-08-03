@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Transforms GitHub-style blockquote callouts (<c>&gt; [!NOTE]</c>, <c>&gt; [!TIP]</c>,

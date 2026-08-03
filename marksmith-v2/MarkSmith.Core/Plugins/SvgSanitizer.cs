@@ -2,7 +2,7 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Plugins;
+namespace MarkSmith.Plugins;
 
 // Plugin SVG output is injected raw into the preview/export HTML (WebView DOM), so a malicious or
 // upstream-compromised diagram tool's output is an active-content vector. The earlier version

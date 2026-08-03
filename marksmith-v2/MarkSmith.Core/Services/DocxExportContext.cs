@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using DocumentFormat.OpenXml.Packaging;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Models;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Models;
 using W = DocumentFormat.OpenXml.Wordprocessing;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Services.Mermaid;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public enum RevisionKind
 {

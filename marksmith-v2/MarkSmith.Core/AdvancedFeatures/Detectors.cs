@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Core.AdvancedFeatures
+namespace MarkSmith.Core.AdvancedFeatures
 {
     // ───────────────────────────────────────────────────────────────────
     // Shared helper used by all detectors

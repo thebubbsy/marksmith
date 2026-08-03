@@ -1,6 +1,6 @@
 using System;
 
-namespace MdToPdf.Core.AdvancedFeatures
+namespace MarkSmith.Core.AdvancedFeatures
 {
     public interface IFeatureValidator
     {

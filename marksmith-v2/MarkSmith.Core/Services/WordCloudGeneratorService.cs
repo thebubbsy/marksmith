@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public class WordCloudItem
     {

@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 /// <summary>
 /// Converts a heading level (1–6) into a left-indent <see cref="Thickness"/> for the document

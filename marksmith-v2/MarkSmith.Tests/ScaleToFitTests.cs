@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Services.Mermaid;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class ScaleToFitTests
 {

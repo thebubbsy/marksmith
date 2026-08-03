@@ -4,10 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MdToPdf.Models;
-using MdToPdf.ViewModels;
+using MarkSmith.Models;
+using MarkSmith.ViewModels;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 public sealed class ExportCoordinator
 {

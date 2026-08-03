@@ -1,7 +1,7 @@
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // Task 13 — Auto-Updater. The network call itself (CheckAsync) is thin; the decision logic that
 // matters is the dotted-version comparison and the GitHub "releases/latest" JSON evaluation, both

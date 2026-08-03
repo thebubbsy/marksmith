@@ -1,10 +1,10 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 using Markdig;
 using SkiaSharp;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Port of create_html_content() from md_to_pdf_tui.py: Markdown -> themed HTML string that
 // WebView2 can navigate to for live preview and PDF export via CoreWebView2.PrintToPdfAsync.
@@ -180,7 +180,7 @@ public sealed partial class MarkdownHtmlService
         // doesn't know how to render itself. Unlike Mermaid (rendered client-side by mermaid.min.js
         // inside the WebView), a diagram plugin renders out-of-process, synchronously, right here —
         // by the time this HTML reaches the browser the SVG already exists. See
-        // MdToPdf.Plugins.IDiagramPlugin / PluginManager.
+        // MarkSmith.Plugins.IDiagramPlugin / PluginManager.
         var pluginTheme = Plugins.PluginTheme.From(theme);
         body = PluginLangCodeRe().Replace(body,
             m =>

@@ -2,9 +2,9 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // EPUB 3 export. Markdown → themed XHTML chapters (split on each top-level heading), packaged as a
 // valid EPUB container (mimetype first + uncompressed, META-INF/container.xml, an OPF manifest/spine,

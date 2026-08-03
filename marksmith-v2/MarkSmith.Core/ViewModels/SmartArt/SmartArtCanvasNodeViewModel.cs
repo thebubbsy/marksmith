@@ -2,7 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace MdToPdf.ViewModels.SmartArt;
+namespace MarkSmith.ViewModels.SmartArt;
 
 public partial class SmartArtCanvasNodeViewModel : ObservableObject
 {

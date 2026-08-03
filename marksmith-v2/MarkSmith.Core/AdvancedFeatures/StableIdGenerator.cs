@@ -2,7 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MdToPdf.Core.AdvancedFeatures
+namespace MarkSmith.Core.AdvancedFeatures
 {
     public static class StableIdGenerator
     {

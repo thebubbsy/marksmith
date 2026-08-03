@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Sync;
+namespace MarkSmith.Mermaid.Sync;
 
 using System.Text.RegularExpressions;
 

@@ -8,7 +8,7 @@ using W = DocumentFormat.OpenXml.Wordprocessing;
 using M = DocumentFormat.OpenXml.Math;
 using A = DocumentFormat.OpenXml.Drawing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // The Smart Dual-Mode DOCX-to-Markdown engine — the inverse of DocxExportService.
 //

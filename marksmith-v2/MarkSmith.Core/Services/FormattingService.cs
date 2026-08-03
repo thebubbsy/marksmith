@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Personalizes Markdown *structure* rather than just cleaning it: shift every heading up or down a
 // level, and rewrite bold / italic emphasis. AI output isn't badly formatted — it's uniformly

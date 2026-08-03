@@ -10,7 +10,7 @@ The E2E and Unit test suite for **Native Collapsible Toggles** (Milestone 2) is 
 
 - **Total Toggle Tests**: 13
 - **Passed**: 13 / 13 (100% Pass Rate)
-- **Test File**: `tests/MdToPdf.Core.Tests/ToggleTests.cs`
+- **Test File**: `tests/MarkSmith.Core.Tests/ToggleTests.cs`
 - **Output Artifact**: `test_outputs/sample_toggle.docx` (Generated & DOM-Validated)
 
 ---

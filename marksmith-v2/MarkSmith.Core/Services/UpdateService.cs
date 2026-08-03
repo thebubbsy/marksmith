@@ -1,7 +1,7 @@
 using System.Net.Http;
 using System.Text.Json;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Checks GitHub Releases for a newer version. Works against the public releases API; while the repo
 // is private the API returns 404, which surfaces as a friendly "couldn't check" rather than an error.

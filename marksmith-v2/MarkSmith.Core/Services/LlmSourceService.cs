@@ -1,9 +1,9 @@
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Detects which AI assistant a Markdown blob came from (each web UI has formatting tells) and
 // normalizes those quirks so the export renders cleanly:

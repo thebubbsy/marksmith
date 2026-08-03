@@ -1,7 +1,7 @@
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Persistent export log (JSON in LocalAppData, newest first, capped) backing the History flyout.
 public sealed class HistoryService
@@ -9,7 +9,7 @@ public sealed class HistoryService
     private const int MaxEntries = 200;
 
     private static readonly string HistoryPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MdToPdf", "history.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "history.json");
 
     private readonly List<HistoryEntry> _entries;
 

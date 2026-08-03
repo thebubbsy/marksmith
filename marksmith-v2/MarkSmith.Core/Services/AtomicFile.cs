@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Crash-safe text writes. File.WriteAllText truncates-then-writes, so a crash, power loss, or two
 // concurrent writers can leave a truncated/interleaved file — and for settings.json that means the

@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Windows and macOS (default APFS) treat file paths as case-insensitive; Linux (ext4 etc.) is
 // case-sensitive. Path *identity* comparisons (recent-files dedup, discovered-file dedup) should

@@ -3,13 +3,13 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.ViewModels.Mermaid;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Point = Windows.Foundation.Point;
-using Rect = MdToPdf.ViewModels.Mermaid.Rect;
+using Rect = MarkSmith.ViewModels.Mermaid.Rect;
 
-namespace MdToPdf.Views.Mermaid;
+namespace MarkSmith.Views.Mermaid;
 
 public sealed partial class MermaidCanvasControl : UserControl
 {

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Rewrites the ::: fenced-admonition syntax (Docusaurus, Obsidian, GitBook, Nextra, Starlight,
 // MkDocs-material's alternative form — all increasingly common in AI-generated Markdown) into the

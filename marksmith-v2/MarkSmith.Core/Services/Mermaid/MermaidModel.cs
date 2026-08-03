@@ -1,6 +1,6 @@
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // The shared contract between Mermaid renderers (pure text -> geometry, NO OOXML) and the
 // DocxShapeEmitter (geometry -> native Word DrawingML shapes). Renderers lay out a diagram in

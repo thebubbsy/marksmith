@@ -1,9 +1,9 @@
-using MdToPdf.Models;
-using MdToPdf.Services;
-using MdToPdf.Services.Mermaid;
+using MarkSmith.Models;
+using MarkSmith.Services;
+using MarkSmith.Services.Mermaid;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // SvgShapeForge (plugin SVG -> native-Word-shape primitives) and the custom-theme store.
 public class ShapeForgeAndThemeTests

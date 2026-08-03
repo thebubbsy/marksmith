@@ -1,4 +1,4 @@
-namespace MdToPdf.ViewModels.Mermaid;
+namespace MarkSmith.ViewModels.Mermaid;
 
 public readonly struct Point
 {
@@ -11,9 +11,9 @@ public readonly struct Point
         Y = y;
     }
 
-    public static implicit operator MdToPdf.Core.Mermaid.Routing.Point(Point p) =>
-        new MdToPdf.Core.Mermaid.Routing.Point(p.X, p.Y);
+    public static implicit operator MarkSmith.Core.Mermaid.Routing.Point(Point p) =>
+        new MarkSmith.Core.Mermaid.Routing.Point(p.X, p.Y);
 
-    public static implicit operator Point(MdToPdf.Core.Mermaid.Routing.Point p) =>
+    public static implicit operator Point(MarkSmith.Core.Mermaid.Routing.Point p) =>
         new Point(p.X, p.Y);
 }

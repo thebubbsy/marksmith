@@ -1,7 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace MdToPdf.Core.Services
+namespace MarkSmith.Core.Services
 {
     public class ReadabilityResult
     {

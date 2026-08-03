@@ -14,7 +14,7 @@ using MdTable = Markdig.Extensions.Tables.Table;
 using MdTableRow = Markdig.Extensions.Tables.TableRow;
 using MdTableCell = Markdig.Extensions.Tables.TableCell;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// A spreadsheet cell grid — the intermediate model shared by every import/export path.

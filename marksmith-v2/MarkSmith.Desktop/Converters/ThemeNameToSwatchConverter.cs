@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 
-namespace MdToPdf.Converters;
+namespace MarkSmith.Converters;
 
 // Turns a theme *name* (the ComboBox items are plain strings) into a small accent swatch brush so
 // the theme dropdown can show a tiny color preview next to each entry. The swatch uses the theme's

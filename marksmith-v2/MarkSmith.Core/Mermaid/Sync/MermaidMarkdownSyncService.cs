@@ -1,9 +1,9 @@
-namespace MdToPdf.Mermaid.Sync;
+namespace MarkSmith.Mermaid.Sync;
 
 using Markdig;
 using Markdig.Syntax;
-using MdToPdf.Mermaid.Ast;
-using MdToPdf.Mermaid.Generator;
+using MarkSmith.Mermaid.Ast;
+using MarkSmith.Mermaid.Generator;
 
 public sealed class MermaidBlockInfo
 {

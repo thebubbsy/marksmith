@@ -3,13 +3,13 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using MdToPdf.Core.AdvancedFeatures;
-using MdToPdf.Models;
-using MdToPdf.Plugins;
-using MdToPdf.Services;
+using MarkSmith.Core.AdvancedFeatures;
+using MarkSmith.Models;
+using MarkSmith.Plugins;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 public class Category1And3FixTests
 {

@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MdToPdf.Core.Mermaid.Routing;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.Core.Mermaid.Routing;
+using MarkSmith.ViewModels.Mermaid;
 using Xunit;
 
-using Point = MdToPdf.Core.Mermaid.Routing.Point;
-using Rect = MdToPdf.Core.Mermaid.Routing.Rect;
+using Point = MarkSmith.Core.Mermaid.Routing.Point;
+using Rect = MarkSmith.Core.Mermaid.Routing.Rect;
 
-namespace MdToPdf.Core.Tests.Mermaid;
+namespace MarkSmith.Core.Tests.Mermaid;
 
 public class RequirementR2EmpiricalChallengerTests
 {

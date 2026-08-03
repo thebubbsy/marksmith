@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Optional ONLINE license activation via Lemon Squeezy's License API. Off by default — flip Enabled
 // to true once your Lemon Squeezy store issues license keys. Offline signed keys (LicenseValidator)

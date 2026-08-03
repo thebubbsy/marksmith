@@ -1,7 +1,7 @@
-using MdToPdf.Services;
+using MarkSmith.Services;
 using Xunit;
 
-namespace MdToPdf.Core.Tests;
+namespace MarkSmith.Core.Tests;
 
 // QODER task 6: AI quirk normalization for DeepSeek and Perplexity chat exports —
 // <think> reasoning blocks, web-search citation badges ([1], [source]), and raw

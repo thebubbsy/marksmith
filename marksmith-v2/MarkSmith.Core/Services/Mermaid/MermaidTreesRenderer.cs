@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services.Mermaid;
+namespace MarkSmith.Services.Mermaid;
 
 // Renders the "tree/track" mermaid family — mindmap, timeline, journey, gitGraph — into pure
 // geometry (MDiagram). No OOXML here; the DocxShapeEmitter turns the result into Word shapes.

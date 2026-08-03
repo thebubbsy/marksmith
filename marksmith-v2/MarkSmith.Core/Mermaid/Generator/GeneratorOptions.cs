@@ -1,4 +1,4 @@
-namespace MdToPdf.Mermaid.Generator;
+namespace MarkSmith.Mermaid.Generator;
 
 public sealed class GeneratorOptions
 {

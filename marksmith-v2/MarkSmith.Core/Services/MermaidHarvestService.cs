@@ -1,7 +1,7 @@
-using MdToPdf.Models;
+using MarkSmith.Models;
 using Markdig.Syntax;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // The portable half of mermaid rasterization/geometry-harvesting: builds the self-contained
 // render page, drives it via IWebRenderHost, and parses the result. The UI-shell-specific parts

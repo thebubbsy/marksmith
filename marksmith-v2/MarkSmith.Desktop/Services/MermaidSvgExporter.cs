@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using MdToPdf.ViewModels.Mermaid;
+using MarkSmith.ViewModels.Mermaid;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// Renders the Studio canvas (nodes + connectors) to a standalone SVG document.

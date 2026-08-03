@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Local REST API so scripts, browser userscripts, and other tools can drive the converter:
 //   GET  /api/health              -> { status, version, endpoints }

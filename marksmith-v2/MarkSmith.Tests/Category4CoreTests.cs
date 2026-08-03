@@ -1,8 +1,8 @@
-using MdToPdf.Services;
-using MdToPdf.ViewModels;
+using MarkSmith.Services;
+using MarkSmith.ViewModels;
 using Xunit;
 
-namespace MdToPdf.Core.Tests
+namespace MarkSmith.Core.Tests
 {
     // Core-only subset preserved from the original Category4Tests.cs. The remaining tests in that
     // file exercised Avalonia-hosted services (ClipboardWatcherService, FolderWatcherService,

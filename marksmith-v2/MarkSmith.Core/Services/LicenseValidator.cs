@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Offline verification of RSA-signed Marksmith license keys. A key is:
 //     base64url(payloadJson) + "." + base64url(RSA-SHA256 signature)

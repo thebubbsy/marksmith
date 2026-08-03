@@ -2,7 +2,7 @@ using DocumentFormat.OpenXml.Packaging;
 using A = DocumentFormat.OpenXml.Drawing;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Tier 2 (Universal Engine) image extraction. Walks every picture in the document body, writes each
 // referenced image part out to a media/ folder next to the recovered Markdown, and returns a map the

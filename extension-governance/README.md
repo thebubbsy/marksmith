@@ -14,7 +14,7 @@ runs itself. It ships nothing and reports nothing until an admin pushes configur
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | MV3 manifest. |
-| `dlp-mask.js` | Client-side DLP scan + masking — mirrors `MdToPdf/Services/DlpScanService.cs`. |
+| `dlp-mask.js` | Client-side DLP scan + masking — mirrors `MarkSmith.Core/Services/DlpScanService.cs`. |
 | `governance.js` | Content script: consent notice, persistent badge, composer watch (DLP), time-on-page tracking. |
 | `background.js` | Service worker: relays reports to the configured `collectorUrl`. |
 | `options.html` / `options.js` | Config UI for a personal pilot (real orgs push policy via `managed_schema.json`). |

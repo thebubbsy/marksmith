@@ -7,9 +7,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using MdToPdf.Models;
+using MarkSmith.Models;
 
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 // Unified cloud-storage publishing (Task 9 & Task 22). The folder-sync providers (OneDrive, Google Drive,
 // Dropbox, Box, iCloud) are detected by locating their local sync directory on this machine;

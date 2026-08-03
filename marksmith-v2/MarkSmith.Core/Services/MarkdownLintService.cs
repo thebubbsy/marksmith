@@ -1,4 +1,4 @@
-namespace MdToPdf.Services;
+namespace MarkSmith.Services;
 
 /// <summary>
 /// A lightweight Markdown "linter": flags common authoring issues (trailing whitespace, hard tabs,
