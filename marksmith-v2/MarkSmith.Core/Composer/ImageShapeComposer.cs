@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using SkiaSharp;
 
 namespace MarkSmith.Core.Composer
@@ -30,6 +32,12 @@ namespace MarkSmith.Core.Composer
         public double H { get; set; }
         public string Fill { get; set; } = "000000";
         public int Rot { get; set; }
+
+        /// <summary>Open polyline (0..100 local space) drawn as a custGeom stroke — curved sketch lines.</summary>
+        public List<(double X, double Y)>? PathPoints { get; set; }
+
+        /// <summary>Line thickness in points when PathPoints is set.</summary>
+        public double StrokeWidthPt { get; set; } = 1.5;
     }
 
     /// <summary>
@@ -137,6 +145,80 @@ namespace MarkSmith.Core.Composer
                 }
             }
 
+            return result;
+        }
+
+        /// <summary>
+        /// Sketch mode: the image is drawn with short, CURVED strokes (native custGeom
+        /// polylines drawn with a thick line — the same Word-proven mechanism the Mermaid
+        /// curve tracer uses). Each row splits into segments; per segment a wavy open polyline
+        /// stroke is emitted whose thickness follows local luminance. Light areas stay paper.
+        /// </summary>
+        public static List<ComposedShape> ComposeSketch(string imagePath, ShapeComposerOptions? options = null)
+        {
+            var opt = options ?? new ShapeComposerOptions();
+            int rows = Math.Clamp(opt.Grid, 8, 8192);
+            int segments = 12;
+
+            double imgW, imgH;
+            SKColor[,]? cells = null;
+            try
+            {
+                using var src = SKBitmap.Decode(imagePath);
+                if (src == null || src.Width <= 0 || src.Height <= 0) throw new InvalidDataException("decode failed");
+                imgW = src.Width;
+                imgH = src.Height;
+                cells = SampleCells(src, segments, rows);
+            }
+            catch
+            {
+                imgW = 32; imgH = 32;
+                cells = GradientCells(segments, rows);
+            }
+
+            double totalW = DefaultCanvasWidthInches;
+            double totalH = totalW * (imgH / imgW);
+            double rowH = totalH / rows;
+            double segW = totalW / segments;
+
+            var result = new List<ComposedShape>(rows * segments);
+            for (int y = 0; y < rows; y++)
+            {
+                double phase = y * 1.7;
+                for (int x = 0; x < segments; x++)
+                {
+                    var c = cells[y, x];
+                    double lum = 0.299 * c.Red + 0.587 * c.Green + 0.114 * c.Blue;
+                    if (lum > 232) continue; // near-white: paper, no stroke
+
+                    double darkness = 1 - lum / 255.0;
+                    double amp = Math.Max(0.02, rowH * (0.6 + darkness * 0.8));
+                    double strokePt = 0.6 + darkness * 2.8;
+
+                    // Wavy open polyline across the segment, 0..100 local space.
+                    var pts = new List<(double X, double Y)>();
+                    const int n = 5;
+                    for (int i = 0; i <= n; i++)
+                    {
+                        double t = i / (double)n;
+                        double px = t * 100;
+                        double py = 50 + 32 * Math.Sin(t * Math.PI * 2 + phase + x * 1.1);
+                        pts.Add((px, py));
+                    }
+
+                    result.Add(new ComposedShape
+                    {
+                        Prst = "sketch",
+                        X = x * segW,
+                        Y = y * rowH + (rowH - amp) / 2,
+                        W = segW,
+                        H = amp,
+                        Fill = $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}",
+                        PathPoints = pts,
+                        StrokeWidthPt = strokePt
+                    });
+                }
+            }
             return result;
         }
 
@@ -357,6 +439,20 @@ namespace MarkSmith.Core.Composer
             double cx = x + w / 2, cy = y + h / 2;
             string fill = "#" + s.Fill;
             string transform = s.Rot != 0 ? $" transform=\"rotate({s.Rot} {cx} {cy})\"" : "";
+
+            // Custom-geometry curved strokes (sketch mode): polyline in 0..100 space.
+            if (s.PathPoints is { Count: >= 2 })
+            {
+                var d = new StringBuilder("M");
+                foreach (var p in s.PathPoints)
+                {
+                    d.Append(' ').Append(p.X.ToString("F1", CultureInfo.InvariantCulture))
+                     .Append(' ').Append(p.Y.ToString("F1", CultureInfo.InvariantCulture));
+                }
+                // stroke-width must be expressed in path space (transform scales it by w/100).
+                double swPath = (s.StrokeWidthPt * 96 / 72.0) * 100.0 / Math.Max(1, w);
+                return $"<path d=\"{d}\" transform=\"translate({x:F1},{y:F1}) scale({w / 100:F4},{h / 100:F4}){transform}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{swPath:F2}\" stroke-linecap=\"round\"/>";
+            }
             if (s.Prst == "line")
             {
                 // prstGeom "line" draws corner-to-corner; match that in SVG.
