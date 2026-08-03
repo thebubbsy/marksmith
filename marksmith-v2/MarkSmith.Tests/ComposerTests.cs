@@ -70,6 +70,52 @@ public class ComposerTests
     }
 
     [Fact]
+    public void Compose_LineAlone_UsesScanlineMode_OneStrokePerRow()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png);
+            var shapes = ImageShapeComposer.Compose(png, new ShapeComposerOptions
+            {
+                Grid = 120,
+                Shapes = new() { "line" }
+            });
+
+            // Scanline mode: full-width strokes, one per row, thickness follows darkness.
+            Assert.Equal(120, shapes.Count);
+            Assert.All(shapes, s =>
+            {
+                Assert.Equal("rect", s.Prst);
+                Assert.Equal(0, s.X, 3);           // full-width
+                Assert.True(s.W > 4.0, "strokes span the canvas width");
+                Assert.True(s.H > 0 && s.H < 0.2, "stroke thickness follows luminance");
+                Assert.Equal(6, s.Fill.Length);
+            });
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
+    public void Compose_HighDensity_ClampsToPracticalCellBudget()
+    {
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        try
+        {
+            MakeTestPng(png, 800, 600);
+            var shapes = ImageShapeComposer.Compose(png, new ShapeComposerOptions
+            {
+                Grid = 4096, // ~16.7M cells requested
+                Shapes = new() { "ellipse" }
+            });
+
+            Assert.True(shapes.Count <= ImageShapeComposer.MaxCells);
+            Assert.True(shapes.Count > 1_000_000, $"expected dense output, got {shapes.Count}");
+        }
+        finally { if (File.Exists(png)) File.Delete(png); }
+    }
+
+    [Fact]
     public void RenderSvg_ContainsAllShapes()
     {
         var shapes = new System.Collections.Generic.List<ComposedShape>

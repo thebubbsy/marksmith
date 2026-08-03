@@ -42,14 +42,25 @@ namespace MarkSmith.Core.Composer
     {
         public const double DefaultCanvasWidthInches = 6.2;
 
+        /// <summary>Hard ceiling on per-cell shape counts so the .docx stays practical in Word.</summary>
+        public const int MaxCells = 1_500_000;
+
         public static List<ComposedShape> Compose(string imagePath, ShapeComposerOptions? options = null)
         {
             var opt = options ?? new ShapeComposerOptions();
-            int grid = Math.Clamp(opt.Grid, 4, 64);
+            int grid = Math.Clamp(opt.Grid, 4, 8192);
             var shapes = opt.Shapes.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim().ToLower()).Distinct().ToList();
             if (shapes.Count == 0) shapes.Add("ellipse");
 
+            // "Line" alone => scanline mode: full-width strokes per row whose thickness follows
+            // image darkness — reads as an image, not a grid of shapes.
+            if (shapes.Count == 1 && shapes[0] == "line")
+            {
+                return ComposeScanlines(imagePath, opt, grid);
+            }
+
             double imgW, imgH;
+            int gx = grid, gy = 1;
             SKColor[,]? cells = null;
             try
             {
@@ -57,17 +68,27 @@ namespace MarkSmith.Core.Composer
                 if (src == null || src.Width <= 0 || src.Height <= 0) throw new InvalidDataException("decode failed");
                 imgW = src.Width;
                 imgH = src.Height;
-                cells = SampleCells(src, grid, (int)Math.Max(1, Math.Round(grid * src.Height / (double)src.Width)));
+                gx = grid;
+                gy = (int)Math.Max(1, Math.Round(grid * src.Height / (double)src.Width));
+                // Keep the docx practical: clamp total cells, preserving aspect.
+                while ((long)gx * gy > MaxCells && gx > 4 && gy > 4)
+                {
+                    gx = Math.Max(4, (int)(gx * 0.75));
+                    gy = (int)Math.Max(1, Math.Round(gx * imgH / imgW));
+                }
+                cells = SampleCells(src, gx, gy);
+                grid = gx;
             }
             catch
             {
                 // Unreadable image -> deterministic gradient so composition never throws.
                 imgW = 32; imgH = 32;
-                cells = GradientCells(grid, (int)Math.Max(1, Math.Round(grid * imgH / imgW)));
+                gy = (int)Math.Max(1, Math.Round(grid * imgH / imgW));
+                cells = GradientCells(grid, gy);
             }
 
-            int gx = cells.GetLength(1);
-            int gy = cells.GetLength(0);
+            gx = cells.GetLength(1);
+            gy = cells.GetLength(0);
 
             var palette = BuildPalette(cells, gx, gy, Math.Max(2, opt.PaletteColors));
 
@@ -129,6 +150,7 @@ namespace MarkSmith.Core.Composer
             double w = Math.Max(0.05, cellW - inset);
             double h = Math.Max(0.05, cellH - inset);
             if (prst is "chevron" or "parallelogram") { w = Math.Max(0.08, cellW - inset * 0.4); h = Math.Max(0.05, cellH * 0.62); }
+            if (prst == "line") { w = Math.Max(0.08, cellW - inset * 0.4); h = Math.Max(0.02, cellH * 0.34); }
 
             result.Add(new ComposedShape
             {
@@ -139,6 +161,72 @@ namespace MarkSmith.Core.Composer
                 H = h,
                 Fill = $"{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
             });
+        }
+
+        /// <summary>
+        /// Scanline mode ("Line" selected alone): one full-width stroke per image row whose
+        /// thickness follows luminance (darker rows -> thicker strokes), colored with the row's
+        /// average color. This reads as an image — like an engraving / scanline rendering —
+        /// with only rows×1 shapes, so densities of thousands are practical in Word.
+        /// </summary>
+        private static List<ComposedShape> ComposeScanlines(string imagePath, ShapeComposerOptions opt, int rows)
+        {
+            rows = Math.Clamp(rows, 8, 8192);
+            double imgW, imgH;
+            SKColor[] rowColors;
+            try
+            {
+                using var src = SKBitmap.Decode(imagePath);
+                if (src == null || src.Width <= 0 || src.Height <= 0) throw new InvalidDataException("decode failed");
+                imgW = src.Width;
+                imgH = src.Height;
+
+                rowColors = new SKColor[rows];
+                for (int y = 0; y < rows; y++)
+                {
+                    int y0 = y * src.Height / rows;
+                    int y1 = Math.Max(y0 + 1, (y + 1) * src.Height / rows);
+                    long r = 0, g = 0, b = 0, n = 0;
+                    for (int py = y0; py < y1; py++)
+                    for (int px = 0; px < src.Width; px++)
+                    {
+                        var c = src.GetPixel(px, py);
+                        r += c.Red; g += c.Green; b += c.Blue; n++;
+                    }
+                    rowColors[y] = n > 0 ? new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n)) : new SKColor(0, 0, 0);
+                }
+            }
+            catch
+            {
+                imgW = 32; imgH = 32;
+                rowColors = new SKColor[rows];
+                for (int y = 0; y < rows; y++)
+                    rowColors[y] = new SKColor(0, (byte)(y * 255 / Math.Max(1, rows - 1)), 128);
+            }
+
+            double totalW = DefaultCanvasWidthInches;
+            double totalH = totalW * (imgH / imgW);
+            double rowH = totalH / rows;
+            double maxThick = Math.Max(0.02, rowH * 0.96);
+            double minThick = Math.Max(0.006, rowH * 0.06);
+
+            var result = new List<ComposedShape>(rows);
+            for (int y = 0; y < rows; y++)
+            {
+                var c = rowColors[y];
+                double lum = 0.299 * c.Red + 0.587 * c.Green + 0.114 * c.Blue; // 0..255
+                double thickness = minThick + (1 - lum / 255.0) * (maxThick - minThick);
+                result.Add(new ComposedShape
+                {
+                    Prst = "rect",
+                    X = 0,
+                    Y = y * rowH + (rowH - thickness) / 2,
+                    W = totalW,
+                    H = thickness,
+                    Fill = $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}"
+                });
+            }
+            return result;
         }
 
         // ---- sampling / palette / dithering (same pipeline as RasterMosaicEngine) ----
@@ -269,6 +357,11 @@ namespace MarkSmith.Core.Composer
             double cx = x + w / 2, cy = y + h / 2;
             string fill = "#" + s.Fill;
             string transform = s.Rot != 0 ? $" transform=\"rotate({s.Rot} {cx} {cy})\"" : "";
+            if (s.Prst == "line")
+            {
+                // prstGeom "line" draws corner-to-corner; match that in SVG.
+                return $"<line x1=\"{x:F1}\" y1=\"{y:F1}\" x2=\"{x + w:F1}\" y2=\"{y + h:F1}\" stroke=\"{fill}\" stroke-width=\"{(s.H * 96 * 0.18):F1}\"{transform}/>";
+            }
             return s.Prst switch
             {
                 "ellipse" or "circle" => $"<ellipse cx=\"{cx:F1}\" cy=\"{cy:F1}\" rx=\"{w / 2:F1}\" ry=\"{h / 2:F1}\" fill=\"{fill}\"{transform}/>",

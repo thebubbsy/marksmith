@@ -190,6 +190,7 @@ namespace MarkSmith.Views.SmartArt
                 if (ShapeHexagon.IsChecked == true) shapes.Add("hexagon");
                 if (ShapeTriangle.IsChecked == true) shapes.Add("triangle");
                 if (ShapeParallelogram.IsChecked == true) shapes.Add("parallelogram");
+                if (ShapeLine.IsChecked == true) shapes.Add("line");
                 if (shapes.Count == 0) shapes.Add("ellipse");
 
                 var options = new ShapeComposerOptions
