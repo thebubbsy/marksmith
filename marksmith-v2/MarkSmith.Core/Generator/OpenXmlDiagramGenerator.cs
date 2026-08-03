@@ -14,6 +14,7 @@ namespace MarkSmith.Core.Generator
         public string DiagramLayoutXml { get; set; } = string.Empty;
         public string DiagramStyleXml { get; set; } = string.Empty;
         public string DiagramColorsXml { get; set; } = string.Empty;
+        public string ThemeXml { get; set; } = string.Empty;
         public Dictionary<string, string> ImageRelMap { get; set; } = new Dictionary<string, string>();
     }
 
@@ -29,7 +30,8 @@ namespace MarkSmith.Core.Generator
             {
                 DiagramLayoutXml = gloxPkg.LayoutXml,
                 DiagramStyleXml = NormalizeStylePart(gloxPkg.StyleXml, gloxPkg.UniqueId),
-                DiagramColorsXml = NormalizeColorsPart(gloxPkg.ColorXml, gloxPkg.UniqueId)
+                DiagramColorsXml = NormalizeColorsPart(gloxPkg.ColorXml, gloxPkg.UniqueId),
+                ThemeXml = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.ThemeXml
             };
 
             var dataModelElem = new XElement(DgmNs + "dataModel",
@@ -53,9 +55,13 @@ namespace MarkSmith.Core.Generator
                     ptElem.Add(new XElement(DgmNs + "prSet",
                         new XAttribute("loTypeId", gloxPkg.UniqueId),
                         new XAttribute("loCatId", gloxPkg.Category ?? "list"),
-                        new XAttribute("qsTypeId", gloxPkg.UniqueId.Replace("layout", "quickstyle")),
+                        new XAttribute("qsTypeId", !string.IsNullOrWhiteSpace(gloxPkg.StyleUniqueId)
+                            ? gloxPkg.StyleUniqueId
+                            : gloxPkg.UniqueId.Replace("layout", "quickstyle")),
                         new XAttribute("qsCatId", "simple"),
-                        new XAttribute("csTypeId", gloxPkg.UniqueId.Replace("layout", "colors")),
+                        new XAttribute("csTypeId", !string.IsNullOrWhiteSpace(gloxPkg.ColorUniqueId)
+                            ? gloxPkg.ColorUniqueId
+                            : gloxPkg.UniqueId.Replace("layout", "colors")),
                         new XAttribute("csCatId", "colorful"),
                         new XAttribute("phldr", "1")
                     ));

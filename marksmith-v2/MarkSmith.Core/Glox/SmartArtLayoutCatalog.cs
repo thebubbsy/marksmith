@@ -30,13 +30,43 @@ namespace MarkSmith.Core.Glox
         public static SmartArtLayoutCatalog Shared =>
             _shared ??= new SmartArtLayoutCatalog();
 
+        /// <summary>
+        /// The Office default document theme (accent1..accent6 etc.). SmartArt colors resolve
+        /// against it, so exports carry it so diagrams render colored in Word.
+        /// </summary>
+        public string ThemeXml { get; private set; } = string.Empty;
+
+        /// <summary>Shared native quickStyle + colors (all Office gallery styles share these two).</summary>
+        public string SharedQuickStyleXml { get; private set; } = string.Empty;
+        public string SharedColorsXml { get; private set; } = string.Empty;
+
         public IReadOnlyList<GloxPackage> All => _all;
         internal Dictionary<string, string> AliasToUrn { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         private SmartArtLayoutCatalog()
         {
+            LoadSharedParts();
             LoadEmbeddedPackages();
             RegisterAliases();
+        }
+
+        private static string? ReadResource(string nameSuffix)
+        {
+            var asm = typeof(GloxExtractor).Assembly;
+            string? fullName = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith(nameSuffix, StringComparison.OrdinalIgnoreCase));
+            if (fullName == null) return null;
+            using var stream = asm.GetManifestResourceStream(fullName);
+            if (stream == null) return null;
+            using var reader = new System.IO.StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+
+        private void LoadSharedParts()
+        {
+            SharedQuickStyleXml = ReadResource("EmbeddedGlox.shared.quickstyle.xml") ?? string.Empty;
+            SharedColorsXml = ReadResource("EmbeddedGlox.shared.colors.xml") ?? string.Empty;
+            ThemeXml = ReadResource("EmbeddedGlox.theme.xml") ?? string.Empty;
         }
 
         private void LoadEmbeddedPackages()
@@ -44,7 +74,11 @@ namespace MarkSmith.Core.Glox
             var asm = typeof(GloxExtractor).Assembly;
             var resourceNames = asm.GetManifestResourceNames()
                 .Where(n => n.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
-                            && n.Contains("EmbeddedGlox.", StringComparison.OrdinalIgnoreCase))
+                            && n.Contains("EmbeddedGlox.", StringComparison.OrdinalIgnoreCase)
+                            // Sidecars are not layouts: shared style/colors/theme + per-layout pairs.
+                            && !n.EndsWith(".quickstyle.xml", StringComparison.OrdinalIgnoreCase)
+                            && !n.EndsWith(".colors.xml", StringComparison.OrdinalIgnoreCase)
+                            && !n.EndsWith("theme.xml", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase);
 
             foreach (var name in resourceNames)
@@ -63,6 +97,20 @@ namespace MarkSmith.Core.Glox
                     if (string.IsNullOrWhiteSpace(pkg.UniqueId)) continue;
                     if (!string.IsNullOrWhiteSpace(pkg.Title)) _byUrn[pkg.Title] = pkg;
                     _byUrn[pkg.UniqueId] = pkg;
+
+                    // Attach the shared native quickStyle + colors so Word paints real
+                    // colors instead of rendering grayscale (empty style parts).
+                    if (string.IsNullOrWhiteSpace(pkg.StyleXml))
+                    {
+                        pkg.StyleXml = SharedQuickStyleXml;
+                        pkg.StyleUniqueId = ExtractUniqueId(SharedQuickStyleXml);
+                    }
+                    if (string.IsNullOrWhiteSpace(pkg.ColorXml))
+                    {
+                        pkg.ColorXml = SharedColorsXml;
+                        pkg.ColorUniqueId = ExtractUniqueId(SharedColorsXml);
+                    }
+
                     _all.Add(pkg);
                 }
                 catch (Exception ex)
@@ -71,6 +119,19 @@ namespace MarkSmith.Core.Glox
                     System.Diagnostics.Debug.WriteLine(
                         $"SmartArtLayoutCatalog: failed to load '{name}': {ex.Message}");
                 }
+            }
+        }
+
+        private static string ExtractUniqueId(string xml)
+        {
+            if (string.IsNullOrWhiteSpace(xml)) return string.Empty;
+            try
+            {
+                return System.Xml.Linq.XDocument.Parse(xml).Root?.Attribute("uniqueId")?.Value ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
 
@@ -101,12 +162,12 @@ namespace MarkSmith.Core.Glox
                 ["pyramid"]  = "pyramid1",
                 ["venn"]     = "venn1",
 
-                ["picturelist"] = "pictureList1",
-                ["picture"]     = "pictureList1",
-                ["mosaic"]      = "pictureList1",
+                ["picturelist"] = "pList1",
+                ["picture"]     = "pList1",
+                ["mosaic"]      = "pList1",
 
-                ["relationship"] = "relationship1",
-                ["composite"]    = "relationship1",
+                ["relationship"] = "circlerelationship",
+                ["composite"]    = "circlerelationship",
 
                 ["list"]    = "default",
                 ["default"] = "default",

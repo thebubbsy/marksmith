@@ -26,6 +26,12 @@ namespace MarkSmith.Core.Generator
             // word/_rels/document.xml.rels
             WriteEntry(archive, "word/_rels/document.xml.rels", BuildDocumentRelsXml(genResult));
 
+            // word/theme/theme1.xml — SmartArt colors resolve against theme accents
+            if (!string.IsNullOrWhiteSpace(genResult.ThemeXml))
+            {
+                WriteEntry(archive, "word/theme/theme1.xml", genResult.ThemeXml);
+            }
+
             // word/diagrams/data1.xml
             WriteEntry(archive, "word/diagrams/data1.xml", genResult.DiagramDataXml);
 
@@ -75,6 +81,9 @@ namespace MarkSmith.Core.Generator
 
         private static string BuildContentTypesXml(DiagramGenerationResult gen)
         {
+            string themeOverride = string.IsNullOrWhiteSpace(gen.ThemeXml)
+                ? ""
+                : "  <Override PartName=\"/word/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>\n";
             return @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types"">
   <Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/>
@@ -87,7 +96,7 @@ namespace MarkSmith.Core.Generator
   <Override PartName=""/word/diagrams/layout1.xml"" ContentType=""application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml""/>
   <Override PartName=""/word/diagrams/style1.xml"" ContentType=""application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml""/>
   <Override PartName=""/word/diagrams/colors1.xml"" ContentType=""application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml""/>
-</Types>";
+" + themeOverride + "</Types>";
         }
 
         private static string BuildRootRelsXml()
@@ -135,6 +144,10 @@ namespace MarkSmith.Core.Generator
             sb.AppendLine(@"  <Relationship Id=""rIdLayout1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout"" Target=""diagrams/layout1.xml""/>");
             sb.AppendLine(@"  <Relationship Id=""rIdStyle1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle"" Target=""diagrams/style1.xml""/>");
             sb.AppendLine(@"  <Relationship Id=""rIdColors1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors"" Target=""diagrams/colors1.xml""/>");
+            if (!string.IsNullOrWhiteSpace(gen.ThemeXml))
+            {
+                sb.AppendLine(@"  <Relationship Id=""rIdTheme1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"" Target=""theme/theme1.xml""/>");
+            }
 
             foreach (var kvp in gen.ImageRelMap)
             {
