@@ -126,6 +126,36 @@
                             <Button Content="Compile JSON → .glox (desktop)" Click="OnCompileGloxClick" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Expander>
+
+                    <!-- Image → Shapes Composer -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Image → Shapes Composer" FontWeight="SemiBold" FontSize="13" />
+                            <TextBlock Text="Rebuild a picture from native DrawingML shapes — every piece stays editable in Word." FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                            <Button Content="Choose image..." Click="OnPickComposeImageClick" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="ComposeImageLabel" Text="No image selected" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                            <TextBlock Text="Shape set (pick one or many):" FontSize="11" Opacity="0.8" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <CheckBox x:Name="ShapeEllipse" Content="Ellipse" IsChecked="True" />
+                                <CheckBox x:Name="ShapeRoundRect" Content="RoundRect" IsChecked="True" />
+                                <CheckBox x:Name="ShapeRect" Content="Rect" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <CheckBox x:Name="ShapeChevron" Content="Chevron" />
+                                <CheckBox x:Name="ShapeDiamond" Content="Diamond" />
+                                <CheckBox x:Name="ShapeHexagon" Content="Hexagon" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <CheckBox x:Name="ShapeTriangle" Content="Triangle" />
+                                <CheckBox x:Name="ShapeParallelogram" Content="Parallelogram" />
+                            </StackPanel>
+                            <TextBlock Text="Density:" FontSize="11" Opacity="0.8" />
+                            <Slider x:Name="ComposeDensity" Minimum="8" Maximum="48" Value="24" StepFrequency="2" />
+                            <CheckBox x:Name="ComposeDither" Content="Dither colors (Floyd-Steinberg)" IsChecked="True" />
+                            <Button Content="Compose &amp; Export .docx" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
