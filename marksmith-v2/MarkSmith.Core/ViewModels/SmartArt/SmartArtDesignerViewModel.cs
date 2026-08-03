@@ -258,13 +258,17 @@ public partial class SmartArtDesignerViewModel : ObservableObject
             string alias = SelectedLayout?.Alias ?? "hierarchy";
             string title = SelectedLayout?.Name ?? "Hierarchy Layout";
 
-            var gloxPkg = new GloxPackage
+            // Load the real embedded .glox for this alias so Word renders the genuine
+            // algorithm geometry (cycle, pyramid, matrix, ...) rather than collapsing to
+            // basic blocks from an empty layout stub.
+            var gloxPkg = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(alias)
+                ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve("default");
+
+            if (gloxPkg == null)
             {
-                UniqueId = $"urn:microsoft.com/office/officeart/2005/8/layout/{alias}",
-                Title = title,
-                Category = SelectedLayout?.Category ?? "hierarchy",
-                LayoutXml = "<dgm:layoutDef xmlns:dgm=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"/>"
-            };
+                StatusMessage = "Export DOCX Error: No SmartArt layout resolved.";
+                return;
+            }
 
             var solver = new MarkSmith.Core.Solver.ConstraintSolver();
             var solved = solver.Solve(ast, gloxPkg);
@@ -276,7 +280,7 @@ public partial class SmartArtDesignerViewModel : ObservableObject
             string outputPath = Path.Combine(desktop, $"Exported_{alias}_SmartArt.docx");
 
             DocxPackageWriter.WriteDocx(outputPath, genRes);
-            StatusMessage = $"✓ Successfully exported native DOCX diagram to: {outputPath}";
+            StatusMessage = $"✓ Successfully exported native DOCX diagram ({gloxPkg.UniqueId}) to: {outputPath}";
         }
         catch (Exception ex)
         {
