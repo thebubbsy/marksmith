@@ -10,8 +10,65 @@ namespace MdToPdf.Core.Services
     /// Normalizes rich text HTML content (e.g. copied from web browsers or MS Word)
     /// into clean, standard Markdown syntax.
     /// </summary>
-    public class ClipboardNormalizerService
+    public partial class ClipboardNormalizerService
     {
+        [GeneratedRegex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase)]
+        private static partial Regex ScriptTagRegex();
+
+        [GeneratedRegex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase)]
+        private static partial Regex StyleTagRegex();
+
+        [GeneratedRegex(@"<!--[\s\S]*?-->")]
+        private static partial Regex HtmlCommentRegex();
+
+        [GeneratedRegex(@"<pre[^>]*>\s*<code(?:\s+class=""(?:language-)?([^""]+)"")?[^>]*>([\s\S]*?)</code>\s*</pre>", RegexOptions.IgnoreCase)]
+        private static partial Regex PreCodeRegex();
+
+        [GeneratedRegex(@"<pre[^>]*>([\s\S]*?)</pre>", RegexOptions.IgnoreCase)]
+        private static partial Regex PreRegex();
+
+        [GeneratedRegex(@"<code[^>]*>([\s\S]*?)</code>", RegexOptions.IgnoreCase)]
+        private static partial Regex CodeRegex();
+
+        [GeneratedRegex(@"<h([1-6])[^>]*>([\s\S]*?)</h\1>", RegexOptions.IgnoreCase)]
+        private static partial Regex HeadingRegex();
+
+        [GeneratedRegex(@"<(?:strong|b)[^>]*>([\s\S]*?)</(?:strong|b)>", RegexOptions.IgnoreCase)]
+        private static partial Regex StrongRegex();
+
+        [GeneratedRegex(@"<(?:em|i)[^>]*>([\s\S]*?)</(?:em|i)>", RegexOptions.IgnoreCase)]
+        private static partial Regex EmRegex();
+
+        [GeneratedRegex(@"<img[^>]*src=""([^""]+)""(?:[^>]*alt=""([^""]*)"")?[^>]*>", RegexOptions.IgnoreCase)]
+        private static partial Regex ImgRegex();
+
+        [GeneratedRegex(@"<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>", RegexOptions.IgnoreCase)]
+        private static partial Regex aRegex();
+
+        [GeneratedRegex(@"<hr[^>]*>", RegexOptions.IgnoreCase)]
+        private static partial Regex HrRegex();
+
+        [GeneratedRegex(@"<blockquote[^>]*>([\s\S]*?)</blockquote>", RegexOptions.IgnoreCase)]
+        private static partial Regex BlockquoteRegex();
+
+        [GeneratedRegex(@"<li[^>]*>([\s\S]*?)</li>", RegexOptions.IgnoreCase)]
+        private static partial Regex LiRegex();
+
+        [GeneratedRegex(@"</?(?:ul|ol)[^>]*>", RegexOptions.IgnoreCase)]
+        private static partial Regex ListRegex();
+
+        [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]
+        private static partial Regex BrRegex();
+
+        [GeneratedRegex(@"<p[^>]*>([\s\S]*?)</p>", RegexOptions.IgnoreCase)]
+        private static partial Regex pRegex();
+
+        [GeneratedRegex(@"<[^>]+>")]
+        private static partial Regex StripTagsRegex();
+
+        [GeneratedRegex(@"\n{3,}")]
+        private static partial Regex NewlinesRegex();
+
         /// <summary>
         /// Normalizes HTML or plain text clipboard content into Markdown format.
         /// </summary>
@@ -37,77 +94,75 @@ namespace MdToPdf.Core.Services
             }
 
             // Remove script and style blocks
-            html = Regex.Replace(html, @"<script[^>]*>[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
-            html = Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
-            html = Regex.Replace(html, @"<!--[\s\S]*?-->", ""); // HTML comments
+            html = ScriptTagRegex().Replace(html, "");
+            html = StyleTagRegex().Replace(html, "");
+            html = HtmlCommentRegex().Replace(html, ""); // HTML comments
 
             // Code blocks: <pre><code class="language-xyz">...</code></pre> or <pre>...</pre>
-            html = Regex.Replace(html, @"<pre[^>]*>\s*<code(?:\s+class=""(?:language-)?([^""]+)"")?[^>]*>([\s\S]*?)</code>\s*</pre>", m =>
+            html = PreCodeRegex().Replace(html, m =>
             {
                 string lang = m.Groups[1].Value.Trim();
                 string code = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
                 return $"\n\n```{(string.IsNullOrEmpty(lang) ? "" : lang)}\n{code}\n```\n\n";
-            }, RegexOptions.IgnoreCase);
+            });
 
-            html = Regex.Replace(html, @"<pre[^>]*>([\s\S]*?)</pre>", m =>
+            html = PreRegex().Replace(html, m =>
             {
                 string code = WebUtility.HtmlDecode(m.Groups[1].Value).Trim();
                 return $"\n\n```\n{code}\n```\n\n";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Inline code: <code>...</code>
-            html = Regex.Replace(html, @"<code[^>]*>([\s\S]*?)</code>", m =>
+            html = CodeRegex().Replace(html, m =>
             {
                 string code = WebUtility.HtmlDecode(m.Groups[1].Value).Trim();
                 return $"`{code}`";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Headings: <h1> to <h6>
-            for (int level = 6; level >= 1; level--)
+            html = HeadingRegex().Replace(html, m =>
             {
+                int level = m.Groups[1].Value[0] - '0';
                 string hashes = new string('#', level);
-                html = Regex.Replace(html, $@"<h{level}[^>]*>([\s\S]*?)</h{level}>", m =>
-                {
-                    string text = StripTags(m.Groups[1].Value).Trim();
-                    return $"\n\n{hashes} {text}\n\n";
-                }, RegexOptions.IgnoreCase);
-            }
+                string text = StripTags(m.Groups[2].Value).Trim();
+                return $"\n\n{hashes} {text}\n\n";
+            });
 
             // Bold: <strong> or <b>
-            html = Regex.Replace(html, @"<(?:strong|b)[^>]*>([\s\S]*?)</(?:strong|b)>", m =>
+            html = StrongRegex().Replace(html, m =>
             {
                 string text = m.Groups[1].Value.Trim();
                 return string.IsNullOrEmpty(text) ? "" : $"**{text}**";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Italic: <em> or <i>
-            html = Regex.Replace(html, @"<(?:em|i)[^>]*>([\s\S]*?)</(?:em|i)>", m =>
+            html = EmRegex().Replace(html, m =>
             {
                 string text = m.Groups[1].Value.Trim();
                 return string.IsNullOrEmpty(text) ? "" : $"*{text}*";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Images: <img src="..." alt="...">
-            html = Regex.Replace(html, @"<img[^>]*src=""([^""]+)""(?:[^>]*alt=""([^""]*)"")?[^>]*>", m =>
+            html = ImgRegex().Replace(html, m =>
             {
                 string src = m.Groups[1].Value;
                 string alt = m.Groups[2].Value;
                 return $"![{alt}]({src})";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Hyperlinks: <a href="...">...</a>
-            html = Regex.Replace(html, @"<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>", m =>
+            html = aRegex().Replace(html, m =>
             {
                 string href = m.Groups[1].Value.Trim();
                 string text = StripTags(m.Groups[2].Value).Trim();
                 return string.IsNullOrEmpty(text) ? href : $"[{text}]({href})";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Horizontal rules: <hr>
-            html = Regex.Replace(html, @"<hr[^>]*>", "\n\n---\n\n", RegexOptions.IgnoreCase);
+            html = HrRegex().Replace(html, "\n\n---\n\n");
 
             // Blockquotes: <blockquote>...</blockquote>
-            html = Regex.Replace(html, @"<blockquote[^>]*>([\s\S]*?)</blockquote>", m =>
+            html = BlockquoteRegex().Replace(html, m =>
             {
                 string inner = StripTags(m.Groups[1].Value).Trim();
                 string[] lines = inner.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -118,24 +173,24 @@ namespace MdToPdf.Core.Services
                 }
                 sb.AppendLine();
                 return sb.ToString();
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Lists: <ul>, <ol>, <li>
-            html = Regex.Replace(html, @"<li[^>]*>([\s\S]*?)</li>", m =>
+            html = LiRegex().Replace(html, m =>
             {
                 string text = StripTags(m.Groups[1].Value).Trim();
                 return $"\n- {text}";
-            }, RegexOptions.IgnoreCase);
+            });
 
-            html = Regex.Replace(html, @"</?(?:ul|ol)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
+            html = ListRegex().Replace(html, "\n\n");
 
             // Paragraphs and breaks
-            html = Regex.Replace(html, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
-            html = Regex.Replace(html, @"<p[^>]*>([\s\S]*?)</p>", m =>
+            html = BrRegex().Replace(html, "\n");
+            html = pRegex().Replace(html, m =>
             {
                 string text = m.Groups[1].Value.Trim();
                 return $"\n\n{text}\n\n";
-            }, RegexOptions.IgnoreCase);
+            });
 
             // Strip remaining HTML tags
             html = StripTags(html);
@@ -144,7 +199,7 @@ namespace MdToPdf.Core.Services
             html = WebUtility.HtmlDecode(html);
 
             // Clean up excessive blank lines
-            html = Regex.Replace(html, @"\n{3,}", "\n\n").Trim();
+            html = NewlinesRegex().Replace(html, "\n\n").Trim();
 
             return html;
         }
@@ -152,7 +207,7 @@ namespace MdToPdf.Core.Services
         private string StripTags(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
-            return Regex.Replace(input, @"<[^>]+>", "");
+            return StripTagsRegex().Replace(input, "");
         }
     }
 }
