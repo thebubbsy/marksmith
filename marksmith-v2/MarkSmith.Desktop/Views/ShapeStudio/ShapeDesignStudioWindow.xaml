@@ -81,6 +81,33 @@
                                 <TextBlock x:Name="ComposeImageLabel" Text="No image selected" FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
                                 <TextBlock Text="Density:" FontSize="11" Foreground="White" />
                                 <Slider x:Name="ComposeDensity" Minimum="24" Maximum="1024" Value="120" StepFrequency="16" />
+                                <TextBlock Text="Compose with (pick one or many):" FontSize="11" Foreground="White" />
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <CheckBox x:Name="CompEllipse" Content="Ellipse" IsChecked="True" Foreground="White" />
+                                    <CheckBox x:Name="CompRoundRect" Content="RoundRect" IsChecked="True" Foreground="White" />
+                                    <CheckBox x:Name="CompRect" Content="Rect" Foreground="White" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <CheckBox x:Name="CompChevron" Content="Chevron" Foreground="White" />
+                                    <CheckBox x:Name="CompDiamond" Content="Diamond" Foreground="White" />
+                                    <CheckBox x:Name="CompHexagon" Content="Hexagon" Foreground="White" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <CheckBox x:Name="CompTriangle" Content="Triangle" Foreground="White" />
+                                    <CheckBox x:Name="CompParallelogram" Content="Parallelogram" Foreground="White" />
+                                    <CheckBox x:Name="CompLine" Content="Line" Foreground="White" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <CheckBox x:Name="CompArc" Content="Arc" Foreground="White" />
+                                    <CheckBox x:Name="CompCloud" Content="Cloud" Foreground="White" />
+                                    <CheckBox x:Name="CompHeart" Content="Heart" Foreground="White" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <CheckBox x:Name="CompMoon" Content="Moon" Foreground="White" />
+                                    <CheckBox x:Name="CompCircularArrow" Content="CircArrow" Foreground="White" />
+                                    <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
+                                </StackPanel>
+                                <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
                                 <Button Content="Compose onto canvas" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
                             </StackPanel>
                         </Border>
