@@ -15,18 +15,18 @@
                 BorderBrush="{ThemeResource SystemControlForegroundAccentBrush}" BorderThickness="1"
                 Background="Transparent" Padding="16,12">
             
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                <FontIcon Glyph="&#xE946;" FontSize="20" Foreground="{ThemeResource SystemControlForegroundAccentBrush}" VerticalAlignment="Center" Margin="0,0,16,0" />
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource SystemControlForegroundAccentBrush}" VerticalAlignment="Center" />
                 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" />
                     <TextBlock Text="Headings, tables and code were probably lost on the way. In your AI chat, use the MarkSmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting."
-                               TextWrapping="Wrap" Opacity="0.8" FontSize="12" />
+                               TextWrapping="Wrap" Opacity="0.75" />
                 </StackPanel>
                 
                 <Button Grid.Column="2" Content="Get the extension" Click="OnGetExtensionClick" 
                         ToolTipService.ToolTip="Open the MarkSmith Connector browser extension page"
-                        Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" Margin="16,0,8,0" />
+                        Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center" />
                 
                 <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
                         ToolTipService.ToolTip="Dismiss this hint"
