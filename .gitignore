@@ -93,3 +93,6 @@ tests/docx_verify_output/
 .jules/
 MathTest/
 test.cs
+
+# Reasonix agent metadata
+.reasonix/
