@@ -62,8 +62,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // They're noise in the raw editor, so the editor shows stripped markdown and the removed
     // lines are stashed here (per mermaid block index) to be re-injected on save / studio open.
     private Dictionary<int, List<string>> _mermaidSpatialStash = new();
-    // Single-instance SmartArt Designer Studio window (kept alive for the window's lifetime)
-    private Views.SmartArt.SmartArtDesignerWindow? _smartArtDesignerWindow;
+    // Single-instance studios (kept alive for the window's lifetime)
+    private Views.SmartArtStudio.SmartArtDesignStudioWindow? _smartArtDesignStudio;
+    private Views.ShapeStudio.ShapeDesignStudioWindow? _shapeDesignStudio;
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -4169,17 +4170,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         studioWindow.Activate();
     }
 
-    // SmartArt Designer Studio (drag-and-drop canvas, palette, live HTML preview, DOCX/GLOX export)
-    private void OnOpenSmartArtDesignerClick(object sender, RoutedEventArgs e)
+    // SmartArt Design Studio — structure → native Word SmartArt (canvas-first, no tabs)
+    private void OnOpenSmartArtDesignStudioClick(object sender, RoutedEventArgs e)
     {
-        if (_smartArtDesignerWindow == null)
+        if (_smartArtDesignStudio == null)
         {
-            _smartArtDesignerWindow = new Views.SmartArt.SmartArtDesignerWindow();
-            _smartArtDesignerWindow.Closed += (s, args) => _smartArtDesignerWindow = null;
+            _smartArtDesignStudio = new Views.SmartArtStudio.SmartArtDesignStudioWindow();
+            _smartArtDesignStudio.Closed += (s, args) => _smartArtDesignStudio = null;
         }
+        _smartArtDesignStudio.Activate();
+        ViewModel.StatusText = "SmartArt Design Studio opened.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
 
-        _smartArtDesignerWindow.Activate();
-        ViewModel.StatusText = "SmartArt Designer Studio opened.";
+    // MLShape Design Studio — free-form native DrawingML shape composing
+    private void OnOpenShapeDesignStudioClick(object sender, RoutedEventArgs e)
+    {
+        if (_shapeDesignStudio == null)
+        {
+            _shapeDesignStudio = new Views.ShapeStudio.ShapeDesignStudioWindow();
+            _shapeDesignStudio.Closed += (s, args) => _shapeDesignStudio = null;
+        }
+        _shapeDesignStudio.Activate();
+        ViewModel.StatusText = "MLShape Design Studio opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 

@@ -113,6 +113,17 @@ public partial class MermaidStudioViewModel : ObservableObject
         };
     }
 
+    // Changing the direction dropdown immediately re-flows the canvas so the user sees
+    // the new orientation in the designer (not just in the exported code). One undo step.
+    partial void OnFlowchartDirectionChanged(FlowDirection value)
+    {
+        if (SelectedDiagramType != MermaidDiagramType.Flowchart) return;
+
+        SnapshotForUndo();
+        foreach (var n in Nodes) n.HasCustomPosition = false;
+        ApplyAutoLayout(force: true);
+    }
+
     // Canonical code snapshot of the last load/save point, used to detect unsaved edits. We compare
     // generated-code-to-generated-code (not the raw source text) so harmless formatting differences
     // between the authored fence and the generator's output don't register as false "dirty" state.
@@ -743,24 +754,43 @@ public partial class MermaidStudioViewModel : ObservableObject
                 list.Add(n);
             }
 
-            double startY = 100;
-            double layerSpacingY = 160;
-            double nodeSpacingX = 200;
+            bool isFlowchart = SelectedDiagramType == MermaidDiagramType.Flowchart;
+            bool vertical = isFlowchart && FlowchartDirection is FlowDirection.TD or FlowDirection.BT;
+            bool reversePrimary = isFlowchart && FlowchartDirection is FlowDirection.BT or FlowDirection.RL;
+
+            int maxRank = layers.Count > 0 ? layers.Keys.Max() : 0;
+            double primarySpacing = vertical ? 160 : 200;
+            double crossSpacing = vertical ? 200 : 160;
+            double primaryOrigin = 100;
+            double crossCenter = vertical ? 500 : 350;
 
             foreach (var kvp in layers.OrderBy(l => l.Key))
             {
                 int rank = kvp.Key;
                 var layerNodes = kvp.Value;
-                double layerY = startY + rank * layerSpacingY;
-                double totalWidth = (layerNodes.Count - 1) * nodeSpacingX;
-                double startX = Math.Max(100, 500 - totalWidth / 2);
+                int count = layerNodes.Count;
+                double totalSpan = (count - 1) * crossSpacing;
+                double crossStart = Math.Max(primaryOrigin, crossCenter - totalSpan / 2);
+
+                double primaryPos = reversePrimary
+                    ? primaryOrigin + (maxRank - rank) * primarySpacing
+                    : primaryOrigin + rank * primarySpacing;
 
                 for (int j = 0; j < layerNodes.Count; j++)
                 {
                     if (!layerNodes[j].HasCustomPosition)
                     {
-                        layerNodes[j].X = startX + j * nodeSpacingX;
-                        layerNodes[j].Y = layerY;
+                        double crossPos = crossStart + j * crossSpacing;
+                        if (vertical)
+                        {
+                            layerNodes[j].X = crossPos;
+                            layerNodes[j].Y = primaryPos;
+                        }
+                        else
+                        {
+                            layerNodes[j].X = primaryPos;
+                            layerNodes[j].Y = crossPos;
+                        }
                     }
                 }
             }

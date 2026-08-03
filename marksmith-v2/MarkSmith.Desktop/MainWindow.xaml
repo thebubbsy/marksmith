@@ -815,7 +815,8 @@
                                         <MenuFlyoutSubItem Text="Diagram">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
-                                            <MenuFlyoutItem Text="SmartArt Designer Studio..." Click="OnOpenSmartArtDesignerClick" />
+                                            <MenuFlyoutItem Text="SmartArt Design Studio..." Click="OnOpenSmartArtDesignStudioClick" />
+                                            <MenuFlyoutItem Text="MLShape Design Studio..." Click="OnOpenShapeDesignStudioClick" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
