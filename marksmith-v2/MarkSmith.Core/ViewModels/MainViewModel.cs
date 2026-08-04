@@ -734,6 +734,13 @@ private readonly MarkdownExportService _mdExport = new();
         try
         {
             string md = CurrentMarkdown ?? "";
+            if (string.IsNullOrWhiteSpace(md))
+            {
+                WordFidelityDataUri = null;
+                StatusText = "Word-exact: nothing to render — the document is empty.";
+                StatusSeverity = Models.StatusSeverity.Informational;
+                return;
+            }
             string docxPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
                 $"WordExact_{DateTime.Now:yyyyMMdd_HHmmss}.docx");
             await new DocxExportService().ExportAsync(md, docxPath, _settingsService.Current);
