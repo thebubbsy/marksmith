@@ -64,4 +64,25 @@
     <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ship the marksmith-office plugin payload (NetOffice-backed office-host.exe) next to
+         the app so the Office capability seam finds it without a separate install. -->
+    <ProjectReference Include="..\..\plugins\marksmith-office\office-host\marksmith-office-host.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <Target Name="CopyOfficeHost" AfterTargets="Build">
+    <PropertyGroup>
+      <!-- MSBuild can't glob across '..', so resolve the host output root to an absolute path first. -->
+      <OfficeHostRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\plugins\marksmith-office\office-host\bin\$(Configuration)\net8.0-windows10.0.19041.0'))</OfficeHostRoot>
+    </PropertyGroup>
+    <ItemGroup>
+      <OfficeHostFiles Include="$(OfficeHostRoot)\**\*.*" />
+    </ItemGroup>
+    <Message Importance="high" Text="OfficeHost files found: @(OfficeHostFiles->Count()) in $(OfficeHostRoot)" />
+    <Copy SourceFiles="@(OfficeHostFiles)"
+          DestinationFiles="@(OfficeHostFiles->'$(OutDir)plugins\marksmith-office\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

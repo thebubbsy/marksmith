@@ -28,6 +28,7 @@ projects or companies listed.
 | KaTeX | Math typesetting in preview/PDF | MIT |
 | highlight.js | Code syntax highlighting | BSD-3-Clause |
 | Mermaid | Diagram rendering | MIT |
+| NetOffice (NetOfficeFw.Core / NetOfficeFw.Word) | Office capability plugin — drives the installed Microsoft Word for 100%-accurate SmartArt/shape renders and docx verification | MIT (© Sebastian Lange, Jozef Izso) |
 
 The WebView2 **runtime** is a Microsoft component that ships with current Windows and is not
 redistributed by Marksmith.
