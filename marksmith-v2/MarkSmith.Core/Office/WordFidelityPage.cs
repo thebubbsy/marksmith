@@ -66,7 +66,7 @@ html,body{margin:0;height:100%;background:#18181c;overflow:hidden;font-family:sy
 
             if (stale)
             {
-                sb.Append("<div class=\"badge stale\">Word render out of date — edit and toggle Word-exact off/on to refresh</div>");
+                sb.Append("<div class=\"badge stale\">Word render updating…</div>");
             }
             else
             {
