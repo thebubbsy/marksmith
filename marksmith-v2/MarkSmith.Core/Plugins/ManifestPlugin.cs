@@ -40,7 +40,8 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
                 return PluginInstallState.NotInstalled;
             if (_manifest.Runtime is { Kind: "node" } && !File.Exists(PluginInstall.NodeExePath(RootDir)))
                 return PluginInstallState.NotInstalled;
-            foreach (var artifact in PlatformArtifacts())
+            var artifacts = PlatformArtifacts().ToList();
+            foreach (var artifact in artifacts)
             {
                 // Extracted archives spread many files; the command path is the real health check
                 // for those. npm artifacts are healthy when the package dir exists. Plain-file
@@ -55,6 +56,14 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
                 {
                     return PluginInstallState.NotInstalled;
                 }
+            }
+            // A plugin that declares a payload must actually have it on disk — Uninstall() empties
+            // the dir, so State must flip to NotInstalled afterwards (the Settings Remove button
+            // re-checks State, and a lying State made Remove look like a no-op).
+            if (artifacts.Count > 0 &&
+                (!Directory.Exists(RootDir) || !Directory.EnumerateFileSystemEntries(RootDir).Any()))
+            {
+                return PluginInstallState.NotInstalled;
             }
             var command = ResolveCommandPath(_manifest.Type == "importer" ? _manifest.Import?.EffectiveCommand : _manifest.Render.Command);
             if (command != null && !command.StartsWith("{") && !File.Exists(command))
