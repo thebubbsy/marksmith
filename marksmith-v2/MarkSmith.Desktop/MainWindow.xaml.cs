@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     };
 
     private readonly DispatcherQueueTimer _previewDebounce;
+    private readonly DispatcherQueueTimer _fidelityDebounce;
 
     // Preview refresh intensity. Historically typing did a "light" refresh and paste/style changes a
     // "heavy" one (loading sprite over a blur); the sprite/blur visuals are retired — every refresh
@@ -268,6 +269,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _previewDebounce = DispatcherQueue.CreateTimer();
         _previewDebounce.Interval = TimeSpan.FromMilliseconds(180);
         _previewDebounce.IsRepeating = false;
+
+        // Word-exact live updates: edits settle on a SLOWER debounce than the HTML preview, then
+        // the incremental band re-render runs (Word stays warm via the persistent host, only the
+        // dirty page bands re-rasterize). The busy guard in the VM dedupes overlapping renders.
+        _fidelityDebounce = DispatcherQueue.CreateTimer();
+        _fidelityDebounce.Interval = TimeSpan.FromMilliseconds(900);
+        _fidelityDebounce.IsRepeating = false;
+        _fidelityDebounce.Tick += async (_, _) =>
+        {
+            if (ViewModel.WordFidelityEnabled)
+            {
+                await ViewModel.RefreshWordFidelityAsync();
+            }
+        };
         _previewDebounce.Tick += async (_, _) =>
         {
             // Outline (Task 17): the TOC depends only on the markdown, so refresh it on the same
@@ -277,8 +292,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // update goes through the live path instead — push the editor's text into the portal's
             // textarea (split + portal: typed text appears inside the shape) and swap the preview
             // canvas in place behind it. The page-script rebuild happens when the portal closes.
-            // Word-exact mode is a snapshot: edits mark the render stale; the refresh happens
-            // when the user re-toggles or re-opens the mode — don't re-navigate per keystroke.
+            // Word-exact: the slower _fidelityDebounce owns the band re-render; here we only mark
+            // the render stale so the badge shows while the update is pending.
             if (ViewModel.WordFidelityEnabled)
             {
                 ViewModel.WordFidelityDirty = true;
@@ -368,6 +383,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _folderIngest.Dispose();
             _automationManager.Dispose();
             _trayIcon?.Dispose();
+            ViewModel.DisposeFidelity(); // release the persistent Word host + tile cache
         };
 
         ViewModel.LoadPresets();
@@ -526,6 +542,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
             _previewDebounce.Stop();
             _previewDebounce.Start();
+            if (ViewModel.WordFidelityEnabled)
+            {
+                _fidelityDebounce.Stop();
+                _fidelityDebounce.Start();
+            }
         }
     }
 

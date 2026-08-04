@@ -186,9 +186,23 @@ public sealed partial class SettingsView : UserControl
 
         removeButton.Click += (_, _) =>
         {
-            plugin.Uninstall();
-            tick.Visibility = Visibility.Collapsed;
-            status.Text = "Removed.";
+            try
+            {
+                // The marksmith-office host keeps its own DLLs open while Word-exact is running —
+                // stop it FIRST or Uninstall throws 'Access to the path ... is denied' and the
+                // unhandled exception crashes the app (this was a real crash).
+                if (plugin.Id.Equals("marksmith-office", StringComparison.OrdinalIgnoreCase))
+                {
+                    MarkSmith.AppServices.ViewModel.DisposeFidelity();
+                }
+                plugin.Uninstall();
+                tick.Visibility = Visibility.Collapsed;
+                status.Text = "Removed.";
+            }
+            catch (Exception ex)
+            {
+                status.Text = $"Remove failed: {ex.Message}";
+            }
             Refresh();
             PluginsChanged?.Invoke();
         };

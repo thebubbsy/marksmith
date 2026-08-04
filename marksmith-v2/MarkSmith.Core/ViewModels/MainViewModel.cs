@@ -721,6 +721,10 @@ private readonly MarkdownExportService _mdExport = new();
     // process (crash). Any overlapping call no-ops.
     private bool _fidelityRendering;
 
+    // An edit arrived while a render was in flight — after that render finishes, re-run once so
+    // the new content is reflected instead of silently dropped.
+    private bool _fidelityPending;
+
     /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).
     /// Returns null while the first render is still running or failed, so callers fall through to
     /// the regular HTML preview instead of showing an empty page shell.</summary>
@@ -736,8 +740,9 @@ private readonly MarkdownExportService _mdExport = new();
         SaveSettingsDebounced();
         if (!enabled)
         {
-            _fidelityEngine?.Dispose();
-            _fidelityEngine = null;
+            // Keep the engine + tile cache + persistent Word alive so re-enabling is an
+            // incremental band update, not a full re-render. Freed on app close (DisposeFidelity).
+            _fidelityPending = false;
             WordFidelityPageHtml = null;
             WordFidelityPageCount = 0;
             WordFidelityDirty = false;
@@ -746,11 +751,24 @@ private readonly MarkdownExportService _mdExport = new();
         await RefreshWordFidelityAsync();
     }
 
+    /// <summary>Releases the persistent Word host + tile cache. Called on app close.</summary>
+    public void DisposeFidelity()
+    {
+        _fidelityEngine?.Dispose();
+        _fidelityEngine = null;
+        WordFidelityPageHtml = null;
+        WordFidelityPageCount = 0;
+    }
+
     public async System.Threading.Tasks.Task RefreshWordFidelityAsync()
     {
         LogFidelity($"RefreshWordFidelityAsync start (enabled={WordFidelityEnabled}, busy={_fidelityRendering})");
         if (!WordFidelityEnabled) return;
-        if (_fidelityRendering) return; // concurrent calls (startup + toggle) would race the engine
+        if (_fidelityRendering)
+        {
+            _fidelityPending = true; // re-run after the in-flight render so this edit isn't lost
+            return;
+        }
         _fidelityRendering = true;
         WordFidelityDirty = false;
         StatusText = "Rendering through Word…";
@@ -824,6 +842,13 @@ private readonly MarkdownExportService _mdExport = new();
         finally
         {
             _fidelityRendering = false;
+            // An edit arrived while this render was running — apply it now (incremental bands).
+            if (_fidelityPending)
+            {
+                _fidelityPending = false;
+                LogFidelity("re-running for an edit that arrived mid-render");
+                _ = RefreshWordFidelityAsync();
+            }
         }
     }
 
