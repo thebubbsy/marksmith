@@ -38,8 +38,11 @@ public sealed class PluginManager
             plugins.Add(new ManifestPlugin(PluginManifest.Parse(json)));
 
         // Built-in ids win over same-id user manifests: a dropped-in plugin.json must not be able
-        // to silently replace how a first-party plugin installs or what it executes.
-        var seenIds = new HashSet<string>(plugins.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        // to silently replace how a first-party plugin installs or what it executes. The builtin's
+        // listing + install-dir state is authoritative, so a same-id user manifest is skipped
+        // WITHOUT a warning — the user folder is just the builtin's own install payload.
+        var builtinIds = new HashSet<string>(plugins.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        var seenIds = new HashSet<string>(builtinIds, StringComparer.OrdinalIgnoreCase);
         if (Directory.Exists(PluginsBaseDir))
         {
             // Sort so plugin precedence (which of two same-language plugins is authoritative) is
@@ -54,7 +57,12 @@ public sealed class PluginManager
                     var manifest = PluginManifest.Parse(File.ReadAllText(manifestPath));
                     if (!seenIds.Add(manifest.Id))
                     {
-                        warnings.Add($"{Path.GetFileName(dir)}: id '{manifest.Id}' is already taken — skipped.");
+                        // Same-id USER plugin (two dropped-in manifests): warn loudly so the author
+                        // sees the collision. Same-id as a builtin: expected (install dir), silent.
+                        if (!builtinIds.Contains(manifest.Id))
+                        {
+                            warnings.Add($"{Path.GetFileName(dir)}: id '{manifest.Id}' is already taken — skipped.");
+                        }
                         continue;
                     }
                     if (!string.Equals(Path.GetFileName(dir), manifest.Id, StringComparison.OrdinalIgnoreCase))
