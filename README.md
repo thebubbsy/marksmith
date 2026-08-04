@@ -114,6 +114,27 @@ Marksmith is no longer just a Markdown-to-DOCX converter — it is a **bidirecti
 marksmith build-layout custom_kanban.json custom_kanban.glox
 ```
 
+### 🖼️ 100%-accurate Word preview — see the real document before you export
+
+The preview pane can show **exactly what the exported DOCX will look like**, rendered by the
+engine that actually matters — Microsoft Word itself. "Word-exact" mode drives the installed
+Word via the optional [marksmith-office plugin](https://github.com/thebubbsy/marksmith-plugins):
+
+- **Word's own PDF export** (`ExportAsFixedFormat`) lays out the document — headers, footers,
+  page borders, fonts, diagrams — identically to opening the file in Word.
+- The **OS PDF rasterizer** (`Windows.Data.Pdf`) turns each page into a crisp 2× vector tile.
+- **Live and incremental**: edits re-render only the page bands they touch, in a warm Word
+  instance — a one-page edit costs ~1.7s instead of a full re-render, and your scroll position
+  survives every refresh.
+- The preview docx is built through the **same full export pipeline** as a real export —
+  Mermaid diagrams harvested as native DrawingML shapes, SmartArt geometry, AI-cleanup fixes —
+  so what you see is what ships.
+
+![Word-exact preview: the real Word render of the document, tiled by page, updating live](docs/images/word-exact-preview.png)
+
+> Requires Microsoft Word + the plugin (Settings → Plugins → Install). Falls back to the fast
+> HTML preview gracefully when Word isn't available.
+
 ### 📄 Advanced Word & OpenXML Capabilities
 
 - **Editable Word Equations (OMML)** — LaTeX equations (`$x^2 + y^2 = z^2$`) are converted natively to Microsoft Word OMML. Clicking any formula opens Word's native Equation ribbon for full editing.
