@@ -95,6 +95,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // scroll fraction and mirror it onto the editor's internal ScrollViewer.
     private double? _pendingPreviewScrollFraction;
 
+    // Word-exact tile-grid scroll: the fidelity page scrolls #canvas (overflow:auto), not the
+    // window, so the HTML-preview mechanism needs a canvas-aware twin. Stashed before a fidelity
+    // re-navigation, restored on NavigationCompleted so live band refreshes don't jump to the top.
+    private double? _pendingFidelityScrollFraction;
+
     // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
     private readonly List<int> _findMatches = new();
@@ -1683,6 +1688,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Sync-scroll: once a fresh preview page finishes loading, restore the scroll position the
         // user had in the editor (stashed just before we re-navigated on the tab switch).
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingPreviewScroll();
+        // Word-exact: same idea for the tile-grid page — live band refreshes re-navigate, so keep
+        // the reader where they were instead of snapping to the top.
+        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingFidelityScroll();
 
         // Preview zoom: restore the persisted factor, install the Ctrl+wheel listener, and re-apply
         // the CSS zoom after every navigation (NavigateToString rebuilds the DOM, dropping the style).
@@ -2072,6 +2080,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (vm.BuildFidelityPage() is { } pageHtml)
             {
+                // Capture the reader's position on the CURRENT tile grid before it is replaced —
+                // the live band refresh re-navigates and would otherwise snap to the top.
+                if (_pendingFidelityScrollFraction is null)
+                {
+                    _pendingFidelityScrollFraction = await CaptureFidelityScrollFractionAsync();
+                }
                 PreviewWebView.NavigateToString(pageHtml);
                 if (vm.IsDebugModeEnabled)
                 {
@@ -2703,6 +2717,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _ = core.ExecuteScriptAsync(
             "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
             $"if(max>0){{window.scrollTo(0,{f}*max);}}}})();");
+    }
+
+    // Fidelity twin of CapturePreviewScrollFractionAsync: the Word-exact tile grid scrolls
+    // #canvas (overflow:auto), so the fraction is canvas.scrollTop / (scrollHeight - clientHeight).
+    // Returns null when the current page isn't the tile grid (nothing to preserve).
+    private async Task<double?> CaptureFidelityScrollFractionAsync()
+    {
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return null;
+        string result;
+        try
+        {
+            result = await core.ExecuteScriptAsync(
+                "(function(){var c=document.getElementById('canvas');if(!c)return -1;" +
+                "var max=c.scrollHeight-c.clientHeight;return max>0?(c.scrollTop/max):0;})();");
+        }
+        catch { return null; }
+
+        if (!double.TryParse(result, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var frac) || frac < 0)
+            return null;
+        return Math.Clamp(frac, 0.0, 1.0);
+    }
+
+    // Restores the stashed tile-grid scroll fraction after a fidelity re-navigation. Runs on every
+    // NavigationCompleted; no-ops unless a fidelity capture is pending.
+    private void ApplyPendingFidelityScroll()
+    {
+        if (_pendingFidelityScrollFraction is not { } frac) return;
+        _pendingFidelityScrollFraction = null;
+        var core = PreviewWebView.CoreWebView2;
+        if (core is null) return;
+        var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        _ = core.ExecuteScriptAsync(
+            "(function(){var c=document.getElementById('canvas');if(!c)return;" +
+            $"var max=c.scrollHeight-c.clientHeight;if(max>0)c.scrollTop={f}*max;}})();");
     }
 
     // Read the preview's current scroll fraction and mirror it onto the editor's ScrollViewer.
