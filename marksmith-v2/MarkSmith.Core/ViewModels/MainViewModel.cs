@@ -698,6 +698,70 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnShowWordCountChanged(bool value) { _settingsService.Current.ShowWordCount = value; SaveSettingsDebounced(); }
     partial void OnPortalFocusBlurChanged(bool value) { _settingsService.Current.PortalFocusBlur = value; SaveSettingsDebounced(); }
 
+    // ── Word-exact preview (marksmith-office plugin) ────────────────────────────────────────
+    // Snapshot mode: the preview pane shows the REAL Word render of the document. Editing marks
+    // it stale; the render only refreshes when the user toggles it or requests a refresh.
+
+    [ObservableProperty]
+    private bool _wordFidelityEnabled;
+
+    [ObservableProperty]
+    private string? _wordFidelityDataUri;
+
+    [ObservableProperty]
+    private bool _wordFidelityDirty;
+
+    public async System.Threading.Tasks.Task SetWordFidelityAsync(bool enabled)
+    {
+        WordFidelityEnabled = enabled;
+        _settingsService.Current.WordFidelity = enabled;
+        SaveSettingsDebounced();
+        if (!enabled)
+        {
+            WordFidelityDataUri = null;
+            WordFidelityDirty = false;
+            return;
+        }
+        await RefreshWordFidelityAsync();
+    }
+
+    public async System.Threading.Tasks.Task RefreshWordFidelityAsync()
+    {
+        if (!WordFidelityEnabled) return;
+        WordFidelityDirty = false;
+        StatusText = "Rendering through Word…";
+        StatusSeverity = Models.StatusSeverity.Informational;
+        try
+        {
+            string md = CurrentMarkdown ?? "";
+            string docxPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                $"WordExact_{DateTime.Now:yyyyMMdd_HHmmss}.docx");
+            await new DocxExportService().ExportAsync(md, docxPath, _settingsService.Current);
+
+            var image = await MarkSmith.Core.Office.OfficeCapability.Shared
+                .RenderDocxToImageAsync(docxPath);
+            if (image is { Bytes: not null } img)
+            {
+                WordFidelityDataUri = "data:" + img.Mime + ";base64," + Convert.ToBase64String(img.Bytes);
+                StatusText = $"Word-accurate render — {img.Bytes.Length / 1024} KB image. Editing marks it stale.";
+                StatusSeverity = Models.StatusSeverity.Success;
+            }
+            else
+            {
+                WordFidelityDataUri = null;
+                StatusText = "Word-exact needs the marksmith-office plugin + Microsoft Word installed.";
+                StatusSeverity = Models.StatusSeverity.Warning;
+            }
+            System.IO.File.Delete(docxPath);
+        }
+        catch (Exception ex)
+        {
+            WordFidelityDataUri = null;
+            StatusText = $"Word-exact render failed: {ex.Message}";
+            StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
     // tokens expand to. Falls back to the default template when the matching band is empty.
     public string PdfFooterPreview
