@@ -716,10 +716,13 @@ private readonly MarkdownExportService _mdExport = new();
 
     private MarkSmith.Core.Office.WordFidelityTileEngine? _fidelityEngine;
 
-    /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).</summary>
+    /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).
+    /// Returns null while the first render is still running or failed, so callers fall through to
+    /// the regular HTML preview instead of showing an empty page shell.</summary>
     public string? BuildFidelityPage() =>
-        _fidelityEngine == null ? null : _fidelityEngine.BuildPageHtml(
-            _settingsService.Current.LookingGlassMode, WordFidelityDirty, null);
+        _fidelityEngine?.Tiles is { Count: > 0 }
+            ? _fidelityEngine.BuildPageHtml(_settingsService.Current.LookingGlassMode, WordFidelityDirty, null)
+            : null;
 
     public async System.Threading.Tasks.Task SetWordFidelityAsync(bool enabled)
     {

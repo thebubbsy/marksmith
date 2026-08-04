@@ -480,6 +480,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ? Visibility.Collapsed : Visibility.Visible;
         }
 
+        // Word-exact render finished (startup auto-restore or manual refresh): re-navigate so the
+        // finished tile grid replaces whatever was showing while it rendered.
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.WordFidelityPageHtml))
+        {
+            _ = RefreshPreviewAsync();
+        }
+
         if (e.PropertyName == nameof(ViewModels.MainViewModel.AdvancedMode))
         {
             SyncAdvancedSection();
