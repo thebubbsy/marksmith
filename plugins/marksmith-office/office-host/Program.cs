@@ -12,6 +12,12 @@ using NetOffice.WordApi;
 //   render <docx> <out.png>      -> open, repaginate, rasterize the first
 //                                   InlineShape to PNG; HTML round-trip fallback
 //   verify <docx>                -> JSON: inlineShapes / shapes / paragraphs counts
+//   pdf <docx> <out.pdf>         -> Word's OWN PDF export (ExportAsFixedFormat): headers,
+//                                   footers, page borders, vector fonts — the real page
+//                                   furniture the range-EMF band render drops.
+//   pdfpage <pdf> <page> <out.png> [scale]
+//                                 -> rasterize one PDF page via Windows.Data.Pdf at any
+//                                   DPI (crisp vector text), no extra dependency.
 //   server                       -> persistent mode: one JSON command per stdin line,
 //                                   one JSON response per stdout line. Keeps Word open
 //                                   so page-band re-renders are cheap (tiled preview):
@@ -55,6 +61,8 @@ public class Program
                 "detect" => Detect(),
                 "render" => args.Length >= 3 ? Render(args[1], args[2]) : Fail("render <docx> <out.png>"),
                 "verify" => args.Length >= 2 ? Verify(args[1]) : Fail("verify <docx>"),
+                "pdf" => args.Length >= 3 ? PdfExport(args[1], args[2], args.Length >= 5 ? int.Parse(args[3]) : 0, args.Length >= 5 ? int.Parse(args[4]) : 0) : Fail("pdf <docx> <out.pdf> [from] [to]"),
+                "pdfpage" => args.Length >= 4 ? PdfPage(args[1], args[2], args[3], args.Length >= 5 ? args[4] : "2") : Fail("pdfpage <pdf> <page> <out.png> [scale]"),
                 "server" => Server(),
                 _ => Fail($"unknown command '{args[0]}'")
             };
@@ -291,6 +299,59 @@ public class Program
                         bool ok = RenderPageBand(app, doc, page, outPath, scale);
                         Respond(new { ok, bytes = ok ? new FileInfo(outPath).Length : 0, page });
                     }
+                    else if (cmd == "pdf")
+                    {
+                        if (doc == null)
+                        {
+                            Respond(new { ok = false, error = "no document open" });
+                            continue;
+                        }
+                        string outPath = Path.GetFullPath(root.GetProperty("out").GetString()!);
+                        int from = root.TryGetProperty("from", out var fr) ? fr.GetInt32() : 0;
+                        int to = root.TryGetProperty("to", out var tt) ? tt.GetInt32() : 0;
+                        File.Delete(outPath);
+                        try
+                        {
+                            if (from > 0 && to >= from)
+                            {
+                                doc.ExportAsFixedFormat(outPath,
+                                    NetOffice.WordApi.Enums.WdExportFormat.wdExportFormatPDF,
+                                    false,
+                                    NetOffice.WordApi.Enums.WdExportOptimizeFor.wdExportOptimizeForPrint,
+                                    NetOffice.WordApi.Enums.WdExportRange.wdExportFromTo,
+                                    from, to,
+                                    NetOffice.WordApi.Enums.WdExportItem.wdExportDocumentContent,
+                                    true, true,
+                                    NetOffice.WordApi.Enums.WdExportCreateBookmarks.wdExportCreateHeadingBookmarks,
+                                    true, true, false);
+                            }
+                            else
+                            {
+                                doc.ExportAsFixedFormat(outPath, NetOffice.WordApi.Enums.WdExportFormat.wdExportFormatPDF);
+                            }
+                            Respond(new { ok = true, bytes = new FileInfo(outPath).Length, exported = to >= from ? to - from + 1 : 0 });
+                        }
+                        catch (Exception ex)
+                        {
+                            Respond(new { ok = false, error = ex.Message });
+                        }
+                    }
+                    else if (cmd == "pdfpage")
+                    {
+                        string pdfPath = Path.GetFullPath(root.GetProperty("pdf").GetString()!);
+                        int page = root.GetProperty("page").GetInt32();
+                        string outPath = Path.GetFullPath(root.GetProperty("out").GetString()!);
+                        double scale = root.TryGetProperty("scale", out var sc) ? sc.GetDouble() : 2.0;
+                        try
+                        {
+                            RenderPdfPageAsync(pdfPath, page, scale, outPath).GetAwaiter().GetResult();
+                            Respond(new { ok = File.Exists(outPath), bytes = File.Exists(outPath) ? new FileInfo(outPath).Length : 0 });
+                        }
+                        catch (Exception ex)
+                        {
+                            Respond(new { ok = false, error = ex.Message });
+                        }
+                    }
                     else if (cmd == "close")
                     {
                         Respond(new { ok = true });
@@ -359,6 +420,109 @@ public class Program
     {
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(payload));
         Console.Out.Flush();
+    }
+
+    // Word's own PDF export — full document, or only a dirty page RANGE (From/To) so live
+    // updates only pay Word's layout cost for the pages that changed.
+    static int PdfExport(string docxPath, string outPdf, int from = 0, int to = 0)
+    {
+        Application? app = null;
+        Document? doc = null;
+        try
+        {
+            if (!File.Exists(docxPath)) return Fail($"docx not found: {docxPath}");
+            File.Delete(outPdf);
+
+            app = new Application();
+            app.Visible = false;
+            app.DisplayAlerts = 0;
+            doc = app.Documents.Open(Path.GetFullPath(docxPath), false, true, false);
+            doc.Repaginate();
+
+            if (from > 0 && to >= from)
+            {
+                // wdExportRange.wdExportFromTo: pages From..To (1-based, inclusive) — live
+                // updates only pay Word's layout cost for the pages that changed.
+                doc.ExportAsFixedFormat(Path.GetFullPath(outPdf),
+                    NetOffice.WordApi.Enums.WdExportFormat.wdExportFormatPDF,
+                    false,
+                    NetOffice.WordApi.Enums.WdExportOptimizeFor.wdExportOptimizeForPrint,
+                    NetOffice.WordApi.Enums.WdExportRange.wdExportFromTo,
+                    from, to,
+                    NetOffice.WordApi.Enums.WdExportItem.wdExportDocumentContent,
+                    true, true,
+                    NetOffice.WordApi.Enums.WdExportCreateBookmarks.wdExportCreateHeadingBookmarks,
+                    true, true, false);
+            }
+            else
+            {
+                doc.ExportAsFixedFormat(Path.GetFullPath(outPdf), NetOffice.WordApi.Enums.WdExportFormat.wdExportFormatPDF);
+            }
+            Console.WriteLine($"exported PDF -> {outPdf}");
+            return File.Exists(outPdf) ? 0 : Fail("PDF export produced no file");
+        }
+        catch (Exception ex)
+        {
+            return Fail("PDF export failed: " + ex.Message);
+        }
+        finally
+        {
+            try { doc?.Close(0); } catch { }
+            try { app?.Quit(); } catch { }
+            doc?.Dispose();
+            app?.Dispose();
+            CleanupWord();
+        }
+    }
+
+    // Rasterize one PDF page with Windows.Data.Pdf (OS built-in, vector-crisp at any scale).
+    static int PdfPage(string pdfPath, string pageArg, string outPng, string scaleArg)
+    {
+        try
+        {
+            if (!File.Exists(pdfPath)) return Fail($"pdf not found: {pdfPath}");
+            int page = int.Parse(pageArg);
+            double scale = double.Parse(scaleArg, System.Globalization.CultureInfo.InvariantCulture);
+            File.Delete(outPng);
+
+            // WinRT APIs need an STA-compatible async run; Main is STA already.
+            var task = RenderPdfPageAsync(pdfPath, page, scale, outPng);
+            task.GetAwaiter().GetResult();
+            return File.Exists(outPng) ? 0 : Fail("pdfpage produced no PNG");
+        }
+        catch (Exception ex)
+        {
+            return Fail("pdfpage failed: " + ex.Message);
+        }
+    }
+
+    static async System.Threading.Tasks.Task RenderPdfPageAsync(string pdfPath, int page, double scale, string outPng)
+    {
+        var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
+        var pdf = await Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file);
+        if (page < 1 || page > (int)pdf.PageCount) throw new InvalidOperationException($"page {page} out of range (1..{pdf.PageCount})");
+        var pdfPage = pdf.GetPage((uint)(page - 1));
+        try
+        {
+            // Rasterize at scale x ~150 DPI letter width so vector text stays crisp; the OS PDF
+            // renderer draws the page exactly as Word laid it out (header/border included).
+            var options = new Windows.Data.Pdf.PdfPageRenderOptions
+            {
+                DestinationWidth = (uint)Math.Max(1, 1275 * scale)
+            };
+            using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            await pdfPage.RenderToStreamAsync(stream, options);
+            using var ms = new MemoryStream();
+            var reader = new Windows.Storage.Streams.DataReader(stream.GetInputStreamAt(0));
+            await reader.LoadAsync((uint)stream.Size);
+            var bytes = new byte[stream.Size];
+            reader.ReadBytes(bytes);
+            File.WriteAllBytes(outPng, bytes);
+        }
+        finally
+        {
+            pdfPage.Dispose();
+        }
     }
 
     static int Fail(string msg)
