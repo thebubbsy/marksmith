@@ -100,6 +100,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // re-navigation, restored on NavigationCompleted so live band refreshes don't jump to the top.
     private double? _pendingFidelityScrollFraction;
 
+    // First-render kick: startup content (recovery restore) can appear without a PropertyChanged,
+    // so the debounce never fires — kick the render once from the preview fall-through.
+    private bool _fidelityKickIssued;
+
     // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
     private readonly List<int> _findMatches = new();
@@ -283,6 +287,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _fidelityDebounce.IsRepeating = false;
         _fidelityDebounce.Tick += async (_, _) =>
         {
+            ViewModels.MainViewModel.LogFidelityForDebug("fidelity debounce tick");
             if (ViewModel.WordFidelityEnabled)
             {
                 await ViewModel.RefreshWordFidelityAsync();
@@ -514,7 +519,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Word-exact render finished (startup auto-restore or manual refresh): re-navigate so the
         // finished tile grid replaces whatever was showing while it rendered.
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.WordFidelityPageHtml))
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.WordFidelityPagePath))
         {
             _ = RefreshPreviewAsync();
         }
@@ -551,6 +556,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             {
                 _fidelityDebounce.Stop();
                 _fidelityDebounce.Start();
+                ViewModels.MainViewModel.LogFidelityForDebug($"fidelity debounce started (prop={e.PropertyName})");
             }
         }
     }
@@ -2078,7 +2084,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Word-exact mode (marksmith-office plugin): show the real Word render instead of HTML.
         if (vm.WordFidelityEnabled)
         {
-            if (vm.BuildFidelityPage() is { } pageHtml)
+            if (vm.FidelityPagePath is { } pagePath && System.IO.File.Exists(pagePath))
             {
                 // Capture the reader's position on the CURRENT tile grid before it is replaced —
                 // the live band refresh re-navigates and would otherwise snap to the top.
@@ -2086,17 +2092,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     _pendingFidelityScrollFraction = await CaptureFidelityScrollFractionAsync();
                 }
-                PreviewWebView.NavigateToString(pageHtml);
+                // Navigate to the written .html file (tiles are sibling PNGs). NavigateToString
+                // caps around 2MB and 2x page tiles exceed it — it threw 'The parameter is
+                // incorrect' and the preview sat on the loading screen forever.
+                PreviewWebView.CoreWebView2.Navigate(new Uri(pagePath).AbsoluteUri);
                 if (vm.IsDebugModeEnabled)
                 {
                     System.IO.File.WriteAllText(
                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"), pageHtml);
+                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"),
+                        System.IO.File.ReadAllText(pagePath));
                 }
                 return;
             }
             // No render yet (plugin/Word absent or failed): fall through to HTML so the pane
-            // isn't blank — the status bar already explains.
+            // isn't blank — the status bar already explains. Also kick the FIRST render once:
+            // startup content can load without a PropertyChanged (recovery restore), so the
+            // debounce never fires and the pane would sit on HTML forever.
+            if (vm.FidelityNeedsInitialRender && !_fidelityKickIssued)
+            {
+                _fidelityKickIssued = true;
+                _ = ViewModel.RefreshWordFidelityAsync();
+            }
         }
 
         // Same classify/normalize step the exports run, so the preview shows what will ship

@@ -160,6 +160,30 @@ namespace MarkSmith.Core.Office
             return WordFidelityPage.Build(_tiles, lookingGlassMode, stale, refreshing);
         }
 
+        /// <summary>
+        /// Writes the tile PNGs + the grid page into the engine's temp folder and returns the
+        /// .html path. The host navigates to this FILE (relative img refs) — NavigateToString
+        /// caps around 2MB of content and 2x page tiles blow past it.
+        /// </summary>
+        public string? BuildPageFile(bool lookingGlassMode, bool stale, IReadOnlySet<int>? refreshing = null)
+        {
+            if (_tiles == null || _tiles.Length == 0) return null;
+            try
+            {
+                for (int i = 0; i < _tiles.Length; i++)
+                {
+                    File.WriteAllBytes(Path.Combine(_tempDir, $"page_{i + 1}.png"), _tiles[i]);
+                }
+                string pagePath = Path.Combine(_tempDir, "fidelity.html");
+                File.WriteAllText(pagePath, BuildPageHtml(lookingGlassMode, stale, refreshing));
+                return pagePath;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
