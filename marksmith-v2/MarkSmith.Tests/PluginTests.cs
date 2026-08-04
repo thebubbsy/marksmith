@@ -190,3 +190,34 @@ public class SvgSizingTests
         Assert.NotNull(new PluginManager().RenderToSvgCached(stub, "x"));
     }
 }
+
+public class PluginStateRemoveTests
+{
+    // Regression: Settings "Remove" deletes the plugin folder (Uninstall), but State must flip to
+    // NotInstalled afterwards — otherwise the Remove button stays visible and removal looks broken.
+    // Extract-artifact plugins previously reported Installed even with an emptied install dir.
+    [Fact]
+    public void Extract_plugin_state_flips_to_not_installed_after_uninstall()
+    {
+        var id = "testextract" + Guid.NewGuid().ToString("N")[..8];
+        var json = """
+            { "manifestVersion":1, "id":"IDHERE", "name":"T", "description":"d", "version":"1", "type":"diagram", "fenceLanguages":["t"], "render":{"command":"{host}"}, "artifacts":[ { "name":"payload.zip", "extract":true } ] }
+            """.Replace("IDHERE", id);
+        var m = PluginManifest.Parse(json);
+        var plugin = new ManifestPlugin(m);
+        var root = PluginManager.PluginsRoot(id);
+        try
+        {
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "marker.txt"), "x");
+            Assert.Equal(PluginInstallState.Installed, plugin.State);
+            plugin.Uninstall();
+            Assert.Equal(PluginInstallState.NotInstalled, plugin.State);
+            Assert.False(Directory.Exists(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+}

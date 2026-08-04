@@ -2018,16 +2018,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Word-exact mode (marksmith-office plugin): show the real Word render instead of HTML.
         if (vm.WordFidelityEnabled)
         {
-            if (vm.WordFidelityDataUri is { } dataUri)
+            if (vm.BuildFidelityPage() is { } pageHtml)
             {
-                string page = MarkSmith.Core.Office.WordFidelityPage.Build(
-                    dataUri, App.Settings.Current.LookingGlassMode, vm.WordFidelityDirty);
-                PreviewWebView.NavigateToString(page);
+                PreviewWebView.NavigateToString(pageHtml);
                 if (vm.IsDebugModeEnabled)
                 {
                     System.IO.File.WriteAllText(
                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"), page);
+                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"), pageHtml);
                 }
                 return;
             }
