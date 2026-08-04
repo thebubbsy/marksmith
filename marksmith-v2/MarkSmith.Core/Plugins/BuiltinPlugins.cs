@@ -143,7 +143,7 @@ internal static class BuiltinPlugins
               "arch": "x64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/15.1.0/windows_10_cmake_Release_Graphviz-15.1.0-win64.zip",
-              "sha256": "c3ee71ff81ab97352082225574a140f20f5d6929d5f33d1097a1fe0e4161962a",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             },
@@ -153,7 +153,7 @@ internal static class BuiltinPlugins
               "arch": "x64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/15.1.0/Darwin_23.6.0_Graphviz-15.1.0-Darwin.zip",
-              "sha256": "2f577e3ac08d391ce7a62a9977b1de737005f9010dbb6abd326e6a0bc1a7cb0c",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             }
@@ -350,7 +350,7 @@ internal static class BuiltinPlugins
               "arch": "x64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-mingw-x86_64.zip",
-              "sha256": "e238f5a33ebde7466fe03d0fbcaa155a44536ca582951972482e0b00ceb0fbf1",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             },
@@ -360,7 +360,7 @@ internal static class BuiltinPlugins
               "arch": "x64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-linux-x86_64.tar.gz",
-              "sha256": "53bc1df875ee56dabe56ae1f0b4550237e0c9acc837b60f0ef8c42fc35a68641",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             },
@@ -370,7 +370,7 @@ internal static class BuiltinPlugins
               "arch": "aarch64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-darwin-arm64.tar.gz",
-              "sha256": "9491d4737000e80bcbdd7a39e9dc13c2178ff865beff7d800d6159bfc395e8fa",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             },
@@ -380,7 +380,7 @@ internal static class BuiltinPlugins
               "arch": "x64",
               "source": "url",
               "url": "https://gitlab.com/api/v4/projects/lilypond%2Flilypond/packages/generic/lilypond/2.24.4/lilypond-2.24.4-darwin-x86_64.tar.gz",
-              "sha256": "84a1e6173afd8f1eda1e39c610a498c41aa20975b4ffaad2e2b2810a52da90b8",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true,
               "stripRoot": true
             }
@@ -527,7 +527,7 @@ internal static class BuiltinPlugins
             {
               "name": "marksmith-office-host.zip",
               "url": "https://raw.githubusercontent.com/thebubbsy/marksmith/main/plugins/marksmith-office/dist/marksmith-office-host.zip",
-              "sha256": "abf1e90ded6d1a20a5dcd6317b7889a04f424aff3f1f8e617e432621d59e0291",
+              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
               "extract": true
             }
           ]

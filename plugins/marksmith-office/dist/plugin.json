@@ -13,7 +13,7 @@
       "extract": true,
       "source": "url",
       "url": "https://raw.githubusercontent.com/thebubbsy/marksmith/main/plugins/marksmith-office/dist/marksmith-office-host.zip",
-      "sha256": "abf1e90ded6d1a20a5dcd6317b7889a04f424aff3f1f8e617e432621d59e0291"
+      "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9"
     }
   ]
 }
