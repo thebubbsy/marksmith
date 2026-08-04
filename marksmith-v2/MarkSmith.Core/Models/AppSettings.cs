@@ -47,6 +47,11 @@ public sealed class AppSettings
     // cursor ring, iris animation and whir. Preview-only; never affects an export. Persisted.
     public bool LookingGlassMode { get; set; }
 
+    // Word-exact preview (marksmith-office plugin): when enabled, the preview pane shows the
+    // REAL Word render of the document (rasterized by the installed Word via NetOffice) instead
+    // of the HTML preview. Snapshot-based: edits mark it stale until refreshed. Preview-only.
+    public bool WordFidelity { get; set; }
+
     // Portal reveal scope (ISS-004): how much of the Markdown source a portal reveals, 0..100.
     // 0 = tight focus (~3 clear lines with a blurred falloff back to the preview); 100 = the
     // full section/document is visible the moment the caret lands. Maps to the portal aperture
@@ -276,6 +281,7 @@ public sealed class AppSettings
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
         LookingGlassMode = other.LookingGlassMode;
+        WordFidelity = other.WordFidelity;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
         PortalFocusBlur = other.PortalFocusBlur;

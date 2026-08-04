@@ -428,6 +428,11 @@
                          this row can no longer overflow into the step title on the left at the
                          default 1220×800 launch size. -->
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ToggleButton x:Name="WordExactToggle" ToolTipService.ToolTip="Word-exact preview (marksmith-office plugin) — show the real Word render of the document"
+                                      Height="32" Width="32" Padding="0" VerticalAlignment="Center"
+                                      Checked="OnWordExactToggled" Unchecked="OnWordExactToggled">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="13" />
+                        </ToggleButton>
                         <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">

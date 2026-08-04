@@ -37,6 +37,30 @@ public class OfficeCapabilityTests
     }
 
     [Fact]
+    public void WordFidelityPage_BuildsSelfContainedPage()
+    {
+        string page = WordFidelityPage.Build("data:image/png;base64,AAAA", lookingGlassMode: true, stale: false);
+        Assert.Contains("data:image/png;base64,AAAA", page);
+        Assert.Contains("__portalSetBlur", page);
+        Assert.Contains("__portalSetShape", page);
+        Assert.Contains("portal-aperture", page);
+        Assert.DoesNotContain("out of date", page);
+
+        string stale = WordFidelityPage.Build("data:image/png;base64,AAAA", lookingGlassMode: false, stale: true);
+        Assert.Contains("out of date", stale);
+        Assert.DoesNotContain("<div class=\"portal-aperture\"", stale); // overlay markup only in Looking Glass mode
+    }
+
+    [Fact]
+    public void AppSettings_RoundTripsWordFidelity()
+    {
+        var a = new Models.AppSettings { WordFidelity = true };
+        var b = new Models.AppSettings();
+        b.UpdateFrom(a);
+        Assert.True(b.WordFidelity);
+    }
+
+    [Fact]
     public async Task WordInstalled_RendersDocxToImage()
     {
         var cap = new OfficeCapability();
