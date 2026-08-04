@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>marksmith-office-host</AssemblyName>
+    <!-- AnyCPU: the host is a separate process (Word is another process anyway), so it can be
+         copied next to BOTH the x64 and x86 app builds without platform coupling. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- NetOffice: MIT-licensed managed wrapper for Microsoft Office COM interop.
+         Version-agnostic (late-binds the installed Office), no PIAs. -->
+    <PackageReference Include="NetOfficeFw.Core" Version="2.0.0-preview20" />
+    <PackageReference Include="NetOfficeFw.Word" Version="2.0.0-preview20" />
+  </ItemGroup>
+</Project>

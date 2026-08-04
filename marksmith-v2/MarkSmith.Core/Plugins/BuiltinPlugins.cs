@@ -506,5 +506,23 @@ internal static class BuiltinPlugins
           }
         }
         """,
+
+        // Office Capability: 100%-accurate Word renders (SmartArt/shapes rasterized by the
+        // real Word) + docx verification + (future) PowerPoint SmartArt automation.
+        // Backed by NetOffice (MIT). The office-host.exe payload ships with the app; this
+        // manifest surfaces it in Settings -> Plugins and documents the plugin.
+        """
+        {
+          "manifestVersion": 1,
+          "id": "marksmith-office",
+          "name": "Office Capability (Word fidelity)",
+          "description": "Drives the installed Microsoft Word via NetOffice to produce 100%-accurate renders of SmartArt and DrawingML shapes (Render Exactly as Word Would), plus opens generated .docx in Word for verification. Requires Microsoft Office; harmless when absent.",
+          "version": "1.0.0",
+          "homepage": "https://github.com/NetOfficeFw/NetOffice",
+          "license": "MIT (netoffice)",
+          "type": "office",
+          "artifacts": []
+        }
+        """,
     };
 }

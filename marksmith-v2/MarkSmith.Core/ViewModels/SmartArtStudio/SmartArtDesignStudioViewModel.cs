@@ -292,14 +292,15 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             if (IsWordFidelity)
             {
-                PreviewHtml = RenderWordFidelity(ast, alias, title);
+                _ = RenderWordFidelityAsync(ast, alias, title);
+                StatusMessage = "Rendering through Word…";
             }
             else
             {
                 PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
                 StatusMessage = $"Preview: {title} ({alias})";
+                PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
             }
-            PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -307,8 +308,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         }
     }
 
-    private string RenderWordFidelity(CanonicalAst ast, string alias, string title)
+    private bool _fidelityRunning;
+
+    private async System.Threading.Tasks.Task RenderWordFidelityAsync(CanonicalAst ast, string alias, string title)
     {
+        if (_fidelityRunning) return;
+        _fidelityRunning = true;
         try
         {
             var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias)
@@ -319,23 +324,48 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             var genRes = new OpenXmlDiagramGenerator().Generate(solved, pkg);
             string outPath = Path.Combine(Path.GetTempPath(), $"SmartArtStudio_fidelity_{alias}_{DateTime.Now:HHmmss}.docx");
             DocxPackageWriter.WriteDocx(outPath, genRes);
-            StatusMessage = $"✓ Word-fidelity DOCX generated ({pkg.UniqueId}) → {outPath}";
 
-            return $"""
-            <div style="width:100%;height:100%;background:#1a2733;border-radius:8px;padding:24px;color:#e8f1f8;font-family:system-ui;box-sizing:border-box;">
-              <div style="font-weight:bold;margin-bottom:10px;">✓ Word-Fidelity Snapshot Generated</div>
-              <div style="font-size:13px;opacity:.85;margin-bottom:8px;">Layout: {WebUtility.HtmlEncode(title)} ({alias}) — native OOXML diagram, schema-valid.</div>
-              <div style="font-size:13px;opacity:.85;margin-bottom:8px;">URN: <code>{WebUtility.HtmlEncode(pkg.UniqueId)}</code></div>
-              <div style="font-size:13px;opacity:.85;">DOCX: <code style="word-break:break-all;">{WebUtility.HtmlEncode(outPath)}</code></div>
-              <div style="font-size:12px;opacity:.7;margin-top:14px;">Open in Microsoft Word for the exact render — Word is the only 100% accurate renderer.</div>
-            </div>
-            """;
+            // The 100%-accurate render: shell to the marksmith-office plugin (NetOffice + Word).
+            var office = MarkSmith.Core.Office.OfficeCapability.Shared;
+            var image = await office.RenderDocxToImageAsync(outPath).ConfigureAwait(true);
+            if (image is { Bytes: not null } img)
+            {
+                string dataUri = "data:" + img.Mime + ";base64," + Convert.ToBase64String(img.Bytes);
+                PreviewHtml = $"""
+                <div style="width:100%;height:100%;background:#ffffff;border-radius:8px;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:8px;box-sizing:border-box;">
+                  <img src="{dataUri}" style="max-width:100%;box-shadow:0 2px 10px rgba(0,0,0,.25);" alt="Word render"/>
+                </div>
+                """;
+                StatusMessage = $"✓ Word-accurate render ({pkg.UniqueId}) — {img.Bytes.Length / 1024} KB image";
+            }
+            else
+            {
+                StatusMessage = "Word fidelity needs the marksmith-office plugin + Microsoft Word installed. DOCX written to " + outPath;
+                PreviewHtml = WordFidelityBadge(title, alias, pkg.UniqueId, outPath);
+            }
+            PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Word-fidelity error: {ex.Message}";
-            return $"<div style='color:#ef4444;background:#2b1420;padding:16px;border-radius:6px;font-family:monospace;'>Word-fidelity error: {WebUtility.HtmlEncode(ex.Message)}</div>";
         }
+        finally
+        {
+            _fidelityRunning = false;
+        }
+    }
+
+    private static string WordFidelityBadge(string title, string alias, string urn, string outPath)
+    {
+        return $"""
+        <div style="width:100%;height:100%;background:#1a2733;border-radius:8px;padding:24px;color:#e8f1f8;font-family:system-ui;box-sizing:border-box;">
+          <div style="font-weight:bold;margin-bottom:10px;">Word-Fidelity Snapshot Generated</div>
+          <div style="font-size:13px;opacity:.85;margin-bottom:8px;">Layout: {WebUtility.HtmlEncode(title)} ({alias}) — native OOXML diagram, schema-valid.</div>
+          <div style="font-size:13px;opacity:.85;margin-bottom:8px;">URN: <code>{WebUtility.HtmlEncode(urn)}</code></div>
+          <div style="font-size:13px;opacity:.85;">DOCX: <code style="word-break:break-all;">{WebUtility.HtmlEncode(outPath)}</code></div>
+          <div style="font-size:12px;opacity:.7;margin-top:14px;">Install the marksmith-office plugin (or Microsoft Word) for the exact render here.</div>
+        </div>
+        """;
     }
 
     [RelayCommand]
