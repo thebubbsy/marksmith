@@ -1924,19 +1924,19 @@ public sealed partial class MarkdownHtmlService
         var matches = TocHeadingRe().Matches(body);
         if (matches.Count < 2) return "";
 
-        var items = matches.Select(m =>
+        // ⚡ Bolt: Single-pass StringBuilder insertion. The previous LINQ Select + string.Join
+        // created significant intermediate string allocations per TOC item on every keystroke.
+        // A direct StringBuilder loop reduces GC pressure for instant live-preview generation.
+        var sb = new StringBuilder("<nav id=\"toc\">\n                <div class=\"toc-title\">Contents</div>\n                <ul>");
+        foreach (Match m in matches)
         {
-            var level = int.Parse(m.Groups[1].Value);
+            var level = m.Groups[1].Value[0] - '0'; // faster than int.Parse
             var text = HtmlTagStripRe().Replace(m.Groups[3].Value, "").Trim();
             var indent = (level - 1) * 16;
-            return $"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>";
-        });
+            sb.Append($"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>");
+        }
+        sb.Append("</ul>\n            </nav>");
 
-        return $"""
-            <nav id="toc">
-                <div class="toc-title">Contents</div>
-                <ul>{string.Join("", items)}</ul>
-            </nav>
-            """;
+        return sb.ToString();
     }
 }
