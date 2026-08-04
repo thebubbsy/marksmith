@@ -706,10 +706,20 @@ private readonly MarkdownExportService _mdExport = new();
     private bool _wordFidelityEnabled;
 
     [ObservableProperty]
-    private string? _wordFidelityDataUri;
+    private string? _wordFidelityPageHtml;
+
+    [ObservableProperty]
+    private int _wordFidelityPageCount;
 
     [ObservableProperty]
     private bool _wordFidelityDirty;
+
+    private MarkSmith.Core.Office.WordFidelityTileEngine? _fidelityEngine;
+
+    /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).</summary>
+    public string? BuildFidelityPage() =>
+        _fidelityEngine == null ? null : _fidelityEngine.BuildPageHtml(
+            _settingsService.Current.LookingGlassMode, WordFidelityDirty, null);
 
     public async System.Threading.Tasks.Task SetWordFidelityAsync(bool enabled)
     {
@@ -718,7 +728,10 @@ private readonly MarkdownExportService _mdExport = new();
         SaveSettingsDebounced();
         if (!enabled)
         {
-            WordFidelityDataUri = null;
+            _fidelityEngine?.Dispose();
+            _fidelityEngine = null;
+            WordFidelityPageHtml = null;
+            WordFidelityPageCount = 0;
             WordFidelityDirty = false;
             return;
         }
@@ -736,34 +749,59 @@ private readonly MarkdownExportService _mdExport = new();
             string md = CurrentMarkdown ?? "";
             if (string.IsNullOrWhiteSpace(md))
             {
-                WordFidelityDataUri = null;
+                WordFidelityPageHtml = null;
+                WordFidelityPageCount = 0;
                 StatusText = "Word-exact: nothing to render — the document is empty.";
                 StatusSeverity = Models.StatusSeverity.Informational;
                 return;
             }
-            string docxPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                $"WordExact_{DateTime.Now:yyyyMMdd_HHmmss}.docx");
-            await new DocxExportService().ExportAsync(md, docxPath, _settingsService.Current);
 
-            var image = await MarkSmith.Core.Office.OfficeCapability.Shared
-                .RenderDocxToImageAsync(docxPath);
-            if (image is { Bytes: not null } img)
+            _fidelityEngine ??= new MarkSmith.Core.Office.WordFidelityTileEngine();
+
+            bool firstRender = _fidelityEngine.Tiles == null;
+            System.Collections.Generic.IReadOnlySet<int>? dirtyPages = null;
+            if (firstRender)
             {
-                WordFidelityDataUri = "data:" + img.Mime + ";base64," + Convert.ToBase64String(img.Bytes);
-                StatusText = $"Word-accurate render — {img.Bytes.Length / 1024} KB image. Editing marks it stale.";
-                StatusSeverity = Models.StatusSeverity.Success;
+                var progress = new Progress<int>(p => StatusText = $"Word-accurate render — page {p}/{_fidelityEngine.PageCount}…");
+                bool ok = await _fidelityEngine.RenderAllAsync(md, _settingsService.Current, progress);
+                if (!ok)
+                {
+                    WordFidelityPageHtml = null;
+                    WordFidelityPageCount = 0;
+                    StatusText = "Word-exact needs the marksmith-office plugin + Microsoft Word installed.";
+                    StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
             }
             else
             {
-                WordFidelityDataUri = null;
-                StatusText = "Word-exact needs the marksmith-office plugin + Microsoft Word installed.";
-                StatusSeverity = Models.StatusSeverity.Warning;
+                dirtyPages = await _fidelityEngine.UpdateAsync(md, _settingsService.Current);
+                if (dirtyPages == null)
+                {
+                    WordFidelityPageHtml = null;
+                    StatusText = "Word-exact render failed — plugin or Word unavailable.";
+                    StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
             }
-            System.IO.File.Delete(docxPath);
+
+            WordFidelityPageCount = _fidelityEngine.PageCount;
+            WordFidelityPageHtml = _fidelityEngine.BuildPageHtml(
+                _settingsService.Current.LookingGlassMode, false, dirtyPages);
+
+            if (dirtyPages is { Count: > 0 } dirty)
+            {
+                StatusText = $"Word-accurate — refreshed {dirty.Count} of {WordFidelityPageCount} page band(s). Editing marks it stale.";
+            }
+            else
+            {
+                StatusText = $"Word-accurate render — {WordFidelityPageCount} page band(s). Editing marks it stale.";
+            }
+            StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
         {
-            WordFidelityDataUri = null;
+            WordFidelityPageHtml = null;
             StatusText = $"Word-exact render failed: {ex.Message}";
             StatusSeverity = Models.StatusSeverity.Error;
         }
