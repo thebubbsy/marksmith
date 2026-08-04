@@ -2,6 +2,7 @@
 [Bb]in/
 [Oo]bj/
 [Dd]ist/
+!plugins/marksmith-office/dist/
 dist_installer/
 dist_stage/
 staging/
