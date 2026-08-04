@@ -112,7 +112,21 @@ public sealed class ManifestPlugin : IDiagramPlugin, IImporterPlugin
 
     public void Uninstall()
     {
-        if (Directory.Exists(RootDir)) Directory.Delete(RootDir, recursive: true);
+        // A plugin whose process is running (the office host) holds its own files open; deleting
+        // throws UnauthorizedAccessException. Retry briefly for stragglers — callers that can stop
+        // the process first (Settings' Remove disposes the Word-exact engine) avoid the lock.
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(RootDir)) Directory.Delete(RootDir, recursive: true);
+                return;
+            }
+            catch (Exception) when (attempt < 3)
+            {
+                System.Threading.Thread.Sleep(400);
+            }
+        }
     }
 
     public string? ImportToMarkdown(string filePath)
