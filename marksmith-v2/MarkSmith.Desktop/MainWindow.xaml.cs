@@ -994,7 +994,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _trayIcon = new H.NotifyIcon.TaskbarIcon
             {
                 ToolTipText = "MarkSmith",
-                IconSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/tray.png")),
+                // Icon (System.Drawing, real .ico) — NOT IconSource: H.NotifyIcon 2.3.0's
+                // IconSource->ToIconAsync path decodes the image to pixels then re-wraps the
+                // stream as System.Drawing.Icon, which only accepts ICO container bytes and
+                // throws ArgumentException on the async continuation (unhandled -> app crash).
+                Icon = new System.Drawing.Icon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "tray.ico")),
                 ContextMenuMode = H.NotifyIcon.ContextMenuMode.SecondWindow,
                 NoLeftClickDelay = true,
                 LeftClickCommand = ShowWindowCommand,

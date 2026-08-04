@@ -52,6 +52,7 @@
 
   <ItemGroup>
     <Content Include="Assets\tray.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\tray.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
     <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2
