@@ -2909,10 +2909,67 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Word-exact preview toggle: swap the preview pane to the REAL Word render of the document
     // (via the marksmith-office plugin). Snapshot mode — edits mark it stale until re-toggled.
+    private bool _wordFidelityRendering;
+
     private async void OnWordExactToggled(object sender, RoutedEventArgs e)
     {
-        await ViewModel.SetWordFidelityAsync(WordExactToggle?.IsChecked == true);
-        await RefreshPreviewAsync();
+        bool on = WordExactToggle?.IsChecked == true;
+        if (!on)
+        {
+            await ViewModel.SetWordFidelityAsync(false);
+            await RefreshPreviewAsync();
+            return;
+        }
+
+        // Instant feedback: the Word render takes a couple of seconds — show a placeholder now.
+        _wordFidelityRendering = true;
+        ViewModel.StatusText = "Word-exact: rendering through Microsoft Word…";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        ShowFidelityPlaceholder();
+
+        try
+        {
+            await ViewModel.SetWordFidelityAsync(true);
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Word-exact failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            ShowFidelityError(ex.Message);
+            return;
+        }
+        finally
+        {
+            _wordFidelityRendering = false;
+        }
+
+        if (WordExactToggle?.IsChecked == true) // user didn't toggle off mid-render
+        {
+            await RefreshPreviewAsync();
+        }
+    }
+
+    private void ShowFidelityPlaceholder()
+    {
+        if (PreviewWebView.CoreWebView2 is null) return;
+        PreviewWebView.NavigateToString(
+            "<!DOCTYPE html><html><body style='margin:0;background:#18181c;display:flex;align-items:center;justify-content:center;height:100vh;color:#99a;font-family:system-ui;'>" +
+            "<div style='text-align:center'><div style='font-size:30px;margin-bottom:12px;animation:pulse 1.2s infinite'>⚙</div>" +
+            "<div>Rendering through Microsoft Word…</div>" +
+            "<div style='font-size:12px;opacity:.6;margin-top:6px'>marksmith-office plugin (NetOffice)</div></div>" +
+            "<style>@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}</style></body></html>");
+    }
+
+    private void ShowFidelityError(string message)
+    {
+        if (PreviewWebView.CoreWebView2 is null) return;
+        string esc = System.Net.WebUtility.HtmlEncode(message);
+        PreviewWebView.NavigateToString(
+            "<!DOCTYPE html><html><body style='margin:0;background:#2b1420;display:flex;align-items:center;justify-content:center;height:100vh;color:#f8a;font-family:system-ui;padding:24px;'>" +
+            "<div style='text-align:center'><div style='font-size:30px;margin-bottom:12px'>⚠</div>" +
+            "<div style='font-weight:bold;margin-bottom:8px'>Word-exact render failed</div>" +
+            $"<div style='font-size:13px;opacity:.85;word-break:break-all'>{esc}</div>" +
+            "<div style='font-size:12px;opacity:.6;margin-top:12px'>Make sure the marksmith-office plugin is present and Microsoft Word is installed, then toggle Word-exact off and on.</div></div></body></html>");
     }
 
     private void ApplyEditorFontSize(double size, bool persist)
