@@ -716,6 +716,11 @@ private readonly MarkdownExportService _mdExport = new();
 
     private MarkSmith.Core.Office.WordFidelityTileEngine? _fidelityEngine;
 
+    // Re-entrancy guard: the startup auto-restore, the toggle handler and plugin installs can all
+    // call RefreshWordFidelityAsync — two concurrent renders race the shared engine and the host
+    // process (crash). Any overlapping call no-ops.
+    private bool _fidelityRendering;
+
     /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).
     /// Returns null while the first render is still running or failed, so callers fall through to
     /// the regular HTML preview instead of showing an empty page shell.</summary>
@@ -743,7 +748,10 @@ private readonly MarkdownExportService _mdExport = new();
 
     public async System.Threading.Tasks.Task RefreshWordFidelityAsync()
     {
+        LogFidelity($"RefreshWordFidelityAsync start (enabled={WordFidelityEnabled}, busy={_fidelityRendering})");
         if (!WordFidelityEnabled) return;
+        if (_fidelityRendering) return; // concurrent calls (startup + toggle) would race the engine
+        _fidelityRendering = true;
         WordFidelityDirty = false;
         StatusText = "Rendering through Word…";
         StatusSeverity = Models.StatusSeverity.Informational;
@@ -758,6 +766,7 @@ private readonly MarkdownExportService _mdExport = new();
                 StatusSeverity = Models.StatusSeverity.Informational;
                 return;
             }
+            LogFidelity($"markdown chars={md.Length}");
 
             _fidelityEngine ??= new MarkSmith.Core.Office.WordFidelityTileEngine();
 
@@ -767,6 +776,7 @@ private readonly MarkdownExportService _mdExport = new();
             {
                 var progress = new Progress<int>(p => StatusText = $"Word-accurate render — page {p}/{_fidelityEngine.PageCount}…");
                 bool ok = await _fidelityEngine.RenderAllAsync(md, _settingsService.Current, progress);
+                LogFidelity($"RenderAllAsync ok={ok} pages={_fidelityEngine.PageCount} tiles={_fidelityEngine.Tiles?.Count ?? -1}");
                 if (!ok)
                 {
                     WordFidelityPageHtml = null;
@@ -779,6 +789,7 @@ private readonly MarkdownExportService _mdExport = new();
             else
             {
                 dirtyPages = await _fidelityEngine.UpdateAsync(md, _settingsService.Current);
+                LogFidelity($"UpdateAsync dirty={(dirtyPages == null ? "null" : string.Join(",", dirtyPages))}");
                 if (dirtyPages == null)
                 {
                     WordFidelityPageHtml = null;
@@ -791,6 +802,7 @@ private readonly MarkdownExportService _mdExport = new();
             WordFidelityPageCount = _fidelityEngine.PageCount;
             WordFidelityPageHtml = _fidelityEngine.BuildPageHtml(
                 _settingsService.Current.LookingGlassMode, false, dirtyPages);
+            LogFidelity($"page html set: {WordFidelityPageCount} pages");
 
             if (dirtyPages is { Count: > 0 } dirty)
             {
@@ -804,10 +816,30 @@ private readonly MarkdownExportService _mdExport = new();
         }
         catch (Exception ex)
         {
+            LogFidelity($"EXCEPTION {ex.GetType().Name}: {ex.Message}");
             WordFidelityPageHtml = null;
             StatusText = $"Word-exact render failed: {ex.Message}";
             StatusSeverity = Models.StatusSeverity.Error;
         }
+        finally
+        {
+            _fidelityRendering = false;
+        }
+    }
+
+    private static void LogFidelity(string message)
+    {
+        try
+        {
+            string dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MarkSmith", "DebugLogs");
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.AppendAllText(
+                System.IO.Path.Combine(dir, "wordfidelity-render.log"),
+                $"{DateTime.Now:HH:mm:ss.fff} {message}\n");
+        }
+        catch { }
     }
 
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the

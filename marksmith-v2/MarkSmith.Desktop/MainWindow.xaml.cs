@@ -219,7 +219,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _initializingLookingGlass = false;
 
         // Word-exact preview: reflect the persisted toggle and, when on, render through Word.
+        _initializingWordExact = true;
         WordExactToggle.IsChecked = App.Settings.Current.WordFidelity;
+        _initializingWordExact = false;
+        try
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs"));
+            System.IO.File.AppendAllText(System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs", "wordfidelity-render.log"),
+                $"{DateTime.Now:HH:mm:ss.fff} STARTUP block reached — settings.WordFidelity={App.Settings.Current.WordFidelity}\n");
+        }
+        catch { }
         if (App.Settings.Current.WordFidelity)
         {
             ViewModel.WordFidelityEnabled = true;
@@ -934,7 +945,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Installing/removing a diagram engine changes what the open document can render, so re-run
         // the live preview (heavy path re-invokes the plugin renderers) as soon as it happens —
         // even while the Settings dialog is still open, so the change is visible the moment it closes.
-        settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(() => _ = RefreshPreviewAsync(heavy: true));
+        settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(async () =>
+        {
+            // A plugin install/remove can change what Word-exact can render (e.g. the
+            // marksmith-office payload just arrived) — re-run the fidelity render when on.
+            if (ViewModel.WordFidelityEnabled)
+            {
+                await ViewModel.RefreshWordFidelityAsync();
+            }
+            await RefreshPreviewAsync(heavy: true);
+        });
         var dialog = new ContentDialog
         {
             Title = "Settings",
@@ -2915,9 +2935,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Word-exact preview toggle: swap the preview pane to the REAL Word render of the document
     // (via the marksmith-office plugin). Snapshot mode — edits mark it stale until re-toggled.
     private bool _wordFidelityRendering;
+    private bool _initializingWordExact;
 
     private async void OnWordExactToggled(object sender, RoutedEventArgs e)
     {
+        if (_initializingWordExact) return; // startup reflection must not trigger a render
         bool on = WordExactToggle?.IsChecked == true;
         if (!on)
         {
