@@ -706,7 +706,7 @@ private readonly MarkdownExportService _mdExport = new();
     private bool _wordFidelityEnabled;
 
     [ObservableProperty]
-    private string? _wordFidelityPageHtml;
+    private string? _wordFidelityPagePath;
 
     [ObservableProperty]
     private int _wordFidelityPageCount;
@@ -725,13 +725,17 @@ private readonly MarkdownExportService _mdExport = new();
     // the new content is reflected instead of silently dropped.
     private bool _fidelityPending;
 
-    /// <summary>Rebuilds the tile-grid page with the CURRENT stale flag (badge shows after edits).
-    /// Returns null while the first render is still running or failed, so callers fall through to
-    /// the regular HTML preview instead of showing an empty page shell.</summary>
-    public string? BuildFidelityPage() =>
+    /// <summary>Path of the written tile-grid page file (relative tile PNGs beside it). Null while
+    /// the first render is still running or failed, so callers fall through to the regular HTML
+    /// preview instead of navigating to an empty shell.</summary>
+    public string? FidelityPagePath =>
         _fidelityEngine?.Tiles is { Count: > 0 }
-            ? _fidelityEngine.BuildPageHtml(_settingsService.Current.LookingGlassMode, WordFidelityDirty, null)
+            ? _fidelityEngine.BuildPageFile(_settingsService.Current.LookingGlassMode, WordFidelityDirty, null)
             : null;
+
+    /// <summary>True until the first Word render has tiles — the preview falls back to HTML and
+    /// kicks the render once.</summary>
+    public bool FidelityNeedsInitialRender => _fidelityEngine == null || _fidelityEngine.Tiles == null;
 
     public async System.Threading.Tasks.Task SetWordFidelityAsync(bool enabled)
     {
@@ -743,7 +747,7 @@ private readonly MarkdownExportService _mdExport = new();
             // Keep the engine + tile cache + persistent Word alive so re-enabling is an
             // incremental band update, not a full re-render. Freed on app close (DisposeFidelity).
             _fidelityPending = false;
-            WordFidelityPageHtml = null;
+            WordFidelityPagePath = null;
             WordFidelityPageCount = 0;
             WordFidelityDirty = false;
             return;
@@ -756,7 +760,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         _fidelityEngine?.Dispose();
         _fidelityEngine = null;
-        WordFidelityPageHtml = null;
+        WordFidelityPagePath = null;
         WordFidelityPageCount = 0;
     }
 
@@ -778,7 +782,7 @@ private readonly MarkdownExportService _mdExport = new();
             string md = CurrentMarkdown ?? "";
             if (string.IsNullOrWhiteSpace(md))
             {
-                WordFidelityPageHtml = null;
+                WordFidelityPagePath = null;
                 WordFidelityPageCount = 0;
                 StatusText = "Word-exact: nothing to render — the document is empty.";
                 StatusSeverity = Models.StatusSeverity.Informational;
@@ -797,7 +801,7 @@ private readonly MarkdownExportService _mdExport = new();
                 LogFidelity($"RenderAllAsync ok={ok} pages={_fidelityEngine.PageCount} tiles={_fidelityEngine.Tiles?.Count ?? -1}");
                 if (!ok)
                 {
-                    WordFidelityPageHtml = null;
+                    WordFidelityPagePath = null;
                     WordFidelityPageCount = 0;
                     StatusText = "Word-exact needs the marksmith-office plugin + Microsoft Word installed.";
                     StatusSeverity = Models.StatusSeverity.Warning;
@@ -810,7 +814,7 @@ private readonly MarkdownExportService _mdExport = new();
                 LogFidelity($"UpdateAsync dirty={(dirtyPages == null ? "null" : string.Join(",", dirtyPages))}");
                 if (dirtyPages == null)
                 {
-                    WordFidelityPageHtml = null;
+                    WordFidelityPagePath = null;
                     StatusText = "Word-exact render failed — plugin or Word unavailable.";
                     StatusSeverity = Models.StatusSeverity.Warning;
                     return;
@@ -818,7 +822,7 @@ private readonly MarkdownExportService _mdExport = new();
             }
 
             WordFidelityPageCount = _fidelityEngine.PageCount;
-            WordFidelityPageHtml = _fidelityEngine.BuildPageHtml(
+            WordFidelityPagePath = _fidelityEngine.BuildPageFile(
                 _settingsService.Current.LookingGlassMode, false, dirtyPages);
             LogFidelity($"page html set: {WordFidelityPageCount} pages");
 
@@ -835,7 +839,7 @@ private readonly MarkdownExportService _mdExport = new();
         catch (Exception ex)
         {
             LogFidelity($"EXCEPTION {ex.GetType().Name}: {ex.Message}");
-            WordFidelityPageHtml = null;
+            WordFidelityPagePath = null;
             StatusText = $"Word-exact render failed: {ex.Message}";
             StatusSeverity = Models.StatusSeverity.Error;
         }
@@ -866,6 +870,9 @@ private readonly MarkdownExportService _mdExport = new();
         }
         catch { }
     }
+
+    /// <summary>Debug hook used by MainWindow to trace the debounce -> render chain.</summary>
+    public static void LogFidelityForDebug(string message) => LogFidelity(message);
 
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
     // tokens expand to. Falls back to the default template when the matching band is empty.
