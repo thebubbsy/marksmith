@@ -14,6 +14,30 @@ using NetOffice.WordApi;
 //   verify <docx>                -> JSON: inlineShapes / shapes / paragraphs counts
 public class Program
 {
+    // Word processes born during this invocation get force-killed after Quit — Word's Quit()
+    // can leave a zombie on some Office builds, and a zombie blocks the next detect/render
+    // (Word is single-instance), which is exactly how the Word-exact toggle "stops working".
+    private static readonly DateTime StartedAt = DateTime.UtcNow;
+
+    private static void CleanupWord()
+    {
+        try
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName("WINWORD"))
+            {
+                try
+                {
+                    if (p.StartTime.ToUniversalTime() >= StartedAt.AddSeconds(-3))
+                    {
+                        try { p.Kill(); } catch { }
+                    }
+                }
+                catch { /* access denied / already gone */ }
+            }
+        }
+        catch { }
+    }
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -55,6 +79,7 @@ public class Program
         {
             try { app?.Quit(); } catch { }
             app?.Dispose();
+            CleanupWord();
         }
     }
 
@@ -84,6 +109,18 @@ public class Program
                 }
             }
 
+            // Floating shape groups (:::shapes / sketch): whole-page EMF is the reliable raster.
+            try
+            {
+                object? pageBits = doc.Range().EnhMetaFileBits;
+                if (TryBitsToPng(pageBits, outPath))
+                {
+                    Console.WriteLine($"rendered page (EMF) -> {outPath}");
+                    return 0;
+                }
+            }
+            catch { /* fall through */ }
+
             // HTML round-trip fallback: Word rasterizes the whole page; grab the image.
             string html = Path.ChangeExtension(outPath, ".htm");
             doc.SaveAs2(Path.GetFullPath(html), 8); // wdFormatHTML
@@ -103,6 +140,7 @@ public class Program
             try { app?.Quit(); } catch { }
             doc?.Dispose();
             app?.Dispose();
+            CleanupWord();
         }
     }
 
@@ -127,6 +165,7 @@ public class Program
             try { app?.Quit(); } catch { }
             doc?.Dispose();
             app?.Dispose();
+            CleanupWord();
         }
     }
 
