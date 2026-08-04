@@ -27,6 +27,24 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+
+        // UI-thread exceptions (XAML callbacks, async-void handlers) surface here, not through
+        // AppDomain.UnhandledException. Log every one so a crash is diagnosable from
+        // %LOCALAPPDATA%\MarkSmith\startup-crash.log instead of a mystery.
+        UnhandledException += (_, e) =>
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MarkSmith");
+                System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(dir, "startup-crash.log"),
+                    $"[App.UnhandledException] {DateTime.Now:O}{Environment.NewLine}{e.Exception}{Environment.NewLine}{Environment.NewLine}");
+            }
+            catch { }
+        };
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
