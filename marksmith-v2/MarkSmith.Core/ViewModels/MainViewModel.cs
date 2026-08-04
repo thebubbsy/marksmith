@@ -764,6 +764,44 @@ private readonly MarkdownExportService _mdExport = new();
         WordFidelityPageCount = 0;
     }
 
+    /// <summary>
+    /// Full-pipeline docx build for the Word-exact preview: the SAME mermaid harvest (exact
+    /// geometry, generic geometry, PNG snapshots) and AI-cleanup fixes the real DOCX export
+    /// applies — the preview must show what the exported document actually contains.
+    /// Non-interactive: oversized-diagram preference without the prompt (mode 0 -> exact).
+    /// </summary>
+    private async Task<bool> BuildDocxForPreviewAsync(string markdown, string outPath)
+    {
+        try
+        {
+            var settings = _settingsService.Current;
+            var hasMermaid = markdown.Contains("```mermaid", StringComparison.Ordinal);
+            int mode = settings.OversizedDiagramMode == 0 ? 1 : settings.OversizedDiagramMode;
+
+            List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null &&
+                (mode == 1 || (mode >= 3 && mode <= 8)))
+            {
+                geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
+                if (geometry?.Any(g => g is { IsEmpty: false }) != true) geometry = null;
+            }
+            List<Services.Mermaid.GenericDiagram?>? genericGeom = null;
+            if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
+                genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(Host, markdown, settings, CurrentTheme);
+            List<byte[]?>? mermaidImgs = null;
+            if (hasMermaid && Host is not null)
+                mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, settings, CurrentTheme);
+            var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
+
+            await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom, mode);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async System.Threading.Tasks.Task RefreshWordFidelityAsync()
     {
         LogFidelity($"RefreshWordFidelityAsync start (enabled={WordFidelityEnabled}, busy={_fidelityRendering})");
@@ -790,7 +828,7 @@ private readonly MarkdownExportService _mdExport = new();
             }
             LogFidelity($"markdown chars={md.Length}");
 
-            _fidelityEngine ??= new MarkSmith.Core.Office.WordFidelityTileEngine();
+            _fidelityEngine ??= new MarkSmith.Core.Office.WordFidelityTileEngine(BuildDocxForPreviewAsync);
 
             bool firstRender = _fidelityEngine.Tiles == null;
             System.Collections.Generic.IReadOnlySet<int>? dirtyPages = null;

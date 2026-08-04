@@ -21,6 +21,10 @@ namespace MarkSmith.Core.Office
         // footers, borders) via Word's own PDF export + the OS PDF rasterizer.
         private const double TileScale = 2.0;
 
+        // When provided, the app builds the docx through its REAL export pipeline (mermaid
+        // harvest, smartart geometry, AI-cleanup fixes) so the preview matches the shipped file.
+        private readonly Func<string, string, Task<bool>>? _docxBuilder;
+
         private readonly string _tempDir;
         private string _tempDocxPath;
         private string _tempPdfPath;
@@ -29,12 +33,20 @@ namespace MarkSmith.Core.Office
         private byte[][]? _tiles;
         private bool _disposed;
 
-        public WordFidelityTileEngine()
+        public WordFidelityTileEngine(Func<string, string, Task<bool>>? docxBuilder = null)
         {
+            _docxBuilder = docxBuilder;
             _tempDir = Path.Combine(Path.GetTempPath(), "MarkSmithFidelity");
             Directory.CreateDirectory(_tempDir);
             _tempDocxPath = Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.docx");
             _tempPdfPath = Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.pdf");
+        }
+
+        private async Task<bool> BuildDocxAsync(string markdown, AppSettings settings, string targetPath)
+        {
+            if (_docxBuilder != null) return await _docxBuilder(markdown, targetPath).ConfigureAwait(false);
+            await new DocxExportService().ExportAsync(markdown, targetPath, settings).ConfigureAwait(false);
+            return true;
         }
 
         public int PageCount => _server?.PageCount ?? 0;
@@ -43,13 +55,13 @@ namespace MarkSmith.Core.Office
 
         public bool HasServer => _server != null;
 
-        /// <summary>First render: export the docx, open Word, rasterize every page via Word's PDF.</summary>
+        /// <summary>First render: build the real docx, open Word, rasterize every page via Word's PDF.</summary>
         public async Task<bool> RenderAllAsync(string markdown, AppSettings settings, IProgress<int>? progress = null)
         {
             _lastMarkdown = markdown;
             _tempDocxPath = NewTempDocxPath();
             _tempPdfPath = NewTempPdfPath();
-            await new DocxExportService().ExportAsync(markdown, _tempDocxPath, settings).ConfigureAwait(false);
+            if (!await BuildDocxAsync(markdown, settings, _tempDocxPath)) { _tiles = null; return false; }
             _server?.Dispose();
             _server = WordTileServer.Start(_tempDocxPath);
             if (_server == null) { _tiles = null; return false; }
@@ -83,7 +95,11 @@ namespace MarkSmith.Core.Office
             string oldPath = _tempDocxPath;
             string newPath = NewTempDocxPath();
             string newPdfPath = NewTempPdfPath();
-            await new DocxExportService().ExportAsync(markdown, newPath, settings).ConfigureAwait(false);
+            if (!await BuildDocxAsync(markdown, settings, newPath))
+            {
+                try { File.Delete(newPath); } catch { }
+                return null;
+            }
             if (!_server.Reopen(newPath))
             {
                 try { File.Delete(newPath); } catch { }
