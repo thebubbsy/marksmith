@@ -17,10 +17,13 @@ namespace MarkSmith.Core.Office
     /// </summary>
     public sealed class WordFidelityTileEngine : IDisposable
     {
-        private const double TileScale = 0.5; // preview resolution; Word still rasterizes full res
+        // 2x letter-width (~150 DPI) — vector-crisp text and real page furniture (headers,
+        // footers, borders) via Word's own PDF export + the OS PDF rasterizer.
+        private const double TileScale = 2.0;
 
         private readonly string _tempDir;
         private string _tempDocxPath;
+        private string _tempPdfPath;
         private WordTileServer? _server;
         private string? _lastMarkdown;
         private byte[][]? _tiles;
@@ -31,6 +34,7 @@ namespace MarkSmith.Core.Office
             _tempDir = Path.Combine(Path.GetTempPath(), "MarkSmithFidelity");
             Directory.CreateDirectory(_tempDir);
             _tempDocxPath = Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.docx");
+            _tempPdfPath = Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.pdf");
         }
 
         public int PageCount => _server?.PageCount ?? 0;
@@ -39,21 +43,23 @@ namespace MarkSmith.Core.Office
 
         public bool HasServer => _server != null;
 
-        /// <summary>First render: export the docx, open Word, rasterize every page band.</summary>
+        /// <summary>First render: export the docx, open Word, rasterize every page via Word's PDF.</summary>
         public async Task<bool> RenderAllAsync(string markdown, AppSettings settings, IProgress<int>? progress = null)
         {
             _lastMarkdown = markdown;
             _tempDocxPath = NewTempDocxPath();
+            _tempPdfPath = NewTempPdfPath();
             await new DocxExportService().ExportAsync(markdown, _tempDocxPath, settings).ConfigureAwait(false);
             _server?.Dispose();
             _server = WordTileServer.Start(_tempDocxPath);
             if (_server == null) { _tiles = null; return false; }
 
+            if (!_server.ExportPdf(_tempPdfPath)) { _tiles = null; return false; }
             int pages = _server.PageCount;
             var tiles = new byte[pages][];
             for (int p = 1; p <= pages; p++)
             {
-                tiles[p - 1] = _server.RenderPage(p, TileScale);
+                tiles[p - 1] = _server.RenderPdfPage(_tempPdfPath, p, TileScale);
                 progress?.Report(p);
             }
             _tiles = tiles;
@@ -76,6 +82,7 @@ namespace MarkSmith.Core.Office
             // path, reopen (which closes the old one in Word), then drop the old file.
             string oldPath = _tempDocxPath;
             string newPath = NewTempDocxPath();
+            string newPdfPath = NewTempPdfPath();
             await new DocxExportService().ExportAsync(markdown, newPath, settings).ConfigureAwait(false);
             if (!_server.Reopen(newPath))
             {
@@ -97,9 +104,18 @@ namespace MarkSmith.Core.Office
 
             int totalLines = Math.Max(1, markdown.Split('\n').Length);
             var (firstPage, lastPage) = DirtyPages(newPages, totalLines, first, last);
+
+            // Word exports ONLY the dirty page range (From..To) — the layout cost scales with the
+            // edit, not the document. Rasterize those pages from the fresh PDF at 2x (crisp).
+            if (!_server.ExportPdf(newPdfPath, firstPage, lastPage))
+            {
+                try { File.Delete(newPdfPath); } catch { }
+                return null;
+            }
+            _tempPdfPath = newPdfPath;
             for (int p = firstPage; p <= lastPage; p++)
             {
-                if (_server.RenderPage(p, TileScale) is { } bytes)
+                if (_server.RenderPdfPage(_tempPdfPath, p - firstPage + 1, TileScale) is { } bytes)
                 {
                     _tiles[p - 1] = bytes;
                     dirty.Add(p);
@@ -150,9 +166,11 @@ namespace MarkSmith.Core.Office
             _disposed = true;
             _server?.Dispose();
             try { File.Delete(_tempDocxPath); } catch { }
+            try { File.Delete(_tempPdfPath); } catch { }
             try { if (Directory.Exists(_tempDir) && !Directory.EnumerateFileSystemEntries(_tempDir).Any()) Directory.Delete(_tempDir); } catch { }
         }
 
         private string NewTempDocxPath() => Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.docx");
+        private string NewTempPdfPath() => Path.Combine(_tempDir, $"fidelity_{Guid.NewGuid():N}.pdf");
     }
 }

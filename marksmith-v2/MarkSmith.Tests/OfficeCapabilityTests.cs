@@ -49,7 +49,7 @@ public class OfficeCapabilityTests
         Assert.DoesNotContain("out of date", page);
 
         string stale = WordFidelityPage.Build(tiles, lookingGlassMode: false, stale: true);
-        Assert.Contains("out of date", stale);
+        Assert.Contains("Word render updating", stale);
         Assert.DoesNotContain("<div class=\"portal-aperture\"", stale); // overlay markup only in Looking Glass mode
     }
 

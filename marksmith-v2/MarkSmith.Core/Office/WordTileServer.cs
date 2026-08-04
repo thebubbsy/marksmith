@@ -99,6 +99,42 @@ namespace MarkSmith.Core.Office
             }
         }
 
+        /// <summary>Word's own PDF export of the OPEN document (full or a From..To page range).</summary>
+        public bool ExportPdf(string outPdf, int from = 0, int to = 0)
+        {
+            File.Delete(outPdf);
+            if (!Send("pdf", new System.Collections.Generic.Dictionary<string, object?>
+                {
+                    ["out"] = Path.GetFullPath(outPdf),
+                    ["from"] = from,
+                    ["to"] = to
+                }, out var ok, out _)) return false;
+            return ok == true && File.Exists(outPdf);
+        }
+
+        /// <summary>Rasterizes one page of a PDF via Windows.Data.Pdf (vector-crisp at any scale).</summary>
+        public byte[]? RenderPdfPage(string pdfPath, int page, double scale = 2.0)
+        {
+            string outPath = Path.Combine(_tempDir, $"pdfpage_{page:D4}.png");
+            File.Delete(outPath);
+            if (!Send("pdfpage", new System.Collections.Generic.Dictionary<string, object?>
+                {
+                    ["pdf"] = Path.GetFullPath(pdfPath),
+                    ["page"] = page,
+                    ["out"] = outPath,
+                    ["scale"] = scale
+                }, out var ok, out var bytes)) return null;
+            if (ok != true) return null;
+            try
+            {
+                return File.ReadAllBytes(outPath);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
