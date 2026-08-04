@@ -218,6 +218,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         LookingGlassToggle.IsChecked = App.Settings.Current.LookingGlassMode;
         _initializingLookingGlass = false;
 
+        // Word-exact preview: reflect the persisted toggle and, when on, render through Word.
+        WordExactToggle.IsChecked = App.Settings.Current.WordFidelity;
+        if (App.Settings.Current.WordFidelity)
+        {
+            ViewModel.WordFidelityEnabled = true;
+            _ = ViewModel.RefreshWordFidelityAsync();
+        }
+
         // ISS-004: reflect the persisted portal reveal scope + shape without firing the change handlers.
         _initializingPortalReveal = true;
         PortalRevealSlider.Value = App.Settings.Current.PortalRevealScope;
@@ -258,6 +266,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // update goes through the live path instead — push the editor's text into the portal's
             // textarea (split + portal: typed text appears inside the shape) and swap the preview
             // canvas in place behind it. The page-script rebuild happens when the portal closes.
+            // Word-exact mode is a snapshot: edits mark the render stale; the refresh happens
+            // when the user re-toggles or re-opens the mode — don't re-navigate per keystroke.
+            if (ViewModel.WordFidelityEnabled)
+            {
+                ViewModel.WordFidelityDirty = true;
+                return;
+            }
             if (_portalOpen)
             {
                 var md = ViewModel.CurrentMarkdown ?? "";
@@ -2000,6 +2015,26 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
+        // Word-exact mode (marksmith-office plugin): show the real Word render instead of HTML.
+        if (vm.WordFidelityEnabled)
+        {
+            if (vm.WordFidelityDataUri is { } dataUri)
+            {
+                string page = MarkSmith.Core.Office.WordFidelityPage.Build(
+                    dataUri, App.Settings.Current.LookingGlassMode, vm.WordFidelityDirty);
+                PreviewWebView.NavigateToString(page);
+                if (vm.IsDebugModeEnabled)
+                {
+                    System.IO.File.WriteAllText(
+                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"), page);
+                }
+                return;
+            }
+            // No render yet (plugin/Word absent or failed): fall through to HTML so the pane
+            // isn't blank — the status bar already explains.
+        }
+
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
@@ -2870,6 +2905,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (delta == 0) return;
         ApplyEditorFontSize(PasteTextBox.FontSize + (delta > 0 ? 1 : -1), persist: true);
         e.Handled = true;
+    }
+
+    // Word-exact preview toggle: swap the preview pane to the REAL Word render of the document
+    // (via the marksmith-office plugin). Snapshot mode — edits mark it stale until re-toggled.
+    private async void OnWordExactToggled(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.SetWordFidelityAsync(WordExactToggle?.IsChecked == true);
+        await RefreshPreviewAsync();
     }
 
     private void ApplyEditorFontSize(double size, bool persist)
