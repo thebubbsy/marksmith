@@ -453,11 +453,6 @@
                          this row can no longer overflow into the step title on the left at the
                          default 1220×800 launch size. -->
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ToggleButton x:Name="PagedPreviewToggle" ToolTipService.ToolTip="Word-like page view — real Letter pages with Word margins and typography (mimics WinWord; no Office needed)"
-                                      Height="32" Width="32" Padding="0" VerticalAlignment="Center"
-                                      Checked="OnPagedPreviewToggled" Unchecked="OnPagedPreviewToggled">
-                            <FontIcon Glyph="&#xE787;" FontSize="13" />
-                        </ToggleButton>
                         <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">

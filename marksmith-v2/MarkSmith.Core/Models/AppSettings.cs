@@ -47,10 +47,6 @@ public sealed class AppSettings
     // cursor ring, iris animation and whir. Preview-only; never affects an export. Persisted.
     public bool LookingGlassMode { get; set; }
 
-    // Word-like paged preview: the live preview lays the document out on real Word-geometry pages
-    // (Letter, 1" margins, Calibri typography, per-page footers) instead of one continuous canvas.
-    // Pure HTML/CSS — no Office dependency. Preview-only. Persisted.
-    public bool PagedPreviewMode { get; set; } = true;
 
     // Portal reveal scope (ISS-004): how much of the Markdown source a portal reveals, 0..100.
     // 0 = tight focus (~3 clear lines with a blurred falloff back to the preview); 100 = the
@@ -281,7 +277,6 @@ public sealed class AppSettings
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
         LookingGlassMode = other.LookingGlassMode;
-        PagedPreviewMode = other.PagedPreviewMode;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
         PortalFocusBlur = other.PortalFocusBlur;
