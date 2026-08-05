@@ -2,9 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>MarkSmith.Core</RootNamespace>
-    <Version>2.0.0</Version>
-    <AssemblyVersion>2.0.0.0</AssemblyVersion>
-    <FileVersion>2.0.0.0</FileVersion>
+    <!-- No Version/FileVersion here: the app's version lives on the EXE (MarkSmith.Desktop stamps
+         2.14.0.<build>). A stale hardcoded 2.0.0.x here leaked into UpdateService.CurrentVersion
+         (which read this assembly's file version) and made the update banner fire on every launch. -->
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

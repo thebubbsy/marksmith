@@ -16,21 +16,30 @@ public sealed class UpdateService
     {
         get
         {
-            // Prefer the FILE version — it carries the full auto-incremented build stamp
-            // (2.14.0.8051036); the assembly version is capped at four digits per component by the
-            // compiler and only ever holds the plain release line (2.14.0.0).
-            try
+            // The app's real version lives on the EXE: MarkSmith.Desktop stamps Version/FileVersion
+            // as 2.14.0.<auto-incrementing build>. Core.dll used to carry its OWN hardcoded
+            // 2.0.0.x (a stale product-line version), and reading THIS assembly's file version made
+            // the updater + About report 2.0.0.x — which is why the update banner fired on every
+            // launch ("a newer version is available") even for the newest dev builds.
+            // Read the ENTRY assembly (the app) first; fall back to this assembly only when the
+            // entry isn't available (e.g. library-only hosts).
+            foreach (var asm in new[] { System.Reflection.Assembly.GetEntryAssembly(), typeof(UpdateService).Assembly })
             {
-                var loc = typeof(UpdateService).Assembly.Location;
-                if (!string.IsNullOrEmpty(loc))
+                if (asm is null) continue;
+                try
                 {
-                    var fv = System.Diagnostics.FileVersionInfo.GetVersionInfo(loc).FileVersion;
-                    if (!string.IsNullOrWhiteSpace(fv)) return fv;
+                    var loc = asm.Location;
+                    if (!string.IsNullOrEmpty(loc))
+                    {
+                        var fv = System.Diagnostics.FileVersionInfo.GetVersionInfo(loc).FileVersion;
+                        if (!string.IsNullOrWhiteSpace(fv) && fv != "0.0.0.0") return fv;
+                    }
                 }
+                catch { }
+                var v = asm.GetName().Version;
+                if (v is not null && v != new Version(0, 0, 0, 0)) return $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
             }
-            catch { }
-            var v = typeof(UpdateService).Assembly.GetName().Version;
-            return v is null ? "1.0.0" : $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+            return "1.0.0";
         }
     }
 
