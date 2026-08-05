@@ -17,6 +17,11 @@ namespace MarkSmith.Views.ShapeStudio
         public ShapeDesignStudioWindow()
         {
             this.InitializeComponent();
+            // The ViewModel MUST exist before any control state is set below: setting
+            // ModeEngraved.IsChecked fires Checked → OnTraceModeChecked → ViewModel.TraceModeIndex.
+            // With the VM created after, that was a NullReferenceException on the XAML thread
+            // (0xc000027b) and the studio crashed the whole app the moment it opened.
+            ViewModel = new ShapeDesignStudioViewModel();
             // ToggleButton.IsChecked must NOT be set literally in this window's XAML — WinUI 3
             // throws a XamlParseException ("Failed to assign to property ToggleButton.IsChecked")
             // while parsing it, crashing the whole app the moment the studio opens. Restore the
@@ -24,7 +29,6 @@ namespace MarkSmith.Views.ShapeStudio
             ModeEngraved.IsChecked = true;
             CompEllipse.IsChecked = true;
             CompRoundRect.IsChecked = true;
-            ViewModel = new ShapeDesignStudioViewModel();
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             this.RootGrid.DataContext = ViewModel;
@@ -65,13 +69,11 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnTraceModeChecked(object sender, RoutedEventArgs e)
         {
-            if (sender is RadioButton rb)
-            {
-                ViewModel.TraceModeIndex =
-                    rb == ModeEngraved ? 0 :
-                    rb == ModeEdges ? 1 :
-                    rb == ModeSilhouette ? 2 : 3;
-            }
+            if (sender is not RadioButton rb || ViewModel is null) return; // ctor may fire Checked before DataContext is wired
+            ViewModel.TraceModeIndex =
+                rb == ModeEngraved ? 0 :
+                rb == ModeEdges ? 1 :
+                rb == ModeSilhouette ? 2 : 3;
         }
 
         private async void OnTraceClick(object sender, RoutedEventArgs e)

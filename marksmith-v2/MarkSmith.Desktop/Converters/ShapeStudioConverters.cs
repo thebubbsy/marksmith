@@ -50,4 +50,16 @@ namespace MarkSmith.Converters
         public object ConvertBack(object value, Type targetType, object parameter, string language)
             => throw new NotSupportedException();
     }
+
+    /// <summary>Empty/null string → Collapsed (hides the shape label), anything else → Visible.</summary>
+    public class EmptyStringToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+            => string.IsNullOrWhiteSpace(value as string)
+                ? Microsoft.UI.Xaml.Visibility.Collapsed
+                : Microsoft.UI.Xaml.Visibility.Visible;
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+            => throw new NotSupportedException();
+    }
 }

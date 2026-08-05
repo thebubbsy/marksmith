@@ -31,8 +31,11 @@ namespace MarkSmith.Core.Composer
                 var line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith("#")) continue;
 
-                // Pull the quoted pts="x1,y1;x2,y2;..." token out BEFORE splitting on whitespace.
+                // Pull the quoted pts="x1,y1;x2,y2;..." and text="..." tokens out BEFORE
+                // splitting on whitespace.
                 var ptsList = new List<(double X, double Y)>();
+                string? label = null;
+                string? labelColor = null;
                 double sw = 1.5;
                 var ptsMatch = Regex.Match(line, @"pts=""([^""]*)""", RegexOptions.IgnoreCase);
                 if (ptsMatch.Success)
@@ -48,6 +51,18 @@ namespace MarkSmith.Core.Composer
                         }
                     }
                     line = line.Remove(ptsMatch.Index, ptsMatch.Length);
+                }
+                var textMatch = Regex.Match(line, @"text=""([^""]*)""", RegexOptions.IgnoreCase);
+                if (textMatch.Success)
+                {
+                    label = textMatch.Groups[1].Value.Replace("&quot;", "\"").Replace("&amp;", "&");
+                    line = line.Remove(textMatch.Index, textMatch.Length);
+                }
+                var tcolorMatch = Regex.Match(line, @"tcolor=([0-9A-Fa-f]{6})", RegexOptions.IgnoreCase);
+                if (tcolorMatch.Success)
+                {
+                    labelColor = tcolorMatch.Groups[1].Value;
+                    line = line.Remove(tcolorMatch.Index, tcolorMatch.Length);
                 }
                 var swMatch = Regex.Match(line, @"sw=(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
                 if (swMatch.Success && double.TryParse(swMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var swParsed))
@@ -86,7 +101,9 @@ namespace MarkSmith.Core.Composer
                     Fill = parts[5].TrimStart('#'),
                     Rot = rot,
                     PathPoints = ptsList.Count >= 2 ? ptsList : null,
-                    StrokeWidthPt = sw
+                    StrokeWidthPt = sw,
+                    Text = label,
+                    TextColor = labelColor
                 });
             }
 
@@ -117,6 +134,14 @@ namespace MarkSmith.Core.Composer
                     p.X.ToString("F1", CultureInfo.InvariantCulture) + "," +
                     p.Y.ToString("F1", CultureInfo.InvariantCulture)));
                 line += $"\" sw={s.StrokeWidthPt.ToString("F1", CultureInfo.InvariantCulture)}";
+            }
+            if (!string.IsNullOrWhiteSpace(s.Text))
+            {
+                line += " text=\"" + s.Text.Replace("&", "&amp;").Replace("\"", "&quot;") + "\"";
+            }
+            if (!string.IsNullOrWhiteSpace(s.TextColor))
+            {
+                line += $" tcolor={s.TextColor.TrimStart('#').ToUpperInvariant()}";
             }
             return line;
         }
