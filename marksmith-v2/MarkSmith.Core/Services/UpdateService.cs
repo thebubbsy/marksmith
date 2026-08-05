@@ -94,20 +94,27 @@ public sealed class UpdateService
             using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
             {
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-UpdateInstaller");
-                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                // ConfigureAwait(false) throughout: this method is called from the UI thread's
+                // RelayCommand, and the download loop must run on the threadpool — otherwise the
+                // UI SynchronizationContext is captured, ReadAsync continuations for buffered data
+                // run INLINE on the UI thread, and the synchronous FileStream write (no
+                // FileOptions.Asynchronous) blocks it per 8 KB chunk: the app freezes for the whole
+                // download and the progress bar (posted to the frozen UI queue) never paints past
+                // the first percent. Progress<T> still marshals its callbacks to the UI thread.
+                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var fileStream = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                using var fileStream = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
 
-                var buffer = new byte[8192];
+                var buffer = new byte[64 * 1024];
                 var bytesRead = 0;
                 var totalRead = 0L;
 
-                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
                 {
-                    await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                    await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
                     totalRead += bytesRead;
                     if (totalBytes > 0 && progress != null)
                     {
@@ -126,7 +133,7 @@ public sealed class UpdateService
             var proc = System.Diagnostics.Process.Start(psi);
             if (proc != null)
             {
-                await proc.WaitForExitAsync(cancellationToken);
+                await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
                 return proc.ExitCode == 0;
             }
             return false;
