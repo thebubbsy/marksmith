@@ -558,25 +558,7 @@
                             </Border>
 
                             <Grid Grid.Row="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <!-- Line-number gutter: ALWAYS visible (like VS Code) — it counts LOGICAL
-                                     lines (the '\n' count), so it stays correct whether word wrap is on or
-                                     off. Its scroll is synced to the editor's from code-behind. -->
-                                <Border x:Name="LineNumberGutter" Grid.Column="0" Width="46"
-                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
-                                    <ScrollViewer x:Name="LineNumberScroll" VerticalScrollBarVisibility="Hidden"
-                                                  HorizontalScrollBarVisibility="Disabled" IsHitTestVisible="False">
-                                        <TextBlock x:Name="LineNumberText" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   TextAlignment="Right" Padding="4,5,8,0" Text="1"
-                                                   VerticalAlignment="Top" HorizontalAlignment="Right" />
-                                    </ScrollViewer>
-                                </Border>
-                                <TextBox x:Name="PasteTextBox" Grid.Column="1" MinHeight="180"
+                                <TextBox x:Name="PasteTextBox" MinHeight="180"
                                          Text="{Binding CurrentMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          AcceptsReturn="True" TextWrapping="Wrap"
                                          FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
