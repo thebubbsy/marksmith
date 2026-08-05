@@ -141,7 +141,7 @@ public class WordLikePageServiceTests
             <div id="canvas"><!--ms-canvas-start--><p>hello world</p><p>second block</p><!--ms-canvas-end--></div>
             <script>window.portalInit=1;</script></body></html>
             """;
-        var paged = WordLikePageService.BuildPagedDocument(doc);
+        var paged = WordLikePageService.BuildPagedDocument(doc, "#0d1117", "#c9d1d9", "#30363d");
         Assert.Contains("body class=\"wp-paged preview dark\"", paged);
         Assert.Contains("class=\"wp-page\"", paged);
         Assert.Contains("Page 1 of 1", paged);
@@ -155,7 +155,7 @@ public class WordLikePageServiceTests
     public void BuildPagedDocument_UnknownStructure_PassesThroughUnchanged()
     {
         string doc = "<html><body>no markers here</body></html>";
-        Assert.Equal(doc, WordLikePageService.BuildPagedDocument(doc));
+        Assert.Equal(doc, WordLikePageService.BuildPagedDocument(doc, "#fff", "#000", "#ddd"));
     }
 
     private static int Count(string s, string needle)

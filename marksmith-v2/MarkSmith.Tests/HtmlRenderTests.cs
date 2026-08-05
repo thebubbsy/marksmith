@@ -122,13 +122,11 @@ public class HtmlRenderTests
     {
         var html = new MarkdownHtmlService().Render("# Title", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Dark"), interactive: true);
         Assert.Contains("background: #141416;", html);
+        Assert.Contains("box-shadow: 0 4px 16px rgba(0,0,0,0.25);", html);
         Assert.Contains("margin: 40px auto;", html);
-        // The old fake-page chrome (shadow/min-height) is gone — the preview is a continuous
-        // Word-styled document, not a pretend sheet of paper.
-        Assert.DoesNotContain("box-shadow: 0 4px 16px rgba(0,0,0,0.25);", html);
-        Assert.DoesNotContain("min-height: 1123px", html);
-        Assert.Contains("font-size: 11pt", html);      // Word Normal size
-        Assert.Contains("line-height: 1.08", html);    // Word Normal spacing
+        // The preview carries the SELECTED THEME's page background — never a forced white page.
+        Assert.Contains("background: #0d1117;", html);
+        Assert.Contains("font-size: 16px; line-height: 1.6;", html);
     }
 
     [Fact] public void Workspace_styling_absent_in_print_mode()
