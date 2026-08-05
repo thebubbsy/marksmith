@@ -253,17 +253,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // portal/view state now that both toggles are initialized.
         UpdateCenterBottomBar();
 
-        // Line numbers + Markdown lint refresh on every edit; the gutter's scroll is synced to the
-        // editor's internal ScrollViewer once the TextBox template is realized.
+        // Markdown lint refresh on every edit.
         PasteTextBox.TextChanged += (_, _) =>
         {
-            RefreshLineNumbers();
             UpdateLintIndicator();
             // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
             if (string.IsNullOrWhiteSpace(PasteTextBox?.Text)) ExpandLeftPane();
         };
-        PasteTextBox.Loaded += (_, _) => HookEditorScrollSync();
-        RefreshLineNumbers();
         UpdateLintIndicator();
 
         // Export-completion toast: manual exports raise ExportCompleted from the ViewModel.
@@ -2923,7 +2919,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var clamped = Math.Clamp(size, EditorFontMin, EditorFontMax);
         PasteTextBox.FontSize = clamped;
-        if (LineNumberText is not null) LineNumberText.FontSize = clamped; // keep the gutter in step
         if (EditorZoomText is not null)
             EditorZoomText.Text = $"{(int)Math.Round(clamped / EditorFontBase * 100.0)}%";
         if (persist)
@@ -3012,7 +3007,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             App.Settings.Current.EditorWordWrap = wrap;
             App.Settings.Save();
         }
-        RefreshLineNumbers();
     }
 
     // ---- Left-pane hover-drawer ----
@@ -3068,33 +3062,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         CollapseLeftPane();
     }
 
-    // Rebuild the gutter's "1\n2\n...\nN" text to match the editor's current line count.
-    private void RefreshLineNumbers()
-    {
-        if (LineNumberText is null) return;
-        var text = PasteTextBox?.Text ?? string.Empty;
-        var count = 1;
-        for (var i = 0; i < text.Length; i++) if (text[i] == '\n') count++;
-        var sb = new System.Text.StringBuilder(count * 4);
-        for (var i = 1; i <= count; i++) { sb.Append(i); if (i < count) sb.Append('\n'); }
-        LineNumberText.Text = sb.ToString();
-    }
-
-    // Mirror the editor's vertical scroll offset onto the gutter so the numbers track the text.
-    private void HookEditorScrollSync()
-    {
-        var sv = FindEditorScrollViewer();
-        if (sv is null) return;
-        sv.ViewChanged += (_, _) => SyncLineNumberScroll();
-        SyncLineNumberScroll();
-    }
-
-    private void SyncLineNumberScroll()
-    {
-        var sv = FindEditorScrollViewer();
-        if (sv is null || LineNumberScroll is null) return;
-        LineNumberScroll.ChangeView(null, sv.VerticalOffset, null, disableAnimation: true);
-    }
 
     // ---- Markdown lint ----
 
