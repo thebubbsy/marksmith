@@ -106,6 +106,33 @@ public sealed class UpdateServiceTests
     }
 
     [Fact]
+    public void EvaluateReleaseJson_extracts_matching_setup_asset_url()
+    {
+        const string json = """
+        {
+          "tag_name": "v2.13.0",
+          "html_url": "https://github.com/thebubbsy/marksmith/releases/tag/v2.13.0",
+          "assets": [
+            {
+              "name": "Marksmith-Setup-x64.exe",
+              "browser_download_url": "https://github.com/thebubbsy/marksmith/releases/download/v2.13.0/Marksmith-Setup-x64.exe"
+            },
+            {
+              "name": "Marksmith-Setup-arm64.exe",
+              "browser_download_url": "https://github.com/thebubbsy/marksmith/releases/download/v2.13.0/Marksmith-Setup-arm64.exe"
+            }
+          ]
+        }
+        """;
+
+        var r = UpdateService.EvaluateReleaseJson(json, "2.0.0");
+        Assert.True(r.Ok);
+        Assert.True(r.UpdateAvailable);
+        Assert.NotEmpty(r.DownloadUrl);
+        Assert.EndsWith(".exe", r.DownloadUrl);
+    }
+
+    [Fact]
     public void EvaluateReleaseJson_returns_not_ok_when_tag_missing()
     {
         // A private repo answers the "latest" endpoint with an error body that has no tag_name.

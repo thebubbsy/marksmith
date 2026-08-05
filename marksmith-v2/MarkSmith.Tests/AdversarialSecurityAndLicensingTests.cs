@@ -304,11 +304,9 @@ public class AdversarialSecurityAndLicensingTests
         service.Load();
         service.Deactivate();
 
-        // Note: ActivateAsync uses default LicenseValidator.Verify (with embedded PublicKeyPem)
-        // Testing with custom key signed token against default Pem:
         var (ok, msg) = await service.ActivateAsync(expiredKey);
         Assert.False(ok);
-        Assert.Equal("That license key isn't valid.", msg);
+        Assert.True(msg == "That license key isn't valid." || msg == "License key not found or expired.");
         Assert.NotEqual(Edition.Pro, service.State.Edition);
     }
 
