@@ -7,9 +7,9 @@
     <RootNamespace>MarkSmith.Desktop</RootNamespace>
     <!-- Ship the binary as Marksmith.exe -->
     <AssemblyName>Marksmith</AssemblyName>
-    <Version>2.10.0</Version>
-    <AssemblyVersion>2.10.0.0</AssemblyVersion>
-    <FileVersion>2.10.0.0</FileVersion>
+    <Version>2.13.0</Version>
+    <AssemblyVersion>2.13.0.0</AssemblyVersion>
+    <FileVersion>2.13.0.0</FileVersion>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -36,10 +36,10 @@
   <ItemGroup>
     <!-- Windows App SDK: WinUI 3 controls, XAML compiler, Mica/Acrylic backdrops -->
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260710003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
     <!-- Chromium rendering engine used for live preview + PDF export (CoreWebView2.PrintToPdfAsync) -->
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
     <!-- MVVM source generators: [ObservableProperty], [RelayCommand] -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <!-- Markdown -> HTML, mirrors markdown-it-py + front-matter/footnote/table plugins on the Python side -->

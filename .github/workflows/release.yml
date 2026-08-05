@@ -56,7 +56,12 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Publish self-contained exe (marksmith-v2, ${{ matrix.arch }})
-        run: dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          $ver = $tag.TrimStart('v', 'V')
+          Write-Host "Publishing version $ver for tag $tag"
+          dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none -p:Version=$ver -p:AssemblyVersion="$ver.0" -p:FileVersion="$ver.0"
 
       - name: Package portable zip
         shell: pwsh
