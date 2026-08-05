@@ -50,6 +50,19 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
 
     /// <summary>Stroke thickness in points (sketch/trace lines).</summary>
     public double StrokeWidthPt { get; set; } = 1.5;
+
+    partial void OnFillChanged(string value)
+    {
+        // HARD RULE (ContrastGuard.EnsureVisibleFill): a shape fill must NEVER blend into the
+        // studio canvas (#1B1B1F) — if the user picks (or a theme supplies) a fill that is the
+        // same colour as the background, the rule pushes it to a visible shade so the shape is
+        // always distinguishable. Reentrancy-safe: sets the backing field, not the property.
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            string guarded = Services.ContrastGuard.EnsureVisibleFill(value, "1B1B1F");
+            if (guarded != value) _fill = guarded;
+        }
+    }
 }
 
 /// <summary>
@@ -64,14 +77,28 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     /// Theme-governed default fill: the THEME is the governing palette, so new shapes take the
     /// selected theme's accent (Primary, falling back to Heading). An explicit user-picked fill
     /// still overrides per shape — the theme only supplies the DEFAULT.
+    /// HARD RULE: the default is filtered by ContrastGuard so it can NEVER blend into the studio
+    /// canvas (#1B1B1F) — a dark theme whose Primary is near-black (e.g. GitHub Light's #000000)
+    /// falls back to a visible theme color (Secondary/Line) instead of spawning invisible shapes.
     /// </summary>
     public static string ThemeAccentHex()
     {
+        const string canvasBg = "1B1B1F";
         try
         {
             var theme = AppServices.Themes.GetOrDefault(AppServices.Settings.Current.Theme);
-            var accent = !string.IsNullOrWhiteSpace(theme.Primary) ? theme.Primary : theme.Heading;
-            if (!string.IsNullOrWhiteSpace(accent)) return accent.TrimStart('#');
+            string[] candidates = { theme.Primary, theme.Secondary, theme.Line, theme.Heading, "FFFFFF", "121212" };
+            string best = "0078D4";
+            double bestRatio = 0;
+            foreach (var c in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(c)) continue;
+                string hex = c.TrimStart('#');
+                if (hex.Length != 6) continue;
+                double r = Services.ContrastGuard.GetContrastRatio(hex, canvasBg);
+                if (r > bestRatio) { bestRatio = r; best = hex; }
+            }
+            return best;
         }
         catch { }
         return "0078D4";
