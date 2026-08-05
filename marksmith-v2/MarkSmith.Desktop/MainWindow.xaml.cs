@@ -232,15 +232,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _initializingWordExact = true;
         WordExactToggle.IsChecked = App.Settings.Current.WordFidelity;
         _initializingWordExact = false;
-        try
+        // Debug-only diagnostic log — never write to disk on end-user machines unless the user
+        // has explicitly turned on Debug Mode in Settings.
+        if (ViewModel.IsDebugModeEnabled)
         {
-            System.IO.Directory.CreateDirectory(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs"));
-            System.IO.File.AppendAllText(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs", "wordfidelity-render.log"),
-                $"{DateTime.Now:HH:mm:ss.fff} STARTUP block reached — settings.WordFidelity={App.Settings.Current.WordFidelity}\n");
+            try
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs"));
+                System.IO.File.AppendAllText(System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs", "wordfidelity-render.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} STARTUP block reached — settings.WordFidelity={App.Settings.Current.WordFidelity}\n");
+            }
+            catch { }
         }
-        catch { }
         if (App.Settings.Current.WordFidelity)
         {
             ViewModel.WordFidelityEnabled = true;
