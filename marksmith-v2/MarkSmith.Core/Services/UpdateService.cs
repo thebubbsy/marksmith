@@ -1,10 +1,11 @@
+using System.IO;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace MarkSmith.Services;
 
-// Checks GitHub Releases for a newer version. Works against the public releases API; while the repo
-// is private the API returns 404, which surfaces as a friendly "couldn't check" rather than an error.
+// Checks GitHub Releases for a newer version and supports silent in-app updates.
 public sealed class UpdateService
 {
     private const string LatestReleaseApi = "https://api.github.com/repos/thebubbsy/marksmith/releases/latest";
@@ -20,7 +21,7 @@ public sealed class UpdateService
         }
     }
 
-    public sealed record Result(bool Ok, bool UpdateAvailable, string LatestTag, string ReleaseUrl, string Message);
+    public sealed record Result(bool Ok, bool UpdateAvailable, string LatestTag, string ReleaseUrl, string DownloadUrl, string Message);
 
     public async Task<Result> CheckAsync()
     {
@@ -34,19 +35,16 @@ public sealed class UpdateService
         }
         catch (HttpRequestException)
         {
-            return new(false, false, "", ReleasesUrl,
+            return new(false, false, "", ReleasesUrl, "",
                 "Couldn't reach the releases feed — the repository may be private, or you're offline.");
         }
         catch (Exception ex)
         {
-            return new(false, false, "", ReleasesUrl, $"Update check failed: {ex.Message}");
+            return new(false, false, "", ReleasesUrl, "", $"Update check failed: {ex.Message}");
         }
     }
 
     // Parses a GitHub "releases/latest" JSON payload and decides whether an update is available.
-    // Extracted from CheckAsync so the parse + version-decision contract is unit-testable without a
-    // network call. Returns Ok=false with a friendly message when the payload carries no tag (e.g.
-    // the repo is private and the API answered with an error body instead of a release).
     internal static Result EvaluateReleaseJson(string json, string currentVersion)
     {
         using var doc = JsonDocument.Parse(json);
@@ -54,19 +52,110 @@ public sealed class UpdateService
         var url = doc.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() ?? ReleasesUrl : ReleasesUrl;
 
         if (string.IsNullOrWhiteSpace(tag))
-            return new(false, false, "", ReleasesUrl, "The releases feed returned no tag information.");
+            return new(false, false, "", ReleasesUrl, "", "The releases feed returned no tag information.");
+
+        var downloadUrl = "";
+        if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+        {
+            var arch = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var assetUrl = asset.TryGetProperty("browser_download_url", out var du) ? du.GetString() ?? "" : "";
+                if (name.StartsWith("Marksmith-Setup-", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (name.Contains(arch, StringComparison.OrdinalIgnoreCase))
+                    {
+                        downloadUrl = assetUrl;
+                        break;
+                    }
+                    if (string.IsNullOrEmpty(downloadUrl)) downloadUrl = assetUrl;
+                }
+            }
+        }
 
         var latest = tag.TrimStart('v', 'V');
         if (Compare(latest, currentVersion) > 0)
-            return new(true, true, tag, url, $"Update available — {tag}. You have {currentVersion}.");
-        return new(true, false, tag, url, $"You're up to date (v{currentVersion}).");
+            return new(true, true, tag, url, downloadUrl, $"Update available — {tag}. You have {currentVersion}.");
+        return new(true, false, tag, url, downloadUrl, $"You're up to date (v{currentVersion}).");
+    }
+
+    // Downloads the installer asset silently and executes it with zero UI prompts (/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-).
+    public async Task<bool> DownloadAndInstallAsync(string downloadUrl, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl)) return false;
+
+        try
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "MarksmithUpdates");
+            Directory.CreateDirectory(tempDir);
+            var setupPath = Path.Combine(tempDir, "Marksmith-Setup-Latest.exe");
+
+            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
+            {
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Marksmith-UpdateInstaller");
+                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var fileStream = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+
+                var buffer = new byte[8192];
+                var bytesRead = 0;
+                var totalRead = 0L;
+
+                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                    totalRead += bytesRead;
+                    if (totalBytes > 0 && progress != null)
+                    {
+                        progress.Report((double)totalRead / totalBytes * 100.0);
+                    }
+                }
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = setupPath,
+                Arguments = "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-",
+                UseShellExecute = true
+            };
+
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                await proc.WaitForExitAsync(cancellationToken);
+                return proc.ExitCode == 0;
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static void RelaunchApplication()
+    {
+        try
+        {
+            var currentExe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(currentExe) && File.Exists(currentExe))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = currentExe,
+                    UseShellExecute = true
+                });
+            }
+        }
+        catch { }
+        Environment.Exit(0);
     }
 
     // Numeric dotted-version compare; returns >0 if a is newer than b.
-    // Compares two versions. Handles up to four numeric components (a build-number-only bump like
-    // 1.0.0.9 vs 1.0.0.5 is now detected) and treats a prerelease as LOWER than the same x.y.z
-    // stable (1.2.0-beta < 1.2.0), per SemVer — so a stable release is offered over a prerelease
-    // of the same core version, and the two aren't reported "equal".
     internal static int Compare(string a, string b)
     {
         var (na, pra) = Parse(a);
@@ -76,7 +165,6 @@ public sealed class UpdateService
             var c = na[i].CompareTo(nb[i]);
             if (c != 0) return c;
         }
-        // Equal numeric core: a prerelease (has a suffix) ranks below a stable (no suffix).
         if (pra == prb) return 0;
         if (pra && !prb) return -1;
         if (!pra && prb) return 1;
