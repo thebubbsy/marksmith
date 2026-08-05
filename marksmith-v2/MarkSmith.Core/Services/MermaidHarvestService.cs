@@ -231,7 +231,9 @@ public sealed class MermaidHarvestService
                 var raw = await host.ExecuteScriptAsync("window.__geo");
                 var err = await host.ExecuteScriptAsync("window.__err");
                 if (err != null && err != "null") {
+#if DEBUG
                     try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "merr.txt"), $"\n[JS_ERR] {err}\n"); } catch {}
+#endif
                 }
                 
                 if (raw is null or "null" or "\"null\"") continue;
@@ -243,7 +245,9 @@ public sealed class MermaidHarvestService
         }
         catch (Exception ex)
         {
+#if DEBUG
             try { System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "merr.txt"), $"[MERMAID-HARVEST-CS] {ex}\n"); } catch {}
+#endif
             System.Diagnostics.Debug.WriteLine($"[MERMAID-HARVEST] Exception: {ex}");
         }
         finally { await host.EndHarvestAsync(); }
