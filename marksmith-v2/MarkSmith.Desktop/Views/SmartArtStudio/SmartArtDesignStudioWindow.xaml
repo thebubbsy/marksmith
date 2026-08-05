@@ -29,7 +29,6 @@
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Render as Word" Click="OnFidelityToggleClick" Style="{ThemeResource AccentButtonStyle}" />
                 <Button Content="Export .docx" Click="OnExportDocxClick" />
             </StackPanel>
         </Grid>
@@ -151,8 +150,6 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Live Preview" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
-                        <CheckBox Grid.Column="1" x:Name="FidelityToggle" Content="Word-exact" Click="OnFidelityToggleClick"
-                                  VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                     </Grid>
                     <WebView2 x:Name="PreviewWebView" Grid.Row="1" Margin="0" />
                 </Grid>
