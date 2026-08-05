@@ -137,9 +137,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Guards the Looking Glass portal ToggleButton's Checked event during start-up wiring (ISS-004).
     private bool _initializingLookingGlass;
 
-    // Guards the Word-like paged-preview ToggleButton during start-up wiring.
-    private bool _initializingPagedPreview;
-
     // Guards the portal reveal-scope Slider's ValueChanged event during start-up wiring (ISS-004).
     private bool _initializingPortalReveal;
 
@@ -220,11 +217,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _initializingLookingGlass = true;
         LookingGlassToggle.IsChecked = App.Settings.Current.LookingGlassMode;
         _initializingLookingGlass = false;
-
-        // Word-like paged preview: reflect the persisted mode (default on) without re-rendering.
-        _initializingPagedPreview = true;
-        PagedPreviewToggle.IsChecked = App.Settings.Current.PagedPreviewMode;
-        _initializingPagedPreview = false;
 
         // ISS-004: reflect the persisted portal reveal scope + shape without firing the change handlers.
         _initializingPortalReveal = true;
@@ -2018,9 +2010,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = App.Settings.Current.PagedPreviewMode
-            ? vm.BuildPagedPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true)
-            : vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
 
         if (vm.IsDebugModeEnabled)
@@ -2923,17 +2913,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         App.Settings.Current.LookingGlassMode = LookingGlassToggle?.IsChecked == true;
         App.Settings.Save();
         UpdateCenterBottomBar();
-        _ = RefreshPreviewAsync();
-    }
-
-    // Word-like paged preview toggle: swap between real Word-geometry pages (mimics WinWord) and
-    // the continuous HTML canvas. Persisted; re-renders in place (scroll is preserved by the
-    // pre-paint scroll restore, so flipping the mode doesn't throw the reader to the top).
-    private void OnPagedPreviewToggled(object sender, RoutedEventArgs e)
-    {
-        if (_initializingPagedPreview) return;
-        App.Settings.Current.PagedPreviewMode = PagedPreviewToggle?.IsChecked == true;
-        App.Settings.Save();
         _ = RefreshPreviewAsync();
     }
 

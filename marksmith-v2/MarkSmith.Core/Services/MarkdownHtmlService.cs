@@ -109,6 +109,25 @@ public sealed partial class MarkdownHtmlService
 
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
+    /// <summary>Blends two hex colours toward each other (mirrors DocxExportService.BlendHex so the
+    /// preview's heading ramp matches the exported DOCX).</summary>
+    private static string BlendHex(string baseHex, string overlayHex, double fraction)
+    {
+        bool TryParse(string hex, out int r, out int g, out int b)
+        {
+            r = g = b = 0;
+            var h = hex.TrimStart('#');
+            if (h.Length != 6 || !int.TryParse(h[..2], System.Globalization.NumberStyles.HexNumber, null, out r) ||
+                !int.TryParse(h[2..4], System.Globalization.NumberStyles.HexNumber, null, out g) ||
+                !int.TryParse(h[4..6], System.Globalization.NumberStyles.HexNumber, null, out b)) return false;
+            return true;
+        }
+        if (!TryParse(baseHex, out var br, out var bg, out var bb)) return overlayHex;
+        if (!TryParse(overlayHex, out var or, out var og, out var ob)) return baseHex;
+        int Mix(int a, int c) => (int)Math.Round(a + (c - a) * Math.Clamp(fraction, 0, 1));
+        return $"{Mix(br, or):X2}{Mix(bg, og):X2}{Mix(bb, ob):X2}";
+    }
+
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
         LlmClassification? classification = null, bool interactive = false)
     {
@@ -415,6 +434,14 @@ public sealed partial class MarkdownHtmlService
         string workspaceBg = interactive ? (isLight ? "#eaeaea" : "#141416") : effectiveBodyBg;
         string pageBg = effectiveBodyBg;
         string bodyClass = isLight ? "ms-light" : "ms-dark";
+
+        // Word-accurate heading ramp — mirrors DocxExportService.AddStyles so the HTML preview
+        // looks exactly like the exported DOCX does in Word: H1 carries the full accent, H2/H3
+        // step down toward the body text (65% / 35%), H4–H6 settle into the text colour.
+        string wordH1Color = theme.Heading;
+        string wordH2Color = BlendHex(theme.Text, theme.Heading, 0.65);
+        string wordH3Color = BlendHex(theme.Text, theme.Heading, 0.35);
+        const string wordH6Color = "#6A737D";
 
         var overflowScript = interactive ? $$"""
             <script>
@@ -1246,20 +1273,30 @@ public sealed partial class MarkdownHtmlService
             <style>
             {{fontFaceCss}}
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
-                   font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
+                   font-family: {{bodyFontFamily}}; font-size: 11pt; line-height: 1.08; word-wrap: break-word; overflow-x: auto;
                    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"background: {pageBg};" : "")}} }
             @media print {
               @page { margin: 0 !important; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
               #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
-            h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
+            /* Word-accurate heading styles — same values DocxExportService.AddStyles writes to the
+               DOCX (sizes 20/16/14/12/11/11 pt, H1 small-caps + letterspacing, accent ramp colours,
+               H1/H2 bottom rule, KeepNext so headings never dangle at a page break). */
+            h1, h2, h3, h4, h5, h6 { font-weight: 600; break-after: avoid; page-break-after: avoid; margin: 14pt 0 7pt; line-height: 1.15; }
+            h1 { font-size: 20pt; color: {{wordH1Color}}; font-variant: small-caps; letter-spacing: 1pt; border-bottom: 1.5pt solid {{theme.Border}}; padding-bottom: 4pt; }
+            h2 { font-size: 16pt; color: {{wordH2Color}}; border-bottom: 1.5pt solid {{theme.Border}}; padding-bottom: 4pt; }
+            h3 { font-size: 14pt; color: {{wordH3Color}}; }
+            h4 { font-size: 12pt; color: {{effectiveText}}; }
+            h5 { font-size: 11pt; color: {{effectiveText}}; }
+            h6 { font-size: 11pt; color: {{wordH6Color}}; }
+            p { margin: 0 0 8pt; }
             /* Hard rule: explicit colored font (inline HTML / syntax highlighting) cannot be overridden by theming */
             font[color] { color: revert; }
-            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
-            code { font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; }
+            pre { background: {{theme.Code}}; padding: 16px; border-radius: 6px; overflow-x: auto; border: 1px solid {{theme.Border}}; white-space: pre; word-wrap: normal; font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; font-size: 10pt; }
+            code { font-family: "Cascadia Code", "Cascadia Mono", "Fira Code", Consolas, "Courier New", monospace; font-variant-ligatures: none; font-size: 10pt; }
             /* ASCII / box-drawing diagrams (ISS-006): ligatures and loose leading break column
                alignment, so code blocks flagged as ascii/text get tight, uniform metrics. */
             pre code.language-ascii, pre code.language-text, pre code.language-txt, pre.ascii-diagram { line-height: 1.15 !important; letter-spacing: 0px !important; font-size: 14px; display: block; overflow-x: auto; }
@@ -1432,16 +1469,6 @@ public sealed partial class MarkdownHtmlService
             </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
             """;
     }
-
-    /// <summary>
-    /// Word-like paged preview: renders the document exactly like <see cref="Render"/> and then
-    /// paginates the body into fixed Word-geometry pages (Letter, 1" margins, Calibri typography,
-    /// per-page footers with "Page N of M"). Pure HTML/CSS — no Word/Office dependency. See
-    /// <see cref="Preview.WordLikePageService"/>.
-    /// </summary>
-    public string RenderPaged(string markdown, AppSettings settings, ThemeDefinition theme,
-        LlmClassification? classification = null, bool interactive = false) =>
-        MarkSmith.Core.Preview.WordLikePageService.BuildPagedDocument(Render(markdown, settings, theme, classification, interactive));
 
     /// <summary>
     /// Renders only the inner canvas content (attribution + TOC + body + footer) without the
