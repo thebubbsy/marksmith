@@ -41,6 +41,11 @@ public sealed class AppSettings
     // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
     public bool EditorWordWrap { get; set; } = true;
 
+    // Centre "Looking Glass" view: "Code" / "Split" / "Preview". Persisted so the user can hide
+    // the code section (choose Preview) and it STAYS hidden across launches instead of being
+    // forced back to the Code view every time.
+    public string EditorViewMode { get; set; } = "Code";
+
     // Looking Glass portal mode (ISS-004): fuses editor + preview into one canvas. The rendered
     // preview is the default surface; clicking it opens a "portal" aperture that reveals the
     // editable Markdown source behind the preview through a fog-of-war blur, with a glowing
@@ -269,6 +274,7 @@ public sealed class AppSettings
         EditorFontSize = other.EditorFontSize;
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
+        EditorViewMode = other.EditorViewMode;
         LookingGlassMode = other.LookingGlassMode;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
