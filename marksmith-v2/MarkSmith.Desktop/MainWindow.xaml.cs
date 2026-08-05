@@ -2010,7 +2010,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        var html = vm.BuildPagedPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
 
         if (vm.IsDebugModeEnabled)
