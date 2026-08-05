@@ -888,11 +888,6 @@ private readonly MarkdownExportService _mdExport = new();
     public string BuildPreviewHtml(string markdown, bool interactive = false) =>
         _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
 
-    /// <summary>Word-like paged variant of <see cref="BuildPreviewHtml"/>: real Letter pages with
-    /// 1" margins, Word typography and per-page footers — the HTML preview that mimics WinWord.</summary>
-    public string BuildPagedPreviewHtml(string markdown, bool interactive = false) =>
-        _markdownHtml.RenderPaged(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
-
     /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
     public string? BuildPreviewCanvasHtml(string markdown) =>
         _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
