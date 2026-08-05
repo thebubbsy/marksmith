@@ -126,17 +126,26 @@ public static class ContrastGuard
         if (string.IsNullOrWhiteSpace(bgContextHex)) bgContextHex = "FFFFFF";
 
         return System.Text.RegularExpressions.Regex.Replace(svg,
-            @"(<(?:text|tspan)\b[^>]*?\bfill\s*=\s*[""'])(#?[a-zA-Z0-9]+)([""'])",
+            @"<(text|tspan)\b[^>]*>",
             m =>
             {
-                var colorStr = m.Groups[2].Value;
-                var hex = NormalizeHex(colorStr);
-                if (hex != null)
-                {
-                    var legibleHex = EnsureLegibleText(hex, bgContextHex);
-                    return $"{m.Groups[1].Value}#{legibleHex}{m.Groups[3].Value}";
-                }
-                return m.Value;
+                string tag = m.Value;
+                // Text already CONTRAST-GUARDED against its own shape's fill (MLShape labels carry
+                // data-guarded="shape") must NOT be re-guarded against the page background — the
+                // page rule would flip an already-correct white-on-dark label to dark-on-white.
+                if (tag.Contains("data-guarded", StringComparison.OrdinalIgnoreCase))
+                    return tag;
+
+                var fill = System.Text.RegularExpressions.Regex.Match(tag,
+                    @"\bfill\s*=\s*([""'])(#?[a-zA-Z0-9]+)\1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (!fill.Success) return tag;
+
+                var hex = NormalizeHex(fill.Groups[2].Value);
+                if (hex == null) return tag;
+
+                var legibleHex = EnsureLegibleText(hex, bgContextHex);
+                return tag.Remove(fill.Index, fill.Length)
+                          .Insert(fill.Index, $"fill={fill.Groups[1].Value}#{legibleHex}{fill.Groups[1].Value}");
             },
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }

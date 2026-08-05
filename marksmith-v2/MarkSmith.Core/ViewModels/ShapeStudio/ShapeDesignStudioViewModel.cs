@@ -36,6 +36,12 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     [ObservableProperty]
     private string _fill = ShapeDesignStudioViewModel.ThemeAccentHex();
 
+    /// <summary>Optional explicit label colour (#RRGGBB); null = auto-guarded against the fill.</summary>
+    public string? TextColor { get; set; }
+
+    [ObservableProperty]
+    private string _text = "";
+
     [ObservableProperty]
     private int _rotation;
 
@@ -62,7 +68,15 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
             string guarded = Services.ContrastGuard.EnsureVisibleFill(value, "1B1B1F");
             if (guarded != value) _fill = guarded;
         }
+        OnPropertyChanged(nameof(TextForegroundHex));
     }
+
+    partial void OnTextChanged(string value) => OnPropertyChanged(nameof(TextForegroundHex));
+
+    /// <summary>Label colour guaranteed to contrast with THIS shape's fill (the CONTRAST RULE for
+    /// font on top of shapes): WCAG 4.5:1 vs the fill — never against the page background.</summary>
+    public string TextForegroundHex =>
+        Services.ContrastGuard.EnsureLegibleText(TextColor ?? "121212", "#" + Fill);
 }
 
 /// <summary>
@@ -410,7 +424,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         Fill = s.Fill,
         Rotation = s.Rot,
         PathPoints = s.PathPoints,
-        StrokeWidthPt = s.StrokeWidthPt
+        StrokeWidthPt = s.StrokeWidthPt,
+        Text = s.Text ?? "",
+        TextColor = s.TextColor
     };
 
     private static ComposedShape ToComposed(ShapeCanvasItemViewModel s) => new()
@@ -423,6 +439,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         Fill = s.Fill,
         Rot = s.Rotation,
         PathPoints = s.PathPoints,
-        StrokeWidthPt = s.StrokeWidthPt
+        StrokeWidthPt = s.StrokeWidthPt,
+        Text = string.IsNullOrWhiteSpace(s.Text) ? null : s.Text,
+        TextColor = s.TextColor
     };
 }
