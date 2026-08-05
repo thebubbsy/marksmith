@@ -713,7 +713,7 @@ public static class DocxShapeEmitter
         // a dense trace never bleed into each other (round caps extend half the stroke width past
         // the end of each run).
         var cap = c.Points.Count == 2 && c.StartHead == ArrowHead.None && c.EndHead == ArrowHead.None
-            ? "<a:cap flat/>"
+            ? "<a:flat/>"
             : "";
         var head = HeadXml("headEnd", c.StartHead);
         var tail = HeadXml("tailEnd", c.EndHead);
