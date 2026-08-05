@@ -349,7 +349,12 @@ public sealed class AppSettings
         PdfFooterTemplate = other.PdfFooterTemplate;
         PdfPageNumberPosition = other.PdfPageNumberPosition;
         CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
+        AutoInstallUpdatesOnLaunch = other.AutoInstallUpdatesOnLaunch;
+        AutoRestartAfterUpdate = other.AutoRestartAfterUpdate;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
+
+    public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
+    public bool AutoRestartAfterUpdate { get; set; } = true;
 }
