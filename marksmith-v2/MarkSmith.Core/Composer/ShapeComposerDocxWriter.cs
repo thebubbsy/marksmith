@@ -157,6 +157,26 @@ namespace MarkSmith.Core.Composer
                 _ => s.Prst
             };
 
+            string textXml = "";
+            if (!string.IsNullOrWhiteSpace(s.Text) && s.PathPoints is not { Count: >= 2 })
+            {
+                // CONTRAST RULE for font on top of a shape: the label colour is guarded against
+                // the SHAPE'S FILL (not the page) so text can never land on a similar-coloured
+                // fill — mirrors DocxShapeEmitter.RunProps (Mermaid nodes). An explicitly supplied
+                // tcolor is honoured only when it already passes WCAG 4.5:1 vs the fill.
+                string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
+                    s.TextColor ?? "121212", "#" + s.Fill);
+                int sz = Math.Clamp((int)Math.Round(s.H * 72 * 2 * 0.35), 16, 96); // half-points
+                string rpr = $"<w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\" w:cs=\"Calibri\"/>" +
+                             $"<w:color w:val=\"{guarded}\"/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
+                textXml =
+                    @"<wps:txbx><w:txbxContent><w:p><w:pPr>" +
+                    @"<w:suppressAutoHyphens/><w:spacing w:before=""0"" w:after=""0"" w:line=""216"" w:lineRule=""auto""/>" +
+                    $@"<w:jc w:val=""center""/><w:rPr>{rpr}</w:rPr></w:pPr>" +
+                    $@"<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space=""preserve"">{Esc(s.Text)}</w:t></w:r>" +
+                    @"</w:p></w:txbxContent></wps:txbx>";
+            }
+
             return
                 @"<wps:wsp>" +
                 $@"<wps:cNvPr id=""{id}"" name=""shape {s.Prst} {id}""/>" +
@@ -167,8 +187,12 @@ namespace MarkSmith.Core.Composer
                 $@"<a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill>" +
                 $@"<a:ln w=""6350""><a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill></a:ln>" +
                 @"</wps:spPr>" +
+                textXml +
                 @"<wps:bodyPr rot=""0"" wrap=""square"" lIns=""12700"" tIns=""6350"" rIns=""12700"" bIns=""6350"" anchor=""ctr"" anchorCtr=""0""><a:noAutofit/></wps:bodyPr>" +
                 @"</wps:wsp>";
         }
+
+        private static string Esc(string s) =>
+            s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
     }
 }

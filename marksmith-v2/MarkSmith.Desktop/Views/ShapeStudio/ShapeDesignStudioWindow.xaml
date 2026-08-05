@@ -14,6 +14,7 @@
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
             <conv:DashConverter x:Key="DashConverter" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+            <conv:EmptyStringToVisibilityConverter x:Key="EmptyToVis" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         </Grid.Resources>
         <Grid.RowDefinitions>
@@ -231,6 +232,14 @@
                                                       Stroke="#FFFFFF" StrokeThickness="1.5"
                                                       StrokeDashArray="{Binding IsSelected, Converter={StaticResource DashConverter}}"
                                                       Loaded="OnShapeLoaded" />
+                                                <!-- Font on top of the shape: colour is the CONTRAST
+                                                     RULE result (guarded against THIS shape's fill). -->
+                                                <TextBlock Text="{Binding Text}"
+                                                           Foreground="{Binding TextForegroundHex, Converter={StaticResource FillBrushConverter}}"
+                                                           FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
+                                                           TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           MaxWidth="{Binding Width}" MaxHeight="{Binding Height}"
+                                                           Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -277,6 +286,11 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Fill:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
                                 <TextBox Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Label:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBox Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                                <TextBlock Text="auto-contrasts vs fill" FontSize="10" Opacity="0.6" Foreground="White" VerticalAlignment="Center" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Rot:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />

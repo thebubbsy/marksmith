@@ -38,6 +38,14 @@ namespace MarkSmith.Core.Composer
 
         /// <summary>Line thickness in points when PathPoints is set.</summary>
         public double StrokeWidthPt { get; set; } = 1.5;
+
+        /// <summary>Optional text label rendered on top of the shape (Word text box / SVG text).</summary>
+        public string? Text { get; set; }
+
+        /// <summary>Optional explicit label colour (#RRGGBB). When null, the renderer requests a
+        /// default dark colour and the CONTRAST RULE (ContrastGuard.EnsureLegibleText) forces the
+        /// label to white or black so it never lands on a similar-coloured fill.</summary>
+        public string? TextColor { get; set; }
     }
 
     /// <summary>
@@ -428,9 +436,30 @@ namespace MarkSmith.Core.Composer
             foreach (var s in shapes)
             {
                 sb.Append(SvgShape(s));
+                // Font on top of a shape: the label is a sibling <text> whose colour is CONTRAST-
+                // GUARDED against the SHAPE'S FILL (never the page), and marked data-guarded so
+                // the page-background pass (EnsureSvgLegibility) can't override it back.
+                if (!string.IsNullOrWhiteSpace(s.Text) && s.PathPoints is not { Count: >= 2 } && s.Prst != "line")
+                {
+                    sb.Append(SvgLabel(s));
+                }
             }
             sb.Append("</svg>");
             return sb.ToString();
+        }
+
+        private static string SvgLabel(ComposedShape s)
+        {
+            double x = s.X * 96, y = s.Y * 96, w = s.W * 96, h = s.H * 96;
+            double cx = x + w / 2, cy = y + h / 2;
+            string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
+                s.TextColor ?? "121212", "#" + s.Fill);
+            double fontSize = Math.Clamp(Math.Min(w, h) * 0.30, 7, 96);
+            string transform = s.Rot != 0 ? $" transform=\"rotate({s.Rot} {cx} {cy})\"" : "";
+            string label = s.Text!.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+            return $"<text x=\"{cx:F1}\" y=\"{cy:F1}\" text-anchor=\"middle\" dominant-baseline=\"central\" " +
+                   $"fill=\"#{guarded}\" font-family=\"Segoe UI, Arial, sans-serif\" font-size=\"{fontSize:F1}\"" +
+                   $"{transform} data-guarded=\"shape\">{label}</text>";
         }
 
         private static string SvgShape(ComposedShape s)
