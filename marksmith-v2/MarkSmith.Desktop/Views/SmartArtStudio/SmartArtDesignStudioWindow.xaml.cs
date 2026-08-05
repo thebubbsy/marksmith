@@ -55,11 +55,6 @@ namespace MarkSmith.Views.SmartArtStudio
 </body></html>";
         }
 
-        private void OnFidelityToggleClick(object sender, RoutedEventArgs e)
-        {
-            ViewModel.IsWordFidelity = FidelityToggle.IsChecked == true;
-        }
-
         private void OnExportDocxClick(object sender, RoutedEventArgs e)
         {
             ViewModel.ExportDocxCommand.Execute(null);

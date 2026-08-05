@@ -112,8 +112,7 @@ public sealed partial class MarkdownHtmlService
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
         LlmClassification? classification = null, bool interactive = false)
     {
-        if (settings.ThemeLightInfluence)
-        {
+        if (settings.ThemeLightInfluence)        {
             theme = theme.ApplyLightInfluence();
         }
 
@@ -1433,6 +1432,16 @@ public sealed partial class MarkdownHtmlService
             </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
             """;
     }
+
+    /// <summary>
+    /// Word-like paged preview: renders the document exactly like <see cref="Render"/> and then
+    /// paginates the body into fixed Word-geometry pages (Letter, 1" margins, Calibri typography,
+    /// per-page footers with "Page N of M"). Pure HTML/CSS — no Word/Office dependency. See
+    /// <see cref="Preview.WordLikePageService"/>.
+    /// </summary>
+    public string RenderPaged(string markdown, AppSettings settings, ThemeDefinition theme,
+        LlmClassification? classification = null, bool interactive = false) =>
+        MarkSmith.Core.Preview.WordLikePageService.BuildPagedDocument(Render(markdown, settings, theme, classification, interactive));
 
     /// <summary>
     /// Renders only the inner canvas content (attribution + TOC + body + footer) without the
