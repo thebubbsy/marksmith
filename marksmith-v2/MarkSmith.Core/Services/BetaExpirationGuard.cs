@@ -13,5 +13,14 @@ public static class BetaExpirationGuard
     // Where the "Submit Feedback & Get Update" dialog button takes the user.
     public const string FeedbackUrl = "https://github.com/thebubbsy/marksmith/issues";
 
-    public static bool IsBetaExpired() => DateTimeOffset.UtcNow >= BetaCutoffDate;
+    // The hard beta stop applies only to BETA drops. Production/release builds never enforce it,
+    // so a hardcoded past cutoff can't silently lock end users out of the desktop app.
+    public static bool IsBetaExpired()
+    {
+#if BETA
+        return DateTimeOffset.UtcNow >= BetaCutoffDate;
+#else
+        return false;
+#endif
+    }
 }

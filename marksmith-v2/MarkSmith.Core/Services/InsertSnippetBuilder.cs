@@ -98,7 +98,7 @@ public static class InsertSnippetBuilder
 
     /// <summary>:::embed block for a video/web provider.</summary>
     public static string Embed(string provider, string url) =>
-        $"\n:::embed provider=\"{Or(provider, "youtube")}\" src=\"{Or(url, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")}\"\n:::\n";
+        $"\n:::embed provider=\"{Or(provider, "youtube")}\" src=\"{Or(url, "https://www.youtube.com/watch?v=EXAMPLE_ID")}\"\n:::\n";
 
     /// <summary>:::references bibliography entry; empty fields fall back to the placeholders.</summary>
     public static string References(string id, string author, string title, string year) =>
