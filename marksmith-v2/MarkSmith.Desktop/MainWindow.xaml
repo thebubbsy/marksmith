@@ -170,15 +170,18 @@
         <!-- 3-Pane Looking Glass Layout -->
         <Grid x:Name="MainLayoutGrid" Grid.Row="2" Padding="16,6,16,16" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="LeftPaneCol" Width="320" MinWidth="250" /> <!-- Left: Source/Files -->
+                <ColumnDefinition x:Name="LeftPaneCol" Width="320" MinWidth="0" /> <!-- Left: Source/Files (auto-collapses to a 28px hover tab after a document is picked) -->
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="400" /> <!-- Center: Looking Glass (Editor/Preview) -->
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition x:Name="RightPaneCol" Width="380" MinWidth="250" /> <!-- Right: Style/Export -->
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT PANE -->
-            <Grid x:Name="LeftPane" Grid.Column="0" RowSpacing="10">
+            <!-- LEFT PANE (auto-collapsing drawer): after a document is selected the pane
+                 collapses to a slim tab; hovering the tab re-expands it while the mouse is on it,
+                 and it tucks away again the moment the pointer leaves. -->
+            <Grid Grid.Column="0">
+            <Grid x:Name="LeftPane" RowSpacing="10" PointerExited="OnLeftPanePointerExited">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -421,7 +424,23 @@
                 </Border>
             </Grid>
 
-            
+            <!-- Hover-drawer tab: only visible while the pane is collapsed; hovering it expands
+                 the pane, and leaving collapses it again. -->
+            <Border x:Name="LeftDrawerTab" Grid.Column="0" Width="28" HorizontalAlignment="Left"
+                    Visibility="Collapsed" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
+                    PointerEntered="OnLeftDrawerTabPointerEntered" PointerExited="OnLeftPanePointerExited"
+                    ToolTipService.ToolTip="Source panel — hover to expand">
+                <Grid>
+                    <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <FontIcon.RenderTransform>
+                            <RotateTransform Angle="90" />
+                        </FontIcon.RenderTransform>
+                    </FontIcon>
+                </Grid>
+            </Border>
+            </Grid>
 
             <controls:GridSplitter x:Name="LeftSplitter" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                    ToolTipService.ToolTip="Drag to resize the Source pane" />
