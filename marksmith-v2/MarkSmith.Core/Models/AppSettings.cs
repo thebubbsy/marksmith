@@ -96,14 +96,12 @@ public sealed class AppSettings
     //   2 = Reflow — re-wrap and re-order the diagram to fit the page width (fully printable)
     //   3 = MultiPageVertical — reflow to page width, split into page-height bands that span
     //       multiple pages downward in Print Layout (never Web Layout)
-    //   4 = Grid — set document page size to N× normal (poster page); diagram at full scale,
-    //       Web Layout view.  DiagramGridSize controls N (2 = 2×2, 3 = 3×3).
-    //   5 = ShrinkToFit — scale uniformly below the 75% floor (down to 30% minimum) to squeeze
+    //   4 = ShrinkToFit — scale uniformly below the 75% floor (down to 30% minimum) to squeeze
     //       the diagram onto one page in Print Layout.
+    //   (The old poster-grid strategy — enlarge the page to N× normal — was REMOVED: it changed
+    //    the page width, overriding the page-size/A4/continuous-page settings, and Web Layout
+    //    already lets users rearrange elements freely.)
     public int OversizedDiagramMode { get; set; } = 1;
-
-    // Grid size for OversizedDiagramMode 4 (Grid).  2 = 2×2 poster (4 pages), 3 = 3×3 (9 pages).
-    public int DiagramGridSize { get; set; } = 2;
 
     // Use native Word connection sites (Smart Connectors) instead of static lines.
     // When enabled, lines stay glued to shapes when dragged in Word.
@@ -239,7 +237,6 @@ public sealed class AppSettings
         if (o.NormalizeLlm is { } nl) s.NormalizeLlm = nl;
         if (o.MermaidDocxMode is { } mm) s.MermaidDocxMode = mm;
         if (o.OversizedDiagramMode is { } odm) s.OversizedDiagramMode = odm;
-        if (o.DiagramGridSize is { } dgs) s.DiagramGridSize = dgs;
         if (o.SmartConnectors is { } sc) s.SmartConnectors = sc;
         if (o.ConnectorRouting is not null) s.ConnectorRouting = o.ConnectorRouting;
         if (o.ConnectorArrowhead is not null) s.ConnectorArrowhead = o.ConnectorArrowhead;
@@ -290,7 +287,6 @@ public sealed class AppSettings
         ShowExtensionTip = other.ShowExtensionTip;
         MermaidDocxMode = other.MermaidDocxMode;
         OversizedDiagramMode = other.OversizedDiagramMode;
-        DiagramGridSize = other.DiagramGridSize;
         SmartConnectors = other.SmartConnectors;
         ConnectorRouting = other.ConnectorRouting;
         ConnectorArrowhead = other.ConnectorArrowhead;

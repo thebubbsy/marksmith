@@ -1530,9 +1530,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var rbGroup = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
         var rbExact = new RadioButton { Content = "Keep exact layout (Opens in Web Layout view)", IsChecked = true, Tag = 1 };
         var rbReflow = new RadioButton { Content = "Reflow to fit page (Uniform scale)", Tag = 2 };
-        var rbCompactSpace = new RadioButton { Content = "Compact spacing (Shrink gaps first)", Tag = 6 };
-        var rbCompactShapes = new RadioButton { Content = "Compact shapes (Shrink shapes first)", Tag = 7 };
-        var rbUltraCompact = new RadioButton { Content = "Ultra compact (Shrink both equally)", Tag = 8 };
+        var rbCompactSpace = new RadioButton { Content = "Compact spacing (Shrink gaps first)", Tag = 5 };
+        var rbCompactShapes = new RadioButton { Content = "Compact shapes (Shrink shapes first)", Tag = 6 };
+        var rbUltraCompact = new RadioButton { Content = "Ultra compact (Shrink both equally)", Tag = 7 };
 
         rbGroup.Children.Add(rbExact);
         rbGroup.Children.Add(rbReflow);
@@ -1558,9 +1558,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         int mode = 1;
         if (rbReflow.IsChecked == true) mode = 2;
-        else if (rbCompactSpace.IsChecked == true) mode = 6;
-        else if (rbCompactShapes.IsChecked == true) mode = 7;
-        else if (rbUltraCompact.IsChecked == true) mode = 8;
+        else if (rbCompactSpace.IsChecked == true) mode = 5;
+        else if (rbCompactShapes.IsChecked == true) mode = 6;
+        else if (rbUltraCompact.IsChecked == true) mode = 7;
 
         if (remember.IsChecked == true)
         {
