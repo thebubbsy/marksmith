@@ -119,6 +119,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Centre "Looking Glass" view mode: Code / Split (editor + preview side by side) / Preview.
     private enum ViewMode { Code, Split, Preview }
     private ViewMode _viewMode = ViewMode.Code;
+    private bool _initializingCenterView;
+
+    // Left-pane hover-drawer: after a document is selected the Source/Files pane collapses to a
+    // 28px tab; hovering the tab re-expands it while the mouse is on it, and it tucks away the
+    // moment the pointer leaves. The pre-collapse width is stashed so a custom splitter size is
+    // preserved across expand/collapse cycles.
+    private bool _leftPaneCollapsed;
+    private double _leftPaneExpandedWidth = 320;
 
     // Focus mode (F11): hides the left and right panes so the editor/preview takes the full width.
     // The pane widths (and MinWidths, which otherwise clamp the collapsed columns open) the user
@@ -207,6 +215,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyEditorFontSize(App.Settings.Current.EditorFontSize, persist: false);
         PasteTextBox.PointerWheelChanged += OnEditorPointerWheel;
 
+        // Centre view mode: restore the user's Code/Split/Preview choice so the code section can
+        // stay hidden — the old behaviour forced the Code view open on every launch.
+        var savedView = App.Settings.Current.EditorViewMode;
+        var savedTab = savedView == "Preview" ? ViewPreviewTab : savedView == "Split" ? ViewSplitTab : ViewCodeTab;
+        if (savedTab != ViewCodeTab)
+        {
+            _initializingCenterView = true;
+            savedTab.IsSelected = true;
+            _initializingCenterView = false;
+        }
+
         // Word wrap + line numbers: apply the persisted wrap setting (the gutter is always visible).
         _initializingWordWrap = true;
         WordWrapToggle.IsChecked = App.Settings.Current.EditorWordWrap;
@@ -236,7 +255,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Line numbers + Markdown lint refresh on every edit; the gutter's scroll is synced to the
         // editor's internal ScrollViewer once the TextBox template is realized.
-        PasteTextBox.TextChanged += (_, _) => { RefreshLineNumbers(); UpdateLintIndicator(); };
+        PasteTextBox.TextChanged += (_, _) =>
+        {
+            RefreshLineNumbers();
+            UpdateLintIndicator();
+            // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
+            if (string.IsNullOrWhiteSpace(PasteTextBox?.Text)) ExpandLeftPane();
+        };
         PasteTextBox.Loaded += (_, _) => HookEditorScrollSync();
         RefreshLineNumbers();
         UpdateLintIndicator();
@@ -1430,6 +1455,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (file is not null)
         {
             ViewModel.InputFilePath = file.Path;
+            AutoCollapseLeftPane();
             ViewModel.UsePasteSource = false;
         }
     }
@@ -1482,7 +1508,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)
     {
         if (sender is ComboBox { SelectedItem: Services.MarkdownFileEntry entry })
+        {
             ViewModel.LoadRecentCommand.Execute(entry.Path);
+            AutoCollapseLeftPane(); // the panel did its job — tuck it away
+        }
     }
 
     private async void OnRescanMarkdownClick(object sender, RoutedEventArgs e)
@@ -2555,6 +2584,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var mode = sender.SelectedItem == ViewPreviewTab ? ViewMode.Preview
                  : sender.SelectedItem == ViewSplitTab ? ViewMode.Split
                  : ViewMode.Code;
+        if (_initializingCenterView) return;
+        App.Settings.Current.EditorViewMode = mode.ToString();
+        App.Settings.Save();
         ApplyViewMode(mode);
     }
 
@@ -2981,6 +3013,59 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             App.Settings.Save();
         }
         RefreshLineNumbers();
+    }
+
+    // ---- Left-pane hover-drawer ----
+
+    // Expand the Source/Files pane back to its pre-collapse width (hovering the drawer tab).
+    private void ExpandLeftPane()
+    {
+        if (!_leftPaneCollapsed) return;
+        _leftPaneCollapsed = false;
+        LeftPaneCol.Width = new GridLength(_leftPaneExpandedWidth);
+        LeftPane.Visibility = Visibility.Visible;
+        if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Collapsed;
+    }
+
+    // Tuck the pane away to a slim tab (leaving the pane with the mouse, or a short beat after a
+    // document is selected). The custom splitter width is preserved for the next expand.
+    private void CollapseLeftPane()
+    {
+        if (_leftPaneCollapsed) return;
+        // RULE: when the editor is blank the left pane is FORCIBLY expanded (the user needs the
+        // file picker because there is nothing to work on yet) — never tuck it away.
+        if (string.IsNullOrWhiteSpace(PasteTextBox?.Text)) return;
+        _leftPaneCollapsed = true;
+        if (LeftPaneCol.ActualWidth > 28) _leftPaneExpandedWidth = LeftPaneCol.ActualWidth;
+        LeftPaneCol.Width = new GridLength(28);
+        LeftPane.Visibility = Visibility.Collapsed;
+        if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Visible;
+    }
+
+    // Collapse on a short delay so the selection click finishes before the pane slides away.
+    private void AutoCollapseLeftPane()
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await Task.Delay(350);
+            CollapseLeftPane();
+        });
+    }
+
+    private void OnLeftDrawerTabPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) => ExpandLeftPane();
+
+    private void OnLeftPanePointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        // PointerExited also fires when the pointer crosses between child elements. Only collapse
+        // when the pointer has genuinely left the pane's bounds.
+        if (sender is FrameworkElement fe)
+        {
+            var pt = e.GetCurrentPoint(fe);
+            if (pt.Position.X >= 0 && pt.Position.Y >= 0 &&
+                pt.Position.X <= fe.ActualWidth && pt.Position.Y <= fe.ActualHeight)
+                return;
+        }
+        CollapseLeftPane();
     }
 
     // Rebuild the gutter's "1\n2\n...\nN" text to match the editor's current line count.
