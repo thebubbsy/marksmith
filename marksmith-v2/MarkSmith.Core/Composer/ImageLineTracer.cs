@@ -110,15 +110,17 @@ namespace MarkSmith.Core.Composer
             double rowHpt = rowH * 72.0;
             int minRunPx = Math.Max(1, (int)Math.Round(opt.MinRunFraction * pxW));
 
-            // Adaptive speckle filter: if the raw run count blows past the practical ceiling,
-            // raise the minimum run length (proportionally) and re-trace — never silently truncate.
+            // When the run count would blow past the practical ceiling, trace FEWER rows spread
+            // EVENLY across the image (every Nth row) rather than head-truncating: the whole
+            // picture stays represented and the result respects MaxLines.
             int lineCount = CountRuns(pixels, pxW, pxH, rows, opt, minRunPx);
+            int emitRows = rows;
             if (lineCount > opt.MaxLines)
             {
-                minRunPx = Math.Max(minRunPx + 1, (int)Math.Ceiling(minRunPx * (lineCount / (double)opt.MaxLines)));
+                emitRows = Math.Max(MinRows, (int)Math.Round(rows * (double)opt.MaxLines / lineCount));
             }
 
-            return EmitLines(pixels, pxW, pxH, rows, opt, minRunPx, rowH, rowHpt, cellW);
+            return EmitLines(pixels, pxW, pxH, rows, emitRows, opt, minRunPx, rowH, rowHpt, cellW);
         }
 
         // ---- pass 1: count ink runs (feeds the adaptive cap) ----
@@ -170,8 +172,8 @@ namespace MarkSmith.Core.Composer
 
         // ---- pass 2: emit one line item per run ----
 
-        private static List<ComposedShape> EmitLines(SKColor[] px, int pxW, int pxH, int rows, LineTraceOptions opt,
-            int minRunPx, double rowH, double rowHpt, double cellW)
+        private static List<ComposedShape> EmitLines(SKColor[] px, int pxW, int pxH, int rows, int emitRows,
+            LineTraceOptions opt, int minRunPx, double rowH, double rowHpt, double cellW)
         {
             var result = new List<ComposedShape>();
             var luma = new double[pxW];
@@ -183,9 +185,12 @@ namespace MarkSmith.Core.Composer
             double inkThreshold = Math.Clamp(opt.InkThreshold, 0, 255);
             string inkHex = opt.UseColor ? "" : "181818";
 
-            for (int y = 0; y < rows; y++)
+            // When emitRows < rows (cap engaged), sample rows EVENLY across the image so no region
+            // is dropped; each sampled row maps to a distinct source row (emitRows <= rows).
+            for (int r = 0; r < emitRows; r++)
             {
                 if (result.Count >= opt.MaxLines) break;
+                int y = r * rows / emitRows;
                 double bandY = y * rowH;
                 int py = Math.Min(pxH - 1, y * pxH / rows);
                 LoadLuma(px, pxW, py, luma);
@@ -246,9 +251,12 @@ namespace MarkSmith.Core.Composer
             double darkness = Math.Clamp((inkThreshold - lum / n) / Math.Max(1, inkThreshold), 0, 1);
             if (silhouette) darkness = 1; // solid band across the shape body
 
+            // Thickness is capped at the row band height so a line never spills into the adjacent
+            // band — non-overlap holds at ANY density (this is what keeps dense traces readable).
+            double bandCap = Math.Min(opt.MaxThicknessPt, rowHpt);
             double thicknessPt = silhouette
                 ? rowHpt
-                : Math.Clamp(0.4 + darkness * rowHpt * 2.2, 0.3, opt.MaxThicknessPt);
+                : Math.Clamp(0.4 + darkness * rowHpt * 1.4, Math.Min(0.3, rowHpt), bandCap);
             double thicknessIn = thicknessPt / 72.0;
 
             string fill = inkHex.Length > 0
@@ -285,7 +293,8 @@ namespace MarkSmith.Core.Composer
             double avgLum = lum / n;
             if (avgLum > 245) return; // paper
             double darkness = Math.Clamp(1 - avgLum / 255.0, 0, 1);
-            double thicknessPt = Math.Clamp(0.15 + darkness * rowHpt * 0.95, 0.1, opt.MaxThicknessPt);
+            double bandCap = Math.Min(opt.MaxThicknessPt, rowHpt);
+            double thicknessPt = Math.Clamp(0.15 + darkness * rowHpt * 0.95, Math.Min(0.1, rowHpt), bandCap);
             double thicknessIn = thicknessPt / 72.0;
 
             string fill = inkHex.Length > 0
@@ -319,12 +328,24 @@ namespace MarkSmith.Core.Composer
 
         /// <summary>Rasterizes a traced composition to a PNG for the studio canvas and thumbnails.
         /// Capped at <paramref name="previewCap"/> lines for the raster pass only — export and the
-        /// markdown/SVG paths always carry the FULL line set.</summary>
+        /// markdown/SVG paths always carry the FULL line set. When over the cap, lines are sampled
+        /// EVENLY (every Nth) so the preview still shows the whole picture, not just the top.</summary>
         public static byte[]? RenderPreviewPng(List<ComposedShape> shapes, double widthIn, double heightIn,
             int previewCap = 24000)
         {
             if (shapes.Count == 0) return null;
-            var limited = shapes.Count <= previewCap ? shapes : shapes.Take(previewCap).ToList();
+            List<ComposedShape> limited;
+            if (shapes.Count <= previewCap)
+            {
+                limited = shapes;
+            }
+            else
+            {
+                int stride = (int)Math.Ceiling(shapes.Count / (double)previewCap);
+                limited = new List<ComposedShape>(previewCap);
+                for (int i = 0; i < shapes.Count; i += stride)
+                    limited.Add(shapes[i]);
+            }
             string svg = ImageShapeComposer.RenderSvg(limited, widthIn, heightIn);
             return MarkSmith.Services.SvgRasterizer.ToPng(svg, scale: 2.0);
         }
