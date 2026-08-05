@@ -896,6 +896,7 @@ private readonly MarkdownExportService _mdExport = new();
 
     private static void LogFidelity(string message)
     {
+#if DEBUG
         try
         {
             string dir = System.IO.Path.Combine(
@@ -907,6 +908,7 @@ private readonly MarkdownExportService _mdExport = new();
                 $"{DateTime.Now:HH:mm:ss.fff} {message}\n");
         }
         catch { }
+#endif
     }
 
     /// <summary>Debug hook used by MainWindow to trace the debounce -> render chain.</summary>
