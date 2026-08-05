@@ -17,6 +17,10 @@ namespace MarkSmith.Views.ShapeStudio
         public ShapeDesignStudioWindow()
         {
             this.InitializeComponent();
+            // RadioButton.IsChecked must NOT be set in XAML — WinUI 3 throws a XamlParseException
+            // ("Failed to assign to property ToggleButton.IsChecked") while parsing it, crashing
+            // the whole app on open. Set the initial selection here instead.
+            ModeEngraved.IsChecked = true;
             ViewModel = new ShapeDesignStudioViewModel();
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
