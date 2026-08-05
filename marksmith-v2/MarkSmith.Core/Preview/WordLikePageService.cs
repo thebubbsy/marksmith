@@ -79,8 +79,10 @@ public static class WordLikePageService
                 }
                 else
                 {
-                    string name = tag.Split(' ', '>')[0].TrimEnd('/');
-                    if (!name.EndsWith("/")) depth++; // self-closing <br/> etc. don't nest
+                    // Self-closing tags (<hr />, <br />, <img … />) must NOT open a level — check
+                    // the raw tag for the trailing '/' BEFORE any trimming. Markdig emits these.
+                    bool selfClosing = tag.TrimEnd().EndsWith("/");
+                    if (!selfClosing) depth++;
                 }
                 j = gt + 1;
             }
@@ -119,10 +121,13 @@ public static class WordLikePageService
         if (b.StartsWith("<table", StringComparison.OrdinalIgnoreCase)) return EstimateTable(b);
         if (b.StartsWith("<pre", StringComparison.OrdinalIgnoreCase))
         {
+            // white-space: pre — height is NEWLINES, not wrapped width. Count the actual lines
+            // (plus one for a trailing line without a newline) and use the paged theme metrics:
+            // 9.5pt mono ≈ 12.67px, line-height 1.08 ≈ 13.68px, padding 8pt + margin 8pt.
             string text = StripTags(b);
-            int cpl = Math.Max(10, ContentWidthPx / (int)(0.60 * 12.5));
-            int lines = Math.Max(1, (int)Math.Ceiling(text.Length / (double)cpl) + 1);
-            return lines * 15 + 20;
+            int lines = 1;
+            foreach (char c in text) if (c == '\n') lines++;
+            return (int)(lines * 13.7) + 26;
         }
         if (b.StartsWith("<img", StringComparison.OrdinalIgnoreCase) ||
             b.StartsWith("<figure", StringComparison.OrdinalIgnoreCase))
@@ -132,8 +137,20 @@ public static class WordLikePageService
         }
         if (b.StartsWith("<div", StringComparison.OrdinalIgnoreCase))
         {
-            // mermaid (empty pre-render), shape canvases, plugin SVGs — assume a diagram band.
+            // Plugin diagrams / shape canvases: the div wraps one or more <svg>/<img> fragments —
+            // sum their explicit heights plus an 8pt gap per diagram instead of guessing 240px.
             int h = ExtractIntAttr(b, "height");
+            if (h <= 0)
+            {
+                int sum = 0;
+                foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
+                    b, @"<(?:svg|img)[^>]*?height[^0-9]*([0-9]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    int v = int.Parse(m.Groups[1].Value);
+                    sum += v;
+                }
+                if (sum > 0) return sum + 14 * CountOccurrences(b, "<svg");
+            }
             return h > 0 ? h : 240;
         }
         if (b.StartsWith("<ul", StringComparison.OrdinalIgnoreCase) ||
@@ -160,9 +177,7 @@ public static class WordLikePageService
     private static int EstimateTable(string block)
     {
         int rows = CountOccurrences(block, "<tr");
-        int cols = Math.Max(1, CountOccurrences(block.Split("<tr")[1], "<td") + CountOccurrences(block.Split("<tr")[1], "<th"));
-        int rowH = 22;
-        return Math.Max(40, rows * rowH + 24);
+        return Math.Max(40, rows * 26 + 24);
     }
 
     private static string StripTags(string html) =>
@@ -229,10 +244,29 @@ public static class WordLikePageService
                 // Doesn't fit the remaining space.
                 if (h > ContentHeightPx)
                 {
-                    // Oversized block: split a long paragraph at the page boundary, else let it overflow.
+                    // Oversized block: split a long paragraph or code block at the page boundary,
+                    // else let it overflow (a single giant image/diagram, like Word).
                     if (b.TrimStart().StartsWith("<p", StringComparison.OrdinalIgnoreCase))
                     {
                         foreach (var chunk in SplitParagraph(b, ContentHeightPx - used, h))
+                        {
+                            if (used + EstimateHeight(chunk) <= ContentHeightPx || current.Count == 0 && used == 0)
+                            {
+                                current.Add(chunk); used += EstimateHeight(chunk);
+                                if (used > ContentHeightPx) break;
+                            }
+                            else
+                            {
+                                pages.Add(MakePage(current));
+                                current.Clear(); used = 0;
+                                current.Add(chunk); used = EstimateHeight(chunk);
+                            }
+                        }
+                        continue;
+                    }
+                    if (b.TrimStart().StartsWith("<pre", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (var chunk in SplitCodeBlock(b, ContentHeightPx - used, h))
                         {
                             if (used + EstimateHeight(chunk) <= ContentHeightPx || current.Count == 0 && used == 0)
                             {
@@ -272,6 +306,36 @@ public static class WordLikePageService
         return new Pagination(result);
     }
 
+    private static List<string> SplitCodeBlock(string block, int remaining, int totalH)
+    {
+        // Split a <pre><code …>…</code></pre> at the newline boundary that fits the remaining
+        // page space (white-space: pre — lines are newline-determined). Both halves stay valid
+        // pre blocks; the first line of the continuation is dropped if it's empty (it was the
+        // line that straddled the break).
+        int linesBudget = Math.Max(2, remaining / 14);
+        var m = System.Text.RegularExpressions.Regex.Match(block, @"^(<pre[^>]*>)(<code[^>]*>)(.*?)(</code>)(</pre>)$", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (!m.Success) return new List<string> { block };
+        string openPre = m.Groups[1].Value, openCode = m.Groups[2].Value;
+        string text = m.Groups[3].Value, closeCode = m.Groups[4].Value, closePre = m.Groups[5].Value;
+
+        int idx = -1, line = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                line++;
+                if (line >= linesBudget) { idx = i; break; }
+            }
+        }
+        if (idx < 0) return new List<string> { block };
+
+        string a = text[..idx], b = text[(idx + 1)..];
+        var list = new List<string>();
+        if (a.Length > 0) list.Add(openPre + openCode + a + closeCode + closePre);
+        if (b.Length > 0) list.Add(openPre + openCode + b + closeCode + closePre);
+        return list.Count > 0 ? list : new List<string> { block };
+    }
+
     private static List<string> SplitParagraph(string block, int remaining, int totalH)
     {
         // Split a long paragraph into two <p> chunks at the estimated line boundary.
@@ -280,7 +344,7 @@ public static class WordLikePageService
         int firstLines = Math.Max(2, remaining * cpl / (int)(BodyLinePx * cpl) ); // ~ remaining/lineHeight lines
         int cut = Math.Min(inner.Length, firstLines * cpl);
         if (cut <= 0) return new List<string> { block };
-        int sp = inner.LastIndexOf(' ', cut);
+        int sp = inner.LastIndexOf(' ', Math.Min(cut, inner.Length - 1));
         if (sp > cut / 2) cut = sp;
         string a = inner[..cut].TrimEnd(), b = inner[cut..].TrimStart();
         var list = new List<string>();
