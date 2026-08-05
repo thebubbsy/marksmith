@@ -1924,19 +1924,15 @@ public sealed partial class MarkdownHtmlService
         var matches = TocHeadingRe().Matches(body);
         if (matches.Count < 2) return "";
 
-        var items = matches.Select(m =>
+        var sb = new StringBuilder("<nav id=\"toc\">\n <div class=\"toc-title\">Contents</div>\n <ul>");
+        foreach (Match m in matches)
         {
-            var level = int.Parse(m.Groups[1].Value);
+            var level = m.Groups[1].Value[0] - '0';
             var text = HtmlTagStripRe().Replace(m.Groups[3].Value, "").Trim();
             var indent = (level - 1) * 16;
-            return $"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>";
-        });
-
-        return $"""
-            <nav id="toc">
-                <div class="toc-title">Contents</div>
-                <ul>{string.Join("", items)}</ul>
-            </nav>
-            """;
+            sb.Append($"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>");
+        }
+        sb.Append("</ul>\n </nav>");
+        return sb.ToString();
     }
 }
