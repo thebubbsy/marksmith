@@ -48,7 +48,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     };
 
     private readonly DispatcherQueueTimer _previewDebounce;
-    private readonly DispatcherQueueTimer _fidelityDebounce;
 
     // Preview refresh intensity. Historically typing did a "light" refresh and paste/style changes a
     // "heavy" one (loading sprite over a blur); the sprite/blur visuals are retired — every refresh
@@ -95,15 +94,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // scroll fraction and mirror it onto the editor's internal ScrollViewer.
     private double? _pendingPreviewScrollFraction;
 
-    // Word-exact tile-grid scroll: the fidelity page scrolls #canvas (overflow:auto), not the
-    // window, so the HTML-preview mechanism needs a canvas-aware twin. Stashed before a fidelity
-    // re-navigation, restored on NavigationCompleted so live band refreshes don't jump to the top.
-    private double? _pendingFidelityScrollFraction;
-
-    // First-render kick: startup content (recovery restore) can appear without a PropertyChanged,
-    // so the debounce never fires — kick the render once from the preview fall-through.
-    private bool _fidelityKickIssued;
-
     // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
     private readonly List<int> _findMatches = new();
@@ -146,6 +136,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Guards the Looking Glass portal ToggleButton's Checked event during start-up wiring (ISS-004).
     private bool _initializingLookingGlass;
+
+    // Guards the Word-like paged-preview ToggleButton during start-up wiring.
+    private bool _initializingPagedPreview;
 
     // Guards the portal reveal-scope Slider's ValueChanged event during start-up wiring (ISS-004).
     private bool _initializingPortalReveal;
@@ -228,29 +221,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         LookingGlassToggle.IsChecked = App.Settings.Current.LookingGlassMode;
         _initializingLookingGlass = false;
 
-        // Word-exact preview: reflect the persisted toggle and, when on, render through Word.
-        _initializingWordExact = true;
-        WordExactToggle.IsChecked = App.Settings.Current.WordFidelity;
-        _initializingWordExact = false;
-        // Debug-only diagnostic log — never write to disk on end-user machines unless the user
-        // has explicitly turned on Debug Mode in Settings.
-        if (ViewModel.IsDebugModeEnabled)
-        {
-            try
-            {
-                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs"));
-                System.IO.File.AppendAllText(System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs", "wordfidelity-render.log"),
-                    $"{DateTime.Now:HH:mm:ss.fff} STARTUP block reached — settings.WordFidelity={App.Settings.Current.WordFidelity}\n");
-            }
-            catch { }
-        }
-        if (App.Settings.Current.WordFidelity)
-        {
-            ViewModel.WordFidelityEnabled = true;
-            _ = ViewModel.RefreshWordFidelityAsync();
-        }
+        // Word-like paged preview: reflect the persisted mode (default on) without re-rendering.
+        _initializingPagedPreview = true;
+        PagedPreviewToggle.IsChecked = App.Settings.Current.PagedPreviewMode;
+        _initializingPagedPreview = false;
 
         // ISS-004: reflect the persisted portal reveal scope + shape without firing the change handlers.
         _initializingPortalReveal = true;
@@ -284,20 +258,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _previewDebounce.Interval = TimeSpan.FromMilliseconds(180);
         _previewDebounce.IsRepeating = false;
 
-        // Word-exact live updates: edits settle on a SLOWER debounce than the HTML preview, then
-        // the incremental band re-render runs (Word stays warm via the persistent host, only the
-        // dirty page bands re-rasterize). The busy guard in the VM dedupes overlapping renders.
-        _fidelityDebounce = DispatcherQueue.CreateTimer();
-        _fidelityDebounce.Interval = TimeSpan.FromMilliseconds(900);
-        _fidelityDebounce.IsRepeating = false;
-        _fidelityDebounce.Tick += async (_, _) =>
-        {
-            ViewModels.MainViewModel.LogFidelityForDebug("fidelity debounce tick");
-            if (ViewModel.WordFidelityEnabled)
-            {
-                await ViewModel.RefreshWordFidelityAsync();
-            }
-        };
         _previewDebounce.Tick += async (_, _) =>
         {
             // Outline (Task 17): the TOC depends only on the markdown, so refresh it on the same
@@ -307,13 +267,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // update goes through the live path instead — push the editor's text into the portal's
             // textarea (split + portal: typed text appears inside the shape) and swap the preview
             // canvas in place behind it. The page-script rebuild happens when the portal closes.
-            // Word-exact: the slower _fidelityDebounce owns the band re-render; here we only mark
-            // the render stale so the badge shows while the update is pending.
-            if (ViewModel.WordFidelityEnabled)
-            {
-                ViewModel.WordFidelityDirty = true;
-                return;
-            }
             if (_portalOpen)
             {
                 var md = ViewModel.CurrentMarkdown ?? "";
@@ -398,7 +351,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _folderIngest.Dispose();
             _automationManager.Dispose();
             _trayIcon?.Dispose();
-            ViewModel.DisposeFidelity(); // release the persistent Word host + tile cache
         };
 
         ViewModel.LoadPresets();
@@ -522,13 +474,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        // Word-exact render finished (startup auto-restore or manual refresh): re-navigate so the
-        // finished tile grid replaces whatever was showing while it rendered.
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.WordFidelityPagePath))
-        {
-            _ = RefreshPreviewAsync();
-        }
-
         if (e.PropertyName == nameof(ViewModels.MainViewModel.AdvancedMode))
         {
             SyncAdvancedSection();
@@ -557,12 +502,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
             _previewDebounce.Stop();
             _previewDebounce.Start();
-            if (ViewModel.WordFidelityEnabled)
-            {
-                _fidelityDebounce.Stop();
-                _fidelityDebounce.Start();
-                ViewModels.MainViewModel.LogFidelityForDebug($"fidelity debounce started (prop={e.PropertyName})");
-            }
         }
     }
 
@@ -984,12 +923,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // even while the Settings dialog is still open, so the change is visible the moment it closes.
         settingsView.PluginsChanged += () => DispatcherQueue.TryEnqueue(async () =>
         {
-            // A plugin install/remove can change what Word-exact can render (e.g. the
-            // marksmith-office payload just arrived) — re-run the fidelity render when on.
-            if (ViewModel.WordFidelityEnabled)
-            {
-                await ViewModel.RefreshWordFidelityAsync();
-            }
             await RefreshPreviewAsync(heavy: true);
         });
         var dialog = new ContentDialog
@@ -1699,9 +1632,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Sync-scroll: once a fresh preview page finishes loading, restore the scroll position the
         // user had in the editor (stashed just before we re-navigated on the tab switch).
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingPreviewScroll();
-        // Word-exact: same idea for the tile-grid page — live band refreshes re-navigate, so keep
-        // the reader where they were instead of snapping to the top.
-        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingFidelityScroll();
 
         // Preview zoom: restore the persisted factor, install the Ctrl+wheel listener, and re-apply
         // the CSS zoom after every navigation (NavigateToString rebuilds the DOM, dropping the style).
@@ -2086,44 +2016,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
-        // Word-exact mode (marksmith-office plugin): show the real Word render instead of HTML.
-        if (vm.WordFidelityEnabled)
-        {
-            if (vm.FidelityPagePath is { } pagePath && System.IO.File.Exists(pagePath))
-            {
-                // Capture the reader's position on the CURRENT tile grid before it is replaced —
-                // the live band refresh re-navigates and would otherwise snap to the top.
-                if (_pendingFidelityScrollFraction is null)
-                {
-                    _pendingFidelityScrollFraction = await CaptureFidelityScrollFractionAsync();
-                }
-                // Navigate to the written .html file (tiles are sibling PNGs). NavigateToString
-                // caps around 2MB and 2x page tiles exceed it — it threw 'The parameter is
-                // incorrect' and the preview sat on the loading screen forever.
-                PreviewWebView.CoreWebView2.Navigate(new Uri(pagePath).AbsoluteUri);
-                if (vm.IsDebugModeEnabled)
-                {
-                    System.IO.File.WriteAllText(
-                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "MarkSmith", "DebugLogs", "wordfidelity-preview.html"),
-                        System.IO.File.ReadAllText(pagePath));
-                }
-                return;
-            }
-            // No render yet (plugin/Word absent or failed): fall through to HTML so the pane
-            // isn't blank — the status bar already explains. Also kick the FIRST render once:
-            // startup content can load without a PropertyChanged (recovery restore), so the
-            // debounce never fires and the pane would sit on HTML forever.
-            if (vm.FidelityNeedsInitialRender && !_fidelityKickIssued)
-            {
-                _fidelityKickIssued = true;
-                _ = ViewModel.RefreshWordFidelityAsync();
-            }
-        }
-
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        var html = App.Settings.Current.PagedPreviewMode
+            ? vm.BuildPagedPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true)
+            : vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
 
         if (vm.IsDebugModeEnabled)
@@ -2741,41 +2638,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             $"if(max>0){{window.scrollTo(0,{f}*max);}}}})();");
     }
 
-    // Fidelity twin of CapturePreviewScrollFractionAsync: the Word-exact tile grid scrolls
-    // #canvas (overflow:auto), so the fraction is canvas.scrollTop / (scrollHeight - clientHeight).
-    // Returns null when the current page isn't the tile grid (nothing to preserve).
-    private async Task<double?> CaptureFidelityScrollFractionAsync()
-    {
-        var core = PreviewWebView.CoreWebView2;
-        if (core is null) return null;
-        string result;
-        try
-        {
-            result = await core.ExecuteScriptAsync(
-                "(function(){var c=document.getElementById('canvas');if(!c)return -1;" +
-                "var max=c.scrollHeight-c.clientHeight;return max>0?(c.scrollTop/max):0;})();");
-        }
-        catch { return null; }
-
-        if (!double.TryParse(result, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var frac) || frac < 0)
-            return null;
-        return Math.Clamp(frac, 0.0, 1.0);
-    }
-
-    // Restores the stashed tile-grid scroll fraction after a fidelity re-navigation. Runs on every
-    // NavigationCompleted; no-ops unless a fidelity capture is pending.
-    private void ApplyPendingFidelityScroll()
-    {
-        if (_pendingFidelityScrollFraction is not { } frac) return;
-        _pendingFidelityScrollFraction = null;
-        var core = PreviewWebView.CoreWebView2;
-        if (core is null) return;
-        var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-        _ = core.ExecuteScriptAsync(
-            "(function(){var c=document.getElementById('canvas');if(!c)return;" +
-            $"var max=c.scrollHeight-c.clientHeight;if(max>0)c.scrollTop={f}*max;}})();");
-    }
-
     // Read the preview's current scroll fraction and mirror it onto the editor's ScrollViewer.
     private async Task CapturePreviewScrollAndApplyToEditorAsync()
     {
@@ -3028,73 +2890,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         e.Handled = true;
     }
 
-    // Word-exact preview toggle: swap the preview pane to the REAL Word render of the document
-    // (via the marksmith-office plugin). Snapshot mode — edits mark it stale until re-toggled.
-    private bool _wordFidelityRendering;
-    private bool _initializingWordExact;
-
-    private async void OnWordExactToggled(object sender, RoutedEventArgs e)
-    {
-        if (_initializingWordExact) return; // startup reflection must not trigger a render
-        bool on = WordExactToggle?.IsChecked == true;
-        if (!on)
-        {
-            await ViewModel.SetWordFidelityAsync(false);
-            await RefreshPreviewAsync();
-            return;
-        }
-
-        // Instant feedback: the Word render takes a couple of seconds — show a placeholder now.
-        _wordFidelityRendering = true;
-        ViewModel.StatusText = "Word-exact: rendering through Microsoft Word…";
-        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-        ShowFidelityPlaceholder();
-
-        try
-        {
-            await ViewModel.SetWordFidelityAsync(true);
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Word-exact failed: {ex.Message}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-            ShowFidelityError(ex.Message);
-            return;
-        }
-        finally
-        {
-            _wordFidelityRendering = false;
-        }
-
-        if (WordExactToggle?.IsChecked == true) // user didn't toggle off mid-render
-        {
-            await RefreshPreviewAsync();
-        }
-    }
-
-    private void ShowFidelityPlaceholder()
-    {
-        if (PreviewWebView.CoreWebView2 is null) return;
-        PreviewWebView.NavigateToString(
-            "<!DOCTYPE html><html><body style='margin:0;background:#18181c;display:flex;align-items:center;justify-content:center;height:100vh;color:#99a;font-family:system-ui;'>" +
-            "<div style='text-align:center'><div style='font-size:30px;margin-bottom:12px;animation:pulse 1.2s infinite'>⚙</div>" +
-            "<div>Rendering through Microsoft Word…</div>" +
-            "<div style='font-size:12px;opacity:.6;margin-top:6px'>marksmith-office plugin (NetOffice)</div></div>" +
-            "<style>@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}</style></body></html>");
-    }
-
-    private void ShowFidelityError(string message)
-    {
-        if (PreviewWebView.CoreWebView2 is null) return;
-        string esc = System.Net.WebUtility.HtmlEncode(message);
-        PreviewWebView.NavigateToString(
-            "<!DOCTYPE html><html><body style='margin:0;background:#2b1420;display:flex;align-items:center;justify-content:center;height:100vh;color:#f8a;font-family:system-ui;padding:24px;'>" +
-            "<div style='text-align:center'><div style='font-size:30px;margin-bottom:12px'>⚠</div>" +
-            "<div style='font-weight:bold;margin-bottom:8px'>Word-exact render failed</div>" +
-            $"<div style='font-size:13px;opacity:.85;word-break:break-all'>{esc}</div>" +
-            "<div style='font-size:12px;opacity:.6;margin-top:12px'>Make sure the marksmith-office plugin is present and Microsoft Word is installed, then toggle Word-exact off and on.</div></div></body></html>");
-    }
-
     private void ApplyEditorFontSize(double size, bool persist)
     {
         var clamped = Math.Clamp(size, EditorFontMin, EditorFontMax);
@@ -3128,6 +2923,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         App.Settings.Current.LookingGlassMode = LookingGlassToggle?.IsChecked == true;
         App.Settings.Save();
         UpdateCenterBottomBar();
+        _ = RefreshPreviewAsync();
+    }
+
+    // Word-like paged preview toggle: swap between real Word-geometry pages (mimics WinWord) and
+    // the continuous HTML canvas. Persisted; re-renders in place (scroll is preserved by the
+    // pre-paint scroll restore, so flipping the mode doesn't throw the reader to the top).
+    private void OnPagedPreviewToggled(object sender, RoutedEventArgs e)
+    {
+        if (_initializingPagedPreview) return;
+        App.Settings.Current.PagedPreviewMode = PagedPreviewToggle?.IsChecked == true;
+        App.Settings.Save();
         _ = RefreshPreviewAsync();
     }
 

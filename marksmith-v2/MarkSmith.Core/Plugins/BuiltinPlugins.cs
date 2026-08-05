@@ -507,31 +507,5 @@ internal static class BuiltinPlugins
         }
         """,
 
-        // Office Capability: drives the INSTALLED Microsoft Word (via NetOffice, MIT) to produce
-        // the 100%-accurate Word render for the Word-exact preview (tiled page-band rendering),
-        // SmartArt/DrawingML fidelity, and docx verification. Harmless when Word is absent.
-        // The payload is the office-host zip published from plugins/marksmith-office/dist in the
-        // main repo — Install downloads + extracts it; Remove deletes the install dir and the
-        // capability degrades gracefully.
-        """
-        {
-          "manifestVersion": 1,
-          "id": "marksmith-office",
-          "name": "Office Capability (Word fidelity)",
-          "description": "Drives the installed Microsoft Word via NetOffice to produce 100%-accurate renders of SmartArt and DrawingML shapes (Render Exactly as Word Would), powers the Word-exact tiled preview, and opens generated .docx in Word for verification. Requires Microsoft Office; harmless when absent.",
-          "version": "1.0.0",
-          "homepage": "https://github.com/NetOfficeFw/NetOffice",
-          "license": "MIT (netoffice)",
-          "type": "office",
-          "artifacts": [
-            {
-              "name": "marksmith-office-host.zip",
-              "url": "https://raw.githubusercontent.com/thebubbsy/marksmith/main/plugins/marksmith-office/dist/marksmith-office-host.zip",
-              "sha256": "684a9f6be4757712a4e13dd91f89b72e34618d99784d9264b4bdd6802077c8e9",
-              "extract": true
-            }
-          ]
-        }
-        """,
     };
 }

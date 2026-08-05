@@ -74,9 +74,6 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     private string _previewHtml = "";
 
     [ObservableProperty]
-    private bool _isWordFidelity;
-
-    [ObservableProperty]
     private string _searchQuery = "";
 
     [ObservableProperty]
@@ -110,7 +107,6 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     partial void OnMarkdownTextChanged(string value) { RebuildTree(); UpdatePreview(); }
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
-    partial void OnIsWordFidelityChanged(bool value) => UpdatePreview();
     partial void OnSearchQueryChanged(string value) => FilterLayouts();
 
     private void LoadLayouts()
@@ -290,82 +286,14 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             string alias = SelectedLayout?.Alias ?? "hierarchy";
             string title = SelectedLayout?.Name ?? "Hierarchy Layout";
 
-            if (IsWordFidelity)
-            {
-                _ = RenderWordFidelityAsync(ast, alias, title);
-                StatusMessage = "Rendering through Word…";
-            }
-            else
-            {
-                PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
-                StatusMessage = $"Preview: {title} ({alias})";
-                PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
-            }
+            PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
+            StatusMessage = $"Preview: {title} ({alias})";
+            PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Preview error: {ex.Message}";
         }
-    }
-
-    private bool _fidelityRunning;
-
-    private async System.Threading.Tasks.Task RenderWordFidelityAsync(CanonicalAst ast, string alias, string title)
-    {
-        if (_fidelityRunning) return;
-        _fidelityRunning = true;
-        try
-        {
-            var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias)
-                      ?? SmartArtLayoutCatalog.Shared.TryResolve("default")
-                      ?? throw new InvalidOperationException("No layout resolved.");
-
-            var solved = new ConstraintSolver().Solve(ast, pkg);
-            var genRes = new OpenXmlDiagramGenerator().Generate(solved, pkg);
-            string outPath = Path.Combine(Path.GetTempPath(), $"SmartArtStudio_fidelity_{alias}_{DateTime.Now:HHmmss}.docx");
-            DocxPackageWriter.WriteDocx(outPath, genRes);
-
-            // The 100%-accurate render: shell to the marksmith-office plugin (NetOffice + Word).
-            var office = MarkSmith.Core.Office.OfficeCapability.Shared;
-            var image = await office.RenderDocxToImageAsync(outPath).ConfigureAwait(true);
-            if (image is { Bytes: not null } img)
-            {
-                string dataUri = "data:" + img.Mime + ";base64," + Convert.ToBase64String(img.Bytes);
-                PreviewHtml = $"""
-                <div style="width:100%;height:100%;background:#ffffff;border-radius:8px;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:8px;box-sizing:border-box;">
-                  <img src="{dataUri}" style="max-width:100%;box-shadow:0 2px 10px rgba(0,0,0,.25);" alt="Word render"/>
-                </div>
-                """;
-                StatusMessage = $"✓ Word-accurate render ({pkg.UniqueId}) — {img.Bytes.Length / 1024} KB image";
-            }
-            else
-            {
-                StatusMessage = "Word fidelity needs the marksmith-office plugin + Microsoft Word installed. DOCX written to " + outPath;
-                PreviewHtml = WordFidelityBadge(title, alias, pkg.UniqueId, outPath);
-            }
-            PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Word-fidelity error: {ex.Message}";
-        }
-        finally
-        {
-            _fidelityRunning = false;
-        }
-    }
-
-    private static string WordFidelityBadge(string title, string alias, string urn, string outPath)
-    {
-        return $"""
-        <div style="width:100%;height:100%;background:#1a2733;border-radius:8px;padding:24px;color:#e8f1f8;font-family:system-ui;box-sizing:border-box;">
-          <div style="font-weight:bold;margin-bottom:10px;">Word-Fidelity Snapshot Generated</div>
-          <div style="font-size:13px;opacity:.85;margin-bottom:8px;">Layout: {WebUtility.HtmlEncode(title)} ({alias}) — native OOXML diagram, schema-valid.</div>
-          <div style="font-size:13px;opacity:.85;margin-bottom:8px;">URN: <code>{WebUtility.HtmlEncode(urn)}</code></div>
-          <div style="font-size:13px;opacity:.85;">DOCX: <code style="word-break:break-all;">{WebUtility.HtmlEncode(outPath)}</code></div>
-          <div style="font-size:12px;opacity:.7;margin-top:14px;">Install the marksmith-office plugin (or Microsoft Word) for the exact render here.</div>
-        </div>
-        """;
     }
 
     [RelayCommand]
