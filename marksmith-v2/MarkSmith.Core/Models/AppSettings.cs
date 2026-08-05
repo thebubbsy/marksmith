@@ -64,10 +64,6 @@ public sealed class AppSettings
     // WITHOUT blur"). Ctrl+Alt+X toggles it live in the preview. Persisted.
     public bool PortalFocusBlur { get; set; } = true;
 
-    // Default export format across the app UI and the browser extension (ISS-019): "docx",
-    // "pdf", "pptx" or "epub". Word is the default per user request.
-    public string DefaultExportFormat { get; set; } = "docx";
-
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
 
@@ -280,7 +276,6 @@ public sealed class AppSettings
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
         PortalFocusBlur = other.PortalFocusBlur;
-        DefaultExportFormat = other.DefaultExportFormat;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
         NormalizeLlm = other.NormalizeLlm;

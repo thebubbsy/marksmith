@@ -92,7 +92,7 @@ public sealed class ExportCoordinator
 
             var produced = new List<string>();
             var pending = new List<string>();
-            var formats = ParseFormats(output?.Format, settings.DefaultExportFormat);
+            var formats = ParseFormats(output?.Format, settings.TargetFormat);
 
             IReadOnlyList<byte[]?>? mermaidImgs = null;
             IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;

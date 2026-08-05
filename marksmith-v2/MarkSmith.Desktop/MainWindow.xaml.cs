@@ -1336,7 +1336,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             foreach (var f in docs)
                 File.Copy(f.Path, Path.Combine(staging, Path.GetFileName(f.Path)), overwrite: true);
 
-            var format = App.Settings.Current.DefaultExportFormat;
+            var format = App.Settings.Current.TargetFormat;
             var outDir = App.Settings.Current.OutputFolder;
             await ViewModel.BatchConvertAsync(staging, outDir, format);
         }

@@ -79,7 +79,7 @@
                 <Border Style="{StaticResource PipelineCardStyle}">
                     <StackPanel Padding="16,12" Spacing="6">
                         <TextBlock Text="Document font" FontWeight="SemiBold" />
-                        <TextBlock Text="Typography preset applied to the preview and exported documents."
+                        <TextBlock Text="Fallback typography preset (only used when no document font is set — the document font field governs)"
                                    Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                         <ComboBox SelectedItem="{Binding FontPreset, Mode=TwoWay}" HorizontalAlignment="Stretch">
                             <x:String>System</x:String>
@@ -97,8 +97,8 @@
                         <TextBlock Text="Export &amp; Behavior" FontWeight="SemiBold" />
 
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Default export format" Style="{StaticResource StepCaptionStyle}" />
-                            <ComboBox SelectedItem="{Binding DefaultExportFormat, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                            <TextBlock Text="Default output format" Style="{StaticResource StepCaptionStyle}" />
+                            <ComboBox SelectedItem="{Binding TargetFormat, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                 <x:String>docx</x:String>
                                 <x:String>pdf</x:String>
                                 <x:String>pptx</x:String>
