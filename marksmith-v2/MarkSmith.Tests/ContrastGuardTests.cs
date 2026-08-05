@@ -64,3 +64,35 @@ public class ContrastGuardTests
         Assert.True(textRatio >= 4.5, $"Text contrast ratio {textRatio} must be >= 4.5:1");
     }
 }
+
+
+public class ContrastGuardVisibleFillTests
+{
+    [Fact]
+    public void VisibleFill_KeepsFillsThatContrastWithBackground()
+    {
+        Assert.Equal("78A75A", ContrastGuard.EnsureVisibleFill("78A75A", "1B1B1F"));
+        Assert.Equal("0055AA", ContrastGuard.EnsureVisibleFill("0055AA", "FFFFFF"));
+    }
+
+    [Fact]
+    public void VisibleFill_RejectsFillSameColourAsBackground()
+    {
+        // GitHub Light's Primary (#000000) on the studio canvas (#1B1B1F) must NOT survive.
+        Assert.NotEqual("000000", ContrastGuard.EnsureVisibleFill("000000", "1B1B1F"));
+    }
+
+    [Fact]
+    public void VisibleFill_ReturnsWhiteOnNearBlackCanvas()
+    {
+        Assert.Equal("FFFFFF", ContrastGuard.EnsureVisibleFill("000000", "1B1B1F"));
+        Assert.Equal("FFFFFF", ContrastGuard.EnsureVisibleFill("1B1B1F", "1B1B1F"));
+    }
+
+    [Fact]
+    public void VisibleFill_ReturnsDarkOnNearWhiteBackground()
+    {
+        Assert.Equal("121212", ContrastGuard.EnsureVisibleFill("FFFFFF", "FFFFFF"));
+        Assert.Equal("121212", ContrastGuard.EnsureVisibleFill("F6F8FA", "FFFFFF"));
+    }
+}

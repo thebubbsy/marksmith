@@ -88,6 +88,34 @@ public static class ContrastGuard
     }
 
     /// <summary>
+    /// HARD RULE — a shape must NEVER blend into the background it sits on.
+    /// Returns the given fill when it is clearly visible against the background (WCAG contrast
+    /// >= 1.8:1, the practical floor for distinguishing a filled area from its backdrop); otherwise
+    /// returns the strongest visible candidate from (white, black, the fill itself) so the shape
+    /// edge is always distinguishable. This is the rule that stops "same colour as the background"
+    /// shapes in the shape studio and in rendered compositions.
+    /// </summary>
+    public static string EnsureVisibleFill(string fillHex, string bgContextHex)
+    {
+        fillHex = (fillHex ?? "").Trim().TrimStart('#');
+        bgContextHex = (bgContextHex ?? "").Trim().TrimStart('#');
+        if (fillHex.Length != 6) fillHex = "0078D4";
+        if (bgContextHex.Length != 6) bgContextHex = "FFFFFF";
+
+        if (GetContrastRatio(fillHex, bgContextHex) >= 1.8) return fillHex;
+
+        // Blend: keep the intended fill if it beats white/black, otherwise let the strongest win.
+        string best = fillHex;
+        double bestRatio = GetContrastRatio(fillHex, bgContextHex);
+        foreach (string candidate in new[] { "FFFFFF", "121212" })
+        {
+            double r = GetContrastRatio(candidate, bgContextHex);
+            if (r > bestRatio) { bestRatio = r; best = candidate; }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Scans SVG text elements (<text fill="..."> and <tspan fill="...">) and automatically enforces
     /// WCAG 2.1 4.5:1 minimum contrast ratio against the document/card background context.
     /// Prevents white-on-white or dark-on-dark text in PlantUML, Graphviz, or third-party SVG output.
