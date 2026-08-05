@@ -12,13 +12,13 @@
          increasing number — the About screen and the updater always agree with what's running, and
          a freshly-built dev binary is never 'out of date' against the last release. The full stamp
          lives in <Version> (NuGet) and <FileVersion> (free-form); <AssemblyVersion> stays a plain
-         four-part 2.14.0.0 because Roslyn rejects components above 9999 there. Release builds
+         four-part 2.16.0.0 because Roslyn rejects components above 9999 there. Release builds
          override all of these via -p:Version=<tag> in release.yml, so shipped installers carry a
-         clean semver (e.g. 2.14.0). -->
+         clean semver (e.g. 2.16.0). -->
     <BuildRevision>$([System.DateTime]::UtcNow.ToString("MddHHmm"))</BuildRevision>
-    <Version>2.14.0.$(BuildRevision)</Version>
-    <AssemblyVersion>2.14.0.0</AssemblyVersion>
-    <FileVersion>2.14.0.$(BuildRevision)</FileVersion>
+    <Version>2.16.0.$(BuildRevision)</Version>
+    <AssemblyVersion>2.16.0.0</AssemblyVersion>
+    <FileVersion>2.16.0.$(BuildRevision)</FileVersion>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
