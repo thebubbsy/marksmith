@@ -29,6 +29,13 @@ public sealed class SettingsService
                 var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOpts);
                 if (settings is not null)
                 {
+                    // One-time migration: the poster-grid oversized-diagram strategy was removed
+                    // (old mode 4 — it changed the page size, overriding the page-width/A4/
+                    // continuous-page settings). Old mode 4 becomes "Keep Original Size" (its
+                    // behaviour was diagram-at-full-scale); old modes 5-8 shift down one slot.
+                    if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
+                    else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
+
                     // One-time migration: TargetFormat is now the single "default output format".
                     // Fold the old DefaultExportFormat choice into it when the user never set
                     // TargetFormat explicitly (it still holds its default "pdf").

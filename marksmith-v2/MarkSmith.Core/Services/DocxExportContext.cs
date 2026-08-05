@@ -41,7 +41,6 @@ public sealed class Ctx
     public bool DropCapPending = true;
     public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
     public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
-    public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2x2, 3=3x3)
     public bool SmartConnectors = true;
     
     public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }

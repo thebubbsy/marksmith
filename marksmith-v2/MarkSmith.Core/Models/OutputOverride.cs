@@ -26,7 +26,6 @@ public sealed class OutputOverride
     
     // ShapeForge and general diagram settings
     public int? OversizedDiagramMode { get; set; }
-    public int? DiagramGridSize { get; set; }
     public bool? SmartConnectors { get; set; }
     public string? ConnectorRouting { get; set; }
     public string? ConnectorArrowhead { get; set; }

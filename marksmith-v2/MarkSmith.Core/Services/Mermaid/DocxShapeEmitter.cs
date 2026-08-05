@@ -27,13 +27,6 @@ public static class DocxShapeEmitter
     {
         double canvasW = MaxCanvasW, canvasH = MaxCanvasH;
 
-        // Grid mode: enlarge the canvas by the grid multiplier so the diagram has N× the room.
-        if (oversizedMode == 4 && gridSize >= 2)
-        {
-            canvasW *= gridSize;
-            canvasH *= gridSize;
-        }
-
         // Multi-page vertical: only constrain width — height is unlimited (will be split into
         // page-height bands by ToMultiPageParagraphXml).
         if (oversizedMode == 3)
@@ -70,12 +63,12 @@ public static class DocxShapeEmitter
             canvasH / Math.Max(1, d.Height)));
 
         // ShrinkToFit (mode 5): floor drops to 30% — the whole point is to squeeze onto one page.
-        double floor = oversizedMode == 5 ? 0.30 : 0.75;
+        double floor = oversizedMode == 4 ? 0.30 : 0.75;
         bool oversized = s < floor;
         if (oversized) s = floor;
 
         // Modes 6, 7, 8: Always shrink to fit page (down to 30%), but selectively shrink spacing/shapes
-        if (oversizedMode is 6 or 7 or 8)
+        if (oversizedMode is 5 or 6 or 7)
         {
             oversized = false; // It fits, no Web Layout needed
             
@@ -93,12 +86,12 @@ public static class DocxShapeEmitter
                 var shapeT = d.Shapes.MinBy(s => s.Y)!;
                 var shapeB = d.Shapes.MaxBy(s => s.Y + s.H)!;
 
-                if (oversizedMode == 8) 
+                if (oversizedMode == 7) 
                 {
                     sSpace = Math.Max(0.30, Math.Min(1, Math.Min(canvasW / d.Width, canvasH / d.Height)));
                     sShape = sSpace;
                 }
-                else if (oversizedMode == 6) // Shrink Spacing
+                else if (oversizedMode == 5) // Shrink Spacing
                 {
                     double spanX = shapeR.X - shapeL.X;
                     double spanY = shapeB.Y - shapeT.Y;
@@ -114,7 +107,7 @@ public static class DocxShapeEmitter
                         sShape = Math.Max(0.30, Math.Min(1, Math.Min(reqShapeX, reqShapeY)));
                     }
                 }
-                else if (oversizedMode == 7) // Shrink Shapes
+                else if (oversizedMode == 6) // Shrink Shapes
                 {
                     double spanCentersX = (shapeR.X + shapeR.W/2) - (shapeL.X + shapeL.W/2);
                     double spanCentersY = (shapeB.Y + shapeB.H/2) - (shapeT.Y + shapeT.H/2);
@@ -199,7 +192,7 @@ public static class DocxShapeEmitter
         d.Width *= s; d.Height *= s;
 
         // ShrinkToFit: it fits on one page by definition — never trigger Web Layout.
-        if (oversizedMode == 5) return false;
+        if (oversizedMode == 4) return false;
 
         return oversized || d.Height > 480; // page-dominating diagrams read better in Web Layout
     }
@@ -222,10 +215,10 @@ public static class DocxShapeEmitter
 
         oversized = ScaleToFit(d, oversizedMode, gridSize);
 
-        // The aggressive-shrink modes threw the curve paths away; snap each anchored edge back
+        // The aggressive-shrink modes (4/5/6/7) threw the curve paths away; snap each anchored edge back
         // onto its (now moved) shapes' connection sites so the stored line touches the nodes and
         // Word's smart-connector glue (stCxn/endCxn) keeps it attached.
-        if (smartConnectors && oversizedMode is 6 or 7 or 8)
+        if (smartConnectors && oversizedMode is 5 or 6 or 7)
             ReanchorConnectorsToShapes(d);
 
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +

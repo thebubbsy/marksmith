@@ -80,7 +80,7 @@ public sealed class BatchConvertService
                         if (settings.MermaidDocxMode == 1)
                         {
                             var mode = settings.OversizedDiagramMode;
-                            if (mode == 1 || (mode >= 3 && mode <= 8))
+                            if (mode == 1 || (mode >= 3 && mode <= 7))
                             {
                                 geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, mdContent, settings, theme);
                                 var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
