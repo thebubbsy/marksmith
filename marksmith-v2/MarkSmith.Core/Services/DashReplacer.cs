@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MarkSmith.Services;
@@ -16,13 +17,13 @@ public static partial class DashReplacer
 
     // Group 1 = a code fence or inline-code span (left untouched); otherwise an em-dash with any
     // surrounding spaces/tabs is matched for replacement.
-    [GeneratedRegex(@"(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)|[ \t]*—[ \t]*")]
+    [GeneratedRegex(@"(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)|[ \t]*—[ \t]*", RegexOptions.Compiled)]
     private static partial Regex EmDashOutsideCode();
 
     // Group 1 = protected spans (HTML comments, HTML tags/attributes, autolinks, inline code,
     // LaTeX math, Markdown link URLs, bare URLs, table delimiters);
     // otherwise a double-hyphen (?<!-)--(?!-) is matched for replacement with native em-dash (—).
-    [GeneratedRegex(@"(<!--[\s\S]*?-->|</?[a-zA-Z!?:][^>]*>|`+[^`\n]*?`+|\$\$[\s\S]*?\$\$|\$(?!\s)[^\$\n]*?\S\$|\]\([^)]*\)|https?://[^\s<>""'\(\)]+|(?m)^\s*\|?[\s|:-]+\|?\s*$)|(?<!-)--(?!-)")]
+    [GeneratedRegex(@"(<!--[\s\S]*?-->|</?[a-zA-Z!?:][^>]*>|`+[^`\n]*?`+|\$\$[\s\S]*?\$\$|\$(?!\s)[^\$\n]*?\S\$|\]\([^)]*\)|https?://[^\s<>""'\(\)]+|(?m)^\s*\|?[\s|:-]+\|?\s*$)|(?<!-)--(?!-)", RegexOptions.Compiled)]
     private static partial Regex DoubleHyphenRegex();
 
     public static string NormalizeDoubleHyphens(string markdown)
@@ -41,16 +42,17 @@ public static partial class DashReplacer
         char fenceChar = '\0';
         int fenceLength = 0;
 
-        List<string> proseLines = new();
+        var proseLines = new StringBuilder();
+        var doubleHyphenRegex = DoubleHyphenRegex();
 
         void FlushProse()
         {
-            if (proseLines.Count == 0) return;
+            if (proseLines.Length == 0) return;
 
-            string proseText = string.Join("\n", proseLines);
+            string proseText = proseLines.ToString();
             proseLines.Clear();
 
-            string processed = DoubleHyphenRegex().Replace(proseText, m =>
+            string processed = doubleHyphenRegex.Replace(proseText, m =>
                 m.Groups[1].Success ? m.Value : "—");
 
             result.AddRange(processed.Split('\n'));
@@ -89,7 +91,11 @@ public static partial class DashReplacer
                     continue;
                 }
 
-                proseLines.Add(line);
+                if (proseLines.Length > 0)
+                {
+                    proseLines.Append('\n');
+                }
+                proseLines.Append(line);
             }
             else
             {
@@ -125,5 +131,3 @@ public static partial class DashReplacer
             m.Groups[1].Success ? m.Value : replacement);
     }
 }
-
-
