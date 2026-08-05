@@ -449,9 +449,15 @@ namespace MarkSmith.Core.Composer
                     d.Append(' ').Append(p.X.ToString("F1", CultureInfo.InvariantCulture))
                      .Append(' ').Append(p.Y.ToString("F1", CultureInfo.InvariantCulture));
                 }
-                // stroke-width must be expressed in path space (transform scales it by w/100).
-                double swPath = (s.StrokeWidthPt * 96 / 72.0) * 100.0 / Math.Max(1, w);
-                return $"<path d=\"{d}\" transform=\"translate({x:F1},{y:F1}) scale({w / 100:F4},{h / 100:F4}){transform}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{swPath:F2}\" stroke-linecap=\"round\"/>";
+                // stroke-width must be expressed in PATH space: the transform scales the path by
+                // (w/100, h/100), and stroke thickness is perpendicular to the line, so it scales
+                // by h/100 — NOT w/100. swPath·(h/100) must equal StrokeWidthPt in px, hence the
+                // divisor is h. For traced lines H = StrokeWidthPt/72" so swPath lands at exactly
+                // 100 — the stroke fills the box, matching Word's absolute a:ln width.
+                double swPath = (s.StrokeWidthPt * 96 / 72.0) * 100.0 / Math.Max(1, h);
+                // Straight traced lines use butt caps so adjacent runs never bleed into each other.
+                string cap = s.PathPoints.Count == 2 ? "butt" : "round";
+                return $"<path d=\"{d}\" transform=\"translate({x:F1},{y:F1}) scale({w / 100:F4},{h / 100:F4}){transform}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{swPath:F2}\" stroke-linecap=\"{cap}\"/>";
             }
             if (s.Prst == "line")
             {

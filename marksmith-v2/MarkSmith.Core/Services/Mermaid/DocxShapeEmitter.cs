@@ -709,6 +709,12 @@ public static class DocxShapeEmitter
         var stroke = Hex(c.Stroke ?? t.Line);
         long lw = (long)Math.Round(c.StrokeWidth * EmuPerPt);
         var dash = c.Dashed ? "<a:prstDash val=\"dash\"/>" : "";
+        // Straight traced line items (2 points, no arrowheads) use flat caps so adjacent lines in
+        // a dense trace never bleed into each other (round caps extend half the stroke width past
+        // the end of each run).
+        var cap = c.Points.Count == 2 && c.StartHead == ArrowHead.None && c.EndHead == ArrowHead.None
+            ? "<a:cap flat/>"
+            : "";
         var head = HeadXml("headEnd", c.StartHead);
         var tail = HeadXml("tailEnd", c.EndHead);
 
@@ -729,7 +735,7 @@ public static class DocxShapeEmitter
             $"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=\"0\" t=\"0\" r=\"{w}\" b=\"{h}\"/>" +
             $"<a:pathLst><a:path w=\"{w}\" h=\"{h}\" fill=\"none\">{path}</a:path></a:pathLst></a:custGeom>" +
             "<a:noFill/>" +
-            $"<a:ln w=\"{lw}\"><a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{head}{tail}</a:ln>" +
+            $"<a:ln w=\"{lw}\">{cap}<a:solidFill><a:srgbClr val=\"{stroke}\"/></a:solidFill>{dash}{head}{tail}</a:ln>" +
             "</wps:spPr>" +
             "<wps:bodyPr/>" +
             "</wps:wsp>";

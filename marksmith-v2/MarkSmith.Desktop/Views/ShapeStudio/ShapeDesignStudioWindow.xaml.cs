@@ -2,6 +2,7 @@ using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Foundation;
 using MarkSmith.ViewModels.ShapeStudio;
 
@@ -20,6 +21,60 @@ namespace MarkSmith.Views.ShapeStudio
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             this.RootGrid.DataContext = ViewModel;
+            ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        private async void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ShapeDesignStudioViewModel.PreviewPng)) return;
+            try
+            {
+                var bytes = ViewModel.PreviewPng;
+                if (bytes == null)
+                {
+                    DensePreview.Source = null;
+                    return;
+                }
+                var bmp = await BitmapFromBytesAsync(bytes);
+                // A newer trace (or ClearAll) may have replaced the bytes while we were decoding —
+                // never let a stale bitmap win over the current state.
+                if (!ReferenceEquals(bytes, ViewModel.PreviewPng)) return;
+                DensePreview.Source = bmp;
+            }
+            catch { /* decode failure — preview stays blank, studio keeps working */ }
+        }
+
+        private static async System.Threading.Tasks.Task<Microsoft.UI.Xaml.Media.Imaging.BitmapImage> BitmapFromBytesAsync(byte[] bytes)
+        {
+            using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            await stream.WriteAsync(bytes.AsBuffer());
+            stream.Seek(0);
+            var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            await bmp.SetSourceAsync(stream);
+            return bmp;
+        }
+
+        // ---- trace workflow ----
+
+        private void OnTraceModeChecked(object sender, RoutedEventArgs e)
+        {
+            if (sender is RadioButton rb)
+            {
+                ViewModel.TraceModeIndex =
+                    rb == ModeEngraved ? 0 :
+                    rb == ModeEdges ? 1 :
+                    rb == ModeSilhouette ? 2 : 3;
+            }
+        }
+
+        private async void OnTraceClick(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_composeImagePath))
+            {
+                ViewModel.StatusMessage = "Choose an image first.";
+                return;
+            }
+            await ViewModel.TraceImageAsync(_composeImagePath);
         }
 
         // ---- palette ----
@@ -207,6 +262,8 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnExportDocxClick(object sender, RoutedEventArgs e) => ViewModel.ExportDocxCommand.Execute(null);
 
+        private void OnExportDotxClick(object sender, RoutedEventArgs e) => ViewModel.ExportDotxCommand.Execute(null);
+
         private void OnClearClick(object sender, RoutedEventArgs e) => ViewModel.ClearAllCommand.Execute(null);
 
         private void OnDeleteShapeClick(object sender, RoutedEventArgs e) => ViewModel.RemoveSelectedCommand.Execute(null);
@@ -226,6 +283,13 @@ namespace MarkSmith.Views.ShapeStudio
             if (file == null) return;
             _composeImagePath = file.Path;
             ComposeImageLabel.Text = System.IO.Path.GetFileName(file.Path);
+            TraceImageLabel.Text = System.IO.Path.GetFileName(file.Path);
+            ViewModel.HasImage = true;
+            try
+            {
+                TraceThumb.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(file.Path));
+            }
+            catch { }
             ViewModel.StatusMessage = $"Composer image: {file.Path}";
         }
 

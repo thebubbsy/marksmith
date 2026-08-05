@@ -14,6 +14,7 @@
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
             <conv:DashConverter x:Key="DashConverter" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+            <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -22,20 +23,24 @@
         </Grid.RowDefinitions>
 
         <!-- Command bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="52" Padding="16,0" Background="#232329">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="56" Padding="16,0" Background="#232329">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE790;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                <TextBlock Text="MLShape Design Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Foreground="White" />
+                <StackPanel VerticalAlignment="Center" Spacing="0">
+                    <TextBlock Text="MLShape Design Studio" FontWeight="Bold" FontSize="16" Foreground="White" />
+                    <TextBlock Text="trace any picture into editable Word line art" FontSize="11" Opacity="0.65" Foreground="White" />
+                </StackPanel>
                 <Border Background="#0078D4" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="Native DrawingML Shapes" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                    <TextBlock Text="Native DrawingML Line Items" FontSize="11" Foreground="White" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Export .docx" Click="OnExportDocxClick" Style="{ThemeResource AccentButtonStyle}" />
+                <Button Content="Export .dotx" Click="OnExportDotxClick" Style="{ThemeResource AccentButtonStyle}" />
+                <Button Content="Export .docx" Click="OnExportDocxClick" />
                 <Button Content="Clear" Click="OnClearClick" />
             </StackPanel>
         </Grid>
@@ -43,84 +48,131 @@
         <!-- Body -->
         <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="260" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="310" />
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT: palette -->
+            <!-- LEFT: trace workflow + shape palette -->
             <Border Grid.Column="0" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="White" />
-                            <TextBlock Text="Select a shape, then click the canvas to place it." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ItemsControl ItemsSource="{Binding PaletteItems}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Margin="2" Padding="10,6" Click="OnPaletteItemClick" Tag="{Binding}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Path Width="18" Height="18" Stretch="Uniform" Fill="#777777"
-                                                  Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                            <TextBlock Text="{Binding}" FontSize="12" />
-                                        </StackPanel>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
 
-                        <Border Background="#1E1E24" CornerRadius="8" Padding="10">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="Image → Shapes" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                                <TextBlock Text="Rebuild a picture on this canvas from shapes." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                                <Button Content="Choose image..." Click="OnPickImageClick" HorizontalAlignment="Left" />
-                                <TextBlock x:Name="ComposeImageLabel" Text="No image selected" FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                                <TextBlock Text="Density:" FontSize="11" Foreground="White" />
-                                <Slider x:Name="ComposeDensity" Minimum="24" Maximum="1024" Value="120" StepFrequency="16" />
-                                <TextBlock Text="Compose with (pick one or many):" FontSize="11" Foreground="White" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <CheckBox x:Name="CompEllipse" Content="Ellipse" IsChecked="True" Foreground="White" />
-                                    <CheckBox x:Name="CompRoundRect" Content="RoundRect" IsChecked="True" Foreground="White" />
-                                    <CheckBox x:Name="CompRect" Content="Rect" Foreground="White" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <CheckBox x:Name="CompChevron" Content="Chevron" Foreground="White" />
-                                    <CheckBox x:Name="CompDiamond" Content="Diamond" Foreground="White" />
-                                    <CheckBox x:Name="CompHexagon" Content="Hexagon" Foreground="White" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <CheckBox x:Name="CompTriangle" Content="Triangle" Foreground="White" />
-                                    <CheckBox x:Name="CompParallelogram" Content="Parallelogram" Foreground="White" />
-                                    <CheckBox x:Name="CompLine" Content="Line" Foreground="White" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <CheckBox x:Name="CompArc" Content="Arc" Foreground="White" />
-                                    <CheckBox x:Name="CompCloud" Content="Cloud" Foreground="White" />
-                                    <CheckBox x:Name="CompHeart" Content="Heart" Foreground="White" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <CheckBox x:Name="CompMoon" Content="Moon" Foreground="White" />
-                                    <CheckBox x:Name="CompCircularArrow" Content="CircArrow" Foreground="White" />
-                                    <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
-                                </StackPanel>
-                                <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
-                                <CheckBox x:Name="CompSketch" Content="Sketch mode — draw it with curved strokes" Foreground="White" IsChecked="False" />
-                                <Button Content="Compose onto canvas" Click="OnComposeImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                        <!-- TRACE HERO -->
+                        <StackPanel Spacing="8">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Picture → Line Art" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                                <TextBlock Text="Pick an image, choose how fine, and trace it into dense non-overlapping line items." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="1 · Choose an image" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" />
+                                <Button Content="Choose image from Explorer…" Click="OnPickImageClick" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Copy as Markdown" Click="OnCopyMarkdownClick" />
-                                    <Button Content="Load from Markdown" Click="OnLoadMarkdownClick" />
+                                    <Border Width="72" Height="72" Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="6"
+                                            Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
+                                        <Image x:Name="TraceThumb" Stretch="Uniform" />
+                                    </Border>
+                                    <TextBlock x:Name="TraceImageLabel" Text="No image selected" FontSize="11" Opacity="0.7"
+                                               Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
-                        </Border>
+
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="2 · Line density" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding TraceDensity}" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="rows" FontSize="11" Opacity="0.6" Foreground="White" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Slider Minimum="0" Maximum="100" Value="{Binding TraceDensityLog, Mode=TwoWay}" />
+                                <TextBlock Text="log scale 16 → 16,384 scanlines — crank it up until it looks like the image" FontSize="10" Opacity="0.55" Foreground="White" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="3 · Style" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" />
+                                <RadioButton x:Name="ModeEngraved" Content="Engraved (hatch shading)" GroupName="TraceMode" IsChecked="True" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
+                                <RadioButton x:Name="ModeEdges" Content="Edges (contour lines)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
+                                <RadioButton x:Name="ModeSilhouette" Content="Silhouette (solid shape)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
+                                <RadioButton x:Name="ModeScanlines" Content="Scanlines (thick strokes)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
+                                <CheckBox Content="Monochrome ink (color = sampled from image)" IsChecked="{Binding TraceMonochrome, Mode=TwoWay}" Foreground="White" FontSize="12" />
+                            </StackPanel>
+
+                            <Button Content="Trace onto canvas" Click="OnTraceClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" />
+                            <TextBlock Text="{Binding LineStats}" FontSize="12" FontWeight="SemiBold" Foreground="#7FD1A0" TextWrapping="Wrap" />
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Copy as Markdown" Click="OnCopyMarkdownClick" />
+                                <Button Content="Load from Markdown" Click="OnLoadMarkdownClick" />
+                            </StackPanel>
+                            <TextBlock Text="Paste the :::shapes block into the editor — the preview shows the SVG, export writes native Word lines." FontSize="10" Opacity="0.55" Foreground="White" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- DRAW (classic palette + shape mosaic) -->
+                        <Expander Header="Draw with shapes" IsExpanded="False">
+                            <StackPanel Spacing="12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="13" Foreground="White" />
+                                    <TextBlock Text="Select a shape, then click the canvas to place it." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding PaletteItems}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Margin="2" Padding="10,6" Click="OnPaletteItemClick" Tag="{Binding}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Path Width="18" Height="18" Stretch="Uniform" Fill="#777777"
+                                                          Data="{Binding Converter={StaticResource ShapeGeom}}" />
+                                                    <TextBlock Text="{Binding}" FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Classic: picture made of shapes" FontWeight="SemiBold" FontSize="13" Foreground="White" />
+                                    <TextBlock Text="Rebuild a picture from the chosen preset shapes (coarse mosaic)." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ComposeImageLabel" Text="No image selected" FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                    <TextBlock Text="Density:" FontSize="11" Foreground="White" />
+                                    <Slider x:Name="ComposeDensity" Minimum="24" Maximum="1024" Value="120" StepFrequency="16" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <CheckBox x:Name="CompEllipse" Content="Ellipse" IsChecked="True" Foreground="White" />
+                                        <CheckBox x:Name="CompRoundRect" Content="RoundRect" IsChecked="True" Foreground="White" />
+                                        <CheckBox x:Name="CompRect" Content="Rect" Foreground="White" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <CheckBox x:Name="CompChevron" Content="Chevron" Foreground="White" />
+                                        <CheckBox x:Name="CompDiamond" Content="Diamond" Foreground="White" />
+                                        <CheckBox x:Name="CompHexagon" Content="Hexagon" Foreground="White" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <CheckBox x:Name="CompTriangle" Content="Triangle" Foreground="White" />
+                                        <CheckBox x:Name="CompParallelogram" Content="Parallelogram" Foreground="White" />
+                                        <CheckBox x:Name="CompLine" Content="Line" Foreground="White" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <CheckBox x:Name="CompArc" Content="Arc" Foreground="White" />
+                                        <CheckBox x:Name="CompCloud" Content="Cloud" Foreground="White" />
+                                        <CheckBox x:Name="CompHeart" Content="Heart" Foreground="White" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <CheckBox x:Name="CompMoon" Content="Moon" Foreground="White" />
+                                        <CheckBox x:Name="CompCircularArrow" Content="CircArrow" Foreground="White" />
+                                        <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
+                                    </StackPanel>
+                                    <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
+                                    <CheckBox x:Name="CompSketch" Content="Sketch mode — wavy curved strokes" Foreground="White" IsChecked="False" />
+                                    <Button Content="Compose onto canvas" Click="OnComposeImageClick" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
 
-            <!-- CENTER: free canvas -->
+            <!-- CENTER: canvas -->
             <Border Grid.Column="1" Background="#18181C" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -132,7 +184,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Canvas — click to place, drag to move, select then edit" FontWeight="SemiBold" FontSize="12"
+                        <TextBlock Grid.Column="0" Text="Canvas" FontWeight="SemiBold" FontSize="12"
                                    Foreground="White" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                             <TextBlock Text="Active:" FontSize="12" Foreground="#888888" />
@@ -140,7 +192,17 @@
                         </StackPanel>
                     </Grid>
 
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled">
+                    <!-- dense trace preview: one raster image, looks exactly like the picture -->
+                    <StackPanel Grid.Row="1" Visibility="{Binding IsDense, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Padding="20">
+                        <Border Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="12">
+                            <Image x:Name="DensePreview" Stretch="Uniform" MaxWidth="1300" MaxHeight="820" />
+                        </Border>
+                        <TextBlock Text="Dense line-art preview — every line is individually selectable in the Lines list and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
+                    </StackPanel>
+
+                    <!-- editable canvas -->
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled"
+                                  Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}">
                         <Grid Width="2200" Height="1800">
                             <Canvas x:Name="MainCanvas" Background="#141417"
                                     PointerPressed="OnCanvasPointerPressed">
@@ -176,16 +238,25 @@
                             </Canvas>
                         </Grid>
                     </ScrollViewer>
+
+                    <!-- empty hint -->
+                    <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="520">
+                        <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="#555555" HorizontalAlignment="Center" />
+                        <TextBlock Text="Trace a picture into Word line art" FontSize="18" FontWeight="SemiBold" Foreground="#BBBBBB" HorizontalAlignment="Center" />
+                        <TextBlock Text="1 · Choose an image on the left   2 · set the line density   3 · Trace onto canvas — every line stays individually editable and exports to .docx / .dotx as native Word lines."
+                                   FontSize="12" Foreground="#888888" TextWrapping="Wrap" TextAlignment="Center" />
+                    </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- RIGHT: inspector + list -->
+            <!-- RIGHT: inspector + lines list -->
             <Border Grid.Column="2" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Inspector" FontWeight="SemiBold" FontSize="14" Foreground="White" />
                         <StackPanel Spacing="8">
-                            <TextBlock Text="(select a shape on the canvas)" FontSize="11" Opacity="0.6" Foreground="White"
+                            <TextBlock Text="(select a shape or line)" FontSize="11" Opacity="0.6" Foreground="White"
                                        Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Type:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
@@ -211,13 +282,17 @@
                                 <TextBlock Text="Rot:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
                                 <Slider Minimum="-180" Maximum="180" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
                             </StackPanel>
-                            <Button Content="Delete shape" Click="OnDeleteShapeClick" HorizontalAlignment="Left" />
+                            <Button Content="Delete selected" Click="OnDeleteShapeClick" HorizontalAlignment="Left" />
                         </StackPanel>
 
                         <Border Background="#1E1E24" CornerRadius="8" Padding="10">
                             <StackPanel Spacing="6">
-                                <TextBlock Text="Shapes on canvas" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                                <ListView MaxHeight="280" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Lines / shapes on canvas" FontWeight="SemiBold" FontSize="13" Foreground="White" />
+                                    <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Text="Click any line to select it — tweak or delete it individually." FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
+                                <ListView MaxHeight="400" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" Spacing="8">
