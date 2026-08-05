@@ -187,7 +187,6 @@ public sealed class DocxExportService
                 MermaidGenericGeometry = mermaidGenericGeometry,
                 BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
                 OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
-                DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
                 SmartConnectors = settings.SmartConnectors,
                 AdvancedFeatures = featureDict,
             };
@@ -337,7 +336,6 @@ public sealed class DocxExportService
             MermaidGenericGeometry = mermaidGenericGeometry,
             BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
             OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
-            DiagramGridSize = Math.Clamp(settings.DiagramGridSize, 2, 3),
             SmartConnectors = settings.SmartConnectors,
             AdvancedFeatures = featureDict,
         };
@@ -397,7 +395,6 @@ public sealed class DocxExportService
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
-        public int DiagramGridSize = 2;    // grid multiplier for mode 4 (2=2×2, 3=3×3)
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
@@ -594,14 +591,14 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out _,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            oversizedMode: ctx.OversizedDiagramMode, smartConnectors: ctx.SmartConnectors,
                             connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
                             new W.Justification { Val = W.JustificationValues.Center }));
                         // Exact mode (1) and Grid mode (4) force Web Layout; ShrinkToFit (5) does not.
-                        if (ctx.OversizedDiagramMode is 1 or 4)
+                        if (ctx.OversizedDiagramMode is 1)
                             ctx.ForceWebLayout = true;
                         target.Append(p);
                     }
@@ -637,7 +634,7 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversizedGen,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            oversizedMode: ctx.OversizedDiagramMode, smartConnectors: ctx.SmartConnectors,
                             connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
@@ -702,7 +699,7 @@ public sealed class DocxExportService
                     else
                     {
                         var xml = Mermaid.DocxShapeEmitter.ToParagraphXml(md, ctx.DiagramTheme, ctx.NextDrawingId++, out var oversized,
-                            oversizedMode: ctx.OversizedDiagramMode, gridSize: ctx.DiagramGridSize, smartConnectors: ctx.SmartConnectors,
+                            oversizedMode: ctx.OversizedDiagramMode, smartConnectors: ctx.SmartConnectors,
                             connectorRouting: ctx.Settings.ConnectorRouting);
                         var p = new W.Paragraph { InnerXml = xml };
                         p.PrependChild(new W.ParagraphProperties(
@@ -3456,12 +3453,6 @@ public sealed class DocxExportService
         // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
         var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
         
-        if (ctx.OversizedDiagramMode == 4)
-        {
-            width = (uint)(width * ctx.DiagramGridSize);
-            height = (uint)(height * ctx.DiagramGridSize);
-        }
-
         W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
 

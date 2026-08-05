@@ -213,7 +213,6 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private bool _mermaidEnabled = true;
     [ObservableProperty] private bool _smartConnectors = true;
     [ObservableProperty] private string _connectorArrowhead = "default";
-    [ObservableProperty] private int _diagramGridSize = 2;
     [ObservableProperty] private bool _pageBorder;
     [ObservableProperty] private bool _trackChanges;
     [ObservableProperty] private string _authorName = "";
@@ -575,7 +574,6 @@ private readonly MarkdownExportService _mdExport = new();
         _mermaidEnabled = settings.MermaidEnabled;
         _smartConnectors = settings.SmartConnectors;
         _connectorArrowhead = settings.ConnectorArrowhead;
-        _diagramGridSize = settings.DiagramGridSize;
         _pageBorder = settings.PageBorder;
         _trackChanges = settings.TrackChanges;
         _authorName = settings.AuthorName;
@@ -775,7 +773,6 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnMermaidEnabledChanged(bool value) { _settingsService.Current.MermaidEnabled = value; SaveSettingsDebounced(); }
     partial void OnSmartConnectorsChanged(bool value) { _settingsService.Current.SmartConnectors = value; SaveSettingsDebounced(); }
     partial void OnConnectorArrowheadChanged(string value) { _settingsService.Current.ConnectorArrowhead = value; SaveSettingsDebounced(); }
-    partial void OnDiagramGridSizeChanged(int value) { _settingsService.Current.DiagramGridSize = value; SaveSettingsDebounced(); }
     partial void OnPageBorderChanged(bool value) { _settingsService.Current.PageBorder = value; SaveSettingsDebounced(); }
     partial void OnTrackChangesChanged(bool value) { _settingsService.Current.TrackChanges = value; SaveSettingsDebounced(); }
     partial void OnAuthorNameChanged(string value) { _settingsService.Current.AuthorName = value; SaveSettingsDebounced(); }
@@ -1105,15 +1102,15 @@ private readonly MarkdownExportService _mdExport = new();
                 if (mode == 0 && Prompts is not null && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
                     mode = await Prompts.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
                 overrideMode = mode;
-                if (mode == 1 || (mode >= 3 && mode <= 8)) // any exact/multi-page/grid/shrink/compact mode
+                if (mode == 1 || (mode >= 3 && mode <= 7)) // any exact/multi-page/shrink/compact mode
                 {
                     geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
                     var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
                     if (usable)
                     {
-                        if (mode == 1 || mode == 4)
+                        if (mode == 1)
                             layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
-                        else if (mode is 6 or 7 or 8)
+                        else if (mode is 5 or 6 or 7)
                             layoutNote = "  (large diagram: compact mode, fits on single page)";
                         else
                             layoutNote = "  (large diagram: fits on printed pages)";

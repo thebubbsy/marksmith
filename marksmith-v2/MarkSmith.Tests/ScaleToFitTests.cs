@@ -27,7 +27,19 @@ public class ScaleToFitTests
     }
 
     [Fact]
-    public void ScaleToFit_Mode6_ShrinksSpacingOnly()
+    public void ScaleToFit_Mode5_ShrinksSpacingOnly()
+    {
+        var d = CreateLargeDiagram();
+        bool isOversized = DocxShapeEmitter.ScaleToFit(d, oversizedMode: 5); 
+        Assert.False(isOversized);
+        var a = d.Shapes[0];
+        var b = d.Shapes[1];
+        double finalSpanX = b.X + b.W - a.X;
+        Assert.True(finalSpanX <= 631.0);
+    }
+    
+    [Fact]
+    public void ScaleToFit_Mode6_ShrinksShapesOnly()
     {
         var d = CreateLargeDiagram();
         bool isOversized = DocxShapeEmitter.ScaleToFit(d, oversizedMode: 6); 
@@ -37,24 +49,12 @@ public class ScaleToFitTests
         double finalSpanX = b.X + b.W - a.X;
         Assert.True(finalSpanX <= 631.0);
     }
-    
+
     [Fact]
-    public void ScaleToFit_Mode7_ShrinksShapesOnly()
+    public void ScaleToFit_Mode7_ShrinksBothEqually()
     {
         var d = CreateLargeDiagram();
         bool isOversized = DocxShapeEmitter.ScaleToFit(d, oversizedMode: 7); 
-        Assert.False(isOversized);
-        var a = d.Shapes[0];
-        var b = d.Shapes[1];
-        double finalSpanX = b.X + b.W - a.X;
-        Assert.True(finalSpanX <= 631.0);
-    }
-
-    [Fact]
-    public void ScaleToFit_Mode8_ShrinksBothEqually()
-    {
-        var d = CreateLargeDiagram();
-        bool isOversized = DocxShapeEmitter.ScaleToFit(d, oversizedMode: 8); 
         Assert.False(isOversized);
         var a = d.Shapes[0];
         var b = d.Shapes[1];

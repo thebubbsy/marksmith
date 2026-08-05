@@ -1133,17 +1133,12 @@
                                 <x:String>Keep Original Size (Web Layout)</x:String>
                                 <x:String>Gentle Shrink (Max 75%, Web Layout if needed)</x:String>
                                 <x:String>Slice Vertically (Multiple pages)</x:String>
-                                <x:String>Enlarge Page Size (2x2 Poster)</x:String>
                                 <x:String>Aggressive Shrink (Force to 1 page)</x:String>
                                 <x:String>Compress Gaps (ShapeForge native shapes)</x:String>
                                 <x:String>Compress Nodes (ShapeForge native shapes)</x:String>
                                 <x:String>Compress Both (ShapeForge native shapes)</x:String>
                             </ComboBox>
-                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let MarkSmith re-wrap it to fit standard pages."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <NumberBox Header="Poster grid size (Enlarge Page mode)" Value="{Binding DiagramGridSize, Mode=TwoWay}"
-                                       SpinButtonPlacementMode="Inline" Minimum="2" Maximum="3" SmallChange="1" />
-                            <TextBlock Text="2 = 2×2 poster (4 pages), 3 = 3×3 (9 pages). Only used by the Enlarge Page Size strategy."
+                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let MarkSmith re-wrap it to fit standard pages. In Web Layout you can grab elements and rearrange them freely."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
                             <Expander x:Name="ExportBrandingExpander" HorizontalAlignment="Stretch" Margin="0,10,0,0">
                                 <Expander.Header>
