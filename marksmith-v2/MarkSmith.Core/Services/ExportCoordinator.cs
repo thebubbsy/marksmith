@@ -176,6 +176,7 @@ public sealed class ExportCoordinator
                 }
                 else
                 {
+                    var publishFailures = new List<string>();
                     foreach (var p in produced)
                     {
                         try
@@ -185,8 +186,21 @@ public sealed class ExportCoordinator
                         }
                         catch (Exception cex)
                         {
+                            publishFailures.Add(Path.GetFileName(p));
                             System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
                         }
+                    }
+
+                    // Local export succeeded but a requested cloud publish did not — never let the
+                    // earlier Success status falsely imply the file was published.
+                    if (publishFailures.Count > 0)
+                    {
+                        vm.StatusText += $"  (Local export OK, but cloud publish FAILED for: {string.Join(", ", publishFailures)} — check your connection/credentials.)";
+                        vm.StatusSeverity = StatusSeverity.Warning;
+                    }
+                    else
+                    {
+                        vm.StatusText += "  (Cloud publish successful.)";
                     }
                 }
             }

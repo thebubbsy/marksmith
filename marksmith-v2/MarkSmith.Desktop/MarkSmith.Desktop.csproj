@@ -7,9 +7,9 @@
     <RootNamespace>MarkSmith.Desktop</RootNamespace>
     <!-- Ship the binary as Marksmith.exe -->
     <AssemblyName>Marksmith</AssemblyName>
-    <Version>2.9.0</Version>
-    <AssemblyVersion>2.9.0.0</AssemblyVersion>
-    <FileVersion>2.9.0.0</FileVersion>
+    <Version>2.10.0</Version>
+    <AssemblyVersion>2.10.0.0</AssemblyVersion>
+    <FileVersion>2.10.0.0</FileVersion>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -52,6 +52,7 @@
 
   <ItemGroup>
     <Content Include="Assets\tray.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\tray.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
     <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2

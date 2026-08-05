@@ -143,7 +143,7 @@ public class InsertSnippetBuilderTests
     [Fact]
     public void Embed_defaults_match_legacy_placeholder()
     {
-        Assert.Equal("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"\n:::\n",
+        Assert.Equal("\n:::embed provider=\"youtube\" src=\"https://www.youtube.com/watch?v=EXAMPLE_ID\"\n:::\n",
             InsertSnippetBuilder.Embed("", ""));
     }
 

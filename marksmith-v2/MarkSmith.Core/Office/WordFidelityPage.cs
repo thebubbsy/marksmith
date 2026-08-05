@@ -48,9 +48,11 @@ html,body{margin:0;height:100%;background:#18181c;overflow:hidden;font-family:sy
             sb.Append("<div id=\"canvas\"><div class=\"fidelity-tiles\">");
             if (pagePngs != null)
             {
+                // Relative file refs — the host writes the page + tiles into one temp folder and
+                // navigates to the .html (NavigateToString caps around 2MB; 2x tiles blow past it).
                 for (int i = 0; i < pagePngs.Count; i++)
                 {
-                    string uri = "data:image/png;base64," + Convert.ToBase64String(pagePngs[i]);
+                    string uri = $"page_{i + 1}.png";
                     sb.Append("<div class=\"fidelity-tile\" data-page=\"").Append(i + 1).Append("\">");
                     sb.Append("<img src=\"").Append(uri).Append("\" alt=\"Word render page ")
                       .Append(i + 1).Append("\" draggable=\"false\"/>");
@@ -66,7 +68,7 @@ html,body{margin:0;height:100%;background:#18181c;overflow:hidden;font-family:sy
 
             if (stale)
             {
-                sb.Append("<div class=\"badge stale\">Word render out of date — edit and toggle Word-exact off/on to refresh</div>");
+                sb.Append("<div class=\"badge stale\">Word render updating…</div>");
             }
             else
             {

@@ -41,7 +41,8 @@ public class OfficeCapabilityTests
     {
         var tiles = new[] { new byte[] { 1, 2, 3, 4 }, new byte[] { 5, 6, 7, 8 } };
         string page = WordFidelityPage.Build(tiles, lookingGlassMode: true, stale: false);
-        Assert.Contains("data:image/png;base64,", page);
+        Assert.Contains("src=\"page_1.png\"", page);
+        Assert.Contains("src=\"page_2.png\"", page);
         Assert.Contains("fidelity-tile", page);
         Assert.Contains("__portalSetBlur", page);
         Assert.Contains("__portalSetShape", page);
@@ -49,7 +50,7 @@ public class OfficeCapabilityTests
         Assert.DoesNotContain("out of date", page);
 
         string stale = WordFidelityPage.Build(tiles, lookingGlassMode: false, stale: true);
-        Assert.Contains("out of date", stale);
+        Assert.Contains("Word render updating", stale);
         Assert.DoesNotContain("<div class=\"portal-aperture\"", stale); // overlay markup only in Looking Glass mode
     }
 
