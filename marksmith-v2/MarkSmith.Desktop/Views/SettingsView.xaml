@@ -136,6 +136,32 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Automatically install updates on launch" />
+                                <TextBlock Text="Download and install new versions silently in the background without installer prompts."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Relaunch automatically after update" />
+                                <TextBlock Text="Restart MarkSmith immediately when background installation finishes."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoRestartAfterUpdate, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="Word count in preview" />
                                 <TextBlock Text="Show the reading-time pill at the top of the live preview."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />

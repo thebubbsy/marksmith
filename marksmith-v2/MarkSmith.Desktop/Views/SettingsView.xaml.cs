@@ -70,10 +70,18 @@ public sealed partial class SettingsView : UserControl
         var result = await App.Updates.CheckAsync();
 
         UpdateStatus.Text = result.Message;
-        if (result.UpdateAvailable && !string.IsNullOrEmpty(result.ReleaseUrl))
+        if (result.UpdateAvailable)
         {
-            DownloadLink.NavigateUri = new Uri(result.ReleaseUrl);
-            DownloadLink.Visibility = Visibility.Visible;
+            App.ViewModel.IsUpdateAvailable = true;
+            App.ViewModel.LatestUpdateTag = result.LatestTag;
+            App.ViewModel.UpdateDownloadUrl = result.DownloadUrl;
+            App.ViewModel.UpdateStatusText = result.Message;
+
+            if (!string.IsNullOrEmpty(result.ReleaseUrl))
+            {
+                DownloadLink.NavigateUri = new Uri(result.ReleaseUrl);
+                DownloadLink.Visibility = Visibility.Visible;
+            }
         }
 
         CheckRing.IsActive = false;

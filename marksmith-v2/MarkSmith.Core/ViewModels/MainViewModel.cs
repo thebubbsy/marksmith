@@ -223,6 +223,16 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _defaultExportFormat = "docx";
     [ObservableProperty] private int _ambiguityMode = 1;
     [ObservableProperty] private bool _checkForUpdatesOnStartup = true;
+    [ObservableProperty] private bool _autoInstallUpdatesOnLaunch = true;
+    [ObservableProperty] private bool _autoRestartAfterUpdate = true;
+
+    [ObservableProperty] private bool _isUpdateAvailable;
+    [ObservableProperty] private bool _isDownloadingUpdate;
+    [ObservableProperty] private bool _isUpdateReady;
+    [ObservableProperty] private double _updateDownloadProgress;
+    [ObservableProperty] private string _updateStatusText = "";
+    [ObservableProperty] private string _latestUpdateTag = "";
+    [ObservableProperty] private string _updateDownloadUrl = "";
     [ObservableProperty] private bool _portalFocusBlur = true;
 
     // Typography preset (Task 16) — id from FontManagerService.Presets ("System" default).
@@ -574,16 +584,96 @@ private readonly MarkdownExportService _mdExport = new();
         _defaultExportFormat = settings.DefaultExportFormat;
         _ambiguityMode = settings.AmbiguityMode;
         _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
+        _autoInstallUpdatesOnLaunch = settings.AutoInstallUpdatesOnLaunch;
+        _autoRestartAfterUpdate = settings.AutoRestartAfterUpdate;
         _showWordCount = settings.ShowWordCount;
         _portalFocusBlur = settings.PortalFocusBlur;
 
         RefreshCloudProviders();
+
+        if (_checkForUpdatesOnStartup)
+        {
+            _ = CheckForUpdatesOnStartupAsync();
+        }
 
         ThemeNames = new ObservableCollection<string>(BuildOrderedThemeNames(settings.FavoriteThemes));
         _isCurrentThemeFavorite = settings.FavoriteThemes.Contains(_selectedThemeName);
         foreach (var f in _recentFilesService.Load()) RecentFiles.Add(f);
 
         AppServices.License.Changed += OnLicenseChanged;
+    }
+
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        try
+        {
+            var res = await AppServices.Updates.CheckAsync();
+            if (res.UpdateAvailable)
+            {
+                IsUpdateAvailable = true;
+                LatestUpdateTag = res.LatestTag;
+                UpdateDownloadUrl = res.DownloadUrl;
+                UpdateStatusText = res.Message;
+
+                if (AutoInstallUpdatesOnLaunch && !string.IsNullOrEmpty(UpdateDownloadUrl))
+                {
+                    await DownloadAndApplyUpdateAsync();
+                }
+            }
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    public async Task DownloadAndApplyUpdateAsync()
+    {
+        if (IsDownloadingUpdate || string.IsNullOrEmpty(UpdateDownloadUrl)) return;
+
+        IsDownloadingUpdate = true;
+        IsUpdateReady = false;
+        UpdateStatusText = $"Downloading {LatestUpdateTag}... 0%";
+
+        var progress = new Progress<double>(p =>
+        {
+            UpdateDownloadProgress = p;
+            UpdateStatusText = $"Downloading {LatestUpdateTag}... {p:F0}%";
+        });
+
+        try
+        {
+            var success = await AppServices.Updates.DownloadAndInstallAsync(UpdateDownloadUrl, progress);
+            IsDownloadingUpdate = false;
+            if (success)
+            {
+                IsUpdateReady = true;
+                UpdateStatusText = $"Update {LatestUpdateTag} downloaded and ready!";
+                if (AutoRestartAfterUpdate)
+                {
+                    MarkSmith.Services.UpdateService.RelaunchApplication();
+                }
+            }
+            else
+            {
+                UpdateStatusText = "Update installation failed or was cancelled.";
+            }
+        }
+        catch (Exception ex)
+        {
+            IsDownloadingUpdate = false;
+            UpdateStatusText = $"Update failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void RelaunchNow()
+    {
+        MarkSmith.Services.UpdateService.RelaunchApplication();
+    }
+
+    [RelayCommand]
+    public void DismissUpdateBanner()
+    {
+        IsUpdateAvailable = false;
     }
 
     private CancellationTokenSource? _saveSettingsCts;
@@ -695,6 +785,8 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnDefaultExportFormatChanged(string value) { _settingsService.Current.DefaultExportFormat = value; SaveSettingsDebounced(); }
     partial void OnAmbiguityModeChanged(int value) { _settingsService.Current.AmbiguityMode = value; SaveSettingsDebounced(); }
     partial void OnCheckForUpdatesOnStartupChanged(bool value) { _settingsService.Current.CheckForUpdatesOnStartup = value; SaveSettingsDebounced(); }
+    partial void OnAutoInstallUpdatesOnLaunchChanged(bool value) { _settingsService.Current.AutoInstallUpdatesOnLaunch = value; SaveSettingsDebounced(); }
+    partial void OnAutoRestartAfterUpdateChanged(bool value) { _settingsService.Current.AutoRestartAfterUpdate = value; SaveSettingsDebounced(); }
     partial void OnShowWordCountChanged(bool value) { _settingsService.Current.ShowWordCount = value; SaveSettingsDebounced(); }
     partial void OnPortalFocusBlurChanged(bool value) { _settingsService.Current.PortalFocusBlur = value; SaveSettingsDebounced(); }
 
