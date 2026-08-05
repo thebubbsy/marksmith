@@ -1,0 +1,22 @@
+VERIFICATION
+
+Verification is intended to assist the Chocolatey moderators and community in verifying
+that this package's contents are trustworthy.
+
+This package downloads the official Marksmith installer from the project's GitHub Releases:
+
+  https://github.com/thebubbsy/marksmith/releases
+
+The installer (Marksmith-Setup-x64.exe) is built by the project's own GitHub Actions
+release workflow directly from the tagged source, and its SHA256 checksum is published in
+the release notes / workflow summary. The same checksum is embedded in
+tools\chocolateyinstall.ps1 (checksum64) so Chocolatey verifies the download at install
+time.
+
+To verify manually:
+
+  1. Download Marksmith-Setup-x64.exe from the release matching this package version.
+  2. Run:  Get-FileHash Marksmith-Setup-x64.exe -Algorithm SHA256
+  3. Confirm it matches the checksum64 value in tools\chocolateyinstall.ps1.
+
+The software is licensed under the MIT License (see LICENSE.txt in this folder).
