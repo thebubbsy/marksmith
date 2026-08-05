@@ -230,7 +230,7 @@ public class ImageLineTracerTests
                 documentXml = reader.ReadToEnd();
             int strokeCount = System.Text.RegularExpressions.Regex.Matches(documentXml, "<wps:wsp>").Count;
             Assert.Equal(lines.Count, strokeCount);
-            Assert.Contains("<a:cap flat/>", documentXml);
+            Assert.Contains("<a:flat/>", documentXml); // flat caps (cap-type element), not the malformed "<a:cap flat/>"
             Assert.DoesNotContain("<a:prstGeom", documentXml); // lines are custGeom strokes, not presets
         }
         finally
