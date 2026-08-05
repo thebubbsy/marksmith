@@ -138,8 +138,8 @@
                                     <TextBlock Text="Density:" FontSize="11" Foreground="White" />
                                     <Slider x:Name="ComposeDensity" Minimum="24" Maximum="1024" Value="120" StepFrequency="16" />
                                     <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompEllipse" Content="Ellipse" IsChecked="True" Foreground="White" />
-                                        <CheckBox x:Name="CompRoundRect" Content="RoundRect" IsChecked="True" Foreground="White" />
+                                        <CheckBox x:Name="CompEllipse" Content="Ellipse" Foreground="White" />
+                                        <CheckBox x:Name="CompRoundRect" Content="RoundRect" Foreground="White" />
                                         <CheckBox x:Name="CompRect" Content="Rect" Foreground="White" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Spacing="10">
@@ -163,7 +163,7 @@
                                         <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
                                     </StackPanel>
                                     <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
-                                    <CheckBox x:Name="CompSketch" Content="Sketch mode — wavy curved strokes" Foreground="White" IsChecked="False" />
+                                    <CheckBox x:Name="CompSketch" Content="Sketch mode — wavy curved strokes" Foreground="White" />
                                     <Button Content="Compose onto canvas" Click="OnComposeImageClick" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </StackPanel>
