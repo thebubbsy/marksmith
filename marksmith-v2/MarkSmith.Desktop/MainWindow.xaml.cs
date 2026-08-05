@@ -207,7 +207,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyEditorFontSize(App.Settings.Current.EditorFontSize, persist: false);
         PasteTextBox.PointerWheelChanged += OnEditorPointerWheel;
 
-        // Word wrap + line numbers: apply the persisted wrap setting (the gutter shows when wrap is off).
+        // Word wrap + line numbers: apply the persisted wrap setting (the gutter is always visible).
         _initializingWordWrap = true;
         WordWrapToggle.IsChecked = App.Settings.Current.EditorWordWrap;
         _initializingWordWrap = false;
@@ -2972,8 +2972,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PasteTextBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
         ScrollViewer.SetHorizontalScrollBarVisibility(PasteTextBox, wrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
         ScrollViewer.SetHorizontalScrollMode(PasteTextBox, wrap ? ScrollMode.Disabled : ScrollMode.Enabled);
-        if (LineNumberGutter is not null)
-            LineNumberGutter.Visibility = wrap ? Visibility.Collapsed : Visibility.Visible;
+        // The line-number gutter is ALWAYS visible and counts logical lines, so word wrap no
+        // longer hides it (the old wrap-dependent visibility made a mystery "1" panel pop in and
+        // out and read as broken when the text was a single logical line).
         if (persist)
         {
             App.Settings.Current.EditorWordWrap = wrap;
