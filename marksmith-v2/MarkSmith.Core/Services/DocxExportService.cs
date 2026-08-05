@@ -213,10 +213,13 @@ public sealed class DocxExportService
 
             // Written after rendering: an oversized ShapeForge diagram flips the doc to Web Layout,
             // where a wider-than-page drawing scrolls instead of clipping (the user's own idea).
-            // PageBorder requires Print Layout (Word doesn't render pgBorders in Web Layout), so when
-            // the user explicitly opted into a border we keep Print Layout unless a diagram forced it.
-            var wantWeb = ctx.ForceWebLayout || (!settings.PageBorder && settings.UnlimitedHeight)
-                          || !ThemeDefinition.IsLight(ctx.Theme.Background);
+            // Pagination governs (user decision): a DOCX export is ALWAYS Print Layout so Word shows
+            // real page breaks, and the paged preview stays truthful about where they land. Web
+            // layout (UnlimitedHeight / dark-theme web mode) only applies to non-DOCX outputs.
+            // PageBorder also forces Print Layout (Word doesn't render pgBorders in Web Layout).
+            var wantWeb = ctx.ForceWebLayout || (settings.TargetFormat != "docx"
+                          && (!settings.PageBorder && settings.UnlimitedHeight
+                              || !ThemeDefinition.IsLight(ctx.Theme.Background)));
             AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, trackChanges: settings.TrackChanges,
                 webLayout: wantWeb);
 

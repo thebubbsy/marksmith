@@ -34,7 +34,7 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     private double _height = 60;
 
     [ObservableProperty]
-    private string _fill = "0078D4";
+    private string _fill = ShapeDesignStudioViewModel.ThemeAccentHex();
 
     [ObservableProperty]
     private int _rotation;
@@ -60,6 +60,23 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
 /// </summary>
 public partial class ShapeDesignStudioViewModel : ObservableObject
 {
+    /// <summary>
+    /// Theme-governed default fill: the THEME is the governing palette, so new shapes take the
+    /// selected theme's accent (Primary, falling back to Heading). An explicit user-picked fill
+    /// still overrides per shape — the theme only supplies the DEFAULT.
+    /// </summary>
+    public static string ThemeAccentHex()
+    {
+        try
+        {
+            var theme = AppServices.Themes.GetOrDefault(AppServices.Settings.Current.Theme);
+            var accent = !string.IsNullOrWhiteSpace(theme.Primary) ? theme.Primary : theme.Heading;
+            if (!string.IsNullOrWhiteSpace(accent)) return accent.TrimStart('#');
+        }
+        catch { }
+        return "0078D4";
+    }
+
     public static readonly string[] Palette = {
         "ellipse", "rect", "roundrect", "chevron", "diamond", "hexagon",
         "triangle", "parallelogram", "line", "arc", "cloud", "heart",

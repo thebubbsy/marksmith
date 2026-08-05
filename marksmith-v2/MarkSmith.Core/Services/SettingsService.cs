@@ -27,7 +27,22 @@ public sealed class SettingsService
             {
                 var json = File.ReadAllText(SettingsPath);
                 var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOpts);
-                if (settings is not null) return settings;
+                if (settings is not null)
+                {
+                    // One-time migration: TargetFormat is now the single "default output format".
+                    // Fold the old DefaultExportFormat choice into it when the user never set
+                    // TargetFormat explicitly (it still holds its default "pdf").
+                    if (settings.TargetFormat == "pdf" && json.Contains("\"DefaultExportFormat\""))
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("DefaultExportFormat", out var def) &&
+                            def.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            settings.TargetFormat = def.GetString()!;
+                        }
+                    }
+                    return settings;
+                }
             }
         }
         catch

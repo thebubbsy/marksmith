@@ -220,7 +220,6 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _customFontPath = "";
 
     // General preferences.
-    [ObservableProperty] private string _defaultExportFormat = "docx";
     [ObservableProperty] private int _ambiguityMode = 1;
     [ObservableProperty] private bool _checkForUpdatesOnStartup = true;
     [ObservableProperty] private bool _autoInstallUpdatesOnLaunch = true;
@@ -581,7 +580,6 @@ private readonly MarkdownExportService _mdExport = new();
         _trackChanges = settings.TrackChanges;
         _authorName = settings.AuthorName;
         _customFontPath = settings.CustomFontPath;
-        _defaultExportFormat = settings.DefaultExportFormat;
         _ambiguityMode = settings.AmbiguityMode;
         _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         _autoInstallUpdatesOnLaunch = settings.AutoInstallUpdatesOnLaunch;
@@ -782,7 +780,6 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnTrackChangesChanged(bool value) { _settingsService.Current.TrackChanges = value; SaveSettingsDebounced(); }
     partial void OnAuthorNameChanged(string value) { _settingsService.Current.AuthorName = value; SaveSettingsDebounced(); }
     partial void OnCustomFontPathChanged(string value) { _settingsService.Current.CustomFontPath = value; SaveSettingsDebounced(); }
-    partial void OnDefaultExportFormatChanged(string value) { _settingsService.Current.DefaultExportFormat = value; SaveSettingsDebounced(); }
     partial void OnAmbiguityModeChanged(int value) { _settingsService.Current.AmbiguityMode = value; SaveSettingsDebounced(); }
     partial void OnCheckForUpdatesOnStartupChanged(bool value) { _settingsService.Current.CheckForUpdatesOnStartup = value; SaveSettingsDebounced(); }
     partial void OnAutoInstallUpdatesOnLaunchChanged(bool value) { _settingsService.Current.AutoInstallUpdatesOnLaunch = value; SaveSettingsDebounced(); }
