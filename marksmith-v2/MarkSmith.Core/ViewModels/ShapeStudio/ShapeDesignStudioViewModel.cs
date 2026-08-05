@@ -6,6 +6,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Core.Composer;
+using MarkSmith.Core.Glox;
 
 namespace MarkSmith.ViewModels.ShapeStudio;
 
@@ -89,12 +90,28 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private double _traceDensity = 480;
 
+    /// <summary>Log-scale slider position 0..100 mapping to <see cref="TraceDensity"/> (32→16,384
+    /// scanlines) so low densities stay reachable next to the extreme ones.</summary>
+    [ObservableProperty]
+    private double _traceDensityLog = 43;
+
     /// <summary>0 = Engraved, 1 = Edges, 2 = Silhouette, 3 = Scanlines.</summary>
     [ObservableProperty]
     private int _traceModeIndex;
 
     [ObservableProperty]
     private bool _traceMonochrome;
+
+    [ObservableProperty]
+    private bool _hasImage;
+
+    partial void OnTraceDensityLogChanged(double value)
+    {
+        double t = Math.Clamp(value, 0, 100) / 100.0;
+        double min = Math.Log10(ImageLineTracer.MinRows);
+        double max = Math.Log10(ImageLineTracer.MaxRows);
+        TraceDensity = Math.Round(Math.Pow(10, min + t * (max - min)));
+    }
 
     // ---- canvas presentation ----
 
@@ -125,7 +142,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         foreach (var s in Shapes)
         {
-            s.IsSelected = s == value;
+            if (s.IsSelected != (s == value)) s.IsSelected = s == value;
         }
     }
 
@@ -170,8 +187,10 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Trace a picture into dense line items (the MLShape workflow).</summary>
-    public void TraceImage(string imagePath)
+    /// <summary>Trace a picture into dense line items (the MLShape workflow). Heavy work runs on
+    /// the thread pool; the collection is replaced wholesale so a 16k-row trace doesn't fire tens
+    /// of thousands of per-item change notifications on the UI thread.</summary>
+    public async System.Threading.Tasks.Task TraceImageAsync(string imagePath)
     {
         try
         {
@@ -182,18 +201,30 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 3 => LineTraceMode.Scanlines,
                 _ => LineTraceMode.Engraved
             };
-            var traced = ImageLineTracer.TraceLines(imagePath, new LineTraceOptions
+            var opt = new LineTraceOptions
             {
                 Rows = Math.Clamp((int)Math.Round(TraceDensity), ImageLineTracer.MinRows, ImageLineTracer.MaxRows),
                 Mode = mode,
                 UseColor = !TraceMonochrome
-            });
-            Shapes.Clear();
-            foreach (var s in traced) Shapes.Add(ToItem(s));
+            };
+            StatusMessage = $"Tracing {Path.GetFileName(imagePath)}…";
+
+            var traced = await System.Threading.Tasks.Task.Run(() => ImageLineTracer.TraceLines(imagePath, opt));
+            Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(traced.Select(ToItem));
             SelectedShape = null;
             LineStats = $"{traced.Count:N0} lines";
+
+            byte[]? png = null;
+            if (traced.Count > 0)
+            {
+                var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(traced);
+                var snapshot = traced;
+                png = await System.Threading.Tasks.Task.Run(
+                    () => ImageLineTracer.RenderPreviewPng(snapshot, w, h, previewCap: 24000));
+            }
+            PreviewPng = png;
+            CanvasMode = traced.Count == 0 ? "empty" : "dense";
             StatusMessage = $"✓ Traced {traced.Count:N0} lines from {Path.GetFileName(imagePath)}";
-            RefreshCanvasMode();
             CanvasChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -309,12 +340,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             PreviewPng = null;
             return;
         }
+        var composed = Shapes.Select(ToComposed).ToList();
         bool hasLines = Shapes.Any(s => s.PathPoints is { Count: >= 2 });
         if (hasLines || Shapes.Count > DenseCanvasThreshold)
         {
-            var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(Shapes.Select(ToComposed).ToList());
-            PreviewPng = ImageLineTracer.RenderPreviewPng(
-                Shapes.Select(ToComposed).ToList(), w, h, previewCap: 24000);
+            var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(composed);
+            PreviewPng = ImageLineTracer.RenderPreviewPng(composed, w, h, previewCap: 24000);
             CanvasMode = "dense";
         }
         else
