@@ -62,16 +62,16 @@
                      Message="{Binding UpdateStatusText, Mode=OneWay}"
                      Severity="Informational">
                 <InfoBar.ActionButton>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Update &amp; Relaunch"
-                                Command="{Binding DownloadAndApplyUpdateCommand}"
-                                Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
-                                Style="{StaticResource AccentButtonStyle}" />
-                        <Button Content="Relaunch Now"
-                                Command="{Binding RelaunchNowCommand}"
-                                Visibility="{Binding IsUpdateReady, Converter={StaticResource BoolToVisibilityConverter}}"
-                                Style="{StaticResource AccentButtonStyle}" />
-                    </StackPanel>
+                    <Button Content="Update &amp; Relaunch"
+                            Command="{Binding DownloadAndApplyUpdateCommand}"
+                            Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
+                            Style="{StaticResource AccentButtonStyle}">
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="Relaunch Now" Command="{Binding RelaunchNowCommand}" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                 </InfoBar.ActionButton>
                 <InfoBar.Content>
                     <ProgressBar Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibilityConverter}}"
