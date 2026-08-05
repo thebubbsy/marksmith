@@ -729,6 +729,7 @@ public sealed partial class MarkdownHtmlService
                 let clickFrac = 0; // vertical document fraction of the opening click (0..1) — positional caret fallback
                 let clickFracX = 0; // horizontal document fraction of the opening click (0..1) — left/right source positioning
                 let curApH = 200;  // height of the currently-open aperture (circle diameter or band height)
+                let pendingClickInfo = null;
 
                 const vh = window.innerHeight || 800;
                 // Focus bands: skinny full-width strips for line-oriented reading. The slider fattens
@@ -790,6 +791,43 @@ public sealed partial class MarkdownHtmlService
                     return best;
                 }
 
+                function caretOffsetFromClickInfo(source, estimateLine) {
+                    const lines = source.split("\n");
+                    if (lines.length === 0) return { offset: 0, length: 0 };
+
+                    const exactWord = (pendingClickInfo?.exactWord || "").trim().toLowerCase();
+                    if (exactWord.length >= 2) {
+                        let bestOffset = -1;
+                        let bestDist = Infinity;
+                        let curOff = 0;
+                        for (let i = 0; i < lines.length; i++) {
+                            const lineLower = lines[i].toLowerCase();
+                            let matchIdx = lineLower.indexOf(exactWord);
+                            while (matchIdx >= 0) {
+                                const dist = Math.abs(i - estimateLine);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    bestOffset = curOff + matchIdx;
+                                }
+                                matchIdx = lineLower.indexOf(exactWord, matchIdx + 1);
+                            }
+                            curOff += lines[i].length + 1;
+                        }
+                        if (bestOffset >= 0) return { offset: bestOffset, length: exactWord.length };
+                    }
+
+                    let bestLine = caretLineFromText(source, estimateLine);
+                    if (bestLine < 0) bestLine = estimateLine;
+                    bestLine = Math.max(0, Math.min(lines.length - 1, bestLine));
+
+                    let off = 0;
+                    for (let i = 0; i < bestLine; i++) off += lines[i].length + 1;
+
+                    const lineLen = lines[bestLine].length;
+                    const colEst = Math.round(clickFracX * lineLen);
+                    return { offset: off + Math.min(colEst, lineLen), length: 0 };
+                }
+
                 // Focus blur (Ctrl+Alt+X in the app): while a portal is open, the rendered preview
                 // — the #canvas column, a SIBLING of the portal on <body> — blurs so the eye stays
                 // on the revealed source; the aperture and cursor ring stay sharp. The inline style
@@ -834,9 +872,23 @@ public sealed partial class MarkdownHtmlService
                     return { left: (r.left - root.left) / z, width: r.width / z };
                 }
 
-                function openPortal(x, y, el) {
+                function openPortal(x, y, el, ev) {
                     closePortal(true);
-                    pendingText = el ? (el.textContent || "") : "";
+                    let clickInfo = { exactWord: "", fullText: el ? (el.textContent || "") : "" };
+                    if (ev && document.caretRangeFromPoint) {
+                        try {
+                            const range = document.caretRangeFromPoint(ev.clientX, ev.clientY);
+                            if (range && range.startContainer) {
+                                const txt = range.startContainer.textContent || "";
+                                const off = range.startOffset || 0;
+                                const wordBefore = (txt.slice(0, off).match(/[\w\-]+$/) || [""])[0];
+                                const wordAfter = (txt.slice(off).match(/^[\w\-]+/) || [""])[0];
+                                clickInfo.exactWord = wordBefore + wordAfter;
+                            }
+                        } catch (e) {}
+                    }
+                    pendingClickInfo = clickInfo;
+                    pendingText = clickInfo.fullText;
 
                     portal = document.createElement("div");
                     portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
@@ -933,33 +985,35 @@ public sealed partial class MarkdownHtmlService
                 }
 
                 // The app calls this with the editor's current Markdown to fill the open portal and
-                // land the caret on the line matching the clicked block. When text matching can't
-                // find that line, land at the same vertical fraction of the source as the click was
-                // down the document — clicking near the bottom must never dump you at the top.
+                // land the caret on the exact line and word matching the clicked spot.
                 window.__portalSetSource = function (source) {
                     if (!portalTa) return;
                     source = source || "";
                     portalTa.value = source;
                     const lines = source.split("\n");
-                    const estimate = Math.round(clickFrac * Math.max(0, lines.length - 1));
-                    let line = caretLineFromText(source, estimate);
-                    if (line < 0) line = estimate;
-                    let off = 0;
-                    for (let i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
+                    const estimateLine = Math.round(clickFrac * Math.max(0, lines.length - 1));
+
+                    const match = caretOffsetFromClickInfo(source, estimateLine);
+                    const off = match.offset;
+                    const len = match.length || 0;
+
                     portalTa.focus();
-                    try { portalTa.setSelectionRange(off, off); } catch (e) {}
+                    try { portalTa.setSelectionRange(off, off + len); } catch (e) {}
+
+                    const before = source.slice(0, off);
+                    const lastNl = before.lastIndexOf("\n");
+                    const line = (before.match(/\n/g) || []).length;
+                    const col = off - lastNl - 1;
+
                     const lineH = 20;
-                    portalTa.scrollTop = Math.max(0, line * lineH - curApH / 2 + lineH);
-                    portalTa.scrollLeft = 0;
-                    followCaret(); // settle the column too (long lines in skinny bands)
-                    // Horizontal twin of the vertical clickFrac landing: pan the source so the
-                    // left/right side of the raw Markdown that sits under the click is what shows
-                    // through the aperture — click the right of the preview, see the right of the
-                    // source; click the left, see the left. Applied AFTER followCaret so the
-                    // caret-centering pass (the caret lands at column 0) doesn't drag the view
-                    // straight back to the left edge; typing re-pans to the caret as usual.
-                    const maxScrollX = Math.max(0, portalTa.scrollWidth - portalTa.clientWidth);
-                    portalTa.scrollLeft = Math.round(clickFracX * maxScrollX);
+                    const cWidth = measureCharW();
+                    const pad = 80;
+                    const targetY = pad + line * lineH;
+                    const targetX = pad + col * cWidth;
+                    const curApW = portalTa.clientWidth || apertureSize;
+
+                    portalTa.scrollTop = Math.max(0, targetY - curApH / 2 + lineH / 2);
+                    portalTa.scrollLeft = Math.max(0, targetX - curApW / 2);
                 };
 
                 // Live size dial: the app calls this on every slider tick so the open aperture
@@ -1133,7 +1187,7 @@ public sealed partial class MarkdownHtmlService
                         ? e.target.closest("h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,table,code")
                         : null;
                     const p = docPoint(e);
-                    openPortal(p.x, p.y, el);
+                    openPortal(p.x, p.y, el, e);
                     e.preventDefault();
                     e.stopPropagation();
                 }, true);
