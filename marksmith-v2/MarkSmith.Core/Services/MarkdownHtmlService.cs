@@ -1434,22 +1434,6 @@ public sealed partial class MarkdownHtmlService
     }
 
     /// <summary>
-    /// Word-style paged variant used when DOCX is the default output format: the preview renders
-    /// as real Word pages and page breaks MOVE elements around them (keep-together diagrams/tables
-    /// flow whole to the next page; paragraphs/code split at line boundaries; oversized diagrams
-    /// are scaled, never clipped or overlapped). The pages carry the SELECTED THEME's colours
-    /// (background, text, headings) — the preview shows what our DOCX export makes Word look like,
-    /// not a generic white Word page. Continuous otherwise. See
-    /// <see cref="MarkSmith.Core.Preview.WordLikePageService"/>.
-    /// </summary>
-    public string RenderPaged(string markdown, AppSettings settings, ThemeDefinition theme,
-        LlmClassification? classification = null, bool interactive = false)
-    {
-        var html = Render(markdown, settings, theme, classification, interactive);
-        return MarkSmith.Core.Preview.WordLikePageService.BuildPagedDocument(html, theme.Background, theme.Text, theme.Border);
-    }
-
-    /// <summary>
     /// Renders only the inner canvas content (attribution + TOC + body + footer) without the
     /// surrounding HTML shell, CSS, or page scripts. Used by the live preview path which swaps
     /// #canvas innerHTML in place — avoids materializing the ~50 KB static JS/CSS shell just to

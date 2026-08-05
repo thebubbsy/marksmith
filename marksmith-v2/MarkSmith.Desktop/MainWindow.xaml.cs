@@ -466,6 +466,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ? Visibility.Collapsed : Visibility.Visible;
         }
 
+        // PageBorder is a preview-affecting setting: toggling it must refresh the preview
+        // immediately (it renders the page frame) without waiting for a manual re-render.
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.PageBorder))
+        {
+            _ = RefreshPreviewAsync();
+        }
+
         if (e.PropertyName == nameof(ViewModels.MainViewModel.AdvancedMode))
         {
             SyncAdvancedSection();
@@ -2010,7 +2017,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Same classify/normalize step the exports run, so the preview shows what will ship
         // (and the detection badge appears for manual paste and file input, not just auto-ingest).
-        var html = vm.BuildPagedPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
         _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
 
         if (vm.IsDebugModeEnabled)

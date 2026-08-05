@@ -90,7 +90,7 @@
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="3 · Style" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" />
-                                <RadioButton x:Name="ModeEngraved" Content="Engraved (hatch shading)" GroupName="TraceMode" IsChecked="True" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
+                                <RadioButton x:Name="ModeEngraved" Content="Engraved (hatch shading)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
                                 <RadioButton x:Name="ModeEdges" Content="Edges (contour lines)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
                                 <RadioButton x:Name="ModeSilhouette" Content="Silhouette (solid shape)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
                                 <RadioButton x:Name="ModeScanlines" Content="Scanlines (thick strokes)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />

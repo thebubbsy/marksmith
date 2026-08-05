@@ -885,18 +885,6 @@ private readonly MarkdownExportService _mdExport = new();
     public string BuildPreviewHtml(string markdown, bool interactive = false) =>
         _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
 
-    /// <summary>Live preview for the DOCX-default workflow: Word-style pages with real page breaks
-    /// that push elements around them (diagrams/tables move whole, paragraphs/code split at line
-    /// boundaries) — the HTML viewer shows where Word will cut pages, without ever overlapping an
-    /// element. Continuous when the default output is HTML/PDF.</summary>
-    public string BuildPagedPreviewHtml(string markdown, bool interactive = true)
-    {
-        var settings = _settingsService.Current;
-        return settings.TargetFormat == "docx"
-            ? _markdownHtml.RenderPaged(markdown, settings, CurrentTheme, LastClassification, interactive)
-            : _markdownHtml.Render(markdown, settings, CurrentTheme, LastClassification, interactive);
-    }
-
     /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
     public string? BuildPreviewCanvasHtml(string markdown) =>
         _markdownHtml.RenderCanvasOnly(markdown, _settingsService.Current, CurrentTheme, LastClassification);
