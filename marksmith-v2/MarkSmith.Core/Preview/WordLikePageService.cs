@@ -423,44 +423,31 @@ public static class WordLikePageService
     }
 
     // ── Full-document transform ───────────────────────────────────────────────────────────────
-    public const string Css = """
-        /* Word-style pagination (WordLikePageService) */
+    /// <summary>Paged-view CSS, coloured by the SELECTED THEME (page background/text/headings come
+    /// from the theme, exactly like the DOCX export) — the content typography is inherited from the
+    /// base preview styles, so the pages look like our premium Markdown experience, not a generic
+    /// white Word page.</summary>
+    public static string BuildCss(string pageBg, string textHex, string borderHex) => $$"""
+        /* Word-style pagination (WordLikePageService) — theme-coloured */
         body.wp-paged { background: #4f4f55; }
         body.wp-paged #canvas { padding: 28px 0 !important; width: auto !important; min-width: 0 !important;
                                 max-width: none !important; margin: 0 !important; background: transparent !important;
                                 box-shadow: none !important; border: none !important; border-radius: 0 !important;
                                 display: flex; flex-direction: column; align-items: center; }
-        .wp-page { width: 816px; min-width: 816px; height: 1056px; margin: 0 0 28px; background: #ffffff;
+        .wp-page { width: 816px; min-width: 816px; height: 1056px; margin: 0 0 28px; background: {{pageBg}}; color: {{textHex}};
                    box-shadow: 0 2px 12px rgba(0,0,0,.45); position: relative; overflow: hidden; }
         .wp-page-inner { position: relative; width: 100%; height: 100%; box-sizing: border-box; }
         .wp-content { position: absolute; top: 96px; left: 96px; right: 96px; bottom: 96px; overflow: hidden; }
         .wp-header { position: absolute; top: 48px; left: 96px; right: 96px; height: 30px; overflow: hidden;
-                     font-family: Calibri, 'Segoe UI', sans-serif; font-size: 9pt; color: #595959; }
+                     color: {{textHex}}; opacity: .6; font-size: 12px; }
         .wp-footer { position: absolute; bottom: 42px; left: 96px; right: 96px; height: 24px; overflow: hidden;
-                     text-align: center; font-family: Calibri, 'Segoe UI', sans-serif; font-size: 9pt; color: #595959; }
-        /* Word typography: Normal = Calibri 11 pt, 1.08 line spacing, 8 pt after, left aligned. */
-        body.wp-paged, body.wp-paged .wp-content { font-family: Calibri, 'Segoe UI', 'Segoe UI Emoji', sans-serif;
-                     font-size: 11pt; line-height: 1.08; color: #000; }
-        body.wp-paged .wp-content p { margin: 0 0 8pt; }
-        body.wp-paged .wp-content h1, body.wp-paged .wp-content h2, body.wp-paged .wp-content h3,
-        body.wp-paged .wp-content h4, body.wp-paged .wp-content h5, body.wp-paged .wp-content h6 { border-bottom: none !important; padding-bottom: 0 !important; }
-        body.wp-paged .wp-content h1 { font-size: 20pt; font-weight: 600; color: #2F5496; margin: 14pt 0 7pt; line-height: 1.15; }
-        body.wp-paged .wp-content h2 { font-size: 16pt; font-weight: 600; color: #2F5496; margin: 14pt 0 7pt; line-height: 1.15; }
-        body.wp-paged .wp-content h3 { font-size: 14pt; font-weight: 600; color: #1F4D78; margin: 14pt 0 7pt; }
-        body.wp-paged .wp-content h4, body.wp-paged .wp-content h5, body.wp-paged .wp-content h6 { font-size: 11pt; font-weight: 600; color: #1F4D78; margin: 14pt 0 7pt; }
-        body.wp-paged .wp-content ul, body.wp-paged .wp-content ol { margin: 0 0 8pt; padding-left: 40px; }
-        body.wp-paged .wp-content li { margin: 0 0 2pt; }
-        body.wp-paged .wp-content table { border-collapse: collapse; margin: 0 0 8pt; width: 100%; }
-        body.wp-paged .wp-content th, body.wp-paged .wp-content td { border: 1px solid #bfbfbf; padding: 4pt 6pt; font-size: 10pt; }
-        body.wp-paged .wp-content pre { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 8pt; font-size: 9.5pt; margin: 0 0 8pt; }
-        body.wp-paged .wp-content code { font-family: Consolas, 'Cascadia Mono', monospace; }
-        body.wp-paged .wp-content blockquote { margin: 0 0 8pt 24pt; padding: 0 8pt; border-left: 4px solid #d0d0d0; color: #404040; }
-        body.wp-paged .wp-content hr { border: none; border-top: 1px solid #999; margin: 10pt 0; }
+                     text-align: center; color: {{textHex}}; opacity: .6; font-size: 12px; }
+        .wp-content h1, .wp-content h2, .wp-content h3, .wp-content h4, .wp-content h5, .wp-content h6 { break-after: avoid; page-break-after: avoid; }
         /* Keep-together diagrams never overlap the next page: they scale to fit the content box
            (Word shrinks oversized diagrams), so a break can never cut one in half. */
-        body.wp-paged .wp-content svg, body.wp-paged .wp-content img { max-width: 100%; max-height: 100%; width: auto; height: auto; }
-        body.wp-paged .wp-content .mermaid, body.wp-paged .wp-content .plugin-diagram,
-        body.wp-paged .wp-content div[class*="shape"] { max-width: 100%; }
+        .wp-content svg, .wp-content img { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+        .wp-content .mermaid, .wp-content .plugin-diagram,
+        .wp-content div[class*="shape"] { max-width: 100%; }
         """;
 
     public const string RepackScript = """
@@ -549,9 +536,11 @@ public static class WordLikePageService
         </script>
         """;
 
-    /// <summary>Transforms a fully-rendered preview document into the Word-style paged layout.
-    /// Returns the document unchanged when the canvas markers are absent.</summary>
-    public static string BuildPagedDocument(string fullHtml)
+    /// <summary>Transforms a fully-rendered preview document into the Word-style paged layout,
+    /// colouring the pages with the SELECTED THEME (page background/text from the theme — the
+    /// preview shows what our DOCX export makes Word look like). Returns the document unchanged
+    /// when the canvas markers are absent.</summary>
+    public static string BuildPagedDocument(string fullHtml, string pageBg, string textHex, string borderHex)
     {
         const string startMarker = "<!--ms-canvas-start-->";
         const string endMarker = "<!--ms-canvas-end-->";
@@ -571,7 +560,7 @@ public static class WordLikePageService
         string paged = fullHtml[..innerStart] + sb + fullHtml[e..];
         paged = paged.Replace("<body class=\"", "<body class=\"wp-paged ", StringComparison.Ordinal);
         int styleEnd = paged.LastIndexOf("</style>", StringComparison.Ordinal);
-        if (styleEnd >= 0) paged = paged.Insert(styleEnd, "\n" + Css);
+        if (styleEnd >= 0) paged = paged.Insert(styleEnd, "\n" + BuildCss(pageBg, textHex, borderHex));
         int bodyEnd = paged.LastIndexOf("</body>", StringComparison.Ordinal);
         if (bodyEnd >= 0) paged = paged.Insert(bodyEnd, RepackScript);
         return paged;

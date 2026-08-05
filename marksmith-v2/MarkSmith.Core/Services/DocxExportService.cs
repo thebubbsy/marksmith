@@ -149,7 +149,12 @@ public sealed class DocxExportService
             var dir = Path.GetDirectoryName(docxPath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
-            using var package = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
+            // A .dotx output path means "export as a Word TEMPLATE" — identical content, but the
+            // package is created as a template so Word treats it as a reusable template file.
+            var docType = docxPath.EndsWith(".dotx", StringComparison.OrdinalIgnoreCase)
+                ? WordprocessingDocumentType.Template
+                : WordprocessingDocumentType.Document;
+            using var package = WordprocessingDocument.Create(docxPath, docType);
             package.PackageProperties.Title = title;
             package.PackageProperties.Creator = settings.AuthorName; // empty = no attribution (house-style mode)
             package.PackageProperties.Subject = "Generated from Markdown";

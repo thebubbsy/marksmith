@@ -18,11 +18,25 @@ namespace MarkSmith.Core.Composer
         private const string Wpg = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup";
 
         public static void WriteDocx(string outputPath, List<ComposedShape> shapes,
-            double canvasWidthInches, double canvasHeightInches, string? themeXml = null)
+            double canvasWidthInches, double canvasHeightInches, string? themeXml = null) =>
+            WritePackage(outputPath, shapes, canvasWidthInches, canvasHeightInches, themeXml, template: false);
+
+        /// <summary>Writes the same composition as a Word TEMPLATE (.dotx) — identical native
+        /// DrawingML, but the package is a template (content type + extension) so Word opens it
+        /// as a template for reuse.</summary>
+        public static void WriteDotx(string outputPath, List<ComposedShape> shapes,
+            double canvasWidthInches, double canvasHeightInches, string? themeXml = null) =>
+            WritePackage(outputPath, shapes, canvasWidthInches, canvasHeightInches, themeXml, template: true);
+
+        private static void WritePackage(string outputPath, List<ComposedShape> shapes,
+            double canvasWidthInches, double canvasHeightInches, string? themeXml, bool template)
         {
             if (File.Exists(outputPath)) File.Delete(outputPath);
 
             string inline = BuildInlineXml(shapes, canvasWidthInches, canvasHeightInches);
+            string mainContentType = template
+                ? "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"
+                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
 
             string docXml =
                 @"<?xml version=""1.0"" encoding=""utf-8""?>" +
@@ -42,7 +56,7 @@ namespace MarkSmith.Core.Composer
                 @"<Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types"">" +
                 @"<Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/>" +
                 @"<Default Extension=""xml"" ContentType=""application/xml""/>" +
-                @"<Override PartName=""/word/document.xml"" ContentType=""application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml""/>" +
+                $@"<Override PartName=""/word/document.xml"" ContentType=""{mainContentType}""/>" +
                 themeOverride +
                 @"</Types>";
 
