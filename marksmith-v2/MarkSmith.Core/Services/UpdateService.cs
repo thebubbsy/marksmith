@@ -16,8 +16,21 @@ public sealed class UpdateService
     {
         get
         {
+            // Prefer the FILE version — it carries the full auto-incremented build stamp
+            // (2.14.0.8051036); the assembly version is capped at four digits per component by the
+            // compiler and only ever holds the plain release line (2.14.0.0).
+            try
+            {
+                var loc = typeof(UpdateService).Assembly.Location;
+                if (!string.IsNullOrEmpty(loc))
+                {
+                    var fv = System.Diagnostics.FileVersionInfo.GetVersionInfo(loc).FileVersion;
+                    if (!string.IsNullOrWhiteSpace(fv)) return fv;
+                }
+            }
+            catch { }
             var v = typeof(UpdateService).Assembly.GetName().Version;
-            return v is null ? "1.0.0" : $"{v.Major}.{v.Minor}.{v.Build}";
+            return v is null ? "1.0.0" : $"{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
         }
     }
 
@@ -162,7 +175,8 @@ public sealed class UpdateService
         Environment.Exit(0);
     }
 
-    // Numeric dotted-version compare; returns >0 if a is newer than b.
+    // Numeric dotted-version compare; returns >0 if a is newer than b. Parts are compared as longs
+    // because the build revision is a UTC timestamp (e.g. 2.14.0.202608051200) that overflows int.
     internal static int Compare(string a, string b)
     {
         var (na, pra) = Parse(a);
@@ -178,15 +192,15 @@ public sealed class UpdateService
         return 0;
     }
 
-    private static (int[] Numbers, bool IsPrerelease) Parse(string v)
+    private static (long[] Numbers, bool IsPrerelease) Parse(string v)
     {
         v = v.Trim().TrimStart('v', 'V').Trim();
         var dash = v.IndexOf('-');
         var isPre = dash >= 0;
         var core = isPre ? v[..dash] : v;
         var parts = core.Split('.');
-        var r = new int[4];
-        for (var i = 0; i < 4 && i < parts.Length; i++) int.TryParse(parts[i], out r[i]);
+        var r = new long[4];
+        for (var i = 0; i < 4 && i < parts.Length; i++) long.TryParse(parts[i], out r[i]);
         return (r, isPre);
     }
 }

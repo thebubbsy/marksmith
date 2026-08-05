@@ -192,4 +192,30 @@ public sealed class UpdateServiceTests
             try { System.IO.File.Delete(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MarksmithUpdates", "Marksmith-Setup-Latest.exe")); } catch { }
         }
     }
+
+    // ---- Auto-incrementing build version (revision = UTC timestamp) ----
+
+    [Fact]
+    public void Compare_autostamped_build_against_same_release_line_is_not_newer()
+    {
+        // A dev build carries a 2.14.0.<utc-timestamp> revision; the released tag is plain 2.14.0.
+        // The timestamp revision must NOT make the tag look newer (no false 'update available'),
+        // and it must survive the long parse (12-digit revision overflows int).
+        Assert.True(UpdateService.Compare("2.14.0", "2.14.0.202608051200") < 0); // tag < dev build
+        Assert.True(UpdateService.Compare("2.14.0.202608051200", "2.14.0") > 0); // symmetric
+        Assert.Equal(0, UpdateService.Compare("2.14.0", "2.14.0.0"));
+    }
+
+    [Fact]
+    public void Compare_next_minor_release_still_wins_over_autostamped_build()
+    {
+        Assert.True(UpdateService.Compare("2.15.0", "2.14.0.202608051200") > 0);
+        Assert.True(UpdateService.Compare("2.14.1", "2.14.0.202608051200") > 0);
+    }
+
+    [Fact]
+    public void CurrentVersion_includes_all_four_parts()
+    {
+        Assert.Matches(@"^\d+\.\d+\.\d+\.\d+$", new UpdateService().CurrentVersion);
+    }
 }
