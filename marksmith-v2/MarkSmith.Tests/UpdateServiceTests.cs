@@ -141,4 +141,55 @@ public sealed class UpdateServiceTests
         Assert.False(r.UpdateAvailable);
         Assert.Equal("", r.LatestTag);
     }
+
+    // Regression: the download loop must run off the UI thread (ConfigureAwait(false) + an
+    // asynchronous FileStream) so a slow update download can never freeze the app, and the
+    // progress callback must reach 100% when the payload lands intact. Served from a local
+    // HttpListener so no network is involved; the "install" step is never reached because the
+    // payload is not an executable, so the method returns false after a complete download.
+    [Fact]
+    public async Task DownloadAndInstallAsync_StreamsToDiskAndReportsProgress()
+    {
+        var payload = new byte[512 * 1024];
+        new Random(42).NextBytes(payload);
+
+        var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add("http://localhost:51997/");
+        listener.Start();
+        _ = Task.Run(async () =>
+        {
+            var ctx = await listener.GetContextAsync();
+            ctx.Response.ContentLength64 = payload.Length; // HttpListener would otherwise chunk (no Content-Length -> no progress)
+            await ctx.Response.OutputStream.WriteAsync(payload);
+            ctx.Response.OutputStream.Close();
+        });
+
+        try
+        {
+            var reports = new List<double>();
+            var progress = new Progress<double>(p => { lock (reports) reports.Add(p); });
+            var result = await new UpdateService().DownloadAndInstallAsync("http://localhost:51997/update.exe", progress);
+            Assert.False(result); // download succeeded; 'install' of a non-exe must fail cleanly
+
+            var spool = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MarksmithUpdates", "Marksmith-Setup-Latest.exe");
+            Assert.Equal(payload.Length, new System.IO.FileInfo(spool).Length);
+
+            // Progress<T> posts callbacks asynchronously (no SynchronizationContext in the test
+            // host), so wait for the final 100% report instead of asserting immediately.
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            double last = -1;
+            while (DateTime.UtcNow < deadline)
+            {
+                lock (reports) { if (reports.Count > 0) last = reports[^1]; }
+                if (last >= 99.5) break;
+                await Task.Delay(25);
+            }
+            Assert.True(last >= 99.5, $"final progress was {last:F1}% (reports={reports.Count})");
+        }
+        finally
+        {
+            listener.Stop();
+            try { System.IO.File.Delete(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MarksmithUpdates", "Marksmith-Setup-Latest.exe")); } catch { }
+        }
+    }
 }
