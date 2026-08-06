@@ -30,9 +30,27 @@ public class HistoryWindowViewModelTests : IDisposable
         await service.CaptureAsync(file, v1, "opened");
         await Task.Delay(20);
         await service.CaptureAsync(file, v2, "export:pdf");
-        var vm = new HistoryWindowViewModel(file, _ => "<html/>", _ => Task.FromResult(true), service);
+        var vm = new HistoryWindowViewModel(_ => "<html/>", _ => Task.FromResult(true), service, initialFilePath: file);
         await vm.LoadCommand.ExecuteAsync(null);
         return (vm, service);
+    }
+
+    [Fact]
+    public async Task Hub_ListsEveryTouchedFile_NewestFirst_AndPreselectsTheOpenFile()
+    {
+        var service = new VersionHistoryService(Path.Combine(_dir, "history"));
+        await service.CaptureAsync(@"C:\docs\older.md", "old");
+        await Task.Delay(20);
+        await service.CaptureAsync(@"C:\\docs\\newer.md", "new");
+        var vm = new HistoryWindowViewModel(_ => "<html/>", _ => Task.FromResult(true), service,
+            initialFilePath: @"C:\docs\older.md");
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Files.Count);
+        Assert.Equal("newer.md", vm.Files[0].FileName);            // newest first in the hub
+        Assert.Equal("1 version", vm.Files[1].VersionCountLabel);
+        Assert.Equal("older.md", vm.SelectedFile!.FileName);       // the open file is pre-selected
+        Assert.True(vm.HasVersions);                               // its timeline loaded
     }
 
     [Fact]
