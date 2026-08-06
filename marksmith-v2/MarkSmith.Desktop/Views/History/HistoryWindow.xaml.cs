@@ -33,6 +33,20 @@ public sealed partial class HistoryWindow : Window
             _preview.NavigateToString(_vm.PreviewHtml);
     }
 
+    private void OnDiffToggleClick(object sender, RoutedEventArgs e)
+    {
+        DiffToggle.IsChecked = true;
+        PreviewToggle.IsChecked = false;
+        _vm.ShowDiffViewCommand.Execute(null);
+    }
+
+    private void OnPreviewToggleClick(object sender, RoutedEventArgs e)
+    {
+        DiffToggle.IsChecked = false;
+        PreviewToggle.IsChecked = true;
+        _vm.ShowPreviewViewCommand.Execute(null);
+    }
+
     private void OnVersionTapped(object sender, TappedRoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })

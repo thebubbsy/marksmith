@@ -42,6 +42,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private readonly Func<string, string> _previewBuilder;
     private readonly Func<string, Task<bool>> _restore;
     private readonly VersionHistoryService _history;
+    private List<VersionEntry> _allVersions = new();
 
     public HistoryWindowViewModel(
         string filePath,
@@ -79,12 +80,34 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private VersionItemViewModel? _selected;
 
+    // ---- Diff view (GitHub/VS Code style) ----
+    public System.Collections.ObjectModel.ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
+
+    [ObservableProperty]
+    private bool _showDiff = true;
+
+    [ObservableProperty]
+    private string _diffTitle = "Select a version to see its changes";
+
+    [ObservableProperty]
+    private string _diffStats = "";
+
+    [ObservableProperty]
+    private string _diffHeader = "";
+
+    [RelayCommand]
+    private void ShowDiffView() => ShowDiff = true;
+
+    [RelayCommand]
+    private void ShowPreviewView() => ShowDiff = false;
+
     [RelayCommand]
     private async Task LoadAsync()
     {
         try
         {
             var versions = await _history.GetVersionsAsync(_filePath);
+            _allVersions = versions;
             HasVersions = versions.Count > 0;
             IsLoaded = true;
             if (versions.Count == 0) return;
@@ -124,8 +147,38 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
+            _ = RefreshDiffAsync(item);
             _ = RefreshPreviewAsync(item);
         }
+    }
+
+    /// <summary>Diffs the selected version against the version before it (GitHub commit view):
+    /// green = added in this version, red = removed. The oldest version diffs against nothing.</summary>
+    private async Task RefreshDiffAsync(VersionItemViewModel item)
+    {
+        try
+        {
+            var selectedContent = await _history.GetContentAsync(item.Id) ?? "";
+            var idx = _allVersions.FindIndex(v => v.Id == item.Id);
+            var prevContent = (idx >= 0 && idx + 1 < _allVersions.Count)
+                ? await _history.GetContentAsync(_allVersions[idx + 1].Id) ?? ""
+                : "";
+
+            var lines = LineDiff.Diff(prevContent, selectedContent);
+            var rows = LineDiff.BuildSideBySide(lines);
+            DiffRows.Clear();
+            foreach (var row in rows) DiffRows.Add(new DiffRowViewModel(row));
+
+            int added = lines.Count(l => l.Kind == LineDiff.Kind.Added);
+            int removed = lines.Count(l => l.Kind == LineDiff.Kind.Removed);
+            var stamp = item.Entry.CreatedAt.LocalDateTime;
+            DiffTitle = "Changes in this version";
+            DiffHeader = (idx >= 0 && idx + 1 < _allVersions.Count
+                ? "vs the previous version"
+                : "the first version of this file") + " · " + stamp.ToString("dddd, d MMMM yyyy HH:mm");
+            DiffStats = added + " added · " + removed + " removed";
+        }
+        catch { /* keep the last diff */ }
     }
 
     private async Task RefreshPreviewAsync(VersionItemViewModel item)
@@ -190,4 +243,33 @@ public sealed class TimeBandViewModel
 
     public string Name { get; }
     public ObservableCollection<VersionItemViewModel> Items { get; }
+}
+
+/// <summary>One side-by-side row of the version diff (left = previous, right = selected).</summary>
+public sealed class DiffRowViewModel
+{
+    public DiffRowViewModel(LineDiff.Row row)
+    {
+        Left = row.Left is null ? null : new DiffCellViewModel(row.Left);
+        Right = row.Right is null ? null : new DiffCellViewModel(row.Right);
+    }
+
+    public DiffCellViewModel? Left { get; }
+    public DiffCellViewModel? Right { get; }
+}
+
+public sealed class DiffCellViewModel
+{
+    public DiffCellViewModel(LineDiff.Cell cell)
+    {
+        Kind = cell.Kind;
+        NumberLabel = cell.NumberLabel;
+        Text = cell.Text;
+    }
+
+    public LineDiff.Kind Kind { get; }
+    public string NumberLabel { get; }
+    public string Text { get; }
+    public bool IsRemoved => Kind == LineDiff.Kind.Removed;
+    public bool IsAdded => Kind == LineDiff.Kind.Added;
 }
