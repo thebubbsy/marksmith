@@ -176,7 +176,7 @@ public static partial class TemplateThemeService
     // ---- Part 2: prompt engineering ----------------------------------------------------------
 
     /// <summary>Builds an unambiguous prompt that instructs a web AI to output ONLY a ThemeDefinition JSON.</summary>
-    public static string BuildPrompt(TemplateStyleSummary s)
+    public static string BuildPrompt(TemplateStyleSummary s, HouseLayout? layout = null)
     {
         var facts = new List<string>
         {
@@ -190,9 +190,34 @@ public static partial class TemplateThemeService
         if (s.Background is not null) facts.Add($"Page Background: {s.Background}");
         if (s.HyperlinkColor is not null) facts.Add($"Hyperlink Color: {s.HyperlinkColor}");
 
+        // Page-geometry facts: the JSON is the complete house-style spec, so the layout the
+        // template inherits is handed to the AI too (echoed back as optional keys).
+        if (layout is not null)
+        {
+            if (layout.HasPageLayout)
+                facts.Add($"Page Size: {layout.PageWidthTwips} x {layout.PageHeightTwips} twips" +
+                          (layout.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true ? " (landscape)" : ""));
+            if (layout.HasMargins)
+                facts.Add($"Margins (twips): top={layout.MarginTop} right={layout.MarginRight} bottom={layout.MarginBottom} left={layout.MarginLeft}" +
+                          (layout.HeaderDistance is not null ? $" header={layout.HeaderDistance}" : "") +
+                          (layout.FooterDistance is not null ? $" footer={layout.FooterDistance}" : ""));
+            if (layout.HasColumns)
+                facts.Add($"Columns: {layout.ColumnCount}" + (layout.ColumnSpace is not null ? $" (space {layout.ColumnSpace})" : ""));
+            if (layout.HasHeader) facts.Add("Header: inherited from the template");
+            if (layout.HasFooter) facts.Add("Footer: inherited from the template");
+        }
+
         var factsBlock = string.Join("\n", facts.Select(f => "  " + f));
         var jsonExample = "{\"name\":\"Corporate House Style\",\"background\":\"#FFFFFF\",\"text\":\"#1A1A1A\",\"heading\":\"#003366\",\"code\":\"#F5F5F5\",\"border\":\"#DDDDDD\",\"primary\":\"#0066CC\",\"secondary\":\"#004488\",\"line\":\"#E0E0E0\",\"fontFamily\":\"" + s.BodyFont + "\"}";
 
+        var layoutRules = layout is not null
+            ? $"""
+            - Echo the extracted PAGE GEOMETRY in these OPTIONAL keys so the theme fully reproduces the template (all numbers are OOXML twips, 1/20 pt):
+              "pageWidth", "pageHeight", "orientation" ("portrait"/"landscape"), "marginTop", "marginRight", "marginBottom", "marginLeft",
+              "headerDistance", "footerDistance", "columns", "columnSpace".
+            - The header and footer are inherited from the template automatically — do NOT invent header/footer content in the JSON.
+            """
+            : "";
         return $"""
             Analyze this corporate document style summary and produce a matching color theme.
 
@@ -209,6 +234,7 @@ public static partial class TemplateThemeService
             - "heading" should match the heading color fact if given, else derive from primary accent.
             - "primary" and "secondary" should use the accent colors if given.
             - "fontFamily" must be "{s.BodyFont}".
+            {layoutRules}
             - Output the raw JSON object only. Nothing else.
             """;
     }
@@ -249,7 +275,7 @@ public static partial class TemplateThemeService
                 root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } s
                     ? s : fallback;
 
-            return new ThemeDefinition(
+            var theme = new ThemeDefinition(
                 Name: Get("name", "Corporate House Style"),
                 Background: NormalizeHex(Get("background", "#FFFFFF")),
                 Text: NormalizeHex(Get("text", "#1A1A1A")),
@@ -259,8 +285,43 @@ public static partial class TemplateThemeService
                 Primary: NormalizeHex(Get("primary", "#0066CC")),
                 Secondary: NormalizeHex(Get("secondary", "#004488")),
                 Line: NormalizeHex(Get("line", "#E0E0E0")));
+
+            // Optional page-geometry keys — the JSON is the COMPLETE house-style spec, so the AI can
+            // carry the page size/orientation, margins and column layout back with the palette.
+            // (Header/footer content is inherited from the template locally, not fabricated by the AI.)
+            var layout = new HouseLayout
+            {
+                PageWidthTwips = GetUint(root, "pageWidth"),
+                PageHeightTwips = GetUint(root, "pageHeight"),
+                Orientation = Get("orientation", "").ToLowerInvariant() is { Length: > 0 } o ? o : null,
+                MarginTop = GetInt(root, "marginTop"),
+                MarginRight = GetInt(root, "marginRight"),
+                MarginBottom = GetInt(root, "marginBottom"),
+                MarginLeft = GetInt(root, "marginLeft"),
+                HeaderDistance = GetInt(root, "headerDistance"),
+                FooterDistance = GetInt(root, "footerDistance"),
+                ColumnCount = GetInt(root, "columns"),
+                ColumnSpace = GetInt(root, "columnSpace"),
+            };
+            return layout.IsEmpty ? theme : theme with { Layout = layout };
         }
         catch { return null; }
+    }
+
+    private static uint? GetUint(JsonElement root, string key)
+    {
+        if (!root.TryGetProperty(key, out var v)) return null;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetUInt32(out var n)) return n;
+        if (v.ValueKind == JsonValueKind.String && uint.TryParse(v.GetString(), out var s)) return s;
+        return null;
+    }
+
+    private static int? GetInt(JsonElement root, string key)
+    {
+        if (!root.TryGetProperty(key, out var v)) return null;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)) return n;
+        if (v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out var s)) return s;
+        return null;
     }
 
     [GeneratedRegex(@",\s*([}\]])")]

@@ -12,6 +12,10 @@ public sealed record ThemeDefinition(
     string Secondary,
     string Line)
 {
+    /// <summary>Page geometry the AI JSON carried back (optional) — merged over the template's
+    /// locally-extracted layout when the theme is applied. Null when the JSON specified none.</summary>
+    public HouseLayout? Layout { get; init; }
+
     public ThemeDefinition ApplyLightInfluence()
     {
         return new ThemeDefinition(

@@ -1,0 +1,97 @@
+            <!-- ═══ Diff / preview + restore ═══ -->
+            <Grid Grid.Column="1" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <ToggleButton x:Name="DiffToggle" Content="Diff" IsChecked="True" Padding="12,5"
+                                      Click="OnDiffToggleClick" ToolTipService.ToolTip="Code-by-code view of what changed in this version" />
+                        <ToggleButton x:Name="PreviewToggle" Content="Preview" Padding="12,5"
+                                      Click="OnPreviewToggleClick" ToolTipService.ToolTip="Rendered document at this version" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="{Binding DiffTitle}" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="{Binding DiffHeader}" Foreground="#FF9FB4D8" FontSize="12" />
+                        <TextBlock Text="{Binding DiffStats}" Foreground="#FF6C7EA0" FontSize="12" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Content="Restore this version" FontWeight="SemiBold" Padding="16,8"
+                            Command="{Binding RestoreCommand}" VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Diff view -->
+                <Grid Grid.Row="1" Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Previous version" Margin="14,6,0,4" FontSize="12" Foreground="#FFE5A0A0" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="Selected version" Margin="14,6,0,4" FontSize="12" Foreground="#FFA0E5A0" FontWeight="SemiBold" />
+                    </Grid>
+                    <Border Grid.Row="1" Background="#22000000" Height="1" />
+                    <Border Grid.Row="2" Background="#F2121B2E" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+                        <ScrollViewer x:Name="DiffScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding DiffRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Background="{Binding Left.Kind, Converter={StaticResource DiffBrush}}"
+                                                    BorderBrush="#1EFFFFFF" BorderThickness="0,0,1,0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Left.NumberLabel}" FontSize="12" LineHeight="19"
+                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="#FF6C7EA0" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Left.Text}" FontSize="12.5" LineHeight="19"
+                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="#FFD8E0F0" TextWrapping="NoWrap" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Grid.Column="1" Background="{Binding Right.Kind, Converter={StaticResource DiffBrush}}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Right.NumberLabel}" FontSize="12" LineHeight="19"
+                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="#FF6C7EA0" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Right.Text}" FontSize="12.5" LineHeight="19"
+                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="#FFD8E0F0" TextWrapping="NoWrap" />
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <!-- Rendered preview -->
+                <Border Grid.Row="1" Background="#F2121B2E" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1"
+                        Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                    <controls:WebView2 x:Name="PreviewWeb" />
+                </Border>
+            </Grid>

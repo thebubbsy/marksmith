@@ -50,4 +50,29 @@ public sealed class HouseLayout
     public bool IsEmpty => !HasPageLayout && !HasMargins && !HasColumns && !HasHeader && !HasFooter;
 
     public HouseLayout Clone() => (HouseLayout)MemberwiseClone();
+
+    /// <summary>Merges AI JSON geometry overrides on top of the locally-extracted template layout.
+    /// The template extraction is the base (it carries the header/footer XML the AI can't
+    /// fabricate); any page-geometry field the AI's JSON specifies wins. Returns null when neither
+    /// side contributes anything.</summary>
+    public static HouseLayout? Merge(HouseLayout? local, HouseLayout? overrides)
+    {
+        if (local is null && overrides is null) return null;
+        var result = local?.Clone() ?? new HouseLayout();
+        if (overrides is null) return result.IsEmpty ? null : result;
+
+        result.PageWidthTwips = overrides.PageWidthTwips ?? result.PageWidthTwips;
+        result.PageHeightTwips = overrides.PageHeightTwips ?? result.PageHeightTwips;
+        result.Orientation = overrides.Orientation ?? result.Orientation;
+        result.MarginTop = overrides.MarginTop ?? result.MarginTop;
+        result.MarginRight = overrides.MarginRight ?? result.MarginRight;
+        result.MarginBottom = overrides.MarginBottom ?? result.MarginBottom;
+        result.MarginLeft = overrides.MarginLeft ?? result.MarginLeft;
+        result.HeaderDistance = overrides.HeaderDistance ?? result.HeaderDistance;
+        result.FooterDistance = overrides.FooterDistance ?? result.FooterDistance;
+        result.ColumnCount = overrides.ColumnCount ?? result.ColumnCount;
+        result.ColumnSpace = overrides.ColumnSpace ?? result.ColumnSpace;
+        // Header/footer content is never overridden by the AI JSON — it comes from the template.
+        return result.IsEmpty ? null : result;
+    }
 }

@@ -154,7 +154,7 @@ private readonly MarkdownExportService _mdExport = new();
         _settingsService.Current.BrandLayout = layout.IsEmpty ? null : layout;
         SaveSettingsDebounced();
 
-        var prompt = TemplateThemeService.BuildPrompt(summary);
+        var prompt = TemplateThemeService.BuildPrompt(summary, layout.IsEmpty ? null : layout);
         HouseStylePrompt = prompt;
         BrandTemplatePath = dotxPath;
 
@@ -184,7 +184,10 @@ private readonly MarkdownExportService _mdExport = new();
     }
 
     /// <summary>Parses the AI reply, saves the custom theme and selects it (selecting triggers the
-    /// preview refresh). Shared by the extension round-trip and the manual JSON paste.</summary>
+    /// preview refresh). Shared by the extension round-trip and the manual JSON paste. Any page
+    /// geometry the JSON carried is merged over the template's locally-extracted layout so the
+    /// JSON is the COMPLETE house-style spec (colour, fonts, page size, margins, columns;
+    /// header/footer content stays inherited from the template).</summary>
     private bool ApplyThemeResult(string replyMarkdown)
     {
         var theme = TemplateThemeService.ParseAiResponse(replyMarkdown);
@@ -194,6 +197,13 @@ private readonly MarkdownExportService _mdExport = new();
             StatusText = "House-style import failed: the AI reply wasn't a valid theme JSON.";
             StatusSeverity = StatusSeverity.Error;
             return false;
+        }
+
+        if (theme.Layout is not null)
+        {
+            var merged = Models.HouseLayout.Merge(_settingsService.Current.BrandLayout, theme.Layout);
+            _settingsService.Current.BrandLayout = merged;
+            SaveSettingsDebounced();
         }
 
         TemplateThemeService.SaveTheme(theme);
