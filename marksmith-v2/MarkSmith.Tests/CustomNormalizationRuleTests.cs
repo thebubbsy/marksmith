@@ -60,6 +60,32 @@ public class CustomNormalizationRuleTests
     }
 
     [Fact]
+    public void Defaults_AreOneRegexTwoPlain_AndWireInHarmlessly()
+    {
+        var defaults = AppSettings.DefaultCustomNormalizationRules();
+        Assert.Equal(3, defaults.Count);
+        Assert.Equal(1, defaults.Count(r => r.IsRegex));
+        Assert.Equal(2, defaults.Count(r => !r.IsRegex));
+
+        // The examples mirror built-in fixes, so applying them to already-clean text is a no-op...
+        var (cleaned, _) = Run("# Title\n\nplain text");
+        Assert.Equal("# Title\n\nplain text", cleaned);
+
+        // ...and each example actually does its advertised job on its target text.
+        var (d, _) = Run("Some body.\n\nChatGPT can make mistakes. Check important info.",
+            defaults[0]);
+        Assert.DoesNotContain("ChatGPT can make mistakes", d);
+
+        // A 2-character bold ("**xy**") is below the built-in's 3-char minimum, so this proves the
+        // REGEX example itself fired (not the built-in pseudo-heading pass) and promoted it.
+        var (h, _) = Run("**xy**", defaults[1]);
+        Assert.Contains("### xy", h);
+
+        var (b, _) = Run("a\n\n\n\nb", defaults[2]);
+        Assert.Contains("a\n\nb", b); // built-in collapsed first; the plain example no-ops harmlessly
+    }
+
+    [Fact]
     public void NoRules_IsNoOp()
     {
         var (cleaned, fixes) = Run("plain text");

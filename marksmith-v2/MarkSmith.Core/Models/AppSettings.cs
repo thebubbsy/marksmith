@@ -44,7 +44,29 @@ public sealed class AppSettings
     // User-defined AI text-cleanup rules (Settings -> AI Normalization): find/replace pairs applied
     // on top of the built-in quirks fixes whenever "Normalize AI formatting quirks" is on. Great
     // for stripping recurring AI buzzwords ("In conclusion", "delve") or structural pet-peeves.
-    public List<TextCleanupRule> CustomNormalizationRules { get; set; } = new();
+    // Pre-seeded with three EXAMPLE rules mirroring the built-in fixes (one regex, two plain) so
+    // new users see how the editor works; each is editable/deletable and persisted once saved.
+    public List<TextCleanupRule> CustomNormalizationRules { get; set; } = DefaultCustomNormalizationRules();
+
+    // One-time migration marker: the first launch after the examples feature seeds the example rules
+    // into an EMPTY saved list (so users who already had the setting see them), then never again -
+    // deleting every rule stays deleted.
+    public bool CustomNormalizationRulesSeeded { get; set; }
+
+    /// <summary>The three example rules that ship in the AI Normalization editor. They mirror the
+    /// built-in quirks fixes, so leaving them on is harmless (each is a no-op once the built-in
+    /// pass has already handled the text).</summary>
+    public static List<TextCleanupRule> DefaultCustomNormalizationRules() => new()
+    {
+        // Plain (no regex): strip a ChatGPT disclaimer footer line verbatim.
+        new TextCleanupRule { Find = "ChatGPT can make mistakes. Check important info.", Replace = "" },
+        // Regex with a capture: promote "**Bold**" pseudo-headings to real H3 headings.
+        new TextCleanupRule { Find = @"^\*\*([^*
+]+)\*\*\s*$", Replace = "### $1", IsRegex = true },
+        // Plain: collapse runs of three-or-more blank lines down to two (the built-in does this
+        // with regex; the plain version shows the limitation — it only collapses one run at a time).
+        new TextCleanupRule { Find = "\n\n\n", Replace = "\n\n" },
+    };
 
     // Centre "Looking Glass" view: "Code" / "Split" / "Preview". Persisted so the user can hide
     // the code section (choose Preview) and it STAYS hidden across launches instead of being
@@ -289,6 +311,7 @@ public sealed class AppSettings
         EditorWordWrap = other.EditorWordWrap;
         EditorViewMode = other.EditorViewMode;
         CustomNormalizationRules = other.CustomNormalizationRules?.ToList() ?? new();
+        CustomNormalizationRulesSeeded = other.CustomNormalizationRulesSeeded;
         LookingGlassMode = other.LookingGlassMode;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
