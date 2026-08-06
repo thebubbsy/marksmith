@@ -36,6 +36,16 @@ public sealed class SettingsService
                     if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
                     else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
 
+                    // One-time seed: a saved-but-empty rule list (from before the examples existed)
+                    // gets the three example cleanup rules ONCE; deleting every rule afterwards stays
+                    // deleted because the seeded flag is persisted.
+                    if (!settings.CustomNormalizationRulesSeeded)
+                    {
+                        if (settings.CustomNormalizationRules is null || settings.CustomNormalizationRules.Count == 0)
+                            settings.CustomNormalizationRules = AppSettings.DefaultCustomNormalizationRules();
+                        settings.CustomNormalizationRulesSeeded = true;
+                    }
+
                     // One-time migration: TargetFormat is now the single "default output format".
                     // Fold the old DefaultExportFormat choice into it when the user never set
                     // TargetFormat explicitly (it still holds its default "pdf").
