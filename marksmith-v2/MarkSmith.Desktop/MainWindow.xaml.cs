@@ -606,7 +606,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // is on AND the user is Pro (or on trial). Re-synced whenever either changes.
     private void SyncAdvancedSection() =>
         AdvancedStyleExpander.Visibility =
-            (ViewModel.AdvancedMode && App.License.IsPro) ? Visibility.Visible : Visibility.Collapsed;
+            ViewModel.AdvancedMode ? Visibility.Visible : Visibility.Collapsed;
 
     private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
     {

@@ -97,7 +97,7 @@ public static class FeatureClassifier
         FeatureId.PptxExport => state.CanExportPptx,
         FeatureId.BatchConvert or FeatureId.WatchFolder
             or FeatureId.AutoExportIngest or FeatureId.ClipboardIngest => state.CanAutomate,
-        FeatureId.AdvancedStyling => state.IsPro,
+        FeatureId.AdvancedStyling => true, // advanced styling is free — the toggle simply reveals it
         _ => true,
     };
 }
