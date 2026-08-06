@@ -1151,6 +1151,40 @@
                                           IsOn="{Binding NormalizeLlm, Mode=TwoWay}" />
                             <TextBlock Text="Fixes ChatGPT LaTeX + citation pips, Gemini pseudo-headings, Claude tag remnants."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                            <TextBlock Text="Custom cleanup rules" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <TextBlock Text="Strip your pet-peeve AI phrases (e.g. 'In conclusion', 'delve') on top of the built-in fixes. Regex rules use $1 captures; blank Find is ignored."
+                                       Style="{StaticResource StepCaptionStyle}" />
+                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="6" Margin="0,0,0,4">
+                                <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Spacing="4">
+                                        <ItemsControl ItemsSource="{Binding NormalizationRules}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnSpacing="4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox Text="{Binding Find, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PlaceholderText="Find" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
+                                                        <TextBox Grid.Column="1" Text="{Binding Replace, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PlaceholderText="Replace (blank = strip)" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
+                                                        <CheckBox Grid.Column="2" IsChecked="{Binding IsRegex, Mode=TwoWay}" ToolTipService.ToolTip="Treat Find as a regex" VerticalAlignment="Center" />
+                                                        <Button Grid.Column="3" Content="✕" FontSize="12" Padding="6,2"
+                                                                Command="{Binding ElementName=RootGrid, Path=DataContext.RemoveNormalizationRuleCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                            <Button Content="＋ Add rule" FontSize="12" Padding="10,4"
+                                    Command="{Binding AddNormalizationRuleCommand}" HorizontalAlignment="Left" Margin="0,0,0,4" />
                             <ToggleSwitch Header="Source attribution strip in export"
                                           IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
 

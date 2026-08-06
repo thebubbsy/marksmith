@@ -330,6 +330,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             BatchConvertForApiAsync);
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        WireStreamingApi();
         App.License.Changed += () => DispatcherQueue.TryEnqueue(() => { SyncAdvancedSection(); UpdateLicenseBanner(); });
         // Standardized pro-gate: any PRO feature a free user attempts raises this; the shell shows
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
@@ -468,6 +469,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e) =>
         DispatcherQueue.TryEnqueue(() =>
             Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(MoreMenuButton));
+
+    // WebSocket streaming for the local REST API (opt-in via Settings > Local REST API > Enable
+    // WebSocket streaming, OFF by default). While connected, clients receive live status/busy
+    // events and can pull a preview snapshot or stream text into the editor.
+    private void WireStreamingApi()
+    {
+        var api = _automationManager.ApiServer;
+        api.PreviewHtmlProvider = () => ViewModel.BuildPreviewHtml(ViewModel.PastedMarkdown ?? "");
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ViewModel.StatusText) or nameof(ViewModel.IsBusy))
+                api.PublishStreamEvent(new { type = "status", text = ViewModel.StatusText, busy = ViewModel.IsBusy });
+        };
+    }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
