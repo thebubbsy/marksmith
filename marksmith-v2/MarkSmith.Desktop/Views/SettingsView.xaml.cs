@@ -301,10 +301,12 @@ public sealed partial class SettingsView : UserControl
     // House-style template import: pick a .dotx; the ViewModel parses it locally, shows the prompt
     // as a copyable fallback, and enqueues it for the extension. The AI reply comes back through
     // the command channel and is applied by the heartbeat poll in MainWindow.
+    private void OnApplyHouseStyleJsonClick(object sender, RoutedEventArgs e)
+        => App.ViewModel.ApplyHouseStyleThemeJson(App.ViewModel.HouseStyleJsonResult);
+
     private async void OnImportDotxClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainAppWindow);
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainAppWindow);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
         picker.FileTypeFilter.Add(".dotx");
         picker.FileTypeFilter.Add(".docx");
