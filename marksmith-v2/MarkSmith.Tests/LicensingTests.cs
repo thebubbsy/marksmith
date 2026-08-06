@@ -1,4 +1,5 @@
 using MarkSmith.Models;
+using MarkSmith.ViewModels;
 using MarkSmith.Services;
 using Xunit;
 using System.Net;
@@ -333,5 +334,63 @@ public class OneExportTrialTests : IDisposable
         Assert.Equal(Edition.Free, service.State.Edition);
         Assert.False(service.CanExportDocx);
         Assert.True(service.CanAutomate == false); // still locked
+    }
+}
+
+// ===== Top-down feature classification =====
+
+public class FeatureClassifierTests
+{
+    private static LicenseState Free => new() { Edition = Edition.Free };
+    private static LicenseState Trial => new() { Edition = Edition.Trial };
+    private static LicenseState Pro => new() { Edition = Edition.Pro };
+
+    [Fact]
+    public void FreeTier_FeaturesAreAlwaysAllowed()
+    {
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.MarkdownToPdf, Free));
+        Assert.True(Free.CanUse(FeatureId.MarkdownToPdf));
+    }
+
+    [Fact]
+    public void DocxExport_AllowedForProAndTrial_NotForFree()
+    {
+        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Free));
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Trial));  // the one-export trial
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Pro));
+    }
+
+    [Fact]
+    public void PptxExport_ProOnly()
+    {
+        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Free));
+        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Trial)); // trial is docx-only
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Pro));
+    }
+
+    [Theory]
+    [InlineData(FeatureId.BatchConvert)]
+    [InlineData(FeatureId.WatchFolder)]
+    [InlineData(FeatureId.AutoExportIngest)]
+    [InlineData(FeatureId.ClipboardIngest)]
+    public void AutomationFeatures_ProOnly(FeatureId id)
+    {
+        Assert.False(FeatureClassifier.LicenseAllows(id, Free));
+        Assert.False(FeatureClassifier.LicenseAllows(id, Trial));
+        Assert.True(FeatureClassifier.LicenseAllows(id, Pro));
+    }
+
+    [Fact]
+    public void AdvancedStyling_ProOnly()
+    {
+        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.AdvancedStyling, Free));
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.AdvancedStyling, Pro));
+    }
+
+    [Fact]
+    public void EveryFeatureHasADisplayName()
+    {
+        foreach (FeatureId id in Enum.GetValues<FeatureId>())
+            Assert.False(string.IsNullOrWhiteSpace(FeatureClassifier.DisplayName(id)));
     }
 }
