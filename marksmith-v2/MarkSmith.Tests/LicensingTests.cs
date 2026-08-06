@@ -305,6 +305,11 @@ public class OneExportTrialTests : IDisposable
         // ...and consuming again is a no-op (no negative trial).
         service.ConsumeDocxExport();
         Assert.Equal(Edition.Free, service.State.Edition);
+
+        // The usage is TRACKED: a used trial is distinguishable and can never be restarted.
+        Assert.Contains("trial used", service.State.Status);
+        var (again, _) = service.StartTrial();
+        Assert.False(again, "a used trial must not be restartable");
     }
 
     [Fact]
@@ -334,6 +339,10 @@ public class OneExportTrialTests : IDisposable
         Assert.Equal(Edition.Free, service.State.Edition);
         Assert.False(service.CanExportDocx);
         Assert.True(service.CanAutomate == false); // still locked
+
+        // The reset wipes the USED flag too, so the trial can be started again for testing.
+        var (ok, _) = service.StartTrial();
+        Assert.True(ok, "after ResetToFree the trial must be startable again");
     }
 }
 

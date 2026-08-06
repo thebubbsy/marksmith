@@ -34,9 +34,17 @@ public sealed class StoredLicense
     public string? Email { get; set; }
     public string? InstanceId { get; set; }          // Lemon Squeezy activation instance, if used
     // The whole trial: exactly ONE DOCX export. > 0 = trial active with that many exports left
-    // (only ever 1); 0 = not started or already used up. There is NO automatic trial — the user
-    // starts it explicitly, and it is consumed by a single successful DOCX export.
+    // (only ever 1). There is NO automatic trial — the user starts it explicitly, and it is
+    // consumed by a single successful DOCX export.
     public int TrialExportsRemaining { get; set; }
+
+    // True once the trial's one export has been used. This is what makes a USED trial
+    // distinguishable from a never-started one — a used trial can never be restarted (the user
+    // cannot re-grant themselves the export by toggling state).
+    public bool TrialUsed { get; set; }
+
+    // When the trial export was consumed (tracked so the state is verifiable).
+    public DateTimeOffset? TrialExportUsedUtc { get; set; }
 }
 
 // ===== Top-down feature classification =====
