@@ -417,8 +417,6 @@
                             </Button>
                             <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
                                     ToolTipService.ToolTip="Deactivate this PC — the key can be used on another machine" />
-                            <Button x:Name="ResetFreeButton" Content="Reset to Free (test)" Click="OnResetFreeClick" Visibility="Collapsed"
-                                    ToolTipService.ToolTip="Testing: force the Free tier so the free/pro differences can be verified" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
