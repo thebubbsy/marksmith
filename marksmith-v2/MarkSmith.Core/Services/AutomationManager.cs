@@ -57,10 +57,14 @@ public sealed class AutomationManager : IDisposable
         bool isFolderRunning,
         Action<string>? onApiStatusChanged = null)
     {
-        if (vm.AutoClipboardIngest && !isClipboardRunning) startClipboard();
+        // Automation is a PRO feature: the watchers must never run for a free user, no matter how
+        // the settings got flipped (the VM gates the toggles too, but this is the enforcement layer).
+        var automationAllowed = AppServices.License.CanAutomate;
+
+        if (automationAllowed && vm.AutoClipboardIngest && !isClipboardRunning) startClipboard();
         else if (!vm.AutoClipboardIngest && isClipboardRunning) stopClipboard();
 
-        if (vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) startFolder(vm.WatchFolder);
+        if (automationAllowed && vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) startFolder(vm.WatchFolder);
         else stopFolder();
 
         try

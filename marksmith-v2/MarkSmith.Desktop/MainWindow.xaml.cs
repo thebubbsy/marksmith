@@ -331,6 +331,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         App.License.Changed += () => DispatcherQueue.TryEnqueue(() => { SyncAdvancedSection(); UpdateLicenseBanner(); });
+        // Standardized pro-gate: any PRO feature a free user attempts raises this; the shell shows
+        // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
+        ViewModel.ProFeatureAttempted += feature => DispatcherQueue.TryEnqueue(() => _ = ShowProGateAsync(feature));
         SyncSourcePanels();
         ApplyAutomationSettings();
         SyncAdvancedSection();
@@ -1151,12 +1154,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Batch: convert every .md in a chosen folder (optionally its subfolders too) to a chosen
     // format — PDF/DOCX/PPTX/EPUB — one by one through the same classify → normalize → render
     // pipeline the watched folder uses. Pro (automation) feature.
+    // Standardized output for a free user attempting a paid feature: one modal, consistent copy,
+    // with the trial + upgrade actions. Returns whether the user is now allowed to proceed.
+    private async Task<bool> ShowProGateAsync(Models.FeatureId feature)
+    {
+        var name = Models.FeatureClassifier.DisplayName(feature);
+        var trialUnlocks = feature == Models.FeatureId.DocxExport; // the trial is a single DOCX export
+        var dialog = new ContentDialog
+        {
+            Title = name + " is a MarkSmith Pro feature",
+            Content = trialUnlocks
+                ? "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
+                  " is a Pro feature — start your one-export trial to try it, or upgrade to unlock it permanently."
+                : "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
+                  " is a Pro feature — upgrade to unlock it.",
+            PrimaryButtonText = trialUnlocks ? "Start 1-export trial" : "Upgrade to Pro",
+            SecondaryButtonText = "Upgrade to Pro",
+            CloseButtonText = "Not now",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = RootGrid.XamlRoot,
+        };
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            if (trialUnlocks)
+            {
+                var (ok, message) = App.License.StartTrial();
+                ViewModel.StatusText = message;
+                ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
+                return ok;
+            }
+            return true; // "Upgrade to Pro" opens the store below
+        }
+        if (result == ContentDialogResult.Secondary)
+        {
+            try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
+            catch { /* no browser / bad uri — ignore */ }
+        }
+        return false;
+    }
+
     private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
     {
         if (!App.License.CanAutomate)
         {
-            ViewModel.StatusText = "Batch conversion is a MarkSmith Pro feature. Upgrade in Settings ⚙.";
+            ViewModel.StatusText = Models.FeatureClassifier.DisplayName(Models.FeatureId.BatchConvert) + " is a MarkSmith Pro feature. Upgrade in Settings.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.BatchConvert);
             return;
         }
 

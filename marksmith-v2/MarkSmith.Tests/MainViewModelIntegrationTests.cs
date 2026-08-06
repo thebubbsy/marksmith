@@ -235,3 +235,53 @@ public class MainViewModelIntegrationTests
     }
 }
 
+
+// A free user must not be able to switch automation on — the toggle reverts and the pro-gate
+// event fires (the old bug: watchers started and only the export step complained).
+[Collection("LicenseState")]
+public class FreeTierToggleGateTests : IDisposable
+{
+    private readonly string _licensePath;
+    private readonly string? _backup;
+
+    public FreeTierToggleGateTests()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+        _licensePath = Path.Combine(dir, "license.json");
+        _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (_backup is null) { if (File.Exists(_licensePath)) File.Delete(_licensePath); }
+            else File.WriteAllText(_licensePath, _backup);
+            AppServices.License.Load();
+        }
+        catch { /* best-effort */ }
+    }
+
+    [Theory]
+    [InlineData("AutoClipboardIngest")]
+    [InlineData("WatchFolderEnabled")]
+    [InlineData("AutoConvertIngests")]
+    public void FreeUser_CannotSwitchAutomationOn(string prop)
+    {
+        AppServices.License.ResetToFree(); // guarantee Free
+        var vm = new MainViewModel();
+        MarkSmith.Models.FeatureId? raised = null;
+        vm.ProFeatureAttempted += id => raised = id;
+
+        // diagnostics
+        Assert.False(AppServices.License.CanAutomate, "precondition: automation must be locked");
+        var property = typeof(MainViewModel).GetProperty(prop)!;
+        property.SetValue(vm, false); // ensure the pre-state is OFF (a real user's settings may have it on)
+        property.SetValue(vm, true);  // the attempt to switch automation ON must be refused
+
+        var after = (bool)property.GetValue(vm)!;
+        Assert.False(after, $"{prop} must stay OFF for a free user (after={after}, raised={(raised?.ToString() ?? "null")})");
+        Assert.NotNull(raised); // the standardized pro-gate fired
+    }
+}
