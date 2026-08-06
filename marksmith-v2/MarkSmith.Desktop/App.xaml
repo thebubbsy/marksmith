@@ -17,6 +17,12 @@
                 <Setter Property="CornerRadius" Value="12" />
             </Style>
 
+            <!-- Zebra (checker) alternate for adjacent cards — each button+description group reads as
+                 its own band (grey / dark-grey), adapting to light & dark themes automatically. -->
+            <Style x:Key="PipelineCardZebraStyle" TargetType="Border" BasedOn="{StaticResource PipelineCardStyle}">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+            </Style>
+
             <!-- Numbered step badge -->
             <Style x:Key="StepBadgeStyle" TargetType="Border">
                 <Setter Property="Width" Value="24" />
