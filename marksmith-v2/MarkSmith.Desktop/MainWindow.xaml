@@ -251,9 +251,12 @@
                                 <TextBox Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                          PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
                                 <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick"
-                                        IsEnabled="{Binding HasInputFile}"
+                                        IsEnabled="{Binding HasInputFile}" Padding="10,4"
                                         ToolTipService.ToolTip="Version history for this file — scroll back through every iteration (Time Machine style)">
-                                    <FontIcon Glyph="&#xE823;" FontSize="14" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE823;" FontSize="14" />
+                                        <TextBlock Text="History" FontSize="13" />
+                                    </StackPanel>
                                 </Button>
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnTogglePinFileClick"
                                         ToolTipService.ToolTip="Pin/unpin this file to the top of the file list">
@@ -860,6 +863,10 @@
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
+                                        <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick"
+                                                       IsEnabled="{Binding HasInputFile}">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE113;" /></MenuFlyoutItem.Icon>

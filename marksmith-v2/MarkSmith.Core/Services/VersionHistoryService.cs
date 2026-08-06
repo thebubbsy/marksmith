@@ -111,6 +111,39 @@ public sealed class VersionHistoryService
         finally { _gate.Release(); }
     }
 
+    /// <summary>One file in the global edit history (every file ever touched).</summary>
+    public sealed record FileHistorySummary(
+        string FilePath, string FileName, int VersionCount, DateTimeOffset LastModified, string LatestSource);
+
+    /// <summary>Every file that has ever been captured, newest last-modified first — the 'all my
+    /// edits' hub view. Empty when the database has not been created yet.</summary>
+    public async Task<List<FileHistorySummary>> GetOverviewAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            var index = await LoadIndexAsync();
+            var summaries = index
+                .Where(kv => kv.Value is { Count: > 0 })
+                .Select(kv => new FileHistorySummary(
+                    kv.Key,
+                    SafeFileName(kv.Key),
+                    kv.Value.Count,
+                    kv.Value[0].CreatedAt,
+                    kv.Value[0].Source))
+                .OrderByDescending(s => s.LastModified)
+                .ToList();
+            return summaries;
+        }
+        finally { _gate.Release(); }
+    }
+
+    private static string SafeFileName(string filePath)
+    {
+        try { return Path.GetFileName(filePath); }
+        catch { return filePath; }
+    }
+
     /// <summary>Deletes every stored version for a file. Returns how many were removed.</summary>
     public async Task<int> PurgeAsync(string filePath)
     {
