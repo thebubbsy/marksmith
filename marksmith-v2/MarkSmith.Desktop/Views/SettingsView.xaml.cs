@@ -32,9 +32,6 @@ public sealed partial class SettingsView : UserControl
         DeactivateButton.Visibility = ed == Models.Edition.Pro ? Visibility.Visible : Visibility.Collapsed;
         // "Start trial" is available to Free users who haven't spent their one export.
         StartTrialButton.Visibility = ed == Models.Edition.Free ? Visibility.Visible : Visibility.Collapsed;
-        // Testing affordance: force the Free tier to exercise the free/pro differences end-to-end.
-        ResetFreeButton.Visibility = ed == Models.Edition.Pro || ed == Models.Edition.Trial
-            ? Visibility.Visible : Visibility.Collapsed;
         // Always surface the resolved state (Free / Trial — ONE export remaining / Pro).
         LicenseStatus.Text = App.License.State.Status ?? "Free";
         LicenseStatus.Visibility = Visibility.Visible;
@@ -44,14 +41,6 @@ public sealed partial class SettingsView : UserControl
     {
         var (ok, message) = App.License.StartTrial();
         LicenseStatus.Text = message;
-        LicenseStatus.Visibility = Visibility.Visible;
-        RefreshLicenseUi();
-    }
-
-    private void OnResetFreeClick(object sender, RoutedEventArgs e)
-    {
-        App.License.ResetToFree();
-        LicenseStatus.Text = "Reset to Free — the free-tier limits are now active (test).";
         LicenseStatus.Visibility = Visibility.Visible;
         RefreshLicenseUi();
     }

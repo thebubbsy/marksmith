@@ -1194,6 +1194,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return false;
     }
 
+    // Hidden Ctrl+Shift+Alt+L: full license reset to Free (key + trial + used flag) — the
+    // developer/test path for exercising the free-vs-pro gates on demand.
+    private void OnHiddenResetLicenseInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        App.License.ResetToFree();
+        ViewModel.StatusText = "License reset to Free (hidden command) — free-tier limits are active. Start 1-export trial from Settings to re-test.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        UpdateLicenseBanner();
+    }
+
     private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
     {
         if (!App.License.CanAutomate)

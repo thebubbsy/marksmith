@@ -88,8 +88,8 @@ public sealed class LicenseService
             return (false, "You already have Pro — no trial needed.");
         if (_stored.TrialExportsRemaining > 0)
             return (false, "Your trial is already active — one DOCX export remaining. Use it, then it's gone.");
-        if (_stored.TrialExportsRemaining < 0)
-            return (false, "Your trial has been used up.");
+        if (_stored.TrialUsed)
+            return (false, "Your trial has already been used — one DOCX export was the whole trial.");
 
         _stored.TrialExportsRemaining = 1;
         WriteStored();
@@ -103,6 +103,8 @@ public sealed class LicenseService
     {
         if (_stored.TrialExportsRemaining <= 0) return;
         _stored.TrialExportsRemaining--;
+        _stored.TrialUsed = true;
+        _stored.TrialExportUsedUtc = DateTimeOffset.UtcNow;
         WriteStored();
         Recompute();
     }
@@ -113,6 +115,8 @@ public sealed class LicenseService
     {
         _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;
         _stored.TrialExportsRemaining = 0;
+        _stored.TrialUsed = false;
+        _stored.TrialExportUsedUtc = null;
         WriteStored();
         Recompute();
     }
@@ -169,8 +173,15 @@ public sealed class LicenseService
             return;
         }
 
-        // 3) free
-        State = new LicenseState { Edition = Edition.Free, Status = "Free" };
+        // 3) free (the status distinguishes a never-started trial from a USED one, so the
+        //    trial's one-shot consumption is visible and verifiable)
+        State = new LicenseState
+        {
+            Edition = Edition.Free,
+            Status = _stored.TrialUsed
+                ? "Free — trial used (DOCX export requires Pro)"
+                : "Free",
+        };
         Changed?.Invoke();
     }
 
