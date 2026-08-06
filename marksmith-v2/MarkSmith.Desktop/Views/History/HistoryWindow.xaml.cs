@@ -1,10 +1,10 @@
-using MarkSmith.Core.ViewModels.History;
+using MarkSmith.ViewModels.History;
 using MarkSmith.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls;
 
-namespace MarkSmith.Desktop.Views.History;
+namespace MarkSmith.Views.History;
 
 public sealed partial class HistoryWindow : Window
 {

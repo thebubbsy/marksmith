@@ -2654,6 +2654,24 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // Pin/unpin the selected file to the top of the Step-1 picker (persisted across sessions).
+    private Views.History.HistoryWindow? _historyWindow;
+
+    private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(ViewModel.InputFilePath) || !File.Exists(ViewModel.InputFilePath))
+        {
+            ViewModel.StatusText = "Open a markdown file first — history is per-file.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
+        }
+        if (_historyWindow == null)
+        {
+            _historyWindow = new Views.History.HistoryWindow(ViewModel.InputFilePath, ViewModel);
+            _historyWindow.Closed += (s, args) => _historyWindow = null;
+        }
+        _historyWindow.Activate();
+    }
+
     private void OnTogglePinFileClick(object sender, RoutedEventArgs e)
     {
         ViewModel.TogglePinCurrentFile();
