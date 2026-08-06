@@ -390,9 +390,11 @@ public class FeatureClassifierTests
     }
 
     [Fact]
-    public void AdvancedStyling_ProOnly()
+    public void AdvancedStyling_IsFree()
     {
-        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.AdvancedStyling, Free));
+        // The Advanced Options toggle reveals this section for EVERYONE — it is styling, not a
+        // paid capability (it used to be gated on IsPro, which silently broke the toggle).
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.AdvancedStyling, Free));
         Assert.True(FeatureClassifier.LicenseAllows(FeatureId.AdvancedStyling, Pro));
     }
 
