@@ -173,6 +173,45 @@ public class DialectNormalizerTests
         Assert.Contains("[1]", N(md, null));
     }
 
+    // ---- Claude: <antThinking> reasoning blocks --------------------------------------------------
+
+    [Fact]
+    public void Claude_AntThinking_Block_Is_Stripped_Entirely()
+    {
+        var md = "<antThinking>\nClaude thinking process.\n</antThinking>\n\n# Summary\n\nClaude answer.";
+        var result = N(md, "claude");
+        Assert.DoesNotContain("antThinking", result, System.StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("thinking process", result);
+        Assert.Contains("# Summary", result);
+        Assert.Contains("Claude answer.", result);
+    }
+
+    [Fact]
+    public void Claude_Unclosed_AntThinking_Block_Is_Stripped_To_End_Of_Stream()
+    {
+        var md = "<antThinking>\nThinking that never terminates...";
+        Assert.Equal("", N(md, "claude").Trim());
+    }
+
+    [Fact]
+    public void AntThinking_Block_Strip_Is_Case_Insensitive()
+    {
+        var md = "<antthinking>\nstep one\n</antthinking>\nanswer";
+        var result = N(md, "claude");
+        Assert.DoesNotContain("step one", result);
+        Assert.Contains("answer", result);
+    }
+
+    [Fact]
+    public void Multiple_AntThinking_Blocks_Are_All_Stripped()
+    {
+        var md = "<antThinking>\na\n</antThinking>\npart one\n<antThinking>\nb\n</antThinking>\npart two";
+        var result = N(md, "claude");
+        Assert.Contains("part one", result);
+        Assert.Contains("part two", result);
+        Assert.DoesNotContain("antThinking", result, System.StringComparison.OrdinalIgnoreCase);
+    }
+
     // ---- regression guards: pre-existing provider rules ------------------------------------------
 
     [Fact]

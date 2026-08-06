@@ -17,6 +17,10 @@ public static class ProviderDialectNormalizer
     // provider id (including unknown/null), not just "deepseek".
     private static readonly Regex ThinkBlock = new(@"<think>[\s\S]*?(</think>|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Claude sometimes uses <antThinking>...</antThinking> for chain-of-thought logic.
+    // Like <think>, these blocks should be removed from the final markdown.
+    private static readonly Regex AntThinkingBlock = new(@"<antThinking>[\s\S]*?(</antThinking>|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     // Gemini's code-block wrapper often labels Mermaid diagrams as "code snippet" or "code"
     // instead of "mermaid". Matches fences starting with "code snippet", "code", "text", or bare fences
     // that contain a valid Mermaid diagram header.
@@ -110,8 +114,11 @@ public static class ProviderDialectNormalizer
     private static string NormalizeChatGPTQuirks(string md) =>
         md.Replace(@"\[", "$$").Replace(@"\]", "$$");
 
-    private static string NormalizeClaudeQuirks(string md) =>
-        Regex.Replace(md, @"</?antArtifact[^>]*>", string.Empty);
+    private static string NormalizeClaudeQuirks(string md)
+    {
+        md = AntThinkingBlock.Replace(md, string.Empty);
+        return Regex.Replace(md, @"</?antArtifact[^>]*>", string.Empty);
+    }
 
     private static string NormalizeDeepSeekQuirks(string md)
     {
