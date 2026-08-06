@@ -12,13 +12,15 @@ public sealed class LicenseState
     public DateTimeOffset? ExpiresUtc { get; init; }
     public string? Status { get; init; }
 
-    public bool IsPro => Edition is Edition.Pro or Edition.Trial;
+    // Pro = an activated key. A TRIAL is NOT "pro": it is a free user with exactly ONE DOCX export
+    // to try the killer feature, so the trial never unlocks PPTX or automation.
+    public bool IsPro => Edition == Edition.Pro;
 
     // ---- entitlements (the paywall) ----
-    public bool CanExportDocx => IsPro;   // DOCX + editable math
-    public bool CanExportPptx => IsPro;   // PPTX slide decks
-    public bool CanAutomate => IsPro;     // hands-free auto-convert (clipboard / watch folder / extension)
-    public bool ShowFooter => !IsPro;     // "Made with Marksmith" footer on free exports
+    public bool CanExportDocx => Edition is Edition.Pro or Edition.Trial; // Trial = its single export
+    public bool CanExportPptx => Edition == Edition.Pro;                  // PPTX slide decks
+    public bool CanAutomate => Edition == Edition.Pro;                    // hands-free auto-convert (clipboard / watch folder / extension)
+    public bool ShowFooter => Edition != Edition.Pro;                     // "Made with Marksmith" footer on free exports
 }
 
 // What we persist to %LOCALAPPDATA%\MarkSmith\license.json.
@@ -27,9 +29,8 @@ public sealed class StoredLicense
     public string? Key { get; set; }
     public string? Email { get; set; }
     public string? InstanceId { get; set; }          // Lemon Squeezy activation instance, if used
-    public DateTimeOffset? TrialStartUtc { get; set; }
-    // Highest wall-clock time ever observed (monotonic; never decreases). Lets the trial detect a
-    // clock rollback — if the current time is before this, the system clock was moved back and the
-    // trial is evaluated against LastSeenUtc instead, so winding the clock back can't revive it.
-    public DateTimeOffset? LastSeenUtc { get; set; }
+    // The whole trial: exactly ONE DOCX export. > 0 = trial active with that many exports left
+    // (only ever 1); 0 = not started or already used up. There is NO automatic trial — the user
+    // starts it explicitly, and it is consumed by a single successful DOCX export.
+    public int TrialExportsRemaining { get; set; }
 }

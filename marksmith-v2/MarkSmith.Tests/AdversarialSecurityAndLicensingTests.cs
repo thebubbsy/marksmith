@@ -11,6 +11,7 @@ using Xunit;
 
 namespace MarkSmith.Core.Tests;
 
+[Collection("LicenseState")]
 public class AdversarialSecurityAndLicensingTests
 {
     private static ApiServer CreateServer(string allowedExtId = "test-extension-id")
