@@ -2666,7 +2666,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         if (_historyWindow == null)
         {
-            _historyWindow = new Views.History.HistoryWindow(ViewModel.InputFilePath, ViewModel);
+            _historyWindow = new Views.History.HistoryWindow(ViewModel, ViewModel.InputFilePath);
             _historyWindow.Closed += (s, args) => _historyWindow = null;
         }
         _historyWindow.Activate();

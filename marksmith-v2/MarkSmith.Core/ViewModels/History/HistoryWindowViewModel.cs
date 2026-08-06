@@ -31,36 +31,59 @@ public sealed partial class VersionItemViewModel : ObservableObject
     private bool _isSelected;
 }
 
+/// <summary>A file in the global edit history hub (every file ever touched).</summary>
+public sealed partial class FileSummaryViewModel : ObservableObject
+{
+    public FileSummaryViewModel(VersionHistoryService.FileHistorySummary summary)
+    {
+        Summary = summary;
+        Detail = summary.FilePath;
+        VersionCountLabel = summary.VersionCount + (summary.VersionCount == 1 ? " version" : " versions");
+        LastModifiedLabel = summary.LastModified.LocalDateTime.ToString("d MMM yyyy · HH:mm");
+    }
+
+    public VersionHistoryService.FileHistorySummary Summary { get; }
+    public string FileName => Summary.FileName;
+    public string Detail { get; }
+    public string VersionCountLabel { get; }
+    public string LastModifiedLabel { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
 /// <summary>
-/// A macOS-Time-Machine-style version timeline: versions grouped into time bands running down the
-/// side (Today / Yesterday / This Week / This Month / This Year / Older), the selected version
-/// previewed beside it. Scroll with the mouse wheel.
+/// The version-history hub: a running history of EVERY file the user has ever touched, newest
+/// first. Picking a file shows its Time Machine timeline (Today / Yesterday / This Week / … /
+/// Older), and picking a version shows a GitHub-style code-by-code diff (red removed, green added).
 /// </summary>
 public sealed partial class HistoryWindowViewModel : ObservableObject
 {
-    private readonly string _filePath;
     private readonly Func<string, string> _previewBuilder;
     private readonly Func<string, Task<bool>> _restore;
     private readonly VersionHistoryService _history;
     private List<VersionEntry> _allVersions = new();
+    private string _currentFile = "";
 
     public HistoryWindowViewModel(
-        string filePath,
         Func<string, string> previewBuilder,
         Func<string, Task<bool>> restore,
-        VersionHistoryService? history = null)
+        VersionHistoryService? history = null,
+        string? initialFilePath = null)
     {
-        _filePath = filePath;
         _previewBuilder = previewBuilder;
         _restore = restore;
         _history = history ?? AppServices.VersionHistory;
-        FileName = Path.GetFileName(filePath);
+        InitialFilePath = initialFilePath ?? "";
     }
 
+    private string InitialFilePath { get; }
+
+    public ObservableCollection<FileSummaryViewModel> Files { get; } = new();
     public ObservableCollection<TimeBandViewModel> Bands { get; } = new();
 
     [ObservableProperty]
-    private string _fileName = "";
+    private string _fileName = "—";
 
     [ObservableProperty]
     private string _selectedHeader = "Select a version";
@@ -80,8 +103,11 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private VersionItemViewModel? _selected;
 
+    [ObservableProperty]
+    private FileSummaryViewModel? _selectedFile;
+
     // ---- Diff view (GitHub/VS Code style) ----
-    public System.Collections.ObjectModel.ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
+    public ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
 
     [ObservableProperty]
     private bool _showDiff = true;
@@ -106,10 +132,52 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     {
         try
         {
-            var versions = await _history.GetVersionsAsync(_filePath);
+            var overview = await _history.GetOverviewAsync();
+            foreach (var summary in overview)
+                Files.Add(new FileSummaryViewModel(summary));
+
+            // Pre-select the file that's open in the editor if it has history, else the most recent.
+            var preferred = Files.FirstOrDefault(f =>
+                string.Equals(f.Summary.FilePath, InitialFilePath, StringComparison.OrdinalIgnoreCase))
+                ?? Files.FirstOrDefault();
+            IsLoaded = true;
+
+            if (preferred is not null) await SelectFileCommand.ExecuteAsync(preferred);
+        }
+        catch
+        {
+            // A store failure must never take the window down — show an empty hub.
+        }
+    }
+
+    [RelayCommand]
+    private async Task SelectFileAsync(FileSummaryViewModel file)
+    {
+        if (SelectedFile is not null) SelectedFile.IsSelected = false;
+        SelectedFile = file;
+        if (file is not null)
+        {
+            file.IsSelected = true;
+            await LoadTimelineAsync(file.Summary.FilePath);
+        }
+    }
+
+    private async Task LoadTimelineAsync(string filePath)
+    {
+        _currentFile = filePath;
+        FileName = Path.GetFileName(filePath);
+        Bands.Clear();
+        DiffRows.Clear();
+        Selected = null;
+        SelectedHeader = "Select a version";
+        DiffTitle = "Select a version to see its changes";
+        DiffStats = "";
+
+        try
+        {
+            var versions = await _history.GetVersionsAsync(filePath);
             _allVersions = versions;
             HasVersions = versions.Count > 0;
-            IsLoaded = true;
             if (versions.Count == 0) return;
 
             var now = DateTime.Now;
@@ -117,8 +185,12 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             foreach (var entry in versions)
             {
                 var content = await _history.GetContentAsync(entry.Id) ?? "";
-                byBand.TryGetValue(BandName(entry.CreatedAt.LocalDateTime, now), out var list);
-                if (list is null) { list = new List<VersionItemViewModel>(); byBand[BandName(entry.CreatedAt.LocalDateTime, now)] = list; }
+                var band = BandName(entry.CreatedAt.LocalDateTime, now);
+                if (!byBand.TryGetValue(band, out var list))
+                {
+                    list = new List<VersionItemViewModel>();
+                    byBand[band] = list;
+                }
                 list.Add(new VersionItemViewModel(entry, TimestampLabel(entry.CreatedAt.LocalDateTime, now), Snippet(content)));
             }
 
@@ -133,7 +205,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
         catch
         {
-            // A store failure must never take the window down — show an empty timeline.
+            // Keep the hub alive if one file's history is unreadable.
         }
     }
 

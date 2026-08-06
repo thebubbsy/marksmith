@@ -76,4 +76,83 @@ public class HouseStyleJsonFallbackTests
         }
         finally { if (File.Exists(dotx)) File.Delete(dotx); }
     }
+
+    // ---- the JSON is the COMPLETE house-style spec: it can carry page geometry too ----
+
+    [Fact]
+    public void ParseAiResponse_carries_page_geometry_back_with_the_palette()
+    {
+        const string json = """
+            {"name":"Corp A4","background":"#FFFFFF","text":"#1A1A1A","heading":"#003366",
+             "primary":"#0066CC","secondary":"#004488","line":"#E0E0E0",
+             "pageWidth":11906,"pageHeight":16838,"orientation":"portrait",
+             "marginTop":1800,"marginRight":1080,"marginBottom":1800,"marginLeft":1440,
+             "headerDistance":700,"footerDistance":720,"columns":2,"columnSpace":360}
+            """;
+
+        var theme = MarkSmith.Services.TemplateThemeService.ParseAiResponse(json);
+
+        Assert.NotNull(theme);
+        Assert.NotNull(theme!.Layout);
+        Assert.Equal(11906u, theme.Layout!.PageWidthTwips);
+        Assert.Equal(16838u, theme.Layout.PageHeightTwips);
+        Assert.Equal("portrait", theme.Layout.Orientation);
+        Assert.Equal(1800, theme.Layout.MarginTop);
+        Assert.Equal(1440, theme.Layout.MarginLeft);
+        Assert.Equal(700, theme.Layout.HeaderDistance);
+        Assert.Equal(720, theme.Layout.FooterDistance);
+        Assert.Equal(2, theme.Layout.ColumnCount);
+        Assert.Equal(360, theme.Layout.ColumnSpace);
+    }
+
+    [Fact]
+    public void ParseAiResponse_without_geometry_leaves_layout_null()
+    {
+        var theme = MarkSmith.Services.TemplateThemeService.ParseAiResponse(ValidJson);
+        Assert.NotNull(theme);
+        Assert.Null(theme!.Layout);
+    }
+
+    [Fact]
+    public void HouseLayout_Merge_keeps_template_header_footer_and_applies_json_overrides()
+    {
+        var local = new Models.HouseLayout
+        {
+            PageWidthTwips = 12240, PageHeightTwips = 15840,
+            MarginTop = 1440, HeaderXml = "<w:hdr>logo</w:hdr>", FooterXml = "<w:ftr>page</w:ftr>",
+        };
+        var ai = new Models.HouseLayout { PageWidthTwips = 11906, PageHeightTwips = 16838, ColumnCount = 2 };
+
+        var merged = Models.HouseLayout.Merge(local, ai);
+
+        Assert.NotNull(merged);
+        Assert.Equal(11906u, merged!.PageWidthTwips);      // AI wins for geometry
+        Assert.Equal(1440, merged.MarginTop);              // local fills the gaps
+        Assert.Equal("<w:hdr>logo</w:hdr>", merged.HeaderXml);  // header/footer stay from template
+        Assert.Equal("<w:ftr>page</w:ftr>", merged.FooterXml);
+        Assert.Equal(2, merged.ColumnCount);
+    }
+
+    [Fact]
+    public void BuildPrompt_hands_the_layout_facts_to_the_ai()
+    {
+        var layout = new Models.HouseLayout
+        {
+            PageWidthTwips = 11906, PageHeightTwips = 16838,
+            MarginTop = 1800, MarginRight = 1080, MarginBottom = 1800, MarginLeft = 1440,
+            ColumnCount = 2, ColumnSpace = 360,
+            HeaderXml = "<w:hdr/>", FooterXml = "<w:ftr/>",
+        };
+        var prompt = MarkSmith.Services.TemplateThemeService.BuildPrompt(
+            new MarkSmith.Services.TemplateThemeService.TemplateStyleSummary("Calibri", "Calibri", null, null, null, null, null, null),
+            layout);
+
+        Assert.Contains("Page Size: 11906 x 16838 twips", prompt);
+        Assert.Contains("Margins (twips): top=1800", prompt);
+        Assert.Contains("Columns: 2 (space 360)", prompt);
+        Assert.Contains("Header: inherited from the template", prompt);
+        Assert.Contains("Footer: inherited from the template", prompt);
+        Assert.Contains("\"pageWidth\"", prompt); // the optional JSON keys are taught
+        Assert.Contains("\"columns\"", prompt);
+    }
 }

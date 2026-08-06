@@ -1,5 +1,5 @@
-using MarkSmith.ViewModels.History;
 using MarkSmith.ViewModels;
+using MarkSmith.ViewModels.History;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls;
@@ -11,15 +11,15 @@ public sealed partial class HistoryWindow : Window
     private readonly HistoryWindowViewModel _vm;
     private readonly Microsoft.UI.Xaml.Controls.WebView2 _preview;
 
-    public HistoryWindow(string filePath, MainViewModel mainViewModel)
+    public HistoryWindow(MainViewModel mainViewModel, string? initialFilePath = null)
     {
         InitializeComponent();
-        Title = "Version History — " + System.IO.Path.GetFileName(filePath);
+        Title = "Version History";
 
         _vm = new HistoryWindowViewModel(
-            filePath,
             html => mainViewModel.BuildPreviewHtml(html),
-            id => mainViewModel.RestoreVersionAsync(id));
+            id => mainViewModel.RestoreVersionAsync(id),
+            initialFilePath: initialFilePath);
         RootGrid.DataContext = _vm;
         _vm.PropertyChanged += OnVmPropertyChanged;
 
@@ -31,6 +31,18 @@ public sealed partial class HistoryWindow : Window
     {
         if (e.PropertyName == nameof(HistoryWindowViewModel.PreviewHtml))
             _preview.NavigateToString(_vm.PreviewHtml);
+    }
+
+    private void OnFileTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: FileSummaryViewModel file })
+            _vm.SelectFileCommand.Execute(file);
+    }
+
+    private void OnVersionTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
+            _vm.SelectVersionCommand.Execute(item);
     }
 
     private void OnDiffToggleClick(object sender, RoutedEventArgs e)
@@ -45,11 +57,5 @@ public sealed partial class HistoryWindow : Window
         DiffToggle.IsChecked = false;
         PreviewToggle.IsChecked = true;
         _vm.ShowPreviewViewCommand.Execute(null);
-    }
-
-    private void OnVersionTapped(object sender, TappedRoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
-            _vm.SelectVersionCommand.Execute(item);
     }
 }
