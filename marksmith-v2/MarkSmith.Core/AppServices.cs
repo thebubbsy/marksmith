@@ -21,6 +21,7 @@ public static class AppServices
     public static Services.CloudStorageService CloudStorage { get; } = new();
     public static Plugins.PluginManager Plugins { get; } = new();
     public static Services.ExportCoordinator ExportCoordinator { get; } = new();
+    public static Services.VersionHistoryService VersionHistory { get; } = new();
 
     // Constructed lazily (after the services above exist) since MainViewModel reads them in its
     // constructor. Each UI project sets ViewModel.Host / ViewModel.Prompts once its main window
