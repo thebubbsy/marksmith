@@ -361,11 +361,9 @@
                     <Border Style="{StaticResource PipelineCardStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <TextBlock Text="Company House-Style Template" FontWeight="SemiBold" />
-                            <TextBlock Text="Import a .dotx template to extract your brand colors and fonts. The extension sends the style summary to your web AI to generate a matching Marksmith theme."
+                            <TextBlock Text="Import a .dotx template to extract brand colors, fonts and page layout. The extension sends the style summary to your web AI to generate a matching Marksmith theme — or copy the prompt yourself and paste the JSON reply back below."
                                        Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             <Button Content="Import Company Template (.dotx)"
-                                    IsEnabled="{Binding ExtensionConnected}"
-                                    ToolTipService.ToolTip="Connect Marksmith Browser Extension to enable"
                                     Click="OnImportDotxClick" />
                             <TextBlock Text="{Binding HouseStyleStatus}" TextWrapping="Wrap"
                                        Style="{StaticResource StepCaptionStyle}"
@@ -377,6 +375,14 @@
                                      IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
                                      MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False"
                                      Visibility="{Binding HasHouseStylePrompt, Converter={StaticResource SettingsBoolToVisibilityConverter}}" />
+                            <TextBox Header="AI result JSON (manual fallback — paste your web AI's reply)"
+                                     Text="{Binding HouseStyleJsonResult, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     MaxHeight="140" FontSize="12" IsSpellCheckEnabled="False"
+                                     PlaceholderText="Paste the JSON your web AI returned for the prompt above, then click Apply" />
+                            <Button Content="Apply AI JSON result"
+                                    Click="OnApplyHouseStyleJsonClick"
+                                    HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
 

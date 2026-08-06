@@ -130,14 +130,21 @@ private readonly MarkdownExportService _mdExport = new();
     [NotifyPropertyChangedFor(nameof(HasHouseStyleStatus))]
     private string _houseStyleStatus = "";
 
+    /// <summary>Manual fallback for the AI's JSON reply (pasted when the extension round-trip
+    /// isn't available). Bound to the Settings text box.</summary>
+    [ObservableProperty]
+    private string _houseStyleJsonResult = "";
+
     public bool HasHouseStylePrompt => !string.IsNullOrWhiteSpace(HouseStylePrompt);
     public bool HasHouseStyleStatus => !string.IsNullOrWhiteSpace(HouseStyleStatus);
 
     private string? _pendingThemeJobId;
 
-    /// <summary>Parses a .dotx/.docx template, builds the style prompt and enqueues it for the
-    /// browser extension. Returns the command-channel job id. Throws when the template cannot be
-    /// parsed (the caller surfaces the error dialog).</summary>
+    /// <summary>Parses a .dotx/.docx template, builds the style prompt and — when the browser
+    /// extension is connected — enqueues it for the zero-click round-trip. The prompt is ALWAYS
+    /// surfaced in Settings so the import works without the extension: copy the prompt into your
+    /// web AI, then paste its JSON reply via <see cref="ApplyHouseStyleThemeJson"/>.
+    /// Throws when the template cannot be parsed (the caller surfaces the error dialog).</summary>
     public string BeginHouseStyleImport(string dotxPath)
     {
         var summary = TemplateThemeService.ParseDotx(dotxPath);
@@ -149,32 +156,44 @@ private readonly MarkdownExportService _mdExport = new();
 
         var prompt = TemplateThemeService.BuildPrompt(summary);
         HouseStylePrompt = prompt;
+        BrandTemplatePath = dotxPath;
+
+        // Always enqueue on the reverse command channel — harmless when the extension is away
+        // (the poll simply finds nothing), and the prompt + JSON paste box below remain the
+        // manual fallback. The status line tells the user which path to take.
         var jobId = ApiServer.EnqueueCommand("theme-prompt", prompt);
         _pendingThemeJobId = jobId;
-        BrandTemplatePath = dotxPath;
-        HouseStyleStatus = layout.IsEmpty
-            ? "Prompt sent to the browser extension — waiting for your web AI's reply…"
-            : "Prompt sent to the browser extension — waiting for your web AI's reply… (page setup, margins, columns and header/footer inherited from the template)";
+        HouseStyleStatus = ExtensionConnected
+            ? layout.IsEmpty
+                ? "Prompt sent to the browser extension — waiting for your web AI's reply…"
+                : "Prompt sent to the browser extension — waiting for your web AI's reply… (page setup, margins, columns and header/footer inherited from the template)"
+            : layout.IsEmpty
+                ? "Extension not connected — copy the prompt below into your web AI, then paste its JSON reply into the box below."
+                : "Extension not connected — copy the prompt below into your web AI, then paste its JSON reply into the box below. (page setup, margins, columns and header/footer inherited from the template)";
         return jobId;
     }
 
-    /// <summary>Checks the reverse command channel for the pending house-style result and applies
-    /// it: parse the AI reply, save the custom theme, and select it (selecting triggers the
-    /// preview refresh). Returns true when a result was consumed.</summary>
-    public bool PollThemeJobResult()
+    /// <summary>Manual fallback: apply the web AI's JSON reply directly — the same parse/save/select
+    /// path the extension result takes. Supersedes any still-pending extension result.</summary>
+    public bool ApplyHouseStyleThemeJson(string json)
     {
-        if (_pendingThemeJobId is null) return false;
-        var result = ApiServer.GetResult(_pendingThemeJobId);
-        if (result is null) return false;
         _pendingThemeJobId = null;
+        bool ok = ApplyThemeResult(json);
+        if (ok) HouseStyleJsonResult = ""; // clear the box on success so a stale paste can't re-apply
+        return ok;
+    }
 
-        var theme = TemplateThemeService.ParseAiResponse(result.ReplyMarkdown);
+    /// <summary>Parses the AI reply, saves the custom theme and selects it (selecting triggers the
+    /// preview refresh). Shared by the extension round-trip and the manual JSON paste.</summary>
+    private bool ApplyThemeResult(string replyMarkdown)
+    {
+        var theme = TemplateThemeService.ParseAiResponse(replyMarkdown);
         if (theme is null)
         {
             HouseStyleStatus = "The AI reply wasn't valid theme JSON — copy the prompt below into your web chat and try again.";
             StatusText = "House-style import failed: the AI reply wasn't a valid theme JSON.";
             StatusSeverity = StatusSeverity.Error;
-            return true;
+            return false;
         }
 
         TemplateThemeService.SaveTheme(theme);
@@ -185,6 +204,19 @@ private readonly MarkdownExportService _mdExport = new();
         HouseStyleStatus = $"Theme “{theme.Name}” created and selected.";
         StatusText = $"House-style theme “{theme.Name}” applied.";
         StatusSeverity = StatusSeverity.Success;
+        return true;
+    }
+
+    /// <summary>Checks the reverse command channel for the pending house-style result and applies
+    /// it. Returns true when a result was CONSUMED (even if it failed to parse — the error is
+    /// surfaced in HouseStyleStatus), false when nothing was pending yet.</summary>
+    public bool PollThemeJobResult()
+    {
+        if (_pendingThemeJobId is null) return false;
+        var result = ApiServer.GetResult(_pendingThemeJobId);
+        if (result is null) return false;
+        _pendingThemeJobId = null;
+        ApplyThemeResult(result.ReplyMarkdown);
         return true;
     }
 
@@ -293,6 +325,9 @@ private readonly MarkdownExportService _mdExport = new();
                     var text = await File.ReadAllTextAsync(value, token);
                     if (!token.IsCancellationRequested)
                     {
+                        // Version history: baseline the opened file the moment we read it, so even
+                        // files we only ever open appear in the timeline. Never throws/awaits the UI.
+                        CaptureVersionSafe(value, text, "opened");
                         _cachedFileMarkdown = text;
                         if (syncContext != null)
                         {
@@ -531,6 +566,39 @@ private readonly MarkdownExportService _mdExport = new();
         };
         History.Insert(0, entry);
         AppServices.History.Add(entry);
+
+        // Version history: every successful export is a version of the working document.
+        if (!UsePasteSource && !string.IsNullOrWhiteSpace(InputFilePath))
+            CaptureVersionSafe(InputFilePath, markdown, "export:" + kind.ToLowerInvariant());
+    }
+
+    /// <summary>Best-effort version-history capture — never throws, never blocks the UI.</summary>
+    private async void CaptureVersionSafe(string filePath, string content, string source)
+    {
+        try { await AppServices.VersionHistory.CaptureAsync(filePath, content, source); }
+        catch { /* history is best-effort; a store failure must never break the app */ }
+    }
+
+    /// <summary>Restores a stored version's content into the editor (preview refreshes via the
+    /// normal binding). The next save/export becomes a new version — history is never rewritten.</summary>
+    public async Task<bool> RestoreVersionAsync(string id)
+    {
+        try
+        {
+            var content = await AppServices.VersionHistory.GetContentAsync(id);
+            if (content is null) return false;
+            PastedMarkdown = content;
+            OnPropertyChanged(nameof(CurrentMarkdown));
+            StatusText = "Restored a previous version from history.";
+            StatusSeverity = StatusSeverity.Success;
+            return true;
+        }
+        catch
+        {
+            StatusText = "Could not restore that version.";
+            StatusSeverity = StatusSeverity.Error;
+            return false;
+        }
     }
 
     // Raised after a manual, user-initiated export finishes (kind + output path). The WinUI layer

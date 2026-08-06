@@ -1,0 +1,133 @@
+<Window
+    x:Class="MarkSmith.Desktop.Views.History.HistoryWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:conv="using:MarkSmith.Converters"
+    Title="Version History">
+
+    <Grid x:Name="RootGrid">
+        <Grid.Resources>
+            <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+            <conv:SelectedBrushConverter x:Key="SelectedBrush" />
+        </Grid.Resources>
+
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FF0A0F1C" Offset="0" />
+                <GradientStop Color="#FF14203A" Offset="0.55" />
+                <GradientStop Color="#FF0A1220" Offset="1" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Padding="22,16,22,10" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="⏱ Version History" FontSize="20" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="#FF9FB4D8" FontSize="13"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="scroll the timeline with the mouse wheel" Foreground="#FF6C7EA0"
+                       FontSize="12" VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="22,0,22,20" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ═══ Timeline (macOS Time Machine style) ═══ -->
+            <Border Grid.Column="0" Background="#CC0E1626" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Timeline" Margin="14,12,14,8" FontSize="13" FontWeight="SemiBold"
+                               Foreground="#FF8FB3F0" />
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Padding="10,0,10,12" Spacing="10">
+                            <TextBlock Text="No versions yet — open or export this file and its history will build up here."
+                                       Foreground="#FF7C8DB0" FontSize="13" TextWrapping="Wrap"
+                                       Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
+                                       Margin="6,10,6,10" />
+                            <ItemsControl ItemsSource="{Binding Bands}"
+                                          Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Spacing="6" Margin="0,2,0,8">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#FF5E7CB8" Margin="6,6,0,0" />
+                                            <ItemsControl ItemsSource="{Binding Items}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}}"
+                                                                BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="8"
+                                                                Padding="10,8" Margin="2,0,2,6"
+                                                                Tapped="OnVersionTapped"
+                                                                ToolTipService.ToolTip="Click to preview this version">
+                                                            <Grid RowSpacing="3">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding TimestampLabel}" FontSize="16" FontWeight="SemiBold"
+                                                                           Foreground="White" />
+                                                                <Border Grid.Column="1" Background="#334A6DB8" CornerRadius="8" Padding="6,2"
+                                                                        VerticalAlignment="Top">
+                                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="10" Foreground="#FFBFD6FF" />
+                                                                </Border>
+                                                                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Snippet}"
+                                                                           Foreground="#FF9FB4D8" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- ═══ Preview + restore ═══ -->
+            <Grid Grid.Column="1" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SelectedHeader}" FontSize="17" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Restored content goes back into the editor — save or export to keep it."
+                                   Foreground="#FF6C7EA0" FontSize="12" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Restore this version" FontWeight="SemiBold" Padding="16,8"
+                            Command="{Binding RestoreCommand}" VerticalAlignment="Center" />
+                </Grid>
+
+                <Border Grid.Row="1" Background="#F2121B2E" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+                    <controls:WebView2 x:Name="PreviewWeb" />
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
