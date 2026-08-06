@@ -863,8 +863,7 @@
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick"
-                                                       IsEnabled="{Binding HasInputFile}">
+                                        <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />

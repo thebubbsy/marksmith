@@ -2658,12 +2658,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(ViewModel.InputFilePath) || !File.Exists(ViewModel.InputFilePath))
-        {
-            ViewModel.StatusText = "Open a markdown file first — history is per-file.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
-            return;
-        }
+        // The hub shows EVERY file ever touched, so it works even with nothing open — the current
+        // file (if any) is pre-selected so the timeline lands where the user is working.
         if (_historyWindow == null)
         {
             _historyWindow = new Views.History.HistoryWindow(ViewModel, ViewModel.InputFilePath);
