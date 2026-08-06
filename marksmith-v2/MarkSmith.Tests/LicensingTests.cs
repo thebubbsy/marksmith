@@ -260,6 +260,7 @@ public class OneExportTrialTests : IDisposable
     {
         var service = new LicenseService();
         service.Load();
+        service.ResetToFree(); // order/state-independent: each test starts from the Free tier
 
         Assert.Equal(Edition.Free, service.State.Edition);
         Assert.False(service.IsPro);
@@ -274,6 +275,7 @@ public class OneExportTrialTests : IDisposable
     {
         var service = new LicenseService();
         service.Load();
+        service.ResetToFree(); // order/state-independent: each test starts from the Free tier
 
         var (ok, message) = service.StartTrial();
         Assert.True(ok);
@@ -294,6 +296,7 @@ public class OneExportTrialTests : IDisposable
     {
         var service = new LicenseService();
         service.Load();
+        service.ResetToFree(); // order/state-independent: each test starts from the Free tier
         service.StartTrial();
         Assert.True(service.CanExportDocx);
 
@@ -322,6 +325,7 @@ public class OneExportTrialTests : IDisposable
         File.WriteAllText(_licensePath,
             "{\"TrialStartUtc\": \"2020-01-01T00:00:00+00:00\", \"LastSeenUtc\": \"2020-01-01T00:00:00+00:00\"}");
         service.Load();
+        service.ResetToFree(); // order/state-independent: each test starts from the Free tier
 
         Assert.Equal(Edition.Free, service.State.Edition);
         Assert.False(service.CanExportDocx);
@@ -332,6 +336,7 @@ public class OneExportTrialTests : IDisposable
     {
         var service = new LicenseService();
         service.Load();
+        service.ResetToFree(); // order/state-independent: each test starts from the Free tier
         service.StartTrial();
         Assert.Equal(Edition.Trial, service.State.Edition);
 

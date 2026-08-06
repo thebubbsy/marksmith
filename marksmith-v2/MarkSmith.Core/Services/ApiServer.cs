@@ -79,6 +79,148 @@ public sealed class ApiServer : IDisposable
     public bool IsRunning => _listener?.IsListening == true;
     public int Port { get; private set; }
 
+    // ---- WebSocket streaming (ws://127.0.0.1:<port>/api/stream, OFF unless Settings enables it) ----
+    // Live status/preview events pushed to connected clients, and streaming text INTO the editor
+    // from scripts or the browser extension. Only active while the API itself is running.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<System.Net.WebSockets.WebSocket, SemaphoreSlim> StreamSockets = new();
+    private static readonly object StreamGate = new();
+
+    /// <summary>Set by the host to serve live preview snapshots on request ("preview" frame).</summary>
+    public Func<string>? PreviewHtmlProvider { get; set; }
+
+    /// <summary>Number of connected WebSocket streaming clients (0 when streaming is off).</summary>
+    public int StreamClientCount => StreamSockets.Count;
+
+    /// <summary>Broadcasts a JSON event to every connected streaming client (no-op when none).</summary>
+    public void PublishStreamEvent(object payload) =>
+        PublishStreamEvent(JsonSerializer.Serialize(payload, JsonOpts));
+
+    /// <summary>Broadcasts a pre-serialized JSON string to every connected streaming client.</summary>
+    public void PublishStreamEvent(string json)
+    {
+        if (StreamSockets.IsEmpty) return;
+        var bytes = Encoding.UTF8.GetBytes(json);
+        foreach (var pair in StreamSockets.ToArray())
+        {
+            var (socket, gate) = (pair.Key, pair.Value);
+            if (socket.State != System.Net.WebSockets.WebSocketState.Open) continue;
+            _ = Task.Run(async () =>
+            {
+                await gate.WaitAsync();
+                try
+                {
+                    if (socket.State == System.Net.WebSockets.WebSocketState.Open)
+                        await socket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+                catch { DropStreamSocket(socket, gate); }
+                finally { gate.Release(); }
+            });
+        }
+    }
+
+    private static void DropStreamSocket(System.Net.WebSockets.WebSocket socket, SemaphoreSlim gate)
+    {
+        StreamSockets.TryRemove(new KeyValuePair<System.Net.WebSockets.WebSocket, SemaphoreSlim>(socket, gate));
+        try { socket.Dispose(); } catch { }
+    }
+
+    private async Task HandleWebSocketAsync(HttpListenerContext ctx)
+    {
+        // The endpoint exists but is OFF by default — only an opt-in (Settings > Local REST API >
+        // Enable WebSocket streaming) turns it on, so a script can never stream unless the user asks.
+        if (!_getSettings().EnableStreamingApi)
+        {
+            await WriteJsonAsync(ctx, 403, new { error = "streaming disabled (enable WebSocket streaming in Settings > Local REST API)" });
+            return;
+        }
+        if (!string.Equals(ctx.Request.Headers["Upgrade"], "websocket", StringComparison.OrdinalIgnoreCase))
+        {
+            await WriteJsonAsync(ctx, 400, new { error = "this endpoint requires a WebSocket upgrade (ws://)" });
+            return;
+        }
+        try
+        {
+            var wsCtx = await ctx.AcceptWebSocketAsync(null);
+            var socket = wsCtx.WebSocket;
+            var gate = new SemaphoreSlim(1, 1);
+            StreamSockets[socket] = gate;
+            try { await StreamLoopAsync(socket, gate); }
+            finally { DropStreamSocket(socket, gate); }
+        }
+        catch (Exception)
+        {
+            try { ctx.Response.Abort(); } catch { }
+        }
+    }
+
+    private async Task StreamLoopAsync(System.Net.WebSockets.WebSocket socket, SemaphoreSlim gate)
+    {
+        var buffer = new byte[64 * 1024];
+        while (socket.State == System.Net.WebSockets.WebSocketState.Open)
+        {
+            System.Net.WebSockets.WebSocketReceiveResult result;
+            using var ms = new MemoryStream();
+            do
+            {
+                result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                {
+                    await socket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None);
+                    return;
+                }
+                ms.Write(buffer, 0, result.Count);
+            } while (!result.EndOfMessage);
+
+            HandleStreamMessage(socket, gate, Encoding.UTF8.GetString(ms.ToArray()));
+        }
+    }
+
+    private void HandleStreamMessage(System.Net.WebSockets.WebSocket socket, SemaphoreSlim gate, string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("type", out var typeEl)) return;
+            switch (typeEl.GetString())
+            {
+                // Stream text straight into the editor ("answers from ChatGPT" use-case).
+                case "streamText":
+                    if (doc.RootElement.TryGetProperty("text", out var textEl) && textEl.GetString() is { Length: > 0 } text)
+                    {
+                        _ingest(text, "websocket", null);
+                        SendStreamReply(socket, gate, new { type = "ack", ok = true, chars = text.Length });
+                    }
+                    break;
+
+                // Pull a snapshot of the live preview HTML.
+                case "preview":
+                    SendStreamReply(socket, gate, new { type = "preview", html = PreviewHtmlProvider?.Invoke() });
+                    break;
+
+                case "ping":
+                    SendStreamReply(socket, gate, new { type = "pong" });
+                    break;
+            }
+        }
+        catch { /* malformed frame — ignore */ }
+    }
+
+    private static void SendStreamReply(System.Net.WebSockets.WebSocket socket, SemaphoreSlim gate, object payload)
+    {
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload, JsonOpts));
+        _ = Task.Run(async () =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                if (socket.State == System.Net.WebSockets.WebSocketState.Open)
+                    await socket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+            catch { }
+            finally { gate.Release(); }
+        });
+    }
+
     // `output` carries the full output profile (extension/automation). `theme`/`normalize` are kept
     // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
     private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output, string? Folder);
@@ -245,8 +387,12 @@ public sealed class ApiServer : IDisposable
                     {
                         status = "ok",
                         app = "Marksmith",
-                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary", "GET /api/settings", "POST /api/settings", "POST /api/batch" },
+                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary", "GET /api/settings", "POST /api/settings", "POST /api/batch", "GET /api/stream (WebSocket)" },
                     });
+                    break;
+
+                case ("GET", "/api/stream"):
+                    await HandleWebSocketAsync(ctx);
                     break;
 
                 case ("GET", "/api/themes"):
