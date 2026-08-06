@@ -507,6 +507,32 @@ private readonly MarkdownExportService _mdExport = new();
     // fired from the single-format ConvertTo*Async paths (suppressed while ExportAllAsync batches
     // them, which raises one combined notification instead).
     public event Action<string, string>? ExportCompleted;
+
+    // Raised when a FREE user attempts a PRO feature. The UI shell shows the standardized
+    // pro-gate dialog; non-UI hosts (tests, CLI) can ignore it - the StatusText fallback still carries the message.
+    public event Action<FeatureId>? ProFeatureAttempted;
+
+    /// <summary>Shell-side gate notifications (MainWindow) route through here so the event
+    /// stays invocable only from the owning class.</summary>
+    public void NotifyProFeatureAttempted(FeatureId id) => ProFeatureAttempted?.Invoke(id);
+
+    // A free user must never START with automation switched on (a persisted Pro-era setting would
+    // otherwise leave the toggles looking active while AutomationManager refuses to run them).
+    private void SanitizeAutomationForLicense()
+    {
+        if (AppServices.License.CanAutomate) return;
+        bool changed = false;
+        if (_autoClipboardIngest) { _autoClipboardIngest = false; changed = true; }
+        if (_watchFolderEnabled) { _watchFolderEnabled = false; changed = true; }
+        if (_autoConvertIngests) { _autoConvertIngests = false; changed = true; }
+        if (changed)
+        {
+            _settingsService.Current.AutoClipboardIngest = false;
+            _settingsService.Current.WatchFolderEnabled = false;
+            _settingsService.Current.AutoConvertIngests = false;
+            SaveSettingsDebounced();
+        }
+    }
     private bool _suppressExportToasts;
     private void RaiseExportCompleted(string kind, string path)
     {
@@ -533,6 +559,7 @@ private readonly MarkdownExportService _mdExport = new();
         _appendToRunningDoc = settings.AppendToRunningDoc;
         _runningDocPath = settings.RunningDocPath;
         _showExtensionTip = settings.ShowExtensionTip;
+        SanitizeAutomationForLicense();
         foreach (var h in AppServices.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _mermaidDocxMode = settings.MermaidDocxMode;
@@ -725,12 +752,50 @@ private readonly MarkdownExportService _mdExport = new();
     }
     partial void OnUnlimitedHeightChanged(bool value) { _settingsService.Current.UnlimitedHeight = value; SaveSettingsDebounced(); }
     partial void OnNormalizeLlmChanged(bool value) { _settingsService.Current.NormalizeLlm = value; SaveSettingsDebounced(); }
-    partial void OnAutoClipboardIngestChanged(bool value) { _settingsService.Current.AutoClipboardIngest = value; SaveSettingsDebounced(); }
-    partial void OnWatchFolderEnabledChanged(bool value) { _settingsService.Current.WatchFolderEnabled = value; SaveSettingsDebounced(); }
+    partial void OnAutoClipboardIngestChanged(bool value)
+    {
+        if (value && !AppServices.License.CanAutomate)
+        {
+            // Gate at the SOURCE: a free user cannot even switch automation on, so the feature
+            // never half-runs (the old bug: watchers started and only the export step complained).
+            _autoClipboardIngest = false;
+            OnPropertyChanged();
+            StatusText = FeatureClassifier.DisplayName(FeatureId.ClipboardIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
+            StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.ClipboardIngest);
+            return;
+        }
+        _settingsService.Current.AutoClipboardIngest = value; SaveSettingsDebounced();
+    }
+    partial void OnWatchFolderEnabledChanged(bool value)
+    {
+        if (value && !AppServices.License.CanAutomate)
+        {
+            _watchFolderEnabled = false;
+            OnPropertyChanged();
+            StatusText = FeatureClassifier.DisplayName(FeatureId.WatchFolder) + " is a MarkSmith Pro feature - upgrade in Settings.";
+            StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.WatchFolder);
+            return;
+        }
+        _settingsService.Current.WatchFolderEnabled = value; SaveSettingsDebounced();
+    }
+    partial void OnAutoConvertIngestsChanged(bool value)
+    {
+        if (value && !AppServices.License.CanAutomate)
+        {
+            _autoConvertIngests = false;
+            OnPropertyChanged();
+            StatusText = FeatureClassifier.DisplayName(FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
+            StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.AutoExportIngest);
+            return;
+        }
+        _settingsService.Current.AutoConvertIngests = value; SaveSettingsDebounced();
+    }
     partial void OnWatchFolderChanged(string value) { _settingsService.Current.WatchFolder = value; SaveSettingsDebounced(); }
     partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; SaveSettingsDebounced(); }
     partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; SaveSettingsDebounced(); }
-    partial void OnAutoConvertIngestsChanged(bool value) { _settingsService.Current.AutoConvertIngests = value; SaveSettingsDebounced(); }
     partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; SaveSettingsDebounced(); }
     partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; SaveSettingsDebounced(); }
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; SaveSettingsDebounced(); }
@@ -1074,8 +1139,9 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportDocx)
         {
-            StatusText = "DOCX export is a MarkSmith Pro feature — start your ONE-export trial or upgrade in Settings ⚙.";
+            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your ONE-export trial or upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
             return;
         }
 
@@ -1156,8 +1222,9 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportPptx)
         {
-            StatusText = "PPTX export is a Marksmith Pro feature — upgrade in Settings ⚙.";
+            StatusText = FeatureClassifier.DisplayName(FeatureId.PptxExport) + " is a MarkSmith Pro feature - upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.PptxExport);
             return;
         }
 
