@@ -563,19 +563,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (st.Edition == Models.Edition.Trial)
         {
-            var daysLeft = st.ExpiresUtc is { } e ? Math.Max(0, (int)Math.Ceiling((e - DateTimeOffset.UtcNow).TotalDays)) : 0;
-            if (daysLeft > 5) { LicenseBanner.IsOpen = false; return; }
             LicenseBanner.Severity = InfoBarSeverity.Informational;
-            LicenseBanner.Title = $"Pro trial — {daysLeft} day{(daysLeft == 1 ? "" : "s")} left";
-            LicenseBanner.Message = "Keep DOCX export, editable equations, automation, and footer-free exports.";
+            LicenseBanner.Title = "Trial active — ONE DOCX export remaining";
+            LicenseBanner.Message = "Your trial is a single DOCX export. Use it, then DOCX export requires Pro.";
+            if (LicenseActionButton is not null) LicenseActionButton.Visibility = Visibility.Collapsed;
         }
         else // Free
         {
             LicenseBanner.Severity = InfoBarSeverity.Warning;
-            LicenseBanner.Title = "Your Pro trial has ended";
-            LicenseBanner.Message = "Upgrade to unlock DOCX export, editable equations, automation, and remove the footer.";
+            LicenseBanner.Title = "MarkSmith Free";
+            LicenseBanner.Message = "DOCX/PPTX export and automation are Pro features. Start your one-export trial or upgrade.";
+            if (LicenseActionButton is not null)
+            {
+                LicenseActionButton.Content = "Start 1-export trial";
+                LicenseActionButton.Click -= OnStartTrialClick;
+                LicenseActionButton.Click += OnStartTrialClick;
+                LicenseActionButton.Visibility = Visibility.Visible;
+            }
         }
         LicenseBanner.IsOpen = true;
+    }
+
+    // Start the one-export trial straight from the banner (also the trigger point for testing the
+    // free -> trial transition without digging into Settings).
+    private void OnStartTrialClick(object sender, RoutedEventArgs e)
+    {
+        var (ok, message) = App.License.StartTrial();
+        ViewModel.StatusText = message;
+        ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
     }
 
     private async void OnUpgradeClick(object sender, RoutedEventArgs e)

@@ -4,12 +4,11 @@ using MarkSmith.Models;
 namespace MarkSmith.Services;
 
 // Resolves and persists the app's licensing state. Resolution order: a valid signed Pro key wins;
-// otherwise a time-limited Pro trial (first N days); otherwise Free. State lives in
-// %LOCALAPPDATA%\MarkSmith\license.json.
+// otherwise a user-started trial (exactly ONE DOCX export, consumed by a successful export);
+// otherwise Free. There is NO automatic trial — the user starts it explicitly from Settings or the
+// upgrade banner. State lives in %LOCALAPPDATA%\MarkSmith\license.json.
 public sealed class LicenseService
 {
-    public const int TrialDays = 14;
-
     // Your Lemon Squeezy checkout link (the "Buy" button opens this). Replace with your product's
     // buy URL from Lemon Squeezy → Product → Share. See packaging/lemonsqueezy-setup.md.
     public const string StoreUrl = "https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID";
@@ -39,12 +38,8 @@ public sealed class LicenseService
     public void Load()
     {
         _stored = ReadStored();
-        var now = DateTimeOffset.UtcNow;
-        var dirty = false;
-        if (_stored.TrialStartUtc is null) { _stored.TrialStartUtc = now; dirty = true; }
-        // Advance the monotonic clock anchor to max(seen, now) — it never decreases.
-        if (_stored.LastSeenUtc is not { } seen || now > seen) { _stored.LastSeenUtc = now; dirty = true; }
-        if (dirty) WriteStored();
+        // No automatic trial: a fresh install (or a legacy file from the old auto-trial) resolves
+        // to Free until the user explicitly starts the one-export trial or activates Pro.
         Recompute();
     }
 
@@ -82,6 +77,42 @@ public sealed class LicenseService
     public void Deactivate()
     {
         _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;
+        WriteStored();
+        Recompute();
+    }
+
+    // Start the one-export trial. Only available to Free users who haven't used it up.
+    public (bool ok, string message) StartTrial()
+    {
+        if (State.Edition == Edition.Pro)
+            return (false, "You already have Pro — no trial needed.");
+        if (_stored.TrialExportsRemaining > 0)
+            return (false, "Your trial is already active — one DOCX export remaining. Use it, then it's gone.");
+        if (_stored.TrialExportsRemaining < 0)
+            return (false, "Your trial has been used up.");
+
+        _stored.TrialExportsRemaining = 1;
+        WriteStored();
+        Recompute();
+        return (true, "Trial started — you have exactly ONE DOCX export. Spend it wisely.");
+    }
+
+    // Consume the trial's single DOCX export after a successful export. Once it hits 0 the user is
+    // back on Free (this is what makes the trial REAL — one export, then the paywall returns).
+    public void ConsumeDocxExport()
+    {
+        if (_stored.TrialExportsRemaining <= 0) return;
+        _stored.TrialExportsRemaining--;
+        WriteStored();
+        Recompute();
+    }
+
+    // Testing/verification affordance: force the app back to Free (clears any key AND any trial),
+    // so the free-tier limits can be exercised end-to-end on demand.
+    public void ResetToFree()
+    {
+        _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;
+        _stored.TrialExportsRemaining = 0;
         WriteStored();
         Recompute();
     }
@@ -124,23 +155,15 @@ public sealed class LicenseService
             return;
         }
 
-        // 2) trial window. "Effective now" is the LATER of the wall clock and the highest time ever
-        //    seen — so rolling the system clock back can't extend or revive the trial (the audit's
-        //    rollback vector), and a TrialStartUtc that somehow sits in the future (clock was ahead
-        //    at first run) can't grant an unending trial either.
-        var now = DateTimeOffset.UtcNow;
-        var effectiveNow = _stored.LastSeenUtc is { } seen && seen > now ? seen : now;
-        var trialStart = _stored.TrialStartUtc ?? effectiveNow;
-        if (trialStart > effectiveNow) trialStart = effectiveNow; // future start → treat as now
-        var trialEnd = trialStart.AddDays(TrialDays);
-        if (effectiveNow < trialEnd)
+        // 2) the user-started one-export trial
+        if (_stored.TrialExportsRemaining > 0)
         {
-            var daysLeft = Math.Max(1, (int)Math.Ceiling((trialEnd - effectiveNow).TotalDays));
             State = new LicenseState
             {
                 Edition = Edition.Trial,
-                ExpiresUtc = trialEnd,
-                Status = $"Pro trial — {daysLeft} day{(daysLeft == 1 ? "" : "s")} left",
+                Status = _stored.TrialExportsRemaining == 1
+                    ? "Trial — ONE DOCX export remaining"
+                    : $"Trial — {_stored.TrialExportsRemaining} DOCX exports remaining",
             };
             Changed?.Invoke();
             return;

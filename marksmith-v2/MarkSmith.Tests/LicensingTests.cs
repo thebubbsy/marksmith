@@ -1,3 +1,6 @@
+using MarkSmith.Models;
+using MarkSmith.Services;
+using Xunit;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,6 +11,7 @@ using Xunit;
 
 namespace MarkSmith.Core.Tests;
 
+[Collection("LicenseState")]
 public class LicensingTests
 {
     private static (string privateKeyPem, string publicKeyPem) GenerateRsaKeyPair()
@@ -221,3 +225,113 @@ internal class MockHttpMessageHandler : HttpMessageHandler
     }
 }
 
+
+// ===== One-export trial model (no automatic trial) =====
+
+[Collection("LicenseState")]
+public class OneExportTrialTests : IDisposable
+{
+    private readonly string _licensePath;
+    private readonly string? _backup;
+
+    public OneExportTrialTests()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+        _licensePath = Path.Combine(dir, "license.json");
+        _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
+    }
+
+    public void Dispose()
+    {
+        // Restore whatever license state existed before the test — these tests must never
+        // clobber a real user's trial/Pro activation.
+        try
+        {
+            if (_backup is null) { if (File.Exists(_licensePath)) File.Delete(_licensePath); }
+            else File.WriteAllText(_licensePath, _backup);
+        }
+        catch { /* best-effort */ }
+    }
+
+    [Fact]
+    public void FreshLoad_IsFree_WithAllProFeaturesLocked()
+    {
+        var service = new LicenseService();
+        service.Load();
+
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.False(service.IsPro);
+        Assert.False(service.CanExportDocx);
+        Assert.False(service.CanExportPptx);
+        Assert.False(service.CanAutomate);
+        Assert.True(service.ShowFooter); // free exports carry the footer
+    }
+
+    [Fact]
+    public void StartTrial_GrantsExactlyOneDocxExport_AndNothingElse()
+    {
+        var service = new LicenseService();
+        service.Load();
+
+        var (ok, message) = service.StartTrial();
+        Assert.True(ok);
+        Assert.Equal(Edition.Trial, service.State.Edition);
+        Assert.True(service.CanExportDocx);      // the ONE export
+        Assert.False(service.CanExportPptx);     // trial is docx-only
+        Assert.False(service.CanAutomate);       // no automation on trial
+        Assert.True(service.ShowFooter);         // still a free user at heart
+        Assert.Contains("ONE DOCX export", service.State.Status);
+
+        // Starting it twice is refused — the trial is already active.
+        var (ok2, _) = service.StartTrial();
+        Assert.False(ok2);
+    }
+
+    [Fact]
+    public void ConsumeDocxExport_UsesUpTheTrial_BackToFree()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.StartTrial();
+        Assert.True(service.CanExportDocx);
+
+        // The single successful export consumes the trial...
+        service.ConsumeDocxExport();
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.False(service.CanExportDocx);
+
+        // ...and consuming again is a no-op (no negative trial).
+        service.ConsumeDocxExport();
+        Assert.Equal(Edition.Free, service.State.Edition);
+    }
+
+    [Fact]
+    public void NoAutomaticTrial_EvenForALegacyFileWithATrialStart()
+    {
+        // Simulate the OLD format (auto-started TrialStartUtc): the new model must NOT honour it.
+        var service = new LicenseService();
+        var dir = Path.GetDirectoryName(_licensePath)!;
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(_licensePath,
+            "{\"TrialStartUtc\": \"2020-01-01T00:00:00+00:00\", \"LastSeenUtc\": \"2020-01-01T00:00:00+00:00\"}");
+        service.Load();
+
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.False(service.CanExportDocx);
+    }
+
+    [Fact]
+    public void ResetToFree_ClearsKeyAndTrial_ForTestingTheFreeTier()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.StartTrial();
+        Assert.Equal(Edition.Trial, service.State.Edition);
+
+        service.ResetToFree();
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.False(service.CanExportDocx);
+        Assert.True(service.CanAutomate == false); // still locked
+    }
+}
