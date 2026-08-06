@@ -22,13 +22,38 @@ public sealed partial class SettingsView : UserControl
         VersionText.Text = $"Version {App.Updates.CurrentVersion}";
         RefreshLicenseUi();
         BuildPluginCards();
+        App.License.Changed += OnLicenseChanged;
     }
 
     private void RefreshLicenseUi()
     {
-        // "Remove license" only makes sense for an actual activated Pro key (not a trial).
-        DeactivateButton.Visibility = App.License.State.Edition == Models.Edition.Pro
+        var ed = App.License.State.Edition;
+        // "Remove license" only makes sense for an actual activated Pro key.
+        DeactivateButton.Visibility = ed == Models.Edition.Pro ? Visibility.Visible : Visibility.Collapsed;
+        // "Start trial" is available to Free users who haven't spent their one export.
+        StartTrialButton.Visibility = ed == Models.Edition.Free ? Visibility.Visible : Visibility.Collapsed;
+        // Testing affordance: force the Free tier to exercise the free/pro differences end-to-end.
+        ResetFreeButton.Visibility = ed == Models.Edition.Pro || ed == Models.Edition.Trial
             ? Visibility.Visible : Visibility.Collapsed;
+        // Always surface the resolved state (Free / Trial — ONE export remaining / Pro).
+        LicenseStatus.Text = App.License.State.Status ?? "Free";
+        LicenseStatus.Visibility = Visibility.Visible;
+    }
+
+    private void OnStartTrialClick(object sender, RoutedEventArgs e)
+    {
+        var (ok, message) = App.License.StartTrial();
+        LicenseStatus.Text = message;
+        LicenseStatus.Visibility = Visibility.Visible;
+        RefreshLicenseUi();
+    }
+
+    private void OnResetFreeClick(object sender, RoutedEventArgs e)
+    {
+        App.License.ResetToFree();
+        LicenseStatus.Text = "Reset to Free — the free-tier limits are now active (test).";
+        LicenseStatus.Visibility = Visibility.Visible;
+        RefreshLicenseUi();
     }
 
     private async void OnActivateLicense(object sender, RoutedEventArgs e)
@@ -54,6 +79,15 @@ public sealed partial class SettingsView : UserControl
         LicenseStatus.Text = "License removed from this device.";
         LicenseStatus.Visibility = Visibility.Visible;
         RefreshLicenseUi();
+    }
+
+    // Keep the License page live whenever the state changes (trial started/consumed, key
+    // activated/removed, reset to free).
+    private void OnLicenseChanged()
+    {
+        var dq = DispatcherQueue;
+        if (dq is null) { RefreshLicenseUi(); return; }
+        dq.TryEnqueue(RefreshLicenseUi);
     }
 
     // Cloud Storage Sync (Task 9): re-detect the local cloud-drive sync folders and refresh the picker.

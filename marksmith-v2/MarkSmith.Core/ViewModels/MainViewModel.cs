@@ -1074,7 +1074,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportDocx)
         {
-            StatusText = "DOCX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
+            StatusText = "DOCX export is a MarkSmith Pro feature — start your ONE-export trial or upgrade in Settings ⚙.";
             StatusSeverity = StatusSeverity.Warning;
             return;
         }
@@ -1139,11 +1139,16 @@ private readonly MarkdownExportService _mdExport = new();
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
             await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom, overrideMode);
+            // The trial IS a single DOCX export - a successful export consumes it, then the
+            // paywall returns. (Pro is unaffected: ConsumeDocxExport is a no-op without a trial.)
+            var wasTrial = AppServices.License.State.Edition == Models.Edition.Trial;
+            AppServices.License.ConsumeDocxExport();
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
             RaiseExportCompleted("DOCX", outPath);
-            StatusText = $"DOCX export done: {outPath}{layoutNote}";
+            var trialNote = wasTrial ? "  (that was your trial export - DOCX now requires Pro)" : "";
+            StatusText = $"DOCX export done: {outPath}{layoutNote}{trialNote}";
         });
     }
 
@@ -1151,7 +1156,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportPptx)
         {
-            StatusText = "PPTX export is a Marksmith Pro feature — start your free trial or upgrade in Settings ⚙.";
+            StatusText = "PPTX export is a Marksmith Pro feature — upgrade in Settings ⚙.";
             StatusSeverity = StatusSeverity.Warning;
             return;
         }

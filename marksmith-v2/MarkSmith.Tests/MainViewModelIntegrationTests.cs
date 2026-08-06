@@ -8,6 +8,7 @@ using Xunit;
 
 namespace MarkSmith.Core.Tests;
 
+[Collection("LicenseState")]
 public class MainViewModelIntegrationTests
 {
     private class DummyWebRenderHost : IWebRenderHost
@@ -23,6 +24,32 @@ public class MainViewModelIntegrationTests
         public Task BeginHarvestAsync() => Task.CompletedTask;
         public Task EndHarvestAsync() => Task.CompletedTask;
     }
+
+    // DOCX export is gated on the license (Free users can't export DOCX). These integration tests
+    // start a one-export trial (which grants it) and restore the real license file afterwards so
+    // the suite never clobbers a genuine activation.
+    private static string? _licenseBackup;
+    private static string LicensePath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "license.json");
+
+    private static void AllowDocxExport()
+    {
+        _licenseBackup = File.Exists(LicensePath) ? File.ReadAllText(LicensePath) : null;
+        AppServices.License.Load();
+        if (!AppServices.License.CanExportDocx) AppServices.License.StartTrial();
+    }
+
+    private static void RestoreLicense()
+    {
+        try
+        {
+            if (_licenseBackup is null) { if (File.Exists(LicensePath)) File.Delete(LicensePath); }
+            else File.WriteAllText(LicensePath, _licenseBackup);
+            AppServices.License.Load();
+        }
+        catch { /* best-effort */ }
+    }
+
 
     [Fact]
     public void TargetFormatCommands_ToggleStateAndNotifyProperties()
@@ -50,7 +77,7 @@ public class MainViewModelIntegrationTests
     [Fact]
     public async Task ExportDocumentCommand_DocxFormat_SetsLastOutputPathAndHasOutput()
     {
-        AppServices.License.Load();
+        AllowDocxExport();
         var vm = new MainViewModel();
         var host = new DummyWebRenderHost();
         vm.Host = host;
@@ -79,6 +106,8 @@ public class MainViewModelIntegrationTests
         }
         finally
         {
+            RestoreLicense();
+
             if (Directory.Exists(tempDir))
             {
                 try { Directory.Delete(tempDir, true); } catch { }
@@ -115,6 +144,8 @@ public class MainViewModelIntegrationTests
         }
         finally
         {
+            RestoreLicense();
+
             if (Directory.Exists(tempDir))
             {
                 try { Directory.Delete(tempDir, true); } catch { }
@@ -125,7 +156,7 @@ public class MainViewModelIntegrationTests
     [Fact]
     public async Task ExportDocxWithMermaidDiagram_GeneratesValidDocxWithShapes()
     {
-        AppServices.License.Load();
+        AllowDocxExport();
         var vm = new MainViewModel();
         var host = new DummyWebRenderHost();
         vm.Host = host;
@@ -158,6 +189,8 @@ public class MainViewModelIntegrationTests
         }
         finally
         {
+            RestoreLicense();
+
             if (Directory.Exists(tempDir))
             {
                 try { Directory.Delete(tempDir, true); } catch { }

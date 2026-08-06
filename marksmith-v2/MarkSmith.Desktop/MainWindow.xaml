@@ -82,8 +82,8 @@
             <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
             <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
                 <InfoBar.ActionButton>
-                    <Button Content="Upgrade to Pro" Click="OnUpgradeClick"
-                            ToolTipService.ToolTip="Unlock MarkSmith Pro — DOCX export, automation and no export footer" />
+                    <Button x:Name="LicenseActionButton" Style="{ThemeResource AccentButtonStyle}"
+                            ToolTipService.ToolTip="Your trial is exactly ONE DOCX export — spend it wisely" />
                 </InfoBar.ActionButton>
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's
