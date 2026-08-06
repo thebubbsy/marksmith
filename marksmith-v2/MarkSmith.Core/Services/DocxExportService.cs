@@ -3403,22 +3403,37 @@ public sealed class DocxExportService
     private static W.SectionProperties BuildSectionProperties(
         MainDocumentPart main, Ctx ctx, AppSettings settings, string title)
     {
-        var headerPart = main.AddNewPart<HeaderPart>();
-        headerPart.Header = new W.Header(new W.Paragraph(
-            new W.ParagraphProperties(
-                new W.ParagraphBorders(new W.BottomBorder
-                {
-                    Val = W.BorderValues.Single, Size = 6, Space = 3, Color = ctx.BorderHex
-                }),
-                new W.SpacingBetweenLines { After = "0" },
-                new W.Justification { Val = W.JustificationValues.Right }),
-            new W.Run(
-                new W.RunProperties(
-                    new W.SmallCaps(),
-                    new W.Color { Val = ctx.HeadingHex },
-                    new W.Spacing { Val = 30 },
-                    new W.FontSize { Val = "18" }),
-                new W.Text(title) { Space = SpaceProcessingModeValues.Preserve })));
+        var layout = settings.BrandLayout;
+
+        // ---- header: the template's own running header when the house style provides one ----
+        W.HeaderReference headerRef;
+        if (layout is { HasHeader: true } && layout.HeaderXml is { } hdrXml)
+        {
+            var headerPart = main.AddNewPart<HeaderPart>();
+            headerPart.Header = new W.Header(hdrXml);
+            CopyHeaderFooterImages(headerPart, settings.BrandTemplatePath, footer: false);
+            headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
+        }
+        else
+        {
+            var headerPart = main.AddNewPart<HeaderPart>();
+            headerPart.Header = new W.Header(new W.Paragraph(
+                new W.ParagraphProperties(
+                    new W.ParagraphBorders(new W.BottomBorder
+                    {
+                        Val = W.BorderValues.Single, Size = 6, Space = 3, Color = ctx.BorderHex
+                    }),
+                    new W.SpacingBetweenLines { After = "0" },
+                    new W.Justification { Val = W.JustificationValues.Right }),
+                new W.Run(
+                    new W.RunProperties(
+                        new W.SmallCaps(),
+                        new W.Color { Val = ctx.HeadingHex },
+                        new W.Spacing { Val = 30 },
+                        new W.FontSize { Val = "18" }),
+                    new W.Text(title) { Space = SpaceProcessingModeValues.Preserve })));
+            headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
+        }
 
         static W.Run FooterRun(string text) => new(
             new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
@@ -3428,43 +3443,75 @@ public sealed class DocxExportService
             new W.Text("1")))
         { Instruction = instruction };
 
-        var footerPart = main.AddNewPart<FooterPart>();
-        footerPart.Footer = new W.Footer(new W.Paragraph(
-            new W.ParagraphProperties(
-                new W.SpacingBetweenLines { After = "0" },
-                new W.Justification { Val = W.JustificationValues.Center }),
-            FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
-
-        // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active OR the
-        // user explicitly disabled attribution, so the document looks like the user's own work.
-        // Built-in themes with ShowAttribution=true keep the attribution.
-        // We check settings.Theme (the requested name) rather than ctx.Theme.Name (the resolved
-        // fallback) so an unregistered custom theme name still suppresses branding.
-        if (settings.ShowAttribution && Themes.IsBuiltin(settings.Theme))
+        // ---- footer: the template's own footer, else generated "Page X of Y" (+ optional stamp) ----
+        W.FooterReference footerRef;
+        if (layout is { HasFooter: true } && layout.FooterXml is { } ftrXml)
         {
+            var footerPart = main.AddNewPart<FooterPart>();
+            footerPart.Footer = new W.Footer(ftrXml);
+            CopyHeaderFooterImages(footerPart, settings.BrandTemplatePath, footer: true);
+            footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
+        }
+        else
+        {
+            var footerPart = main.AddNewPart<FooterPart>();
             footerPart.Footer = new W.Footer(new W.Paragraph(
                 new W.ParagraphProperties(
                     new W.SpacingBetweenLines { After = "0" },
                     new W.Justification { Val = W.JustificationValues.Center }),
-                FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
-                FooterRun("  \u00b7  MarkSmith")));
+                FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
+
+            // The "· MarkSmith" brand stamp is omitted when a custom house-style theme is active OR the
+            // user explicitly disabled attribution, so the document looks like the user's own work.
+            // Built-in themes with ShowAttribution=true keep the attribution.
+            // We check settings.Theme (the requested name) rather than ctx.Theme.Name (the resolved
+            // fallback) so an unregistered custom theme name still suppresses branding.
+            if (settings.ShowAttribution && Themes.IsBuiltin(settings.Theme))
+            {
+                footerPart.Footer = new W.Footer(new W.Paragraph(
+                    new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { After = "0" },
+                        new W.Justification { Val = W.JustificationValues.Center }),
+                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
+                    FooterRun("  \u00b7  MarkSmith")));
+            }
+            footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
         }
 
-        // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
-        var (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
-        
+        // ---- page geometry: the template's paper when the house style provides one ----
+        uint width, height;
+        if (layout is { HasPageLayout: true } && layout.PageWidthTwips is { } pw && layout.PageHeightTwips is { } ph)
+        {
+            width = pw;
+            height = ph;
+        }
+        else
+        {
+            // A4FixedWidth drives the physical page too, mirroring the PDF export geometry.
+            (width, height) = settings.A4FixedWidth ? (11906u, 16838u) : (12240u, 15840u);
+        }
+        var pageSize = new W.PageSize { Width = width, Height = height };
+        if (layout?.Orientation?.StartsWith("landscape", StringComparison.OrdinalIgnoreCase) == true)
+            pageSize.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "orient",
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "landscape"));
+
+        var pageMargin = new W.PageMargin();
+        void SetMar(string name, int? value, int fallback) =>
+            pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", name,
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main", (value ?? fallback).ToString()));
+        SetMar("top", layout?.MarginTop, 1440);
+        SetMar("right", layout?.MarginRight, 1440);
+        SetMar("bottom", layout?.MarginBottom, 1440);
+        SetMar("left", layout?.MarginLeft, 1440);
+        SetMar("header", layout?.HeaderDistance, 576);
+        SetMar("footer", layout?.FooterDistance, 576);
+        pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "gutter",
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "0"));
+
         W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
 
-        var sp = new W.SectionProperties(
-            new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) },
-            new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) },
-            new W.PageSize { Width = width, Height = height },
-            new W.PageMargin
-            {
-                Top = 1440, Right = 1440, Bottom = 1440, Left = 1440,
-                Header = 576, Footer = 576, Gutter = 0,
-            });
+        var sp = new W.SectionProperties(headerRef, footerRef, pageSize, pageMargin);
 
         // The full page frame is opt-in (default off) — a converted document should read like a clean
         // document, not a framed certificate. When enabled it's drawn in the theme border color.
@@ -3478,7 +3525,61 @@ public sealed class DocxExportService
                 Display = W.PageBorderDisplayValues.AllPages,
             });
         }
+
+        // Document-level columns inherited from the house-style template (w:cols, after pgBorders).
+        if (layout is { HasColumns: true })
+        {
+            sp.Append(new W.Columns
+            {
+                ColumnCount = (short)(layout.ColumnCount ?? 2),
+                Space = layout.ColumnSpace is { } cs ? cs.ToString() : null,
+                EqualWidth = true,
+            });
+        }
         return sp;
+    }
+
+    /// <summary>Copies the template header/footer's referenced images into the exported part,
+    /// preserving the r:embed relationship ids so the inherited header/footer XML renders its
+    /// logos. Best effort — if the template file is gone or a part is unreadable, the header/footer
+    /// text still applies.</summary>
+    private static void CopyHeaderFooterImages(OpenXmlPart newPart, string templatePath, bool footer)
+    {
+        if (string.IsNullOrWhiteSpace(templatePath) || !File.Exists(templatePath)) return;
+        try
+        {
+            using var src = WordprocessingDocument.Open(templatePath, false);
+            var srcMain = src.MainDocumentPart;
+            var sectPr = srcMain?.Document.Body?.Elements<W.SectionProperties>().FirstOrDefault();
+            if (sectPr is null) return;
+
+            OpenXmlPart? srcPart = null;
+            if (footer)
+            {
+                var f = sectPr.Elements<W.FooterReference>()
+                    .FirstOrDefault(r => r.Type is null || r.Type == W.HeaderFooterValues.Default);
+                if (f?.Id is { } fid && !string.IsNullOrEmpty(fid)) srcPart = srcMain.GetPartById(fid);
+            }
+            else
+            {
+                var h = sectPr.Elements<W.HeaderReference>()
+                    .FirstOrDefault(r => r.Type is null || r.Type == W.HeaderFooterValues.Default);
+                if (h?.Id is { } hid && !string.IsNullOrEmpty(hid)) srcPart = srcMain.GetPartById(hid);
+            }
+            if (srcPart is null) return;
+
+            foreach (var pair in srcPart.Parts.Where(p => p.OpenXmlPart is ImagePart))
+            {
+                var imagePart = (ImagePart)pair.OpenXmlPart;
+                using var stream = imagePart.GetStream(System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                var newImage = newPart.AddNewPart<ImagePart>(imagePart.ContentType, pair.RelationshipId);
+                newImage.FeedData(stream);
+            }
+        }
+        catch
+        {
+            // Best effort — header/footer text still applies without its images.
+        }
     }
     private static void RenderDatagrid(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {

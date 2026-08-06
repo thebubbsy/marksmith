@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using MarkSmith.Models;
+using W = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace MarkSmith.Services;
 
@@ -97,6 +99,79 @@ public static partial class TemplateThemeService
             Background: lt1,
             HyperlinkColor: hlink);
     }
+
+    /// <summary>
+    /// Advanced House Style extraction: reads the template's section geometry (page size +
+    /// orientation, margins, document-level columns) and its default header/footer parts straight
+    /// from OOXML. This part is mechanical — no AI round-trip — so the exported document inherits
+    /// the company's real paper: same size, margins, column layout, and running header/footer.
+    /// Returns an empty <see cref="HouseLayout"/> when the template has no section layout to inherit.
+    /// </summary>
+    public static HouseLayout ParseLayout(string dotxPath)
+    {
+        var layout = new HouseLayout();
+        using var doc = WordprocessingDocument.Open(dotxPath, false);
+        var main = doc.MainDocumentPart ?? throw new InvalidDataException("Not a valid .dotx/.docx (no main part).");
+        var body = main.Document.Body;
+        if (body is null) return layout;
+
+        // The body-level trailing sectPr is the document's default section.
+        var sectPr = body.Elements<W.SectionProperties>().FirstOrDefault();
+        if (sectPr is null) return layout;
+
+        var pgSz = sectPr.Elements<W.PageSize>().FirstOrDefault();
+        if (pgSz is not null)
+        {
+            layout.PageWidthTwips = pgSz.Width?.Value;
+            layout.PageHeightTwips = pgSz.Height?.Value;
+            // w:pgSz w:orient — the SDK's PageSize has no typed Orientation property in this version.
+            var orient = Attr(pgSz, "orient");
+            if (!string.IsNullOrWhiteSpace(orient)) layout.Orientation = orient.ToLowerInvariant();
+        }
+
+        var pgMar = sectPr.Elements<W.PageMargin>().FirstOrDefault();
+        if (pgMar is not null)
+        {
+            layout.MarginTop = ParseTwips(Attr(pgMar, "top"));
+            layout.MarginRight = ParseTwips(Attr(pgMar, "right"));
+            layout.MarginBottom = ParseTwips(Attr(pgMar, "bottom"));
+            layout.MarginLeft = ParseTwips(Attr(pgMar, "left"));
+            layout.HeaderDistance = ParseTwips(Attr(pgMar, "header"));
+            layout.FooterDistance = ParseTwips(Attr(pgMar, "footer"));
+        }
+
+        var cols = sectPr.Elements<W.Columns>().FirstOrDefault();
+        if (cols?.ColumnCount?.Value is > 1)
+        {
+            layout.ColumnCount = cols.ColumnCount.Value;
+            layout.ColumnSpace = cols.Space is not null && int.TryParse(cols.Space, out var sp) ? sp : (int?)null;
+        }
+
+        // Default (first-page-run) header/footer, verbatim XML.
+        var hdrRef = sectPr.Elements<W.HeaderReference>()
+            .FirstOrDefault(h => h.Type is null || h.Type == W.HeaderFooterValues.Default);
+        if (hdrRef?.Id is { } hId && !string.IsNullOrEmpty(hId) && main.GetPartById(hId) is HeaderPart hp)
+            layout.HeaderXml = hp.Header?.OuterXml;
+
+        var ftrRef = sectPr.Elements<W.FooterReference>()
+            .FirstOrDefault(f => f.Type is null || f.Type == W.HeaderFooterValues.Default);
+        if (ftrRef?.Id is { } fId && !string.IsNullOrEmpty(fId) && main.GetPartById(fId) is FooterPart fp)
+            layout.FooterXml = fp.Footer?.OuterXml;
+
+        return layout;
+    }
+
+    private const string WNs = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static string? Attr(OpenXmlElement el, string name)
+    {
+        foreach (var a in el.GetAttributes())
+            if (a.LocalName == name && a.NamespaceUri == WNs) return a.Value;
+        return null;
+    }
+
+    private static int? ParseTwips(string? s) =>
+        int.TryParse(s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : (int?)null;
 
     // ---- Part 2: prompt engineering ----------------------------------------------------------
 

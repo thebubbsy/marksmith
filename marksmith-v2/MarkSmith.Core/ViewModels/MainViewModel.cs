@@ -141,12 +141,20 @@ private readonly MarkdownExportService _mdExport = new();
     public string BeginHouseStyleImport(string dotxPath)
     {
         var summary = TemplateThemeService.ParseDotx(dotxPath);
+        // Advanced house style: also inherit the template's page geometry, margins, columns and
+        // header/footer — extracted locally (no AI round-trip) and replayed on every export.
+        var layout = TemplateThemeService.ParseLayout(dotxPath);
+        _settingsService.Current.BrandLayout = layout.IsEmpty ? null : layout;
+        SaveSettingsDebounced();
+
         var prompt = TemplateThemeService.BuildPrompt(summary);
         HouseStylePrompt = prompt;
         var jobId = ApiServer.EnqueueCommand("theme-prompt", prompt);
         _pendingThemeJobId = jobId;
         BrandTemplatePath = dotxPath;
-        HouseStyleStatus = "Prompt sent to the browser extension — waiting for your web AI's reply…";
+        HouseStyleStatus = layout.IsEmpty
+            ? "Prompt sent to the browser extension — waiting for your web AI's reply…"
+            : "Prompt sent to the browser extension — waiting for your web AI's reply… (page setup, margins, columns and header/footer inherited from the template)";
         return jobId;
     }
 
@@ -418,6 +426,30 @@ private readonly MarkdownExportService _mdExport = new();
     public ObservableCollection<Services.MarkdownFileEntry> MarkdownFiles { get; } = new();
     public ObservableCollection<HistoryEntry> History { get; } = new();
 
+    // ---- AI normalization custom rules (Settings pane) ----
+    public ObservableCollection<Models.TextCleanupRuleItem> NormalizationRules { get; } = new();
+
+    [RelayCommand]
+    private void AddNormalizationRule()
+    {
+        NormalizationRules.Add(new Models.TextCleanupRuleItem(SaveNormalizationRules));
+        SaveNormalizationRules();
+    }
+
+    [RelayCommand]
+    private void RemoveNormalizationRule(Models.TextCleanupRuleItem rule)
+    {
+        NormalizationRules.Remove(rule);
+        SaveNormalizationRules();
+    }
+
+    private void SaveNormalizationRules()
+    {
+        _settingsService.Current.CustomNormalizationRules =
+            NormalizationRules.Select(r => new TextCleanupRule { Find = r.Find, Replace = r.Replace, IsRegex = r.IsRegex }).ToList();
+        SaveSettingsDebounced();
+    }
+
     // Document outline (Task 17): H1–H6 entries extracted from CurrentMarkdown. The anchors are the
     // exact Markdig AutoIdentifier ids the preview renders, so the outline flyout can click-to-scroll.
     public ObservableCollection<TocEntry> TocEntries { get; } = new();
@@ -560,6 +592,8 @@ private readonly MarkdownExportService _mdExport = new();
         _runningDocPath = settings.RunningDocPath;
         _showExtensionTip = settings.ShowExtensionTip;
         SanitizeAutomationForLicense();
+        foreach (var rule in _settingsService.Current.CustomNormalizationRules ?? new List<TextCleanupRule>())
+            NormalizationRules.Add(new Models.TextCleanupRuleItem(SaveNormalizationRules, rule.Find, rule.Replace, rule.IsRegex));
         foreach (var h in AppServices.History.All) History.Add(h);
         _includeToc = settings.IncludeToc;
         _mermaidDocxMode = settings.MermaidDocxMode;

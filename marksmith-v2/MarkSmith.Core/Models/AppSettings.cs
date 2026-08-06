@@ -41,6 +41,11 @@ public sealed class AppSettings
     // and shows a line-number gutter (wrapping would break line-number alignment). Persisted.
     public bool EditorWordWrap { get; set; } = true;
 
+    // User-defined AI text-cleanup rules (Settings -> AI Normalization): find/replace pairs applied
+    // on top of the built-in quirks fixes whenever "Normalize AI formatting quirks" is on. Great
+    // for stripping recurring AI buzzwords ("In conclusion", "delve") or structural pet-peeves.
+    public List<TextCleanupRule> CustomNormalizationRules { get; set; } = new();
+
     // Centre "Looking Glass" view: "Code" / "Split" / "Preview". Persisted so the user can hide
     // the code section (choose Preview) and it STAYS hidden across launches instead of being
     // forced back to the Code view every time.
@@ -130,6 +135,10 @@ public sealed class AppSettings
     public string BrandFontFamily { get; set; } = ""; // "" = default (Calibri)
     public string BrandTemplatePath { get; set; } = ""; // .dotx corporate template for house-style extraction
 
+    /// <summary>Page layout inherited from the house-style .dotx at import (page size, margins,
+    /// columns, header/footer XML). Null = fall back to default page setup on export.</summary>
+    public HouseLayout? BrandLayout { get; set; }
+
     // Author name stamped in DOCX package properties (Creator field). Empty = no attribution.
     // Applies user-specified author branding to generated document metadata.
     public string AuthorName { get; set; } = "";
@@ -182,6 +191,10 @@ public sealed class AppSettings
 
     // Local REST API
     public bool ApiEnabled { get; set; }
+
+    // WebSocket streaming on the local REST API (ws://127.0.0.1:<port>/api/stream), OFF by default:
+    // live status/preview events + streaming text into the editor from scripts or the extension.
+    public bool EnableStreamingApi { get; set; }
     public int ApiPort { get; set; } = 47821;
 
     // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
@@ -275,6 +288,7 @@ public sealed class AppSettings
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
         EditorViewMode = other.EditorViewMode;
+        CustomNormalizationRules = other.CustomNormalizationRules?.ToList() ?? new();
         LookingGlassMode = other.LookingGlassMode;
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
@@ -303,6 +317,7 @@ public sealed class AppSettings
         BrandLogoPath = other.BrandLogoPath;
         BrandFontFamily = other.BrandFontFamily;
         BrandTemplatePath = other.BrandTemplatePath;
+        BrandLayout = other.BrandLayout?.Clone();
         AuthorName = other.AuthorName;
         FontPreset = other.FontPreset;
         CustomFontPath = other.CustomFontPath;
@@ -326,6 +341,7 @@ public sealed class AppSettings
         ContentLanguage = other.ContentLanguage;
         ContentDirection = other.ContentDirection;
         ApiEnabled = other.ApiEnabled;
+        EnableStreamingApi = other.EnableStreamingApi;
         ApiPort = other.ApiPort;
         AdvancedMode = other.AdvancedMode;
         ProMode = other.ProMode;
