@@ -147,7 +147,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         finally { IsRestoring = false; }
     }
 
-    private static string BandName(DateTime t, DateTime now)
+    internal static string BandName(DateTime t, DateTime now)
     {
         if (t.Date == now.Date) return "Today";
         if (t.Date == now.Date.AddDays(-1)) return "Yesterday";
@@ -157,7 +157,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         return "Older";
     }
 
-    private static string TimestampLabel(DateTime t, DateTime now)
+    internal static string TimestampLabel(DateTime t, DateTime now)
     {
         if (t.Date == now.Date) return t.ToString("HH:mm");
         if (t.Date == now.Date.AddDays(-1)) return "Yesterday · " + t.ToString("HH:mm");

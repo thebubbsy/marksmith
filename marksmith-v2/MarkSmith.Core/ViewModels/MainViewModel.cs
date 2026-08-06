@@ -304,8 +304,11 @@ private readonly MarkdownExportService _mdExport = new();
     private string _cachedFileMarkdown = string.Empty;
     private CancellationTokenSource? _fileReadCts;
 
+    public bool HasInputFile => !string.IsNullOrWhiteSpace(InputFilePath) && File.Exists(InputFilePath);
+
     partial void OnInputFilePathChanged(string value)
     {
+        OnPropertyChanged(nameof(HasInputFile));
         _fileReadCts?.Cancel();
         _fileReadCts?.Dispose();
         _fileReadCts = new CancellationTokenSource();
