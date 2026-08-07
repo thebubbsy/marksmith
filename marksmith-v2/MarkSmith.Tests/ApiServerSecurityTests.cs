@@ -40,7 +40,8 @@ public class ApiServerSecurityTests
     {
         using var server = CreateServer();
         int port = GetFreePort();
-        server.Start(port);
+        try { server.Start(port); }
+        catch (HttpListenerException) { port = GetFreePort(); server.Start(port); } // TOCTOU retry
         Assert.True(server.IsRunning);
         Assert.Equal(port, server.Port);
 
@@ -60,7 +61,8 @@ public class ApiServerSecurityTests
     {
         using var server = CreateServer();
         int port = GetFreePort();
-        server.Start(port);
+        try { server.Start(port); }
+        catch (HttpListenerException) { port = GetFreePort(); server.Start(port); } // TOCTOU retry
 
         using var client = new HttpClient();
         var resp = await client.GetAsync($"http://127.0.0.1:{port}/api/health");
@@ -81,7 +83,8 @@ public class ApiServerSecurityTests
     {
         using var server = CreateServer();
         int port = GetFreePort();
-        server.Start(port);
+        try { server.Start(port); }
+        catch (HttpListenerException) { port = GetFreePort(); server.Start(port); } // TOCTOU retry
 
         using var client = new HttpClient();
         var req = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/api/health");
@@ -104,7 +107,8 @@ public class ApiServerSecurityTests
     {
         using var server = CreateServer();
         int port = GetFreePort();
-        server.Start(port);
+        try { server.Start(port); }
+        catch (HttpListenerException) { port = GetFreePort(); server.Start(port); } // TOCTOU retry
 
         using var client = new HttpClient();
         var req = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/api/health");

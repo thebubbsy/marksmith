@@ -29,6 +29,18 @@ public class ApiServerExtensionAuthTests
         return port;
     }
 
+    // Probe-then-bind TOCTOU: a parallel collection can steal the released port before Start()
+    // binds it. Retry the probe+bind so a stolen port is a retry, not a test failure.
+    private static async Task<int> StartServerRetryingAsync(ApiServer server)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            int port = GetFreePort();
+            try { server.Start(port); return port; }
+            catch (HttpListenerException) when (attempt < 5) { await Task.Delay(50); }
+        }
+    }
+
     private static ApiServer CreateServer(string allowedExtensionId)
     {
         return new ApiServer(
@@ -47,8 +59,7 @@ public class ApiServerExtensionAuthTests
     private static async Task<HttpStatusCode> GetHealthWithOriginAsync(string allowedExtensionId, string origin)
     {
         using var server = CreateServer(allowedExtensionId);
-        int port = GetFreePort();
-        server.Start(port);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using var client = new HttpClient();
@@ -109,8 +120,7 @@ public class ApiServerExtensionAuthTests
         // The pinned extension may ingest/convert, but governance data must never be readable
         // from any browser origin — including the trusted extension itself.
         using var server = CreateServer("abcdefghijklmnop");
-        int port = GetFreePort();
-        server.Start(port);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using var client = new HttpClient();
@@ -129,6 +139,27 @@ public class ApiServerExtensionAuthTests
 // (correct content type + the converted bytes delivered intact).
 public class MultiFormatExportIntegrationTests
 {
+    // Probe-then-bind TOCTOU retry: the free-port probe releases the port before Start() binds it,
+    // and other test collections run in parallel, so a port can be stolen between probe and bind.
+    private static async Task<int> StartServerRetryingAsync(ApiServer server)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            int port = GetFreePort();
+            try { server.Start(port); return port; }
+            catch (HttpListenerException) when (attempt < 5) { await Task.Delay(50); }
+        }
+    }
+
+    private static int GetFreePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
     private const string SampleMarkdown = """
         # Integration Export Document
 
@@ -238,14 +269,7 @@ public class MultiFormatExportIntegrationTests
             s => { },
             (folder, fmt, ovr) => Task.FromResult<object>(new { done = 0 }));
 
-        int port;
-        using (var probe = new TcpListener(IPAddress.Loopback, 0))
-        {
-            probe.Start();
-            port = ((IPEndPoint)probe.LocalEndpoint).Port;
-            probe.Stop();
-        }
-        server.Start(port);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using var client = new HttpClient();
@@ -281,14 +305,7 @@ public class MultiFormatExportIntegrationTests
             s => { },
             (folder, fmt, ovr) => Task.FromResult<object>(new { done = 0 }));
 
-        int port;
-        using (var probe = new TcpListener(IPAddress.Loopback, 0))
-        {
-            probe.Start();
-            port = ((IPEndPoint)probe.LocalEndpoint).Port;
-            probe.Stop();
-        }
-        server.Start(port);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using var client = new HttpClient();

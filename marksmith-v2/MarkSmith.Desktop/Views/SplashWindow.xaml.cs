@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 
@@ -13,6 +12,8 @@ namespace MarkSmith.Views;
 /// </summary>
 public sealed partial class SplashWindow : Window
 {
+    private bool _closed;
+
     public SplashWindow()
     {
         InitializeComponent();
@@ -22,14 +23,17 @@ public sealed partial class SplashWindow : Window
         {
             var uri = new Uri("ms-appx:///Assets/LaunchVideo.mp4");
             Player.Source = MediaSource.CreateFromUri(uri);
-            Player.MediaPlayer.MediaEnded += (_, _) => Close();
-            Player.MediaPlayer.MediaFailed += (_, _) => Close(); // corrupt/missing asset — never hang
+            Player.MediaPlayer.MediaEnded += (_, _) => SafeClose();
+            Player.MediaPlayer.MediaFailed += (_, _) => SafeClose(); // corrupt/missing asset — never hang
             Player.MediaPlayer.Play();
         }
         catch
         {
-            // Any setup failure (e.g. unsupported codec) must not block the app.
-            Close();
+            // Any synchronous setup failure must not block the app — but we must NOT Close() here:
+            // App attaches splash.Closed -> ShowMainWindow AFTER this constructor returns, so a
+            // synchronous Close would fire with no handler and the main window would never appear.
+            // Defer the close to the dispatcher queue (runs after App has wired the continuation).
+            DispatcherQueue.TryEnqueue(SafeClose);
             return;
         }
 
@@ -37,11 +41,20 @@ public sealed partial class SplashWindow : Window
         _ = AutoCloseAsync();
     }
 
-    private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e) => Close();
+    private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e) => SafeClose();
 
     private async Task AutoCloseAsync()
     {
         await Task.Delay(12_000);
+        SafeClose();
+    }
+
+    // Close() is not idempotent; every path funnels through here so a second Close (timeout after
+    // the video ended, a click racing the timer) can never throw or double-fire.
+    private void SafeClose()
+    {
+        if (_closed) return;
+        _closed = true;
         Close();
     }
 
@@ -64,6 +77,4 @@ public sealed partial class SplashWindow : Window
         }
         catch { /* centering is best-effort */ }
     }
-
-    // (Window.Closed is an event, not overridable — App wires it to show the main window.)
 }
