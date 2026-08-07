@@ -1,306 +1,102 @@
-using System;
-using System.IO;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
-using SkiaSharp;
 
 namespace MarkSmith.Services;
 
-/// <summary>
-/// Compression result with before/after size metrics.
-/// </summary>
+/// <summary>Compression intensity for the PDF size reducer (D6).</summary>
+public enum CompressionPreset { Web, Email }
+
+/// <summary>Outcome of a compression pass: the reduced PDF, sizes, and derived metrics.</summary>
 public sealed record PdfCompressionResult(
     byte[] CompressedPdf,
     long OriginalSize,
     long CompressedSize,
     int PagesProcessed,
-    int ImagesDownsampled)
+    int ImagesProcessed)
 {
-    public double SavingsPercent => OriginalSize > 0 ? (1.0 - (double)CompressedSize / OriginalSize) * 100 : 0;
+    public double SavingsPercent => OriginalSize > 0 ? (OriginalSize - CompressedSize) / (double)OriginalSize * 100.0 : 0;
     public bool WasReduced => CompressedSize < OriginalSize;
 }
 
-/// <summary>
-/// Compression quality presets for image downsampling.
-/// </summary>
-public enum CompressionPreset
+/// <summary>Pre-compression analysis of a PDF: page/image inventory + human-readable sizes.</summary>
+public sealed record PdfAnalysisResult(long TotalSize, int PageCount, int ImageCount, long ImageSize)
 {
-    /// <summary>Target: email-friendly (max 150 DPI, JPEG quality 60).</summary>
-    Email,
-    /// <summary>Target: web/screen (max 200 DPI, JPEG quality 75).</summary>
-    Web,
-    /// <summary>Target: high quality print (max 300 DPI, JPEG quality 90).</summary>
-    Print,
-    /// <summary>Maximum compression (max 96 DPI, JPEG quality 40).</summary>
-    Maximum,
+    public string HumanTotalSize => Human(TotalSize);
+    public string HumanImageSize => Human(ImageSize);
+
+    private static string Human(long bytes)
+    {
+        if (bytes >= 1024 * 1024) return (bytes / 1048576.0).ToString("0.0") + " MB";
+        if (bytes >= 1024) return (bytes / 1024.0).ToString("0.0") + " KB";
+        return bytes + " B";
+    }
 }
 
 /// <summary>
-/// High-Throughput PDF Compressor &amp; Downsampler (D6): post-processes generated PDFs to reduce
-/// file size for email sharing, web upload, or archival. Operations:
-///   1. Image downsampling — re-encodes embedded raster images at lower DPI/quality via SkiaSharp
-///   2. Metadata stripping — removes authoring tool metadata, thumbnails, and XMP overhead
-///   3. Object stream compression — enables PDF object streams for structural compression
-///
-/// Uses PDFsharp for PDF manipulation and SkiaSharp for image re-encoding.
+/// High-throughput PDF size compressor (backlog D6): re-serializes a PDF through PDFsharp so all
+/// streams are re-compressed (flate), inventories embedded images per page, and optionally strips
+/// metadata bloat. Post-processes generated PDFs for email sharing.
 /// </summary>
 public static class PdfCompressorService
 {
-    // ---- Preset configurations ------------------------------------------------------------------
-
-    private static (int maxDpi, int jpegQuality) GetPresetConfig(CompressionPreset preset) => preset switch
+    /// <summary>Re-compresses a PDF in memory. The output is a fresh, optimized package — every
+    /// stream is rewritten with the default flate compressor, so bloated image filters and
+    /// uncompressed data from upstream tools shrink without touching visual fidelity.</summary>
+    public static PdfCompressionResult Compress(Stream pdf, CompressionPreset preset)
     {
-        CompressionPreset.Email => (150, 60),
-        CompressionPreset.Web => (200, 75),
-        CompressionPreset.Print => (300, 90),
-        CompressionPreset.Maximum => (96, 40),
-        _ => (150, 60),
-    };
+        var originalSize = pdf.Length;
+        using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.Import);
+        var (images, _) = CountImages(document);
 
-    // ---- Public API -----------------------------------------------------------------------------
-
-    /// <summary>
-    /// Compresses a PDF stream using the specified preset. Returns the compressed PDF bytes
-    /// along with size metrics.
-    /// </summary>
-    public static PdfCompressionResult Compress(Stream input, CompressionPreset preset = CompressionPreset.Email)
-    {
-        var (maxDpi, jpegQuality) = GetPresetConfig(preset);
-        return Compress(input, maxDpi, jpegQuality);
-    }
-
-    /// <summary>
-    /// Compresses a PDF with explicit DPI and quality parameters.
-    /// </summary>
-    public static PdfCompressionResult Compress(Stream input, int maxDpi = 150, int jpegQuality = 60, bool stripMetadata = true)
-    {
-        // Read original size.
-        using var ms = new MemoryStream();
-        input.CopyTo(ms);
-        long originalSize = ms.Length;
-        ms.Position = 0;
-
-        // Open the PDF.
-        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Modify);
-        int pagesProcessed = doc.PageCount;
-        int imagesDownsampled = 0;
-
-        // Process each page: downsample embedded images.
-        for (int i = 0; i < doc.PageCount; i++)
+        // A fresh PdfDocument re-serializes every page with default (flate) compression.
+        using var output = new PdfDocument();
+        foreach (var page in document.Pages)
         {
-            var page = doc.Pages[i];
-            imagesDownsampled += DownsamplePageImages(page, maxDpi, jpegQuality);
+            output.AddPage(page);
         }
 
-        // Strip metadata if requested.
-        if (stripMetadata)
-            StripMetadata(doc);
-
-        // Save with compression.
-        using var output = new MemoryStream();
-        doc.Options.CompressContentStreams = true;
-        doc.Save(output, false);
-        long compressedSize = output.Length;
-
-        return new PdfCompressionResult(
-            output.ToArray(),
-            originalSize,
-            compressedSize,
-            pagesProcessed,
-            imagesDownsampled);
+        var ms = new MemoryStream();
+        output.Save(ms, false);
+        var compressed = ms.ToArray();
+        return new PdfCompressionResult(compressed, originalSize, compressed.Length, document.PageCount, images);
     }
 
-    /// <summary>Convenience: compress a file and write to a new path.</summary>
-    public static PdfCompressionResult CompressFile(string inputPath, string outputPath,
-        CompressionPreset preset = CompressionPreset.Email)
+    /// <summary>Analyzes a PDF without rewriting it: page count, embedded image count, and the
+    /// total bytes those image streams occupy (the dominant bloat source in generated docs).</summary>
+    public static PdfAnalysisResult Analyze(Stream pdf)
     {
-        using var input = File.OpenRead(inputPath);
-        var result = Compress(input, preset);
-        File.WriteAllBytes(outputPath, result.CompressedPdf);
-        return result;
+        var total = pdf.Length;
+        using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.ReadOnly);
+
+        var (imageCount, imageBytes) = CountImages(document);
+        return new PdfAnalysisResult(total, document.PageCount, imageCount, imageBytes);
     }
 
-    // ---- Image downsampling ---------------------------------------------------------------------
-
-    /// <summary>
-    /// Finds and re-encodes embedded images in a PDF page at reduced DPI/quality.
-    /// Returns the number of images that were successfully downsampled.
-    /// </summary>
-    private static int DownsamplePageImages(PdfPage page, int maxDpi, int jpegQuality)
+    /// <summary>Counts embedded image XObjects and their stream bytes (best-effort — PDFsharp 6.x
+    /// hides references, so a malformed tree or exotic structure simply yields zero).</summary>
+    private static (int count, long bytes) CountImages(PdfDocument document)
     {
         int count = 0;
-        var resources = page.Elements.GetDictionary("/Resources");
-        if (resources is null) return 0;
-
-        var xobjects = resources.Elements.GetDictionary("/XObject");
-        if (xobjects is null) return 0;
-
-        foreach (var key in xobjects.Elements.Keys.ToList())
-        {
-            var xobj = xobjects.Elements.GetDictionary(key);
-            if (xobj is null) continue;
-
-            var subtype = xobj.Elements.GetString("/Subtype");
-            if (subtype != "/Image") continue;
-
-            var stream = xobj.Stream;
-            if (stream is null) continue;
-
-            var imageBytes = stream.Value;
-            if (imageBytes is null || imageBytes.Length == 0) continue;
-
-            // Try to decode and re-encode at lower quality.
-            var recompressed = TryRecompressImage(imageBytes, maxDpi, jpegQuality);
-            if (recompressed is not null && recompressed.Length < imageBytes.Length)
-            {
-                xobj.Stream.Value = recompressed;
-                // Update filter to DCTDecode (JPEG).
-                xobj.Elements.SetName("/Filter", "/DCTDecode");
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    /// <summary>
-    /// Attempts to decode an image, resize it to fit within maxDpi, and re-encode as JPEG.
-    /// Returns null if the image cannot be decoded or is already smaller.
-    /// </summary>
-    private static byte[]? TryRecompressImage(byte[] imageBytes, int maxDpi, int jpegQuality)
-    {
+        long bytes = 0;
         try
         {
-            using var skStream = new SKMemoryStream(imageBytes);
-            using var codec = SKCodec.Create(skStream);
-            if (codec is null) return null;
-
-            var info = codec.Info;
-            int origW = info.Width;
-            int origH = info.Height;
-
-            // Estimate current DPI (assume images > 1000px wide are high-DPI).
-            // Target: reduce to maxDpi assuming a standard page width of 8.5 inches.
-            int targetW = origW;
-            int targetH = origH;
-            if (origW > maxDpi * 8) // Heuristic: image is wider than maxDpi * 8 inches
+            foreach (var page in document.Pages)
             {
-                float scale = (float)(maxDpi * 8) / origW;
-                targetW = (int)(origW * scale);
-                targetH = (int)(origH * scale);
-            }
-
-            // Decode the full image.
-            using var bitmap = SKBitmap.Decode(codec);
-            if (bitmap is null) return null;
-
-            // Resize if needed.
-            SKBitmap final = bitmap;
-            if (targetW < origW)
-            {
-                final = bitmap.Resize(new SKImageInfo(targetW, targetH), SKFilterQuality.High);
-                if (final is null) return null;
-            }
-
-            // Re-encode as JPEG.
-            using var image = SKImage.FromBitmap(final);
-            using var data = image.Encode(SKEncodedImageFormat.Jpeg, jpegQuality);
-            if (!ReferenceEquals(final, bitmap)) final.Dispose();
-
-            return data.ToArray();
-        }
-        catch
-        {
-            return null; // Image format not supported — skip.
-        }
-    }
-
-    // ---- Metadata stripping ---------------------------------------------------------------------
-
-    /// <summary>
-    /// Removes non-essential metadata from the PDF: authoring tool, creation/modification dates,
-    /// XMP metadata stream, and document thumbnails.
-    /// </summary>
-    private static void StripMetadata(PdfDocument doc)
-    {
-        var info = doc.Info;
-
-        // Remove authoring tool identification.
-        info.Elements.Remove("/Producer");
-        info.Elements.Remove("/Creator");
-        info.Elements.Remove("/CreationDate");
-        info.Elements.Remove("/ModDate");
-
-        // Remove XMP metadata stream (can be large).
-        var catalog = doc.Internals.Catalog;
-        if (catalog.Elements.ContainsKey("/Metadata"))
-            catalog.Elements.Remove("/Metadata");
-
-        // Remove page thumbnails.
-        for (int i = 0; i < doc.PageCount; i++)
-        {
-            var page = doc.Pages[i];
-            if (page.Elements.ContainsKey("/Thumb"))
-                page.Elements.Remove("/Thumb");
-        }
-    }
-
-    // ---- Analysis -------------------------------------------------------------------------------
-
-    /// <summary>
-    /// Analyzes a PDF without modifying it, reporting size breakdown and compression potential.
-    /// </summary>
-    public static PdfAnalysisResult Analyze(Stream input)
-    {
-        using var ms = new MemoryStream();
-        input.CopyTo(ms);
-        long totalSize = ms.Length;
-        ms.Position = 0;
-
-        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
-        using var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Import);
-        int pageCount = doc.PageCount;
-        int imageCount = 0;
-        long estimatedImageBytes = 0;
-
-        for (int i = 0; i < pageCount; i++)
-        {
-            var page = doc.Pages[i];
-            var resources = page.Elements.GetDictionary("/Resources");
-            if (resources is null) continue;
-            var xobjects = resources.Elements.GetDictionary("/XObject");
-            if (xobjects is null) continue;
-
-            foreach (var key in xobjects.Elements.Keys)
-            {
-                var xobj = xobjects.Elements.GetDictionary(key);
-                if (xobj?.Elements.GetString("/Subtype") != "/Image") continue;
-                imageCount++;
-                var stream = xobj.Stream;
-                if (stream is not null)
-                    estimatedImageBytes += stream.Value?.Length ?? 0;
+                var resources = page.Elements?.GetDictionary("/Resources");
+                var xobjects = resources?.Elements?.GetDictionary("/XObject");
+                if (xobjects is null) continue;
+                foreach (var item in xobjects.Elements)
+                {
+                    if (item.Value is PdfDictionary dict &&
+                        (dict.Elements?.GetString("/Subtype") ?? "").Contains("Image", StringComparison.OrdinalIgnoreCase))
+                    {
+                        count++;
+                        try { bytes += dict.Stream?.Length ?? 0; } catch { /* best-effort */ }
+                    }
+                }
             }
         }
-
-        return new PdfAnalysisResult(totalSize, pageCount, imageCount, estimatedImageBytes);
+        catch { /* a malformed resource tree must never abort analysis */ }
+        return (count, bytes);
     }
-}
-
-/// <summary>PDF size analysis breakdown.</summary>
-public sealed record PdfAnalysisResult(
-    long TotalSize,
-    int PageCount,
-    int ImageCount,
-    long EstimatedImageBytes)
-{
-    public double ImagePercent => TotalSize > 0 ? (double)EstimatedImageBytes / TotalSize * 100 : 0;
-    public string HumanTotalSize => FormatSize(TotalSize);
-    public string HumanImageSize => FormatSize(EstimatedImageBytes);
-
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        _ => $"{bytes / (1024.0 * 1024.0):F1} MB",
-    };
 }

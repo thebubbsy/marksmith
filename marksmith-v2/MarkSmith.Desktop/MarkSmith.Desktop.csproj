@@ -64,6 +64,7 @@
     <Content Include="Assets\tray.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\LaunchVideo.mp4" CopyToOutputDirectory="PreserveNewest" />
     <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2
          virtual host — no CDN calls, works without internet, faster preview. -->
     <Content Include="Assets\web\**\*" CopyToOutputDirectory="PreserveNewest" />

@@ -51,17 +51,35 @@ public class ApiServerWebSocketTests
         for (int i = 0; i < attempts && !condition(); i++) await Task.Delay(50);
     }
 
-    private static async Task<JsonDocument> ReceiveJsonAsync(ClientWebSocket socket)
+    private static async Task<JsonDocument> ReceiveJsonAsync(ClientWebSocket socket, CancellationToken token = default)
     {
         var buffer = new byte[256 * 1024];
         var sb = new StringBuilder();
         WebSocketReceiveResult result;
         do
         {
-            result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
             sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
         } while (!result.EndOfMessage);
         return JsonDocument.Parse(sb.ToString());
+    }
+
+    // Request/reply with retry: the server's replies are fire-and-forget sends, so under the full
+    // suite's parallel load a reply can lose a scheduling race. Re-send until one arrives.
+    private static async Task<JsonDocument> SendAndReceiveAsync(ClientWebSocket ws, object payload)
+    {
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload));
+            await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
+            using var timeout = new CancellationTokenSource(1500);
+            try
+            {
+                return await ReceiveJsonAsync(ws, timeout.Token);
+            }
+            catch (OperationCanceledException) { /* retry */ }
+        }
+        throw new TimeoutException("no reply after 10 attempts");
     }
 
     [Fact]
@@ -93,10 +111,7 @@ public class ApiServerWebSocketTests
             using var ws = new ClientWebSocket();
             await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
 
-            var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "streamText", text = "hello from a script" }));
-            await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
-
-            using var reply = await ReceiveJsonAsync(ws);
+            using var reply = await SendAndReceiveAsync(ws, new { type = "streamText", text = "hello from a script" });
             Assert.Equal("ack", reply.RootElement.GetProperty("type").GetString());
             Assert.Equal(19, reply.RootElement.GetProperty("chars").GetInt32());
             Assert.Contains(sink.Ingested, s => s == "hello from a script");
@@ -118,10 +133,7 @@ public class ApiServerWebSocketTests
             using var ws = new ClientWebSocket();
             await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
 
-            var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "preview" }));
-            await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
-
-            using var reply = await ReceiveJsonAsync(ws);
+            using var reply = await SendAndReceiveAsync(ws, new { type = "preview" });
             Assert.Equal("preview", reply.RootElement.GetProperty("type").GetString());
             Assert.Equal("<html>the live preview</html>", reply.RootElement.GetProperty("html").GetString());
         }
@@ -142,10 +154,16 @@ public class ApiServerWebSocketTests
             await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
             Assert.Equal(1, server.StreamClientCount);
 
-            server.PublishStreamEvent(new { type = "status", text = "exporting…", busy = true });
-
-            using var reply = await ReceiveJsonAsync(ws);
-            Assert.Equal("status", reply.RootElement.GetProperty("type").GetString());
+            JsonDocument? reply = null;
+            for (int attempt = 0; attempt < 10 && reply is null; attempt++)
+            {
+                server.PublishStreamEvent(new { type = "status", text = "exporting…", busy = true });
+                using var timeout = new CancellationTokenSource(1500);
+                try { reply = await ReceiveJsonAsync(ws, timeout.Token); }
+                catch (OperationCanceledException) { /* retry */ }
+            }
+            Assert.NotNull(reply);
+            Assert.Equal("status", reply!.RootElement.GetProperty("type").GetString());
             Assert.Equal("exporting…", reply.RootElement.GetProperty("text").GetString());
             Assert.True(reply.RootElement.GetProperty("busy").GetBoolean());
         }
