@@ -344,6 +344,51 @@ public class TrialModelTests : IDisposable
     }
 
     [Fact]
+    public void DevProToggle_WritesKeyToFile_AndSurvivesRestart()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+
+        var (pro, message) = service.ToggleDevPro();
+        Assert.True(pro);
+        Assert.True(service.IsPro);
+        Assert.Equal(Edition.Pro, service.State.Edition);
+        Assert.True(service.CanExportDocx);
+        Assert.True(service.CanExportPptx);
+        Assert.True(service.CanAutomate);
+        Assert.False(service.ShowFooter);
+        Assert.True(File.Exists(_licensePath), "the dev key must be persisted in the license file");
+
+        // A fresh process reads the dev key and is Pro immediately.
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        Assert.True(reloaded.IsPro);
+        Assert.False(reloaded.ShowFooter);
+    }
+
+    [Fact]
+    public void DevProToggle_Off_DeletesTheLicenseFile_AndReturnsToFree()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.ToggleDevPro();
+        Assert.True(File.Exists(_licensePath));
+
+        var (pro, message) = service.ToggleDevPro(); // toggle again
+        Assert.False(pro);
+        Assert.False(service.IsPro);
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.False(service.CanExportDocx);
+        Assert.False(File.Exists(_licensePath), "the license file must be deleted on the second press");
+
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        Assert.False(reloaded.IsPro);
+    }
+
+    [Fact]
     public void SpentTrial_SurvivesDiskReload()
     {
         var service = new LicenseService();

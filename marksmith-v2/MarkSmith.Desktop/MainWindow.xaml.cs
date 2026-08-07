@@ -1214,6 +1214,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Hidden Ctrl+Shift+Alt+L: full license reset to Free (key + trial + used flag) — the
     // developer/test path for exercising the free-vs-pro gates on demand.
+    private void OnDevProToggleInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        var (pro, message) = App.License.ToggleDevPro();
+        ViewModel.StatusText = message;
+        ViewModel.StatusSeverity = pro ? Models.StatusSeverity.Success : Models.StatusSeverity.Informational;
+        UpdateLicenseBanner();
+    }
+
     private void OnHiddenResetLicenseInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
         args.Handled = true;

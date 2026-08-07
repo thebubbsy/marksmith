@@ -165,6 +165,9 @@ public class ApiServerWebSocketTests
             using (var ws = new ClientWebSocket())
             {
                 await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
+                // The server registers the socket asynchronously AFTER the handshake completes —
+                // poll both directions so a slow full-suite run can't flake either assertion.
+                await WaitForAsync(() => server.StreamClientCount >= 1);
                 Assert.Equal(1, server.StreamClientCount);
             }
             // Give the server's receive loop a moment to observe the close (poll — the loop can be
