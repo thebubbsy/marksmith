@@ -195,7 +195,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // no output.json), whereas subscribing here is equivalent and build-safe. Note the control
         // exposes Expanding/Collapsed (there is no Expanded event in this Windows App SDK).
         ExportBrandingExpander.Expanding += OnStyleExpanderExpanded;
-        AdvancedStyleExpander.Expanding += OnStyleExpanderExpanded;
 
         // Ctrl+, opens Settings. This can't be a XAML KeyboardAccelerator: WinUI can't represent the
         // comma key in an accelerator (a raw "188" fails XAML parsing, and VirtualKey.OemComma crashes
@@ -331,13 +330,18 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         WireStreamingApi();
-        App.License.Changed += () => DispatcherQueue.TryEnqueue(() => { SyncAdvancedSection(); UpdateLicenseBanner(); });
+
+        // Expanded editing bar: when the bottom bar has room, common actions become direct buttons
+        // instead of hiding under the cluster dropdowns (split view, full code mode, fullscreen).
+        BuildEditingExpandedButtons();
+        RootGrid.SizeChanged += (_, _) => UpdateEditingExpansion();
+        UpdateEditingExpansion();
+        App.License.Changed += () => DispatcherQueue.TryEnqueue(UpdateLicenseBanner);
         // Standardized pro-gate: any PRO feature a free user attempts raises this; the shell shows
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
         ViewModel.ProFeatureAttempted += feature => DispatcherQueue.TryEnqueue(() => _ = ShowProGateAsync(feature));
         SyncSourcePanels();
         ApplyAutomationSettings();
-        SyncAdvancedSection();
         UpdateLicenseBanner();
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
@@ -484,6 +488,53 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
     }
 
+    // The expanded editing bar: one icon button per common inline action (the same handlers the
+    // cluster dropdowns use), visible whenever the bottom bar is wide enough to fit them.
+    private void BuildEditingExpandedButtons()
+    {
+        (string Content, string Tip, RoutedEventHandler Click)[] actions =
+        {
+            ("B", "Bold (Ctrl+B)", OnBoldClick),
+            ("I", "Italic (Ctrl+I)", OnItalicClick),
+            ("S", "Strikethrough", OnStrikethroughClick),
+            ("H1", "Heading 1 (#)", OnH1Click),
+            ("H2", "Heading 2 (##)", OnH2Click),
+            ("H3", "Heading 3 (###)", OnH3Click),
+            ("H4", "Heading 4 (####)", OnH4Click),
+            ("•", "Bullet list", OnBulletListClick),
+            ("1.", "Numbered list", OnNumberedListClick),
+            ("☑", "Task list", OnTaskListClick),
+            ("❝", "Blockquote", OnBlockquoteClick),
+            ("Link", "Insert link", OnLinkClick),
+            ("Img", "Insert image", OnImageClick),
+            ("Tbl", "Insert table", OnTableClick),
+            ("<>", "Code block", OnCodeBlockClick),
+        };
+        foreach (var (content, tip, click) in actions)
+        {
+            var button = new Button
+            {
+                Content = new TextBlock { Text = content, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                Width = 34,
+                Height = 32,
+                Padding = new Thickness(0),
+            };
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, tip);
+            button.Click += click;
+            EditingExpandedPanel.Children.Add(button);
+        }
+    }
+
+    // Toggles the expanded vs clustered editing bars based on available width. Called on every
+    // resize and view-mode change; the cluster dropdowns return automatically when space is tight.
+    private void UpdateEditingExpansion()
+    {
+        if (EditingExpandedPanel is null || EditingClustersPanel is null) return;
+        var expanded = CenterBottomBar.ActualWidth >= 560;
+        EditingExpandedPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        EditingClustersPanel.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
@@ -510,11 +561,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.PropertyName == nameof(ViewModels.MainViewModel.PageBorder))
         {
             _ = RefreshPreviewAsync();
-        }
-
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.AdvancedMode))
-        {
-            SyncAdvancedSection();
         }
 
         if (e.PropertyName is not null && AutomationProperties.Contains(e.PropertyName))
@@ -619,12 +665,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
         catch { /* no browser / bad uri */ }
     }
-
-    // Advanced formatting personalization is a Pro feature: the section shows only when Advanced mode
-    // is on AND the user is Pro (or on trial). Re-synced whenever either changes.
-    private void SyncAdvancedSection() =>
-        AdvancedStyleExpander.Visibility =
-            ViewModel.AdvancedMode ? Visibility.Visible : Visibility.Collapsed;
 
     private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
     {

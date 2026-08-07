@@ -217,10 +217,10 @@ public sealed class AppSettings
     // WebSocket streaming on the local REST API (ws://127.0.0.1:<port>/api/stream), OFF by default:
     // live status/preview events + streaming text into the editor from scripts or the extension.
     public bool EnableStreamingApi { get; set; }
-    public int ApiPort { get; set; } = 47821;
 
-    // Advanced mode reveals power-user styling options (cleanup + formatting) in the Style panel.
-    public bool AdvancedMode { get; set; }
+    // Skip the intro video that plays on launch before the main window appears.
+    public bool SkipLaunchVideo { get; set; }
+    public int ApiPort { get; set; } = 47821;
 
     // Pro mode skips the interactive pickers: Insert ▸ Image drops the raw markdown placeholder
     // directly (the classic one-keystroke behavior) instead of opening the drag & drop / URL modal.
@@ -365,8 +365,8 @@ public sealed class AppSettings
         ContentDirection = other.ContentDirection;
         ApiEnabled = other.ApiEnabled;
         EnableStreamingApi = other.EnableStreamingApi;
+        SkipLaunchVideo = other.SkipLaunchVideo;
         ApiPort = other.ApiPort;
-        AdvancedMode = other.AdvancedMode;
         ProMode = other.ProMode;
         HardwareAcceleration = other.HardwareAcceleration;
         AllowedExtensionId = other.AllowedExtensionId;

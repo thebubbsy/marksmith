@@ -18,22 +18,22 @@
         <PivotItem Header="General">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="14" Margin="0,12,10,0">
-                <Border Style="{StaticResource PipelineCardStyle}">
+                <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <Grid Padding="16,12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Advanced mode" />
-                            <TextBlock Text="Show power-user styling options in the Style panel — cleanup controls and formatting transforms."
-                                       Style="{StaticResource StepCaptionStyle}" />
+                            <TextBlock Text="Play intro video on launch" />
+                            <TextBlock Text="Shows the branded launch video before the main window appears. Off = straight to the editor."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                         </StackPanel>
-                        <ToggleSwitch Grid.Column="1" IsOn="{Binding AdvancedMode, Mode=TwoWay}" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" IsOn="{Binding SkipLaunchVideo, Mode=TwoWay}" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource PipelineCardZebraStyle}">
+                <Border Style="{StaticResource PipelineCardStyle}">
                     <Grid Padding="16,12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
