@@ -112,6 +112,31 @@ public sealed class LicenseService
 
     // Testing/verification affordance: force the app back to Free (clears any key AND any trial),
     // so the free-tier limits can be exercised end-to-end on demand.
+    // Hidden developer command (Ctrl+Shift+Alt+P): flip straight into Pro and back. ON writes a
+    // dev license key into the real license file (survives restarts); OFF DELETES the license file
+    // entirely, returning to Free. A real activated Pro key is never touched.
+    public (bool pro, string message) ToggleDevPro()
+    {
+        if (State.Edition == Edition.Pro)
+        {
+            if (!string.Equals(_stored.Key, LicenseValidator.DevProKey, StringComparison.Ordinal))
+                return (true, "Already Pro with a real key — not touching it. Reset to Free with Ctrl+Shift+Alt+L if needed.");
+            _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;
+            _stored.TrialExportsRemaining = 0; _stored.TrialUsed = false; _stored.TrialExportUsedUtc = null;
+            try { if (File.Exists(_path)) File.Delete(_path); } catch { /* best-effort */ }
+            Recompute();
+            return (false, "Pro dev mode OFF — license file deleted, back to Free.");
+        }
+
+        _stored.Key = LicenseValidator.DevProKey;
+        _stored.Email = "dev@marksmith.local";
+        _stored.InstanceId = null;
+        _stored.TrialExportsRemaining = 0; _stored.TrialUsed = false; _stored.TrialExportUsedUtc = null;
+        WriteStored();
+        Recompute();
+        return (true, "Pro dev mode ON — dev license key written to the license file.");
+    }
+
     public void ResetToFree()
     {
         _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;

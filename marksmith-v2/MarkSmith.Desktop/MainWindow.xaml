@@ -13,6 +13,10 @@
                  any key AND any trial, including the used flag) so the free-vs-pro gates can be
                  exercised end-to-end. Deliberately undocumented in the UI. -->
             <KeyboardAccelerator Modifiers="Control,Shift,Menu" Key="L" Invoked="OnHiddenResetLicenseInvoked" />
+            <!-- HIDDEN developer/test command: Ctrl+Shift+Alt+P toggles PRO dev mode — ON writes a
+                 dev license key into the license file (full Pro, survives restarts); OFF deletes the
+                 license file and drops straight back to Free. -->
+            <KeyboardAccelerator Modifiers="Control,Shift,Menu" Key="P" Invoked="OnDevProToggleInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="O" Invoked="OnOpenFileAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnGeneratePdfAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="D" Invoked="OnExportDocxAcceleratorInvoked" />
