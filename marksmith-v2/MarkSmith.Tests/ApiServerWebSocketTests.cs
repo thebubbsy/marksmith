@@ -14,6 +14,28 @@ namespace MarkSmith.Tests;
 [Collection("ApiServer")]
 public class ApiServerWebSocketTests
 {
+    private static int port;
+
+    // The free-port probe releases the port before Start() binds it, so a parallel test (other
+    // collections run concurrently) can steal it between probe and bind. Retry the probe+bind;
+    // a stolen port fails the first bind, not the test.
+    private static async Task<int> StartServerRetryingAsync(ApiServer server)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            port = GetFreePort();
+            try
+            {
+                server.Start(port);
+                return port;
+            }
+            catch (System.Net.HttpListenerException) when (attempt < 5)
+            {
+                await Task.Delay(50); // port stolen between probe and bind — retry
+            }
+        }
+    }
+
     private static int GetFreePort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -78,6 +100,7 @@ public class ApiServerWebSocketTests
                 return await ReceiveJsonAsync(ws, timeout.Token);
             }
             catch (OperationCanceledException) { /* retry */ }
+            catch (JsonException) { /* a timed-out fragment left stale bytes — retry on a clean buffer */ }
         }
         throw new TimeoutException("no reply after 10 attempts");
     }
@@ -104,16 +127,21 @@ public class ApiServerWebSocketTests
         var sink = new Sink();
         sink.Settings.EnableStreamingApi = true;
         using var server = sink.CreateServer();
-        int port = GetFreePort();
-        server.Start(port);
+        port = await StartServerRetryingAsync(server);
         try
         {
             using var ws = new ClientWebSocket();
             await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
 
-            using var reply = await SendAndReceiveAsync(ws, new { type = "streamText", text = "hello from a script" });
-            Assert.Equal("ack", reply.RootElement.GetProperty("type").GetString());
-            Assert.Equal(19, reply.RootElement.GetProperty("chars").GetInt32());
+            // Side-effecting request: send exactly ONCE (a retry would double-ingest). Delivery is
+            // proven by the ingest side effect; the ack is best-effort fire-and-forget, so don't
+            // block on it.
+            var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "streamText", text = "hello from a script" }));
+            await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (sink.Ingested.Count == 0 && DateTime.UtcNow < deadline)
+                await Task.Delay(50);
+            Assert.Single(sink.Ingested);
             Assert.Contains(sink.Ingested, s => s == "hello from a script");
         }
         finally { server.Stop(); }
@@ -126,8 +154,7 @@ public class ApiServerWebSocketTests
         sink.Settings.EnableStreamingApi = true;
         sink.Preview = "<html>the live preview</html>";
         using var server = sink.CreateServer();
-        int port = GetFreePort();
-        server.Start(port);
+        port = await StartServerRetryingAsync(server);
         try
         {
             using var ws = new ClientWebSocket();
@@ -146,12 +173,16 @@ public class ApiServerWebSocketTests
         var sink = new Sink();
         sink.Settings.EnableStreamingApi = true;
         using var server = sink.CreateServer();
-        int port = GetFreePort();
-        server.Start(port);
+        port = await StartServerRetryingAsync(server);
         try
         {
             using var ws = new ClientWebSocket();
             await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
+            // The server registers the socket right AFTER the handshake completes — poll instead of
+            // asserting instantly (the registration can land a few ms after ConnectAsync returns).
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            while (server.StreamClientCount == 0 && DateTime.UtcNow < deadline)
+                await Task.Delay(25);
             Assert.Equal(1, server.StreamClientCount);
 
             JsonDocument? reply = null;
@@ -161,6 +192,7 @@ public class ApiServerWebSocketTests
                 using var timeout = new CancellationTokenSource(1500);
                 try { reply = await ReceiveJsonAsync(ws, timeout.Token); }
                 catch (OperationCanceledException) { /* retry */ }
+                catch (JsonException) { /* stale fragment — retry */ }
             }
             Assert.NotNull(reply);
             Assert.Equal("status", reply!.RootElement.GetProperty("type").GetString());

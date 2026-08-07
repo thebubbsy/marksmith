@@ -34,16 +34,20 @@ public sealed record PdfAnalysisResult(long TotalSize, int PageCount, int ImageC
 
 /// <summary>
 /// High-throughput PDF size compressor (backlog D6): re-serializes a PDF through PDFsharp so all
-/// streams are re-compressed (flate), inventories embedded images per page, and optionally strips
-/// metadata bloat. Post-processes generated PDFs for email sharing.
+/// streams are re-compressed (flate) and the package is rebuilt cleanly. Post-processes generated
+/// PDFs for email sharing.
 /// </summary>
 public static class PdfCompressorService
 {
     /// <summary>Re-compresses a PDF in memory. The output is a fresh, optimized package — every
     /// stream is rewritten with the default flate compressor, so bloated image filters and
-    /// uncompressed data from upstream tools shrink without touching visual fidelity.</summary>
+    /// uncompressed data from upstream tools shrink without touching visual fidelity.
+    /// <paramref name="preset"/> is currently reserved: both presets re-compress identically;
+    /// image downsampling (the D6 follow-on) will key off it (Web/Email will then differ).</summary>
     public static PdfCompressionResult Compress(Stream pdf, CompressionPreset preset)
     {
+        if (pdf is null) throw new ArgumentNullException(nameof(pdf));
+        if (pdf.Length == 0) throw new ArgumentException("The PDF stream is empty.", nameof(pdf));
         var originalSize = pdf.Length;
         using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.Import);
         var (images, _) = CountImages(document);
