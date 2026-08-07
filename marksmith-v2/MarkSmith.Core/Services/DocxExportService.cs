@@ -105,7 +105,21 @@ public sealed class DocxExportService
         IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
         IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
         int? oversizedDiagramModeOverride = null) =>
-        Task.Run(() =>
+        ExportAndChargeTrialAsync(markdown, docxPath, settings, mermaidImages, cleanupNotes,
+            mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride);
+
+    // EVERY DOCX export in the app funnels through ExportAsync (single-document, batch convert,
+    // folder watch, the local API, export-all). The trial cap is therefore enforced HERE — the one
+    // chokepoint — not in the individual callers, so a 3-export trial can never be bypassed by
+    // taking a different path. Consume happens only after the package was written successfully
+    // (a failed export does not spend a trial export). Free/Pro are unaffected (no-op).
+    private async Task ExportAndChargeTrialAsync(string markdown, string docxPath, AppSettings settings,
+        IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
+        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
+        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
+        int? oversizedDiagramModeOverride = null)
+    {
+        await Task.Run(() =>
         {
             // Capture the pristine source BEFORE any normalization so Tier-1 reimport returns the
             // user's exact input (lossless round-trip). Every transform below is presentation-only.
@@ -227,6 +241,13 @@ public sealed class DocxExportService
             MarksmithSourceStore.Embed(main, originalSource, settings);
             main.Document.Save();
         });
+
+        // The trial cap is enforced HERE — the one chokepoint every DOCX export passes through
+        // (single-document, batch, folder watch, local API, export-all). Only a SUCCESSFUL export
+        // spends a trial export; Free/Pro users are unaffected (no-op).
+        if (AppServices.License.State.Edition == Models.Edition.Trial)
+            AppServices.License.ConsumeDocxExport();
+    }
 
     // A genuine Word comment (review pane, margin bubble) anchored on the first paragraph.
     // Generates an audit trail of structural transformations performed by the normalization pipeline.

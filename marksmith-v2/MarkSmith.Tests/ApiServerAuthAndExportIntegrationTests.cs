@@ -17,6 +17,7 @@ namespace MarkSmith.Core.Tests;
 // QODER Task 4a: the AllowedExtensionId pinning check in ApiServer.IsAllowedOrigin.
 // When an extension ID is pinned, ONLY that exact extension origin may call the API; when it is
 // blank (the default) any installed extension is trusted, but drive-by web origins stay rejected.
+[Collection("ApiServer")]
 public class ApiServerExtensionAuthTests
 {
     private static int GetFreePort()

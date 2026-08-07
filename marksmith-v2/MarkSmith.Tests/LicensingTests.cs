@@ -230,12 +230,12 @@ internal class MockHttpMessageHandler : HttpMessageHandler
 // ===== One-export trial model (no automatic trial) =====
 
 [Collection("LicenseState")]
-public class OneExportTrialTests : IDisposable
+public class TrialModelTests : IDisposable
 {
     private readonly string _licensePath;
     private readonly string? _backup;
 
-    public OneExportTrialTests()
+    public TrialModelTests()
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
@@ -271,7 +271,7 @@ public class OneExportTrialTests : IDisposable
     }
 
     [Fact]
-    public void StartTrial_GrantsExactlyOneDocxExport_AndNothingElse()
+    public void StartTrial_GrantsFullPro_WithExactlyThreeDocxExports()
     {
         var service = new LicenseService();
         service.Load();
@@ -280,11 +280,14 @@ public class OneExportTrialTests : IDisposable
         var (ok, message) = service.StartTrial();
         Assert.True(ok);
         Assert.Equal(Edition.Trial, service.State.Edition);
-        Assert.True(service.CanExportDocx);      // the ONE export
-        Assert.False(service.CanExportPptx);     // trial is docx-only
-        Assert.False(service.CanAutomate);       // no automation on trial
-        Assert.True(service.ShowFooter);         // still a free user at heart
-        Assert.Contains("ONE DOCX export", service.State.Status);
+        Assert.Equal(3, service.State.TrialExportsRemaining);
+
+        // The trial is FULL PRO: everything unlocked, NO paywall, NO footer.
+        Assert.True(service.CanExportDocx);
+        Assert.True(service.CanExportPptx);
+        Assert.True(service.CanAutomate);
+        Assert.False(service.ShowFooter);
+        Assert.Contains("3 DOCX exports", service.State.Status);
 
         // Starting it twice is refused — the trial is already active.
         var (ok2, _) = service.StartTrial();
@@ -292,27 +295,76 @@ public class OneExportTrialTests : IDisposable
     }
 
     [Fact]
-    public void ConsumeDocxExport_UsesUpTheTrial_BackToFree()
+    public void Trial_NeverReportsAProGate()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+
+        // Every gateable feature is usable while the trial is active — the classifier can never
+        // tell the user "this is a Pro feature" mid-trial.
+        foreach (FeatureId id in Enum.GetValues<FeatureId>())
+            Assert.True(service.State.CanUse(id), $"trial must allow {id}");
+    }
+
+    [Fact]
+    public void ThreeDocxExports_ThenBackToFree_WithRestrictions()
     {
         var service = new LicenseService();
         service.Load();
         service.ResetToFree(); // order/state-independent: each test starts from the Free tier
         service.StartTrial();
-        Assert.True(service.CanExportDocx);
 
-        // The single successful export consumes the trial...
+        // Exports 1 and 2 still leave the trial active with the right remaining count.
+        service.ConsumeDocxExport();
+        Assert.Equal(Edition.Trial, service.State.Edition);
+        Assert.Equal(2, service.State.TrialExportsRemaining);
+        service.ConsumeDocxExport();
+        Assert.Equal(Edition.Trial, service.State.Edition);
+        Assert.Equal(1, service.State.TrialExportsRemaining);
+
+        // The 3rd export spends the trial: back to Free, every restriction applies again.
         service.ConsumeDocxExport();
         Assert.Equal(Edition.Free, service.State.Edition);
         Assert.False(service.CanExportDocx);
+        Assert.False(service.CanExportPptx);
+        Assert.False(service.CanAutomate);
+        Assert.True(service.ShowFooter);
+        Assert.False(service.State.CanUse(FeatureId.DocxExport));
 
-        // ...and consuming again is a no-op (no negative trial).
+        // Consuming again is a no-op (no negative trial).
         service.ConsumeDocxExport();
         Assert.Equal(Edition.Free, service.State.Edition);
 
-        // The usage is TRACKED: a used trial is distinguishable and can never be restarted.
+        // The usage is TRACKED: a spent trial can never be restarted.
         Assert.Contains("trial used", service.State.Status);
         var (again, _) = service.StartTrial();
-        Assert.False(again, "a used trial must not be restartable");
+        Assert.False(again, "a spent trial must not be restartable");
+    }
+
+    [Fact]
+    public void SpentTrial_SurvivesDiskReload()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+        for (int i = 0; i < 3; i++) service.ConsumeDocxExport();
+        Assert.Equal(Edition.Free, service.State.Edition);
+
+        // A fresh process reads the same stored state: spent trial stays spent, and the user is
+        // still on Free with every restriction — no re-granting by restarting the app.
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        Assert.Equal(Edition.Free, reloaded.State.Edition);
+        Assert.False(reloaded.CanExportDocx);
+        Assert.False(reloaded.CanExportPptx);
+        Assert.False(reloaded.CanAutomate);
+        Assert.True(reloaded.ShowFooter);
+        Assert.False(reloaded.State.CanUse(FeatureId.DocxExport));
+        var (again, _) = reloaded.StartTrial();
+        Assert.False(again, "a spent trial must not be restartable after an app restart");
     }
 
     [Fact]
@@ -375,10 +427,10 @@ public class FeatureClassifierTests
     }
 
     [Fact]
-    public void PptxExport_ProOnly()
+    public void PptxExport_AllowedForProAndTrial_NotForFree()
     {
         Assert.False(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Free));
-        Assert.False(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Trial)); // trial is docx-only
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Trial)); // trial is FULL pro
         Assert.True(FeatureClassifier.LicenseAllows(FeatureId.PptxExport, Pro));
     }
 
@@ -387,10 +439,10 @@ public class FeatureClassifierTests
     [InlineData(FeatureId.WatchFolder)]
     [InlineData(FeatureId.AutoExportIngest)]
     [InlineData(FeatureId.ClipboardIngest)]
-    public void AutomationFeatures_ProOnly(FeatureId id)
+    public void AutomationFeatures_AllowedForProAndTrial_NotForFree(FeatureId id)
     {
         Assert.False(FeatureClassifier.LicenseAllows(id, Free));
-        Assert.False(FeatureClassifier.LicenseAllows(id, Trial));
+        Assert.True(FeatureClassifier.LicenseAllows(id, Trial)); // trial is FULL pro — no paywall
         Assert.True(FeatureClassifier.LicenseAllows(id, Pro));
     }
 

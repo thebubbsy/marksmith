@@ -87,7 +87,7 @@
             <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
                 <InfoBar.ActionButton>
                     <Button x:Name="LicenseActionButton" Style="{ThemeResource AccentButtonStyle}"
-                            ToolTipService.ToolTip="Your trial is exactly ONE DOCX export — spend it wisely" />
+                            ToolTipService.ToolTip="Your trial is full Pro for exactly 3 DOCX exports — spend them wisely" />
                 </InfoBar.ActionButton>
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's

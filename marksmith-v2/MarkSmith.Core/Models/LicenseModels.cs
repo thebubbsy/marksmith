@@ -11,16 +11,19 @@ public sealed class LicenseState
     public string? Email { get; init; }
     public DateTimeOffset? ExpiresUtc { get; init; }
     public string? Status { get; init; }
+    public int TrialExportsRemaining { get; init; }
 
-    // Pro = an activated key. A TRIAL is NOT "pro": it is a free user with exactly ONE DOCX export
-    // to try the killer feature, so the trial never unlocks PPTX or automation.
+    // Pro = an activated key. A TRIAL is the FULL Pro experience — every feature unlocked, no
+    // paywall, no footer — capped at exactly 3 DOCX exports; after the 3rd the user drops back to
+    // Free and the restrictions apply. The trial NEVER shows a "this is a Pro feature" message.
     public bool IsPro => Edition == Edition.Pro;
+    public bool IsTrial => Edition == Edition.Trial;
 
     // ---- entitlements (the paywall) ----
-    public bool CanExportDocx => Edition is Edition.Pro or Edition.Trial; // Trial = its single export
-    public bool CanExportPptx => Edition == Edition.Pro;                  // PPTX slide decks
-    public bool CanAutomate => Edition == Edition.Pro;                    // hands-free auto-convert (clipboard / watch folder / extension)
-    public bool ShowFooter => Edition != Edition.Pro;                     // "Made with Marksmith" footer on free exports
+    public bool CanExportDocx => Edition is Edition.Pro or Edition.Trial; // Trial = its 3 exports
+    public bool CanExportPptx => Edition is Edition.Pro or Edition.Trial; // trial is full pro
+    public bool CanAutomate => Edition is Edition.Pro or Edition.Trial;   // trial is full pro
+    public bool ShowFooter => Edition == Edition.Free;                    // no footer while trial/pro
 
     // Classifier entry point: "can the CURRENT license run this feature?" Free features always
     // return true; pro features consult the entitlements above.
@@ -33,14 +36,13 @@ public sealed class StoredLicense
     public string? Key { get; set; }
     public string? Email { get; set; }
     public string? InstanceId { get; set; }          // Lemon Squeezy activation instance, if used
-    // The whole trial: exactly ONE DOCX export. > 0 = trial active with that many exports left
-    // (only ever 1). There is NO automatic trial — the user starts it explicitly, and it is
-    // consumed by a single successful DOCX export.
+    // The trial: FULL Pro with a 3-DOCX-export cap. > 0 = trial active with that many exports
+    // left (starts at 3, never auto-starts — the user triggers it). After the 3rd successful DOCX
+    // export the user drops back to Free and the paywall returns.
     public int TrialExportsRemaining { get; set; }
 
-    // True once the trial's one export has been used. This is what makes a USED trial
-    // distinguishable from a never-started one — a used trial can never be restarted (the user
-    // cannot re-grant themselves the export by toggling state).
+    // True once the trial's 3 exports are spent. A USED trial can never be restarted (the user
+    // cannot re-grant themselves the exports by toggling state).
     public bool TrialUsed { get; set; }
 
     // When the trial export was consumed (tracked so the state is verifiable).
@@ -59,7 +61,7 @@ public enum FeatureId
     MarkdownToPdf,     // PDF/HTML/Markdown export, editing, live preview, themes, studios
 
     // ---- Pro tier (checked against the license) ----
-    DocxExport,        // Word export (+ editable equations) — the one-export trial unlocks this once
+    DocxExport,        // Word export (+ editable equations) — the 3-export trial unlocks this (then Free)
     PptxExport,        // PowerPoint export
     BatchConvert,      // folder → multi-format batch conversion
     WatchFolder,       // watch a folder for new .md files → auto-convert
