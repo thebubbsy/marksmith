@@ -102,12 +102,12 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private int _headingShift;
     [ObservableProperty] private int _boldMode;
     [ObservableProperty] private int _italicMode;
-    [ObservableProperty] private bool _advancedMode;
     [ObservableProperty] private bool _proMode;
     [ObservableProperty] private bool _hardwareAcceleration = true;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
     [ObservableProperty] private bool _enableStreamingApi;
+    [ObservableProperty] private bool _skipLaunchVideo;
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
@@ -691,11 +691,11 @@ private readonly MarkdownExportService _mdExport = new();
         _headingShift = settings.HeadingShift;
         _boldMode = settings.BoldMode;
         _italicMode = settings.ItalicMode;
-        _advancedMode = settings.AdvancedMode;
         _proMode = settings.ProMode;
         _hardwareAcceleration = settings.HardwareAcceleration;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
+        _skipLaunchVideo = settings.SkipLaunchVideo;
         _enableStreamingApi = settings.EnableStreamingApi;
         _allowedExtensionId = settings.AllowedExtensionId;
         _cloudAutoPublish = settings.CloudAutoPublish;
@@ -930,12 +930,12 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnHeadingShiftChanged(int value) { _settingsService.Current.HeadingShift = value; SaveSettingsDebounced(); }
     partial void OnBoldModeChanged(int value) { _settingsService.Current.BoldMode = value; SaveSettingsDebounced(); }
     partial void OnItalicModeChanged(int value) { _settingsService.Current.ItalicMode = value; SaveSettingsDebounced(); }
-    partial void OnAdvancedModeChanged(bool value) { _settingsService.Current.AdvancedMode = value; SaveSettingsDebounced(); }
     partial void OnProModeChanged(bool value) { _settingsService.Current.ProMode = value; SaveSettingsDebounced(); }
     partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
     partial void OnEnableStreamingApiChanged(bool value) { _settingsService.Current.EnableStreamingApi = value; SaveSettingsDebounced(); }
+    partial void OnSkipLaunchVideoChanged(bool value) { _settingsService.Current.SkipLaunchVideo = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
     partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
     partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }
