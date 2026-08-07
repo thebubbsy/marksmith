@@ -66,6 +66,40 @@ public partial class App : Application
             try { Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Register(); }
             catch { /* toasts unavailable (e.g. notifications disabled) — app works without them */ }
 
+            // Launch intro: the branded video plays BEFORE the main window appears (skippable via
+            // Settings > General > Play intro video, and skip-able with a click). The main window is
+            // created only after the splash closes so the video is truly first. If the asset is
+            // missing or the setting is on, we go straight to the main window.
+            var skipIntro = AppServices.Settings.Current.SkipLaunchVideo;
+            if (!skipIntro && System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4")))
+            {
+                var splash = new Views.SplashWindow();
+                splash.Closed += (_, _) => ShowMainWindow();
+                splash.Activate();
+            }
+            else
+            {
+                ShowMainWindow();
+            }
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                System.IO.File.WriteAllText(
+                    System.IO.Path.Combine(AppContext.BaseDirectory, "startup-crash.log"),
+                    $"[App.OnLaunched] {DateTime.Now:O}{Environment.NewLine}{ex}");
+            }
+            catch { }
+            throw;
+        }
+    }
+
+    // Create + activate the real main window (after the launch intro, or immediately when skipped).
+    private void ShowMainWindow()
+    {
+        try
+        {
             var window = new MainWindow();
             MainAppWindow = window;
             ViewModel.Host = window;
@@ -78,7 +112,7 @@ public partial class App : Application
             {
                 System.IO.File.WriteAllText(
                     System.IO.Path.Combine(AppContext.BaseDirectory, "startup-crash.log"),
-                    $"[App.OnLaunched] {DateTime.Now:O}{Environment.NewLine}{ex}");
+                    $"[App.ShowMainWindow] {DateTime.Now:O}{Environment.NewLine}{ex}");
             }
             catch { }
             throw;

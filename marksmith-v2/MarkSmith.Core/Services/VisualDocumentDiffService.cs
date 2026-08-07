@@ -1,231 +1,160 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace MarkSmith.Services;
 
-/// <summary>
-/// The type of change for a diff segment.
-/// </summary>
-public enum DiffChangeType { Unchanged, Added, Deleted, Modified }
+/// <summary>Classification of one redline segment (D5).</summary>
+public enum DiffChangeType { Unchanged, Added, Deleted }
 
-/// <summary>
-/// A single segment in a redline diff — one line with its change classification.
-/// </summary>
-public sealed record DiffSegment(string Text, DiffChangeType ChangeType, int? LeftLine, int? RightLine);
+/// <summary>A contiguous run of lines with the same change classification.</summary>
+public sealed record DiffSegment(DiffChangeType ChangeType, string Text);
 
-/// <summary>
-/// The result of a visual document diff operation.
-/// </summary>
-public sealed record VisualDiffResult(
-    IReadOnlyList<DiffSegment> Segments,
-    int AddedCount,
-    int DeletedCount,
-    int UnchangedCount,
-    string Html)
+/// <summary>The redline comparison result (D5): per-line segments, counts, and a self-contained
+/// HTML rendering with <c>diff-added</c> / <c>diff-deleted</c> classes.</summary>
+public sealed class DiffResult
 {
-    public int TotalChanges => AddedCount + DeletedCount;
-    public bool HasChanges => TotalChanges > 0;
+    public required IReadOnlyList<DiffSegment> Segments { get; init; }
+    public bool HasChanges => AddedCount > 0 || DeletedCount > 0;
+    public int AddedCount { get; init; }
+    public int DeletedCount { get; init; }
+    public int UnchangedCount { get; init; }
+    public required string Html { get; init; }
 }
 
 /// <summary>
-/// Visual Redline Document Diff Engine (D5): produces a side-by-side or inline redline comparison
-/// between two Markdown documents (or rendered text). Highlights additions (green), deletions (red),
-/// and modifications (yellow) with line-level granularity.
-///
-/// Uses an LCS (Longest Common Subsequence) algorithm for optimal alignment, then classifies
-/// each line as added, deleted, or unchanged. Output is available as structured segments
-/// (for UI binding) and as self-contained HTML (for WebView2 preview).
+/// Visual redline document diff engine (backlog D5): compares two document versions and produces
+/// classified line segments (unchanged/added/deleted) plus an HTML redline rendering, and a
+/// word-level inline diff (<c>&lt;del&gt;</c>/<c>&lt;ins&gt;</c>) for changed lines.
 /// </summary>
 public static class VisualDocumentDiffService
 {
-    /// <summary>
-    /// Computes a visual redline diff between two Markdown documents.
-    /// Returns structured segments + rendered HTML with inline redline markup.
-    /// </summary>
-    public static VisualDiffResult ComputeDiff(string left, string right)
+    public static DiffResult ComputeDiff(string left, string right)
     {
-        var leftLines = SplitLines(left);
-        var rightLines = SplitLines(right);
+        var lines = LineDiff.Diff(left ?? "", right ?? "");
 
-        var lcs = ComputeLcs(leftLines, rightLines);
-        var segments = BuildSegments(leftLines, rightLines, lcs);
+        var segments = new List<DiffSegment>();
+        var current = new List<LineDiff.Line>();
+        var currentKind = LineDiff.Kind.Same;
 
-        int added = segments.Count(s => s.ChangeType == DiffChangeType.Added);
-        int deleted = segments.Count(s => s.ChangeType == DiffChangeType.Deleted);
-        int unchanged = segments.Count(s => s.ChangeType == DiffChangeType.Unchanged);
+        foreach (var line in lines)
+        {
+            if (line.Kind != currentKind)
+            {
+                if (current.Count > 0) segments.Add(Flush(current, currentKind));
+                current.Clear();
+                currentKind = line.Kind;
+            }
+            current.Add(line);
+        }
+        if (current.Count > 0) segments.Add(Flush(current, currentKind));
 
-        var html = RenderHtml(segments);
+        var added = lines.Count(l => l.Kind == LineDiff.Kind.Added);
+        var deleted = lines.Count(l => l.Kind == LineDiff.Kind.Removed);
+        var unchanged = lines.Count - added - deleted;
 
-        return new VisualDiffResult(segments, added, deleted, unchanged, html);
+        return new DiffResult
+        {
+            Segments = segments,
+            AddedCount = added,
+            DeletedCount = deleted,
+            UnchangedCount = unchanged,
+            Html = BuildHtml(segments),
+        };
     }
 
-    /// <summary>
-    /// Computes a word-level inline diff for two short texts (useful for showing
-    /// exactly what changed within a modified line).
-    /// </summary>
+    /// <summary>Word-level inline diff: unchanged words plain, removed words wrapped in
+    /// <c>&lt;del&gt;</c>, added words in <c>&lt;ins&gt;</c>.</summary>
     public static string InlineWordDiff(string left, string right)
     {
-        var leftWords = left.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var rightWords = right.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var a = Tokenize(left ?? "");
+        var b = Tokenize(right ?? "");
 
-        var lcs = ComputeLcs(leftWords, rightWords);
+        // Word-level LCS on tokens (same guard as the line diff).
+        int n = a.Count, m = b.Count;
+        if ((long)n * m > 4_000_000) return System.Net.WebUtility.HtmlEncode(left ?? "") + "<ins>" + System.Net.WebUtility.HtmlEncode(right ?? "") + "</ins>";
+
+        var dp = new int[n + 1, m + 1];
+        for (int i = n - 1; i >= 0; i--)
+            for (int j = m - 1; j >= 0; j--)
+                dp[i, j] = string.Equals(a[i], b[j]) ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
+
         var sb = new StringBuilder();
-
-        int li = 0, ri = 0, lcsIdx = 0;
-        while (li < leftWords.Length || ri < rightWords.Length)
+        int x = 0, y = 0;
+        while (x < n && y < m)
         {
-            if (lcsIdx < lcs.Count && li < leftWords.Length && ri < rightWords.Length
-                && leftWords[li] == lcs[lcsIdx] && rightWords[ri] == lcs[lcsIdx])
+            if (string.Equals(a[x], b[y]))
             {
-                sb.Append(leftWords[li]).Append(' ');
-                li++; ri++; lcsIdx++;
+                sb.Append(Escape(a[x]));
+                x++; y++;
             }
-            else if (li < leftWords.Length && (lcsIdx >= lcs.Count || leftWords[li] != lcs[lcsIdx]))
+            else if (dp[x + 1, y] >= dp[x, y + 1])
             {
-                sb.Append("<del>").Append(leftWords[li]).Append("</del> ");
-                li++;
-            }
-            else if (ri < rightWords.Length)
-            {
-                sb.Append("<ins>").Append(rightWords[ri]).Append("</ins> ");
-                ri++;
-            }
-        }
-
-        return sb.ToString().Trim();
-    }
-
-    // ---- LCS algorithm --------------------------------------------------------------------------
-
-    private static List<string> ComputeLcs(string[] a, string[] b)
-    {
-        int m = a.Length, n = b.Length;
-        var dp = new int[m + 1, n + 1];
-
-        for (int i = 1; i <= m; i++)
-            for (int j = 1; j <= n; j++)
-                dp[i, j] = a[i - 1] == b[j - 1] ? dp[i - 1, j - 1] + 1 : Math.Max(dp[i - 1, j], dp[i, j - 1]);
-
-        // Backtrack to find the LCS.
-        var result = new List<string>();
-        int x = m, y = n;
-        while (x > 0 && y > 0)
-        {
-            if (a[x - 1] == b[y - 1])
-            {
-                result.Add(a[x - 1]);
-                x--; y--;
-            }
-            else if (dp[x - 1, y] > dp[x, y - 1])
-                x--;
-            else
-                y--;
-        }
-
-        result.Reverse();
-        return result;
-    }
-
-    // ---- Segment building -----------------------------------------------------------------------
-
-    private static List<DiffSegment> BuildSegments(string[] left, string[] right, List<string> lcs)
-    {
-        var segments = new List<DiffSegment>();
-        int li = 0, ri = 0, lcsIdx = 0;
-
-        while (li < left.Length || ri < right.Length)
-        {
-            if (lcsIdx < lcs.Count)
-            {
-                // Emit deletions from left until we hit the next LCS element.
-                while (li < left.Length && left[li] != lcs[lcsIdx])
-                {
-                    segments.Add(new DiffSegment(left[li], DiffChangeType.Deleted, li, null));
-                    li++;
-                }
-                // Emit additions from right until we hit the next LCS element.
-                while (ri < right.Length && right[ri] != lcs[lcsIdx])
-                {
-                    segments.Add(new DiffSegment(right[ri], DiffChangeType.Added, null, ri));
-                    ri++;
-                }
-                // Emit the common line.
-                if (li < left.Length && ri < right.Length)
-                {
-                    segments.Add(new DiffSegment(left[li], DiffChangeType.Unchanged, li, ri));
-                    li++; ri++; lcsIdx++;
-                }
+                sb.Append("<del>").Append(Escape(a[x])).Append("</del>");
+                x++;
             }
             else
             {
-                // No more LCS elements — remaining lines are all changes.
-                while (li < left.Length)
-                {
-                    segments.Add(new DiffSegment(left[li], DiffChangeType.Deleted, li, null));
-                    li++;
-                }
-                while (ri < right.Length)
-                {
-                    segments.Add(new DiffSegment(right[ri], DiffChangeType.Added, null, ri));
-                    ri++;
-                }
+                sb.Append("<ins>").Append(Escape(b[y])).Append("</ins>");
+                y++;
             }
         }
-
-        return segments;
+        while (x < n) { sb.Append("<del>").Append(Escape(a[x])).Append("</del>"); x++; }
+        while (y < m) { sb.Append("<ins>").Append(Escape(b[y])).Append("</ins>"); y++; }
+        return sb.ToString();
     }
 
-    // ---- HTML rendering -------------------------------------------------------------------------
+    private static DiffSegment Flush(List<LineDiff.Line> run, LineDiff.Kind kind)
+    {
+        var changeType = kind switch
+        {
+            LineDiff.Kind.Added => DiffChangeType.Added,
+            LineDiff.Kind.Removed => DiffChangeType.Deleted,
+            _ => DiffChangeType.Unchanged,
+        };
+        return new DiffSegment(changeType, string.Join("\n", run.Select(l => l.Text)));
+    }
 
-    /// <summary>
-    /// Renders diff segments as a self-contained HTML page with redline styling
-    /// (green = added, red = deleted, neutral = unchanged).
-    /// </summary>
-    private static string RenderHtml(IReadOnlyList<DiffSegment> segments)
+    private static string BuildHtml(IReadOnlyList<DiffSegment> segments)
     {
         var sb = new StringBuilder();
-        sb.Append(@"<!DOCTYPE html><html><head><meta charset='utf-8'><style>
-body { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; padding: 16px; background: #1e1e1e; color: #d4d4d4; }
-.diff-line { padding: 2px 8px; white-space: pre-wrap; border-left: 3px solid transparent; margin: 1px 0; }
-.diff-added { background: rgba(35,134,54,0.2); border-left-color: #3fb950; color: #aff5b4; }
-.diff-deleted { background: rgba(218,54,51,0.15); border-left-color: #f85149; color: #ffa198; text-decoration: line-through; }
-.diff-unchanged { color: #8b949e; }
-.diff-header { font-weight: bold; color: #58a6ff; margin: 16px 0 8px; font-size: 14px; }
-ins { background: rgba(35,134,54,0.4); text-decoration: none; }
-del { background: rgba(218,54,51,0.3); }
-</style></head><body>");
-
-        sb.Append("<div class='diff-header'>Redline Diff — ");
-        int adds = segments.Count(s => s.ChangeType == DiffChangeType.Added);
-        int dels = segments.Count(s => s.ChangeType == DiffChangeType.Deleted);
-        sb.Append($"+{adds} additions, -{dels} deletions</div>");
-
-        foreach (var seg in segments)
+        sb.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"/><style>");
+        sb.Append("body{font-family:Consolas,monospace;font-size:13px;margin:12px;background:#fff;color:#222;}");
+        sb.Append(".diff-added{background:#e6ffec;color:#1a7f37;padding:1px 6px;display:block;white-space:pre-wrap;}");
+        sb.Append(".diff-deleted{background:#ffebe9;color:#cf222e;padding:1px 6px;display:block;white-space:pre-wrap;text-decoration:line-through;}");
+        sb.Append(".diff-unchanged{color:#555;padding:1px 6px;display:block;white-space:pre-wrap;}");
+        sb.Append("</style></head><body>");
+        foreach (var segment in segments)
         {
-            var cssClass = seg.ChangeType switch
+            var cls = segment.ChangeType switch
             {
-                DiffChangeType.Added => "diff-line diff-added",
-                DiffChangeType.Deleted => "diff-line diff-deleted",
-                _ => "diff-line diff-unchanged",
+                DiffChangeType.Added => "diff-added",
+                DiffChangeType.Deleted => "diff-deleted",
+                _ => "diff-unchanged",
             };
-            var prefix = seg.ChangeType switch
-            {
-                DiffChangeType.Added => "+ ",
-                DiffChangeType.Deleted => "- ",
-                _ => "  ",
-            };
-            sb.Append($"<div class='{cssClass}'>{prefix}{Escape(seg.Text)}</div>\n");
+            sb.Append("<span class=\"").Append(cls).Append("\">")
+              .Append(System.Net.WebUtility.HtmlEncode(segment.Text)).Append("</span>");
         }
-
         sb.Append("</body></html>");
         return sb.ToString();
     }
 
-    private static string Escape(string text) =>
-        text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+    private static List<string> Tokenize(string text)
+    {
+        // Words = runs of letters/digits; everything else is a separator token kept verbatim so the
+        // inline diff never merges distinct words ("brown" stays standalone).
+        var tokens = new List<string>();
+        var word = new StringBuilder();
+        foreach (var ch in text)
+        {
+            if (char.IsLetterOrDigit(ch)) { word.Append(ch); }
+            else
+            {
+                if (word.Length > 0) { tokens.Add(word.ToString()); word.Clear(); }
+                if (!char.IsWhiteSpace(ch)) tokens.Add(ch.ToString());
+            }
+        }
+        if (word.Length > 0) tokens.Add(word.ToString());
+        return tokens;
+    }
 
-    private static string[] SplitLines(string text) =>
-        (text ?? "").Split('\n').Select(l => l.TrimEnd('\r')).ToArray();
+    private static string Escape(string s) => System.Net.WebUtility.HtmlEncode(s);
 }
