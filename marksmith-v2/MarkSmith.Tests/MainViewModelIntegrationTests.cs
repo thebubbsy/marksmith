@@ -36,7 +36,13 @@ public class MainViewModelIntegrationTests
     {
         _licenseBackup = File.Exists(LicensePath) ? File.ReadAllText(LicensePath) : null;
         AppServices.License.Load();
-        if (!AppServices.License.CanExportDocx) AppServices.License.StartTrial();
+        if (!AppServices.License.CanExportDocx)
+        {
+            // Self-healing: a leftover SPENT trial (TrialUsed=true) from an earlier test run would
+            // make StartTrial refuse and the docx gate fire. Reset to Free first, then re-trial.
+            if (!AppServices.License.StartTrial().ok) AppServices.License.ResetToFree();
+            if (!AppServices.License.CanExportDocx) AppServices.License.StartTrial();
+        }
     }
 
     private static void RestoreLicense()
@@ -99,10 +105,16 @@ public class MainViewModelIntegrationTests
 
             await vm.ExportDocumentCommand.ExecuteAsync(null);
 
+            Assert.True(string.IsNullOrEmpty(vm.StatusText) || !vm.StatusText.StartsWith("Error"),
+                "export status: " + vm.StatusText);
             Assert.NotNull(vm.LastOutputPath);
             Assert.True(File.Exists(vm.LastOutputPath));
             Assert.True(vm.HasOutput);
             Assert.EndsWith(".docx", vm.LastOutputPath, StringComparison.OrdinalIgnoreCase);
+
+            // The trial cap is enforced inside DocxExportService (the one chokepoint for every
+            // DOCX path): a successful export must have consumed one of the 3 trial exports.
+            Assert.Equal(2, AppServices.License.State.TrialExportsRemaining);
         }
         finally
         {

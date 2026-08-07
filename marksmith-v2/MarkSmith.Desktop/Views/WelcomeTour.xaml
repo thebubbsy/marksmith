@@ -264,7 +264,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE734;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF. MarkSmith Pro adds Word export, automation and branding — with a 14-day trial." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF. MarkSmith Pro adds Word export, automation and branding — with a 3-DOCX-export trial." />
                     </Grid>
                 </StackPanel>
             </StackPanel>

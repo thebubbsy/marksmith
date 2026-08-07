@@ -11,6 +11,7 @@ namespace MarkSmith.Tests;
 
 // WebSocket streaming on the local REST API (ws://127.0.0.1:<port>/api/stream). OFF by default —
 // the endpoint 403s unless Settings > Local REST API > Enable WebSocket streaming is flipped on.
+[Collection("ApiServer")]
 public class ApiServerWebSocketTests
 {
     private static int GetFreePort()
@@ -43,6 +44,11 @@ public class ApiServerWebSocketTests
             )
             { PreviewHtmlProvider = () => Preview };
         }
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition, int attempts = 100)
+    {
+        for (int i = 0; i < attempts && !condition(); i++) await Task.Delay(50);
     }
 
     private static async Task<JsonDocument> ReceiveJsonAsync(ClientWebSocket socket)
@@ -161,8 +167,9 @@ public class ApiServerWebSocketTests
                 await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
                 Assert.Equal(1, server.StreamClientCount);
             }
-            // Give the server's receive loop a moment to observe the close.
-            await Task.Delay(600);
+            // Give the server's receive loop a moment to observe the close (poll — the loop can be
+            // delayed under parallel full-suite load).
+            await WaitForAsync(() => server.StreamClientCount == 0);
             Assert.Equal(0, server.StreamClientCount);
         }
         finally { server.Stop(); }

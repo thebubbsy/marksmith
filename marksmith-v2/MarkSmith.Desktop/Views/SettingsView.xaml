@@ -424,9 +424,9 @@
                                    TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
 
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button x:Name="StartTrialButton" Content="Start 1-export trial" Click="OnStartTrialClick"
+                            <Button x:Name="StartTrialButton" Content="Start 3-export trial" Click="OnStartTrialClick"
                                     Style="{ThemeResource AccentButtonStyle}"
-                                    ToolTipService.ToolTip="Your trial is exactly ONE DOCX export — then the paywall returns" />
+                                    ToolTipService.ToolTip="Your trial is full Pro for exactly 3 DOCX exports — then the paywall returns" />
                             <Button Click="OnBuyPro"
                                     ToolTipService.ToolTip="Open the MarkSmith Pro purchase page">
                                 <StackPanel Orientation="Horizontal" Spacing="8">

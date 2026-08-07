@@ -581,19 +581,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (st.Edition == Models.Edition.Trial)
         {
+            // The trial is FULL Pro — never a paywall message, just the remaining export count.
             LicenseBanner.Severity = InfoBarSeverity.Informational;
-            LicenseBanner.Title = "Trial active — ONE DOCX export remaining";
-            LicenseBanner.Message = "Your trial is a single DOCX export. Use it, then DOCX export requires Pro.";
+            LicenseBanner.Title = st.TrialExportsRemaining == 1
+                ? "Trial — 1 DOCX export remaining"
+                : $"Trial — {st.TrialExportsRemaining} DOCX exports remaining";
+            LicenseBanner.Message = "Full Pro, capped at 3 DOCX exports — then back to Free.";
             if (LicenseActionButton is not null) LicenseActionButton.Visibility = Visibility.Collapsed;
         }
         else // Free
         {
             LicenseBanner.Severity = InfoBarSeverity.Warning;
             LicenseBanner.Title = "MarkSmith Free";
-            LicenseBanner.Message = "DOCX/PPTX export and automation are Pro features. Start your one-export trial or upgrade.";
+            LicenseBanner.Message = "DOCX/PPTX export and automation are Pro features. Start your 3-export trial or upgrade.";
             if (LicenseActionButton is not null)
             {
-                LicenseActionButton.Content = "Start 1-export trial";
+                LicenseActionButton.Content = "Start 3-export trial";
                 LicenseActionButton.Click -= OnStartTrialClick;
                 LicenseActionButton.Click += OnStartTrialClick;
                 LicenseActionButton.Visibility = Visibility.Visible;
@@ -602,7 +605,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         LicenseBanner.IsOpen = true;
     }
 
-    // Start the one-export trial straight from the banner (also the trigger point for testing the
+    // Start the 3-export trial straight from the banner (also the trigger point for testing the
     // free -> trial transition without digging into Settings).
     private void OnStartTrialClick(object sender, RoutedEventArgs e)
     {
@@ -1180,10 +1183,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Title = name + " is a MarkSmith Pro feature",
             Content = trialUnlocks
                 ? "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
-                  " is a Pro feature — start your one-export trial to try it, or upgrade to unlock it permanently."
+                  " is a Pro feature — start your 3-export trial to try it, or upgrade to unlock it permanently."
                 : "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
                   " is a Pro feature — upgrade to unlock it.",
-            PrimaryButtonText = trialUnlocks ? "Start 1-export trial" : "Upgrade to Pro",
+            PrimaryButtonText = trialUnlocks ? "Start 3-export trial" : "Upgrade to Pro",
             SecondaryButtonText = "Upgrade to Pro",
             CloseButtonText = "Not now",
             DefaultButton = ContentDialogButton.Primary,
@@ -1215,7 +1218,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         args.Handled = true;
         App.License.ResetToFree();
-        ViewModel.StatusText = "License reset to Free (hidden command) — free-tier limits are active. Start 1-export trial from Settings to re-test.";
+        ViewModel.StatusText = "License reset to Free (hidden command) — free-tier limits are active. Start 3-export trial from Settings to re-test.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
         UpdateLicenseBanner();
     }

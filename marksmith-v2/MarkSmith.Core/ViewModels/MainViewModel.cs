@@ -455,7 +455,7 @@ private readonly MarkdownExportService _mdExport = new();
 
     // Licensing (drives the paywall UI). Backed by AppServices.License; kept in sync via its Changed event.
     public bool IsPro => AppServices.License.IsPro;
-    public bool IsFree => !AppServices.License.IsPro;
+    public bool IsFree => AppServices.License.State.Edition == Models.Edition.Free;
     public string EditionStatus => AppServices.License.State.Status ?? "Free";
     public bool ShowProBadge => IsFree;
 
@@ -1257,7 +1257,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportDocx)
         {
-            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your ONE-export trial or upgrade in Settings.";
+            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
             ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
             return;
@@ -1322,16 +1322,17 @@ private readonly MarkdownExportService _mdExport = new();
                 mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, settings, CurrentTheme);
             // Disclose applied AI-cleanup fixes as a Word comment (paste source is already normalized).
             var fixes = NormalizeLlm && UsePasteSource ? LastClassification?.AppliedFixes : null;
+            var wasTrialBefore = AppServices.License.State.Edition == Models.Edition.Trial;
             await _docxExport.ExportAsync(markdown, outPath, settings, mermaidImgs, fixes, geometry, genericGeom, overrideMode);
-            // The trial IS a single DOCX export - a successful export consumes it, then the
-            // paywall returns. (Pro is unaffected: ConsumeDocxExport is a no-op without a trial.)
-            var wasTrial = AppServices.License.State.Edition == Models.Edition.Trial;
-            AppServices.License.ConsumeDocxExport();
+            // The trial cap is enforced inside DocxExportService (the one chokepoint for every DOCX
+            // path). Here we only detect the moment the trial was just SPENT so the status line can
+            // say so — the note must never appear while the trial is still active (1st/2nd export).
+            var trialSpentNow = wasTrialBefore && AppServices.License.State.Edition == Models.Edition.Free;
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
             RecordExport("DOCX", outPath, markdown);
             RaiseExportCompleted("DOCX", outPath);
-            var trialNote = wasTrial ? "  (that was your trial export - DOCX now requires Pro)" : "";
+            var trialNote = trialSpentNow ? "  (that was your last trial export - DOCX now requires Pro)" : "";
             StatusText = $"DOCX export done: {outPath}{layoutNote}{trialNote}";
         });
     }

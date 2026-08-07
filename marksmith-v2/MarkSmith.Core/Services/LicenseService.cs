@@ -4,7 +4,7 @@ using MarkSmith.Models;
 namespace MarkSmith.Services;
 
 // Resolves and persists the app's licensing state. Resolution order: a valid signed Pro key wins;
-// otherwise a user-started trial (exactly ONE DOCX export, consumed by a successful export);
+// otherwise a user-started trial (FULL Pro capped at 3 DOCX exports, consumed by successful exports);
 // otherwise Free. There is NO automatic trial — the user starts it explicitly from Settings or the
 // upgrade banner. State lives in %LOCALAPPDATA%\MarkSmith\license.json.
 public sealed class LicenseService
@@ -39,7 +39,7 @@ public sealed class LicenseService
     {
         _stored = ReadStored();
         // No automatic trial: a fresh install (or a legacy file from the old auto-trial) resolves
-        // to Free until the user explicitly starts the one-export trial or activates Pro.
+        // to Free until the user explicitly starts the 3-export trial or activates Pro.
         Recompute();
     }
 
@@ -81,30 +81,31 @@ public sealed class LicenseService
         Recompute();
     }
 
-    // Start the one-export trial. Only available to Free users who haven't used it up.
+    // Start the trial: FULL Pro for everything, exactly 3 DOCX exports, then Free. Only available
+    // to Free users who haven't spent their trial.
     public (bool ok, string message) StartTrial()
     {
         if (State.Edition == Edition.Pro)
             return (false, "You already have Pro — no trial needed.");
         if (_stored.TrialExportsRemaining > 0)
-            return (false, "Your trial is already active — one DOCX export remaining. Use it, then it's gone.");
+            return (false, $"Your trial is already active — {_stored.TrialExportsRemaining} DOCX export(s) remaining. Spend them, then it's gone.");
         if (_stored.TrialUsed)
-            return (false, "Your trial has already been used — one DOCX export was the whole trial.");
+            return (false, "Your trial has already been spent — all 3 DOCX exports are used.");
 
-        _stored.TrialExportsRemaining = 1;
+        _stored.TrialExportsRemaining = 3;
         WriteStored();
         Recompute();
-        return (true, "Trial started — you have exactly ONE DOCX export. Spend it wisely.");
+        return (true, "Trial started — full Pro for 3 DOCX exports. Spend them wisely.");
     }
 
-    // Consume the trial's single DOCX export after a successful export. Once it hits 0 the user is
-    // back on Free (this is what makes the trial REAL — one export, then the paywall returns).
+    // Consume one of the trial's DOCX exports after a successful export. Once the 3rd is used the
+    // user drops back to Free and the paywall returns.
     public void ConsumeDocxExport()
     {
         if (_stored.TrialExportsRemaining <= 0) return;
         _stored.TrialExportsRemaining--;
-        _stored.TrialUsed = true;
         _stored.TrialExportUsedUtc = DateTimeOffset.UtcNow;
+        if (_stored.TrialExportsRemaining == 0) _stored.TrialUsed = true;
         WriteStored();
         Recompute();
     }
@@ -159,14 +160,15 @@ public sealed class LicenseService
             return;
         }
 
-        // 2) the user-started one-export trial
+        // 2) the user-started 3-export trial — full Pro, so the state carries the export cap too
         if (_stored.TrialExportsRemaining > 0)
         {
             State = new LicenseState
             {
                 Edition = Edition.Trial,
+                TrialExportsRemaining = _stored.TrialExportsRemaining,
                 Status = _stored.TrialExportsRemaining == 1
-                    ? "Trial — ONE DOCX export remaining"
+                    ? "Trial — 1 DOCX export remaining"
                     : $"Trial — {_stored.TrialExportsRemaining} DOCX exports remaining",
             };
             Changed?.Invoke();
