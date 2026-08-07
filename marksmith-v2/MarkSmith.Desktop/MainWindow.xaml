@@ -641,60 +641,69 @@
                         <controls:GridSplitter x:Name="SplitViewSplitter" Grid.Column="1" Width="16" Visibility="Collapsed"
                                                Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                                ToolTipService.ToolTip="Drag to resize the editor / preview split" />
-                        <Border x:Name="PreviewCard" Grid.Column="2" Visibility="Collapsed" Style="{StaticResource PipelineCardStyle}">
-                    <Grid>
-                        <WebView2 x:Name="PreviewWebView" Margin="1" />
+                        <Grid Grid.Column="2" x:Name="PreviewColumn" RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <!-- Mirrors the editor column's FindBar height so the preview box stays
+                                 aligned with the editor when Ctrl+F opens (synced in code-behind). -->
+                            <Grid Grid.Row="0" Height="0" x:Name="PreviewFindBarSpacer" />
+                            <Border x:Name="PreviewCard" Grid.Row="1" Style="{StaticResource PipelineCardStyle}">
+                                <Grid>
+                                    <WebView2 x:Name="PreviewWebView" Margin="1" />
 
-                        <!-- Live-preview loading spinner: the logo, animated in code-behind. Shown on
-                             every refresh with a minimum visible time so quick renders read as a smooth
-                             animation, not a white flash. Two styles, alternating each time (not random):
-                             (0) the logo spinning about its centre, (1) the upright logo tracing a
-                             figure-eight. -->
-                        <Grid x:Name="PreviewSpinner" Visibility="Collapsed" Background="#14000000">
-                            <Image x:Name="SpinnerLogo" Source="ms-appx:///Assets/logo.png"
-                                   Width="60" Height="60" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   RenderTransformOrigin="0.5,0.5">
-                                <Image.RenderTransform>
-                                    <CompositeTransform x:Name="SpinnerLogoTransform" />
-                                </Image.RenderTransform>
-                            </Image>
+                                    <!-- Live-preview loading spinner: the logo, animated in code-behind. Shown on
+                                         every refresh with a minimum visible time so quick renders read as a smooth
+                                         animation, not a white flash. Two styles, alternating each time (not random):
+                                         (0) the logo spinning about its centre, (1) the upright logo tracing a
+                                         figure-eight. -->
+                                    <Grid x:Name="PreviewSpinner" Visibility="Collapsed"
+                                          Background="{ThemeResource LayerFillColorDefaultBrush}" Opacity="0.08">
+                                        <Image x:Name="SpinnerLogo" Source="ms-appx:///Assets/logo.png"
+                                               Width="60" Height="60" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               RenderTransformOrigin="0.5,0.5">
+                                            <Image.RenderTransform>
+                                                <CompositeTransform x:Name="SpinnerLogoTransform" />
+                                            </Image.RenderTransform>
+                                        </Image>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <!-- Width ruler + preview zoom now sit in their OWN layout row below the
+                                 card — real space, never overlaying the WebView (the old bottom-aligned
+                                 overlay is gone, so the preview box and the editor box end on the same
+                                 line). -->
+                            <Grid Grid.Row="2" x:Name="PreviewWidthContainer" Visibility="Collapsed">
+                                <Grid Height="24" Margin="2,0,2,2" ToolTipService.ToolTip="Width of the live preview">
+                                    <Rectangle Height="1" VerticalAlignment="Center"
+                                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.35" />
+                                    <Rectangle Width="1" Height="7" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
+                                    <Rectangle Width="1" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,0"
+                                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+                                        <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Border>
+                                    <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
+                                         the readout stays in sync via a light poll in code-behind. -->
+                                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
+                                            <FontIcon Glyph="&#xE738;" FontSize="11" />
+                                        </Button>
+                                        <TextBlock x:Name="PreviewZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
+                                                   Opacity="0.65" MinWidth="40" TextAlignment="Center" ToolTipService.ToolTip="Preview zoom (Ctrl+wheel)" />
+                                        <Button ToolTipService.ToolTip="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
+                                            <FontIcon Glyph="&#xE710;" FontSize="11" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
                         </Grid>
-                    </Grid>
-                </Border>
-                <!-- ISS-014: the width ruler + preview-zoom bar is scoped to the preview column
-                     (LookingGlassGrid column 2, bottom-aligned) so it tracks the preview pane's exact
-                     width and no longer stretches under the editor pane in Split view. -->
-                <Grid Grid.Column="2" VerticalAlignment="Bottom" Visibility="Collapsed" x:Name="PreviewWidthContainer">
-                    <!-- Live width ruler for the preview pane: a hairline spanning the column with end
-                     ticks and the current CSS-pixel width in a centred chip. PreviewWidthText is
-                     updated from code-behind on the WebView's SizeChanged. Lets the user see exactly
-                     how wide the rendered document is as they resize. -->
-                <Grid Height="24" Margin="2,-4,2,-2" ToolTipService.ToolTip="Width of the live preview">
-                    <Rectangle Height="1" VerticalAlignment="Center"
-                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.35" />
-                    <Rectangle Width="1" Height="7" HorizontalAlignment="Left" VerticalAlignment="Center"
-                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
-                    <Rectangle Width="1" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.55" />
-                    <Border HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="4" Padding="8,0"
-                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-                        <TextBlock x:Name="PreviewWidthText" Text="— px" FontSize="11"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    </Border>
-                    <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
-                         the readout stays in sync via a light poll in code-behind. -->
-                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
-                            <FontIcon Glyph="&#xE738;" FontSize="11" />
-                        </Button>
-                        <TextBlock x:Name="PreviewZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
-                                   Opacity="0.65" MinWidth="40" TextAlignment="Center" ToolTipService.ToolTip="Preview zoom (Ctrl+wheel)" />
-                        <Button ToolTipService.ToolTip="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
-                            <FontIcon Glyph="&#xE710;" FontSize="11" />
-                        </Button>
-                    </StackPanel>
-                </Grid>
-                </Grid>
+
                 </Grid>
 
                 <!-- Centre pane bottom bar: Copy HTML / Print stay one click away in every mode,
@@ -1210,7 +1219,7 @@
                                         <TextBlock Text="Branding" />
                                         <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
                                                 VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="White" />
+                                            <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                                         </Border>
                                     </StackPanel>
                                 </Expander.Header>

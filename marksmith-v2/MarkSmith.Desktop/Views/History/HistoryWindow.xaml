@@ -6,20 +6,12 @@
     xmlns:conv="using:MarkSmith.Converters"
     Title="Version History">
 
-    <Grid x:Name="RootGrid">
+    <Grid x:Name="RootGrid" Background="{ThemeResource LayerFillColorDefaultBrush}">
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
             <conv:SelectedBrushConverter x:Key="SelectedBrush" />
             <conv:DiffKindBrushConverter x:Key="DiffBrush" />
         </Grid.Resources>
-
-        <Grid.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#FF0A0F1C" Offset="0" />
-                <GradientStop Color="#FF14203A" Offset="0.55" />
-                <GradientStop Color="#FF0A1220" Offset="1" />
-            </LinearGradientBrush>
-        </Grid.Background>
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -33,11 +25,12 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Text="⏱ Version History" FontSize="20" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="#FF9FB4D8" FontSize="13"
-                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="2" Text="scroll the timeline with the mouse wheel" Foreground="#FF6C7EA0"
-                       FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="⏱ Version History" FontSize="20" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="scroll the timeline with the mouse wheel"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" VerticalAlignment="Center" />
         </Grid>
 
         <Grid Grid.Row="1" Margin="22,0,22,20" ColumnSpacing="14">
@@ -48,19 +41,20 @@
             </Grid.ColumnDefinitions>
 
             <!-- ═══ All files (global edit history) ═══ -->
-            <Border Grid.Column="0" Background="#CC0E1626" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Files you've touched" Margin="14,12,14,8" FontSize="13" FontWeight="SemiBold"
-                               Foreground="#FF8FB3F0" />
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Files}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}}"
+                                    <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
                                             CornerRadius="8" Padding="10,8" Margin="4,2,4,4"
                                             Tapped="OnFileTapped">
                                         <Grid RowSpacing="2">
@@ -69,13 +63,13 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding FileName}" FontSize="14" FontWeight="SemiBold"
-                                                       Foreground="White" TextTrimming="CharacterEllipsis" />
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Column="1" Text="{Binding VersionCountLabel}" FontSize="11"
-                                                       Foreground="#FF9FB4D8" VerticalAlignment="Center" />
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Detail}"
-                                                       FontSize="11" Foreground="#FF6C7EA0" TextTrimming="CharacterEllipsis" />
+                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
-                                                       FontSize="11" Foreground="#FF5E7CB8" />
+                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -86,19 +80,20 @@
             </Border>
 
             <!-- ═══ Timeline (macOS Time Machine style) ═══ -->
-            <Border Grid.Column="1" Background="#CC0E1626" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <TextBlock Text="Timeline" Margin="14,12,14,8" FontSize="13" FontWeight="SemiBold"
-                               Foreground="#FF8FB3F0" />
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Padding="10,0,10,12" Spacing="10">
                             <TextBlock Text="No versions yet — open or export this file and its history will build up here."
-                                       Foreground="#FF7C8DB0" FontSize="13" TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="13" TextWrapping="Wrap"
                                        Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                                        Margin="6,10,6,10" />
                             <ItemsControl ItemsSource="{Binding Bands}"
@@ -107,12 +102,12 @@
                                     <DataTemplate>
                                         <StackPanel Spacing="6" Margin="0,2,0,8">
                                             <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="#FF5E7CB8" Margin="6,6,0,0" />
+                                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Margin="6,6,0,0" />
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}}"
-                                                                BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="8"
+                                                        <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
+                                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
                                                                 Padding="10,8" Margin="2,0,2,6"
                                                                 Tapped="OnVersionTapped"
                                                                 ToolTipService.ToolTip="Click to preview this version">
@@ -122,13 +117,14 @@
                                                                     <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
                                                                 <TextBlock Text="{Binding TimestampLabel}" FontSize="16" FontWeight="SemiBold"
-                                                                           Foreground="White" />
-                                                                <Border Grid.Column="1" Background="#334A6DB8" CornerRadius="8" Padding="6,2"
+                                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                                <Border Grid.Column="1" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8" Padding="6,2"
                                                                         VerticalAlignment="Top">
-                                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="10" Foreground="#FFBFD6FF" />
+                                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="10"
+                                                                               Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                                                                 </Border>
                                                                 <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Snippet}"
-                                                                           Foreground="#FF9FB4D8" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
@@ -163,9 +159,10 @@
                                       Click="OnPreviewToggleClick" ToolTipService.ToolTip="Rendered document at this version" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                        <TextBlock Text="{Binding DiffTitle}" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="{Binding DiffHeader}" Foreground="#FF9FB4D8" FontSize="12" />
-                        <TextBlock Text="{Binding DiffStats}" Foreground="#FF6C7EA0" FontSize="12" />
+                        <TextBlock Text="{Binding DiffTitle}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding DiffHeader}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                        <TextBlock Text="{Binding DiffStats}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" />
                     </StackPanel>
                     <Button Grid.Column="2" Content="Restore this version" FontWeight="SemiBold" Padding="16,8"
                             Command="{Binding RestoreCommand}" VerticalAlignment="Center" />
@@ -183,11 +180,14 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Previous version" Margin="14,6,0,4" FontSize="12" Foreground="#FFE5A0A0" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="Selected version" Margin="14,6,0,4" FontSize="12" Foreground="#FFA0E5A0" FontWeight="SemiBold" />
+                        <TextBlock Text="Previous version" Margin="14,6,0,4" FontSize="12"
+                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="Selected version" Margin="14,6,0,4" FontSize="12"
+                                   Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
                     </Grid>
-                    <Border Grid.Row="1" Background="#22000000" Height="1" />
-                    <Border Grid.Row="2" Background="#F2121B2E" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+                    <Border Grid.Row="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" Height="1" />
+                    <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                            CornerRadius="12" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                         <ScrollViewer x:Name="DiffScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding DiffRows}">
                                 <ItemsControl.ItemTemplate>
@@ -198,7 +198,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Background="{Binding Left.Kind, Converter={StaticResource DiffBrush}}"
-                                                    BorderBrush="#1EFFFFFF" BorderThickness="0,0,1,0">
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="42" />
@@ -206,10 +206,10 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Left.NumberLabel}" FontSize="12" LineHeight="19"
                                                                FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="#FF6C7EA0" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" Margin="0,0,8,0" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Left.Text}" FontSize="12.5" LineHeight="19"
                                                                FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="#FFD8E0F0" TextWrapping="NoWrap" />
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                                 </Grid>
                                             </Border>
                                             <Border Grid.Column="1" Background="{Binding Right.Kind, Converter={StaticResource DiffBrush}}">
@@ -220,10 +220,10 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Right.NumberLabel}" FontSize="12" LineHeight="19"
                                                                FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="#FF6C7EA0" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" Margin="0,0,8,0" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Right.Text}" FontSize="12.5" LineHeight="19"
                                                                FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="#FFD8E0F0" TextWrapping="NoWrap" />
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                                 </Grid>
                                             </Border>
                                         </Grid>
@@ -235,7 +235,8 @@
                 </Grid>
 
                 <!-- Rendered preview -->
-                <Border Grid.Row="1" Background="#F2121B2E" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1"
+                <Border Grid.Row="1" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                        CornerRadius="12" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                         Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
                     <controls:WebView2 x:Name="PreviewWeb" />
                 </Border>

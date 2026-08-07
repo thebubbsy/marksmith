@@ -60,7 +60,14 @@ public sealed class VersionHistoryService
 
             Directory.CreateDirectory(_blobDir);
             var blobPath = Path.Combine(_blobDir, hash + ".md");
-            if (!File.Exists(blobPath)) await File.WriteAllTextAsync(blobPath, content);
+            if (!File.Exists(blobPath))
+            {
+                // Write to a temp name first so a crash mid-write can never leave a truncated blob
+                // that the File.Exists dedup would then treat as the real snapshot forever.
+                var tmpBlob = blobPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+                await File.WriteAllTextAsync(tmpBlob, content);
+                File.Move(tmpBlob, blobPath, overwrite: false);
+            }
 
             versions ??= new List<VersionEntry>();
             versions.Insert(0, new VersionEntry(
@@ -70,6 +77,7 @@ public sealed class VersionHistoryService
 
             index[key] = versions;
             await SaveIndexAsync(index);
+            await CollectGarbageBlobsAsync(index);
             return true;
         }
         finally { _gate.Release(); }
@@ -155,6 +163,7 @@ public sealed class VersionHistoryService
             var index = await LoadIndexAsync();
             if (!index.Remove(key, out var removed)) return 0;
             await SaveIndexAsync(index);
+            await CollectGarbageBlobsAsync(index);
             return removed.Count;
         }
         finally { _gate.Release(); }
@@ -186,17 +195,51 @@ public sealed class VersionHistoryService
             var index = await JsonSerializer.DeserializeAsync<Dictionary<string, List<VersionEntry>>>(stream, ReadOpts);
             return index ?? new Dictionary<string, List<VersionEntry>>();
         }
-        catch
+        catch (Exception ex)
         {
-            // A corrupt index must never break the app — start fresh (blobs are harmless orphans).
-            return new Dictionary<string, List<VersionEntry>>();
+            // NEVER return an empty index on a read failure: CaptureAsync would then overwrite the
+            // whole database with a single new version (a transient AV-scan lock or a torn read
+            // would silently destroy every version). Back the file up and throw so the caller's
+            // best-effort wrapper aborts the capture instead.
+            try
+            {
+                if (File.Exists(_indexPath))
+                    File.Move(_indexPath, _indexPath + ".corrupt-" + Guid.NewGuid().ToString("N")[..8]);
+            }
+            catch { /* best-effort */ }
+            throw new IOException("Version history index is unreadable — backed it up and refused to overwrite it.", ex);
         }
+    }
+
+    /// <summary>Deletes blob files no longer referenced by any index row (pruned versions leave
+    /// orphaned snapshots behind — this keeps the store bounded).</summary>
+    private async Task CollectGarbageBlobsAsync(Dictionary<string, List<VersionEntry>> index)
+    {
+        try
+        {
+            if (!Directory.Exists(_blobDir)) return;
+            var referenced = index.Values
+                .SelectMany(v => v)
+                .Select(v => v.Hash)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in Directory.EnumerateFiles(_blobDir, "*.md"))
+            {
+                var hash = Path.GetFileNameWithoutExtension(file);
+                if (!referenced.Contains(hash))
+                {
+                    try { File.Delete(file); } catch { /* best-effort */ }
+                }
+            }
+        }
+        catch { /* garbage collection is best-effort */ }
     }
 
     private async Task SaveIndexAsync(Dictionary<string, List<VersionEntry>> index)
     {
         Directory.CreateDirectory(_dbDir);
-        var tmp = _indexPath + ".tmp";
+        // Unique temp name per process so two app instances sharing the store can't race on the
+        // same .tmp file; the final move is an atomic replace on NTFS.
+        var tmp = _indexPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
         await File.WriteAllTextAsync(tmp, JsonSerializer.Serialize(index, JsonOpts));
         File.Move(tmp, _indexPath, overwrite: true);
     }

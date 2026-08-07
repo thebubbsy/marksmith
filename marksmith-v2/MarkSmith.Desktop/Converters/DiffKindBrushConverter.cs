@@ -1,25 +1,30 @@
 using MarkSmith.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
-using Windows.UI;
 
 namespace MarkSmith.Converters;
 
 /// <summary>Background brush for a diff cell: soft red for removed lines, soft green for added
-/// lines, transparent for unchanged — GitHub/VS Code style.</summary>
+/// lines, transparent for unchanged — GitHub/VS Code style. Resolves themed brushes at runtime so
+/// the diff reads correctly in both light and dark themes.</summary>
 public sealed class DiffKindBrushConverter : IValueConverter
 {
-    private static readonly SolidColorBrush Removed = new(Color.FromArgb(90, 229, 72, 77));
-    private static readonly SolidColorBrush Added = new(Color.FromArgb(90, 71, 184, 77));
-    private static readonly SolidColorBrush Neutral = new(Color.FromArgb(0, 0, 0, 0));
-
     public object Convert(object value, System.Type targetType, object parameter, string language)
         => value switch
         {
-            LineDiff.Kind.Removed => Removed,
-            LineDiff.Kind.Added => Added,
-            _ => Neutral,
+            LineDiff.Kind.Removed => Themed("SystemFillColorCriticalBrush", 0.35),
+            LineDiff.Kind.Added => Themed("SystemFillColorSuccessBrush", 0.30),
+            _ => new SolidColorBrush(Microsoft.UI.Colors.Transparent),
         };
+
+    private static Brush Themed(string key, double opacity)
+    {
+        if (Application.Current.Resources.TryGetValue(key, out var b) && b is Brush brush)
+            return brush;
+        return new SolidColorBrush(Microsoft.UI.Colors.Gray);
+        return new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    }
 
     public object ConvertBack(object value, System.Type targetType, object parameter, string language)
         => throw new System.NotSupportedException();

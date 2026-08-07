@@ -2803,12 +2803,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             : $"Ln {line}, Col {col}";
     }
 
+    // The preview column mirrors the editor column's FindBar row so the two boxes stay the same
+    // height: whenever Ctrl+F opens/closes, shift the preview down/up by the find bar's height.
+    private void SyncFindBarSpacer()
+    {
+        if (PreviewFindBarSpacer is null) return;
+        PreviewFindBarSpacer.Height = FindBar.Visibility == Visibility.Visible ? FindBar.ActualHeight : 0;
+    }
+
     // ---- Find bar (Ctrl+F): search the Markdown source and jump between matches ----
 
     private void ShowFindBar()
     {
         if (FindBar is null) return;
         FindBar.Visibility = Visibility.Visible;
+        SyncFindBarSpacer();
         FindTextBox.Focus(FocusState.Programmatic);
         FindTextBox.SelectAll();
     }
@@ -2819,6 +2828,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (FindBar is null) return;
         FindBar.Visibility = Visibility.Collapsed;
+        SyncFindBarSpacer();
         // Hand focus back to the editor so typing resumes where the user left off.
         PasteTextBox.Focus(FocusState.Programmatic);
     }

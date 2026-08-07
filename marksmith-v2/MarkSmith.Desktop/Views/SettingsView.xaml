@@ -33,7 +33,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource PipelineCardStyle}">
+                <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <Grid Padding="16,12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -63,7 +63,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource PipelineCardStyle}">
+                <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <StackPanel Padding="16,12" Spacing="6">
                         <TextBlock Text="Export file name" />
                         <TextBlock Text="Template for generated file names. Tokens: {title}, {date}, {time}, {format}."
@@ -92,7 +92,7 @@
                 </Border>
 
                 <!-- Export + behavior preferences -->
-                <Border Style="{StaticResource PipelineCardStyle}">
+                <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <StackPanel Padding="16,12" Spacing="10">
                         <TextBlock Text="Export &amp; Behavior" FontWeight="SemiBold" />
 
@@ -217,7 +217,7 @@
                     </Border>
 
                     <!-- Card 2: PDF Security — password protection + permissions (Task 18) -->
-                    <Border Style="{StaticResource PipelineCardStyle}">
+                    <Border Style="{StaticResource PipelineCardZebraStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
@@ -280,11 +280,24 @@
                                 <TextBlock Text="API Port" Style="{StaticResource StepCaptionStyle}" />
                                 <NumberBox Value="{Binding ApiPort, Mode=TwoWay}" Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="180" HorizontalAlignment="Left" />
                             </StackPanel>
+
+                            <Grid ColumnSpacing="12" Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="WebSocket streaming" FontWeight="SemiBold" />
+                                    <TextBlock Text="Live progress + preview events on ws://127.0.0.1:PORT/api/stream, and streaming text into the editor from scripts. Off by default."
+                                               Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding EnableStreamingApi, Mode=TwoWay}" VerticalAlignment="Center" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- Card 2: Cloud Storage Auto-Publish (Task 9) -->
-                    <Border Style="{StaticResource PipelineCardStyle}">
+                    <Border Style="{StaticResource PipelineCardZebraStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
@@ -358,7 +371,7 @@
                     </Border>
 
                     <!-- Card 4: House-Style Template Import (Zero-Click Pipeline) -->
-                    <Border Style="{StaticResource PipelineCardStyle}">
+                    <Border Style="{StaticResource PipelineCardZebraStyle}">
                         <StackPanel Padding="16,12" Spacing="10">
                             <TextBlock Text="Company House-Style Template" FontWeight="SemiBold" />
                             <TextBlock Text="Import a .dotx template to extract brand colors, fonts and page layout. The extension sends the style summary to your web AI to generate a matching Marksmith theme — or copy the prompt yourself and paste the JSON reply back below."
@@ -479,7 +492,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource PipelineCardStyle}">
+                <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <StackPanel Padding="8,4">
                         <HyperlinkButton Content="GitHub repository" NavigateUri="https://github.com/thebubbsy/MarkSmith" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                         <HyperlinkButton Content="Releases &amp; changelog" NavigateUri="https://github.com/thebubbsy/MarkSmith/releases" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
