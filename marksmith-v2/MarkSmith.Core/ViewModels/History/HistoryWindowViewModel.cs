@@ -64,6 +64,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     private readonly VersionHistoryService _history;
     private List<VersionEntry> _allVersions = new();
     private string _currentFile = "";
+    private int _selectionToken;
 
     public HistoryWindowViewModel(
         Func<string, string> previewBuilder,
@@ -164,6 +165,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     private async Task LoadTimelineAsync(string filePath)
     {
+        // Bump the token too so an in-flight diff for the PREVIOUS file can't bleed into this one.
+        _selectionToken++;
         _currentFile = filePath;
         FileName = Path.GetFileName(filePath);
         Bands.Clear();
@@ -176,6 +179,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         try
         {
             var versions = await _history.GetVersionsAsync(filePath);
+            if (filePath != _currentFile) return; // user switched files while we were reading
             _allVersions = versions;
             HasVersions = versions.Count > 0;
             if (versions.Count == 0) return;
@@ -185,6 +189,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             foreach (var entry in versions)
             {
                 var content = await _history.GetContentAsync(entry.Id) ?? "";
+                if (filePath != _currentFile) return;
                 var band = BandName(entry.CreatedAt.LocalDateTime, now);
                 if (!byBand.TryGetValue(band, out var list))
                 {
@@ -219,22 +224,27 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
-            _ = RefreshDiffAsync(item);
-            _ = RefreshPreviewAsync(item);
+            // Stamp a selection token: a slower fetch for an EARLIER click must never clobber the
+            // diff/preview of a newer click (the blob reads race, and size varies per version).
+            var token = ++_selectionToken;
+            _ = RefreshDiffAsync(item, token);
+            _ = RefreshPreviewAsync(item, token);
         }
     }
 
     /// <summary>Diffs the selected version against the version before it (GitHub commit view):
     /// green = added in this version, red = removed. The oldest version diffs against nothing.</summary>
-    private async Task RefreshDiffAsync(VersionItemViewModel item)
+    private async Task RefreshDiffAsync(VersionItemViewModel item, int token)
     {
         try
         {
             var selectedContent = await _history.GetContentAsync(item.Id) ?? "";
+            if (token != _selectionToken) return;
             var idx = _allVersions.FindIndex(v => v.Id == item.Id);
             var prevContent = (idx >= 0 && idx + 1 < _allVersions.Count)
                 ? await _history.GetContentAsync(_allVersions[idx + 1].Id) ?? ""
                 : "";
+            if (token != _selectionToken) return;
 
             var lines = LineDiff.Diff(prevContent, selectedContent);
             var rows = LineDiff.BuildSideBySide(lines);
@@ -253,11 +263,12 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         catch { /* keep the last diff */ }
     }
 
-    private async Task RefreshPreviewAsync(VersionItemViewModel item)
+    private async Task RefreshPreviewAsync(VersionItemViewModel item, int token)
     {
         try
         {
             var content = await _history.GetContentAsync(item.Id) ?? "";
+            if (token != _selectionToken) return;
             PreviewHtml = _previewBuilder(content);
         }
         catch { /* keep the last preview */ }

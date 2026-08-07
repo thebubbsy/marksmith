@@ -107,6 +107,7 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private bool _hardwareAcceleration = true;
     [ObservableProperty] private bool _apiEnabled;
     [ObservableProperty] private int _apiPort;
+    [ObservableProperty] private bool _enableStreamingApi;
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
@@ -695,6 +696,7 @@ private readonly MarkdownExportService _mdExport = new();
         _hardwareAcceleration = settings.HardwareAcceleration;
         _apiEnabled = settings.ApiEnabled;
         _apiPort = settings.ApiPort;
+        _enableStreamingApi = settings.EnableStreamingApi;
         _allowedExtensionId = settings.AllowedExtensionId;
         _cloudAutoPublish = settings.CloudAutoPublish;
         _cloudProviderId = settings.CloudProviderId;
@@ -933,6 +935,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnHardwareAccelerationChanged(bool value) { _settingsService.Current.HardwareAcceleration = value; SaveSettingsDebounced(); }
     partial void OnApiEnabledChanged(bool value) { _settingsService.Current.ApiEnabled = value; SaveSettingsDebounced(); }
     partial void OnApiPortChanged(int value) { _settingsService.Current.ApiPort = value; SaveSettingsDebounced(); }
+    partial void OnEnableStreamingApiChanged(bool value) { _settingsService.Current.EnableStreamingApi = value; SaveSettingsDebounced(); }
     partial void OnAllowedExtensionIdChanged(string value) { _settingsService.Current.AllowedExtensionId = value; SaveSettingsDebounced(); }
     partial void OnCloudAutoPublishChanged(bool value) { _settingsService.Current.CloudAutoPublish = value; SaveSettingsDebounced(); }
     partial void OnCloudProviderIdChanged(string value) { _settingsService.Current.CloudProviderId = value; OnPropertyChanged(nameof(IsWebDavProvider)); SaveSettingsDebounced(); }

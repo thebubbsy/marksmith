@@ -83,7 +83,6 @@ public sealed class ApiServer : IDisposable
     // Live status/preview events pushed to connected clients, and streaming text INTO the editor
     // from scripts or the browser extension. Only active while the API itself is running.
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<System.Net.WebSockets.WebSocket, SemaphoreSlim> StreamSockets = new();
-    private static readonly object StreamGate = new();
 
     /// <summary>Set by the host to serve live preview snapshots on request ("preview" frame).</summary>
     public Func<string>? PreviewHtmlProvider { get; set; }
@@ -103,7 +102,11 @@ public sealed class ApiServer : IDisposable
         foreach (var pair in StreamSockets.ToArray())
         {
             var (socket, gate) = (pair.Key, pair.Value);
-            if (socket.State != System.Net.WebSockets.WebSocketState.Open) continue;
+            if (socket.State != System.Net.WebSockets.WebSocketState.Open)
+            {
+                DropStreamSocket(socket, gate);
+                continue;
+            }
             _ = Task.Run(async () =>
             {
                 await gate.WaitAsync();
@@ -216,7 +219,7 @@ public sealed class ApiServer : IDisposable
                 if (socket.State == System.Net.WebSockets.WebSocketState.Open)
                     await socket.SendAsync(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
             }
-            catch { }
+            catch { DropStreamSocket(socket, gate); }
             finally { gate.Release(); }
         });
     }
@@ -285,6 +288,20 @@ public sealed class ApiServer : IDisposable
         _cts?.Cancel();
         try { _listener?.Stop(); } catch { }
         _listener = null;
+
+        // Close every accepted WebSocket so the per-client receive loops unwind — otherwise the
+        // sockets (and StreamClientCount) would linger until each client happens to disconnect.
+        foreach (var socket in StreamSockets.Keys.ToArray())
+        {
+            try
+            {
+                if (socket.State != System.Net.WebSockets.WebSocketState.Closed)
+                    socket.Abort();
+                socket.Dispose();
+            }
+            catch { }
+        }
+        StreamSockets.Clear();
     }
 
     private async Task AcceptLoopAsync(HttpListener listener, CancellationToken ct)

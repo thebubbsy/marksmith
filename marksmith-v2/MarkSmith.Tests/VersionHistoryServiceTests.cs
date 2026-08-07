@@ -117,6 +117,33 @@ public class VersionHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Prune_GarbageCollectsOrphanedBlobs()
+    {
+        var svc = NewService(maxVersions: 2);
+        for (int i = 0; i < 4; i++) await svc.CaptureAsync(@"C:\docs.md", "content #" + i);
+
+        var blobs = Directory.GetFiles(Path.Combine(_dir, "history", "blobs"));
+        Assert.Equal(2, blobs.Length); // only the two kept versions' blobs survive
+    }
+
+    [Fact]
+    public async Task CorruptIndex_IsBackedUp_AndCaptureAbortsInsteadOfWiping()
+    {
+        var svc = NewService();
+        await svc.CaptureAsync(@"C:\docs.md", "real history");
+        File.WriteAllText(svc.DatabasePath, "{{{{ not json");
+
+        await Assert.ThrowsAsync<System.IO.IOException>(() => svc.CaptureAsync(@"C:\docs.md", "new"));
+
+        // The corrupt file was preserved (renamed aside, byte-for-byte) instead of being silently
+        // wiped — and NO fresh index was created in its place, so the history is recoverable.
+        var backups = Directory.GetFiles(Path.GetDirectoryName(svc.DatabasePath)!, "*.corrupt-*");
+        Assert.NotEmpty(backups);
+        Assert.Equal("{{{{ not json", await File.ReadAllTextAsync(backups[0]));
+        Assert.False(File.Exists(svc.DatabasePath));
+    }
+
+    [Fact]
     public async Task BlankPath_IsIgnored()
     {
         var svc = NewService();
