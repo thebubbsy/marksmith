@@ -397,7 +397,7 @@
   - Provide a visual side-by-side redline diff viewer highlighting additions and deletions between document revisions.
 - **Note**: **ASK MATT BEFORE IMPLEMENTING**
 
-### [ ] D6. High-Throughput PDF Size Compressor & Image Downsampler
+### [x] D6. High-Throughput PDF Size Compressor & Image Downsampler
 - **Target Files**:
   - `marksmith-v2/MarkSmith.Core/Services/PdfCompressorService.cs`
   - `marksmith-v2/tests/MarkSmith.Core.Tests/PdfCompressorServiceTests.cs`
