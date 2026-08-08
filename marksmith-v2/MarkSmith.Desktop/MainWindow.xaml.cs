@@ -4566,7 +4566,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnSmartArtOfferPreviewClick(object sender, RoutedEventArgs e)
     {
         var md = PasteTextBox?.Text ?? "";
-        var suggestion = _smartArtOfferTag;
+        // Re-detect at click time: the user may have edited the document since the bar appeared
+        // (a stale _smartArtOfferTag would open the studio with the wrong layout family).
+        var suggestion = Services.SmartArtPotentialDetector.Detect(md);
         OpenSmartArtStudio(preloadMarkdown: md, layoutAlias: suggestion.LayoutAlias);
         SmartArtOfferBar.IsOpen = false;
         SmartArtOfferBar.Visibility = Visibility.Collapsed;
@@ -4576,6 +4578,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         // "Not now" / the close X: the offer gate already remembers this content's hash, so the
         // offer stays quiet until the user actually changes the document.
+        _smartArtOfferTag = new Services.SmartArtSuggestion(Services.SmartArtKind.None, 0, "");
         SmartArtOfferBar.Visibility = Visibility.Collapsed;
     }
 
