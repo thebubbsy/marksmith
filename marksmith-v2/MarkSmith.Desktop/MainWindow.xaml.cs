@@ -540,7 +540,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 {
                     Width = 1,
                     Height = 16,
-                    Background = DividerBrush,
+                    Background = ResolveDividerBrush(EditingExpandedPanel.ActualTheme),
                     Margin = new Thickness(4, 0, 4, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                 });
@@ -552,29 +552,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // bar's bands stay visually identical to the collapsed layout's separators. CardStrokeColor
     // lives in the WinUI theme dictionaries, so resolve via the active theme dictionary first
     // (a plain TryGetValue on Resources can miss theme-dictionary-only keys), then fall back.
-    private static Microsoft.UI.Xaml.Media.Brush DividerBrush
+    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code so the expanded
+    // bar's bands stay visually identical to the collapsed layout's separators. The key lives in the
+    // WinUI theme dictionaries, so resolve via the ACTUAL theme of the bar (RequestedTheme can be
+    // Default even when the effective theme is dark) with a neutral fallback.
+    private static Microsoft.UI.Xaml.Media.Brush ResolveDividerBrush(ElementTheme actualTheme)
     {
-        get
+        var app = Microsoft.UI.Xaml.Application.Current;
+        if (app is not null)
         {
-            var app = Microsoft.UI.Xaml.Application.Current;
-            if (app is not null)
+            var theme = actualTheme == ElementTheme.Dark ? "Dark" : "Light";
+            if (app.Resources.ThemeDictionaries.TryGetValue(theme, out var dictObj) &&
+                dictObj is Microsoft.UI.Xaml.ResourceDictionary dict &&
+                dict.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
+                value is Microsoft.UI.Xaml.Media.Brush brush)
             {
-                var theme = app.RequestedTheme == Microsoft.UI.Xaml.ApplicationTheme.Dark ? "Dark" : "Light";
-                if (app.Resources.ThemeDictionaries.TryGetValue(theme, out var dictObj) &&
-                    dictObj is Microsoft.UI.Xaml.ResourceDictionary dict &&
-                    dict.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
-                    value is Microsoft.UI.Xaml.Media.Brush brush)
-                {
-                    return brush;
-                }
-                if (app.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var direct) &&
-                    direct is Microsoft.UI.Xaml.Media.Brush directBrush)
-                {
-                    return directBrush;
-                }
+                return brush;
             }
-            return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
+            if (app.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var direct) &&
+                direct is Microsoft.UI.Xaml.Media.Brush directBrush)
+            {
+                return directBrush;
+            }
         }
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
     }
 
     // Toggles the expanded vs clustered editing bars based on available width. Called on every
