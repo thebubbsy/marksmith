@@ -361,8 +361,9 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnInputFilePathChanged(string value)
     {
         OnPropertyChanged(nameof(HasInputFile));
-        // Persistent undo: switch to this file's own undo/redo stacks ("" when no file).
-        _editorUndo.SetDocument(value);
+        // Persistent undo: the active document switches when the new content lands (Seed in the
+        // read callback) so keystrokes typed during the file read cannot pollute the new file's
+        // undo stack. Failure/empty branches switch explicitly so the key never goes stale.
         _fileReadCts?.Cancel();
         _fileReadCts?.Dispose();
         _fileReadCts = new CancellationTokenSource();
@@ -411,6 +412,7 @@ private readonly MarkdownExportService _mdExport = new();
                 {
                     if (!token.IsCancellationRequested)
                     {
+                        _editorUndo.SetDocument(value); // read failed — keep the key in sync
                         _cachedFileMarkdown = string.Empty;
                         OnPropertyChanged(nameof(CurrentMarkdown));
                     }
@@ -419,6 +421,7 @@ private readonly MarkdownExportService _mdExport = new();
         }
         else
         {
+            _editorUndo.SetDocument(value);
             _cachedFileMarkdown = string.Empty;
             OnPropertyChanged(nameof(CurrentMarkdown));
         }

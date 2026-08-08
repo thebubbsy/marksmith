@@ -163,6 +163,31 @@ public class EditorUndoHistoryTests
     }
 
     [Fact]
+    public void Keystrokes_BeforeFileContentLands_DoNotPolluteTheNewFilesStack()
+    {
+        var h = NewStore();
+        h.Seed(@"C:\docs\a.md", "old doc");
+
+        // The user keeps typing while the new file's content is being read: these keystrokes must
+        // land in the OLD document's stack, not the new file's.
+        h.RecordChange("old doc more", 12);
+        h.BreakBurst();
+        h.RecordChange("old doc more!", 13);
+
+        // The new file's content lands — Seed switches the active document.
+        h.Seed(@"C:\docs\b.md", "new file content");
+        h.RecordChange("new file content", 16); // binding re-fires with the seeded text
+
+        Assert.False(h.CanUndo); // new file's stack is clean
+        Assert.False(h.CanRedo);
+
+        // ...and the old document kept its typing steps.
+        h.SetDocument(@"C:\docs\a.md");
+        Assert.Equal("old doc more", h.Undo()!.Text);
+        Assert.Equal("old doc", h.Undo()!.Text);
+    }
+
+    [Fact]
     public void Stack_IsCappedAtMaxSteps()
     {
         var h = NewStore();
