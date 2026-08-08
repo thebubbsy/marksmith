@@ -582,7 +582,18 @@
                                          PlaceholderText="Paste or type Markdown here... (drop an image to embed it)"
                                          VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
                                          AllowDrop="True" DragOver="OnEditorDragOver" Drop="OnEditorDrop"
-                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         UndoRedoEnabled="False">
+                                    <!-- Native TextBox undo is in-memory only and dies on restart, so
+                                         the app owns a persistent undo stack (MainViewModel.UndoStep).
+                                         These accelerators are scoped to the editor: Ctrl+Z / Ctrl+Y /
+                                         Ctrl+Shift+Z anywhere else keeps its own native undo. -->
+                                    <TextBox.KeyboardAccelerators>
+                                        <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="OnUndoAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="OnRedoAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="OnRedoAcceleratorInvoked" />
+                                    </TextBox.KeyboardAccelerators>
+                                </TextBox>
                             </Grid>
                             
                             <Grid Grid.Row="2">
@@ -752,7 +763,7 @@
                         </ToggleButton>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
                         <Button ToolTipService.ToolTip="Copy the rendered HTML to the clipboard" Height="32" Width="32" Padding="0"
                                 Click="OnCopyHtmlClick" VerticalAlignment="Center">
                             <FontIcon Glyph="&#xE8C8;" FontSize="13" />
@@ -773,6 +784,8 @@
                              code-behind so the handlers live in one place. -->
                         <StackPanel x:Name="EditingExpandedPanel" Orientation="Horizontal" Spacing="2"
                                     Visibility="Collapsed" VerticalAlignment="Center">
+                            <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    Margin="4,0" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4">
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
