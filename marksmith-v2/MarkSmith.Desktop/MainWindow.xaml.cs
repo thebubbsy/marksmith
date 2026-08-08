@@ -196,6 +196,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // exposes Expanding/Collapsed (there is no Expanded event in this Windows App SDK).
         ExportBrandingExpander.Expanding += OnStyleExpanderExpanded;
 
+        // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
+        // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
+        PasteTextBox.SelectionChanged += (_, _) => ViewModel.EditorCaret = PasteTextBox.SelectionStart;
+
         // Ctrl+, opens Settings. This can't be a XAML KeyboardAccelerator: WinUI can't represent the
         // comma key in an accelerator (a raw "188" fails XAML parsing, and VirtualKey.OemComma crashes
         // the framework's accelerator-string builder — see microsoft-ui-xaml#708), so it's handled here.
@@ -368,6 +372,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         Closed += (_, _) =>
         {
+            // Persistent undo: write every document's undo/redo stacks so Ctrl+Z keeps working
+            // after the app is closed and re-opened.
+            ViewModel.SaveUndoHistory();
             _clipboardIngest.Dispose();
             _folderIngest.Dispose();
             _automationManager.Dispose();
@@ -492,6 +499,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // cluster dropdowns use), visible whenever the bottom bar is wide enough to fit them.
     private void BuildEditingExpandedButtons()
     {
+        // Visual cleanup: the 15 actions read as one noisy wall when expanded. They are now laid
+        // out in four logical bands — text styles, headings, lists, inserts — separated by the
+        // same subtle 1px divider the cluster dropdowns use, with uniform 30x32 buttons.
         (string Content, string Tip, RoutedEventHandler Click)[] actions =
         {
             ("B", "Bold (Ctrl+B)", OnBoldClick),
@@ -510,20 +520,40 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ("Tbl", "Insert table", OnTableClick),
             ("<>", "Code block", OnCodeBlockClick),
         };
-        foreach (var (content, tip, click) in actions)
+        for (int i = 0; i < actions.Length; i++)
         {
+            var (content, tip, click) = actions[i];
             var button = new Button
             {
                 Content = new TextBlock { Text = content, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
-                Width = 34,
+                Width = 30,
                 Height = 32,
                 Padding = new Thickness(0),
             };
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, tip);
             button.Click += click;
             EditingExpandedPanel.Children.Add(button);
+            if (i is 3 or 7 or 11)
+            {
+                EditingExpandedPanel.Children.Add(new Border
+                {
+                    Width = 1,
+                    Height = 16,
+                    Background = DividerBrush,
+                    Margin = new Thickness(4, 0, 4, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+            }
         }
     }
+
+    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code with a fallback
+    // so the expanded bar's bands stay visually identical to the collapsed layout's separators.
+    private static Microsoft.UI.Xaml.Media.Brush DividerBrush =>
+        Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
+        value is Microsoft.UI.Xaml.Media.Brush brush
+            ? brush
+            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
 
     // Toggles the expanded vs clustered editing bars based on available width. Called on every
     // resize and view-mode change; the cluster dropdowns return automatically when space is tight.
@@ -664,6 +694,35 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
         catch { /* no browser / bad uri */ }
+    }
+
+    // ------------------------------------------------------------------ persistent undo/redo
+    // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z while the editor is focused. Native TextBox undo is disabled
+    // (UndoRedoEnabled=False) because it is in-memory only and dies on restart; the app-owned stack
+    // survives close/reopen and mode switches (Code/Split/Preview/Looking Glass share one TextBox).
+    private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        var snap = ViewModel.UndoStep();
+        if (snap is null) return;
+        args.Handled = true;
+        ApplyUndoSnapshot(snap);
+    }
+
+    private void OnRedoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        var snap = ViewModel.RedoStep();
+        if (snap is null) return;
+        args.Handled = true;
+        ApplyUndoSnapshot(snap);
+    }
+
+    private void ApplyUndoSnapshot(Services.UndoSnapshot snap)
+    {
+        PasteTextBox.Text = snap.Text; // binding round-trip is deduped by the history service
+        PasteTextBox.SelectionStart = Math.Clamp(snap.Caret, 0, PasteTextBox.Text.Length);
+        PasteTextBox.SelectionLength = 0;
+        ViewModel.EditorCaret = PasteTextBox.SelectionStart;
+        _ = RefreshPreviewAsync(); // undo/redo changes the source — keep the preview honest
     }
 
     private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
@@ -1841,6 +1900,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var text = root.TryGetProperty("text", out var tProp) ? tProp.GetString() : null;
                 if (text != null && text != (ViewModel.CurrentMarkdown ?? ""))
                 {
+                    ViewModel.BreakUndoBurst(); // portal typing must undo as its own step
                     ViewModel.CurrentMarkdown = text; // flows to the editor via binding
                     _portalDirty = true;
                     // Live render: swap the preview's canvas in place (no navigation, so the open
@@ -1885,6 +1945,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     var currentMd = ViewModel.CurrentMarkdown ?? "";
                     if (currentMd.Contains(oldText))
                     {
+                        ViewModel.BreakUndoBurst(); // label edit must undo as its own step
                         ViewModel.CurrentMarkdown = currentMd.Replace(oldText, newText);
                         ViewModel.StatusText = $"Diagram label updated: '{oldText}' → '{newText}'";
                         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
@@ -1943,6 +2004,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
             var synced = studioWindow.ViewModel.SyncToMarkdown(fullMd);
             // Editor stays clean: strip the fresh position lines back out into the stash.
+            ViewModel.BreakUndoBurst(); // studio sync-back must undo as its own step
             ViewModel.CurrentMarkdown = Mermaid.Sync.MermaidSpatialMetadataService.Strip(synced, out _mermaidSpatialStash);
             ViewModel.StatusText = "Mermaid diagram code updated via Diagram Studio.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
@@ -3035,6 +3097,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (count > 0)
         {
+            ViewModel.BreakUndoBurst(); // Replace All must undo as its own step
             PasteTextBox.Text = sb.ToString();
             ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")}.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
@@ -3736,6 +3799,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
+                ViewModel.BreakUndoBurst(); // restoring the draft must undo as its own step
                 ViewModel.CurrentMarkdown = content;
                 ViewModel.StatusText = "Unsaved document restored from your last session.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;

@@ -111,6 +111,47 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _allowedExtensionId = string.Empty;
     [ObservableProperty] private string _detectedSourceText = string.Empty;
 
+    /// <summary>Persistent per-document undo/redo stacks for the markdown editor (survives app
+    /// restarts via undo_history.json). Records every change; see <see cref="UndoStep"/>.</summary>
+    private readonly Services.EditorUndoHistory _editorUndo = new();
+
+    /// <summary>Current caret position in the editor, kept fresh by the UI so undo snapshots can
+    /// restore the caret exactly.</summary>
+    public int EditorCaret { get; set; }
+
+    public bool CanUndo => _editorUndo.CanUndo;
+    public bool CanRedo => _editorUndo.CanRedo;
+
+    /// <summary>Applies one undo step (the UI sets the returned text + caret).</summary>
+    public Services.UndoSnapshot? UndoStep()
+    {
+        var snap = _editorUndo.Undo();
+        if (snap is not null)
+        {
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        }
+        return snap;
+    }
+
+    public Services.UndoSnapshot? RedoStep()
+    {
+        var snap = _editorUndo.Redo();
+        if (snap is not null)
+        {
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        }
+        return snap;
+    }
+
+    /// <summary>Forces the next editor change to open a fresh undo step (used before programmatic
+    /// content injections so they undo as a unit).</summary>
+    public void BreakUndoBurst() => _editorUndo.BreakBurst();
+
+    /// <summary>Persists all documents' undo/redo stacks to disk (called on app exit).</summary>
+    public void SaveUndoHistory() => _editorUndo.Flush();
+
     /// <summary>True when the browser extension has polled within the last 90 seconds.</summary>
     public bool ExtensionConnected =>
         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ApiServer.LastExtensionPollTs < 90_000;
@@ -320,6 +361,8 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnInputFilePathChanged(string value)
     {
         OnPropertyChanged(nameof(HasInputFile));
+        // Persistent undo: switch to this file's own undo/redo stacks ("" when no file).
+        _editorUndo.SetDocument(value);
         _fileReadCts?.Cancel();
         _fileReadCts?.Dispose();
         _fileReadCts = new CancellationTokenSource();
@@ -343,6 +386,9 @@ private readonly MarkdownExportService _mdExport = new();
                         // files we only ever open appear in the timeline. Never throws/awaits the UI.
                         CaptureVersionSafe(value, text, "opened");
                         _cachedFileMarkdown = text;
+                        // Persistent undo: seed the loaded content so it does NOT become an undo
+                        // step (undoing a file open to a blank editor would be wrong).
+                        _editorUndo.Seed(value, text);
                         if (syncContext != null)
                         {
                             syncContext.Post(_ =>
@@ -420,6 +466,11 @@ private readonly MarkdownExportService _mdExport = new();
 
     partial void OnPastedMarkdownChanged(string value)
     {
+        // Persistent undo: every editor change flows through this setter (two-way binding). The
+        // history service coalesces a typing burst into one step and dedupes the binding
+        // round-trip that follows an undo/redo, so no guard flag is needed here.
+        _editorUndo.RecordChange(value ?? "", EditorCaret);
+
         HasMermaidDiagram = value?.Contains("```mermaid", StringComparison.Ordinal) == true;
         if (HasMermaidDiagram)
         {
@@ -601,6 +652,7 @@ private readonly MarkdownExportService _mdExport = new();
         {
             var content = await AppServices.VersionHistory.GetContentAsync(id);
             if (content is null) return false;
+            _editorUndo.BreakBurst(); // a version restore must undo as its own step
             PastedMarkdown = content;
             OnPropertyChanged(nameof(CurrentMarkdown));
             StatusText = "Restored a previous version from history.";
@@ -1164,6 +1216,7 @@ private readonly MarkdownExportService _mdExport = new();
             ? $"Ingested from {origin}"
             : $"{classification.SourceDescription} · {classification.Confidence}% · {classification.AppliedFixes.Count} fixes";
 
+        _editorUndo.BreakBurst(); // an ingest must undo as its own step
         PastedMarkdown = text;
         UsePasteSource = true;
         StatusText = classification.Source == LlmSource.Generic
