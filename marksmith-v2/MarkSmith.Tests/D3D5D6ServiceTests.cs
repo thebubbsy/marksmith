@@ -256,4 +256,82 @@ public class PdfCompressorServiceTests
         Assert.Equal("2.0 MB", result.HumanTotalSize);
         Assert.Equal("512.0 KB", result.HumanImageSize);
     }
+
+    // ── D6 image downsampling ────────────────────────────────────────────────────────────────────
+
+    private static MemoryStream CreatePdfWithJpeg(int width, int height)
+    {
+        // A deterministic noisy bitmap (random data compresses like real photos, unlike flat colors)
+        // encoded as JPEG, then embedded as a full-page image XObject.
+        using var bitmap = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(width, height));
+        var rng = new Random(42);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                bitmap.SetPixel(x, y, new SkiaSharp.SKColor((byte)rng.Next(256), (byte)rng.Next(256), (byte)rng.Next(256)));
+        using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 92);
+        var jpeg = data.ToArray();
+
+        // XImage.FromStream needs a publicly-visible buffer in PDFsharp 6.1 — a temp file is
+        // unambiguous and keeps the JPEG alive for the whole document save.
+        var dir = Path.Combine(Path.GetTempPath(), "marksmith-tests", "pdf-d6");
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, $"img-{width}x{height}.jpg");
+        File.WriteAllBytes(file, jpeg);
+        using var ximg = PdfSharp.Drawing.XImage.FromFile(file);
+
+        var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = width / 2;
+        page.Height = height / 2;
+        using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
+        gfx.DrawImage(ximg, 0, 0, page.Width, page.Height);
+
+        var ms = new MemoryStream();
+        doc.Save(ms, false);
+        ms.Position = 0;
+        return ms;
+    }
+
+    [Fact]
+    public void Compress_WebPreset_DownsamplesLargeJpeg()
+    {
+        using var pdf = CreatePdfWithJpeg(2000, 1500);
+
+        var result = PdfCompressorService.Compress(pdf, CompressionPreset.Web);
+
+        Assert.True(result.ImagesProcessed >= 1, "the embedded image should be counted");
+        Assert.True(result.CompressedSize < result.OriginalSize,
+            $"downsampling should shrink the file (original {result.OriginalSize}, compressed {result.CompressedSize})");
+        Assert.True(result.CompressedPdf.Length > 0);
+        // The output must still be a readable PDF.
+        using var reopened = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(result.CompressedPdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
+        Assert.Equal(1, reopened.PageCount);
+    }
+
+    [Fact]
+    public void Compress_EmailPreset_KeepsMoreDetail_ThanWeb()
+    {
+        using var webInput = CreatePdfWithJpeg(2000, 1500);
+        var web = PdfCompressorService.Compress(webInput, CompressionPreset.Web);
+        using var emailInput = CreatePdfWithJpeg(2000, 1500);
+        var email = PdfCompressorService.Compress(emailInput, CompressionPreset.Email);
+
+        Assert.True(email.CompressedSize > web.CompressedSize,
+            $"Email (1200px/q85) should retain more detail than Web (800px/q70): email {email.CompressedSize} vs web {web.CompressedSize}");
+        Assert.Equal(1, web.ImagesProcessed);
+        Assert.Equal(1, email.ImagesProcessed);
+    }
+
+    [Fact]
+    public void Compress_LeavesSmallImagesAlone()
+    {
+        using var pdf = CreatePdfWithJpeg(300, 200); // under both maxDim thresholds
+
+        var result = PdfCompressorService.Compress(pdf, CompressionPreset.Web);
+
+        Assert.True(result.ImagesProcessed >= 1);
+        using var reopened = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(result.CompressedPdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
+        Assert.Equal(1, reopened.PageCount);
+    }
 }
