@@ -582,12 +582,12 @@
                                          PlaceholderText="Paste or type Markdown here... (drop an image to embed it)"
                                          VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
                                          AllowDrop="True" DragOver="OnEditorDragOver" Drop="OnEditorDrop"
-                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                         UndoRedoEnabled="False">
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
                                     <!-- Native TextBox undo is in-memory only and dies on restart, so
                                          the app owns a persistent undo stack (MainViewModel.UndoStep).
-                                         These accelerators are scoped to the editor: Ctrl+Z / Ctrl+Y /
-                                         Ctrl+Shift+Z anywhere else keeps its own native undo. -->
+                                         These accelerators, scoped to the editor, shadow the native
+                                         undo (Handled=true), exactly like the Mermaid studio's: Ctrl+Z /
+                                         Ctrl+Y / Ctrl+Shift+Z. Other TextBoxes keep their own undo. -->
                                     <TextBox.KeyboardAccelerators>
                                         <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="OnUndoAcceleratorInvoked" />
                                         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="OnRedoAcceleratorInvoked" />
