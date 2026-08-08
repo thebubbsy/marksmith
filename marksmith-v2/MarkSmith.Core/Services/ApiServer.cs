@@ -319,10 +319,10 @@ public sealed class ApiServer : IDisposable
     // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
     // A browser-originated request (a web page OR any extension). Used to bar governance reads,
     // which must not be reachable from a page/extension even though IsAllowedOrigin permits the
-    // extension for its normal ingest/report flow. Empty/"null" (non-browser or opaque) is NOT a
-    // browser origin.
+    // extension for its normal ingest/report flow. Empty (non-browser) is NOT a browser origin,
+    // but "null" (opaque/sandboxed iframe) IS a browser origin and must be restricted.
     private bool IsBrowserOrigin(string? origin) =>
-        !string.IsNullOrEmpty(origin) && origin != "null";
+        !string.IsNullOrEmpty(origin);
 
     private bool IsAllowedOrigin(string? origin)
     {
@@ -562,11 +562,13 @@ public sealed class ApiServer : IDisposable
                     break;
 
                 case ("GET", "/api/settings"):
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings are not readable cross-origin" }); break; }
                     await WriteJsonAsync(ctx, 200, _getSettings());
                     break;
 
                 case ("POST", "/api/settings"):
                 {
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings are not modifiable cross-origin" }); break; }
                     var body = await ReadBoundedBodyAsync(ctx);
                     var newSettings = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<AppSettings>(body, JsonOpts);
                     if (newSettings is null) { await WriteJsonAsync(ctx, 400, new { error = "invalid settings payload" }); break; }

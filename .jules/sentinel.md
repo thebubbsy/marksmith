@@ -1,0 +1,4 @@
+## 2025-02-18 - [Fix CORS / Origin: null bypass in ApiServer]
+**Vulnerability:** A local API server used `string.IsNullOrEmpty(origin) || origin == "null"` in some places to allow bypass of CORS checks, assuming "null" origin was a trusted non-browser local client. Sandboxed iframes send a "null" origin, allowing malicious websites to exploit endpoints by embedding a sandboxed iframe. Additionally, sensitive `POST /api/settings` and `GET /api/settings` endpoints lacked the `IsBrowserOrigin(origin)` check that was used for governance API endpoints.
+**Learning:** `Origin: null` is sent by sandboxed iframes, which makes it a browser origin, and it should not be implicitly trusted or treated as an opaque local client.
+**Prevention:** Remove `origin != "null"` from `IsBrowserOrigin` checks so that sandboxed iframes are correctly identified as browser origins and blocked from accessing sensitive REST APIs.
