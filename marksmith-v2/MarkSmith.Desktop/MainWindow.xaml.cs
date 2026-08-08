@@ -725,17 +725,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Looking Glass share one TextBox).
     private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        // ALWAYS mark handled: even with an empty app stack, Ctrl+Z must never fall through to the
+        // TextBox's native undo — it has its own (never-populated) stack, so falling through would
+        // pop a "ghost" step that moves the text the wrong way.
+        args.Handled = true;
         var snap = ViewModel.UndoStep();
         if (snap is null) return;
-        args.Handled = true;
         ApplyUndoSnapshot(snap);
     }
 
     private void OnRedoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        args.Handled = true;
         var snap = ViewModel.RedoStep();
         if (snap is null) return;
-        args.Handled = true;
         ApplyUndoSnapshot(snap);
     }
 
@@ -4481,6 +4484,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var current = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
                 ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
             var synced = studioWindow.ViewModel.SyncToMarkdown(current);
+            ViewModel.BreakUndoBurst(); // studio sync-back must undo as its own step
             ViewModel.CurrentMarkdown = Mermaid.Sync.MermaidSpatialMetadataService.Strip(synced, out _mermaidSpatialStash);
         };
         studioWindow.Activate();
