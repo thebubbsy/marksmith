@@ -82,6 +82,9 @@ public sealed class EditorUndoHistory
             if (key == _currentKey) return;
             _current = StateForLocked(key);
             _currentKey = key;
+            // Persist the stacks we are leaving behind right away, so a crash after switching
+            // documents does not lose the previous document's undo history.
+            FlushLocked();
         }
     }
 
@@ -171,33 +174,35 @@ public sealed class EditorUndoHistory
     /// switch and on app exit so undo survives close/reopen.</summary>
     public void Flush()
     {
-        lock (_gate)
-        {
-            var data = new Dictionary<string, DocState>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (key, s) in _byDoc)
-            {
-                data[key] = new DocState
-                {
-                    Undo = s.Undo,
-                    Redo = s.Redo,
-                    LastText = s.LastText,
-                    LastCaret = s.LastCaret,
-                };
-            }
+        lock (_gate) FlushLocked();
+    }
 
-            string? tmp = null;
-            try
+    private void FlushLocked()
+    {
+        var data = new Dictionary<string, DocState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, s) in _byDoc)
+        {
+            data[key] = new DocState
             {
-                var dir = Path.GetDirectoryName(_storePath);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                tmp = _storePath + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(data, _json));
-                File.Move(tmp, _storePath, overwrite: true);
-            }
-            catch
-            {
-                try { if (tmp != null && File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ }
-            }
+                Undo = s.Undo,
+                Redo = s.Redo,
+                LastText = s.LastText,
+                LastCaret = s.LastCaret,
+            };
+        }
+
+        string? tmp = null;
+        try
+        {
+            var dir = Path.GetDirectoryName(_storePath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            tmp = _storePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(data, _json));
+            File.Move(tmp, _storePath, overwrite: true);
+        }
+        catch
+        {
+            try { if (tmp != null && File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ }
         }
     }
 
@@ -222,7 +227,11 @@ public sealed class EditorUndoHistory
                     .Where(kv => kv.Key != key)
                     .OrderBy(kv => kv.Value.LastUsedTicks)
                     .FirstOrDefault();
-                if (stale.Key != null) _byDoc.Remove(stale.Key);
+                if (stale.Key != null)
+                {
+                    FlushLocked(); // persist everything (incl. the evicted doc) before dropping it
+                    _byDoc.Remove(stale.Key);
+                }
             }
         }
         state.LastUsedTicks = DateTime.UtcNow.Ticks;

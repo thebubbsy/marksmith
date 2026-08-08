@@ -6,6 +6,7 @@ using Microsoft.Windows.AppNotifications.Builder;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
@@ -533,7 +534,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, tip);
             button.Click += click;
             EditingExpandedPanel.Children.Add(button);
-            if (i is 3 or 7 or 11)
+            if (i is 2 or 6 or 10) // band ends: text styles, headings, lists
             {
                 EditingExpandedPanel.Children.Add(new Border
                 {
@@ -547,20 +548,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code with a fallback
-    // so the expanded bar's bands stay visually identical to the collapsed layout's separators.
-    private static Microsoft.UI.Xaml.Media.Brush DividerBrush =>
-        Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
-        value is Microsoft.UI.Xaml.Media.Brush brush
-            ? brush
-            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
+    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code so the expanded
+    // bar's bands stay visually identical to the collapsed layout's separators. CardStrokeColor
+    // lives in the WinUI theme dictionaries, so resolve via the active theme dictionary first
+    // (a plain TryGetValue on Resources can miss theme-dictionary-only keys), then fall back.
+    private static Microsoft.UI.Xaml.Media.Brush DividerBrush
+    {
+        get
+        {
+            var app = Microsoft.UI.Xaml.Application.Current;
+            if (app is not null)
+            {
+                var theme = app.RequestedTheme == Microsoft.UI.Xaml.ApplicationTheme.Dark ? "Dark" : "Light";
+                if (app.Resources.ThemeDictionaries.TryGetValue(theme, out var dictObj) &&
+                    dictObj is Microsoft.UI.Xaml.ResourceDictionary dict &&
+                    dict.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
+                    value is Microsoft.UI.Xaml.Media.Brush brush)
+                {
+                    return brush;
+                }
+                if (app.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var direct) &&
+                    direct is Microsoft.UI.Xaml.Media.Brush directBrush)
+                {
+                    return directBrush;
+                }
+            }
+            return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
+        }
+    }
 
     // Toggles the expanded vs clustered editing bars based on available width. Called on every
     // resize and view-mode change; the cluster dropdowns return automatically when space is tight.
     private void UpdateEditingExpansion()
     {
         if (EditingExpandedPanel is null || EditingClustersPanel is null) return;
-        var expanded = CenterBottomBar.ActualWidth >= 560;
+        var expanded = CenterBottomBar.ActualWidth >= 620; // strip is ~594px with Copy/Print + bands
         EditingExpandedPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
         EditingClustersPanel.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -697,9 +719,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // ------------------------------------------------------------------ persistent undo/redo
-    // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z while the editor is focused. Native TextBox undo is disabled
-    // (UndoRedoEnabled=False) because it is in-memory only and dies on restart; the app-owned stack
-    // survives close/reopen and mode switches (Code/Split/Preview/Looking Glass share one TextBox).
+    // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z while the editor is focused. The accelerators shadow the
+    // TextBox's native undo (Handled=true) — native undo is in-memory only and dies on restart,
+    // whereas the app-owned stack survives close/reopen and mode switches (Code/Split/Preview/
+    // Looking Glass share one TextBox).
     private void OnUndoAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         var snap = ViewModel.UndoStep();
