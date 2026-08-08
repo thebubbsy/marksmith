@@ -119,4 +119,34 @@ public class ApiServerSecurityTests
 
         server.Stop();
     }
+
+    [Fact]
+    public async Task SettingsEndpoints_AreProtectedFromBrowserOrigins()
+    {
+        using var server = new ApiServer(
+            (md, _, _) => { },
+            (md, ovr) => Task.FromResult(Array.Empty<byte>()),
+            (f, ft, _) => Task.FromResult(new MarkSmith.Models.BatchConvertResult(1, 0, 0, new())),
+            () => new AppSettings(),
+            s => { },
+            new MarkSmith.Services.GovernanceService());
+
+        var port = GetFreePort();
+        server.Start(port);
+        using var client = new HttpClient();
+
+        // Null origin (sandboxed iframe) should be rejected for settings
+        var reqGet = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/api/settings");
+        reqGet.Headers.Add("Origin", "null");
+        var resGet = await client.SendAsync(reqGet);
+        Assert.Equal(HttpStatusCode.Forbidden, resGet.StatusCode);
+
+        var reqPost = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/settings");
+        reqPost.Headers.Add("Origin", "null");
+        reqPost.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+        var resPost = await client.SendAsync(reqPost);
+        Assert.Equal(HttpStatusCode.Forbidden, resPost.StatusCode);
+
+        server.Stop();
+    }
 }
