@@ -257,14 +257,28 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // portal/view state now that both toggles are initialized.
         UpdateCenterBottomBar();
 
-        // Markdown lint refresh on every edit.
+        // Markdown lint refresh on every edit + the non-invasive SmartArt offer (debounced so a
+        // paste of a long ChatGPT answer is scanned once, not per keystroke).
         PasteTextBox.TextChanged += (_, _) =>
         {
             UpdateLintIndicator();
             // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
-            if (string.IsNullOrWhiteSpace(PasteTextBox?.Text)) ExpandLeftPane();
+            if (string.IsNullOrWhiteSpace(PasteTextBox?.Text))
+            {
+                ExpandLeftPane();
+                if (SmartArtOfferBar is not null)
+                {
+                    SmartArtOfferBar.IsOpen = false;
+                    SmartArtOfferBar.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                ScheduleSmartArtOffer();
+            }
         };
         UpdateLintIndicator();
+        InitSmartArtOffer();
 
         // Export-completion toast: manual exports raise ExportCompleted from the ViewModel.
         ViewModel.ExportCompleted += (kind, path) => ShowExportToast(kind, path);
@@ -4492,16 +4506,77 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // SmartArt Design Studio — structure → native Word SmartArt (canvas-first, no tabs)
-    private void OnOpenSmartArtDesignStudioClick(object sender, RoutedEventArgs e)
+    private void OnOpenSmartArtDesignStudioClick(object sender, RoutedEventArgs e) => OpenSmartArtStudio();
+
+    private void OpenSmartArtStudio(string? preloadMarkdown = null, string? layoutAlias = null)
     {
         if (_smartArtDesignStudio == null)
         {
             _smartArtDesignStudio = new Views.SmartArtStudio.SmartArtDesignStudioWindow();
             _smartArtDesignStudio.Closed += (s, args) => _smartArtDesignStudio = null;
         }
+        if (preloadMarkdown is not null)
+        {
+            _smartArtDesignStudio.ViewModel.Preload(preloadMarkdown, layoutAlias ?? string.Empty);
+        }
         _smartArtDesignStudio.Activate();
         ViewModel.StatusText = "SmartArt Design Studio opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    // ── SmartArt offer (non-invasive): detect diagram-shaped pasted content and offer a preview.
+    private readonly Services.SmartArtOfferGate _smartArtOfferGate = new();
+    private DispatcherQueueTimer? _smartArtOfferDebounce;
+    private Services.SmartArtSuggestion _smartArtOfferTag = new(Services.SmartArtKind.None, 0, "");
+
+    private void InitSmartArtOffer()
+    {
+        _smartArtOfferDebounce = DispatcherQueue.CreateTimer();
+        _smartArtOfferDebounce.Interval = TimeSpan.FromMilliseconds(900);
+        _smartArtOfferDebounce.IsRepeating = false;
+        _smartArtOfferDebounce.Tick += (_, _) => EvaluateSmartArtOffer();
+    }
+
+    private void ScheduleSmartArtOffer()
+    {
+        if (_smartArtOfferDebounce is null) return;
+        _smartArtOfferDebounce.Stop();
+        _smartArtOfferDebounce.Start();
+    }
+
+    private void EvaluateSmartArtOffer()
+    {
+        if (SmartArtOfferBar is null || PasteTextBox is null) return;
+        var md = PasteTextBox.Text ?? "";
+        var suggestion = Services.SmartArtPotentialDetector.Detect(md);
+        if (suggestion.IsOffered && _smartArtOfferGate.ShouldOffer(md, suggestion))
+        {
+            _smartArtOfferTag = suggestion;
+            SmartArtOfferBar.Message = suggestion.Reason;
+            SmartArtOfferBar.IsOpen = true;
+            SmartArtOfferBar.Visibility = Visibility.Visible;
+        }
+        else if (string.IsNullOrWhiteSpace(md) || !suggestion.IsOffered)
+        {
+            SmartArtOfferBar.IsOpen = false;
+            SmartArtOfferBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnSmartArtOfferPreviewClick(object sender, RoutedEventArgs e)
+    {
+        var md = PasteTextBox?.Text ?? "";
+        var suggestion = _smartArtOfferTag;
+        OpenSmartArtStudio(preloadMarkdown: md, layoutAlias: suggestion.LayoutAlias);
+        SmartArtOfferBar.IsOpen = false;
+        SmartArtOfferBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnSmartArtOfferClosed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        // "Not now" / the close X: the offer gate already remembers this content's hash, so the
+        // offer stays quiet until the user actually changes the document.
+        SmartArtOfferBar.Visibility = Visibility.Collapsed;
     }
 
     // MLShape Design Studio — free-form native DrawingML shape composing
