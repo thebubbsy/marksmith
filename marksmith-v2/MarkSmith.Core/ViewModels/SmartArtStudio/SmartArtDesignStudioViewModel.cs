@@ -106,6 +106,18 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
 
     partial void OnMarkdownTextChanged(string value) { RebuildTree(); UpdatePreview(); }
+
+    /// <summary>Preloads pasted content into the studio with the suggested layout family
+    /// pre-selected (the family→layout mapping is a small reviewable table, not 176 detectors —
+    /// the user still picks the exact layout from the 176-layout gallery).</summary>
+    public void Preload(string markdown, string layoutAlias)
+    {
+        MarkdownText = markdown; // triggers RebuildTree + UpdatePreview
+        var item = _allLayouts.FirstOrDefault(l =>
+                       string.Equals(l.Alias, layoutAlias, StringComparison.OrdinalIgnoreCase))
+                   ?? Layouts.FirstOrDefault();
+        if (item is not null) SelectedLayout = item; // triggers UpdatePreview
+    }
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
     partial void OnSearchQueryChanged(string value) => FilterLayouts();
 
