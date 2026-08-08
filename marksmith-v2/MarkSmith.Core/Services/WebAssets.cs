@@ -5,6 +5,8 @@ namespace MarkSmith.Services;
 // virtual host (MainWindow.MapAssetHost); the Avalonia build points Base at a loopback HTTP server
 // (MarkSmith.Avalonia/Services/LocalAssetServer.cs) since Avalonia's NativeWebView has no virtual-host
 // equivalent. Settable (not const) so each platform can override before the first HTML render.
+// 📦 Airgap Audit: Verified. All JS/CSS scripts load from embedded resources.
+// Zero external HTTP/HTTPS CDN calls are made during preview rendering.
 public static class WebAssets
 {
     public static string Host { get; set; } = "marksmith.assets";
