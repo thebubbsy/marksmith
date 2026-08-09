@@ -1299,7 +1299,14 @@ public sealed partial class MarkdownHtmlService
 </script>
 """ : "";
 
-        return $$"""
+        var shellKey = BuildShellKey(htmlAttrs, bodyClass, interactive, isDark, settings, theme,
+            workspaceBg, effectiveBodyBg, effectiveText, bodyFontFamily, pageBg,
+            fontFaceCss, alertCss, calloutCss,
+            mermaidScript, lensScript, extraHead,
+            overflowScript, scrollSpyScript, radarScript, tabScript, portalScript, fitWidthScript);
+        if (!ShellCache.TryGetValue(shellKey, out var shell))
+        {
+            shell = (Head: $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
             <script>
             // Deterministic export-readiness contract (see IWebRenderHost.WaitForExportReadyAsync):
@@ -1540,8 +1547,44 @@ public sealed partial class MarkdownHtmlService
                the clear centre of the shape (the masked rim was otherwise unreadable). */
             .portal-source { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: #dbe6f2; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 20px; padding: 80px; white-space: pre; overflow: auto; caret-color: #58a6ff; }
             .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
-            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}{{fitWidthScript}}</body></html>
-            """;
+            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->
+            """, Tail: $$"""
+            <!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}{{fitWidthScript}}</body></html>
+            """);
+            if (ShellCache.Count > 12) ShellCache.Clear();
+            ShellCache[shellKey] = shell;
+        }
+        return shell.Head + attribution + toc + body + footer + shell.Tail;
+    }
+
+    // Preview shell cache (perf audit #18): the ~50 KB JS/CSS shell depends only on theme,
+    // settings and flags, so it is built once per fingerprint and reused by full navigations,
+    // heavy refreshes and PDF export. The per-keystroke live path already skips the shell
+    // entirely — RenderCanvasOnly swaps #canvas innerHTML in place.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Head, string Tail)> ShellCache = new();
+
+    private static string BuildShellKey(
+        string htmlAttrs, string bodyClass, bool interactive, bool isDark,
+        AppSettings settings, ThemeDefinition theme,
+        string workspaceBg, string effectiveBodyBg, string effectiveText, string bodyFontFamily, string pageBg,
+        string fontFaceCss, string alertCss, string calloutCss,
+        string mermaidScript, string lensScript, string extraHead,
+        string overflowScript, string scrollSpyScript, string radarScript, string tabScript, string portalScript, string fitWidthScript)
+    {
+        // ThemeDefinition is a value record, so GetHashCode() covers every theme property.
+        // Script-block lengths ride along as a cheap canary for any script input not enumerated
+        // here (they only change when their own inputs change).
+        return string.Concat(
+            theme.GetHashCode().ToString(), "|",
+            settings.TargetFormat, "|", settings.ContentWidth.ToString(), "|",
+            settings.UnlimitedHeight.ToString(), "|", settings.MermaidEnabled.ToString(), "|",
+            settings.ThemeLightInfluence.ToString(), "|",
+            htmlAttrs, "|", bodyClass, "|", interactive.ToString(), "|", isDark.ToString(), "|",
+            workspaceBg, "|", effectiveBodyBg, "|", effectiveText, "|", bodyFontFamily, "|", pageBg, "|",
+            fontFaceCss.Length.ToString(), "|", alertCss.Length.ToString(), "|", calloutCss.Length.ToString(), "|",
+            mermaidScript.Length.ToString(), "|", lensScript.Length.ToString(), "|", extraHead.Length.ToString(), "|",
+            overflowScript.Length.ToString(), "|", scrollSpyScript.Length.ToString(), "|", radarScript.Length.ToString(), "|",
+            tabScript.Length.ToString(), "|", portalScript.Length.ToString(), "|", fitWidthScript.Length.ToString());
     }
 
     /// <summary>

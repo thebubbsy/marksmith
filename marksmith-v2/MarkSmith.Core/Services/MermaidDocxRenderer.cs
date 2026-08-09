@@ -139,7 +139,7 @@ public static class MermaidDocxRenderer
 
             var g = Parse(source);
             if (g is null || g.Nodes.Count == 0 || g.Nodes.Count > MaxNodes) {
-                Console.WriteLine($"Parse returned null? {g is null}");
+                System.Diagnostics.Debug.WriteLine($"[MERMAID] parse returned null or out of bounds (nodes={g?.Nodes.Count})");
                 return false;
             }
             Layout(g, forceFit);
@@ -156,7 +156,6 @@ public static class MermaidDocxRenderer
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"TryRender exception: {ex}");
-            Console.WriteLine($"TryRender exception: {ex}");
             return false; // any surprise → snapshot/code-block fallback, never a broken document
         }
     }
@@ -203,7 +202,7 @@ public static class MermaidDocxRenderer
             // Grouping/styling lines don't affect the shape graph; skip them.
             if (Regex.IsMatch(line, @"^(subgraph\b|end\b|direction\b|classDef\b|class\b|style\b|linkStyle\b|click\b|accTitle\b|accDescr\b)")) continue;
             if (!ParseLine(line, g)) {
-                Console.WriteLine($"ParseLine failed on: '{line}'");
+                System.Diagnostics.Debug.WriteLine($"[MERMAID] ParseLine failed on: '{line}'");
                 return null; // partially-understood line → refuse (fallback)
             }
         }
