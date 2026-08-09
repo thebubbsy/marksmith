@@ -1328,8 +1328,10 @@ public sealed partial class MarkdownHtmlService
                             }
                             return false;
                         };
-                        });
-                        setTimeout(() => { observer.disconnect(); callback(); }, 5000);
+                        const observer = new MutationObserver(check);
+                        observer.observe(document.body, { childList: true, subtree: true });
+                        check();
+                        setTimeout(() => { observer.disconnect(); }, 5000);
                     };
 
                     const waitForImages = (callback) => {
@@ -1572,19 +1574,21 @@ public sealed partial class MarkdownHtmlService
         string overflowScript, string scrollSpyScript, string radarScript, string tabScript, string portalScript, string fitWidthScript)
     {
         // ThemeDefinition is a value record, so GetHashCode() covers every theme property.
-        // Script-block lengths ride along as a cheap canary for any script input not enumerated
-        // here (they only change when their own inputs change).
+        // Script/CSS blocks are content-hashed (GetHashCode is stable within a process, which is
+        // all the in-process cache needs) so a same-length content change can never serve a stale
+        // shell — extraHead (KaTeX/highlight.js) and alertCss (NoEmoji glyphs) vary with the body
+        // and settings, so they are keyed by value, not just presence.
         return string.Concat(
             theme.GetHashCode().ToString(), "|",
             settings.TargetFormat, "|", settings.ContentWidth.ToString(), "|",
             settings.UnlimitedHeight.ToString(), "|", settings.MermaidEnabled.ToString(), "|",
-            settings.ThemeLightInfluence.ToString(), "|",
+            settings.ThemeLightInfluence.ToString(), "|", settings.NoEmoji.ToString(), "|",
             htmlAttrs, "|", bodyClass, "|", interactive.ToString(), "|", isDark.ToString(), "|",
             workspaceBg, "|", effectiveBodyBg, "|", effectiveText, "|", bodyFontFamily, "|", pageBg, "|",
-            fontFaceCss.Length.ToString(), "|", alertCss.Length.ToString(), "|", calloutCss.Length.ToString(), "|",
-            mermaidScript.Length.ToString(), "|", lensScript.Length.ToString(), "|", extraHead.Length.ToString(), "|",
-            overflowScript.Length.ToString(), "|", scrollSpyScript.Length.ToString(), "|", radarScript.Length.ToString(), "|",
-            tabScript.Length.ToString(), "|", portalScript.Length.ToString(), "|", fitWidthScript.Length.ToString());
+            fontFaceCss.GetHashCode().ToString(), "|", alertCss.GetHashCode().ToString(), "|", calloutCss.GetHashCode().ToString(), "|",
+            mermaidScript.GetHashCode().ToString(), "|", lensScript.GetHashCode().ToString(), "|", extraHead.GetHashCode().ToString(), "|",
+            overflowScript.GetHashCode().ToString(), "|", scrollSpyScript.GetHashCode().ToString(), "|", radarScript.GetHashCode().ToString(), "|",
+            tabScript.GetHashCode().ToString(), "|", portalScript.GetHashCode().ToString(), "|", fitWidthScript.GetHashCode().ToString());
     }
 
     /// <summary>
