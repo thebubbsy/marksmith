@@ -1350,7 +1350,10 @@ public sealed partial class MarkdownHtmlService
                         requestAnimationFrame(() => { requestAnimationFrame(() => { resolve("true"); }); });
                     };
 
-                    waitForMermaidIfNeeded(() => { waitForImages(() => { settleLayout(); }); });
+                    // Mermaid completion is handled above by the MutationObserver gate (mDone);
+                    // images then layout settle finish the readiness contract. Self-contained —
+                    // no reliance on host-scope helpers.
+                    waitForImages(() => { settleLayout(); });
                 });
             };
             </script>
