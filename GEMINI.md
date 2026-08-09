@@ -59,3 +59,29 @@ When generating or modifying Office OpenXML (`.docx`, `.xlsx`, `.pptx`) using C#
   For complex features or refactors, break tasks into specialized subagent personas (e.g., OpenXML Researcher, OpenXML Verifier, DocX Debugger, Layout Debugger, Auditor, Reviewer, Challenger).
 - **Empirical Verification Gate**:
   Never declare victory based solely on code compilation. Perform end-to-end verification tests, run automated test suites, and inspect raw output file structures (XML, PDF, DOCX) to confirm fidelity.
+
+---
+
+## 6. Markdown Engine Governance (the syntax contract)
+Before modifying the markdown pipeline, the rendering engine, or ANY markdown wrapper syntax,
+read **`docs/MD_ENGINE_GOVERNANCE.md`** — it is the architecture map AND the syntax contract:
+
+- **Two pipelines, one contract**: the DOCX/OpenXML path (normalizers → `AdvancedFeaturePipeline`
+  feature markers → Markdig AST → native `w:p`/`w:r`/`w:drawing` + native `.glox` SmartArt) and
+  the HTML preview path (normalize → Markdig + Mathematics → targeted `HtmlSanitizer` → trusted
+  post-inject of mermaid / `:::smartart` SVG / KaTeX / lens / portal / fit-width). A syntax
+  change must land in **both** paths or the preview and the exported DOCX disagree.
+- **The wrapper catalog**: `:::smartart` / `:::workflow` / `:::tabs` (`=== "Tab"`) / `:::chart` /
+  `:::columns` / `:::timeline` / `:::canvas` / `:::shapes`, `$…$` / `$$…$$` / `\(…\)` / `\[…\]`
+  math (KaTeX + mhchem), `> [!NOTE]` callouts, special code fences, task lists, footnotes, and
+  the INTERNAL `<!-- MARKSMITH_FEATURE:id -->` markers / `<!-- … -->` placeholder comments.
+  `{{token}}` and `$$"""…"""` inside `MarkdownHtmlService` are C# raw-interpolated-string
+  templating — **not** markdown syntax. Do not invent undocumented wrappers; extend the catalog
+  in the same change.
+- **Hard rules**: never fork/modify Markdig directly (pre-process or dispatch); output stays
+  native OpenXML (raster only as last-resort); after `HtmlSanitizer.Apply` only trusted
+  generated markup may be injected (comments survive the targeted sanitizer and are the safe
+  placeholder vehicle); ambiguous constructs go through `AmbiguityDetector`/`AmbiguityResolverDialog`
+  honoring `AppSettings.AmbiguityPreferences`.
+- **Snippet shapes**: `InsertSnippetBuilder` is the single source of truth for what the UI
+  inserts — keep it in sync whenever a syntax changes.
