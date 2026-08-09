@@ -14,9 +14,20 @@ namespace MarkSmith.Core.AdvancedFeatures
         // The pipeline tests every detector against one block at a time (sequentially), so a
         // single-slot memo lets all detectors — plus the pipeline's own ParseBlock — share ONE
         // Split('\n') of the raw block instead of re-splitting the same text up to a dozen times.
-        // The cache is a single immutable tuple swapped atomically, so it stays correct even if
+        // The caches use an immutable node swapped atomically, so they stay correct even if
         // the pipeline is ever reused concurrently (worst case: a harmless redundant re-split).
-        private static (string Block, string[] Lines)? _splitCache;
+        private sealed class SplitCacheNode
+        {
+            public string Block { get; }
+            public string[] Lines { get; }
+            public SplitCacheNode(string block, string[] lines)
+            {
+                Block = block;
+                Lines = lines;
+            }
+        }
+
+        private static volatile SplitCacheNode? _splitCache;
 
         /// <summary>
         /// Splits a raw block into lines, memoized for the most recently seen block.
@@ -24,27 +35,46 @@ namespace MarkSmith.Core.AdvancedFeatures
         public static string[] SplitLines(string rawBlock)
         {
             var cache = _splitCache;
-            if (cache is { } c && string.Equals(c.Block, rawBlock, StringComparison.Ordinal))
-                return c.Lines;
+            if (cache != null && string.Equals(cache.Block, rawBlock, StringComparison.Ordinal))
+                return cache.Lines;
             var lines = rawBlock.Split('\n');
-            _splitCache = (rawBlock, lines);
+            _splitCache = new SplitCacheNode(rawBlock, lines);
             return lines;
         }
 
+        private sealed class InnerCacheNode
+        {
+            public string Block { get; }
+            public IReadOnlyList<string> Lines { get; }
+            public InnerCacheNode(string block, IReadOnlyList<string> lines)
+            {
+                Block = block;
+                Lines = lines;
+            }
+        }
+
+        private static volatile InnerCacheNode? _innerLinesCache;
+
         /// <summary>
         /// Extracts the inner lines of a ::: block (everything between the opening marker and
-        /// the closing :::), stripping the first and last lines.
+        /// the closing :::), stripping the first and last lines. Memoized for the most recently seen block.
         /// </summary>
-        public static List<string> GetInnerLines(string rawBlock)
+        public static IReadOnlyList<string> GetInnerLines(string rawBlock)
         {
+            var cache = _innerLinesCache;
+            if (cache != null && string.Equals(cache.Block, rawBlock, StringComparison.Ordinal))
+                return cache.Lines;
+
             var lines = SplitLines(rawBlock);
-            var result = new List<string>();
+            var result = new List<string>(Math.Max(0, lines.Length - 2));
             for (int i = 1; i < lines.Length; i++)
             {
                 var trimmed = lines[i].TrimEnd('\r');
                 if (trimmed == ":::" && i == lines.Length - 1) break;
                 result.Add(trimmed);
             }
+
+            _innerLinesCache = new InnerCacheNode(rawBlock, result);
             return result;
         }
     }

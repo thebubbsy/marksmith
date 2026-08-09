@@ -52,7 +52,7 @@ public static class KanbanParser
                 }
             }
 
-            lines = DetectorHelpers.GetInnerLines(rawText);
+            lines = DetectorHelpers.GetInnerLines(rawText).ToList();
         }
         else
         {
