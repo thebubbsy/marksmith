@@ -145,6 +145,21 @@ public class SmartArtPotentialDetectorTests
     }
 
     [Fact]
+    public void DeeplyNestedPaste_NeverCrashes()
+    {
+        // A pathological paste: thousands of progressively deeper bullet levels. Detection must
+        // survive it (iterative walk with a depth cap), not overflow the UI-thread stack.
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < 5000; i++)
+            sb.Append(' ', i).Append("- item ").Append(i).Append('\n');
+
+        var s = SmartArtPotentialDetector.Detect(sb.ToString());
+
+        Assert.NotNull(s); // no exception, and the capped walk returns a sane suggestion
+        Assert.False(s.IsOffered); // 5000-deep single chain is a pathological input, not a chart
+    }
+
+    [Fact]
     public void EmptyOrNull_IsNeverOffered()
     {
         Assert.Equal(SmartArtKind.None, SmartArtPotentialDetector.Detect("").Kind);

@@ -1,17 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
-using System.Net;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Core.AST;
-using MarkSmith.Core.Generator;
 using MarkSmith.Core.Glox;
 using MarkSmith.Core.Preview;
-using MarkSmith.Core.Solver;
 
 namespace MarkSmith.ViewModels.SmartArtStudio;
 
@@ -97,6 +93,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     private readonly List<StudioLayoutItem> _allLayouts = new();
 
     public event EventHandler? PreviewHtmlChanged;
+
+    /// <summary>Raised when the user asks to add the designed diagram to the ACTIVE document.
+    /// Carries the complete <c>:::smartart type="…"</c> markdown block (nested bullets = the
+    /// hierarchy), which the main preview renders and the DOCX export turns into native Word
+    /// SmartArt. The studio itself never writes a document — the document flow owns output.</summary>
+    public event EventHandler<string>? InsertToDocumentRequested;
 
     public SmartArtDesignStudioViewModel()
     {
@@ -309,26 +311,29 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ExportDocx()
+    public void InsertIntoDocument()
     {
-        try
+        string alias = SelectedLayout?.Alias ?? "hierarchy";
+        var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
+        if (pkg == null)
         {
-            var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
-            string alias = SelectedLayout?.Alias ?? "hierarchy";
-            var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias) ?? SmartArtLayoutCatalog.Shared.TryResolve("default");
-            if (pkg == null) { StatusMessage = "Export error: no layout."; return; }
+            StatusMessage = "Insert error: the selected layout is not available.";
+            return;
+        }
 
-            var solved = new ConstraintSolver().Solve(ast, pkg);
-            var genRes = new OpenXmlDiagramGenerator().Generate(solved, pkg);
-            string outPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                $"SmartArt_{alias}_{DateTime.Now:HHmmss}.docx");
-            DocxPackageWriter.WriteDocx(outPath, genRes);
-            StatusMessage = $"✓ Exported native SmartArt ({pkg.UniqueId}) → {outPath}";
-        }
-        catch (Exception ex)
+        string inner = (MarkdownText ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(inner))
         {
-            StatusMessage = $"Export error: {ex.Message}";
+            StatusMessage = "Insert error: build a hierarchy first.";
+            return;
         }
+
+        var block = new StringBuilder();
+        block.AppendLine($":::smartart type=\"{alias}\"");
+        block.AppendLine(inner);
+        block.Append(":::");
+        InsertToDocumentRequested?.Invoke(this, block.ToString());
+        StatusMessage = $"✓ Added {pkg.Title} to the document — preview & export it there.";
     }
 
     private static string Tail(string urn)

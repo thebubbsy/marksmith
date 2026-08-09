@@ -11,6 +11,10 @@ namespace MarkSmith.Views.SmartArtStudio
         public SmartArtDesignStudioViewModel ViewModel { get; }
         private bool _isWebViewReady;
 
+        /// <summary>Raised with the full <c>:::smartart</c> markdown block when the user chooses
+        /// "Insert into document" — the MainWindow inserts it at the editor caret.</summary>
+        public event EventHandler<string>? InsertToDocumentRequested;
+
         public SmartArtDesignStudioWindow()
         {
             this.InitializeComponent();
@@ -21,6 +25,7 @@ namespace MarkSmith.Views.SmartArtStudio
             this.RootGrid.DataContext = ViewModel;
 
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
+            ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
             this.Activated += OnWindowActivated;
         }
 
@@ -55,9 +60,9 @@ namespace MarkSmith.Views.SmartArtStudio
 </body></html>";
         }
 
-        private void OnExportDocxClick(object sender, RoutedEventArgs e)
+        private void OnInsertIntoDocumentClick(object sender, RoutedEventArgs e)
         {
-            ViewModel.ExportDocxCommand.Execute(null);
+            ViewModel.InsertIntoDocumentCommand.Execute(null);
         }
 
         private void OnAddRootClick(object sender, RoutedEventArgs e)

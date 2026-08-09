@@ -4514,6 +4514,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             _smartArtDesignStudio = new Views.SmartArtStudio.SmartArtDesignStudioWindow();
             _smartArtDesignStudio.Closed += (s, args) => _smartArtDesignStudio = null;
+            // Design-stage output: add the hierarchy to the ACTIVE document as Markdown, at the
+            // editor caret. It renders in the preview and becomes native Word SmartArt on export —
+            // the studio never writes its own document.
+            _smartArtDesignStudio.InsertToDocumentRequested += (s, block) =>
+            {
+                ViewModel.BreakUndoBurst(); // the insertion must undo as its own step
+                InsertMarkdown(block);
+                ViewModel.StatusText = "SmartArt added to the document — preview, then export to DOCX.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            };
         }
         if (preloadMarkdown is not null)
         {
