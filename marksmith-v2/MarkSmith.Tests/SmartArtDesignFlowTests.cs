@@ -49,6 +49,50 @@ public class SmartArtDesignFlowTests
     }
 
     [Fact]
+    public void Preview_SmartArtAtDocumentStart_Renders()
+    {
+        const string md = ":::smartart type=\"process\"\n- Step 1\n- Step 2\n:::\n\nAfter.";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.Contains("class=\"smartart", html);
+        Assert.DoesNotContain(":::smartart type=\"process\"", html);
+    }
+
+    [Fact]
+    public void Preview_SmartArtWithCrlf_Renders()
+    {
+        const string md = "Intro.\r\n\r\n:::smartart type=\"hierarchy\"\r\n- CEO\r\n  - Engineering\r\n:::\r\n\r\nOutro.";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.Contains("class=\"smartart", html);
+    }
+
+    [Fact]
+    public void Preview_MultipleSmartArtBlocks_AllRender()
+    {
+        const string md = ":::smartart type=\"process\"\n- Step 1\n:::\n\nText.\n\n:::smartart type=\"cycle\"\n- A\n- B\n:::";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.Equal(2, CountOccurrences(html, "class=\"smartart\">")); // one wrapper div per block
+        Assert.DoesNotContain("<!--SMARTART:", html);
+    }
+
+    [Fact]
+    public void Preview_SmartArtInsideFenceWithBlankLine_IsNotExtracted()
+    {
+        // A fence that documents the syntax with a blank line after the opener: the blank line is
+        // inside the fence, so it must NOT trigger extraction.
+        const string md = "Example:\n\n```\n:::smartart type=\"process\"\n\n- Step 1\n:::\n```\n";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.DoesNotContain("class=\"smartart", html);
+        Assert.Contains(":::smartart type=&quot;process&quot;", html); // still visible as (escaped) code
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int count = 0, idx = 0;
+        while ((idx = haystack.IndexOf(needle, idx, System.StringComparison.Ordinal)) >= 0) { count++; idx += needle.Length; }
+        return count;
+    }
+
+    [Fact]
     public void Preview_WithoutSmartArt_HasNoSmartArtFrame()
     {
         const string md = "Just prose.\n\n- a\n- b\n";
@@ -68,9 +112,9 @@ public class SmartArtDesignFlowTests
         vm.InsertIntoDocumentCommand.Execute(null);
 
         Assert.NotNull(emitted);
-        Assert.StartsWith(":::smartart type=\"hierarchy\"", emitted);
+        Assert.Contains(":::smartart type=\"hierarchy\"", emitted);
         Assert.Contains("- CEO\n  - Engineering", emitted);
-        Assert.EndsWith(":::", emitted.TrimEnd());
+        Assert.True(emitted.TrimEnd().EndsWith(":::"), "block ends with the closing marker"); // blank-line padded so it stays a block wherever the caret is
         Assert.DoesNotContain("SmartArt_", emitted); // it inserts a block, it does not write a .docx
     }
 

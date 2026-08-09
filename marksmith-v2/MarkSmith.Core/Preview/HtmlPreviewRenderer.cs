@@ -46,7 +46,7 @@ namespace MarkSmith.Core.Preview
             return $@"
 <div class=""smartart-container"" style=""width: 100%; max-width: 800px; height: 500px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; position: relative; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.05);"">
   <div style=""position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.06); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: #333;"">
-    Layout: {WebUtility.HtmlEncode(layoutTitle)} ({layoutAlias})
+    Layout: {WebUtility.HtmlEncode(layoutTitle)} ({WebUtility.HtmlEncode(layoutAlias)})
   </div>
   {svgContent}
 </div>";

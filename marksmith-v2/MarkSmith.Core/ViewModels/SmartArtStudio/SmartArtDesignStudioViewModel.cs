@@ -329,9 +329,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         }
 
         var block = new StringBuilder();
+        // Leading/trailing blank lines: the preview + DOCX block extractors require the marker to
+        // sit on its own paragraph, so the block stays valid wherever the caret is.
+        block.AppendLine();
         block.AppendLine($":::smartart type=\"{alias}\"");
         block.AppendLine(inner);
-        block.Append(":::");
+        block.AppendLine(":::");
         InsertToDocumentRequested?.Invoke(this, block.ToString());
         StatusMessage = $"✓ Added {pkg.Title} to the document — preview & export it there.";
     }
