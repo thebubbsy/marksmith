@@ -189,7 +189,7 @@
                  collapses to a slim tab; hovering the tab re-expands it while the mouse is on it,
                  and it tucks away again the moment the pointer leaves. -->
             <Grid Grid.Column="0">
-            <Grid x:Name="LeftPane" RowSpacing="10" PointerExited="OnLeftPanePointerExited">
+            <Grid x:Name="LeftPane" RowSpacing="10" PointerExited="OnLeftPanePointerExited" PointerEntered="OnLeftPanePointerEntered">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />

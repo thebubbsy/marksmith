@@ -127,6 +127,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // moment the pointer leaves. The pre-collapse width is stashed so a custom splitter size is
     // preserved across expand/collapse cycles.
     private bool _leftPaneCollapsed;
+    private bool _pointerOverLeftPane;
     private double _leftPaneExpandedWidth = 320;
 
     // Focus mode (F11): hides the left and right panes so the editor/preview takes the full width.
@@ -277,8 +278,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ScheduleSmartArtOffer();
                 // RULE: the moment the editor has content — even just typing it in — the left
                 // Source/Files pane tucks away to regain that screen real estate for the
-                // preview/code (paste and file-pick already do this; typing should too).
-                if (!_leftPaneCollapsed) AutoCollapseLeftPane();
+                // preview/code (paste and file-pick already do this; typing should too). Never
+                // collapse while the pointer is over the drawer — the user may be mid-pick.
+                if (!_leftPaneCollapsed && !_pointerOverLeftPane) AutoCollapseLeftPane();
             }
         };
         UpdateLintIndicator();
@@ -3328,8 +3330,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 pt.Position.X <= fe.ActualWidth && pt.Position.Y <= fe.ActualHeight)
                 return;
         }
+        _pointerOverLeftPane = false;
         CollapseLeftPane();
     }
+
+    private void OnLeftPanePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
+        _pointerOverLeftPane = true;
 
 
     // ---- Markdown lint ----

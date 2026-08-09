@@ -1277,10 +1277,13 @@ public sealed partial class MarkdownHtmlService
         if (!natural) return;
         var avail = window.innerWidth;
         var next = Math.min(Math.max((avail - PAD) / natural, 0.5), 2.0);
-        if (Math.abs(next - scale) < 0.01) return; // no-op guard (also breaks observer loops)
-        scale = next;
-        canvas.style.transformOrigin = 'top center';
-        canvas.style.transform = 'scale(' + scale + ')';
+        if (Math.abs(next - scale) >= 0.01) { // no-op guard (also breaks observer loops)
+            scale = next;
+            canvas.style.transformOrigin = 'top center';
+            canvas.style.transform = 'scale(' + scale + ')';
+        }
+        // The height always tracks the (possibly grown) content so the page stays fully
+        // scrollable even when the scale itself did not change (late mermaid/images).
         var rect = canvas.getBoundingClientRect();
         document.body.style.height = (rect.top + rect.height + PAD) + 'px';
     };
