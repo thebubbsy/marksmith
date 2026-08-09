@@ -81,15 +81,24 @@ public static class SmartArtPotentialDetector
     private static string StripCodeBlocks(string md) =>
         Regex.Replace(md, @"```[\s\S]*?```|`[^`\n]*`", string.Empty);
 
-    private static (int depth, int total) Measure(AstNode node)
+    /// <summary>Pathological pastes (10k+ progressively nested lines) must never crash the app:
+    /// the AST depth is attacker-controlled, so measurement is iterative with a hard depth cap
+    /// instead of recursion (a recursive walk would overflow the UI-thread stack).</summary>
+    private const int MaxDepth = 1024;
+
+    private static (int depth, int total) Measure(AstNode root)
     {
         int depth = 0;
-        int total = 1;
-        foreach (var child in node.Children)
+        int total = 0;
+        var stack = new System.Collections.Generic.Stack<(AstNode Node, int Level)>();
+        stack.Push((root, 0));
+        while (stack.Count > 0)
         {
-            var (d, t) = Measure(child);
-            depth = Math.Max(depth, d + 1);
-            total += t;
+            var (node, level) = stack.Pop();
+            total++;
+            if (level > depth) depth = level;
+            if (level >= MaxDepth) continue; // bail below the cap — depth only matters up to ~chart size
+            foreach (var child in node.Children) stack.Push((child, level + 1));
         }
         return (depth, total);
     }

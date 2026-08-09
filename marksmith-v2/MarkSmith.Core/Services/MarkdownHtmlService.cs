@@ -1,5 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using MarkSmith.Core.AST;
+using MarkSmith.Core.Glox;
+using MarkSmith.Core.Preview;
 using MarkSmith.Models;
 using Markdig;
 using SkiaSharp;
@@ -32,6 +35,13 @@ public sealed partial class MarkdownHtmlService
 
     [GeneratedRegex("<div class=\"mermaid\">.*?</div>", RegexOptions.Singleline)]
     private static partial Regex MermaidDivRe();
+
+    // :::smartart type="…" blocks: the marker line, then nested "- " bullets (indentation =
+    // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts. A blank
+    // line (or document start) must precede the block — matching Markdig's own block semantics and
+    // keeping :::smartart inside a ```code fence from being extracted.
+    [GeneratedRegex(@"(?:\A|\n\n)\s*:::smartart\s+type=""([^""]+)""\s*\r?\n(.*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    private static partial Regex SmartArtBlockRe();
 
     [GeneratedRegex(@"^\d+\. ")]
     private static partial Regex OrderedListLineRe();
@@ -118,6 +128,19 @@ public sealed partial class MarkdownHtmlService
 
         markdown = NormalizeForRender(markdown, settings);
         markdown = MarkSmith.Core.Composer.ShapeMarkdownHtml.PreTransform(markdown);
+
+        // :::smartart blocks (the Markdig pipeline has no container extension) are lifted OUT of the
+        // markdown into HTML-comment placeholders BEFORE parsing, then each placeholder is swapped
+        // for a generated SVG diagram after the sanitize step — the SVG is our own trusted markup,
+        // never user HTML, mirroring the mermaid escape-safety model.
+        var smartArtBlocks = new List<(string Alias, string Inner)>();
+        markdown = SmartArtBlockRe().Replace(markdown, m =>
+        {
+            string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
+            smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
+            return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
+        });
+
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
@@ -235,6 +258,27 @@ public sealed partial class MarkdownHtmlService
         // with the canonical invert + hue-rotate trick (keeps real colours roughly hue-correct);
         // light themes leave it untouched. The frame around it is themed in CSS below, like .mermaid.
         var pluginDiagramSvgFilter = isDark ? "filter: invert(1) hue-rotate(180deg);" : "";
+
+        // SmartArt diagrams: swap each lifted placeholder for its generated SVG, framed like
+        // .mermaid and auto-inverted on dark themes (the renderer's art assumes a light page).
+        for (int i = 0; i < smartArtBlocks.Count; i++)
+        {
+            var (alias, inner) = smartArtBlocks[i];
+            string svg;
+            try
+            {
+                var ast = MarkdownAstParser.Parse(inner);
+                var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
+                svg = HtmlPreviewRenderer.RenderHtml(ast, pkg != null ? alias : "hierarchy", pkg?.Title ?? alias);
+            }
+            catch (Exception ex)
+            {
+                svg = "<div class=\"smartart-error\">⚠ SmartArt couldn't render: " +
+                      System.Net.WebUtility.HtmlEncode(ex.Message) + "</div>";
+            }
+            string cls = isDark ? "smartart smartart-autoinvert" : "smartart";
+            body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"{cls}\">{svg}</div>");
+        }
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -1284,6 +1328,12 @@ public sealed partial class MarkdownHtmlService
             .plugin-diagram { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
             .plugin-diagram svg { max-width: 100%; height: auto; }
             .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
+            /* SmartArt diagrams (:::smartart blocks) get the same themed frame as mermaid; on dark
+               themes the renderer's light-page artwork is auto-inverted for legibility. */
+            .smartart { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; }
+            .smartart .smartart-container { margin: 0 auto; }
+            .smartart-autoinvert .smartart-container { {{pluginDiagramSvgFilter}} }
+            .smartart-error { color: #cf222e; font-size: 13px; text-align: center; padding: 12px; }
             .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
             /* Diagrams recovered from a string literal inside a code EXAMPLE (not a real ```mermaid
                fence) sit directly under that code block instead of floating at the normal 32px

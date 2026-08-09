@@ -25,11 +25,12 @@
                 <FontIcon Glyph="&#xE8FD;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                 <TextBlock Text="SmartArt Design Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
                 <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="Structure → Native Word SmartArt" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                    <TextBlock Text="Structure → Markdown → Word SmartArt" FontSize="11" Foreground="White" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Export .docx" Click="OnExportDocxClick" />
+                <Button Content="Insert into document" Click="OnInsertIntoDocumentClick" Style="{StaticResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Add this SmartArt as Markdown to the active document — it renders in the preview and becomes native Word SmartArt on DOCX export." />
             </StackPanel>
         </Grid>
 
