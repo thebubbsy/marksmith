@@ -27,13 +27,15 @@ namespace MarkSmith.Core.Solver
             var astToPointMap = new Dictionary<string, DiagramPointSlot>();
             var presPoints = new List<DiagramPointSlot>();
 
-            // Root pres point
+            // Root pres point (native data models: presStyleIdx=0 presStyleCnt=1, node0).
             var rootPresPt = new DiagramPointSlot
             {
                 PointType = "pres",
                 PresAssocId = docPt.ModelId,
                 PresName = "diagram",
-                PresStyleCnt = 0
+                PresStyleLbl = "node0",
+                PresStyleIdx = 0,
+                PresStyleCnt = 1
             };
             solved.Points.Add(rootPresPt);
 
@@ -48,7 +50,7 @@ namespace MarkSmith.Core.Solver
 
             int nodeIndex = 0;
 
-            void ProcessNodeHierarchy(AstNode astNode, DiagramPointSlot parentDataPt)
+            void ProcessNodeHierarchy(AstNode astNode, DiagramPointSlot parentDataPt, DiagramPointSlot parentPresPt, int level, int siblingOrdinal, int siblingCount)
             {
                 string connGuid = Guid.NewGuid().ToString("B").ToUpper();
 
@@ -93,15 +95,22 @@ namespace MarkSmith.Core.Solver
                     SibTransId = sibTransPt.ModelId
                 });
 
-                // Presentation Point for data node
+                // Presentation Point for data node — the native Office coloring contract:
+                //   presStyleLbl = "node{level}"  -> per DEPTH LEVEL (node0 at the root, node1 for
+                //                                    level-1, node2 for level-2, ... exactly what
+                //                                    native data models like orgChart1 emit)
+                //   presStyleIdx  = ordinal within this sibling group (0..n-1)
+                //   presStyleCnt  = sibling group size
+                // Both match the authoritative Office samples in the native corpus, so Word paints
+                // vibrant per-level + per-sibling colors instead of uniform grayscale.
                 var presPt = new DiagramPointSlot
                 {
                     PointType = "pres",
                     PresAssocId = dataPt.ModelId,
                     PresName = "node",
-                    PresStyleLbl = "node1",
-                    PresStyleIdx = nodeIndex,
-                    PresStyleCnt = dataNodes.Count
+                    PresStyleLbl = "node" + Math.Min(level, 4),
+                    PresStyleIdx = siblingOrdinal,
+                    PresStyleCnt = siblingCount
                 };
                 solved.Points.Add(presPt);
                 presPoints.Add(presPt);
@@ -115,11 +124,12 @@ namespace MarkSmith.Core.Solver
                     PresId = layoutGlox.UniqueId
                 });
 
-                // Connect parent pres -> child pres
+                // Connect parent pres -> child pres (chained parent→child, like native data
+                // models — the root pres is the parent of level-0 nodes only).
                 solved.Connections.Add(new DiagramConnectionSlot
                 {
                     CxnType = "presParOf",
-                    SrcId = rootPresPt.ModelId,
+                    SrcId = parentPresPt.ModelId,
                     DestId = presPt.ModelId,
                     SrcOrd = nodeIndex,
                     DestOrd = 0,
@@ -128,16 +138,16 @@ namespace MarkSmith.Core.Solver
 
                 nodeIndex++;
 
-                // Recurse children
-                foreach (var child in astNode.Children)
+                // Recurse children (per-sibling ordinals + deeper level, pres chain parent→child)
+                for (int i = 0; i < astNode.Children.Count; i++)
                 {
-                    ProcessNodeHierarchy(child, dataPt);
+                    ProcessNodeHierarchy(astNode.Children[i], dataPt, presPt, level + 1, i, astNode.Children.Count);
                 }
             }
 
-            foreach (var node in dataNodes)
+            for (int i = 0; i < dataNodes.Count; i++)
             {
-                ProcessNodeHierarchy(node, docPt);
+                ProcessNodeHierarchy(dataNodes[i], docPt, rootPresPt, 0, i, dataNodes.Count);
             }
 
             return solved;

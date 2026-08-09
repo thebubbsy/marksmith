@@ -36,11 +36,11 @@ namespace MarkSmith.Tests
             Console.Write("Testing URN Resolver & Zero Fallback Guarantee... ");
 
             var resolver = new UrnResolver();
-            var glox = GloxExtractor.ExtractFromXmlString(@"<dgm:layoutDef xmlns:dgm=""http://schemas.openxmlformats.org/drawingml/2006/diagram"" uniqueId=""urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1"" title=""Hierarchy""><dgm:layoutNode name=""diagram""/></dgm:layoutDef>");
+            var glox = GloxExtractor.ExtractFromXmlString(@"<dgm:layoutDef xmlns:dgm=""http://schemas.openxmlformats.org/drawingml/2006/diagram"" uniqueId=""urn:microsoft.com/office/officeart/2005/8/layout/orgChart1"" title=""Organization Chart""><dgm:layoutNode name=""diagram""/></dgm:layoutDef>");
             resolver.RegisterLayout(glox);
 
             var resolved = resolver.Resolve("hierarchy");
-            if (resolved.UniqueId != "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1")
+            if (resolved.UniqueId != "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1")
             {
                 throw new Exception("URN resolution returned incorrect uniqueId.");
             }

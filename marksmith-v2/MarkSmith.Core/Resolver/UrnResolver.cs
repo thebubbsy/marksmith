@@ -23,17 +23,22 @@ namespace MarkSmith.Core.Resolver
 
         private void RegisterDefaultAliases()
         {
-            _aliasMap["hierarchy"] = "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1";
-            _aliasMap["orgchart"] = "urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1";
+            // Authoritative Microsoft Office URNs — mirrors SmartArtLayoutCatalog.RegisterAliases
+            // so any pipeline wired through UrnResolver resolves the same layouts as the catalog.
+            _aliasMap["hierarchy"] = "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1";
+            _aliasMap["orgchart"] = "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1";
+            _aliasMap["org"] = "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1";
+            _aliasMap["tree"] = "urn:microsoft.com/office/officeart/2005/8/layout/orgChart1";
             _aliasMap["cycle"] = "urn:microsoft.com/office/officeart/2005/8/layout/cycle1";
-            _aliasMap["picturelist"] = "urn:microsoft.com/office/officeart/2005/8/layout/pictureList1";
-            _aliasMap["picture"] = "urn:microsoft.com/office/officeart/2005/8/layout/pictureList1";
+            _aliasMap["picturelist"] = "urn:microsoft.com/office/officeart/2005/8/layout/pList1";
+            _aliasMap["picture"] = "urn:microsoft.com/office/officeart/2005/8/layout/pList1";
             _aliasMap["process"] = "urn:microsoft.com/office/officeart/2005/8/layout/process1";
             _aliasMap["list"] = "urn:microsoft.com/office/officeart/2005/8/layout/default";
             _aliasMap["default"] = "urn:microsoft.com/office/officeart/2005/8/layout/default";
             _aliasMap["matrix"] = "urn:microsoft.com/office/officeart/2005/8/layout/matrix1";
             _aliasMap["pyramid"] = "urn:microsoft.com/office/officeart/2005/8/layout/pyramid1";
-            _aliasMap["relationship"] = "urn:microsoft.com/office/officeart/2005/8/layout/relationship1";
+            _aliasMap["relationship"] = "urn:microsoft.com/office/officeart/2009/3/layout/CircleRelationship";
+            _aliasMap["composite"] = "urn:microsoft.com/office/officeart/2009/3/layout/CircleRelationship";
             _aliasMap["venn"] = "urn:microsoft.com/office/officeart/2005/8/layout/venn1";
         }
 

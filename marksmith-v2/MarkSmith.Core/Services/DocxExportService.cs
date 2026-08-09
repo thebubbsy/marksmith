@@ -1687,6 +1687,17 @@ public sealed class DocxExportService
                 var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
                 ast.RequestedLayout = layoutType;
 
+                // SmartArt colors resolve against the document theme's accents (accent1..accent6).
+                // Always ship the standard Office theme so exports never fall back to Word's
+                // grayscale defaults — added once, no-op if the document already has a theme.
+                var themeXml = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.ThemeXml;
+                if (!string.IsNullOrWhiteSpace(themeXml) && ctx.MainPart.ThemePart == null)
+                {
+                    var themePart = ctx.MainPart.AddNewPart<DocumentFormat.OpenXml.Packaging.ThemePart>();
+                    using var themeWriter = new System.IO.StreamWriter(themePart.GetStream(System.IO.FileMode.Create));
+                    themeWriter.Write(themeXml);
+                }
+
                 // Resolve the REAL embedded .glox (layout + quick style + colors) for this
                 // layout type. Word renders geometry from the layout's algorithm, so we must
                 // embed the genuine package rather than a hand-built stub. Falls back to the
