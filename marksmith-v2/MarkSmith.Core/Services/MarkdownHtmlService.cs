@@ -1314,31 +1314,35 @@ public sealed partial class MarkdownHtmlService
             // img.decode()/load/error, and layout settle via double requestAnimationFrame. No sleeps.
             window.marksmithWaitForExportReady = function(checkMermaid) {
                 return new Promise((resolve) => {
-                    const done = () => resolve(true);
                     let mDone = !checkMermaid, iDone = false;
-                    const tryDone = () => { if (mDone && iDone) requestAnimationFrame(() => requestAnimationFrame(done)); };
+                    let settled = false;
+                    const finish = () => {
+                        if (settled) return; // idempotent — only one resolution path wins
+                        settled = true;
+                        requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+                    };
+                    const tryDone = () => { if (mDone && iDone) finish(); };
 
                     if (checkMermaid) {
                         const check = () => {
                             const nodes = document.querySelectorAll('.mermaid');
-                            if (!nodes.length || Array.from(nodes).every(n => n.hasAttribute('data-processed'))) {
-                                mDone = true;
-                                tryDone();
-                                return true;
-                            }
-                            return false;
+                            mDone = !nodes.length || Array.from(nodes).every(n => n.hasAttribute('data-processed'));
+                            tryDone();
+                            return mDone;
                         };
                         const observer = new MutationObserver(check);
                         observer.observe(document.body, { childList: true, subtree: true });
                         check();
-                        setTimeout(() => { observer.disconnect(); }, 5000);
-                    };
+                        // Mermaid render is async (startOnLoad) — if it takes longer than 5s,
+                        // stop waiting (and stop scanning) rather than hanging the export.
+                        setTimeout(() => { mDone = true; tryDone(); observer.disconnect(); }, 5000);
+                    }
 
-                    const waitForImages = (callback) => {
+                    const waitForImages = () => {
                         const imgs = Array.from(document.images);
-                        if (imgs.length == 0) { callback(); return; }
+                        if (imgs.length == 0) { iDone = true; tryDone(); return; }
                         let remaining = imgs.length;
-                        const onImgDone = () => { remaining--; if (remaining <= 0) callback(); };
+                        const onImgDone = () => { remaining--; if (remaining <= 0) { iDone = true; tryDone(); } };
                         imgs.forEach(img => {
                             if (img.complete && img.naturalHeight > 0) { onImgDone(); }
                             else if (typeof img.decode == 'function') { img.decode().then(onImgDone).catch(onImgDone); }
@@ -1346,14 +1350,10 @@ public sealed partial class MarkdownHtmlService
                         });
                     };
 
-                    const settleLayout = () => {
-                        requestAnimationFrame(() => { requestAnimationFrame(() => { resolve("true"); }); });
-                    };
-
-                    // Mermaid completion is handled above by the MutationObserver gate (mDone);
-                    // images then layout settle finish the readiness contract. Self-contained —
-                    // no reliance on host-scope helpers.
-                    waitForImages(() => { settleLayout(); });
+                    waitForImages();
+                    // Hard safety valve: readiness must never hang (covers a cached-but-failed
+                    // image that never fires load/error, and any missed event).
+                    setTimeout(() => finish(), 10000);
                 });
             };
             </script>
