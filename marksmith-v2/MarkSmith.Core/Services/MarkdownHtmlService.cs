@@ -38,10 +38,15 @@ public sealed partial class MarkdownHtmlService
 
     // :::smartart type="…" blocks: the marker line, then nested "- " bullets (indentation =
     // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts. A blank
-    // line (or document start) must precede the block — matching Markdig's own block semantics and
-    // keeping :::smartart inside a ```code fence from being extracted.
-    [GeneratedRegex(@"(?:\A|\n\n)\s*:::smartart\s+type=""([^""]+)""\s*\r?\n(.*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    // line (or document start, allowing a leading BOM) must precede the block — matching Markdig's
+    // own block semantics; fenced-code spans are excluded separately via FencedSpans().
+    [GeneratedRegex(@"(?:\A\uFEFF?|\n\n)\s*:::smartart\s+type=""([^""]+)""\s*\r?\n(.*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex SmartArtBlockRe();
+
+    // Fenced code spans (```…``` or ~~~…~~~, same opener/closer) — smartart markers inside these
+    // must never be lifted out, even when a blank line sits inside the fence.
+    [GeneratedRegex(@"^[ \t]*(```+|~~~+)[^\n]*\n[\s\S]*?\n[ \t]*\1\s*$", RegexOptions.Multiline)]
+    private static partial Regex FenceSpanRe();
 
     [GeneratedRegex(@"^\d+\. ")]
     private static partial Regex OrderedListLineRe();
@@ -104,6 +109,16 @@ public sealed partial class MarkdownHtmlService
         @"^(graph\s|flowchart\s|sequenceDiagram\b|classDiagram\b|stateDiagram(-v2)?\b|erDiagram\b|journey\b|gantt\b|pie\b|quadrantChart\b|requirementDiagram\b|gitGraph\b|mindmap\b|timeline\b|C4(Context|Container|Component|Dynamic|Deployment)\b|sankey(-beta)?\b|block-beta\b|packet-beta\b|kanban\b|radar(-beta)?\b|xychart-beta\b|zenuml\b)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static List<(int Start, int End)> FencedSpans(string markdown)
+    {
+        var spans = new List<(int, int)>();
+        foreach (Match m in FenceSpanRe().Matches(markdown ?? ""))
+        {
+            spans.Add((m.Index, m.Index + m.Length));
+        }
+        return spans;
+    }
+
     private static string NormalizeForRender(string markdown, AppSettings settings)
     {
         markdown = TextNormalizer.Newlines(markdown);
@@ -132,10 +147,16 @@ public sealed partial class MarkdownHtmlService
         // :::smartart blocks (the Markdig pipeline has no container extension) are lifted OUT of the
         // markdown into HTML-comment placeholders BEFORE parsing, then each placeholder is swapped
         // for a generated SVG diagram after the sanitize step — the SVG is our own trusted markup,
-        // never user HTML, mirroring the mermaid escape-safety model.
+        // never user HTML, mirroring the mermaid escape-safety model. Fenced code spans are excluded
+        // so a code sample merely SHOWING the syntax is never lifted.
         var smartArtBlocks = new List<(string Alias, string Inner)>();
+        var smartArtFences = FencedSpans(markdown);
         markdown = SmartArtBlockRe().Replace(markdown, m =>
         {
+            foreach (var f in smartArtFences)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
+            }
             string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
             smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
