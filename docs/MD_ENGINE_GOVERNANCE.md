@@ -16,8 +16,9 @@ Marksmith renders the same markdown through **two separate pipelines** that must
    `AdmonitionNormalizer` (Obsidian callouts, Notion/MkDocs/Docusaurus forms), then
    `ShapeMarkdownHtml.PreTransform` (the `:::shapes` MLShape DSL → inline SVG).
 2. **Feature detection** — `AdvancedFeaturePipeline` (`Detectors.cs`) scans for the `:::`
-   block wrappers (smartart, workflow, tabs, chart, columns, timeline, canvas, shapes). Each
-   valid block is replaced with a `<!-- MARKSMITH_FEATURE:<id> -->` marker so the dispatch
+   block wrappers (smartart, workflow, tabs, chart, columns, timeline, canvas, shapes) and
+   yields a feature node per valid block; `DocxExportService` serializes each node into a
+   `<!-- MARKSMITH_FEATURE:<id> -->` marker (`DocxExportService.cs:147/306`) so the dispatch
    stage knows what to emit.
 3. **Markdig AST** — `DocxExportService` builds its `MarkdownPipeline` (`.UseAdvancedExtensions()`,
    math, alerts, footnotes, tables, task lists) and dispatches blocks: headings, code, math,
@@ -50,7 +51,7 @@ without the other is a bug.
 
 | Wrapper | Meaning | Handled by |
 |---|---|---|
-| `` ```lang `` / `` ``` `` | Fenced code. `language-mermaid` → preview diagram div; `plantuml` / `d2` / `sequence` → diagram engines; `highlight.js` in preview. No language = bare fence. | Markdig code blocks; `MarkdownHtmlService` (fence → div, line ~170); plugin engines; `InsertSnippetBuilder.Fenced` |
+| `` ```lang `` / `` ``` `` | Fenced code. `language-mermaid` → preview diagram div; `plantuml` / `d2` / `sequence` → diagram engines; `highlight.js` in preview. No language = bare fence. | Markdig code blocks; `MarkdownHtmlService` (fence → div, line ~179); plugin engines; `InsertSnippetBuilder.CodeBlock` |
 | `:::smartart type="hierarchy\|process\|cycle\|…"` + nested `- ` bullets + `:::` | Native Word SmartArt / preview SVG diagram. Indentation = hierarchy depth. | `Detectors.cs:172`, `DocxExportService.RenderNativeSmartArt`, `MarkdownHtmlService` (preview SVG), `SmartArtDesignStudioViewModel.InsertIntoDocument`, `InsertSnippetBuilder.SmartArt` |
 | `:::workflow` … `:::` | Mermaid-based workflow diagram | `Detectors.cs:281`, AdvancedFeaturePipeline |
 | `:::tabs` + `=== "Tab label"` … `:::` | Tabbed content (Word-ribbon styled in export; ARIA tabs in preview) | `Detectors.cs:353`, `DialectNormalizer.cs:62`, task 21 |
