@@ -100,11 +100,13 @@ public class PreviewShellCacheTests
         Assert.Contains("<!--ms-canvas-start-->", html);
         Assert.Contains("<!--ms-canvas-end-->", html);
         // The export-readiness contract script must be present AND syntactically complete
-        // (regression: a pre-existing stray "});" broke the whole <script>, so the readiness
-        // promise could never resolve).
+        // (regression: a pre-existing stray "});" broke the whole <script>; a second defect
+        // called the undefined host-scope waitForMermaidIfNeeded, so the readiness promise
+        // rejected instantly and exports never waited for mermaid/images).
         Assert.Contains("window.marksmithWaitForExportReady = function", html);
         Assert.Contains("new MutationObserver(check)", html);
-        Assert.DoesNotContain("});\n                        setTimeout", html);
+        Assert.Contains("waitForImages(() => { settleLayout(); });", html);
+        Assert.DoesNotContain("waitForMermaidIfNeeded", html);
     }
 
     private static int Count(string haystack, string needle)
