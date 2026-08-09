@@ -51,7 +51,10 @@ public class SmartArtLayoutCatalogTests
     public void Catalog_LoadsAllEmbeddedGlox()
     {
         Assert.NotNull(SmartArtLayoutCatalog.Shared);
-        Assert.Equal(9, SmartArtLayoutCatalog.Shared.All.Count);
+        // The full 176-layout native Office corpus, plus the 9 legacy alias-named packages
+        // (some share a URN with a corpus file, so the effective unique count is 176..185).
+        Assert.True(SmartArtLayoutCatalog.Shared.All.Count >= 176,
+            $"expected >= 176 native layouts, got {SmartArtLayoutCatalog.Shared.All.Count}");
         Assert.All(SmartArtLayoutCatalog.Shared.All, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.UniqueId), "package must carry a UniqueId");
@@ -100,7 +103,7 @@ public class SmartArtLayoutCatalogTests
 
         Assert.Equal(7, urns.Distinct().Count());
         Assert.Contains("urn:microsoft.com/office/officeart/2005/8/layout/cycle1", urns);
-        Assert.Contains("urn:microsoft.com/office/officeart/2005/8/layout/hierarchy1", urns);
+        Assert.Contains("urn:microsoft.com/office/officeart/2005/8/layout/orgChart1", urns);
     }
 
     [Theory]

@@ -116,8 +116,20 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         MarkdownText = markdown; // triggers RebuildTree + UpdatePreview
         var item = _allLayouts.FirstOrDefault(l =>
-                       string.Equals(l.Alias, layoutAlias, StringComparison.OrdinalIgnoreCase))
-                   ?? Layouts.FirstOrDefault();
+                       string.Equals(l.Alias, layoutAlias, StringComparison.OrdinalIgnoreCase));
+        if (item is null && !string.IsNullOrWhiteSpace(layoutAlias))
+        {
+            // The suggestion flow passes family aliases ("hierarchy"), but gallery items carry the
+            // authoritative URN tail ("orgChart1") — bridge them through the catalog.
+            var pkg = SmartArtLayoutCatalog.Shared.TryResolve(layoutAlias);
+            if (pkg != null)
+            {
+                string tail = Tail(pkg.UniqueId);
+                item = _allLayouts.FirstOrDefault(l =>
+                    string.Equals(l.Alias, tail, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        item ??= Layouts.FirstOrDefault();
         if (item is not null) SelectedLayout = item; // triggers UpdatePreview
     }
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
@@ -128,15 +140,16 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         _allLayouts.Clear();
         var catalog = SmartArtLayoutCatalog.Shared;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string[] aliases = { "hierarchy", "orgchart", "process", "cycle", "matrix",
-                             "pyramid", "venn", "picturelist", "relationship", "list" };
-        foreach (var alias in aliases)
+
+        // The full 176-layout native Office corpus: every embedded package is a gallery entry
+        // (searchable), with the friendly alias families pinned at the top.
+        foreach (var pkg in catalog.All.OrderBy(p => Tail(p.UniqueId), StringComparer.OrdinalIgnoreCase))
         {
-            var pkg = catalog.TryResolve(alias);
-            if (pkg == null || !seen.Add(pkg.UniqueId)) continue;
+            string alias = Tail(pkg.UniqueId);
+            if (string.IsNullOrWhiteSpace(alias) || !seen.Add(pkg.UniqueId)) continue;
             _allLayouts.Add(new StudioLayoutItem
             {
-                Name = string.IsNullOrWhiteSpace(pkg.Title) ? Tail(pkg.UniqueId) : pkg.Title,
+                Name = string.IsNullOrWhiteSpace(pkg.Title) ? alias : pkg.Title,
                 Alias = alias,
                 Category = GuessCategory(alias, pkg)
             });

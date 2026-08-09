@@ -138,14 +138,16 @@ namespace MarkSmith.Core.Glox
         private void RegisterAliases()
         {
             // Explicit alias map so a friendly name (and the designer's palette/ledger
-            // aliases) always resolves to a real package. Alias -> canonical URN suffix.
+            // aliases) always resolves to a real package. Alias -> authoritative Microsoft
+            // Office URN tail (the 176 native layouts from the corpus carry these), e.g.
+            // "hierarchy" -> urn:microsoft.com/office/officeart/2005/8/layout/orgChart1.
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["hierarchy"] = "hierarchy1",
-                ["orgchart"]  = "hierarchy1",
-                ["org"]       = "hierarchy1",
-                ["tree"]      = "hierarchy1",
-                ["hier"]      = "hierarchy1",
+                ["hierarchy"] = "orgChart1",
+                ["orgchart"]  = "orgChart1",
+                ["org"]       = "orgChart1",
+                ["tree"]      = "orgChart1",
+                ["hier"]      = "orgChart1",
 
                 ["process"]      = "process1",
                 ["step_process"] = "process1",
@@ -166,8 +168,8 @@ namespace MarkSmith.Core.Glox
                 ["picture"]     = "pList1",
                 ["mosaic"]      = "pList1",
 
-                ["relationship"] = "circlerelationship",
-                ["composite"]    = "circlerelationship",
+                ["relationship"] = "CircleRelationship",
+                ["composite"]    = "CircleRelationship",
 
                 ["list"]    = "default",
                 ["default"] = "default",
