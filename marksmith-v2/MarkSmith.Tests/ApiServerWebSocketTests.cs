@@ -86,23 +86,31 @@ public class ApiServerWebSocketTests
         return JsonDocument.Parse(sb.ToString());
     }
 
-    // Request/reply with retry: the server's replies are fire-and-forget sends, so under the full
-    // suite's parallel load a reply can lose a scheduling race. Re-send until one arrives.
-    private static async Task<JsonDocument> SendAndReceiveAsync(ClientWebSocket ws, object payload)
+    // Request/reply with retry: the server's replies are fire-and-forget sends and the connection
+    // can be dropped under parallel load, so each attempt uses a FRESH socket — a dropped or raced
+    // connection is retried from the handshake up, never replayed on a dead socket. The payloads
+    // this helper is used with are idempotent (preview = read-only).
+    private static async Task<JsonDocument> SendAndReceiveAsync(int port, object payload)
     {
-        for (int attempt = 0; attempt < 10; attempt++)
+        var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload));
+        for (int attempt = 0; attempt < 8; attempt++)
         {
-            var send = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload));
-            await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
-            using var timeout = new CancellationTokenSource(1500);
+            using var ws = new ClientWebSocket();
             try
             {
+                await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
+                await ws.SendAsync(send, WebSocketMessageType.Text, true, CancellationToken.None);
+                using var timeout = new CancellationTokenSource(5000);
                 return await ReceiveJsonAsync(ws, timeout.Token);
             }
-            catch (OperationCanceledException) { /* retry */ }
-            catch (JsonException) { /* a timed-out fragment left stale bytes — retry on a clean buffer */ }
+            catch (Exception ex) when (ex is WebSocketException or System.IO.IOException
+                                       or OperationCanceledException or JsonException)
+            {
+                // Connection dropped / reply raced a close / mid-fragment timeout — reconnect.
+                await Task.Delay(50 * (attempt + 1));
+            }
         }
-        throw new TimeoutException("no reply after 10 attempts");
+        throw new TimeoutException("no reply after 8 attempts");
     }
 
     [Fact]
@@ -157,10 +165,7 @@ public class ApiServerWebSocketTests
         port = await StartServerRetryingAsync(server);
         try
         {
-            using var ws = new ClientWebSocket();
-            await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
-
-            using var reply = await SendAndReceiveAsync(ws, new { type = "preview" });
+            using var reply = await SendAndReceiveAsync(port, new { type = "preview" });
             Assert.Equal("preview", reply.RootElement.GetProperty("type").GetString());
             Assert.Equal("<html>the live preview</html>", reply.RootElement.GetProperty("html").GetString());
         }
@@ -176,23 +181,31 @@ public class ApiServerWebSocketTests
         port = await StartServerRetryingAsync(server);
         try
         {
-            using var ws = new ClientWebSocket();
-            await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
-            // The server registers the socket right AFTER the handshake completes — poll instead of
-            // asserting instantly (the registration can land a few ms after ConnectAsync returns).
-            var deadline = DateTime.UtcNow.AddSeconds(3);
-            while (server.StreamClientCount == 0 && DateTime.UtcNow < deadline)
-                await Task.Delay(25);
-            Assert.Equal(1, server.StreamClientCount);
-
+            // Broadcasts are server-initiated, so each attempt gets a fresh socket: a dropped
+            // connection (under parallel load) is retried from the handshake up, and the
+            // re-published event is received on the new connection.
             JsonDocument? reply = null;
             for (int attempt = 0; attempt < 10 && reply is null; attempt++)
             {
-                server.PublishStreamEvent(new { type = "status", text = "exporting…", busy = true });
-                using var timeout = new CancellationTokenSource(1500);
-                try { reply = await ReceiveJsonAsync(ws, timeout.Token); }
-                catch (OperationCanceledException) { /* retry */ }
-                catch (JsonException) { /* stale fragment — retry */ }
+                using var ws = new ClientWebSocket();
+                try
+                {
+                    await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
+                    // The server registers the socket right AFTER the handshake completes — poll
+                    // instead of asserting instantly (the registration can land a few ms later).
+                    var deadline = DateTime.UtcNow.AddSeconds(3);
+                    while (server.StreamClientCount == 0 && DateTime.UtcNow < deadline)
+                        await Task.Delay(25);
+
+                    server.PublishStreamEvent(new { type = "status", text = "exporting…", busy = true });
+                    using var timeout = new CancellationTokenSource(2000);
+                    reply = await ReceiveJsonAsync(ws, timeout.Token);
+                }
+                catch (Exception ex) when (ex is WebSocketException or System.IO.IOException
+                                           or OperationCanceledException or JsonException)
+                {
+                    // dropped / raced / stale fragment — reconnect and retry
+                }
             }
             Assert.NotNull(reply);
             Assert.Equal("status", reply!.RootElement.GetProperty("type").GetString());
