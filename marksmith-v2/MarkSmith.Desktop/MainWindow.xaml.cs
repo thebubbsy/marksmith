@@ -275,6 +275,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             else
             {
                 ScheduleSmartArtOffer();
+                // RULE: the moment the editor has content — even just typing it in — the left
+                // Source/Files pane tucks away to regain that screen real estate for the
+                // preview/code (paste and file-pick already do this; typing should too).
+                if (!_leftPaneCollapsed) AutoCollapseLeftPane();
             }
         };
         UpdateLintIndicator();

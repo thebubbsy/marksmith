@@ -1259,6 +1259,43 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
+        // Fit-to-width (LIVE preview only): the page is laid out at a fixed content width (A4
+        // fidelity), but the live preview should USE the whole pane — when the left drawer
+        // auto-closes (or the window widens) the page zooms to fill the space, exactly like
+        // Word's zoom-to-fit. A transform keeps the page layout intact; the print/export CSS
+        // overrides the scale, so DOCX/PDF output is unaffected.
+        var fitWidthScript = interactive ? """
+<script>
+(function () {
+    // marksmith-fit-width
+    var canvas = document.getElementById('canvas');
+    if (!canvas) return;
+    var PAD = 24; // breathing room on each side
+    var scale = 0;
+    var fit = function () {
+        var natural = canvas.offsetWidth; // fixed content width (px, box-sizing: border-box)
+        if (!natural) return;
+        var avail = window.innerWidth;
+        var next = Math.min(Math.max((avail - PAD) / natural, 0.5), 2.0);
+        if (Math.abs(next - scale) < 0.01) return; // no-op guard (also breaks observer loops)
+        scale = next;
+        canvas.style.transformOrigin = 'top center';
+        canvas.style.transform = 'scale(' + scale + ')';
+        var rect = canvas.getBoundingClientRect();
+        document.body.style.height = (rect.top + rect.height + PAD) + 'px';
+    };
+    var timer = 0;
+    var schedule = function () { clearTimeout(timer); timer = setTimeout(fit, 60); };
+    window.addEventListener('resize', schedule);
+    window.addEventListener('load', schedule);
+    if (document.readyState !== 'loading') schedule();
+    else document.addEventListener('DOMContentLoaded', schedule);
+    // Late-rendered content (mermaid SVGs, images) changes the canvas size — re-fit then too.
+    new MutationObserver(schedule).observe(canvas, { childList: true, subtree: true });
+})();
+</script>
+""" : "";
+
         return $$"""
             <!DOCTYPE html><html{{htmlAttrs}}><head><meta charset="UTF-8">
             <script>
@@ -1316,8 +1353,8 @@ public sealed partial class MarkdownHtmlService
             #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
               @page { margin: 0 !important; }
-              html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; }
+              html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; height: auto !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
@@ -1500,7 +1537,7 @@ public sealed partial class MarkdownHtmlService
                the clear centre of the shape (the masked rim was otherwise unreadable). */
             .portal-source { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: #dbe6f2; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; line-height: 20px; padding: 80px; white-space: pre; overflow: auto; caret-color: #58a6ff; }
             .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
-            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}</body></html>
+            </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->{{attribution}}{{toc}}{{body}}{{footer}}<!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}{{fitWidthScript}}</body></html>
             """;
     }
 
