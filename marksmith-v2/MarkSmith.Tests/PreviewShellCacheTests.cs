@@ -57,4 +57,64 @@ public class PreviewShellCacheTests
         Assert.Contains("marksmith-fit-width", live);   // interactive-only script
         Assert.DoesNotContain("marksmith-fit-width", staticHtml);
     }
+
+    [Fact]
+    public void Render_ContentWidthChange_ProducesDifferentShell()
+    {
+        const string md = "Hello.\n";
+        var narrow = new AppSettings { ContentWidth = 700 };
+        var wide = new AppSettings { ContentWidth = 900 };
+
+        var htmlNarrow = new MarkdownHtmlService().Render(md, narrow, ThemeA);
+        var htmlWide = new MarkdownHtmlService().Render(md, wide, ThemeA);
+
+        Assert.NotEqual(htmlNarrow, htmlWide);
+        Assert.Contains("width: 700px", htmlNarrow);
+        Assert.Contains("width: 900px", htmlWide);
+    }
+
+    [Fact]
+    public void Render_NoEmojiChange_ProducesDifferentShell()
+    {
+        const string md = "Hello 😀.\n";
+        var withEmoji = new AppSettings { NoEmoji = false };
+        var withoutEmoji = new AppSettings { NoEmoji = true };
+
+        var htmlWith = new MarkdownHtmlService().Render(md, withEmoji, ThemeA);
+        var htmlWithout = new MarkdownHtmlService().Render(md, withoutEmoji, ThemeA);
+
+        Assert.NotEqual(htmlWith, htmlWithout);
+        Assert.Contains("😀", htmlWith);
+        Assert.DoesNotContain("😀", htmlWithout);
+    }
+
+    [Fact]
+    public void Render_HasBalancedMarkupAndExportReadinessScript()
+    {
+        const string md = "# Heading\n\nBody with `code` and a [link](https://example.com).\n";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), ThemeA);
+
+        Assert.Equal(Count(html, "<html"), Count(html, "</html>"));
+        Assert.Equal(Count(html, "<body"), Count(html, "</body>"));
+        Assert.Contains("<div id=\"canvas\">", html);
+        Assert.Contains("<!--ms-canvas-start-->", html);
+        Assert.Contains("<!--ms-canvas-end-->", html);
+        // The export-readiness contract script must be present AND syntactically complete
+        // (regression: a pre-existing stray "});" broke the whole <script>, so the readiness
+        // promise could never resolve).
+        Assert.Contains("window.marksmithWaitForExportReady = function", html);
+        Assert.Contains("new MutationObserver(check)", html);
+        Assert.DoesNotContain("});\n                        setTimeout", html);
+    }
+
+    private static int Count(string haystack, string needle)
+    {
+        int count = 0, idx = 0;
+        while ((idx = haystack.IndexOf(needle, idx, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx += needle.Length;
+        }
+        return count;
+    }
 }
