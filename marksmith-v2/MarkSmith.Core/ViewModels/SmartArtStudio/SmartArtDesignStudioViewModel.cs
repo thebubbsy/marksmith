@@ -18,48 +18,35 @@ public class StudioLayoutItem
     public string Category { get; set; } = string.Empty;
 }
 
+/// <summary>One node of the hierarchy the user is designing. The outline editor drives this
+/// tree; every mutation flows back to Markdown (the canonical form the preview and DOCX
+/// export consume) via SyncTreeToMarkdown.</summary>
 public partial class StudioNodeViewModel : ObservableObject
 {
-    [ObservableProperty]
-    private string _id = Guid.NewGuid().ToString("N")[..8];
+    public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
 
     [ObservableProperty]
-    private string _text = "Node";
-
-    [ObservableProperty]
-    private double _x;
-
-    [ObservableProperty]
-    private double _y;
-
-    [ObservableProperty]
-    private int _level;
+    private string _text = "New Node";
 
     [ObservableProperty]
     private bool _isSelected;
 
-    public string ParentId { get; set; } = string.Empty;
+    [ObservableProperty]
+    private bool _isEditing;
+
+    [ObservableProperty]
+    private int _depth;
+
+    public StudioNodeViewModel? Parent { get; set; }
     public ObservableCollection<StudioNodeViewModel> Children { get; } = new();
 }
 
-public partial class StudioConnectorViewModel : ObservableObject
-{
-    [ObservableProperty]
-    private double _x1;
-
-    [ObservableProperty]
-    private double _y1;
-
-    [ObservableProperty]
-    private double _x2;
-
-    [ObservableProperty]
-    private double _y2;
-}
-
 /// <summary>
-/// SmartArt Design Studio — canvas-first authoring of the canonical AST with a live
-/// Word-fidelity pipeline. Brand-new UI; reuses the engine (catalog/solver/generator).
+/// SmartArt Design Studio — outline-first authoring of the hierarchy. This is the DESIGN
+/// surface: select a node and add children/siblings, rename inline (F2 / double-click),
+/// delete, reorder, promote/demote — every operation is undoable (Ctrl+Z/Y) and lands in
+/// the Markdown, which the live preview renders and the DOCX export turns into native Word
+/// SmartArt. The backend (catalog/solver/generator) is untouched by this UI.
 /// </summary>
 public partial class SmartArtDesignStudioViewModel : ObservableObject
 {
@@ -81,16 +68,20 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<StudioNodeViewModel> _rootNodes = new();
 
+    /// <summary>Depth-first flatten of the tree — the rows the outline editor binds to.</summary>
     [ObservableProperty]
-    private ObservableCollection<StudioNodeViewModel> _displayNodes = new();
-
-    [ObservableProperty]
-    private ObservableCollection<StudioConnectorViewModel> _connectors = new();
+    private ObservableCollection<StudioNodeViewModel> _outlineRows = new();
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
     private readonly List<StudioLayoutItem> _allLayouts = new();
+
+    private readonly List<string> _undoStack = new();
+    private readonly List<string> _redoStack = new();
+    private const int MaxUndo = 50;
+    private string _editSnapshot = "";
+    private StudioNodeViewModel? _editingNode;
 
     public event EventHandler? PreviewHtmlChanged;
 
@@ -99,6 +90,28 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// hierarchy), which the main preview renders and the DOCX export turns into native Word
     /// SmartArt. The studio itself never writes a document — the document flow owns output.</summary>
     public event EventHandler<string>? InsertToDocumentRequested;
+
+    private StudioNodeViewModel? _selectedNode;
+
+    public StudioNodeViewModel? SelectedNode
+    {
+        get => _selectedNode;
+        private set
+        {
+            if (ReferenceEquals(_selectedNode, value)) return;
+            _selectedNode = value;
+            foreach (var row in OutlineRows)
+            {
+                row.IsSelected = ReferenceEquals(row, value);
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSelection));
+        }
+    }
+
+    public bool HasSelection => SelectedNode is not null;
+    public bool CanUndo => _undoStack.Count > 0;
+    public bool CanRedo => _redoStack.Count > 0;
 
     public SmartArtDesignStudioViewModel()
     {
@@ -132,6 +145,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         item ??= Layouts.FirstOrDefault();
         if (item is not null) SelectedLayout = item; // triggers UpdatePreview
     }
+
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
     partial void OnSearchQueryChanged(string value) => FilterLayouts();
 
@@ -171,110 +185,99 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             SelectedLayout = Layouts.FirstOrDefault();
     }
 
-    // ---- structure canvas ----
+    // ------------------------------------------------------------------ tree model
+
+    public void Select(StudioNodeViewModel? node) => SelectedNode = node;
 
     public void RebuildTree()
     {
+        // Selection + inline-edit survive the rebuild via their POSITION PATH (root index +
+        // child indices) — the markdown determines the tree deterministically, so a path
+        // captured before the rebuild lands on the same node after it (node Ids are not stable
+        // across rebuilds; the tree instances are recreated from the parsed AST).
+        var selectedPath = PathOf(SelectedNode);
+        var editingPath = PathOf(_editingNode);
         RootNodes.Clear();
-        DisplayNodes.Clear();
-        Connectors.Clear();
 
         var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
-        var dataNodes = ast.Root.Children.Count > 0 ? ast.Root.Children : new List<AstNode> { ast.Root };
-
-        foreach (var n in dataNodes)
+        // The top-level bullets ARE ast.Root.Children — never synthesize a phantom root node
+        // when the content has no list items (empty/deleted hierarchy or plain prose in the
+        // Markdown box would otherwise show a bogus "Document Root" row).
+        foreach (var n in ast.Root.Children)
         {
-            var root = ToViewModel(n, "root");
-            RootNodes.Add(root);
+            RootNodes.Add(ToNode(n, null, 0));
         }
 
-        LayoutTree();
-        FlattenInto(RootNodes);
+        RebuildOutline();
+        SelectedNode = NodeAtPath(selectedPath);
+        var editing = NodeAtPath(editingPath);
+        if (editing != null) editing.IsEditing = true;
+        OnPropertyChanged(nameof(HasSelection));
     }
 
-    private StudioNodeViewModel ToViewModel(AstNode node, string parentId)
+    private List<int> PathOf(StudioNodeViewModel? node)
+    {
+        var path = new Stack<int>();
+        var cur = node;
+        while (cur != null && cur.Parent != null)
+        {
+            path.Push(cur.Parent.Children.IndexOf(cur));
+            cur = cur.Parent;
+        }
+        if (cur != null)
+        {
+            path.Push(RootNodes.IndexOf(cur));
+        }
+        return path.ToList();
+    }
+
+    private StudioNodeViewModel? NodeAtPath(List<int> path)
+    {
+        if (path == null || path.Count == 0) return null;
+        if (path[0] < 0 || path[0] >= RootNodes.Count) return null;
+        var node = RootNodes[path[0]];
+        for (int i = 1; i < path.Count; i++)
+        {
+            if (path[i] < 0 || path[i] >= node.Children.Count) return null;
+            node = node.Children[path[i]];
+        }
+        return node;
+    }
+
+    private static StudioNodeViewModel ToNode(AstNode node, StudioNodeViewModel? parent, int depth)
     {
         var vm = new StudioNodeViewModel
         {
             Text = node.Text,
-            ParentId = parentId
+            Parent = parent,
+            Depth = depth
         };
         foreach (var child in node.Children)
         {
-            vm.Children.Add(ToViewModel(child, vm.Id));
+            vm.Children.Add(ToNode(child, vm, depth + 1));
         }
         return vm;
     }
 
-    private void LayoutTree()
+    private void RebuildOutline()
     {
+        OutlineRows.Clear();
+        void Walk(StudioNodeViewModel node)
+        {
+            OutlineRows.Add(node);
+            foreach (var c in node.Children)
+            {
+                Walk(c);
+            }
+        }
         foreach (var root in RootNodes)
         {
-            Position(root, 0, 0);
+            Walk(root);
         }
     }
 
-    private double Position(StudioNodeViewModel node, int level, double startX)
-    {
-        node.Level = level;
-        node.Y = 30 + level * 110;
-        if (node.Children.Count == 0)
-        {
-            node.X = startX;
-            return startX + 170;
-        }
-        double cursor = startX;
-        foreach (var child in node.Children)
-        {
-            cursor = Position(child, level + 1, cursor);
-        }
-        node.X = (node.Children[0].X + node.Children[^1].X) / 2;
-        return cursor;
-    }
-
-    private void FlattenInto(IEnumerable<StudioNodeViewModel> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            DisplayNodes.Add(node);
-            foreach (var child in node.Children)
-            {
-                Connectors.Add(new StudioConnectorViewModel
-                {
-                    X1 = node.X + 65, Y1 = node.Y + 40,
-                    X2 = child.X + 65, Y2 = child.Y
-                });
-            }
-            FlattenInto(node.Children);
-        }
-    }
-
-    [RelayCommand]
-    public void AddRootNode()
-    {
-        var node = new StudioNodeViewModel { Text = "New Node", X = 30, Y = 30 };
-        RootNodes.Add(node);
-        SyncTreeToMarkdown();
-    }
-
-    [RelayCommand]
-    public void DeleteSelectedNode()
-    {
-        var selected = DisplayNodes.FirstOrDefault(n => n.IsSelected);
-        if (selected == null) return;
-        if (selected.ParentId == "root")
-        {
-            var root = RootNodes.FirstOrDefault(r => r.Id == selected.Id);
-            if (root != null) RootNodes.Remove(root);
-        }
-        else
-        {
-            var parent = DisplayNodes.FirstOrDefault(n => n.Id == selected.ParentId);
-            parent?.Children.Remove(selected);
-        }
-        SyncTreeToMarkdown();
-    }
-
+    /// <summary>Writes the designed tree back to Markdown (the canonical form). MarkdownText
+    /// change re-runs RebuildTree + UpdatePreview, keeping everything in sync.</summary>
     public void SyncTreeToMarkdown()
     {
         var sb = new StringBuilder();
@@ -296,14 +299,208 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     private static void AppendMarkdown(StringBuilder sb, StudioNodeViewModel node, int depth)
     {
-        sb.AppendLine($"{new string(' ', depth * 2)}- {node.Text}");
+        // LF consistently (the rest of the markdown pipeline normalizes to LF at render time).
+        sb.Append(new string(' ', depth * 2)).Append("- ").Append(node.Text).Append('\n');
         foreach (var child in node.Children)
         {
             AppendMarkdown(sb, child, depth + 1);
         }
     }
 
-    // ---- preview ----
+    // ------------------------------------------------------------------ design operations
+
+    private void PushUndo()
+    {
+        _undoStack.Add(MarkdownText ?? "");
+        if (_undoStack.Count > MaxUndo) _undoStack.RemoveAt(0);
+        _redoStack.Clear();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    private void ApplyHistory(string markdown)
+    {
+        MarkdownText = markdown; // OnMarkdownTextChanged rebuilds the tree + preview
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    [RelayCommand]
+    public void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+        _redoStack.Add(MarkdownText ?? "");
+        string target = _undoStack[^1];
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        ApplyHistory(target);
+    }
+
+    [RelayCommand]
+    public void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+        _undoStack.Add(MarkdownText ?? "");
+        string target = _redoStack[^1];
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+        ApplyHistory(target);
+    }
+
+    /// <summary>Adds a child under the given node (or the selection; or a new root when the
+    /// tree is empty). The new node drops straight into inline rename.</summary>
+    [RelayCommand]
+    public void AddChild(StudioNodeViewModel? target = null)
+    {
+        var parent = target ?? SelectedNode;
+        PushUndo();
+        var node = new StudioNodeViewModel { Text = "New Node", Parent = parent, Depth = (parent?.Depth ?? -1) + 1 };
+        if (parent == null) RootNodes.Add(node);
+        else parent.Children.Add(node);
+        Select(node);
+        BeginRename(node);
+        SyncTreeToMarkdown();
+    }
+
+    [RelayCommand]
+    public void AddSibling(StudioNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node == null) { AddChild(null); return; }
+        PushUndo();
+        var sibling = new StudioNodeViewModel { Text = "New Node", Parent = node.Parent, Depth = node.Depth };
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        siblings.Insert(idx + 1, sibling);
+        Select(sibling);
+        BeginRename(sibling);
+        SyncTreeToMarkdown();
+    }
+
+    [RelayCommand]
+    public void DeleteSelected(StudioNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node == null) return;
+        PushUndo();
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        siblings.Remove(node);
+
+        StudioNodeViewModel? next = null;
+        if (siblings.Count > 0) next = idx < siblings.Count ? siblings[idx] : siblings[^1];
+        else next = node.Parent;
+        Select(next);
+        SyncTreeToMarkdown();
+    }
+
+    [RelayCommand]
+    public void MoveUp()
+    {
+        var node = SelectedNode;
+        if (node == null) return;
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        if (idx <= 0) return;
+        PushUndo();
+        siblings.Move(idx, idx - 1);
+        Select(node);
+        SyncTreeToMarkdown();
+    }
+
+    [RelayCommand]
+    public void MoveDown()
+    {
+        var node = SelectedNode;
+        if (node == null) return;
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        if (idx < 0 || idx >= siblings.Count - 1) return;
+        PushUndo();
+        siblings.Move(idx, idx + 1);
+        Select(node);
+        SyncTreeToMarkdown();
+    }
+
+    /// <summary>Outdents: moves the node up one level, becoming a sibling of its parent.</summary>
+    [RelayCommand]
+    public void Promote()
+    {
+        var node = SelectedNode;
+        if (node == null || node.Parent == null) return;
+        PushUndo();
+        var oldParent = node.Parent;
+        var grandparent = oldParent.Parent;
+        var oldSiblings = oldParent.Children;
+        int idx = oldSiblings.IndexOf(node);
+        oldSiblings.RemoveAt(idx);
+
+        var parentSiblings = grandparent == null ? RootNodes : grandparent.Children;
+        int parentIdx = parentSiblings.IndexOf(oldParent);
+        node.Parent = grandparent;
+        parentSiblings.Insert(parentIdx + 1, node);
+        Select(node);
+        SyncTreeToMarkdown();
+    }
+
+    /// <summary>Indents: moves the node under its previous sibling.</summary>
+    [RelayCommand]
+    public void Demote()
+    {
+        var node = SelectedNode;
+        if (node == null) return;
+        var siblings = node.Parent == null ? RootNodes : node.Parent!.Children;
+        int idx = siblings.IndexOf(node);
+        if (idx <= 0) return;
+        PushUndo();
+        var prev = siblings[idx - 1];
+        siblings.RemoveAt(idx);
+        prev.Children.Add(node);
+        node.Parent = prev;
+        Select(node);
+        SyncTreeToMarkdown();
+    }
+
+    [RelayCommand]
+    public void BeginRename(StudioNodeViewModel? target = null)
+    {
+        var node = target ?? SelectedNode;
+        if (node == null) return;
+        _editSnapshot = node.Text;
+        Select(node);
+        _editingNode = node;
+        node.IsEditing = true;
+    }
+
+    /// <summary>Ends the inline rename (Enter / focus loss). The two-way text binding already
+    /// applied the new name; this pushes it into the Markdown — and onto the undo stack, so
+    /// Ctrl+Z reverts the rename itself, not the previous design operation.</summary>
+    public void CommitRename()
+    {
+        var editing = _editingNode;
+        string before = _editSnapshot;
+        bool wasEditing = editing != null;
+        foreach (var row in OutlineRows) row.IsEditing = false;
+        _editingNode = null;
+        if (wasEditing && editing != null &&
+            !string.Equals(before, editing.Text, StringComparison.Ordinal))
+        {
+            PushUndo();
+            SyncTreeToMarkdown();
+        }
+    }
+
+    /// <summary>Aborts the inline rename (Esc), restoring the pre-edit text.</summary>
+    public void CancelRename()
+    {
+        foreach (var row in OutlineRows)
+        {
+            if (!row.IsEditing) continue;
+            row.Text = _editSnapshot;
+            row.IsEditing = false;
+        }
+        _editingNode = null;
+    }
+
+    // ------------------------------------------------------------------ preview + insert
 
     public void UpdatePreview()
     {
