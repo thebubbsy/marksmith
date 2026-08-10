@@ -289,6 +289,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Export-completion toast: manual exports raise ExportCompleted from the ViewModel.
         ViewModel.ExportCompleted += (kind, path) => ShowExportToast(kind, path);
 
+        // Google Docs exports create a doc in the cloud — open it in the default browser.
+        ViewModel.GoogleDocCreated += url =>
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch { /* browser open is best-effort */ }
+        };
+
         // Typing in the paste editor fires PropertyChanged per keystroke; coalesce preview
         // reloads so WebView2 isn't re-navigated on every character.
         _previewDebounce = DispatcherQueue.CreateTimer();
@@ -2757,6 +2765,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToEpubAsync();
     }
 
+    private async void OnExportGoogleDocsClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToGoogleDocsAsync();
+    }
+
     private async void OnExportMarkdownClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ConvertToMarkdownAsync();
@@ -4335,6 +4348,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.PastedMarkdown = result.Markdown;
             ViewModel.UsePasteSource = true;
             ViewModel.StatusText = $"Imported {Path.GetFileName(file.Path)} ({result.Tier})";
+            ViewModel.StatusSeverity = result.IsStale
+                ? Models.StatusSeverity.Warning
+                : Models.StatusSeverity.Success;
+            if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
+                ViewModel.StatusText += " — edited after export; source may lag the visible content";
         }
         catch (Exception ex)
         {

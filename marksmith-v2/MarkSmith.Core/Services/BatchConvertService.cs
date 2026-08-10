@@ -64,7 +64,7 @@ public sealed class BatchConvertService
                         continue;
                     }
                     var html = AppServices.ViewModel.BuildPreviewHtml(mdContent);
-                    await _pdfExport.ExportAsync(host, html, outFilePath, settings);
+                    await _pdfExport.ExportAsync(host, html, outFilePath, settings, mdContent);
                 }
                 else if (isDocx)
                 {

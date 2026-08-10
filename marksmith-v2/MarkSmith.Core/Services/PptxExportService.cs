@@ -25,14 +25,24 @@ public sealed class PptxExportService
         markdown = DashReplacer.Apply(markdown, settings.DashMode, settings.DashCustom);
         markdown = FormattingService.Apply(markdown, settings);
 
+        var deckTitle = HistoryEntry.ExtractTitle(markdown) ?? "Marksmith";
+        var slides = BuildSlides(markdown, deckTitle);
         var theme = Themes.GetOrDefault(settings.Theme);
-        var slides = BuildSlides(markdown, HistoryEntry.ExtractTitle(markdown) ?? "Marksmith");
 
         var dir = Path.GetDirectoryName(pptxPath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         if (File.Exists(pptxPath)) File.Delete(pptxPath);
 
         using var doc = PresentationDocument.Create(pptxPath, PresentationDocumentType.Presentation);
+        // Metadata parity with the DOCX exporter: creator from the user's author name, low-key
+        // product attribution in the Company field, never rendered on a slide.
+        doc.PackageProperties.Title = deckTitle;
+        doc.PackageProperties.Creator = settings.AuthorName;
+        doc.PackageProperties.Subject = ExportBranding.CreatedIn;
+        // Low-key attribution in file properties (docProps/app.xml → Company).
+        ExportBranding.SetCompany(doc);
+        doc.PackageProperties.Created = DateTime.UtcNow;
+        doc.PackageProperties.Modified = DateTime.UtcNow;
         var presPart = doc.AddPresentationPart();
 
         var masterPart = presPart.AddNewPart<SlideMasterPart>("rIdMaster");

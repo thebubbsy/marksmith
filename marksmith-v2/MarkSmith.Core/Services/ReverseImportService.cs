@@ -106,6 +106,20 @@ public sealed class ReverseImportService
     {
         // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
         using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+
+        // Tier 1: embedded source (lossless) — Marksmith-made PDFs carry the exact Markdown in the
+        // Info dictionary (PdfSourceStore), so a PDF-only workflow recovers the source byte-for-byte.
+        var embedded = PdfSourceStore.Read(doc);
+        if (embedded is not null)
+        {
+            return new ReverseImportResult(
+                embedded.Markdown,
+                ImportTier.EmbeddedSource,
+                embedded.IsStale,
+                embedded.IsStale ? StaleWarning : null,
+                Array.Empty<string>());
+        }
+
         var markdown = ExtractPdfMarkdown(doc);
         if (string.IsNullOrWhiteSpace(markdown))
         {

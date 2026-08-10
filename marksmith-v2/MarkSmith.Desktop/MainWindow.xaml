@@ -1461,6 +1461,10 @@
                                 <MenuFlyoutItem Text="Export as EPUB (.epub)" Click="OnExportEpubClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Export to Google Docs (native)" Click="OnExportGoogleDocsClick"
+                                                ToolTipService.ToolTip="Creates a real Google Doc (headings, tables, images) — connect your Google account in Settings → Google first">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE774;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as Markdown (.md)" Click="OnExportMarkdownClick"
                                                 ToolTipService.ToolTip="Save the recovered/cleaned source as a Markdown file — the counterpart to importing a .docx">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>

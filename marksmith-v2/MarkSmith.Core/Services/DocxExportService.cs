@@ -171,7 +171,9 @@ public sealed class DocxExportService
             using var package = WordprocessingDocument.Create(docxPath, docType);
             package.PackageProperties.Title = title;
             package.PackageProperties.Creator = settings.AuthorName; // empty = no attribution (house-style mode)
-            package.PackageProperties.Subject = "Generated from Markdown";
+            package.PackageProperties.Subject = ExportBranding.CreatedIn;
+            // Low-key attribution in file properties (docProps/app.xml → Company).
+            ExportBranding.SetCompany(package);
             package.PackageProperties.Created = DateTime.UtcNow;
             package.PackageProperties.Modified = DateTime.UtcNow;
 
@@ -200,7 +202,7 @@ public sealed class DocxExportService
                 MermaidExactLayout = mermaidGeometry is not null, // geometry is only harvested when exact chosen
                 MermaidGenericGeometry = mermaidGenericGeometry,
                 BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
-                OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
+                OversizedDiagramMode = 4, // forced: Aggressive Shrink (one page) always — product mandate, never Ask
                 SmartConnectors = settings.SmartConnectors,
                 AdvancedFeatures = featureDict,
             };
@@ -356,7 +358,7 @@ public sealed class DocxExportService
             MermaidExactLayout = mermaidGeometry is not null,
             MermaidGenericGeometry = mermaidGenericGeometry,
             BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
-            OversizedDiagramMode = oversizedDiagramModeOverride ?? settings.OversizedDiagramMode,
+            OversizedDiagramMode = 4, // forced: Aggressive Shrink (one page) always — product mandate, never Ask
             SmartConnectors = settings.SmartConnectors,
             AdvancedFeatures = featureDict,
         };
@@ -415,7 +417,7 @@ public sealed class DocxExportService
         public int MermaidSeen;           // index of the next mermaid fence encountered
         public bool DropCapPending = true;
         public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
-        public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
+        public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=AggressiveShrink,5=CompressGaps,6=CompressNodes,7=CompressBoth
         public bool SmartConnectors = true;
         
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
@@ -618,7 +620,7 @@ public sealed class DocxExportService
                         p.PrependChild(new W.ParagraphProperties(
                             new W.SpacingBetweenLines { Before = "120", After = "120" },
                             new W.Justification { Val = W.JustificationValues.Center }));
-                        // Exact mode (1) and Grid mode (4) force Web Layout; ShrinkToFit (5) does not.
+                        // Exact mode (1) forces Web Layout; the shrink/compact modes (4-7) squeeze onto one page.
                         if (ctx.OversizedDiagramMode is 1)
                             ctx.ForceWebLayout = true;
                         target.Append(p);

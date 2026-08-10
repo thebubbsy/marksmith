@@ -30,6 +30,9 @@ public sealed class OutputOverride
     public string? ConnectorRouting { get; set; }
     public string? ConnectorArrowhead { get; set; }
 
+    // Master switch for rendering Mermaid diagrams at all (Render Mermaid diagrams).
+    public bool? MermaidEnabled { get; set; }
+
     // Cover Page setting
     public bool? BrandCoverPage { get; set; }
 
@@ -37,6 +40,20 @@ public sealed class OutputOverride
     public bool? PageBorder { get; set; }
     public bool? TrackChanges { get; set; }
     public string? PdfPageNumberPosition { get; set; }
+
+    // PDF chrome & security (Settings → PDF tab). Header/footer templates support the tokens
+    // {title} {page} {pages} {date}; passwords are only applied when non-blank.
+    public string? PdfHeaderTemplate { get; set; }
+    public string? PdfFooterTemplate { get; set; }
+    public bool? PdfEncrypt { get; set; }
+    public string? PdfUserPassword { get; set; }
+    public string? PdfOwnerPassword { get; set; }
+    public bool? PdfAllowPrinting { get; set; }
+    public bool? PdfAllowCopying { get; set; }
+    public bool? PdfAllowModifying { get; set; }
+
+    // Author name stamped in DOCX package properties (Creator field).
+    public string? AuthorName { get; set; }
     public string? FontPreset { get; set; }
     public string? FileNameTemplate { get; set; }
 

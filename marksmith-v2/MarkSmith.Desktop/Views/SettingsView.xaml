@@ -403,6 +403,41 @@
             </ScrollViewer>
         </PivotItem>
 
+        <!-- ===== Google ===== -->
+        <PivotItem Header="Google">
+            <ScrollViewer>
+                <StackPanel Spacing="12" MaxWidth="560" HorizontalAlignment="Left" Padding="0,16,0,24">
+                    <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                               Text="Export straight to Google Docs — sign in with your Google account and we create a real doc in your Drive with native headings, tables and images." />
+                    <InfoBar x:Name="GoogleStatusBar" IsOpen="True" Severity="Informational"
+                             Message="{Binding GoogleAuthStatus}" IsClosable="False" />
+                    <Border Style="{StaticResource PipelineCardStyle}">
+                        <StackPanel Padding="16" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="Sign in with Google" Command="{Binding ConnectGoogleCommand}" Style="{StaticResource AccentButtonStyle}" />
+                                <Button Content="Sign out" Command="{Binding SignOutGoogleCommand}" />
+                            </StackPanel>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.75"
+                                       Text="Sign-in opens a code in your browser — approve it and you're connected. Marksmith only ever creates documents and the images inside them; nothing else in your Drive is touched." />
+                        </StackPanel>
+                    </Border>
+                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <TextBlock Text="Advanced — use your own Google Cloud client" />
+                        </Expander.Header>
+                        <StackPanel Spacing="12" Padding="0,12,0,0">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.75"
+                                       Text="Only needed if you want to use your own Google Cloud project instead of the built-in client. When both are blank, the app's built-in client is used." />
+                            <TextBox Header="Client ID" PlaceholderText="xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+                                     Text="{Binding GoogleClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <PasswordBox x:Name="GoogleSecretBox" Header="Client secret" PlaceholderText="GOCSPX-…"
+                                         PasswordChanged="OnGoogleSecretChanged" />
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+
         <!-- ===== License ===== -->
         <PivotItem Header="License">
             <StackPanel Spacing="14" Margin="0,12,0,0">

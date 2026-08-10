@@ -20,13 +20,13 @@ public sealed class ExportCoordinator
 
     public SemaphoreSlim ConvertLock => _convertLock;
 
-    public async Task ExportToPdfAsync(IWebRenderHost? host, string html, string outPath, AppSettings settings)
+    public async Task ExportToPdfAsync(IWebRenderHost? host, string html, string outPath, AppSettings settings, string? markdown = null)
     {
         if (host is null || !await host.EnsureReadyAsync())
         {
             throw new InvalidOperationException("The preview engine couldn't start.");
         }
-        await _pdfExport.ExportAsync(host, html, outPath, settings);
+        await _pdfExport.ExportAsync(host, html, outPath, settings, markdown);
     }
 
     public async Task ExportToDocxAsync(string markdown, string outPath, AppSettings settings)
@@ -119,7 +119,7 @@ public sealed class ExportCoordinator
                         case "pdf":
                             var theme = AppServices.Themes.GetOrDefault(settings.Theme);
                             var html = AppServices.MarkdownHtml.Render(md, settings, theme, vm.LastClassification);
-                            await _pdfExport.ExportAsync(host, html, outPath, settings);
+                            await _pdfExport.ExportAsync(host, html, outPath, settings, md);
                             break;
                         case "docx":
                             if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
@@ -268,7 +268,7 @@ public sealed class ExportCoordinator
                 {
                     var html = vm.BuildPreviewHtml(md);
                     outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                    await _pdfExport.ExportAsync(host, html, outPath, settings);
+                    await _pdfExport.ExportAsync(host, html, outPath, settings, md);
                 }
 
                 vm.LastOutputPath = outPath;
@@ -371,7 +371,7 @@ public sealed class ExportCoordinator
             else
             {
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await _pdfExport.ExportAsync(host, html, tmp, settings);
+                await _pdfExport.ExportAsync(host, html, tmp, settings, md);
                 var bytes = await File.ReadAllBytesAsync(tmp);
                 File.Delete(tmp);
                 return bytes;
@@ -448,7 +448,7 @@ public sealed class ExportCoordinator
                     case "pdf":
                         var html = AppServices.MarkdownHtml.Render(md, settings, batchTheme, null);
                         // host is guaranteed non-null here: the fmt=="pdf" guard above throws otherwise.
-                        await _pdfExport.ExportAsync(host!, html, outPath, settings);
+                        await _pdfExport.ExportAsync(host!, html, outPath, settings, md);
                         break;
                     case "docx":
                         IReadOnlyList<byte[]?>? mermaidImgs = null;

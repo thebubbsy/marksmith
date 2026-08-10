@@ -176,7 +176,7 @@
             color: var(--dim-bright);
         }
 
-        input[type=number], input[type=text], select {
+        input[type=number], input[type=text], input[type=password], select {
             width: 100%;
             padding: 9px 12px;
             font-size: 13.5px;
@@ -189,7 +189,7 @@
             font-family: inherit;
         }
 
-        input[type=number]:focus, input[type=text]:focus, select:focus {
+        input[type=number]:focus, input[type=text]:focus, input[type=password]:focus, select:focus {
             border-color: var(--line-focus);
             box-shadow: 0 0 0 3px var(--accent-glow);
             background: #212338;
@@ -558,6 +558,10 @@
                                 <option value="1">Remove</option>
                             </select>
                         </div>
+                        <div class="mini">
+                            <label for="o_authorName">Author name (DOCX metadata)</label>
+                            <input type="text" id="o_authorName" placeholder="App default">
+                        </div>
                     </div>
 
                     <div class="field" style="margin-top: 14px;">
@@ -569,6 +573,52 @@
                         <label for="o_outputFolder">Output folder</label>
                         <input type="text" id="o_outputFolder" placeholder="App default — the app's own export folder">
                     </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>PDF Header / Footer &amp; Security</h2>
+                    </div>
+                    <div class="card-desc">
+                        Per-capture PDF chrome and password protection. Fields left on <b>App default</b> follow your live app settings.
+                    </div>
+                    <div class="field">
+                        <label for="o_pdfHeaderTemplate">PDF header template</label>
+                        <input type="text" id="o_pdfHeaderTemplate" placeholder="App default">
+                        <div class="hint">Per-page header text. Tokens: <b>{title}</b>, <b>{page}</b>, <b>{pages}</b>, <b>{date}</b>.</div>
+                    </div>
+                    <div class="field">
+                        <label for="o_pdfFooterTemplate">PDF footer template</label>
+                        <input type="text" id="o_pdfFooterTemplate" placeholder="App default">
+                        <div class="hint">Per-page footer text. With Page Numbers on and this empty, a default <b>Page {page} of {pages}</b> is used.</div>
+                    </div>
+                    <div class="grid-2col" style="margin-top: 16px;">
+                        <div class="mini">
+                            <label for="o_pdfEncrypt">Protect with password</label>
+                            <select id="o_pdfEncrypt"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfUserPassword">User password</label>
+                            <input type="password" id="o_pdfUserPassword" placeholder="App default">
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfOwnerPassword">Owner password</label>
+                            <input type="password" id="o_pdfOwnerPassword" placeholder="App default">
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfAllowPrinting">Allow printing</label>
+                            <select id="o_pdfAllowPrinting"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfAllowCopying">Allow copying</label>
+                            <select id="o_pdfAllowCopying"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select>
+                        </div>
+                        <div class="mini">
+                            <label for="o_pdfAllowModifying">Allow modifying</label>
+                            <select id="o_pdfAllowModifying"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select>
+                        </div>
+                    </div>
+                    <div class="hint" style="margin-top: 12px;">Passwords are only overridden when filled in — blank follows the app. Security applies to PDF exports, including in-browser downloads.</div>
                 </div>
             </div>
 
@@ -591,20 +641,20 @@
                             <label for="o_oversizedDiagramMode">Oversized Diagrams</label>
                             <select id="o_oversizedDiagramMode">
                                 <option value="">App default</option>
+                                <option value="0">Ask me each time</option>
                                 <option value="1">Keep Original Size (Web Layout)</option>
                                 <option value="2">Gentle Shrink (Max 75%)</option>
                                 <option value="3">Slice Vertically (Multiple pages)</option>
-                                <option value="4">Enlarge Page Size (2x2 Poster)</option>
-                                <option value="5">Aggressive Shrink (Force to 1 page)</option>
-                                <option value="6">Compress Gaps (ShapeForge)</option>
-                                <option value="7">Compress Nodes (ShapeForge)</option>
-                                <option value="8">Compress Both (ShapeForge)</option>
+                                <option value="4">Aggressive Shrink (Force to 1 page)</option>
+                                <option value="5">Compress Gaps (ShapeForge)</option>
+                                <option value="6">Compress Nodes (ShapeForge)</option>
+                                <option value="7">Compress Both (ShapeForge)</option>
                             </select>
                         </div>
 
                         <div class="mini">
-                            <label for="o_diagramGridSize">Poster Grid Size</label>
-                            <input type="number" id="o_diagramGridSize" min="2" max="3" placeholder="App default">
+                            <label for="o_mermaidEnabled">Render Mermaid diagrams</label>
+                            <select id="o_mermaidEnabled"><option value="">App default</option><option value="1">On</option><option value="0">Off</option></select>
                         </div>
                         <div class="mini">
                             <label for="o_connectorRouting">Line Routing</label>

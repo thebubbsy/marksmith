@@ -18,6 +18,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly EpubExportService _epubExport = new();
 private readonly MarkdownExportService _mdExport = new();
     private readonly MermaidHarvestService _mermaidHarvest = new();
+    private static readonly HttpClient _imageClient = new();
 
     private CancellationTokenSource? _conversionCts;
 
@@ -58,6 +59,16 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private int _contentWidth;
     [ObservableProperty] private bool _a4FixedWidth;
     [ObservableProperty] private bool _unlimitedHeight;
+
+    // Google Docs export (Settings → Google): the user's own Google Cloud OAuth client + the
+    // live state of the device sign-in flow.
+    [ObservableProperty] private string _googleClientId = "";
+    [ObservableProperty] private string _googleClientSecret = "";
+    [ObservableProperty] private string _googleRefreshToken = "";
+    [ObservableProperty] private string _googleAccountEmail = "";
+    [ObservableProperty] private string _googleAuthStatus = "Not connected";
+    [ObservableProperty] private string _googleDeviceCode = "";
+    [ObservableProperty] private string _googleVerifyUrl = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
@@ -1418,6 +1429,115 @@ private readonly MarkdownExportService _mdExport = new();
             StatusText = $"EPUB export done: {outPath}";
         });
     }
+
+    // Google Docs export: connect + export. Gated like DOCX (Pro/trial); needs the user's own
+    // Google Cloud OAuth client (Settings → Google) and a completed device sign-in.
+    public event Action<string>? GoogleDocCreated;
+
+    public bool IsGoogleConfigured => AppServices.GoogleAuth.IsConfigured(_settingsService.Current);
+    public bool IsGoogleConnected => IsGoogleConfigured && !string.IsNullOrWhiteSpace(_settingsService.Current.GoogleRefreshToken);
+
+    [RelayCommand]
+    private async Task ConnectGoogleAsync()
+    {
+        var s = _settingsService.Current;
+        if (!AppServices.GoogleAuth.IsConfigured(s))
+        {
+            GoogleAuthStatus = "Google sign-in isn't configured yet (missing client credentials).";
+            return;
+        }
+        GoogleAuthStatus = "Starting sign-in…";
+        GoogleDeviceCode = "";
+        GoogleVerifyUrl = "";
+        try
+        {
+            var dc = await AppServices.GoogleAuth.StartDeviceCodeAsync(s);
+            GoogleDeviceCode = dc.UserCode;
+            GoogleVerifyUrl = dc.VerificationUrl;
+            GoogleAuthStatus = $"1) Open {dc.VerificationUrl} · 2) enter code  {dc.UserCode}  · 3) allow access";
+
+            var tok = await AppServices.GoogleAuth.PollForTokenAsync(s, dc.DeviceCode, dc.Interval, dc.ExpiresIn);
+            GoogleRefreshToken = tok.RefreshToken;
+            GoogleAccountEmail = await AppServices.GoogleAuth.FetchAccountEmailAsync(tok.AccessToken);
+            SaveSettingsDebounced();
+            GoogleAuthStatus = string.IsNullOrEmpty(GoogleAccountEmail)
+                ? "Connected to Google — ready to export to Google Docs."
+                : $"Connected as {GoogleAccountEmail} — ready to export to Google Docs.";
+        }
+        catch (GoogleAuthException ex) { GoogleAuthStatus = ex.Message; }
+        catch (Exception ex) { GoogleAuthStatus = $"Sign-in failed: {ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private void SignOutGoogle()
+    {
+        GoogleRefreshToken = "";
+        GoogleAccountEmail = "";
+        GoogleAuthStatus = "Not connected";
+        GoogleDeviceCode = "";
+        GoogleVerifyUrl = "";
+        SaveSettingsDebounced();
+    }
+
+    public async Task ConvertToGoogleDocsAsync()
+    {
+        if (!AppServices.License.CanExportDocx)
+        {
+            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
+            StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
+            return;
+        }
+
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        var s = _settingsService.Current;
+        if (!AppServices.GoogleAuth.IsConfigured(s))
+        {
+            StatusText = "Google Docs export isn't configured — see Settings → Google.";
+            StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(s.GoogleRefreshToken))
+        {
+            StatusText = "Connect your Google account first: Settings → Google → Connect.";
+            StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+
+        await RunConversionAsync("Google Docs", async ct =>
+        {
+            var token = await AppServices.GoogleAuth.RefreshAccessTokenAsync(s, s.GoogleRefreshToken, ct);
+
+            // Native images for mermaid diagrams (like the Word path) — the web host renders them.
+            List<byte[]?>? mermaidImgs = null;
+            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+                mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, s, CurrentTheme);
+
+            var result = await AppServices.GoogleDocs.ExportAsync(
+                markdown, s, CurrentTheme, token.AccessToken, mermaidImgs, sourceLabel,
+                fetchRemoteImage: url => FetchRemoteImageAsync(url, ct), ct);
+
+            GoogleDocCreated?.Invoke(result.Url);
+            StatusText = $"Google Docs created: {result.Url}";
+        });
+    }
+
+    private static async Task<byte[]?> FetchRemoteImageAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await _imageClient.GetAsync(url, ct);
+            return resp.IsSuccessStatusCode ? await resp.Content.ReadAsByteArrayAsync(ct) : null;
+        }
+        catch { return null; }
+    }
+
+    partial void OnGoogleClientIdChanged(string value) { _settingsService.Current.GoogleClientId = value.Trim(); SaveSettingsDebounced(); OnPropertyChanged(nameof(IsGoogleConfigured)); OnPropertyChanged(nameof(IsGoogleConnected)); }
+    partial void OnGoogleClientSecretChanged(string value) { _settingsService.Current.GoogleClientSecret = value; SaveSettingsDebounced(); }
+    partial void OnGoogleRefreshTokenChanged(string value) { _settingsService.Current.GoogleRefreshToken = value; OnPropertyChanged(nameof(IsGoogleConnected)); }
+    partial void OnGoogleAccountEmailChanged(string value) { _settingsService.Current.GoogleAccountEmail = value; }
 
     // Markdown is a free (ungated) format — the counterpart to the DOCX -> MD reverse pipeline:
     // import a Word file (or paste AI output), then save the recovered/cleaned source back out as a

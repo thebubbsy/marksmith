@@ -23,6 +23,13 @@ public sealed partial class SettingsView : UserControl
         RefreshLicenseUi();
         BuildPluginCards();
         App.License.Changed += OnLicenseChanged;
+        GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
+    }
+
+    private void OnGoogleSecretChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MarkSmith.ViewModels.MainViewModel vm)
+            vm.GoogleClientSecret = GoogleSecretBox.Password;
     }
 
     private void RefreshLicenseUi()

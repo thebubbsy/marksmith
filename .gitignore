@@ -97,3 +97,22 @@ test.cs
 
 # Reasonix agent metadata
 .reasonix/
+reasonix.toml
+
+# Internal & private documents — kept locally for the author, never published to the public repo
+GEMINI.md
+ORIGINAL_REQUEST.md
+MARKSMITH_AI_CONTEXT.md
+QODER_TASKS.md
+OPTIMIZATION_AUDIT.md
+TEST_INFRA.md
+TEST_READY.md
+FIVE-YEAR-PLAN.md
+ROADMAP_5_YEAR.md
+LAUNCH-CHECKLIST.md
+PROJECT.md
+docs/MD_ENGINE_GOVERNANCE.md
+docs/RENDERING_ENGINE.md
+docs/RENDERING_ENGINE_DIAGRAM.md
+marketing/
+extension-governance/

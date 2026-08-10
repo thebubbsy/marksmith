@@ -15,7 +15,7 @@ public sealed class PdfExportService
     // `host` must already be ready (EnsureReadyAsync) and its underlying web control parented in a
     // visual tree — nothing will render (and therefore nothing meaningful will print) otherwise, so
     // callers should reuse the visible preview host rather than an unparented one-off instance.
-    public async Task ExportAsync(IWebRenderHost host, string html, string pdfPath, AppSettings settings)
+    public async Task ExportAsync(IWebRenderHost host, string html, string pdfPath, AppSettings settings, string? sourceMarkdown = null)
     {
         await host.NavigateToStringAsync(html);
 
@@ -92,6 +92,21 @@ public sealed class PdfExportService
         var policy = PdfSecurityService.BuildPolicy(settings);
         if (policy != null && policy.IsProtected)
             PdfSecurityService.ApplyToFile(pdfPath, policy);
+
+        // Metadata + lossless source embed (low-key "Marksmith by Matthew Bubb" in file properties,
+        // original Markdown tucked into the Info dictionary so a PDF can be re-opened as Markdown).
+        // Runs AFTER encryption so the entries are never dropped by the security re-save; when the
+        // file is protected we open it with the owner password that was just set (auto-generated
+        // when only permissions were restricted). Best-effort: if the printed file can't be opened
+        // for modification, ship it as-is rather than fail an otherwise-good export.
+        try
+        {
+            PdfSourceStore.Apply(pdfPath, sourceMarkdown, docTitle, settings, policy?.OwnerPassword);
+        }
+        catch (PdfSharp.Pdf.IO.PdfReaderException)
+        {
+            // unreadable/corrupt output — the plain printed PDF still stands
+        }
     }
 
     private static string Inches(double value) => value.ToString(CultureInfo.InvariantCulture);

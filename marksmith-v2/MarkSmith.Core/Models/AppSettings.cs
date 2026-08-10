@@ -133,7 +133,12 @@ public sealed class AppSettings
     //   (The old poster-grid strategy — enlarge the page to N× normal — was REMOVED: it changed
     //    the page width, overriding the page-size/A4/continuous-page settings, and Web Layout
     //    already lets users rearrange elements freely.)
-    public int OversizedDiagramMode { get; set; } = 1;
+    public int OversizedDiagramMode { get; set; } = 4; // 4 = Aggressive Shrink (Force to 1 page) — forced default per product mandate; the export path hard-forces 4 regardless of the stored value
+
+    /// <summary>Schema version of a persisted settings file. Fresh defaults start at the current
+    /// version (2) so SettingsService's one-time migrations never rewrite the new defaults; only
+    /// files written before a migration carry a lower version and get migrated on load.</summary>
+    public int SettingsVersion { get; set; } = 2;
 
     // Use native Word connection sites (Smart Connectors) instead of static lines.
     // When enabled, lines stay glued to shapes when dragged in Word.
@@ -239,6 +244,14 @@ public sealed class AppSettings
     public string WebDavUser { get; set; } = "";
     public string WebDavToken { get; set; } = "";
 
+    // Google Docs export (native Google Doc via Docs + Drive APIs). ClientId/Secret are the user's
+    // own Google Cloud OAuth client (Settings → Google); GoogleRefreshToken/GoogleAccountEmail come
+    // from the device sign-in flow.
+    public string GoogleClientId { get; set; } = "";
+    public string GoogleClientSecret { get; set; } = "";
+    public string GoogleRefreshToken { get; set; } = "";
+    public string GoogleAccountEmail { get; set; } = "";
+
     // PDF header / footer engine (Task 10): per-page header and footer template strings. Tokens:
     // {title} (document title), {page} (current page no.), {pages} (total pages), {date} (print date).
     // Chromium fills {page}/{pages}/{date} per page at print time; {title} is embedded literally.
@@ -280,10 +293,20 @@ public sealed class AppSettings
         if (o.SmartConnectors is { } sc) s.SmartConnectors = sc;
         if (o.ConnectorRouting is not null) s.ConnectorRouting = o.ConnectorRouting;
         if (o.ConnectorArrowhead is not null) s.ConnectorArrowhead = o.ConnectorArrowhead;
+        if (o.MermaidEnabled is { } me) s.MermaidEnabled = me;
         if (o.BrandCoverPage is { } bcp) s.BrandCoverPage = bcp;
         if (o.PageBorder is { } pb) s.PageBorder = pb;
         if (o.TrackChanges is { } tc) s.TrackChanges = tc;
         if (!string.IsNullOrWhiteSpace(o.PdfPageNumberPosition)) s.PdfPageNumberPosition = o.PdfPageNumberPosition;
+        if (!string.IsNullOrWhiteSpace(o.PdfHeaderTemplate)) s.PdfHeaderTemplate = o.PdfHeaderTemplate;
+        if (!string.IsNullOrWhiteSpace(o.PdfFooterTemplate)) s.PdfFooterTemplate = o.PdfFooterTemplate;
+        if (o.PdfEncrypt is { } pe) s.PdfEncrypt = pe;
+        if (!string.IsNullOrWhiteSpace(o.PdfUserPassword)) s.PdfUserPassword = o.PdfUserPassword;
+        if (!string.IsNullOrWhiteSpace(o.PdfOwnerPassword)) s.PdfOwnerPassword = o.PdfOwnerPassword;
+        if (o.PdfAllowPrinting is { } pap) s.PdfAllowPrinting = pap;
+        if (o.PdfAllowCopying is { } pac) s.PdfAllowCopying = pac;
+        if (o.PdfAllowModifying is { } pam) s.PdfAllowModifying = pam;
+        if (!string.IsNullOrWhiteSpace(o.AuthorName)) s.AuthorName = o.AuthorName;
         if (!string.IsNullOrWhiteSpace(o.FontPreset)) s.FontPreset = o.FontPreset;
         if (!string.IsNullOrWhiteSpace(o.FileNameTemplate)) s.FileNameTemplate = o.FileNameTemplate;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;

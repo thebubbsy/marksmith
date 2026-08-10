@@ -18,7 +18,11 @@ public class MainViewModelIntegrationTests
         public Task<string?> ExecuteScriptAsync(string javaScript) => Task.FromResult<string?>(null);
         public Task<bool> PrintToPdfAsync(string outputPath, PdfPageSetup setup)
         {
-            File.WriteAllText(outputPath, "%PDF-1.4 Dummy PDF Content");
+            // A real minimal PDF — PdfSourceStore (metadata + embedded source) runs on every export
+            // now, so the fixture must produce a file the post-processor can actually open.
+            using var doc = new PdfSharp.Pdf.PdfDocument();
+            doc.AddPage();
+            doc.Save(outputPath);
             return Task.FromResult(true);
         }
         public Task BeginHarvestAsync() => Task.CompletedTask;

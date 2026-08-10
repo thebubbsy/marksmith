@@ -84,10 +84,12 @@ overriding, and **Reset to app defaults** clears them all in one click.
 | **Output format** | Format for auto-sends (PDF, DOCX, PDF + DOCX, PowerPoint, EPUB). Popup downloads always use the button you pressed. |
 | **Page width / A4 lock / single continuous page** | Layout of the exported document |
 | **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture) |
-| **Oversized diagrams** | All 8 strategies from the app: Keep Original Size, Gentle Shrink (max 75%), Slice Vertically, Enlarge Page Size (poster), Aggressive Shrink, and the Compress family (Gaps / Nodes / Both) |
-| **Poster grid size** | 2×2 or 3×3 for the Enlarge Page Size strategy |
+| **Oversized diagrams** | All 8 strategies from the app: Ask me each time, Keep Original Size, Gentle Shrink (max 75%), Slice Vertically, Aggressive Shrink, and the Compress family (Gaps / Nodes / Both) |
+| **Render Mermaid diagrams** | Force diagram rendering on/off for every capture |
 | **Smart connectors / line routing / line arrowheads** | ShapeForge connector styles — routing (straight / elbow / curved) and all 7 arrowheads including diamond & oval |
-| **Font preset / PDF page numbers / file name template** | Typography and export chrome |
+| **Font preset / PDF page numbers / file name template / author name** | Typography, export chrome, and DOCX creator metadata |
+| **PDF header / footer templates** | Per-page chrome with `{title}` `{page}` `{pages}` `{date}` tokens |
+| **PDF security** | Password protection (user + owner) and allow printing / copying / modifying for PDF exports |
 | **Table of contents / word count / source attribution / cover page** | Document extras |
 | **Normalize AI quirks / no-emoji / em-dash handling** | Cleanup applied on the way in |
 | **Heading shift / bold / italic** | Formatting personalization |

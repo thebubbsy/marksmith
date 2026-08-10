@@ -123,6 +123,42 @@ When Marksmith is running, the local REST API listens on `http://127.0.0.1:47821
 
 ---
 
+## 🌐 Google Docs Export (native)
+
+**Export to Google Docs** creates a *real* Google Doc in your Drive (not an uploaded file) with
+native Google features: headings that drive the Docs outline, native tables, lists, inline images,
+code-block shading, page setup, and your theme's colors/fonts. Mermaid diagrams are rendered and
+inserted as images. Same "native, not a screenshot" spirit as the Word/ShapeForge export — with the
+two limitations the Docs API has: no editable shapes (diagrams are images) and no equations.
+
+### For end users — one click
+
+**Settings → Google → Sign in with Google** → approve the code in your browser → done. No console,
+no credentials, nothing to configure. Then **Export → Export to Google Docs** creates the doc and
+opens it in your browser.
+
+### For the Marksmith owner — register the client once (≈3 minutes)
+
+The app ships with a baked-in OAuth client (`MarkSmith.Core/Services/GoogleDefaults.cs`). Fill it in
+once, before release:
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project (or pick one).
+2. Enable the APIs (deep links, pick your project in the top bar):
+   [Google Docs API](https://console.cloud.google.com/apis/library/docs.googleapis.com) and
+   [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com).
+3. **OAuth consent screen** → External → add your email as a test user (Testing mode covers up to
+   100 users with no verification — enough for launch).
+4. **Credentials → Create credentials → OAuth client ID → type: Desktop app**. Copy the Client ID
+   (`….apps.googleusercontent.com`) and Client secret (`GOCSPX-…`) into `GoogleDefaults.ClientId` /
+   `GoogleDefaults.ClientSecret`.
+
+Notes: desktop-app OAuth secrets are extractable from the binary by design (Google's documented
+model for installed apps), so baking them in is standard practice. Marksmith only creates documents
+and the images inside them. Power users can still override the client in Settings → Google →
+**Advanced**.
+
+---
+
 ## 📜 License
 
 Distributed under the MIT License. See `LICENSE` for details.

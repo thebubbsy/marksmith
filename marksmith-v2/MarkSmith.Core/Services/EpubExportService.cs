@@ -55,7 +55,7 @@ public sealed class EpubExportService
                        ?? NonEmpty(frontMatter, "language")
                        ?? (string.IsNullOrWhiteSpace(settings.ContentLanguage) ? "en" : settings.ContentLanguage);
 
-        var publisher = NonEmpty(meta?.Publisher) ?? NonEmpty(frontMatter, "publisher");
+        var publisher = NonEmpty(meta?.Publisher) ?? NonEmpty(frontMatter, "publisher") ?? ExportBranding.Tag;
         var identifier = NonEmpty(meta?.Identifier)
                           ?? NonEmpty(frontMatter, "isbn")
                           ?? NonEmpty(frontMatter, "identifier");
