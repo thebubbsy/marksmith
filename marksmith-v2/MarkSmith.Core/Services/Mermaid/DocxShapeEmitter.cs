@@ -217,8 +217,10 @@ public static class DocxShapeEmitter
 
         // The aggressive-shrink modes (4/5/6/7) threw the curve paths away; snap each anchored edge back
         // onto its (now moved) shapes' connection sites so the stored line touches the nodes and
-        // Word's smart-connector glue (stCxn/endCxn) keeps it attached.
-        if (smartConnectors && oversizedMode is 5 or 6 or 7)
+        // Word's smart-connector glue (stCxn/endCxn) keeps it attached. Mode 4 (Aggressive Shrink,
+        // the forced default) was missing from this gate — its connectors came out detached
+        // ("nothing is connected" under downsizing).
+        if (smartConnectors && oversizedMode is 4 or 5 or 6 or 7)
             ReanchorConnectorsToShapes(d);
 
         var ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +

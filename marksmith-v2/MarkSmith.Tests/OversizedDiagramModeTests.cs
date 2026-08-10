@@ -68,4 +68,30 @@ public class OversizedDiagramModeTests
         DocxShapeEmitter.ScaleToFit(d, oversizedMode: 4);
         Assert.Equal(460, d.Width); // uniform shrink to the printable window, not 2x width
     }
+
+    [Fact]
+    public void Mode4_AggressiveShrink_ReanchorsConnectorsOntoShapes()
+    {
+        // Regression: the glue path (ReanchorConnectorsToShapes) only ran for modes 5/6/7, so
+        // Aggressive Shrink (mode 4 — the forced default) emitted connectors whose endpoints
+        // stayed at the pre-shrink coordinates: "nothing is connected" after downsizing.
+        var d = BigDiagram();
+        d.Connectors.Add(new MConnector
+        {
+            FromShapeId = 2, ToShapeId = 3,      // ToParagraphXml assigns shapes Ids 2,3 in list order
+            FromConnectionSite = 3, ToConnectionSite = 0, // right edge of A → top centre of B
+            X1 = 0, Y1 = 0, X2 = 700, Y2 = 900,  // deliberately pre-shrink — must be re-anchored
+        });
+
+        var theme = new ThemeDefinition("Light", "#ffffff", "#111111", "#222222", "#f4f4f4", "#d9d9d9", "#0078d4", "#e8f4fd", "#bfbfbf");
+        DocxShapeEmitter.ToParagraphXml(d, theme, 1u, out _, oversizedMode: 4, smartConnectors: true);
+
+        var from = d.Shapes[0];
+        var to = d.Shapes[1];
+        Assert.Equal(from.X + from.W, d.Connectors[0].X1, 3);   // right edge of scaled A
+        Assert.Equal(from.Y + from.H / 2, d.Connectors[0].Y1, 3);
+        Assert.Equal(to.X + to.W / 2, d.Connectors[0].X2, 3);   // top centre of scaled B
+        Assert.Equal(to.Y, d.Connectors[0].Y2, 3);
+        Assert.True(d.Connectors[0].X1 < 700); // endpoints moved off the pre-shrink canvas
+    }
 }
