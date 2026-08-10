@@ -33,8 +33,15 @@ public sealed class SettingsService
                     // (old mode 4 — it changed the page size, overriding the page-width/A4/
                     // continuous-page settings). Old mode 4 becomes "Keep Original Size" (its
                     // behaviour was diagram-at-full-scale); old modes 5-8 shift down one slot.
-                    if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
-                    else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
+                    // Gated on SettingsVersion so it only runs for files written before this
+                    // schema change — a current Aggressive Shrink (mode 4) or Compress mode
+                    // (5/6/7) must never be rewritten by the old mapping.
+                    if (settings.SettingsVersion < 2)
+                    {
+                        if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
+                        else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
+                        settings.SettingsVersion = 2;
+                    }
 
                     // One-time seed: a saved-but-empty rule list (from before the examples existed)
                     // gets the three example cleanup rules ONCE; deleting every rule afterwards stays

@@ -206,20 +206,21 @@ public static class DocxShapeEmitter
     {
         // Assign shape XML IDs and anchor every edge to its nodes BEFORE ScaleToFit runs. The
         // topology heuristic matches edge endpoints against shape borders, which only agree on
-        // the original layout — the aggressive-shrink modes (6/7/8) then re-space the nodes and
-        // discard the sampled curves, so the anchors must be captured first or every edge comes
-        // out detached from its nodes (the "nothing is connected" regression).
+        // the original layout — the shrink/compact modes (4/5/6/7) then move every node, and
+        // 5/6/7 additionally discard the sampled curves, so the anchors must be captured first
+        // or every edge comes out detached from its nodes (the "nothing is connected" regression).
         uint id = 1;
         foreach (var s in d.Shapes) s.Id = ++id; // shapes take 2,3,…; id 1 is reserved for the background card
         if (smartConnectors) AssignTopologyHeuristics(d);
 
         oversized = ScaleToFit(d, oversizedMode, gridSize);
 
-        // The aggressive-shrink modes (4/5/6/7) threw the curve paths away; snap each anchored edge back
-        // onto its (now moved) shapes' connection sites so the stored line touches the nodes and
-        // Word's smart-connector glue (stCxn/endCxn) keeps it attached. Mode 4 (Aggressive Shrink,
-        // the forced default) was missing from this gate — its connectors came out detached
-        // ("nothing is connected" under downsizing).
+        // The shrink/compact modes (4/5/6/7) move every node after the anchors are captured, and
+        // 5/6/7 additionally discard the sampled curve paths. Snap each anchored edge back onto its
+        // (now moved) shapes' connection sites so straight connectors touch the nodes and Word's
+        // smart-connector glue (stCxn/endCxn) keeps them attached. Mode 4 (Aggressive Shrink — the
+        // forced default) was missing from this gate, so its connectors kept the pre-shrink
+        // endpoints: "nothing is connected" under downsizing.
         if (smartConnectors && oversizedMode is 4 or 5 or 6 or 7)
             ReanchorConnectorsToShapes(d);
 

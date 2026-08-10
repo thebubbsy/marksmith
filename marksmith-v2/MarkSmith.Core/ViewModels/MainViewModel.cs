@@ -1333,35 +1333,18 @@ private readonly MarkdownExportService _mdExport = new();
             List<Services.Mermaid.HarvestedDiagram?>? geometry = null;
             string? layoutNote = null;
             int? overrideMode = null;
-            
+
+            // Oversized-diagram handling is product-mandated to Aggressive Shrink (mode 4) always —
+            // DocxExportService hard-forces it, so there is no Ask prompt and no mode-specific
+            // messaging. Harvest exact geometry so the ShapeForge native-shape path can run.
             if (hasMermaid && settings.MermaidDocxMode == 1 && Host is not null)
             {
-                // When the user has a saved preference (mode >= 1), always harvest — don't rely on
-                // AnyWouldOverflow which uses the bespoke parser and can fail on complex diagrams.
-                var mode = settings.OversizedDiagramMode;
-                if (mode == 0 && Prompts is not null && Services.MermaidDocxRenderer.AnyWouldOverflow(markdown))
-                    mode = await Prompts.AskOversizedDiagramModeAsync(); // 1 = exact, 2 = reflow
-                overrideMode = mode;
-                if (mode == 1 || (mode >= 3 && mode <= 7)) // any exact/multi-page/shrink/compact mode
-                {
-                    geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
-                    var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
-                    if (usable)
-                    {
-                        if (mode == 1)
-                            layoutNote = "  (large diagram: exact layout, opens in Web Layout)";
-                        else if (mode is 5 or 6 or 7)
-                            layoutNote = "  (large diagram: compact mode, fits on single page)";
-                        else
-                            layoutNote = "  (large diagram: fits on printed pages)";
-                    }
-                    else
-                    {
-                        geometry = null; // couldn't read exact geometry — reflow instead, and say so
-                        layoutNote = "  (couldn't read exact layout — reflowed to fit the page)";
-                    }
-                }
-                else if (mode == 2) layoutNote = "  (large diagram: reflowed to fit the page)";
+                geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(Host, markdown, settings, CurrentTheme);
+                var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
+                layoutNote = usable
+                    ? "  (large diagram: aggressive shrink, fits on one page)"
+                    : "  (couldn't read exact layout — reflowed to fit the page)";
+                if (!usable) geometry = null; // couldn't read exact geometry — ShapeForge reflows instead
             }
 
             // Generic harvest: always harvest as a universal fallback for any mermaid fence.

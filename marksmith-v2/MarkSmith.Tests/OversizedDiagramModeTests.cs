@@ -70,6 +70,15 @@ public class OversizedDiagramModeTests
     }
 
     [Fact]
+    public void AppSettings_Default_IsAggressiveShrink()
+    {
+        // Product mandate: Aggressive Shrink (4) is the default mode always — and SettingsService
+        // must never migrate a current 4 back to 1 (the migration is SettingsVersion-gated).
+        Assert.Equal(4, new AppSettings().OversizedDiagramMode);
+        Assert.Equal(2, new AppSettings().SettingsVersion); // fresh defaults skip the old migration
+    }
+
+    [Fact]
     public void Mode4_AggressiveShrink_ReanchorsConnectorsOntoShapes()
     {
         // Regression: the glue path (ReanchorConnectorsToShapes) only ran for modes 5/6/7, so

@@ -40,7 +40,7 @@ public sealed class Ctx
     public int MermaidSeen;           // index of the next mermaid fence encountered
     public bool DropCapPending = true;
     public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
-    public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=Grid,5=ShrinkToFit
+    public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=AggressiveShrink,5=CompressGaps,6=CompressNodes,7=CompressBoth
     public bool SmartConnectors = true;
     
     public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
