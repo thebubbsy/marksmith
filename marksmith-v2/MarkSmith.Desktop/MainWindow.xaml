@@ -1200,8 +1200,9 @@
                             </ComboBox>
                             <TextBlock Text="Fallback arrowhead style for connectors that don't specify one in the diagram source."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}">
+                            <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch" IsEnabled="False"
+                                      SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}"
+                                      ToolTipService.ToolTip="Forced to Aggressive Shrink (mode 4) — product default; the export path always squeezes large diagrams onto one page.">
                                 <x:String>Ask me each time</x:String>
                                 <x:String>Keep Original Size (Web Layout)</x:String>
                                 <x:String>Gentle Shrink (Max 75%, Web Layout if needed)</x:String>
@@ -1211,7 +1212,7 @@
                                 <x:String>Compress Nodes (ShapeForge native shapes)</x:String>
                                 <x:String>Compress Both (ShapeForge native shapes)</x:String>
                             </ComboBox>
-                            <TextBlock Text="When a diagram is too big to fit a printed page: keep Mermaid's exact layout (opens in Word's Web Layout, scrolls) or let MarkSmith re-wrap it to fit standard pages. In Web Layout you can grab elements and rearrange them freely."
+                            <TextBlock Text="Large diagrams are always squeezed onto one printed page (Aggressive Shrink — forced product default). The other strategies are listed for reference only; the export path always uses mode 4."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
 
                                     </StackPanel>

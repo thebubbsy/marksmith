@@ -33,10 +33,12 @@ public sealed class SettingsService
                     // (old mode 4 — it changed the page size, overriding the page-width/A4/
                     // continuous-page settings). Old mode 4 becomes "Keep Original Size" (its
                     // behaviour was diagram-at-full-scale); old modes 5-8 shift down one slot.
-                    // Gated on SettingsVersion so it only runs for files written before this
-                    // schema change — a current Aggressive Shrink (mode 4) or Compress mode
-                    // (5/6/7) must never be rewritten by the old mapping.
-                    if (settings.SettingsVersion < 2)
+                    // Discriminator = presence of the SettingsVersion key in the RAW JSON: a
+                    // missing key deserializes to the constructor default, so gating on the
+                    // deserialized value could never tell an old file from a fresh default.
+                    // Files that carry the key were written under the current schema — their
+                    // Aggressive Shrink (4) / Compress modes (5/6/7) are never rewritten.
+                    if (!json.Contains("\"SettingsVersion\""))
                     {
                         if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
                         else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
