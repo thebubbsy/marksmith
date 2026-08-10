@@ -33,12 +33,20 @@ public sealed class SettingsService
                     // (old mode 4 — it changed the page size, overriding the page-width/A4/
                     // continuous-page settings). Old mode 4 becomes "Keep Original Size" (its
                     // behaviour was diagram-at-full-scale); old modes 5-8 shift down one slot.
-                    // Discriminator = presence of the SettingsVersion key in the RAW JSON: a
-                    // missing key deserializes to the constructor default, so gating on the
-                    // deserialized value could never tell an old file from a fresh default.
-                    // Files that carry the key were written under the current schema — their
-                    // Aggressive Shrink (4) / Compress modes (5/6/7) are never rewritten.
-                    if (!json.Contains("\"SettingsVersion\""))
+                    // Discriminator = presence of the SettingsVersion PROPERTY KEY in the raw
+                    // JSON: a raw-substring check could false-positive on a string VALUE that
+                    // contains "SettingsVersion" (e.g. a custom rule name), so the key is tested
+                    // via JsonDocument. A missing key deserializes to the constructor default,
+                    // so gating on the deserialized value could never tell an old file from a
+                    // fresh default. Files that carry the key were written under the current
+                    // schema — their Aggressive Shrink (4) / Compress modes (5/6/7) are never
+                    // rewritten.
+                    bool hasSettingsVersion;
+                    using (var doc = JsonDocument.Parse(json))
+                    {
+                        hasSettingsVersion = doc.RootElement.TryGetProperty("SettingsVersion", out _);
+                    }
+                    if (!hasSettingsVersion)
                     {
                         if (settings.OversizedDiagramMode > 4) settings.OversizedDiagramMode--;
                         else if (settings.OversizedDiagramMode == 4) settings.OversizedDiagramMode = 1;
