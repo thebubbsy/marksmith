@@ -1,4 +1,5 @@
 using MarkSmith.Models;
+using MarkSmith.Services;
 using MarkSmith.Services.Mermaid;
 using Xunit;
 
@@ -76,6 +77,45 @@ public class OversizedDiagramModeTests
         // must never migrate a current 4 back to 1 (the migration is SettingsVersion-gated).
         Assert.Equal(4, new AppSettings().OversizedDiagramMode);
         Assert.Equal(2, new AppSettings().SettingsVersion); // fresh defaults skip the old migration
+    }
+
+    [Theory]
+    [InlineData(7, 6)] // old 7 -> 6
+    [InlineData(6, 5)] // old 6 -> 5
+    [InlineData(5, 4)] // old 5 -> 4
+    [InlineData(4, 1)] // old 4 (Grid) -> 1 (Keep Original Size)
+    public void Migration_OldFileWithoutVersionKey_MapsModes(int stored, int expected)
+    {
+        var settings = new AppSettings { OversizedDiagramMode = stored };
+        SettingsService.MigrateOversizedDiagramModes($$"""{"OversizedDiagramMode": {{stored}}}""", settings);
+        Assert.Equal(expected, settings.OversizedDiagramMode);
+        Assert.Equal(2, settings.SettingsVersion); // bumped so a later save never re-migrates
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Migration_CurrentFileWithVersionKey_PreservesModes(int stored)
+    {
+        var settings = new AppSettings { OversizedDiagramMode = stored };
+        SettingsService.MigrateOversizedDiagramModes($$"""{"SettingsVersion": 2, "OversizedDiagramMode": {{stored}}}""", settings);
+        Assert.Equal(stored, settings.OversizedDiagramMode); // current modes are never rewritten
+        Assert.Equal(2, settings.SettingsVersion);
+    }
+
+    [Fact]
+    public void Migration_StringValueContainingVersionKey_StillMigrates()
+    {
+        // Regression for the raw-substring false positive: a string VALUE that contains the
+        // literal "SettingsVersion" (e.g. a custom cleanup-rule name) must NOT suppress the
+        // migration of a genuinely old file — only the root property KEY gates.
+        var settings = new AppSettings { OversizedDiagramMode = 5 };
+        var json = """{"CustomNormalizationRules": [{"Name": "aSettingsVersionRule"}], "OversizedDiagramMode": 5}""";
+        SettingsService.MigrateOversizedDiagramModes(json, settings);
+        Assert.Equal(4, settings.OversizedDiagramMode); // migrated despite the lookalike value
+        Assert.Equal(2, settings.SettingsVersion);
     }
 
     [Fact]
