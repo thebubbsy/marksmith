@@ -42,7 +42,6 @@ public static class DialectNormalizer
     private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
     private static readonly Regex CriticComment = new(@"\{>>((?:(?!<<\}).)*)\<<\}", RegexOptions.Compiled);
-    // Matches escaped double quotes (\") output by AI providers like ChatGPT in tables
     private static readonly Regex EscapedQuote = new(@"\\""", RegexOptions.Compiled);
 
     public static string Apply(string markdown) => Apply(markdown, -1);
@@ -192,8 +191,7 @@ public static class DialectNormalizer
                 line = line.Replace("--:", "---:").Replace(":--", ":---");
             }
 
-            // ---- ChatGPT & others: normalize escaped double quotes inside tables ----
-            // Some AI agents escape quotes (producing \") in JSON-to-Markdown table conversions.
+            // ---- normalize escaped double quotes inside tables ----
             if (trimmed.StartsWith('|'))
             {
                 line = ReplaceOutsideInlineCode(line, EscapedQuote, m => "\"");
@@ -275,7 +273,7 @@ public static class DialectNormalizer
     private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator)
     {
         if (!rx.IsMatch(line)) return line;
-        
+
         var codeSpans = InlineCode.Matches(line);
         var htmlSpans = HtmlTag.Matches(line);
         if (codeSpans.Count == 0 && htmlSpans.Count == 0) return rx.Replace(line, evaluator);

@@ -388,5 +388,4 @@ public sealed class AppSettings
 
     public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
     public bool AutoRestartAfterUpdate { get; set; } = true;
-    public int SettingsVersion { get; set; } = 1;
 }
