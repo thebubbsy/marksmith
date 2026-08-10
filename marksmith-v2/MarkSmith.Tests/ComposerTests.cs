@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
 using MarkSmith.Core.Composer;
+using MarkSmith.Core.Glox;
 using Xunit;
 
 namespace MarkSmith.Tests;
@@ -152,5 +156,81 @@ public class ComposerTests
             if (File.Exists(png)) File.Delete(png);
             if (File.Exists(docx)) File.Delete(docx);
         }
+    }
+
+    [Fact]
+    public void WriteDocx_WithTheme_EveryRelationshipTargetResolvesToAnExistingPart()
+    {
+        // Regression for the dangling-theme-rel defect: the studio passes a theme, and the theme
+        // relationship used to be written into the package-ROOT _rels/.rels with Target=
+        // "theme/theme1.xml" — which resolves to /theme/theme1.xml, a part that does not exist
+        // (the theme lives at word/theme/theme1.xml). A dangling relationship is an OPC integrity
+        // violation that Word flags with a repair prompt.
+        string png = Path.Combine(Path.GetTempPath(), $"composer-{Guid.NewGuid():N}.png");
+        string docx = Path.Combine(Path.GetTempPath(), $"composed-theme-{Guid.NewGuid():N}.docx");
+        try
+        {
+            MakeTestPng(png);
+            var shapes = ImageShapeComposer.Compose(png, new ShapeComposerOptions { Grid = 8 });
+            ShapeComposerDocxWriter.WriteDocx(docx, shapes, 3.0, 3.0, SmartArtLayoutCatalog.Shared.ThemeXml);
+
+            using var zip = ZipFile.OpenRead(docx);
+            var parts = zip.Entries
+                .Select(e => "/" + e.FullName.Replace('\\', '/'))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            Assert.Contains("/word/theme/theme1.xml", parts);
+            Assert.Contains("/_rels/.rels", parts);
+            Assert.Contains("/word/_rels/document.xml.rels", parts);
+
+            foreach (var entry in zip.Entries.Where(e => e.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)))
+            {
+                // A rel file lives at <dir>/_rels/<part>.rels; targets resolve relative to <dir>
+                // (the part's directory) — and for the package root (_rels/.rels) relative to "/".
+                string relDir = (Path.GetDirectoryName(entry.FullName.Replace('\\', '/')) ?? "").Replace('\\', '/');
+                string baseDir = relDir == "_rels" || relDir.EndsWith("/_rels", StringComparison.Ordinal)
+                    ? relDir[..^"_rels".Length].TrimEnd('/')
+                    : relDir;
+                string xml;
+                using (var r = new StreamReader(entry.Open()))
+                    xml = r.ReadToEnd();
+
+                foreach (Match m in Regex.Matches(xml, @"Target=""([^""]+)"""))
+                {
+                    string target = m.Groups[1].Value;
+                    string resolved = ResolveRelTarget(baseDir, target);
+                    Assert.True(
+                        parts.Contains(resolved),
+                        $"Relationship target '{target}' in {entry.FullName} resolves to '{resolved}', which is not a part in the package.");
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(png)) File.Delete(png);
+            if (File.Exists(docx)) File.Delete(docx);
+        }
+    }
+
+    private static string ResolveRelTarget(string relDir, string target)
+    {
+        var segments = new List<string>();
+        if (target.StartsWith("/", StringComparison.Ordinal))
+        {
+            segments.AddRange(target.Split('/').Where(s => s.Length > 0));
+        }
+        else
+        {
+            segments.AddRange((relDir + "/" + target).Split('/').Where(s => s.Length > 0));
+        }
+
+        var stack = new List<string>();
+        foreach (var seg in segments)
+        {
+            if (seg == ".") continue;
+            if (seg == "..") { if (stack.Count > 0) stack.RemoveAt(stack.Count - 1); }
+            else stack.Add(seg);
+        }
+        return "/" + string.Join("/", stack);
     }
 }

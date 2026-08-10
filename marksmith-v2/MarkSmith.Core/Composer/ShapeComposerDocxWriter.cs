@@ -60,14 +60,22 @@ namespace MarkSmith.Core.Composer
                 themeOverride +
                 @"</Types>";
 
-            string themeRel = hasTheme
-                ? "  <Relationship Id=\"rIdTheme1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>\n"
+            // The theme relationship MUST live in word/_rels/document.xml.rels (Target relative to
+            // word/, so it resolves to word/theme/theme1.xml — the part that exists). Putting it in
+            // the package-root _rels/.rels instead resolves to /theme/theme1.xml, which doesn't
+            // exist: a dangling relationship, an OPC integrity violation Word flags with a repair
+            // prompt. (The studio passes a theme; the main pipeline's DocxPackageWriter already
+            // places this rel correctly in word/_rels.)
+            string themeDocRel = hasTheme
+                ? "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                  "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+                  "  <Relationship Id=\"rIdTheme1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>" +
+                  "</Relationships>"
                 : "";
             string rels =
                 @"<?xml version=""1.0"" encoding=""utf-8""?>" +
                 @"<Relationships xmlns=""http://schemas.openxmlformats.org/package/2006/relationships"">" +
                 @"<Relationship Id=""rId1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"" Target=""word/document.xml""/>" +
-                themeRel +
                 @"</Relationships>";
 
             using var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
@@ -82,7 +90,11 @@ namespace MarkSmith.Core.Composer
             Write("[Content_Types].xml", contentTypes);
             Write("_rels/.rels", rels);
             Write("word/document.xml", docXml);
-            if (hasTheme) Write("word/theme/theme1.xml", themeXml!);
+            if (hasTheme)
+            {
+                Write("word/_rels/document.xml.rels", themeDocRel);
+                Write("word/theme/theme1.xml", themeXml!);
+            }
         }
 
         /// <summary>
