@@ -149,4 +149,16 @@ public class TocInMarkdownTests
         var headings = TocInMarkdownService.ExtractHeadings(md);
         Assert.Contains(headings, h => h.Text == "Indented" && h.Level == 2);
     }
+
+    [Fact]
+    public void ExtractHeadings_RejectsTabIndent_And_DropsUnanchorableSlugs()
+    {
+        // A leading TAB is 4 columns in CommonMark (indented code), not an ATX heading.
+        var headings = TocInMarkdownService.ExtractHeadings("# Top\n\n\t## Tabbed\n");
+        Assert.DoesNotContain(headings, h => h.Text == "Tabbed");
+
+        // "# ---" slugifies to nothing — it must be omitted, not emit a dead (#) link.
+        var headings2 = TocInMarkdownService.ExtractHeadings("# Top\n\n# ---\n");
+        Assert.DoesNotContain(headings2, h => h.Text == "---");
+    }
 }
