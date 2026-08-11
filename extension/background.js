@@ -1,3 +1,7 @@
+// Capture hygiene helpers (pip stripping, DLP scan, history, filename) — pure functions,
+// also unit-tested directly by node.
+importScripts("hygiene.js");
+
 // Marksmith Connector — grabs assistant replies from AI chat sites, converts them to
 // Markdown, and drives the Marksmith desktop app's local API. Two paths:
 //   • /api/ingest  — push the reply into the running app's preview ("Send to Marksmith")
@@ -211,6 +215,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 
+    if (msg?.type === "download-history") {
+        (async () => {
+            try {
+                const list = await getHistory();
+                const entry = list[msg.index || 0];
+                if (!entry) return sendResponse({ ok: false, error: "No capture at that index." });
+                sendResponse(await convertAndDownload(entry.text, msg.format || "pdf", entry.meta, { notify: false }));
+            } catch (e) {
+                sendResponse({ ok: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (msg?.type === "history") {
+        (async () => sendResponse({ ok: true, list: await getHistory() }))();
+        return true;
+    }
+
     if (msg?.type === "send") {
         (async () => {
             const tab = await activeTab();
@@ -292,7 +315,14 @@ async function inspectActiveTab(mode) {
         // App offline — classification is a nicety, not a blocker. The popup still
         // shows the extraction; it just won't display a confidence chip.
     }
-    return { ok: true, markdown: extracted.markdown, meta: extracted.meta, cls };
+
+    // DLP: flag PII before the user commits to a send/download (opt-out in Options).
+    let dlp = [];
+    try {
+        const { dlpScan } = await chrome.storage.sync.get({ dlpScan: true });
+        if (dlpScan) dlp = scanDlp(extracted.markdown);
+    } catch { /* best effort */ }
+    return { ok: true, markdown: extracted.markdown, meta: extracted.meta, cls, dlp };
 }
 
 // ── send to the app (/api/ingest) ───────────────────────────────────────────
@@ -338,6 +368,11 @@ async function grabAndSend(tab, mode, opts = {}) {
     if (imgMode === "base64") {
         extracted.markdown = await embedRemainingRemoteImages(extracted.markdown);
     }
+
+    // Capture hygiene: strip citation pips (opt-out in Options) and keep a local history entry.
+    const cfg = await chrome.storage.sync.get({ stripPips: true });
+    if (cfg.stripPips) extracted.markdown = stripCitationPips(extracted.markdown);
+    await pushHistory({ markdown: extracted.markdown, meta: extracted.meta });
 
     try {
         const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
@@ -401,6 +436,11 @@ async function downloadFromTab(tab, mode, format, opts = {}) {
 }
 
 async function convertAndDownload(markdown, format, meta) {
+    // Capture hygiene: strip citation pips (opt-out in Options) and keep a local history entry.
+    const cfg = await chrome.storage.sync.get({ stripPips: true });
+    if (cfg.stripPips) markdown = stripCitationPips(markdown);
+    await pushHistory({ markdown, meta });
+
     const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
     // Honor the saved output profile (theme, width, diagram mode, …) but force the format
     // the user just asked for — a profile set to "pdf" must not block a DOCX download.
@@ -475,16 +515,6 @@ async function embedRemainingRemoteImages(markdown) {
     return markdown.replace(re, (full, alt, url) => (dataByUrl.has(url) ? `${alt}(${dataByUrl.get(url)})` : full));
 }
 
-// Turn the captured conversation title into a safe, friendly filename.
-function buildFilename(meta, format) {
-    const raw = (meta?.title || "").trim() || "marksmith-export";
-    const base = raw
-        .replace(/[\\/:*?"<>|\r\n]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80) || "marksmith-export";
-    return `${base}.${format}`;
-}
 
 function notify(title, message) {
     chrome.notifications.create({ type: "basic", iconUrl: "icons/icon128.png", title, message });

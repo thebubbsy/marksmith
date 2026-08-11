@@ -465,6 +465,46 @@
                         </select>
                         <div class="hint">When selection contains images, choose whether to link or embed raw pixels.</div>
                     </div>
+
+                    <div class="field toggle-row">
+                        <div class="txt">
+                            <label for="stripPips">Strip citation pips</label>
+                            <div class="hint">Removes 【7&dagger;source】-style artifacts before the markdown is sent, previewed, or copied.</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="stripPips" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="field toggle-row">
+                        <div class="txt">
+                            <label for="dlpScan">Flag sensitive content</label>
+                            <div class="hint">Warns when a capture looks like it contains credit-card numbers, emails, phone numbers, or API keys.</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="dlpScan" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="field">
+                        <label for="autoSendMinChars">Auto-send minimum length (chars)</label>
+                        <input type="number" id="autoSendMinChars" min="10" max="5000" placeholder="60">
+                        <div class="hint">Auto-send skips conversations shorter than this.</div>
+                    </div>
+
+                    <div class="field">
+                        <label>Auto-send on these sites</label>
+                        <div id="autoSendSites" class="site-list">
+                            <label class="site"><input type="checkbox" value="chatgpt.com" checked> ChatGPT</label>
+                            <label class="site"><input type="checkbox" value="chat.openai.com" checked> ChatGPT (legacy)</label>
+                            <label class="site"><input type="checkbox" value="gemini.google.com" checked> Gemini</label>
+                            <label class="site"><input type="checkbox" value="claude.ai" checked> Claude</label>
+                            <label class="site"><input type="checkbox" value="copilot.microsoft.com" checked> Copilot</label>
+                        </div>
+                        <div class="hint">Auto-send only fires on the checked sites.</div>
+                    </div>
                 </div>
             </div>
 

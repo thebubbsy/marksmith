@@ -97,6 +97,23 @@ async function inspect() {
         }
         if (cls.hasMath) $("chipMath").classList.remove("hidden");
     }
+
+    // Capture preview: raw markdown, truncated for the popup (the full text is what ships).
+    $("previewBody").textContent = currentMarkdown.length > 4000
+        ? currentMarkdown.slice(0, 4000) + "\n… (preview truncated — the full capture is sent)"
+        : currentMarkdown;
+    $("previewCard").classList.toggle("hidden", currentMarkdown.length === 0);
+
+    // DLP: sensitive content flagged before anything leaves the browser.
+    if (r.dlp && r.dlp.length) {
+        $("dlpBody").textContent =
+            `This capture looks like it contains: ${r.dlp.join(", ")}. Sending shares it with the conversion pipeline — confirm before sending sensitive data.`;
+        $("dlpCard").classList.remove("hidden");
+    } else {
+        $("dlpCard").classList.add("hidden");
+    }
+
+    renderHistory();
     refreshButtons();
 }
 
@@ -120,6 +137,7 @@ async function doSend() {
     const r = await ask({ type: "send", mode });
     if (r.ok) {
         toast(`Sent ${(r.chars || 0).toLocaleString()} chars to Marksmith ✓`, "ok");
+        renderHistory();
     } else {
         toast(r.error || "Send failed.", "err");
     }
@@ -134,6 +152,7 @@ async function doDownload(format, btn) {
     const r = await ask({ type: "download", mode, format });
     if (r.ok) {
         toast(`Downloading ${r.filename} ✓`, "ok");
+        renderHistory();
     } else {
         toast(r.error || `${label} download failed.`, "err");
     }
@@ -158,9 +177,58 @@ async function doCopy() {
     }
 }
 
+// ── capture history ─────────────────────────────────────────────────────────
+const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function renderHistory() {
+    const r = await ask({ type: "history" });
+    const list = (r.ok && r.list) || [];
+    const el = $("histList");
+    if (!list.length) {
+        el.innerHTML = '<div class="help">No captures yet — grab something from an AI chat.</div>';
+        return;
+    }
+    el.innerHTML = "";
+    list.forEach((e, i) => {
+        const title = (e.meta && e.meta.title) || "capture";
+        const when = new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const row = document.createElement("div");
+        row.className = "hist-row";
+        const t = document.createElement("span");
+        t.className = "hist-t";
+        t.title = title;
+        t.textContent = title;
+        const m = document.createElement("span");
+        m.className = "hist-meta";
+        m.textContent = `${(e.text || "").length.toLocaleString()}c · ${when}`;
+        const btns = document.createElement("span");
+        btns.className = "hist-btns";
+        for (const f of ["pdf", "docx"]) {
+            const b = document.createElement("button");
+            b.className = "mini";
+            b.textContent = f.toUpperCase();
+            b.addEventListener("click", async () => {
+                b.disabled = true;
+                const rr = await ask({ type: "download-history", index: i, format: f });
+                toast(rr.ok ? `Downloading ${rr.filename} ✓` : (rr.error || "Download failed."), rr.ok ? "ok" : "err");
+                b.disabled = false;
+            });
+            btns.appendChild(b);
+        }
+        row.append(t, m, btns);
+        el.appendChild(row);
+    });
+}
+
 // ── wiring ──────────────────────────────────────────────────────────────────
 $("sendBtn").addEventListener("click", doSend);
 $("copyBtn").addEventListener("click", doCopy);
+$("histClear").addEventListener("click", async () => {
+    try { await chrome.storage.local.remove("captureHistory"); } catch { /* best effort */ }
+    renderHistory();
+    toast("Capture history cleared", "ok");
+});
 for (const b of document.querySelectorAll(".dl")) {
     b.addEventListener("click", () => doDownload(b.dataset.format, b));
 }

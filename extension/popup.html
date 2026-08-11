@@ -71,6 +71,23 @@
     .dl-grid .btn { padding: 8px 0; font-size: 12px; }
     .fmt { font-weight: 700; }
 
+    /* ── capture preview / DLP / history ────────────────── */
+    pre { background: #14141d; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+          font-size: 11px; max-height: 150px; overflow: auto; white-space: pre-wrap;
+          word-break: break-word; color: #c8c8d8; margin: 0; }
+    #dlpCard { border-color: var(--err); }
+    #dlpBody { color: var(--err); }
+    .hist-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+    .hist-row:first-child { border-top: none; }
+    .hist-t { flex: 1; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hist-meta { font-size: 10px; color: var(--dim); flex: none; }
+    .hist-btns { display: flex; gap: 4px; flex: none; }
+    .mini { font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 6px;
+            border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+    .mini:hover { border-color: var(--accent); }
+    #histClear { float: right; font-size: 9.5px; background: none; border: none; color: var(--dim);
+                 cursor: pointer; text-decoration: underline; padding: 0; }
+
     /* ── status / toast ─────────────────────────────────── */
     #toast { min-height: 16px; font-size: 11.5px; margin-top: 9px; line-height: 1.45; text-align: center; }
     #toast.ok { color: var(--ok); }
@@ -144,6 +161,24 @@
 
     <!-- Copy markdown -->
     <button class="btn ghost" id="copyBtn" disabled>&#10697; Copy as Markdown</button>
+
+    <!-- Capture preview -->
+    <div class="card hidden" id="previewCard">
+        <h2>Captured markdown</h2>
+        <pre id="previewBody"></pre>
+    </div>
+
+    <!-- DLP warning -->
+    <div class="card hidden" id="dlpCard">
+        <h2 style="color:var(--err)">&#9888; Sensitive content detected</h2>
+        <div class="help" id="dlpBody"></div>
+    </div>
+
+    <!-- Capture history -->
+    <div class="card" id="histCard">
+        <h2>Recent captures <button id="histClear" title="Clear history">clear</button></h2>
+        <div id="histList"></div>
+    </div>
 
     <div id="toast" class="dim"></div>
 

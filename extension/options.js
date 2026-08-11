@@ -83,16 +83,24 @@ function showToast(msg) {
 async function init() {
     // Load from chrome.storage.sync with fallback to chrome.storage.local
     let s = {};
+    const DEFAULTS = { port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: {}, stripPips: true, dlpScan: true, autoSendMinChars: 60, autoSendSites: null };
     try {
-        s = await chrome.storage.sync.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: {} });
+        s = await chrome.storage.sync.get(DEFAULTS);
     } catch {
-        s = await chrome.storage.local.get({ port: 47821, autoSendIdle: false, idleSeconds: 20, imgEmbedPref: "ask", output: {} });
+        s = await chrome.storage.local.get(DEFAULTS);
     }
 
     if ($("port")) $("port").value = s.port || 47821;
     if ($("autoSendIdle")) $("autoSendIdle").checked = !!s.autoSendIdle;
     if ($("idleSeconds")) $("idleSeconds").value = s.idleSeconds || 20;
     if ($("imgEmbedPref")) $("imgEmbedPref").value = ["ask", "url", "base64"].includes(s.imgEmbedPref) ? s.imgEmbedPref : "ask";
+    if ($("stripPips")) $("stripPips").checked = s.stripPips !== false;
+    if ($("dlpScan")) $("dlpScan").checked = s.dlpScan !== false;
+    if ($("autoSendMinChars")) $("autoSendMinChars").value = s.autoSendMinChars || 60;
+    const siteSet = new Set(Array.isArray(s.autoSendSites) ? s.autoSendSites : []);
+    document.querySelectorAll("#autoSendSites input").forEach((cb) => {
+        cb.checked = siteSet.size === 0 ? true : siteSet.has(cb.value);
+    });
 
     // Sparse overrides only — never merge in defaults. A field that isn't stored tracks the
     // app's live setting. (Profiles saved by older extension versions stored every key; those
@@ -143,6 +151,10 @@ if ($("save")) {
             idleSeconds,
             autoSendIdle: $("autoSendIdle") ? $("autoSendIdle").checked : false,
             imgEmbedPref: $("imgEmbedPref") && ["ask", "url", "base64"].includes($("imgEmbedPref").value) ? $("imgEmbedPref").value : "ask",
+            stripPips: $("stripPips") ? $("stripPips").checked : true,
+            dlpScan: $("dlpScan") ? $("dlpScan").checked : true,
+            autoSendMinChars: $("autoSendMinChars") ? Math.max(10, parseInt($("autoSendMinChars").value, 10) || 60) : 60,
+            autoSendSites: [...document.querySelectorAll("#autoSendSites input:checked")].map((cb) => cb.value),
             output,
         };
 

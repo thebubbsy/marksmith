@@ -9,8 +9,14 @@
 // still streaming keeps the timer alive. A content hash prevents re-sending an unchanged conversation.
 
 (async () => {
-  const cfg = await chrome.storage.sync.get({ autoSendIdle: false, idleSeconds: 20, port: 47821, output: {} });
+  const cfg = await chrome.storage.sync.get({ autoSendIdle: false, idleSeconds: 20, port: 47821, output: {}, autoSendSites: null, autoSendMinChars: 60 });
   if (!cfg.autoSendIdle) return;
+
+  // Per-site rule (Options → Automation & Capture): only fire on the checked sites. An empty
+  // list (never saved / older version) means all sites are allowed.
+  const sites = Array.isArray(cfg.autoSendSites) ? cfg.autoSendSites : [];
+  if (sites.length > 0 && !sites.some((s) => location.hostname === s || location.hostname.endsWith("." + s))) return;
+  const minChars = Math.max(10, cfg.autoSendMinChars || 60);
 
   let lastActivity = Date.now();
   let lastHash = null;
@@ -24,7 +30,7 @@
   setInterval(async () => {
     if (Date.now() - lastActivity < cfg.idleSeconds * 1000) return; // still active / streaming
     const md = extractConversation();
-    if (!md || md.length < 60) return;
+    if (!md || md.length < minChars) return;
     const h = hash(md);
     if (h === lastHash) return; // nothing new since last send
     lastHash = h;

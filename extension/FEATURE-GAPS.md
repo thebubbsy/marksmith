@@ -108,3 +108,39 @@ Fully in-browser. Offline-capable. No desktop app, no local server, **free**.
 - PDF export under WASM needs a WASM-capable writer path (SkiaSharp-backed) — staged after DOCX.
 - This is a multi-week project, not a one-shot change; the spike (phase 1) is the right first
   deliverable and is buildable now.
+
+---
+
+## Implementation status (updated)
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | Selection / single-reply capture | ✅ already existed (context menu + popup) |
+| 2 | Image download & embedding | ✅ already existed (base64 embed, CORS-aware) |
+| 3 | Screenshot → document | 🕓 staged — needs `captureVisibleTab` + API support |
+| 4 | Clean math capture | ✅ already existed (KaTeX → LaTeX) |
+| 5 | Code-fence fidelity | ✅ already existed |
+| 6 | Table capture | ✅ already existed (HTML table → Markdown) |
+| 7 | Multi-turn curation | 🕓 staged — turn model in content script |
+| 8 | In-extension citation-pip control | ✅ **new** — `stripCitationPips` (Options toggle, default on) |
+| 9 | In-extension edit before convert | 🕓 staged — editor UI in popup |
+| 10 | Capture preview | ✅ **new** — popup shows the captured Markdown |
+| 11 | Per-capture output profile | 🕓 staged — multi-profile picker |
+| 12 | Standalone in-browser conversion (WASM) | 🔧 WASM pivot — multi-week project, phase 1 spike |
+| 13 | Per-capture format choice | ✅ already existed (PDF/DOCX/PPTX/EPUB) |
+| 14 | In-browser preview before download | 🕓 staged — needs WASM renderer |
+| 15 | Batch conversion | 🕓 staged |
+| 16 | Smart output naming | ✅ **new** — `Title 2026-08-10.docx` (+ uniquify dedupe) |
+| 17 | One-click cloud delivery | 🕓 staged — needs desktop API param |
+| 18 | Print directly | 🕓 staged |
+| 19 | Template / house-style library | 🕓 staged |
+| 20 | `.dotx` import in-extension | 🕓 staged — needs API endpoint |
+| 21 | Capture-anywhere context menu | ✅ already existed (`mdpdfm-selection`, all sites) |
+| 22 | Auto-convert rules | ✅ **new** — per-site checkboxes + min length (Options) |
+| 23 | Capture history | ✅ **new** — last 25 captures, re-download PDF/DOCX |
+| 24 | DLP / governance in-extension | ✅ **new** — PII scan + popup warning (Options toggle) |
+| 25 | Fully offline operation | 🔧 WASM pivot (same as 12) |
+| 26 | Cross-machine sync | ✅ already existed (`storage.sync` for port + profile) |
+| 27 | Auto-open output | 🕓 staged — desktop-side behavior |
+
+**Legend:** ✅ done · 🕓 staged (next tranche) · 🔧 architectural pivot (WASM).
