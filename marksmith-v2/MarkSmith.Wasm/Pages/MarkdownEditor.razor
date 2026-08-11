@@ -1,6 +1,8 @@
 @page "/"
 @page "/editor"
 @using Markdig
+@using MarkSmith.Models
+@using MarkSmith.Services
 @inject IJSRuntime JS
 
 <PageTitle>Marksmith Web — Markdown Editor & Preview</PageTitle>
@@ -11,6 +13,7 @@
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h5 class="mb-0 fw-bold">📝 Markdown Source</h5>
                 <div>
+                    <button class="btn btn-sm btn-outline-success me-2" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
                     <button class="btn btn-sm btn-outline-secondary me-2" @onclick="LoadSample">Load Sample</button>
                     <button class="btn btn-sm btn-outline-danger" @onclick="Clear">Clear</button>
                 </div>
@@ -21,6 +24,16 @@
             <div class="d-flex justify-content-between align-items-center mt-2 text-muted small">
                 <span>@wordCount words · @charCount chars · ~@readingTime min read</span>
                 <span class="badge bg-secondary">Client-Side WASM</span>
+            </div>
+            <div class="mt-1 small">
+                @if (exporting)
+                {
+                    <span class="text-primary">Converting to native .docx — entirely in your browser…</span>
+                }
+                else if (exportStatus is not null && exportStatus.Length > 0)
+                {
+                    <span class="@(exportOk ? "text-success" : "text-danger")">@exportStatus</span>
+                }
             </div>
         </div>
         <div class="col-md-6 d-flex flex-column h-100">
@@ -114,5 +127,46 @@ public static string ConvertToHtml(string markdown)
     private void Clear()
     {
         markdown = string.Empty;
+    }
+
+    // ── in-browser DOCX export (the WASM spike) ─────────────────────────────
+    // Proves MarkSmith.Core's full OOXML pipeline runs under WebAssembly: the file is written
+    // to the in-memory FS, read back as bytes, and handed to the browser for download — zero
+    // server, zero desktop app.
+    private bool exporting;
+    private string? exportStatus;
+    private bool exportOk;
+
+    private async Task ExportDocx()
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            exportStatus = "Nothing to export — type or paste Markdown first.";
+            exportOk = false;
+            return;
+        }
+        exporting = true;
+        exportStatus = null;
+        StateHasChanged();
+        try
+        {
+            const string filename = "marksmith-export.docx";
+            var settings = new AppSettings();
+            await new DocxExportService().ExportAsync(markdown, filename, settings);
+            var bytes = await System.IO.File.ReadAllBytesAsync(filename);
+            await JS.InvokeVoidAsync("marksmithDownload", filename, bytes);
+            exportStatus = $"Downloaded {filename} ({bytes.Length} bytes) — native Word OOXML, compiled in your browser.";
+            exportOk = true;
+        }
+        catch (Exception ex)
+        {
+            exportStatus = $"Export failed: {ex.Message}";
+            exportOk = false;
+        }
+        finally
+        {
+            exporting = false;
+            StateHasChanged();
+        }
     }
 }

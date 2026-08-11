@@ -144,3 +144,22 @@ Fully in-browser. Offline-capable. No desktop app, no local server, **free**.
 | 27 | Auto-open output | 🕓 staged — desktop-side behavior |
 
 **Legend:** ✅ done · 🕓 staged (next tranche) · 🔧 architectural pivot (WASM).
+
+### WASM pivot — phase 1 status (spike done)
+
+The "standalone in-browser conversion" spike is built and proven at the build/publish level:
+
+- **`MarkSmith.Wasm` builds and publishes** — the full `MarkSmith.Core` (OpenXML, SkiaSharp,
+  Markdig, CommunityToolkit) compiles to WebAssembly; the publish output ships 273 `.wasm`
+  assemblies (`DocumentFormat.OpenXml.Framework.wasm`, `MarkSmith.Core.wasm`, …).
+- The editor page now has **"📄 Export DOCX"**: paste Markdown → `DocxExportService.ExportAsync`
+  writes to the WASM in-memory FS → bytes are downloaded via JS interop. Zero server, zero
+  desktop app.
+
+**Phase 2 (extension loader) blockers to resolve next:**
+- **Payload size:** the published wwwroot is ~41 MB (full Core + SkiaSharp). The extension will
+  need trimming (cut plugins/ShapeForge/mermaid natives) or lazy-loading to stay reasonable.
+- **Runtime deps:** SkiaSharp rasterization needs its native `skia.wasm` asset; mermaid and the
+  plugin pipeline are desktop-bound (WebView2) and must be stubbed/trimmed for the WASM path.
+- **Browser validation:** the download path (button → bytes → file) hasn't been exercised in a
+  real browser session yet — that's the first user-validation step.
