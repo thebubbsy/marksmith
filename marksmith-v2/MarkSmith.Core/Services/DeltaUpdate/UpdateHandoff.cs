@@ -15,7 +15,9 @@ public static class UpdateHandoff
         var removedList = Path.Combine(stagingDir, "removed.txt");
         File.WriteAllLines(removedList, apply.Removed);
 
-        var cmdPath = Path.Combine(Path.GetTempPath(), $"marksmith-apply-{pid}.cmd");
+        // Unpredictable name: a predictable %TEMP%\marksmith-apply-{pid}.cmd would let a same-user
+        // process race the spawn and swap in their own script (TOCTOU).
+        var cmdPath = Path.Combine(Path.GetTempPath(), $"marksmith-apply-{Guid.NewGuid():N}.cmd");
         var sb = new StringBuilder();
         sb.AppendLine("@echo off");
         sb.AppendLine("setlocal");

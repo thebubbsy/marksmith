@@ -131,4 +131,45 @@ public class DeltaUpdateTests
         Assert.Equal(original.Files.Count, parsed.Files.Count);
         Assert.Equal(original.Files[0].Sha256, parsed.Files[0].Sha256);
     }
+
+    [Fact]
+    public void ApplyManifest_HostilePaths_Rejected()
+    {
+        // SECURITY regression: the apply manifest lives in a user-writable staging dir, so at
+        // apply time every path must be re-validated — a hand-edited "../" entry must never reach
+        // Path.Combine(installDir, rel) (arbitrary overwrite/delete outside the install dir).
+        var hostileChanged = new ApplyManifest
+        {
+            Release = "2.17.0",
+            Changed = { new DeltaFileEntry("..\\..\\Windows\\System32\\evil.dll", "A".PadLeft(64, '0'), 1) },
+        };
+        Assert.False(DeltaUpdateService.IsApplyManifestSafe(hostileChanged));
+
+        var hostileRemoved = new ApplyManifest
+        {
+            Release = "2.17.0",
+            Removed = { "C:/Windows/evil.dll" },
+        };
+        Assert.False(DeltaUpdateService.IsApplyManifestSafe(hostileRemoved));
+
+        var legitimate = new ApplyManifest
+        {
+            Release = "2.17.0",
+            Changed = { new DeltaFileEntry("Assets/logo.png", "A".PadLeft(64, '0'), 1) },
+            Removed = { "obsolete.dll" },
+        };
+        Assert.True(DeltaUpdateService.IsApplyManifestSafe(legitimate));
+    }
+
+    [Fact]
+    public void IsSafeSegment_RejectsSeparatorsAndDrives()
+    {
+        Assert.True(DeltaUpdateService.IsSafeSegment("x64"));
+        Assert.True(DeltaUpdateService.IsSafeSegment("2.17.0"));
+        Assert.False(DeltaUpdateService.IsSafeSegment(""));
+        Assert.False(DeltaUpdateService.IsSafeSegment("."));
+        Assert.False(DeltaUpdateService.IsSafeSegment(".."));
+        Assert.False(DeltaUpdateService.IsSafeSegment("a/b"));
+        Assert.False(DeltaUpdateService.IsSafeSegment("C:"));
+    }
 }

@@ -34,6 +34,14 @@ public static class DeltaUpdateService
     public static string StagingRoot { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "update-staging");
 
+    /// <summary>A single path segment for use in URLs and staging paths: no separators, no '.',
+    /// no '..', no drive letter, non-empty. A malicious manifest cannot relocate staging outside
+    /// StagingRoot or point file URLs outside the feed.</summary>
+    public static bool IsSafeSegment(string s) =>
+        !string.IsNullOrWhiteSpace(s) &&
+        !s.Contains('/') && !s.Contains('\\') && !s.Contains(':') &&
+        s != "." && s != "..";
+
     /// <summary>Fetches + validates the manifest for a release tag, from Pages first then the raw
     /// branch. Null when neither feed serves a valid manifest.</summary>
     public static async Task<DeltaManifest?> FetchManifestAsync(string tag, CancellationToken ct = default)
@@ -49,7 +57,12 @@ public static class DeltaUpdateService
                 var url = $"{baseUrl}/{Uri.EscapeDataString(version)}/{arch}/{DeltaManifest.ManifestFileName}";
                 var json = await http.GetStringAsync(url, ct);
                 var manifest = DeltaManifest.Parse(json);
-                if (string.IsNullOrWhiteSpace(manifest.BaseUrl)) manifest.BaseUrl = baseUrl;
+                if (!IsSafeSegment(manifest.Arch) || !IsSafeSegment(manifest.Release)) continue;
+                // SECURITY: only https feeds are acceptable, and the base_url must match the feed
+                // we actually pulled the manifest from — a manifest claiming a foreign (or plain
+                // http) base could redirect file downloads anywhere.
+                if (!manifest.BaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    manifest.BaseUrl = baseUrl;
                 return manifest;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException)
@@ -98,9 +111,8 @@ public static class DeltaUpdateService
             Changed = delta.ChangedOrAdded.ToList(),
             Removed = delta.Removed.ToList(),
         };
-        await File.WriteAllTextAsync(
-            Path.Combine(stagingDir, "apply-manifest.json"),
-            JsonSerializer.Serialize(apply, DeltaJson.Options), ct);
+        // Deliberately NOT written yet — see below (written only after every download verified, so
+        // a crash mid-download leaves no 'ready' staging dir for the next launch to apply).
 
         var totalBytes = delta.ChangedOrAdded.Sum(f => Math.Max(1, f.Size));
         var downloaded = 0L;
@@ -135,6 +147,12 @@ public static class DeltaUpdateService
             try { Directory.Delete(stagingDir, recursive: true); } catch { }
             return false;
         }
+
+        // Only a fully downloaded + hash-verified staging dir gets the apply manifest — the
+        // 'ready' signal for the next launch. A crash before this line leaves nothing to apply.
+        await File.WriteAllTextAsync(
+            Path.Combine(stagingDir, "apply-manifest.json"),
+            JsonSerializer.Serialize(apply, DeltaJson.Options), ct);
         return true;
     }
 
@@ -163,6 +181,13 @@ public static class DeltaUpdateService
         {
             return DeltaApplyResult.None; // corrupt staging — never block launch
         }
+
+        // SECURITY: the staging dir is user-writable, so apply-manifest.json must be treated as
+        // hostile input. Re-validate EVERY path at apply time — a hand-edited manifest with a
+        // "../" entry would otherwise overwrite/delete arbitrary files outside the install dir
+        // (compounded by the self-elevating handoff = local privilege escalation). An invalid
+        // manifest is simply dropped; the launch continues normally.
+        if (!IsApplyManifestSafe(apply)) return DeltaApplyResult.None;
 
         var installDir = InstallDir();
         if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir)) return DeltaApplyResult.None;
@@ -219,6 +244,13 @@ public static class DeltaUpdateService
             }
         }
     }
+
+    /// <summary>Pure apply-time security gate: every path in a (user-writable, thus hostile)
+    /// apply manifest must be a safe relative path. Nested paths are legitimate; '..', absolute
+    /// paths and drive letters are rejected.</summary>
+    public static bool IsApplyManifestSafe(ApplyManifest apply) =>
+        apply.Changed.All(f => DeltaManifest.IsSafeRelativePath(f.Path)) &&
+        apply.Removed.All(DeltaManifest.IsSafeRelativePath);
 
     private static void ApplyFiles(ApplyManifest apply, string staging, string installDir)
     {
