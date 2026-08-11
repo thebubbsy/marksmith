@@ -184,7 +184,7 @@ See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later.
 
 ## License
 
-**Proprietary — © 2026 Matthew Barber. All rights reserved.**
+**Proprietary — © 2026 Matthew Bubb. All rights reserved.**
 Marksmith is commercial, proprietary technology. The source is shown publicly for transparency, but please respect that this is a paid product, not freeware — unauthorized copying, redistribution, or reuse of the code is not permitted.
 
 Use is governed by the [End-User License Agreement](LICENSE); redistribution, modification, and reverse engineering are not permitted except as allowed by law. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

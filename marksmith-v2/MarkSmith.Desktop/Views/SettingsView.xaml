@@ -539,7 +539,7 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="© 2026 thebubbsy · All rights reserved · Built with WinUI 3, .NET 8 and WebView2"
+                <TextBlock Text="© 2026 Matthew Bubb · All rights reserved · Built with WinUI 3, .NET 8 and WebView2"
                            Style="{StaticResource StepCaptionStyle}" HorizontalAlignment="Center" />
             </StackPanel>
         </PivotItem>
