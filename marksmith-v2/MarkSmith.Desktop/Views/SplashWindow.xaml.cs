@@ -21,10 +21,16 @@ public sealed partial class SplashWindow : Window
 
         try
         {
-            var uri = new Uri("ms-appx:///Assets/LaunchVideo.mp4");
+            // file:// URI, NOT ms-appx:/// — this app is unpackaged (WindowsPackageType=None) and
+            // the media pipeline cannot resolve ms-appx URIs there: the player silently shows a
+            // black frame (MediaFailed never fires) and the splash sat on its 12s timeout — the
+            // "black screen launch". BaseDirectory is the exact path App.OnLaunched gates on with
+            // File.Exists, so a file URI is guaranteed resolvable.
+            var videoPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4");
+            var uri = new Uri(videoPath);
             Player.Source = MediaSource.CreateFromUri(uri);
             Player.MediaPlayer.MediaEnded += (_, _) => SafeClose();
-            Player.MediaPlayer.MediaFailed += (_, _) => SafeClose(); // corrupt/missing asset — never hang
+            Player.MediaPlayer.MediaFailed += (_, _) => SafeClose(); // corrupt/unsupported asset — never hang
             Player.MediaPlayer.Play();
         }
         catch
