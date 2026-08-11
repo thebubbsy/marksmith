@@ -51,6 +51,19 @@ public partial class App : Application
     {
         try
         {
+            // Apply a previously staged delta update (only the changed files, downloaded by the
+            // delta updater) before any UI appears. If the running exe itself was replaced, a
+            // detached handoff was spawned — this instance must exit and let it finish + restart.
+            try
+            {
+                if (UpdateService.TryApplyPendingDeltaUpdate(out _) == MarkSmith.Services.DeltaUpdate.DeltaApplyResult.RestartHandoffSpawned)
+                {
+                    Environment.Exit(0);
+                    return;
+                }
+            }
+            catch { /* a broken staging dir must never block launch */ }
+
             License.Load(); // resolve Free / Trial / Pro before any UI reads entitlements
 
             // Toast notifications for background auto-conversions; button args open the PDF or its folder.

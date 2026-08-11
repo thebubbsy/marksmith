@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using MarkSmith.Services.DeltaUpdate;
 
 namespace MarkSmith.Services;
 
@@ -183,6 +184,37 @@ public sealed class UpdateService
         catch { }
         Environment.Exit(0);
     }
+
+    // ---- Delta updates (see DeltaUpdate/): download only the files that changed. ----
+
+    /// <summary>Downloads ONLY the files that changed since the installed version (delta feed:
+    /// file-manifest.json + per-file URLs on the release-dist branch, Pages when available),
+    /// stages them under %LOCALAPPDATA%\MarkSmith\update-staging, and applies on the next launch.
+    /// Returns false when the delta feed is unavailable OR the install dir is not writable — the
+    /// caller then falls back to the full-installer download.</summary>
+    public async Task<bool> DownloadDeltaUpdateAsync(string tag, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var manifest = await DeltaUpdateService.FetchManifestAsync(tag, cancellationToken);
+            if (manifest is null) return false;
+            var installDir = Path.GetDirectoryName(Environment.ProcessPath ?? System.Reflection.Assembly.GetEntryAssembly()?.Location) ?? "";
+            if (string.IsNullOrWhiteSpace(installDir)) return false;
+            var staging = Path.Combine(DeltaUpdateService.StagingRoot, manifest.Arch, manifest.Release);
+            return await DeltaUpdateService.DownloadDeltaAsync(manifest, installDir, staging, progress, cancellationToken);
+        }
+        catch
+        {
+            return false; // any delta failure falls back to the installer path
+        }
+    }
+
+    /// <summary>Applies a previously staged delta update; call once at startup before any UI.
+    /// Returns Applied when files were copied in place (launch continues), RestartHandoffSpawned
+    /// when a detached handoff will finish the job and the app should exit, or None when nothing
+    /// was staged.</summary>
+    public static DeltaApplyResult TryApplyPendingDeltaUpdate(out string? message) =>
+        DeltaUpdateService.TryApplyPendingDeltaUpdate(out message);
 
     // Numeric dotted-version compare; returns >0 if a is newer than b. Parts are compared as longs
     // because the build revision is a UTC timestamp (e.g. 2.14.0.202608051200) that overflows int.

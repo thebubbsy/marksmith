@@ -79,6 +79,40 @@ jobs:
           & $iscc "/DArch=${{ matrix.arch }}" "packaging\installer\marksmith.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
+      # Delta update feed: publish the full file tree + a file-manifest.json (path -> sha256/size)
+      # so the client can diff against its installed files and download ONLY the changed ones.
+      # Files land at update/<ver>/<arch>/... on the release-dist branch (see publish-release).
+      - name: Build delta update tree (${{ matrix.arch }})
+        shell: pwsh
+        run: |
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          $ver = $tag.TrimStart('v', 'V')
+          $pub = "marksmith-v2/MarkSmith.Desktop/bin/${{ matrix.arch }}/Release/net8.0-windows10.0.19041.0/win-${{ matrix.arch }}/publish"
+          $root = "delta/$ver/${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Copy-Item "$pub/*" $root -Recurse -Force
+          $files = Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path $root).Path.Length + 1).Replace('\', '/')
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            [pscustomobject]@{ path = $rel; sha256 = $hash; size = $_.Length }
+          }
+          $manifest = [pscustomobject]@{
+            format   = 'marksmith-file-manifest'
+            schema   = 1
+            release  = $ver
+            arch     = "${{ matrix.arch }}"
+            base_url = 'https://raw.githubusercontent.com/thebubbsy/marksmith/release-dist/update'
+            files    = $files
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path "$root/file-manifest.json" -Encoding utf8
+
+      - name: Upload delta tree (${{ matrix.arch }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-update-${{ matrix.arch }}
+          path: delta/
+          if-no-files-found: error
+
       - name: Upload release assets (${{ matrix.arch }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,6 +128,42 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download delta trees
+        uses: actions/download-artifact@v4
+        with:
+          path: delta-artifacts
+          pattern: delta-update-*
+
+      # Publish the delta feed to the release-dist branch: update/<ver>/<arch>/... + manifests.
+      # raw.githubusercontent.com serves it with zero repo-settings dependency; GitHub Pages
+      # (https://thebubbsy.github.io/marksmith/update/...) is tried first by the client when enabled.
+      - name: Publish delta feed (release-dist branch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          ver="${tag#v}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin release-dist || true
+          if git rev-parse --verify origin/release-dist >/dev/null 2>&1; then
+            git checkout release-dist
+          else
+            git checkout --orphan release-dist
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          mkdir -p "update/$ver"
+          cp -r delta-artifacts/delta-update-x64/$ver/* "update/$ver/" 2>/dev/null || true
+          cp -r delta-artifacts/delta-update-arm64/$ver/* "update/$ver/" 2>/dev/null || true
+
+          git add -A
+          git commit -m "Delta feed: $ver [skip ci]" --allow-empty || true
+          git push origin release-dist
 
       - name: Consolidate and Publish Release
         env:
