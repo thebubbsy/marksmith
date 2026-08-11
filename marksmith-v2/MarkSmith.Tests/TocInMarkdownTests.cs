@@ -100,4 +100,51 @@ public class TocInMarkdownTests
         Assert.Equal("", TocInMarkdownService.BuildBlock(new List<(int, string, string)> { (1, "Only One", "only-one") }));
         Assert.Equal("", TocInMarkdownService.BuildBlock(new List<(int, string, string)>()));
     }
+
+    [Fact]
+    public void HasMaintainedToc_FenceSafe_And_IgnoresStrayMarker()
+    {
+        // A code block that merely mentions the markers is NOT a maintained TOC.
+        var fenceOnly = "```\n<!-- MARKSMITH-TOC:START -->\n```\n";
+        Assert.False(TocInMarkdownService.HasMaintainedToc(fenceOnly));
+
+        // A stray unpaired START marker is not a block either — the doc is left untouched.
+        Assert.False(TocInMarkdownService.HasMaintainedToc("# Hi\n\n" + TocInMarkdownService.StartMarker));
+
+        var real = TocInMarkdownService.InsertOrReplace("# Hi\n\n## There\n",
+            TocInMarkdownService.BuildBlock(TocInMarkdownService.ExtractHeadings("# Hi\n\n## There\n")));
+        Assert.True(TocInMarkdownService.HasMaintainedToc(real));
+    }
+
+    [Fact]
+    public void InsertOrReplace_IsIdempotent_OnRepeatRuns()
+    {
+        var md = "# First\n\n## Second\n";
+        var block = TocInMarkdownService.BuildBlock(TocInMarkdownService.ExtractHeadings(md));
+
+        var once = TocInMarkdownService.InsertOrReplace(md, block);
+        var twice = TocInMarkdownService.InsertOrReplace(once, block); // no doc change between runs
+        Assert.Equal(once, twice);
+        Assert.StartsWith(TocInMarkdownService.StartMarker, once);
+    }
+
+    [Fact]
+    public void BuildBlock_EscapesLinkLabelMetacharacters()
+    {
+        var block = TocInMarkdownService.BuildBlock(new List<(int, string, string)>
+        {
+            (1, "C# (CSharp)", "c-csharp"),
+            (2, "Bug [1]", "bug-1"),
+        });
+        Assert.Contains("- [C# \\(CSharp\\)](#c-csharp)", block);
+        Assert.Contains("- [Bug \\[1\\]](#bug-1)", block);
+    }
+
+    [Fact]
+    public void ExtractHeadings_AllowsIndentedAtx()
+    {
+        var md = "# Top\n\n   ## Indented\n";
+        var headings = TocInMarkdownService.ExtractHeadings(md);
+        Assert.Contains(headings, h => h.Text == "Indented" && h.Level == 2);
+    }
 }

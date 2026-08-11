@@ -11,15 +11,18 @@ namespace MarkSmith.Core.Tests;
 public class PortalScrollTests
 {
     [Fact]
-    public void PortalScript_DocPoint_AccountsForScroll()
+    public void PortalScript_DocPoint_MapsClickToCanvasDocumentCoords()
     {
         var settings = new AppSettings { LookingGlassMode = true, IncludeToc = false };
         var theme = new ThemeDefinition("Light", "#ffffff", "#111111", "#222222", "#f4f4f4", "#d9d9d9", "#0078d4", "#e8f4fd", "#bfbfbf");
         var html = AppServices.MarkdownHtml.Render("# Hi\n\nSome body text to render.", settings, theme, interactive: true);
 
-        // The docPoint mapping must add the scroll offsets to the viewport-relative clientX/Y.
-        Assert.Contains("+ window.scrollX", html);
-        Assert.Contains("+ window.scrollY", html);
+        // The click must be mapped via the canvas's visual rect onto its layout rect (fraction
+        // approach) — correct under the fit-width transform scale, root zoom and scroll state.
+        // Mapping via the root rect + scrollX/Y double-counts scroll (getBoundingClientRect
+        // already embeds it) and misses the canvas transform entirely.
+        Assert.Contains("canvas.offsetLeft + fx * canvas.offsetWidth", html);
+        Assert.Contains("canvas.offsetTop + fy * canvas.offsetHeight", html);
         // And the portal script itself is only emitted in interactive Looking Glass mode.
         Assert.Contains("__portalSetSource", html);
     }

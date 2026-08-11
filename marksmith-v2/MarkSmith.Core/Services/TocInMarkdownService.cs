@@ -52,7 +52,10 @@ public static partial class TocInMarkdownService
         foreach (var (level, text, slug) in headings)
         {
             var indent = new string(' ', (level - 1) * 2);
-            sb.AppendLine($"{indent}- [{text}](#{slug})");
+            // Escape link-label metacharacters so headings like "C# (CSharp)" or "Bug [1]" stay
+            // valid markdown links.
+            var label = text.Replace("[", "\\[").Replace("]", "\\]").Replace("(", "\\(").Replace(")", "\\)");
+            sb.AppendLine($"{indent}- [{label}](#{slug})");
         }
         sb.Append(EndMarker);
         return sb.ToString();
@@ -70,8 +73,13 @@ public static partial class TocInMarkdownService
         foreach (var line in markdown.Split('\n'))
         {
             var t = line.TrimEnd('\r');
-            if (t.Contains(StartMarker, StringComparison.Ordinal)) { inTocRegion = true; continue; }
-            if (t.Contains(EndMarker, StringComparison.Ordinal)) { inTocRegion = false; continue; }
+            // Marker lines only count OUTSIDE fences — a code block containing the marker strings
+            // must not flip the region state (and swallow every following heading).
+            if (!inFence)
+            {
+                if (t.Contains(StartMarker, StringComparison.Ordinal)) { inTocRegion = true; continue; }
+                if (t.Contains(EndMarker, StringComparison.Ordinal)) { inTocRegion = false; continue; }
+            }
             if (inTocRegion) continue;
 
             var fence = FenceRe().Match(t);
@@ -98,32 +106,64 @@ public static partial class TocInMarkdownService
         return result;
     }
 
-    /// <summary>Inserts or replaces the maintained TOC block at the very top of the markdown.</summary>
-    public static string InsertOrReplace(string markdown, string block)
+    /// <summary>The contiguous maintained-block range (start of StartMarker .. end of EndMarker),
+    /// or (-1, -1) when there is no valid pair. A stray unpaired marker is NOT a block — documents
+    /// that merely contain the strings are left untouched. Note: block is expected at the top of
+    /// the document; a pair deeper in the doc is still honored (content between it and the top is
+    /// preserved on replace/remove).</summary>
+    private static (int Start, int End) FindBlockRange(string markdown)
     {
         var start = markdown.IndexOf(StartMarker, StringComparison.Ordinal);
-        var end = markdown.IndexOf(EndMarker, StringComparison.Ordinal);
-        if (start >= 0 && end > start)
+        if (start < 0) return (-1, -1);
+        var end = markdown.IndexOf(EndMarker, start + StartMarker.Length, StringComparison.Ordinal);
+        if (end < 0) return (-1, -1);
+        return (start, end + EndMarker.Length);
+    }
+
+    /// <summary>True when the document carries the maintained TOC block (a contiguous marker pair).
+    /// Used by the preview pipeline to skip its own injected TOC — fence-safe (a code sample that
+    /// merely mentions the markers doesn't suppress the injection).</summary>
+    public static bool HasMaintainedToc(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown)) return false;
+        var (start, end) = FindBlockRange(markdown);
+        if (start < 0) return false;
+        // Fence-safe check: the pair must not live inside a fenced code block.
+        var inFence = false;
+        foreach (var line in markdown[..start].Split('\n'))
+        {
+            if (FenceRe().IsMatch(line.TrimEnd('\r'))) inFence = !inFence;
+        }
+        return !inFence;
+    }
+
+    /// <summary>Inserts or replaces the maintained TOC block at the very top of the markdown.
+    /// Idempotent: re-running on a document that already carries the block yields the same text.</summary>
+    public static string InsertOrReplace(string markdown, string block)
+    {
+        var (start, end) = FindBlockRange(markdown);
+        if (start >= 0)
         {
             var before = markdown[..start];
-            var after = markdown[(end + EndMarker.Length)..].TrimStart('\r', '\n');
-            return before.TrimEnd('\r', '\n') + "\n\n" + block + "\n\n" + after;
+            var after = markdown[end..].TrimStart('\r', '\n');
+            return (before.TrimEnd('\r', '\n') + "\n\n" + block + "\n\n" + after).TrimStart('\r', '\n');
         }
         return block + "\n\n" + markdown.TrimStart('\r', '\n');
     }
 
-    /// <summary>Removes the maintained TOC block (markers + content) from the markdown.</summary>
+    /// <summary>Removes the maintained TOC block (markers + content) from the markdown. Only a
+    /// contiguous marker PAIR is removed — a document that merely contains the marker strings is
+    /// returned unchanged.</summary>
     public static string Remove(string markdown)
     {
-        var start = markdown.IndexOf(StartMarker, StringComparison.Ordinal);
-        var end = markdown.IndexOf(EndMarker, StringComparison.Ordinal);
-        if (start < 0 || end <= start) return markdown;
+        var (start, end) = FindBlockRange(markdown);
+        if (start < 0) return markdown;
         var before = markdown[..start];
-        var after = markdown[(end + EndMarker.Length)..];
+        var after = markdown[end..];
         return (before.TrimEnd('\r', '\n') + "\n" + after.TrimStart('\r', '\n')).TrimStart('\r', '\n');
     }
 
-    [GeneratedRegex(@"^(#{1,6})\s+(.+)$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s{0,3}(#{1,6})\s+(.+)$", RegexOptions.Multiline)]
     private static partial Regex HeadingRe();
 
     [GeneratedRegex(@"^\s*(```|~~~)", RegexOptions.Multiline)]
