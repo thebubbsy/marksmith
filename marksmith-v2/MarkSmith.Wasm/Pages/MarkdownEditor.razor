@@ -3,32 +3,88 @@
 @using Markdig
 @using MarkSmith.Models
 @using MarkSmith.Services
+@using MarkSmith.Core.AST
+@using MarkSmith.Core.Glox
+@using MarkSmith.Core.Preview
+@using MarkSmith.Wasm.Services
+@using System.Text
+@using System.Text.RegularExpressions
 @inject IJSRuntime JS
 
-<PageTitle>Marksmith Web — Markdown Editor & Preview</PageTitle>
+<PageTitle>Marksmith Web — Markdown → Word in your browser</PageTitle>
 
 <div class="container-fluid h-100 p-3">
-    <div class="row h-100 g-3">
-        <div class="col-md-6 d-flex flex-column h-100">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="mb-0 fw-bold">📝 Markdown Source</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-success me-2" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
-                    <button class="btn btn-sm btn-outline-secondary me-2" @onclick="LoadSample">Load Sample</button>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4 class="mb-0 fw-bold">Marksmith Web</h4>
+        <span class="badge bg-secondary">Client-Side WASM · full Core engine</span>
+    </div>
+
+    <!-- Settings bar: the same controls as the desktop Style panel -->
+    <div class="card mb-2">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center small">
+                <div class="col-auto">
+                    <label class="form-label mb-0">Theme</label>
+                    <select class="form-select form-select-sm" @bind="settings.Theme" @bind:after="OnSettingsChanged">
+                        @foreach (var t in Themes)
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Page width (px)</label>
+                    <input type="number" class="form-control form-control-sm" style="width:110px"
+                           @bind="settings.ContentWidth" @bind:after="OnSettingsChanged" min="400" max="2400" />
+                </div>
+                <div class="col-auto form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="a4" @bind="settings.A4FixedWidth" @bind:after="OnSettingsChanged" />
+                    <label class="form-check-label" for="a4">A4 lock</label>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Heading shift</label>
+                    <input type="number" class="form-control form-control-sm" style="width:90px"
+                           @bind="settings.HeadingShift" @bind:after="OnSettingsChanged" min="-5" max="5" />
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Bold</label>
+                    <select class="form-select form-select-sm" @bind="settings.BoldMode" @bind:after="OnSettingsChanged">
+                        <option value="0">Keep</option>
+                        <option value="1">Remove</option>
+                        <option value="2">→ Italic</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Italic</label>
+                    <select class="form-select form-select-sm" @bind="settings.ItalicMode" @bind:after="OnSettingsChanged">
+                        <option value="0">Keep</option>
+                        <option value="1">Remove</option>
+                    </select>
+                </div>
+                <div class="col-auto form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="noemoji" @bind="settings.NoEmoji" @bind:after="OnSettingsChanged" />
+                    <label class="form-check-label" for="noemoji">No emoji</label>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Em dashes</label>
+                    <select class="form-select form-select-sm" @bind="settings.DashMode" @bind:after="OnSettingsChanged">
+                        <option value="0">Keep as-is</option>
+                        <option value="1">→ hyphen</option>
+                        <option value="2">→ spaced ( - )</option>
+                        <option value="3">Custom…</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-sm btn-outline-success" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
+                    <button class="btn btn-sm btn-outline-primary" disabled="@exporting" @onclick="ExportEpub">📕 Export EPUB</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadSample">Sample</button>
                     <button class="btn btn-sm btn-outline-danger" @onclick="Clear">Clear</button>
                 </div>
-            </div>
-            <textarea class="form-control flex-grow-1 font-monospace md-editor-input"
-                      @bind="markdown" @bind:event="oninput"
-                      placeholder="Type or paste Markdown here..." spellcheck="false"></textarea>
-            <div class="d-flex justify-content-between align-items-center mt-2 text-muted small">
-                <span>@wordCount words · @charCount chars · ~@readingTime min read</span>
-                <span class="badge bg-secondary">Client-Side WASM</span>
             </div>
             <div class="mt-1 small">
                 @if (exporting)
                 {
-                    <span class="text-primary">Converting to native .docx — entirely in your browser…</span>
+                    <span class="text-primary">Converting — entirely in your browser…</span>
                 }
                 else if (exportStatus is not null && exportStatus.Length > 0)
                 {
@@ -36,12 +92,24 @@
                 }
             </div>
         </div>
+    </div>
+
+    <div class="row g-3" style="height: calc(100vh - 210px);">
         <div class="col-md-6 d-flex flex-column h-100">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="mb-0 fw-bold">👁️ Live Preview</h5>
-                <span class="badge bg-success">Markdig Pipeline</span>
+                <h6 class="mb-0 fw-bold">📝 Markdown Source</h6>
+                <span class="text-muted small">@charCount chars · SmartArt supported</span>
             </div>
-            <div class="border rounded p-3 flex-grow-1 overflow-auto bg-body md-preview-pane">
+            <textarea class="form-control flex-grow-1 font-monospace md-editor-input"
+                      @bind="markdown" @bind:event="oninput"
+                      placeholder="Paste Markdown (or a :::smartart block) here…" spellcheck="false"></textarea>
+        </div>
+        <div class="col-md-6 d-flex flex-column h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 fw-bold">👁️ Live Preview — @(CurrentThemeName)</h6>
+                <span class="badge bg-success">Markdig + KaTeX + highlight + mermaid + SmartArt</span>
+            </div>
+            <div class="border rounded p-3 flex-grow-1 overflow-auto bg-body md-preview-pane" id="previewPane">
                 @((MarkupString)renderedHtml)
             </div>
         </div>
@@ -49,36 +117,33 @@
 </div>
 
 @code {
-    private string markdown = @"# Welcome to Marksmith Web
+    private string markdown = @"# Executive Technical Overview
 
-Type **Markdown** on the left, see the *live preview* on the right.
+## Architecture
 
-## Features
-
-- **GitHub-Flavoured Tables**
-- **Callouts & Admonitions**
-- **Task Lists**
-- **Math Formulations**
+This document is compiled **natively in your browser** — Markdown in, schema-valid Word OOXML out. Zero server, zero desktop app.
 
 | Feature | Status | Engine |
-|---------|--------|--------|
+|---|---|---|
 | Pipe Tables | ✅ | Markdig |
-| Task Lists | ✅ | Markdig |
-| Math Expressions | ✅ | KaTeX-Ready |
+| Math | $E = mc^2$ | KaTeX |
+| Diagrams | flowchart TD; A-->B | mermaid |
+| SmartArt | :::smartart type=""hierarchy"" | 176 native layouts |
 
 > [!NOTE]
-> Marksmith Web compiles and renders entirely in your browser. Zero server processing.
+> The cleanup engine runs first: heading shift, bold/italic modes, em-dash handling and no-emoji all apply to the preview *and* the export — exactly like the desktop app.
 
 ```csharp
-public static string ConvertToHtml(string markdown)
-{
-    var pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions()
-        .Build();
-    return Markdown.ToHtml(markdown, pipeline);
-}
+public static string Hello() => ""Marksmith WASM"";
 ```
 ";
+
+    private readonly AppSettings settings = new();
+    private bool settingsLoaded;
+    private bool exporting;
+    private string? exportStatus;
+    private bool exportOk;
+    private string? currentThemeName;
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -90,14 +155,162 @@ public static string ConvertToHtml(string markdown)
         .UseGenericAttributes()
         .Build();
 
-    private string renderedHtml => Markdown.ToHtml(markdown ?? "", Pipeline);
+    private static readonly Regex SmartArtBlock = new(
+        @"(?s)(?:\A|\n\n)\s*:::smartart\s+type=""([^""]+)""\s*\r?\n(.*?)\r?\n:::\s*",
+        RegexOptions.Compiled);
 
-    private int wordCount => string.IsNullOrWhiteSpace(markdown) ? 0
-        : markdown.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    private IEnumerable<string> Themes
+    {
+        get
+        {
+            try
+            {
+                return AppServices.Themes.All.Select(t => t.Name).Distinct().OrderBy(n => n);
+            }
+            catch
+            {
+                // Custom-theme store is disk-bound and unavailable under WASM — built-ins only.
+                return new[] { "Default", "GitHub Light", "GitHub Dark", "Solarized Light", "Dracula", "Obsidian" };
+            }
+        }
+    }
+
+    private string CurrentThemeName => settings.Theme ?? "GitHub Light";
 
     private int charCount => markdown?.Length ?? 0;
 
-    private int readingTime => Math.Max(1, wordCount / 200);
+    protected override async Task OnInitializedAsync()
+    {
+        var store = new WasmSettingsStore(JS);
+        var saved = await store.LoadAsync();
+        CopySettings(saved, settings);
+        if (string.IsNullOrWhiteSpace(settings.Theme)) settings.Theme = "GitHub Light";
+        settingsLoaded = true;
+        await Task.CompletedTask;
+    }
+
+    private static void CopySettings(AppSettings from, AppSettings to)
+    {
+        to.Theme = from.Theme;
+        to.ContentWidth = from.ContentWidth;
+        to.A4FixedWidth = from.A4FixedWidth;
+        to.HeadingShift = from.HeadingShift;
+        to.BoldMode = from.BoldMode;
+        to.ItalicMode = from.ItalicMode;
+        to.NoEmoji = from.NoEmoji;
+        to.DashMode = from.DashMode;
+        to.DashCustom = from.DashCustom;
+        to.NormalizeLlm = from.NormalizeLlm;
+    }
+
+    private async void OnSettingsChanged()
+    {
+        if (!settingsLoaded) return;
+        currentThemeName = settings.Theme;
+        if (settings.A4FixedWidth) settings.ContentWidth = 794;
+        try
+        {
+            await new WasmSettingsStore(JS).SaveAsync(settings);
+        }
+        catch { /* persistence is best-effort */ }
+        StateHasChanged();
+    }
+
+    // ── the full desktop preview pipeline, client-side ──────────────────────
+    // FormattingService (heading shift / bold / italic) → DialectNormalizer +
+    // DashReplacer (em-dash handling) → Markdig → EmojiStripper → SmartArt SVG.
+    private string renderedHtml
+    {
+        get
+        {
+            try
+            {
+                var md = markdown ?? "";
+                var smartArt = new List<(string Alias, string Inner)>();
+                md = SmartArtBlock.Replace(md, m =>
+                {
+                    smartArt.Add((m.Groups[1].Value.Trim().ToLowerInvariant(), m.Groups[2].Value.Trim()));
+                    return $"\n\n<!--SMARTART:{smartArt.Count - 1}-->\n\n";
+                });
+
+                md = FormattingService.Apply(md, settings);
+                md = DialectNormalizer.Apply(md, settings.DashMode);
+                md = DashReplacer.Apply(md, settings.DashMode, settings.DashCustom);
+
+                var body = Markdown.ToHtml(md, Pipeline);
+                if (settings.NoEmoji) body = EmojiStripper.Strip(body);
+
+                for (int i = 0; i < smartArt.Count; i++)
+                {
+                    try
+                    {
+                        var ast = MarkdownAstParser.Parse(smartArt[i].Inner);
+                        var pkg = SmartArtLayoutCatalog.Shared.TryResolve(smartArt[i].Alias);
+                        string alias = pkg != null ? smartArt[i].Alias : "hierarchy";
+                        var svg = HtmlPreviewRenderer.RenderHtml(ast, alias, pkg?.Title ?? alias);
+                        body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"border rounded p-2 my-2\" style=\"background:#f8f9fa\">{svg}</div>");
+                    }
+                    catch
+                    {
+                        body = body.Replace($"<!--SMARTART:{i}-->", "<div class=\"text-danger\">SmartArt could not render.</div>");
+                    }
+                }
+                return body;
+            }
+            catch (Exception ex)
+            {
+                return $"<div class=\"text-danger\">Preview error: {ex.Message}</div>";
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            currentThemeName = settings.Theme;
+            StateHasChanged();
+        }
+        try { await JS.InvokeVoidAsync("marksmithEnhancePreview"); } catch { /* best effort */ }
+    }
+
+    // ── exports: the same Core exporters the desktop uses ───────────────────
+    private async Task ExportDocx()
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) { exportStatus = "Nothing to export — type or paste Markdown first."; exportOk = false; return; }
+        await RunExport("marksmith-export.docx", (path) => new DocxExportService().ExportAsync(markdown, path, settings));
+    }
+
+    private async Task ExportEpub()
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) { exportStatus = "Nothing to export — type or paste Markdown first."; exportOk = false; return; }
+        await RunExport("marksmith-export.epub", (path) => new EpubExportService().ExportAsync(markdown, path, settings));
+    }
+
+    private async Task RunExport(string filename, Func<string, Task> convert)
+    {
+        exporting = true;
+        exportStatus = null;
+        StateHasChanged();
+        try
+        {
+            await convert(filename);
+            var bytes = await System.IO.File.ReadAllBytesAsync(filename);
+            await JS.InvokeVoidAsync("marksmithDownload", filename, bytes);
+            exportStatus = $"Downloaded {filename} ({bytes.Length} bytes) — compiled natively in your browser.";
+            exportOk = true;
+        }
+        catch (Exception ex)
+        {
+            exportStatus = $"Export failed: {ex.Message}";
+            exportOk = false;
+        }
+        finally
+        {
+            exporting = false;
+            StateHasChanged();
+        }
+    }
 
     private void LoadSample()
     {
@@ -111,7 +324,6 @@ public static string ConvertToHtml(string markdown)
             "```json",
             "{",
             "  \"app\": \"Marksmith WASM\",",
-            "  \"version\": \"2.8.0\",",
             "  \"offline\": true",
             "}",
             "```",
@@ -121,52 +333,20 @@ public static string ConvertToHtml(string markdown)
             "|---|---|---|",
             "| Markdig Parse | < 2ms | 120 KB |",
             "| HTML Render | < 1ms | 45 KB |",
+            "| DOCX Compile | < 10ms | 300 KB |",
+            "",
+            ":::smartart type=\"hierarchy\"",
+            "- Executive Board",
+            "  - Engineering",
+            "    - Backend",
+            "    - Frontend",
+            "  - Product",
+            ":::",
         });
     }
 
     private void Clear()
     {
         markdown = string.Empty;
-    }
-
-    // ── in-browser DOCX export (the WASM spike) ─────────────────────────────
-    // Proves MarkSmith.Core's full OOXML pipeline runs under WebAssembly: the file is written
-    // to the in-memory FS, read back as bytes, and handed to the browser for download — zero
-    // server, zero desktop app.
-    private bool exporting;
-    private string? exportStatus;
-    private bool exportOk;
-
-    private async Task ExportDocx()
-    {
-        if (string.IsNullOrWhiteSpace(markdown))
-        {
-            exportStatus = "Nothing to export — type or paste Markdown first.";
-            exportOk = false;
-            return;
-        }
-        exporting = true;
-        exportStatus = null;
-        StateHasChanged();
-        try
-        {
-            const string filename = "marksmith-export.docx";
-            var settings = new AppSettings();
-            await new DocxExportService().ExportAsync(markdown, filename, settings);
-            var bytes = await System.IO.File.ReadAllBytesAsync(filename);
-            await JS.InvokeVoidAsync("marksmithDownload", filename, bytes);
-            exportStatus = $"Downloaded {filename} ({bytes.Length} bytes) — native Word OOXML, compiled in your browser.";
-            exportOk = true;
-        }
-        catch (Exception ex)
-        {
-            exportStatus = $"Export failed: {ex.Message}";
-            exportOk = false;
-        }
-        finally
-        {
-            exporting = false;
-            StateHasChanged();
-        }
     }
 }
