@@ -104,9 +104,11 @@ public class TocInMarkdownTests
     [Fact]
     public void HasMaintainedToc_FenceSafe_And_IgnoresStrayMarker()
     {
-        // A code block that merely mentions the markers is NOT a maintained TOC.
-        var fenceOnly = "```\n<!-- MARKSMITH-TOC:START -->\n```\n";
+        // A code block that merely mentions the markers is NOT a maintained TOC — including a
+        // full ordered pair inside the fence (replacing it mid-fence would unbalance the fence).
+        var fenceOnly = "```\n<!-- MARKSMITH-TOC:START -->\n<!-- MARKSMITH-TOC:END -->\n```\n";
         Assert.False(TocInMarkdownService.HasMaintainedToc(fenceOnly));
+        Assert.Equal(fenceOnly, TocInMarkdownService.Remove(fenceOnly)); // untouched
 
         // A stray unpaired START marker is not a block either — the doc is left untouched.
         Assert.False(TocInMarkdownService.HasMaintainedToc("# Hi\n\n" + TocInMarkdownService.StartMarker));
