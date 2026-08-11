@@ -3,116 +3,278 @@
 @using Markdig
 @using MarkSmith.Models
 @using MarkSmith.Services
+@using MarkSmith.Services.Mermaid
 @using MarkSmith.Core.AST
 @using MarkSmith.Core.Glox
 @using MarkSmith.Core.Preview
 @using MarkSmith.Wasm.Services
 @using System.Text
+@using System.Text.Json
 @using System.Text.RegularExpressions
 @inject IJSRuntime JS
 
-<PageTitle>Marksmith Web — Markdown → Word in your browser</PageTitle>
+<PageTitle>Marksmith — Web Edition</PageTitle>
 
-<div class="container-fluid h-100 p-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h4 class="mb-0 fw-bold">Marksmith Web</h4>
-        <span class="badge bg-secondary">Client-Side WASM · full Core engine</span>
+<style>
+    /* ═══ Marksmith Web — faithful replica of the desktop app's shell ═══
+       Palette mirrors MainWindow.xaml theme resources:
+       window #1b1b1f · card #25252a · card-secondary #2b2b31 · stroke #33333a
+       text #e8e8ea · dim #9a9ab0 · accent #0078D4 */
+    :root {
+        --bg: #1b1b1f; --card: #25252a; --card2: #2b2b31; --line: #33333a;
+        --text: #e8e8ea; --dim: #9a9ab0; --accent: #0078d4; --accent-hi: #2b8be8;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; }
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── title / command bar ── */
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 52px;
+              background: #202026; border-bottom: 1px solid var(--line); flex: none; }
+    .topbar .logo { font-size: 18px; }
+    .topbar h1 { font-size: 15px; font-weight: 700; margin: 0; }
+    .topbar .pill { background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 600;
+                    padding: 3px 10px; border-radius: 10px; }
+    .topbar .spacer { flex: 1; }
+    .topbar .chip { font-size: 11px; color: var(--dim); }
+
+    /* ── three-pane body ── */
+    .body { display: flex; flex: 1; gap: 12px; padding: 12px 16px 8px; min-height: 0; }
+    .pane { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            display: flex; flex-direction: column; min-height: 0; }
+    .pane.left { width: 290px; flex: none; }
+    .pane.center { flex: 1; min-width: 360px; }
+    .pane.right { width: 360px; flex: none; }
+    .pane-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim);
+                  font-weight: 600; padding: 12px 14px 8px; }
+
+    /* ── left: Source & Files ── */
+    .pane.left .src-scroll { flex: 1; overflow: auto; padding: 0 14px 14px; }
+    .pane.left textarea { width: 100%; min-height: 260px; resize: vertical; background: var(--bg);
+                          color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+                          padding: 10px; font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+    .pane.left .src-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .pane.left .hint { font-size: 11px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
+
+    /* ── center: Looking Glass (editor + preview) ── */
+    .lg-tabs { display: flex; gap: 6px; padding: 10px 14px 0; }
+    .lg-tabs button { background: transparent; border: 1px solid var(--line); color: var(--dim);
+                      font-size: 11.5px; font-weight: 600; padding: 5px 14px; border-radius: 7px; cursor: pointer; }
+    .lg-tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .lg-body { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 14px; min-height: 0; }
+    .lg-editor, .lg-preview { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); min-height: 0; }
+    .lg-editor { display: flex; flex-direction: column; }
+    .lg-preview { flex: 1; overflow: auto; padding: 18px; }
+    .lg-editor textarea { flex: 1; width: 100%; background: transparent; color: var(--text); border: none;
+                          outline: none; resize: none; padding: 14px; font-family: "Cascadia Mono", Consolas, monospace;
+                          font-size: 13px; line-height: 1.55; }
+    .lg-editor .bar, .lg-preview .bar { font-size: 10.5px; color: var(--dim); padding: 6px 12px;
+                                        border-bottom: 1px solid var(--line); text-transform: uppercase;
+                                        letter-spacing: .6px; font-weight: 600; }
+    .lg-preview .bar { border-bottom: none; border-top: 1px solid var(--line); }
+    .lg-preview { display: flex; flex-direction: column; }
+    .lg-preview .doc { flex: 1; overflow: auto; padding: 20px 28px; }
+    .lg-preview .doc h1, .lg-preview .doc h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+    .lg-preview .doc table { border-collapse: collapse; }
+    .lg-preview .doc td, .lg-preview .doc th { border: 1px solid var(--line); padding: 4px 10px; }
+    .lg-preview .doc pre { background: #14141d; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; }
+    .lg-preview .doc blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding-left: 14px; color: var(--dim); }
+    .lg-preview .doc code { background: #14141d; border-radius: 4px; padding: 1px 5px; }
+    .lg-preview .doc a { color: var(--accent-hi); }
+
+    /* ── right: Style panel (desktop dropdown groups) ── */
+    .pane.right .style-scroll { flex: 1; overflow: auto; padding: 0 12px 12px; }
+    details.group { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+    details.group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+                              padding: 10px 12px; font-weight: 600; font-size: 12.5px; user-select: none; }
+    details.group > summary::-webkit-details-marker { display: none; }
+    details.group > summary .chev { margin-left: auto; color: var(--dim); transition: transform .15s; font-size: 10px; }
+    details.group[open] > summary .chev { transform: rotate(90deg); }
+    details.group .group-body { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .field-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .field-row label { font-size: 12px; color: var(--text); }
+    .field-row .hint { font-size: 10.5px; color: var(--dim); line-height: 1.4; }
+    select, input[type=number], input[type=text] { background: var(--bg); color: var(--text);
+        border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+    .switch { position: relative; width: 38px; height: 20px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .sl { position: absolute; inset: 0; background: #3c3c44; border-radius: 20px; transition: .15s; }
+    .switch .sl::before { content: ""; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px;
+                          background: #fff; border-radius: 50%; transition: .15s; }
+    .switch input:checked + .sl { background: var(--accent); }
+    .switch input:checked + .sl::before { transform: translateX(18px); }
+
+    /* ── buttons ── */
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 7px; padding: 7px 14px;
+           font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .btn:hover { background: var(--accent-hi); }
+    .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+    .btn.ghost:hover { border-color: var(--accent); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; }
+
+    /* ── status bar ── */
+    .statusbar { display: flex; align-items: center; gap: 14px; padding: 7px 16px; background: #202026;
+                 border-top: 1px solid var(--line); font-size: 11.5px; color: var(--dim); flex: none; }
+    .statusbar .ok { color: #3fb950; }
+    .statusbar .err { color: #f85149; }
+</style>
+
+<div class="shell">
+    <!-- Command bar -->
+    <div class="topbar">
+        <span class="logo">🧾</span>
+        <h1>Marksmith</h1>
+        <span class="pill">Web Edition — full desktop replica</span>
+        <div class="spacer"></div>
+        <span class="chip">@charCount chars</span>
+        <span class="chip">@classificationLabel</span>
+        <button class="btn ghost" @onclick="Clear">Clear</button>
+        <button class="btn ghost" @onclick="LoadSample">Load sample</button>
     </div>
 
-    <!-- Settings bar: the same controls as the desktop Style panel -->
-    <div class="card mb-2">
-        <div class="card-body py-2">
-            <div class="row g-2 align-items-center small">
-                <div class="col-auto">
-                    <label class="form-label mb-0">Theme</label>
-                    <select class="form-select form-select-sm" @bind="settings.Theme" @bind:after="OnSettingsChanged">
-                        @foreach (var t in Themes)
-                        {
-                            <option value="@t">@t</option>
-                        }
-                    </select>
+    <div class="body">
+        <!-- LEFT: Source & Files -->
+        <aside class="pane left">
+            <div class="pane-title">Source &amp; Files</div>
+            <div class="src-scroll">
+                <label class="hint" for="srcBox">Paste Markdown, an AI reply, or a <code>:::smartart</code> block — everything compiles in your browser.</label>
+                <textarea id="srcBox" @bind="markdown" @bind:event="oninput" spellcheck="false"></textarea>
+                <div class="src-actions">
+                    <button class="btn" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
+                    <button class="btn ghost" disabled="@exporting" @onclick="ExportEpub">📕 Export EPUB</button>
                 </div>
-                <div class="col-auto">
-                    <label class="form-label mb-0">Page width (px)</label>
-                    <input type="number" class="form-control form-control-sm" style="width:110px"
-                           @bind="settings.ContentWidth" @bind:after="OnSettingsChanged" min="400" max="2400" />
-                </div>
-                <div class="col-auto form-check form-switch mt-4">
-                    <input class="form-check-input" type="checkbox" id="a4" @bind="settings.A4FixedWidth" @bind:after="OnSettingsChanged" />
-                    <label class="form-check-label" for="a4">A4 lock</label>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label mb-0">Heading shift</label>
-                    <input type="number" class="form-control form-control-sm" style="width:90px"
-                           @bind="settings.HeadingShift" @bind:after="OnSettingsChanged" min="-5" max="5" />
-                </div>
-                <div class="col-auto">
-                    <label class="form-label mb-0">Bold</label>
-                    <select class="form-select form-select-sm" @bind="settings.BoldMode" @bind:after="OnSettingsChanged">
-                        <option value="0">Keep</option>
-                        <option value="1">Remove</option>
-                        <option value="2">→ Italic</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label mb-0">Italic</label>
-                    <select class="form-select form-select-sm" @bind="settings.ItalicMode" @bind:after="OnSettingsChanged">
-                        <option value="0">Keep</option>
-                        <option value="1">Remove</option>
-                    </select>
-                </div>
-                <div class="col-auto form-check form-switch mt-4">
-                    <input class="form-check-input" type="checkbox" id="noemoji" @bind="settings.NoEmoji" @bind:after="OnSettingsChanged" />
-                    <label class="form-check-label" for="noemoji">No emoji</label>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label mb-0">Em dashes</label>
-                    <select class="form-select form-select-sm" @bind="settings.DashMode" @bind:after="OnSettingsChanged">
-                        <option value="0">Keep as-is</option>
-                        <option value="1">→ hyphen</option>
-                        <option value="2">→ spaced ( - )</option>
-                        <option value="3">Custom…</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <button class="btn btn-sm btn-outline-success" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
-                    <button class="btn btn-sm btn-outline-primary" disabled="@exporting" @onclick="ExportEpub">📕 Export EPUB</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadSample">Sample</button>
-                    <button class="btn btn-sm btn-outline-danger" @onclick="Clear">Clear</button>
+                <div class="hint">
+                    Draft autosaves as you type (resumes on reload). Mermaid diagrams in the preview are
+                    rebuilt as <b>native Word shapes</b> on export.
                 </div>
             </div>
-            <div class="mt-1 small">
-                @if (exporting)
+        </aside>
+
+        <!-- CENTER: Looking Glass (editor / split / preview) -->
+        <main class="pane center">
+            <div class="lg-tabs">
+                <button class="@TabClass(ViewCode)" @onclick="() => SetView(ViewCode)">Code</button>
+                <button class="@TabClass(ViewSplit)" @onclick="() => SetView(ViewSplit)">Split</button>
+                <button class="@TabClass(ViewPreview)" @onclick="() => SetView(ViewPreview)">Preview</button>
+            </div>
+            <div class="lg-body">
+                @if (view != ViewPreview)
                 {
-                    <span class="text-primary">Converting — entirely in your browser…</span>
+                    <div class="lg-editor" style="@SplitStyle()">
+                        <div class="bar">Markdown Source</div>
+                        <textarea @bind="markdown" @bind:event="oninput" spellcheck="false"></textarea>
+                    </div>
                 }
-                else if (exportStatus is not null && exportStatus.Length > 0)
+                @if (view != ViewCode)
                 {
-                    <span class="@(exportOk ? "text-success" : "text-danger")">@exportStatus</span>
+                    <div class="lg-preview" style="@SplitStyle()">
+                        <div class="doc">@((MarkupString)renderedHtml)</div>
+                    </div>
                 }
             </div>
-        </div>
+        </main>
+
+        <!-- RIGHT: Style panel (desktop dropdown groups) -->
+        <aside class="pane right">
+            <div class="pane-title">Style &amp; Export</div>
+            <div class="style-scroll">
+                <details class="group" open>
+                    <summary>🎨 Appearance <span class="chev">▶</span></summary>
+                    <div class="group-body">
+                        <div class="field-row">
+                            <label>Theme</label>
+                            <select @bind="settings.Theme" @bind:after="OnSettingsChanged" style="width:150px">
+                                @foreach (var t in Themes)
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label>Page width (px)</label>
+                            <input type="number" style="width:90px" @bind="settings.ContentWidth" @bind:after="OnSettingsChanged" min="400" max="2400" />
+                        </div>
+                        <div class="field-row">
+                            <label>A4 lock</label>
+                            <label class="switch"><input type="checkbox" @bind="settings.A4FixedWidth" @bind:after="OnSettingsChanged" /><span class="sl"></span></label>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="group" open>
+                    <summary>✏️ Formatting &amp; text <span class="chev">▶</span></summary>
+                    <div class="group-body">
+                        <div class="field-row">
+                            <label>Heading level shift</label>
+                            <input type="number" style="width:70px" @bind="settings.HeadingShift" @bind:after="OnSettingsChanged" min="-5" max="5" />
+                        </div>
+                        <div class="field-row">
+                            <label>Bold</label>
+                            <select style="width:130px" @bind="settings.BoldMode" @bind:after="OnSettingsChanged">
+                                <option value="0">Keep</option>
+                                <option value="1">Remove</option>
+                                <option value="2">→ Italic</option>
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label>Italic</label>
+                            <select style="width:130px" @bind="settings.ItalicMode" @bind:after="OnSettingsChanged">
+                                <option value="0">Keep</option>
+                                <option value="1">Remove</option>
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label>Em dashes</label>
+                            <select style="width:130px" @bind="settings.DashMode" @bind:after="OnSettingsChanged">
+                                <option value="0">Keep as-is</option>
+                                <option value="1">→ hyphen</option>
+                                <option value="2">→ spaced ( - )</option>
+                                <option value="3">Custom…</option>
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label>No emoji mode</label>
+                            <label class="switch"><input type="checkbox" @bind="settings.NoEmoji" @bind:after="OnSettingsChanged" /><span class="sl"></span></label>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="group" open>
+                    <summary>🧹 Content &amp; cleanup <span class="chev">▶</span></summary>
+                    <div class="group-body">
+                        <div class="field-row">
+                            <label>Normalize AI quirks</label>
+                            <label class="switch"><input type="checkbox" @bind="settings.NormalizeLlm" @bind:after="OnSettingsChanged" /><span class="sl"></span></label>
+                        </div>
+                        <div class="hint">Detects the assistant (ChatGPT / Gemini / Claude / Copilot), repairs copy artifacts, and normalizes its formatting quirks — same engine as the desktop app.</div>
+                    </div>
+                </details>
+
+                <details class="group">
+                    <summary>🧩 SmartArt <span class="chev">▶</span></summary>
+                    <div class="group-body">
+                        <div class="hint">Include a <code>:::smartart type="hierarchy"</code> block (nested <code>- </code> bullets) in your Markdown. It previews here as a diagram and exports as <b>native Word SmartArt</b> — 176 layouts.</div>
+                        <div class="hint">Try: <code>type="process"</code>, <code>"cycle"</code>, <code>"matrix"</code>, <code>"pyramid"</code>, <code>"venn"</code>, <code>"picturelist"</code>.</div>
+                    </div>
+                </details>
+            </div>
+        </aside>
     </div>
 
-    <div class="row g-3" style="height: calc(100vh - 210px);">
-        <div class="col-md-6 d-flex flex-column h-100">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 fw-bold">📝 Markdown Source</h6>
-                <span class="text-muted small">@charCount chars · SmartArt supported</span>
-            </div>
-            <textarea class="form-control flex-grow-1 font-monospace md-editor-input"
-                      @bind="markdown" @bind:event="oninput"
-                      placeholder="Paste Markdown (or a :::smartart block) here…" spellcheck="false"></textarea>
-        </div>
-        <div class="col-md-6 d-flex flex-column h-100">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 fw-bold">👁️ Live Preview — @(CurrentThemeName)</h6>
-                <span class="badge bg-success">Markdig + KaTeX + highlight + mermaid + SmartArt</span>
-            </div>
-            <div class="border rounded p-3 flex-grow-1 overflow-auto bg-body md-preview-pane" id="previewPane">
-                @((MarkupString)renderedHtml)
-            </div>
-        </div>
+    <!-- Status bar -->
+    <div class="statusbar">
+        <span>WebAssembly · zero server · offline</span>
+        <span class="spacer" style="flex:1"></span>
+        @if (exporting)
+        {
+            <span>Converting — entirely in your browser…</span>
+        }
+        else if (exportStatus is { Length: > 0 })
+        {
+            <span class="@(exportOk ? "ok" : "err")">@exportStatus</span>
+        }
     </div>
 </div>
 
@@ -127,16 +289,30 @@ This document is compiled **natively in your browser** — Markdown in, schema-v
 |---|---|---|
 | Pipe Tables | ✅ | Markdig |
 | Math | $E = mc^2$ | KaTeX |
-| Diagrams | flowchart TD; A-->B | mermaid |
+| Diagrams | ```mermaid
+flowchart TD
+    A[Source] --> B[Style] --> C[Export]
+``` | mermaid |
 | SmartArt | :::smartart type=""hierarchy"" | 176 native layouts |
 
 > [!NOTE]
 > The cleanup engine runs first: heading shift, bold/italic modes, em-dash handling and no-emoji all apply to the preview *and* the export — exactly like the desktop app.
 
-```csharp
-public static string Hello() => ""Marksmith WASM"";
-```
+:::smartart type=""hierarchy""
+- Executive Board
+  - Engineering
+    - Backend
+    - Frontend
+  - Product
+:::
 ";
+
+    private string view = "split";
+    private const string ViewCode = "code";
+    private const string ViewSplit = "split";
+    private const string ViewPreview = "preview";
+    private string TabClass(string v) => view == v ? "on" : "";
+    private string SplitStyle() => view == ViewSplit ? "flex: 1;" : "flex: 3;";
 
     private readonly AppSettings settings = new();
     private bool settingsLoaded;
@@ -144,6 +320,8 @@ public static string Hello() => ""Marksmith WASM"";
     private string? exportStatus;
     private bool exportOk;
     private string? currentThemeName;
+    private string classificationLabel = "";
+    private string _lastSavedDraft = "";
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -169,13 +347,10 @@ public static string Hello() => ""Marksmith WASM"";
             }
             catch
             {
-                // Custom-theme store is disk-bound and unavailable under WASM — built-ins only.
                 return new[] { "Default", "GitHub Light", "GitHub Dark", "Solarized Light", "Dracula", "Obsidian" };
             }
         }
     }
-
-    private string CurrentThemeName => settings.Theme ?? "GitHub Light";
 
     private int charCount => markdown?.Length ?? 0;
 
@@ -185,8 +360,13 @@ public static string Hello() => ""Marksmith WASM"";
         var saved = await store.LoadAsync();
         CopySettings(saved, settings);
         if (string.IsNullOrWhiteSpace(settings.Theme)) settings.Theme = "GitHub Light";
+        try
+        {
+            var draft = await JS.InvokeAsync<string>("marksmithStorageGet", "marksmith.draft");
+            if (!string.IsNullOrWhiteSpace(draft)) markdown = draft;
+        }
+        catch { /* first run */ }
         settingsLoaded = true;
-        await Task.CompletedTask;
     }
 
     private static void CopySettings(AppSettings from, AppSettings to)
@@ -203,6 +383,8 @@ public static string Hello() => ""Marksmith WASM"";
         to.NormalizeLlm = from.NormalizeLlm;
     }
 
+    private void SetView(string v) => view = v;
+
     private async void OnSettingsChanged()
     {
         if (!settingsLoaded) return;
@@ -217,8 +399,6 @@ public static string Hello() => ""Marksmith WASM"";
     }
 
     // ── the full desktop preview pipeline, client-side ──────────────────────
-    // FormattingService (heading shift / bold / italic) → DialectNormalizer +
-    // DashReplacer (em-dash handling) → Markdig → EmojiStripper → SmartArt SVG.
     private string renderedHtml
     {
         get
@@ -226,6 +406,24 @@ public static string Hello() => ""Marksmith WASM"";
             try
             {
                 var md = markdown ?? "";
+
+                // AI-source parity (desktop PrepareMarkdown): detect the assistant, repair
+                // copy artifacts ALWAYS, and normalize style when the toggle is on.
+                try
+                {
+                    var classification = AppServices.LlmSource.Classify(md);
+                    classificationLabel = classification.Source == LlmSource.Generic
+                        ? ""
+                        : $"{classification.SourceDescription} · {classification.Confidence}%";
+                    (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
+                    if (settings.NormalizeLlm)
+                        (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification);
+                }
+                catch
+                {
+                    classificationLabel = "";
+                }
+
                 var smartArt = new List<(string Alias, string Inner)>();
                 md = SmartArtBlock.Replace(md, m =>
                 {
@@ -271,6 +469,11 @@ public static string Hello() => ""Marksmith WASM"";
             currentThemeName = settings.Theme;
             StateHasChanged();
         }
+        if (markdown != _lastSavedDraft)
+        {
+            _lastSavedDraft = markdown;
+            try { await JS.InvokeVoidAsync("marksmithStorageSet", "marksmith.draft", markdown); } catch { /* best effort */ }
+        }
         try { await JS.InvokeVoidAsync("marksmithEnhancePreview"); } catch { /* best effort */ }
     }
 
@@ -278,7 +481,21 @@ public static string Hello() => ""Marksmith WASM"";
     private async Task ExportDocx()
     {
         if (string.IsNullOrWhiteSpace(markdown)) { exportStatus = "Nothing to export — type or paste Markdown first."; exportOk = false; return; }
-        await RunExport("marksmith-export.docx", (path) => new DocxExportService().ExportAsync(markdown, path, settings));
+        await RunExport("marksmith-export.docx", async (path) =>
+        {
+            List<HarvestedDiagram>? geometry = null;
+            try
+            {
+                var json = await JS.InvokeAsync<string>("marksmithHarvestMermaid");
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    var parsed = JsonSerializer.Deserialize<List<HarvestedDiagram>>(json);
+                    if (parsed is { Count: > 0 }) geometry = parsed;
+                }
+            }
+            catch { /* no preview rendered — export without geometry */ }
+            await new DocxExportService().ExportAsync(markdown, path, settings, null, null, geometry);
+        });
     }
 
     private async Task ExportEpub()
