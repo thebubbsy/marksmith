@@ -20,6 +20,25 @@ window.marksmithStorageSet = function (key, value) {
     try { localStorage.setItem(key, value); } catch { /* private mode */ }
 };
 
+// ── dashed .md drop zone ────────────────────────────────────────────────────
+// Reads the dropped file and hands its text to the Blazor component.
+window.marksmithInitDropZone = function (zoneId, dotnetRef) {
+    const zone = document.getElementById(zoneId);
+    if (!zone) return;
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+    zone.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        zone.classList.remove("over");
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            await dotnetRef.invokeMethodAsync("LoadDroppedFile", text);
+        } catch { /* unreadable file — ignore */ }
+    });
+};
+
 // ── visual markdown toolbar: insert at the editor's caret ──────────────────
 // Wraps the selection with before/after and re-focuses; the dispatched "input" event
 // flows through Blazor's oninput binding so the preview + draft update immediately.
