@@ -114,6 +114,21 @@
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .btn-row { display: flex; gap: 8px; }
 
+    /* ── looking glass portal eye ── */
+    .lg-wrap { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .portal { position: absolute; inset: 0; z-index: 20; background: rgba(27,27,31,.94);
+              border: 2px solid var(--accent); border-radius: 10px; display: flex; flex-direction: column; }
+    .portal .bar { font-size: 10.5px; color: var(--accent-hi); padding: 6px 12px; text-transform: uppercase;
+                   letter-spacing: .6px; font-weight: 600; border-bottom: 1px solid var(--line); }
+    .portal textarea { flex: 1; width: 100%; background: transparent; color: #d4f1ff; border: none;
+                       outline: none; resize: none; padding: 14px; font-family: "Cascadia Mono", Consolas, monospace;
+                       font-size: 13px; line-height: 1.55; }
+    .lg-toolbar { display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .lg-toolbar button { background: transparent; border: 1px solid transparent; color: var(--dim);
+                         font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 5px; cursor: pointer; }
+    .lg-toolbar button:hover { border-color: var(--line); color: var(--text); }
+    .lg-toolbar .sep { width: 1px; background: var(--line); margin: 2px 4px; }
+
     /* ── status bar ── */
     .statusbar { display: flex; align-items: center; gap: 14px; padding: 7px 16px; background: #202026;
                  border-top: 1px solid var(--line); font-size: 11.5px; color: var(--dim); flex: none; }
@@ -124,14 +139,12 @@
 <div class="shell">
     <!-- Command bar -->
     <div class="topbar">
-        <span class="logo">🧾</span>
+        <span class="logo">M</span>
         <h1>Marksmith</h1>
-        <span class="pill">Web Edition — full desktop replica</span>
+        <span class="pill">Web Edition</span>
         <div class="spacer"></div>
-        <span class="chip">@charCount chars</span>
-        <span class="chip">@classificationLabel</span>
-        <button class="btn ghost" @onclick="Clear">Clear</button>
         <button class="btn ghost" @onclick="LoadSample">Load sample</button>
+        <button class="btn ghost" @onclick="Clear">Clear</button>
     </div>
 
     <div class="body">
@@ -139,16 +152,13 @@
         <aside class="pane left">
             <div class="pane-title">Source &amp; Files</div>
             <div class="src-scroll">
-                <label class="hint" for="srcBox">Paste Markdown, an AI reply, or a <code>:::smartart</code> block — everything compiles in your browser.</label>
-                <textarea id="srcBox" @bind="markdown" @bind:event="oninput" spellcheck="false"></textarea>
+                <textarea id="srcBox" @bind="markdown" @bind:event="oninput" spellcheck="false"
+                          placeholder="Paste Markdown, an AI reply, or a :::smartart block — everything compiles in your browser."></textarea>
                 <div class="src-actions">
-                    <button class="btn" disabled="@exporting" @onclick="ExportDocx">📄 Export DOCX</button>
-                    <button class="btn ghost" disabled="@exporting" @onclick="ExportEpub">📕 Export EPUB</button>
+                    <button class="btn" disabled="@exporting" @onclick="ExportDocx">Export DOCX</button>
+                    <button class="btn ghost" disabled="@exporting" @onclick="ExportEpub">Export EPUB</button>
                 </div>
-                <div class="hint">
-                    Draft autosaves as you type (resumes on reload). Mermaid diagrams in the preview are
-                    rebuilt as <b>native Word shapes</b> on export.
-                </div>
+                <div class="hint">Draft autosaves as you type. Mermaid diagrams in the preview are rebuilt as native Word shapes on export.</div>
             </div>
         </aside>
 
@@ -163,16 +173,40 @@
                 @if (view != ViewPreview)
                 {
                     <div class="lg-editor" style="@SplitStyle()">
-                        <div class="bar">Markdown Source</div>
-                        <textarea @bind="markdown" @bind:event="oninput" spellcheck="false"></textarea>
+                        <div class="lg-toolbar">
+                            <button @onclick="() => Insert(MdB, MdB)" title="Bold">B</button>
+                            <button @onclick="() => Insert(MdI, MdI)" title="Italic">I</button>
+                            <button @onclick="() => Insert(MdH1, MdH1)" title="Heading 1">H1</button>
+                            <button @onclick="() => Insert(MdH2, MdH2)" title="Heading 2">H2</button>
+                            <button @onclick="() => Insert(MdH3, MdH3)" title="Heading 3">H3</button>
+                            <span class="sep"></span>
+                            <button @onclick="() => Insert(MdList, MdList)" title="Bullet list">List</button>
+                            <button @onclick="() => Insert(MdNum, MdNum)" title="Numbered list">1.</button>
+                            <button @onclick="() => Insert(MdTable, MdTable)" title="Table">Table</button>
+                            <button @onclick="() => Insert(MdLink, MdLink)" title="Link">Link</button>
+                            <button @onclick="() => Insert(MdCode, MdCode)" title="Inline code">Code</button>
+                            <button @onclick="() => Insert(MdSmart, MdSmart)" title="Insert SmartArt block">SmartArt</button>
+                            <span class="sep"></span>
+                            <button class="@(portalOn ? "on" : "")" style="@(portalOn ? "color:var(--accent-hi)" : "")" @onclick="TogglePortal" title="Looking Glass portal — edit raw Markdown over the preview">Eye</button>
+                        </div>
+                        <textarea @ref="editorRef" @bind="markdown" @bind:event="oninput" spellcheck="false"></textarea>
                     </div>
                 }
-                @if (view != ViewCode)
-                {
-                    <div class="lg-preview" style="@SplitStyle()">
-                        <div class="doc">@((MarkupString)renderedHtml)</div>
-                    </div>
-                }
+                <div class="lg-wrap" style="@(view == ViewPreview ? "flex: 1;" : (view == ViewSplit ? "flex: 1;" : "display:none;"))">
+                    @if (view != ViewCode)
+                    {
+                        <div class="lg-preview" style="height:100%">
+                            <div class="doc">@((MarkupString)renderedHtml)</div>
+                        </div>
+                    }
+                    @if (portalOn)
+                    {
+                        <div class="portal">
+                            <div class="bar">Looking Glass portal — source over the rendered preview</div>
+                            <textarea @bind="markdown" @bind:event="oninput" spellcheck="false" autofocus></textarea>
+                        </div>
+                    }
+                </div>
             </div>
         </main>
 
@@ -181,7 +215,7 @@
             <div class="pane-title">Style &amp; Export</div>
             <div class="style-scroll">
                 <details class="group" open>
-                    <summary>🎨 Appearance <span class="chev">▶</span></summary>
+                    <summary>Appearance <span class="chev">▶</span></summary>
                     <div class="group-body">
                         <div class="field-row">
                             <label>Theme</label>
@@ -204,7 +238,7 @@
                 </details>
 
                 <details class="group" open>
-                    <summary>✏️ Formatting &amp; text <span class="chev">▶</span></summary>
+                    <summary>Formatting &amp; text <span class="chev">▶</span></summary>
                     <div class="group-body">
                         <div class="field-row">
                             <label>Heading level shift</label>
@@ -242,7 +276,7 @@
                 </details>
 
                 <details class="group" open>
-                    <summary>🧹 Content &amp; cleanup <span class="chev">▶</span></summary>
+                    <summary>Content &amp; cleanup <span class="chev">▶</span></summary>
                     <div class="group-body">
                         <div class="field-row">
                             <label>Normalize AI quirks</label>
@@ -253,7 +287,7 @@
                 </details>
 
                 <details class="group">
-                    <summary>🧩 SmartArt <span class="chev">▶</span></summary>
+                    <summary>SmartArt <span class="chev">▶</span></summary>
                     <div class="group-body">
                         <div class="hint">Include a <code>:::smartart type="hierarchy"</code> block (nested <code>- </code> bullets) in your Markdown. It previews here as a diagram and exports as <b>native Word SmartArt</b> — 176 layouts.</div>
                         <div class="hint">Try: <code>type="process"</code>, <code>"cycle"</code>, <code>"matrix"</code>, <code>"pyramid"</code>, <code>"venn"</code>, <code>"picturelist"</code>.</div>
@@ -267,6 +301,11 @@
     <div class="statusbar">
         <span>WebAssembly · zero server · offline</span>
         <span class="spacer" style="flex:1"></span>
+        <span>@charCount chars</span>
+        @if (classificationLabel.Length > 0)
+        {
+            <span>@classificationLabel</span>
+        }
         @if (exporting)
         {
             <span>Converting — entirely in your browser…</span>
@@ -306,6 +345,28 @@ flowchart TD
   - Product
 :::
 ";
+
+    private bool portalOn;
+    private ElementReference editorRef;
+
+    private const string MdB = "**";
+    private const string MdI = "*";
+    private const string MdH1 = "# ";
+    private const string MdH2 = "## ";
+    private const string MdH3 = "### ";
+    private const string MdList = "- ";
+    private const string MdNum = "1. ";
+    private const string MdTable = "| Col A | Col B |\n| --- | --- |\n|  |  |";
+    private const string MdLink = "[text](url)";
+    private const string MdCode = "`";
+    private const string MdSmart = "\n\n:::smartart type=\"hierarchy\"\n- Item\n  - Sub\n:::";
+
+    private async Task Insert(string before, string after)
+    {
+        try { await JS.InvokeVoidAsync("marksmithInsertAtCaret", editorRef, before, after); } catch { /* editor hidden in preview mode */ }
+    }
+
+    private void TogglePortal() => portalOn = !portalOn;
 
     private string view = "split";
     private const string ViewCode = "code";

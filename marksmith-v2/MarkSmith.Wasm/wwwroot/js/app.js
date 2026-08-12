@@ -20,6 +20,20 @@ window.marksmithStorageSet = function (key, value) {
     try { localStorage.setItem(key, value); } catch { /* private mode */ }
 };
 
+// ── visual markdown toolbar: insert at the editor's caret ──────────────────
+// Wraps the selection with before/after and re-focuses; the dispatched "input" event
+// flows through Blazor's oninput binding so the preview + draft update immediately.
+window.marksmithInsertAtCaret = function (el, before, after) {
+    if (!el) return;
+    const s = el.selectionStart, e = el.selectionEnd;
+    const selected = el.value.slice(s, e);
+    const wrapped = before + selected + after;
+    el.value = el.value.slice(0, s) + wrapped + el.value.slice(e);
+    el.selectionStart = el.selectionEnd = s + before.length + selected.length;
+    el.focus();
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
 // ── mermaid geometry harvest ────────────────────────────────────────────────
 // Mirrors the desktop's WebView harvester (HarvestedDiagram contract in Core):
 // walk each rendered .mermaid svg and return JSON of {W,H,Nodes,Edges} so the
