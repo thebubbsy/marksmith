@@ -176,11 +176,11 @@ namespace MarkSmith.Core.AdvancedFeatures
             var errors = new List<string>();
             var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
-            // Check for type attribute
+            // Check for type attribute — OPTIONAL: type-less blocks are auto-classified from
+            // content shape (SmartArtLayoutSuggester), so "make it SmartArt" never has to
+            // force a hierarchy. When given, it must be a known family.
             var typeMatch = Regex.Match(firstLine, @"type=""?(\w+)""?", RegexOptions.IgnoreCase);
-            if (!typeMatch.Success)
-                errors.Add("Missing type attribute (e.g., type=\"process\")");
-            else if (!ValidTypes.Contains(typeMatch.Groups[1].Value))
+            if (typeMatch.Success && !ValidTypes.Contains(typeMatch.Groups[1].Value))
                 errors.Add($"Unknown SmartArt type: '{typeMatch.Groups[1].Value}'. Valid: {string.Join(", ", ValidTypes)}");
 
             // Must have at least 2 nodes (list items or non-empty lines)

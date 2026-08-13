@@ -1685,8 +1685,9 @@ public sealed class DocxExportService
         {
             try
             {
-                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : "process";
+                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : null;
                 var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
+                layoutType ??= MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
                 ast.RequestedLayout = layoutType;
 
                 // SmartArt colors resolve against the document theme's accents (accent1..accent6).

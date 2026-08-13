@@ -507,8 +507,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         try
         {
             var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
-            string alias = SelectedLayout?.Alias ?? "hierarchy";
-            string title = SelectedLayout?.Name ?? "Hierarchy Layout";
+            string alias = SelectedLayout?.Alias ?? MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
+            string title = SelectedLayout?.Name
+                ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(alias)?.Title
+                ?? "SmartArt Layout";
 
             PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
             StatusMessage = $"Preview: {title} ({alias})";
@@ -523,7 +525,8 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [RelayCommand]
     public void InsertIntoDocument()
     {
-        string alias = SelectedLayout?.Alias ?? "hierarchy";
+        var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
+        string alias = SelectedLayout?.Alias ?? MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
         var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
         if (pkg == null)
         {

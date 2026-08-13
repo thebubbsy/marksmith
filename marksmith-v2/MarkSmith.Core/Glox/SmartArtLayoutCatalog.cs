@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using MarkSmith.Core.AST;
 using MarkSmith.Core.Resolver;
 
 namespace MarkSmith.Core.Glox
@@ -246,6 +248,60 @@ namespace MarkSmith.Core.Glox
     {
         IReadOnlyList<GloxPackage> All { get; }
         GloxPackage? TryResolve(string? input);
+    }
+
+    /// <summary>
+    /// Lightweight content-shape classifier: picks a SmartArt FAMILY from the document's outline
+    /// shape (flat list, nested tree, numbered steps, pictures). Deliberately NOT the full
+    /// 176-layout pattern-recognition problem — a handful of structural rules that stop every
+    /// document from collapsing into a hierarchy. Returns a family alias ("list", "hierarchy",
+    /// "process", "picturelist") or null when the content has no list structure at all.
+    /// </summary>
+    public static class SmartArtLayoutSuggester
+    {
+        public static string? Suggest(CanonicalAst ast)
+        {
+            var items = CollectListItems(ast.Root);
+            if (items.Count == 0) return null;
+
+            // Items with pictures -> picture list (thumbnails + captions).
+            if (items.Any(n => n.NodeType == AstNodeType.Image || !string.IsNullOrEmpty(n.ImagePath)))
+                return "picturelist";
+
+            // Real nesting (children or depth >= 2) -> a hierarchy is genuinely what this is.
+            if (items.Any(n => n.Children.Count > 0) || items.Max(n => n.Depth) >= 2)
+                return "hierarchy";
+
+            // Numbered / step-like flat items -> process.
+            if (LooksSequential(items)) return "process";
+
+            // Plain flat bullet list -> the flat list layout (snake), NOT an org chart.
+            return "list";
+        }
+
+        private static List<AstNode> CollectListItems(AstNode root)
+        {
+            var result = new List<AstNode>();
+            var stack = new Stack<AstNode>();
+            stack.Push(root);
+            while (stack.Count > 0)
+            {
+                var node = stack.Pop();
+                if (node != root && node.Depth >= 1) result.Add(node);
+                foreach (var child in node.Children) stack.Push(child);
+            }
+            return result;
+        }
+
+        private static readonly Regex SequentialMarker = new(
+            @"^\s*(\d{1,2}[.)]|Step\b|First\b|Next\b|Then\b|Last\b|Finally\b)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static bool LooksSequential(List<AstNode> items)
+        {
+            int marked = items.Count(n => SequentialMarker.IsMatch(n.Text));
+            return marked >= 2 && marked >= items.Count / 2.0;
+        }
     }
 }
 
