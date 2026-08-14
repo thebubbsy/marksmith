@@ -433,6 +433,7 @@ public sealed class DocxExportService
         public string TextHex => Hex(Theme.Text);
         public string HeadingHex => Hex(Theme.Heading);
         public string BorderHex => Hex(Theme.Border);
+        public string BackgroundHex => Hex(Theme.Background);
         public string CodeHex
         {
             get
@@ -1412,7 +1413,7 @@ public sealed class DocxExportService
                         Val = isActive ? W.BorderValues.Single : W.BorderValues.None,
                         Size = (DocumentFormat.OpenXml.UInt32Value)(isActive ? 12U : 0U),
                         Space = 0,
-                        Color = isActive ? (ctx.PrimaryHex ?? "2563EB") : "auto"
+                        Color = isActive ? ctx.PrimaryHex : "auto"
                     },
                     new W.RightBorder { Val = W.BorderValues.None }
                 ),
@@ -1420,7 +1421,7 @@ public sealed class DocxExportService
                 {
                     Val = W.ShadingPatternValues.Clear,
                     Color = "auto",
-                    Fill = isActive ? "EBF3FE" : "F8F9FA"
+                    Fill = isActive ? ctx.BackgroundHex : ctx.SecondaryHex
                 }
             );
             cell.Append(cellProps);
@@ -1431,7 +1432,7 @@ public sealed class DocxExportService
             ));
 
             var hyperlink = new W.Hyperlink { Anchor = bookmarkName, History = true };
-            AddText(hyperlink, tabTitle, new Fmt { Bold = isActive, Color = isActive ? (ctx.PrimaryHex ?? "1E293B") : "64748B" });
+            AddText(hyperlink, tabTitle, new Fmt { Bold = isActive, Color = isActive ? ctx.PrimaryHex : ctx.TextHex });
             p.Append(hyperlink);
             cell.Append(p);
             row.Append(cell);
@@ -1453,13 +1454,13 @@ public sealed class DocxExportService
                 new W.ParagraphProperties(
                     new W.ParagraphStyleId { Val = "Heading3" },
                     new W.ParagraphBorders(
-                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 2, Color = isActive ? (ctx.PrimaryHex ?? "2563EB") : "CBD5E1" }
+                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 2, Color = isActive ? ctx.PrimaryHex : ctx.BorderHex }
                     ),
                     new W.Shading
                     {
                         Val = W.ShadingPatternValues.Clear,
                         Color = "auto",
-                        Fill = isActive ? "EBF3FE" : "F8F9FA"
+                        Fill = isActive ? ctx.BackgroundHex : ctx.SecondaryHex
                     },
                     new W.SpacingBetweenLines { Before = "160", After = "80" },
                     new W.OutlineLevel { Val = 8 },
