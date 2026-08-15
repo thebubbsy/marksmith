@@ -188,24 +188,15 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        /// <summary>The straight mid-line every traced run shares (0..100 local space) — built
-        /// once and reused by all of them instead of parsing XAML per stroke.</summary>
-        private static readonly Microsoft.UI.Xaml.Media.PathGeometry StraightLineGeometry = MakePolylineGeometry(
-            new System.Collections.Generic.List<(double X, double Y)> { (0, 50), (100, 50) });
-
         private static Microsoft.UI.Xaml.Media.Geometry BuildPolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
         {
-            // Every traced run is the same straight mid-line — share ONE geometry instance
-            // across all of them instead of building one per stroke.
-            if (pts.Count == 2 && pts[0] == (0, 50) && pts[1] == (100, 50)) return StraightLineGeometry;
             return MakePolylineGeometry(pts);
         }
 
         private static Microsoft.UI.Xaml.Media.PathGeometry MakePolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
         {
-            // Programmatic PathGeometry — no XamlReader round-trip per stroke (a trace can put
-            // tens of thousands of strokes through here).
-            var figure = new Microsoft.UI.Xaml.Media.PathFigure { StartPoint = new Point(pts[0].X, pts[0].Y) };
+            if (pts == null || pts.Count == 0) return new Microsoft.UI.Xaml.Media.PathGeometry();
+            var figure = new Microsoft.UI.Xaml.Media.PathFigure { StartPoint = new Point(pts[0].X, pts[0].Y), IsFilled = false };
             for (int i = 1; i < pts.Count; i++)
             {
                 figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Point(pts[i].X, pts[i].Y) });

@@ -1538,8 +1538,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             return;
         }
         var composed = SnapshotComposed();
-        bool hasLines = composed.Any(s => s.PathPoints is { Count: >= 2 });
-        if (hasLines || composed.Count > DenseCanvasThreshold)
+        bool isDenseTrace = composed.Count > DenseCanvasThreshold || composed.Count(s => s.PathPoints is { Count: >= 2 }) > 25;
+        if (isDenseTrace)
         {
             var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(composed);
             PreviewPng = await System.Threading.Tasks.Task.Run(
