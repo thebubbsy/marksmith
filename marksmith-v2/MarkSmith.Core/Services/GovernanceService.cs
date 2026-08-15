@@ -10,8 +10,7 @@ public sealed class GovernanceService
 {
     private const int MaxEvents = 5000;
 
-    private static readonly string StorePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "governance.json");
+    private static readonly string StorePath = Path.Combine(AppPaths.ConfigDir, "governance.json");
 
     private readonly object _lock = new();
     private readonly List<UsageEvent> _events;

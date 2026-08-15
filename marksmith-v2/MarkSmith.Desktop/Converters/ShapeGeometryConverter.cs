@@ -6,47 +6,117 @@ using Windows.UI;
 
 namespace MarkSmith.Converters
 {
-    /// <summary>Shared 100×100 geometry builder for DrawingML preset names.</summary>
+    /// <summary>Shared 100×100 geometry builder for DrawingML preset names. Geometries are
+    /// built once per preset via XamlReader and then CACHED — the lines list converts one
+    /// geometry per row and the canvas one per shape, so the same 15 presets were being
+    /// re-parsed from XAML on every single conversion.</summary>
     public static class ShapeGeometries
     {
         public static Geometry For(string prst)
         {
-            switch ((prst ?? "rect").ToLowerInvariant())
-            {
-                case "ellipse": return Parse("M50,0 A50,50 0 1,1 49.9,0 Z");
-                case "roundrect": return Parse("M20,0 H80 A20,20 0 0,1 100,20 V80 A20,20 0 0,1 80,100 H20 A20,20 0 0,1 0,80 V20 A20,20 0 0,1 20,0 Z");
-                case "rect": return Parse("M0,0 H100 V100 H0 Z");
-                case "chevron": return Parse("M0,0 L65,0 L100,50 L65,100 L0,100 L35,50 Z");
-                case "diamond": return Parse("M50,0 L100,50 L50,100 L0,50 Z");
-                case "hexagon": return Parse("M25,0 L75,0 L100,50 L75,100 L25,100 L0,50 Z");
-                case "triangle": return Parse("M50,0 L100,100 L0,100 Z");
-                case "parallelogram": return Parse("M25,0 L100,0 L75,100 L0,100 Z");
-                case "line": return Parse("M0,48 L100,48 L100,52 L0,52 Z");
-                case "arc": return Parse("M10,90 A40,40 0 1,1 90,90 L50,90 Z");
-                case "heart": return Parse("M50,88 C20,60 0,42 0,25 C0,8 14,0 25,8 C35,15 45,25 50,38 C55,25 65,15 75,8 C86,0 100,8 100,25 C100,42 80,60 50,88 Z");
-                case "moon": return Parse("M70,5 A45,45 0 1,0 70,95 A35,35 0 1,1 70,5 Z");
-                case "cloud": return Parse("M15,80 A25,25 0 0,1 35,35 A30,30 0 0,1 85,40 A20,20 0 0,1 80,80 Z");
-                case "smileyface":
-                    var g = new GeometryGroup();
-                    g.Children.Add(Parse("M50,5 A45,45 0 1,1 49.9,5 Z"));
-                    g.Children.Add(Parse("M33,38 A5,5 0 1,1 33,37.9 Z"));
-                    g.Children.Add(Parse("M67,38 A5,5 0 1,1 67,37.9 Z"));
-                    g.Children.Add(Parse("M25,60 Q50,85 75,60"));
-                    return g;
-                case "circulararrow":
-                    var ga = new GeometryGroup();
-                    ga.Children.Add(Parse("M50,10 A40,40 0 1,1 90,50 L90,30 L97,55 L70,52 L84,38"));
-                    return ga;
-                default: return Parse("M0,0 H100 V100 H0 Z");
-            }
+            string key = (prst ?? "rect").ToLowerInvariant();
+            return BuildGeometry(key);
         }
 
-        private static Geometry Parse(string d)
+        private static Geometry BuildGeometry(string key)
         {
-            // WinUI has no Geometry.Parse; round-trip through XamlReader.
-            var path = (Microsoft.UI.Xaml.Shapes.Path)XamlReader.Load(
-                $"<Path xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Data='{d}'/>");
-            return path.Data;
+            var geo = new PathGeometry();
+            var fig = new PathFigure { IsClosed = true };
+
+            switch (key)
+            {
+                case "ellipse" or "circle":
+                    return new EllipseGeometry { Center = new Windows.Foundation.Point(50, 50), RadiusX = 50, RadiusY = 50 };
+
+                case "roundrect":
+                    fig.StartPoint = new Windows.Foundation.Point(20, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(80, 0) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(100, 20), Size = new Windows.Foundation.Size(20, 20), SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 80) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(80, 100), Size = new Windows.Foundation.Size(20, 20), SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(20, 100) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(0, 80), Size = new Windows.Foundation.Size(20, 20), SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 20) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(20, 0), Size = new Windows.Foundation.Size(20, 20), SweepDirection = SweepDirection.Clockwise });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "rect":
+                    return new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, 100, 100) };
+
+                case "triangle":
+                    fig.StartPoint = new Windows.Foundation.Point(50, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 100) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "trapezoid":
+                    fig.StartPoint = new Windows.Foundation.Point(20, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(80, 0) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 100) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "chevron":
+                    fig.StartPoint = new Windows.Foundation.Point(0, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(65, 0) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 50) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(65, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(35, 50) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "diamond":
+                    fig.StartPoint = new Windows.Foundation.Point(50, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 50) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(50, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 50) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "hexagon":
+                    fig.StartPoint = new Windows.Foundation.Point(25, 0);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(75, 0) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 50) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(75, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(25, 100) });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 50) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "cylinder" or "can":
+                    fig.StartPoint = new Windows.Foundation.Point(0, 15);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(0, 85) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(100, 85), Size = new Windows.Foundation.Size(50, 15), SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 15) });
+                    fig.Segments.Add(new ArcSegment { Point = new Windows.Foundation.Point(0, 15), Size = new Windows.Foundation.Size(50, 15), SweepDirection = SweepDirection.Counterclockwise });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "line":
+                    fig.IsClosed = false;
+                    fig.StartPoint = new Windows.Foundation.Point(0, 50);
+                    fig.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(100, 50) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "heart":
+                    fig.StartPoint = new Windows.Foundation.Point(50, 88);
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(20, 60), Point2 = new Windows.Foundation.Point(0, 42), Point3 = new Windows.Foundation.Point(0, 25) });
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(0, 8), Point2 = new Windows.Foundation.Point(14, 0), Point3 = new Windows.Foundation.Point(25, 8) });
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(35, 15), Point2 = new Windows.Foundation.Point(45, 25), Point3 = new Windows.Foundation.Point(50, 38) });
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(55, 25), Point2 = new Windows.Foundation.Point(65, 15), Point3 = new Windows.Foundation.Point(75, 8) });
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(86, 0), Point2 = new Windows.Foundation.Point(100, 8), Point3 = new Windows.Foundation.Point(100, 25) });
+                    fig.Segments.Add(new BezierSegment { Point1 = new Windows.Foundation.Point(100, 42), Point2 = new Windows.Foundation.Point(80, 60), Point3 = new Windows.Foundation.Point(50, 88) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                default:
+                    return new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, 100, 100) };
+            }
         }
     }
 

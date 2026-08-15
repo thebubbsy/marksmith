@@ -122,8 +122,10 @@ public class HtmlRenderTests
     {
         var html = new MarkdownHtmlService().Render("# Title", new AppSettings(), new ThemeCatalog().GetOrDefault("GitHub Dark"), interactive: true);
         Assert.Contains("background: #141416;", html);
-        Assert.Contains("box-shadow: 0 4px 16px rgba(0,0,0,0.25);", html);
-        Assert.Contains("margin: 40px auto;", html);
+        // The sheet floats on the backdrop: layered shadow + flex/auto-margin centring on both axes.
+        Assert.Contains("box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18);", html);
+        Assert.Contains("margin: auto;", html);
+        Assert.Contains("display: flex; flex-direction: column; min-height: 100%;", html);
         // The preview carries the SELECTED THEME's page background — never a forced white page.
         Assert.Contains("background: #0d1117;", html);
         Assert.Contains("font-size: 16px; line-height: 1.6;", html);

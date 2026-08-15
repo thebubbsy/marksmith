@@ -8,8 +8,7 @@ public sealed class HistoryService
 {
     private const int MaxEntries = 200;
 
-    private static readonly string HistoryPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "history.json");
+    private static readonly string HistoryPath = Path.Combine(AppPaths.ConfigDir, "history.json");
 
     private readonly List<HistoryEntry> _entries;
 

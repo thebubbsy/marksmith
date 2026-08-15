@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using MarkSmith.Services;
 
 namespace MarkSmith.Plugins;
 
@@ -8,8 +9,8 @@ namespace MarkSmith.Plugins;
 // the marksmith-plugins repo.
 public sealed class PluginManager
 {
-    public static string PluginsBaseDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "Plugins");
+    // AppPaths.ConfigDir so tests can redirect the config surface via MARKSMITH_CONFIG_DIR.
+    public static string PluginsBaseDir => Path.Combine(AppPaths.ConfigDir, "Plugins");
 
     public static string PluginsRoot(string pluginId) => Path.Combine(PluginsBaseDir, pluginId);
 

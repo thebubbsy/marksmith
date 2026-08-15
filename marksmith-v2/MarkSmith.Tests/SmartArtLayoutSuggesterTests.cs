@@ -43,4 +43,60 @@ public class SmartArtLayoutSuggesterTests
         var md = "Just a paragraph of prose with no list structure at all in it.\n";
         Assert.Null(Suggest(md));
     }
+
+    [Fact]
+    public void Cycle_pattern_is_a_cycle()
+    {
+        var md = "- Plan the sprint\n- Do the work\n- Check the results\n- Act and Iterate\n";
+        Assert.Equal("cycle", Suggest(md));
+    }
+
+    [Fact]
+    public void Continuous_loop_is_a_cycle()
+    {
+        var md = "- Identify problem\n- Design solution\n- Deploy changes\n- Feedback loop and Repeat\n";
+        Assert.Equal("cycle", Suggest(md));
+    }
+
+    [Fact]
+    public void Pyramid_tiers_are_a_pyramid()
+    {
+        var md = "- Tier 1: Core Foundation\n- Tier 2: Application Logic\n- Tier 3: Presentation Apex\n";
+        Assert.Equal("pyramid", Suggest(md));
+    }
+
+    [Fact]
+    public void Maslow_levels_are_a_pyramid()
+    {
+        var md = "- Physiological needs\n- Safety needs\n- Belonging needs\n- Esteem needs\n- Self-Actualization\n";
+        Assert.Equal("pyramid", Suggest(md));
+    }
+
+    [Fact]
+    public void SWOT_matrix_is_a_matrix()
+    {
+        var md = "- Strengths in technology\n- Weaknesses in market reach\n- Opportunities in enterprise\n- Threats from competitors\n";
+        Assert.Equal("matrix", Suggest(md));
+    }
+
+    [Fact]
+    public void Timeline_dates_are_a_process()
+    {
+        var md = "- 2024: Architecture design\n- 2025: Global rollout\n- 2026: Optimization\n";
+        Assert.Equal("process", Suggest(md));
+    }
+
+    [Fact]
+    public void Venn_pattern_is_a_venn()
+    {
+        var md = "Design Thinking:\n- Desirable to users\n- Feasible technologically\n- Viable economically\n";
+        Assert.Equal("venn", Suggest(md));
+    }
+
+    [Fact]
+    public void Picture_list_is_a_picturelist()
+    {
+        var md = "- ![Architecture diagram](images/arch.png)\n- ![Database schema](images/db.png)\n";
+        Assert.Equal("picturelist", Suggest(md));
+    }
 }

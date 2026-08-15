@@ -162,6 +162,12 @@ public static class DialectNormalizer
                 continue;
             }
 
+            // ---- ChatGPT-style escaped quotes in table cells — \" leftovers from JSON-to-markdown
+            // conversions go back to plain quotes. Table lines ONLY, so prose keeps its literal
+            // backslash-quotes verbatim.
+            if (trimmed.StartsWith('|'))
+                line = line.Replace("\\\"", "\"");
+
             // ---- wiki-links and #tags (inline, code-span-guarded) ----
             line = ReplaceOutsideInlineCode(line, WikiLink, m =>
             {

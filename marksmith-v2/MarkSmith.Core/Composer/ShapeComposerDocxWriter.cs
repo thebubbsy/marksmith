@@ -166,6 +166,7 @@ namespace MarkSmith.Core.Composer
                 "ellipse" or "circle" => "ellipse",
                 "circulararrow" => "circularArrow",
                 "smileyface" => "smileyFace",
+                "cylinder" => "can",
                 _ => s.Prst
             };
 

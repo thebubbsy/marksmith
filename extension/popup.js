@@ -12,6 +12,9 @@ let currentMeta = null;
 let connected = false;
 let hasContent = false;       // did we find an assistant reply on this tab?
 
+const dlButtons = Array.from(document.querySelectorAll(".dl"));
+const modeButtons = $("modeSeg") ? Array.from($("modeSeg").querySelectorAll("button")) : [];
+
 // ── messaging helper ────────────────────────────────────────────────────────
 // The background service worker is the single owner of extraction + fetch logic,
 // so the popup stays a thin UI. Every round-trip is a chrome.runtime message.
@@ -127,7 +130,7 @@ function refreshButtons() {
     const ready = connected && hasContent;
     $("sendBtn").disabled = !ready;
     $("copyBtn").disabled = !hasContent;
-    for (const b of document.querySelectorAll(".dl")) b.disabled = !ready;
+    for (const b of dlButtons) b.disabled = !ready;
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
@@ -229,16 +232,16 @@ $("histClear").addEventListener("click", async () => {
     renderHistory();
     toast("Capture history cleared", "ok");
 });
-for (const b of document.querySelectorAll(".dl")) {
+for (const b of dlButtons) {
     b.addEventListener("click", () => doDownload(b.dataset.format, b));
 }
 
 // Mode segmented control — re-inspect when the scope changes.
-for (const b of $("modeSeg").querySelectorAll("button")) {
+for (const b of modeButtons) {
     b.addEventListener("click", () => {
         if (b.dataset.mode === mode) return;
         mode = b.dataset.mode;
-        for (const x of $("modeSeg").querySelectorAll("button")) x.classList.toggle("on", x === b);
+        for (const x of modeButtons) x.classList.toggle("on", x === b);
         inspect();
     });
 }

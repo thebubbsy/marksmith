@@ -4,9 +4,9 @@ $packageArgs = @{
   packageName    = 'marksmith'
   fileType       = 'exe'
   softwareName   = 'Marksmith*'
-  url64bit       = 'https://github.com/thebubbsy/marksmith/releases/download/v1.0.0/Marksmith-Setup-x64.exe'
-  # Replace with the real SHA256 of the released installer (the release workflow prints it).
-  checksum64     = '0000000000000000000000000000000000000000000000000000000000000000'
+  url64bit       = 'https://github.com/thebubbsy/marksmith/releases/download/v2.17.0/Marksmith-Setup-x64.exe'
+  # SHA256 of the released installer (matches the release's checksums.txt asset).
+  checksum64     = '48554b5b70ca73eed9469151a40a6479bbb915350ad3f92e4bd01de7beb67979'
   checksumType64 = 'sha256'
   # Inno Setup silent switches
   silentArgs     = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-'

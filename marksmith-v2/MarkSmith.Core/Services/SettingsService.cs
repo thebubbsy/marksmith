@@ -5,8 +5,8 @@ namespace MarkSmith.Services;
 
 public sealed class SettingsService
 {
-    private static readonly string ConfigDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+    // AppPaths.ConfigDir honors MARKSMITH_CONFIG_DIR — see AppPaths for why tests need it.
+    private static readonly string ConfigDir = AppPaths.ConfigDir;
 
     private static readonly string SettingsPath = Path.Combine(ConfigDir, "settings.json");
 

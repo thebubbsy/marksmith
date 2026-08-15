@@ -84,7 +84,9 @@ public partial class App : Application
             // created only after the splash closes so the video is truly first. If the asset is
             // missing or the setting is on, we go straight to the main window.
             var skipIntro = AppServices.Settings.Current.SkipLaunchVideo;
-            if (!skipIntro && System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4")))
+            var hasVideo = System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "splash_video.mp4"))
+                || System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4"));
+            if (!skipIntro && hasVideo)
             {
                 var splash = new Views.SplashWindow();
                 splash.Closed += (_, _) => ShowMainWindow();

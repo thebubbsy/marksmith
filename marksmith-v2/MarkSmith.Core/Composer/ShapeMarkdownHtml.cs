@@ -6,39 +6,58 @@ using System.Text.RegularExpressions;
 namespace MarkSmith.Core.Composer
 {
     /// <summary>
-    /// Turns :::shapes blocks into inline SVG before Markdig runs, so the main preview pane
-    /// shows the MLShape composition exactly like the design (the SVG mirrors Word's render of
-    /// the same shape set — see ImageShapeComposer.RenderSvg).
+    /// Lifts :::shapes blocks into HTML-comment placeholders before Markdig + Sanitizer run,
+    /// then injects the trusted rendered SVG post-sanitization so preview matches DOCX export 1:1.
     /// </summary>
     public static class ShapeMarkdownHtml
     {
         private static readonly Regex ShapesBlock = new(
-            @"(?<open>^[ \t]*:::shapes[ \t]*\r?\n)(?<body>.*?)(?<close>^[ \t]*:::[ \t]*\r?$)",
-            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"(?:\A\uFEFF?|(?<=\r?\n))\s*:::shapes[^\r\n]*\r?\n([\s\S]*?)\r?\n:::\s*",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        public static string PreTransform(string markdown)
+        public static (string CleanMarkdown, List<string> SvgBlocks) LiftShapes(string markdown)
         {
+            var svgs = new List<string>();
             if (string.IsNullOrEmpty(markdown) || !markdown.Contains(":::shapes", StringComparison.OrdinalIgnoreCase))
             {
-                return markdown;
+                return (markdown, svgs);
             }
 
-            return ShapesBlock.Replace(markdown, m =>
+            string clean = ShapesBlock.Replace(markdown, m =>
             {
                 try
                 {
-                    var shapes = ShapeMarkdownCodec.Parse(m.Groups["body"].Value);
+                    var shapes = ShapeMarkdownCodec.Parse(m.Groups[1].Value);
                     if (shapes.Count == 0) return m.Value;
 
                     var (w, h) = ShapeMarkdownCodec.CanvasSize(shapes);
                     string svg = ImageShapeComposer.RenderSvg(shapes, w, h);
-                    return $"<div style=\"width:100%;max-width:900px;background:#ffffff;border:1px solid #d0d0d0;border-radius:8px;padding:8px;margin:12px 0;\">{svg}</div>";
+                    svgs.Add($"<div class=\"shapes-diagram\" style=\"width:100%;max-width:900px;background:#ffffff;border:1px solid #d0d0d0;border-radius:8px;padding:8px;margin:12px 0;\">{svg}</div>");
+                    return $"\n\n<!--SHAPES:{svgs.Count - 1}-->\n\n";
                 }
                 catch
                 {
                     return m.Value;
                 }
             });
+
+            return (clean, svgs);
+        }
+
+        public static string PostInject(string html, List<string> svgBlocks)
+        {
+            if (svgBlocks == null || svgBlocks.Count == 0) return html;
+            for (int i = 0; i < svgBlocks.Count; i++)
+            {
+                html = html.Replace($"<!--SHAPES:{i}-->", svgBlocks[i]);
+            }
+            return html;
+        }
+
+        public static string PreTransform(string markdown)
+        {
+            var (clean, svgs) = LiftShapes(markdown);
+            return PostInject(clean, svgs);
         }
     }
 }

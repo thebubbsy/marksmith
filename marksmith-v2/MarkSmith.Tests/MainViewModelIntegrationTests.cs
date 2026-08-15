@@ -34,7 +34,7 @@ public class MainViewModelIntegrationTests
     // the suite never clobbers a genuine activation.
     private static string? _licenseBackup;
     private static string LicensePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "license.json");
+        Path.Combine(MarkSmith.Services.AppPaths.ConfigDir, "license.json");
 
     private static void AllowDocxExport()
     {
@@ -262,8 +262,7 @@ public class FreeTierToggleGateTests : IDisposable
 
     public FreeTierToggleGateTests()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+        var dir = MarkSmith.Services.AppPaths.ConfigDir;
         _licensePath = Path.Combine(dir, "license.json");
         _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
     }

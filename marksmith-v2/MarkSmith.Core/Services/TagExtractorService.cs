@@ -13,6 +13,15 @@ namespace MarkSmith.Core.Services
 
     public class TagExtractorService
     {
+        // Compiled once — every Extract call used to rebuild these six interpreted regexes
+        // over the whole document.
+        private static readonly Regex FenceStrip = new(@"```[\s\S]*?```", RegexOptions.Compiled);
+        private static readonly Regex InlineCodeStrip = new(@"`[^`]*`", RegexOptions.Compiled);
+        private static readonly Regex UrlStrip = new(@"https?://\S+", RegexOptions.Compiled);
+        private static readonly Regex HashtagRe = new(@"(?<=\s|^)#([a-zA-Z0-9_\-]+)", RegexOptions.Compiled);
+        private static readonly Regex MdSymbolStrip = new(@"[#*_~`>\[\]\(\)]", RegexOptions.Compiled);
+        private static readonly Regex NonWordSplit = new(@"\W+", RegexOptions.Compiled);
+
         private static readonly HashSet<string> StopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "with",
@@ -35,14 +44,14 @@ namespace MarkSmith.Core.Services
             }
 
             // Strip code fences
-            string cleaned = Regex.Replace(markdown, @"```[\s\S]*?```", " ");
+            string cleaned = FenceStrip.Replace(markdown, " ");
             // Strip inline code
-            cleaned = Regex.Replace(cleaned, @"`[^`]*`", " ");
+            cleaned = InlineCodeStrip.Replace(cleaned, " ");
             // Strip URLs
-            cleaned = Regex.Replace(cleaned, @"https?://\S+", " ");
+            cleaned = UrlStrip.Replace(cleaned, " ");
 
             // Extract hashtags (e.g. #tag or #multi-word-tag)
-            var tagMatches = Regex.Matches(cleaned, @"(?<=\s|^)#([a-zA-Z0-9_\-]+)");
+            var tagMatches = HashtagRe.Matches(cleaned);
             var tagsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (Match match in tagMatches)
             {
@@ -55,8 +64,8 @@ namespace MarkSmith.Core.Services
             result.Hashtags = tagsSet.OrderBy(t => t).ToList();
 
             // Strip headings formatting, markdown symbols
-            string plainText = Regex.Replace(cleaned, @"[#*_~`>\[\]\(\)]", " ");
-            string[] words = Regex.Split(plainText.ToLower(), @"\W+");
+            string plainText = MdSymbolStrip.Replace(cleaned, " ");
+            string[] words = NonWordSplit.Split(plainText.ToLower());
 
             var wordCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var word in words)

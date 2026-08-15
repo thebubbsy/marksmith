@@ -6,7 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
     mc:Ignorable="d"
-    Title="MLShape Design Studio">
+    Title="MLShape &amp; SmartArt Vector Studio">
 
     <Grid x:Name="RootGrid" Background="#1B1B1F">
         <Grid.Resources>
@@ -32,140 +32,282 @@
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE790;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                 <StackPanel VerticalAlignment="Center" Spacing="0">
-                    <TextBlock Text="MLShape Design Studio" FontWeight="Bold" FontSize="16" Foreground="White" />
-                    <TextBlock Text="trace any picture into editable Word line art" FontSize="11" Opacity="0.65" Foreground="White" />
+                    <TextBlock Text="MLShape &amp; SmartArt Vector Studio" FontWeight="Bold" FontSize="16" Foreground="White" />
+                    <TextBlock Text="Native DrawingML vector diagrams &amp; line art — Word cannot strip or corrupt them" FontSize="11" Opacity="0.65" Foreground="White" />
                 </StackPanel>
                 <Border Background="#0078D4" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="Native DrawingML Line Items" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                    <TextBlock Text="100% Native Word Vector" FontSize="11" Foreground="White" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Export .dotx" Click="OnExportDotxClick" Style="{ThemeResource AccentButtonStyle}" />
-                <Button Content="Export .docx" Click="OnExportDocxClick" />
-                <Button Content="Clear" Click="OnClearClick" />
+                <Button Content="Insert into document" Command="{Binding InsertIntoDocumentCommand}" Style="{ThemeResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Insert this vector diagram into the active document — renders in preview and exports as native editable Word shapes." />
+                <Button Content="Export .docx" Command="{Binding ExportDocxCommand}" ToolTipService.ToolTip="Export as standalone Word Document" />
+                <Button Content="Export .dotx" Command="{Binding ExportDotxCommand}" ToolTipService.ToolTip="Export as Word Template" />
+                <Button Content="Clear" Command="{Binding ClearAllCommand}" />
             </StackPanel>
         </Grid>
 
         <!-- Body -->
         <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="300" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="310" />
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT: trace workflow + shape palette -->
+            <!-- LEFT: SmartArt Templates + Palette + Tools -->
             <Border Grid.Column="0" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
 
-                        <!-- TRACE HERO -->
-                        <StackPanel Spacing="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Picture → Line Art" FontWeight="SemiBold" FontSize="14" Foreground="White" />
-                                <TextBlock Text="Pick an image, choose how fine, and trace it into dense non-overlapping line items." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                            </StackPanel>
+                        <!-- 1. SMARTART & DIAGRAM TEMPLATES & PRESETS (40+ PROFESSIONAL LAYOUTS) -->
+                        <Expander Header="SmartArt &amp; Diagram Presets (40+ Layouts)" IsExpanded="True">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Filter by category to explore 40+ native Word vector layouts." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                
+                                <ComboBox ItemsSource="{Binding PresetCategories}" SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
 
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="1 · Choose an image" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" />
-                                <Button Content="Choose image from Explorer…" Click="OnPickImageClick" HorizontalAlignment="Left" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Border Width="72" Height="72" Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="6"
-                                            Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
-                                        <Image x:Name="TraceThumb" Stretch="Uniform" />
-                                    </Border>
-                                    <TextBlock x:Name="TraceImageLabel" Text="No image selected" FontSize="11" Opacity="0.7"
-                                               Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding FilteredPresets}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Click="OnPresetItemClick" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,5" Margin="0,2">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <TextBlock Text="{Binding Icon}" FontSize="13" VerticalAlignment="Center" />
+                                                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                                            <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="#888888" TextTrimming="CharacterEllipsis" MaxWidth="180" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <TextBlock Text="Quick Favorites:" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" Margin="0,4,0,0" />
+                                <Grid ColumnSpacing="4" RowSpacing="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Button Grid.Row="0" Grid.Column="0" Command="{Binding GeneratePyramidTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🔺" FontSize="11" />
+                                            <TextBlock Text="Pyramid" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="0" Grid.Column="1" Command="{Binding GenerateOrgChartTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🏢" FontSize="11" />
+                                            <TextBlock Text="Org Chart" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="0" Command="{Binding GenerateSwotMatrixTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🔲" FontSize="11" />
+                                            <TextBlock Text="SWOT 2x2" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="1" Command="{Binding GenerateCycleTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🔄" FontSize="11" />
+                                            <TextBlock Text="Cycle" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="0" Command="{Binding GenerateTimelineTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="📅" FontSize="11" />
+                                            <TextBlock Text="Roadmap" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="1" Command="{Binding GenerateVennTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="⭕" FontSize="11" />
+                                            <TextBlock Text="Venn" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="3" Grid.Column="0" Command="{Binding GeneratePillarsTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🏛️" FontSize="11" />
+                                            <TextBlock Text="Pillars" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="3" Grid.Column="1" Command="{Binding GenerateFunnelTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="🔻" FontSize="11" />
+                                            <TextBlock Text="Funnel" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- 2. COLOR THEMES & PALETTES -->
+                        <Border Background="#1E1E24" CornerRadius="6" Padding="8">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE790;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="Color Theme" FontWeight="SemiBold" FontSize="12" Foreground="White" VerticalAlignment="Center" />
                                 </StackPanel>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" ItemsSource="{Binding PaletteNames}" SelectedItem="{Binding SelectedPaletteName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                    <Button Grid.Column="1" Content="Apply" Command="{Binding ApplyPaletteThemeCommand}" ToolTipService.ToolTip="Recolor all shapes with selected palette" />
+                                </Grid>
                             </StackPanel>
+                        </Border>
 
-                            <StackPanel Spacing="4">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="2 · Line density" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding TraceDensity}" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="rows" FontSize="11" Opacity="0.6" Foreground="White" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <Slider Minimum="0" Maximum="100" Value="{Binding TraceDensityLog, Mode=TwoWay}" />
-                                <TextBlock Text="log scale 16 → 16,384 scanlines — crank it up until it looks like the image" FontSize="10" Opacity="0.55" Foreground="White" TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="3 · Style" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" />
-                                <RadioButton x:Name="ModeEngraved" Content="Engraved (hatch shading)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
-                                <RadioButton x:Name="ModeEdges" Content="Edges (contour lines)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
-                                <RadioButton x:Name="ModeSilhouette" Content="Silhouette (solid shape)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
-                                <RadioButton x:Name="ModeScanlines" Content="Scanlines (thick strokes)" GroupName="TraceMode" Checked="OnTraceModeChecked" Foreground="White" FontSize="12" />
-                                <CheckBox Content="Monochrome ink (color = sampled from image)" IsChecked="{Binding TraceMonochrome, Mode=TwoWay}" Foreground="White" FontSize="12" />
-                            </StackPanel>
-
-                            <Button Content="Trace onto canvas" Click="OnTraceClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" />
-                            <TextBlock Text="{Binding LineStats}" FontSize="12" FontWeight="SemiBold" Foreground="#7FD1A0" TextWrapping="Wrap" />
-
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Copy as Markdown" Click="OnCopyMarkdownClick" />
-                                <Button Content="Load from Markdown" Click="OnLoadMarkdownClick" />
-                            </StackPanel>
-                            <TextBlock Text="Paste the :::shapes block into the editor — the preview shows the SVG, export writes native Word lines." FontSize="10" Opacity="0.55" Foreground="White" TextWrapping="Wrap" />
+                        <!-- 3. DRAW WITH SHAPES -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Shape Primitives" FontWeight="SemiBold" FontSize="13" Foreground="White" />
+                            <TextBlock Text="Click a shape to place on canvas, or drag to draw." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding PaletteItems}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="2" Padding="8,5" Click="OnPaletteItemClick" Tag="{Binding}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Path Width="16" Height="16" Stretch="Uniform" Fill="#888888"
+                                                      Data="{Binding Converter={StaticResource ShapeGeom}}" />
+                                                <TextBlock Text="{Binding}" FontSize="11" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
-                        <!-- DRAW (classic palette + shape mosaic) -->
-                        <Expander Header="Draw with shapes" IsExpanded="False">
-                            <StackPanel Spacing="12">
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                                    <TextBlock Text="Select a shape, then click the canvas to place it." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                        <!-- 4. PICTURE TO VECTOR STUDIO (HYBRID FUSION) -->
+                        <Expander Header="⚡ Picture to Vector (Hybrid Studio)" IsExpanded="True">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Transform images into native Word vector shapes and crisp traced line art. Set either density to 0 for single-layer output."
+                                           FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                
+                                <!-- Image Picker -->
+                                <Button Content="Choose image…" Click="OnPickImageClick" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="56" Height="56" Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="6"
+                                            Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
+                                        <Image x:Name="FuseThumb" Stretch="Uniform" />
+                                    </Border>
+                                    <TextBlock x:Name="FuseImageLabel" Text="No image selected" FontSize="11" Opacity="0.7"
+                                               Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <ItemsControl ItemsSource="{Binding PaletteItems}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button Margin="2" Padding="10,6" Click="OnPaletteItemClick" Tag="{Binding}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <Path Width="18" Height="18" Stretch="Uniform" Fill="#777777"
-                                                          Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                                    <TextBlock Text="{Binding}" FontSize="12" />
-                                                </StackPanel>
-                                            </Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
 
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="Classic: picture made of shapes" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                                    <TextBlock Text="Rebuild a picture from the chosen preset shapes (coarse mosaic)." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="ComposeImageLabel" Text="No image selected" FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
-                                    <TextBlock Text="Density:" FontSize="11" Foreground="White" />
-                                    <Slider x:Name="ComposeDensity" Minimum="24" Maximum="1024" Value="120" StepFrequency="16" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompEllipse" Content="Ellipse" Foreground="White" />
-                                        <CheckBox x:Name="CompRoundRect" Content="RoundRect" Foreground="White" />
-                                        <CheckBox x:Name="CompRect" Content="Rect" Foreground="White" />
+                                <!-- SECTION 1: SHAPES CONFIGURATION -->
+                                <Border Background="#1C1C22" CornerRadius="6" Padding="8" BorderBrush="#2A2A34" BorderThickness="1">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="🔷" FontSize="12" />
+                                            <TextBlock Text="Base Shape Mosaic" FontWeight="SemiBold" FontSize="12" Foreground="White" />
+                                        </StackPanel>
+                                        
+                                        <StackPanel Spacing="2">
+                                            <Grid>
+                                                <TextBlock Text="Shape Density (0 to disable):" FontSize="11" Foreground="#BBBBBB" HorizontalAlignment="Left" />
+                                                <TextBlock Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" FontSize="11" FontWeight="Bold"
+                                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <Slider x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="Tile primitives:" FontSize="10.5" Opacity="0.7" Foreground="White" />
+                                        <Grid ColumnSpacing="4" RowSpacing="2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="RoundRect" IsChecked="True" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rect" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" FontSize="11" Foreground="White" />
+                                        </Grid>
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompChevron" Content="Chevron" Foreground="White" />
-                                        <CheckBox x:Name="CompDiamond" Content="Diamond" Foreground="White" />
-                                        <CheckBox x:Name="CompHexagon" Content="Hexagon" Foreground="White" />
+                                </Border>
+
+                                <!-- SECTION 2: LINE ART & CONTOUR CONFIGURATION -->
+                                <Border Background="#1C1C22" CornerRadius="6" Padding="8" BorderBrush="#2A2A34" BorderThickness="1">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="✒️" FontSize="12" />
+                                            <TextBlock Text="Traced Line Art &amp; Contours" FontWeight="SemiBold" FontSize="12" Foreground="White" />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="2">
+                                            <Grid>
+                                                <TextBlock Text="Line Density (0 to disable):" FontSize="11" Foreground="#BBBBBB" HorizontalAlignment="Left" />
+                                                <TextBlock Text="{Binding ElementName=FuseLineDensity, Path=Value}" FontSize="11" FontWeight="Bold"
+                                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <Slider x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="Linework style:" FontSize="10.5" Opacity="0.7" Foreground="White" />
+                                        <StackPanel Spacing="2">
+                                            <RadioButton x:Name="FuseModeCrossHatch" Content="Cross-Hatch (etching)" IsChecked="True" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeTopographic" Content="Topographic Waves (flow)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeCalligraphic" Content="Calligraphic (30° chisel)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeEdges" Content="Edges (contours)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeEngraved" Content="Engraved (hatching)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeScanlines" Content="Scanlines (strokes)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeSilhouette" Content="Silhouette (solid)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                        </StackPanel>
+
+                                        <!-- Finer Detail Controls -->
+                                        <Grid ColumnSpacing="6" Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" Spacing="1">
+                                                <TextBlock Text="Detail Threshold:" FontSize="10" Foreground="#BBBBBB" />
+                                                <Slider x:Name="FuseEdgeSensitivity" Minimum="5" Maximum="80" Value="30" ToolTipService.ToolTip="Lower = captures finer micro-textures and subtle details" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Spacing="1">
+                                                <TextBlock Text="Stroke Width (pt):" FontSize="10" Foreground="#BBBBBB" />
+                                                <Slider x:Name="FuseStrokeWidth" Minimum="0.5" Maximum="5.0" Value="1.5" StepFrequency="0.1" ToolTipService.ToolTip="Thickness of traced vector ink strokes" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <CheckBox x:Name="FuseMonochrome" Content="Monochrome dark ink" IsChecked="True" Foreground="White" FontSize="11" Margin="0,2,0,0" />
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompTriangle" Content="Triangle" Foreground="White" />
-                                        <CheckBox x:Name="CompParallelogram" Content="Parallelogram" Foreground="White" />
-                                        <CheckBox x:Name="CompLine" Content="Line" Foreground="White" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompArc" Content="Arc" Foreground="White" />
-                                        <CheckBox x:Name="CompCloud" Content="Cloud" Foreground="White" />
-                                        <CheckBox x:Name="CompHeart" Content="Heart" Foreground="White" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <CheckBox x:Name="CompMoon" Content="Moon" Foreground="White" />
-                                        <CheckBox x:Name="CompCircularArrow" Content="CircArrow" Foreground="White" />
-                                        <CheckBox x:Name="CompSmiley" Content="Smiley" Foreground="White" />
-                                    </StackPanel>
-                                    <TextBlock Text="Line alone = full image as scanline strokes" FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
-                                    <CheckBox x:Name="CompSketch" Content="Sketch mode — wavy curved strokes" Foreground="White" />
-                                    <Button Content="Compose onto canvas" Click="OnComposeImageClick" HorizontalAlignment="Left" />
+                                </Border>
+
+                                <!-- SINGLE GO BUTTON -->
+                                <Button Content="⚡ Convert Image to DrawingML Vectors" Click="OnFuseImageClick"
+                                        Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
+                                        FontWeight="SemiBold" FontSize="12" />
+
+                                <!-- Markdown Utilities -->
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <Button Content="Copy Markdown" Click="OnCopyMarkdownClick" FontSize="11" Padding="8,4" />
+                                    <Button Content="Load Markdown" Click="OnLoadMarkdownClick" FontSize="11" Padding="8,4" />
                                 </StackPanel>
                             </StackPanel>
                         </Expander>
@@ -173,32 +315,49 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- CENTER: canvas -->
+            <!-- CENTER: canvas + toolbar -->
             <Border Grid.Column="1" Background="#18181C" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Padding="10,8" Background="#1F1F25">
+
+                    <!-- Canvas Toolbar: Alignment, Spacing, Duplication -->
+                    <Grid Grid.Row="0" Padding="10,6" Background="#1F1F25">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Canvas" FontWeight="SemiBold" FontSize="12"
-                                   Foreground="White" VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                            <TextBlock Text="Active:" FontSize="12" Foreground="#888888" />
-                            <TextBlock Text="{Binding ActiveTool}" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="Align:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,2,0" />
+                            <Button Command="{Binding AlignLeftCommand}" ToolTipService.ToolTip="Align Left" Padding="6,4"><FontIcon Glyph="&#xE8E4;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignCenterCommand}" ToolTipService.ToolTip="Align Center" Padding="6,4"><FontIcon Glyph="&#xE8E3;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignRightCommand}" ToolTipService.ToolTip="Align Right" Padding="6,4"><FontIcon Glyph="&#xE8E2;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignTopCommand}" ToolTipService.ToolTip="Align Top" Padding="6,4"><FontIcon Glyph="&#xE8E1;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignMiddleCommand}" ToolTipService.ToolTip="Align Middle" Padding="6,4"><FontIcon Glyph="&#xE8E3;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignBottomCommand}" ToolTipService.ToolTip="Align Bottom" Padding="6,4"><FontIcon Glyph="&#xE8E0;" FontSize="12" /></Button>
+                            <AppBarSeparator Margin="2,0" />
+                            <Button Command="{Binding DistributeHorizontalCommand}" ToolTipService.ToolTip="Distribute Horizontally" Padding="6,4"><FontIcon Glyph="&#xE8D8;" FontSize="12" /></Button>
+                            <Button Command="{Binding DistributeVerticalCommand}" ToolTipService.ToolTip="Distribute Vertically" Padding="6,4"><FontIcon Glyph="&#xE8D7;" FontSize="12" /></Button>
+                            <AppBarSeparator Margin="2,0" />
+                            <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape" Padding="6,4">
+                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock Text="Duplicate" FontSize="11" /></StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="Tool:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ActiveTool}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
 
-                    <!-- dense trace preview: one raster image, looks exactly like the picture -->
+                    <!-- dense trace preview -->
                     <StackPanel Grid.Row="1" Visibility="{Binding IsDense, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Padding="20">
                         <Border Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="12">
                             <Image x:Name="DensePreview" Stretch="Uniform" MaxWidth="1300" MaxHeight="820" />
                         </Border>
-                        <TextBlock Text="Dense line-art preview — every line is individually selectable in the Lines list and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
+                        <TextBlock Text="Dense line-art preview — every line is individually selectable and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
                     </StackPanel>
 
                     <!-- editable canvas -->
@@ -211,12 +370,6 @@
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemContainerStyle>
-                                        <Style TargetType="ContentPresenter">
-                                            <Setter Property="Canvas.Left" Value="{Binding X}" />
-                                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
-                                        </Style>
-                                    </ItemsControl.ItemContainerStyle>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Width="{Binding Width}" Height="{Binding Height}"
@@ -226,19 +379,26 @@
                                                   PointerMoved="OnShapePointerMoved"
                                                   PointerReleased="OnShapePointerReleased">
                                                 <Grid.RenderTransform>
-                                                    <RotateTransform Angle="{Binding Rotation}" />
+                                                    <TransformGroup>
+                                                        <TranslateTransform X="{Binding X}" Y="{Binding Y}" />
+                                                        <RotateTransform Angle="{Binding Rotation}" />
+                                                    </TransformGroup>
                                                 </Grid.RenderTransform>
                                                 <Path Stretch="Fill"
-                                                      Stroke="#FFFFFF" StrokeThickness="1.5"
+                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}"
+                                                      Fill="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
+                                                      Stroke="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
+                                                      StrokeThickness="1.5"
                                                       StrokeDashArray="{Binding IsSelected, Converter={StaticResource DashConverter}}"
-                                                      Loaded="OnShapeLoaded" />
-                                                <!-- Font on top of the shape: colour is the CONTRAST
-                                                     RULE result (guarded against THIS shape's fill). -->
+                                                      Loaded="OnShapeLoaded"
+                                                      DataContextChanged="OnShapeDataContextChanged" />
+                                                <!-- Text on top of the shape -->
                                                 <TextBlock Text="{Binding Text}"
                                                            Foreground="{Binding TextForegroundHex, Converter={StaticResource FillBrushConverter}}"
                                                            FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
                                                            TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            MaxWidth="{Binding Width}" MaxHeight="{Binding Height}"
+                                                           Padding="6,4"
                                                            Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}" />
                                             </Grid>
                                         </DataTemplate>
@@ -252,20 +412,20 @@
                     <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
                                 HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="520">
                         <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="#555555" HorizontalAlignment="Center" />
-                        <TextBlock Text="Trace a picture into Word line art" FontSize="18" FontWeight="SemiBold" Foreground="#BBBBBB" HorizontalAlignment="Center" />
-                        <TextBlock Text="1 · Choose an image on the left   2 · set the line density   3 · Trace onto canvas — every line stays individually editable and exports to .docx / .dotx as native Word lines."
+                        <TextBlock Text="SmartArt &amp; Vector Shape Studio" FontSize="18" FontWeight="SemiBold" Foreground="#BBBBBB" HorizontalAlignment="Center" />
+                        <TextBlock Text="Pick a SmartArt Preset on the left (Pyramid, Org Chart, SWOT, Cycle, Roadmap) or compose pictures into shape mosaics. Every shape is 100% native vector in Word."
                                    FontSize="12" Foreground="#888888" TextWrapping="Wrap" TextAlignment="Center" />
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- RIGHT: inspector + lines list -->
+            <!-- RIGHT: inspector + shapes list -->
             <Border Grid.Column="2" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
-                        <TextBlock Text="Inspector" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                        <TextBlock Text="Shape Inspector" FontWeight="SemiBold" FontSize="14" Foreground="White" />
                         <StackPanel Spacing="8">
-                            <TextBlock Text="(select a shape or line)" FontSize="11" Opacity="0.6" Foreground="White"
+                            <TextBlock Text="(select a shape to edit properties)" FontSize="11" Opacity="0.6" Foreground="White"
                                        Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Type:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
@@ -287,34 +447,45 @@
                                 <TextBlock Text="Fill:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
                                 <TextBox Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Label:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
-                                <TextBox Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
-                                <TextBlock Text="auto-contrasts vs fill" FontSize="10" Opacity="0.6" Foreground="White" VerticalAlignment="Center" />
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Text Label:" FontSize="12" Foreground="White" />
+                                <TextBox Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Rot:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
                                 <Slider Minimum="-180" Maximum="180" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
                             </StackPanel>
-                            <Button Content="Delete selected" Click="OnDeleteShapeClick" HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Duplicate" Command="{Binding DuplicateSelectedCommand}" />
+                                <Button Content="Delete" Command="{Binding RemoveSelectedCommand}" />
+                            </StackPanel>
                         </StackPanel>
 
                         <Border Background="#1E1E24" CornerRadius="8" Padding="10">
                             <StackPanel Spacing="6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Lines / shapes on canvas" FontWeight="SemiBold" FontSize="13" Foreground="White" />
+                                    <TextBlock Text="Shapes on Canvas" FontWeight="SemiBold" FontSize="13" Foreground="White" />
                                     <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock Text="Click any line to select it — tweak or delete it individually." FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
+                                <TextBlock Text="Click any shape to select and inspect it." FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
                                 <ListView MaxHeight="400" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <Path Width="14" Height="14" Stretch="Uniform" Fill="#CCCCCC"
-                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" />
-                                                <TextBlock Text="{Binding Prst}" FontSize="12" Foreground="White" />
-                                                <TextBlock Text="{Binding Fill}" FontSize="10" Opacity="0.6" Foreground="White" />
-                                            </StackPanel>
+                                            <Grid Padding="2,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Path Grid.Column="0" Width="14" Height="14" Stretch="Uniform" Fill="#CCCCCC" Margin="0,0,8,0"
+                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Prst}" FontSize="12" Foreground="White" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="10" Opacity="0.7" Foreground="White" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+                                                </StackPanel>
+                                                <Border Grid.Column="2" Width="12" Height="12" CornerRadius="2"
+                                                        Background="{Binding Fill, Converter={StaticResource FillBrushConverter}}" VerticalAlignment="Center" />
+                                            </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>

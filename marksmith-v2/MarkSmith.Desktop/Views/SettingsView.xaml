@@ -162,6 +162,19 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Full-screen focus on Split mode" />
+                                <TextBlock Text="Automatically collapse side panels into focus mode when entering Split view."
+                                           Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoFocusOnSplit, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="Word count in preview" />
                                 <TextBlock Text="Show the reading-time pill at the top of the live preview."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />

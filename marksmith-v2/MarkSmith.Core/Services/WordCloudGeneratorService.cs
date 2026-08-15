@@ -18,6 +18,15 @@ namespace MarkSmith.Core.Services
     /// </summary>
     public class WordCloudGeneratorService
     {
+        // Compiled once — every Generate call used to rebuild these six interpreted regexes
+        // over the whole document.
+        private static readonly Regex CodeStrip = new(@"```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`", RegexOptions.Compiled);
+        private static readonly Regex HtmlTagStrip = new(@"<[^>]+>", RegexOptions.Compiled);
+        private static readonly Regex HeadingMarkerStrip = new(@"^#+\s+", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly Regex LinkToText = new(@"\[([^\]]+)\]\([^\)]+\)", RegexOptions.Compiled);
+        private static readonly Regex EmphasisStrip = new(@"[*_]{1,3}", RegexOptions.Compiled);
+        private static readonly Regex WordToken = new(@"\b[a-zA-Z]{3,}\b", RegexOptions.Compiled);
+
         private static readonly HashSet<string> DefaultStopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
@@ -39,18 +48,18 @@ namespace MarkSmith.Core.Services
                 return new List<WordCloudItem>();
 
             // 1. Strip code fences & inline code
-            string cleaned = Regex.Replace(markdown, @"```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`", " ");
+            string cleaned = CodeStrip.Replace(markdown, " ");
 
             // 2. Strip HTML tags
-            cleaned = Regex.Replace(cleaned, @"<[^>]+>", " ");
+            cleaned = HtmlTagStrip.Replace(cleaned, " ");
 
             // 3. Strip Markdown header markers, links, bold, italic
-            cleaned = Regex.Replace(cleaned, @"^#+\s+", "", RegexOptions.Multiline);
-            cleaned = Regex.Replace(cleaned, @"\[([^\]]+)\]\([^\)]+\)", "$1");
-            cleaned = Regex.Replace(cleaned, @"[*_]{1,3}", " ");
+            cleaned = HeadingMarkerStrip.Replace(cleaned, "");
+            cleaned = LinkToText.Replace(cleaned, "$1");
+            cleaned = EmphasisStrip.Replace(cleaned, " ");
 
             // 4. Tokenize into words
-            var tokens = Regex.Matches(cleaned, @"\b[a-zA-Z]{3,}\b")
+            var tokens = WordToken.Matches(cleaned)
                               .Cast<Match>()
                               .Select(m => m.Value.ToLowerInvariant())
                               .Where(w => !DefaultStopWords.Contains(w))

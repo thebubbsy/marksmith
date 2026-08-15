@@ -31,8 +31,7 @@ public sealed class VersionHistoryService
 
     public VersionHistoryService(string? dbDir = null, int maxVersionsPerFile = DefaultMaxVersionsPerFile)
     {
-        _dbDir = dbDir ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "history");
+        _dbDir = dbDir ?? Path.Combine(AppPaths.ConfigDir, "history");
         _indexPath = Path.Combine(_dbDir, "versions.json");
         _blobDir = Path.Combine(_dbDir, "blobs");
         _maxVersionsPerFile = maxVersionsPerFile;
@@ -191,7 +190,7 @@ public sealed class VersionHistoryService
         if (!File.Exists(_indexPath)) return new Dictionary<string, List<VersionEntry>>();
         try
         {
-            await using var stream = File.OpenRead(_indexPath);
+            await using var stream = new FileStream(_indexPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
             var index = await JsonSerializer.DeserializeAsync<Dictionary<string, List<VersionEntry>>>(stream, ReadOpts);
             return index ?? new Dictionary<string, List<VersionEntry>>();
         }

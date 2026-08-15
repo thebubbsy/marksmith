@@ -19,7 +19,7 @@ public sealed partial class SettingsView : UserControl
     {
         InitializeComponent();
         DataContext = App.ViewModel;
-        VersionText.Text = $"Version {App.Updates.CurrentVersion}";
+        VersionText.Text = $"Version {App.Updates.CurrentDisplayVersion}";
         RefreshLicenseUi();
         BuildPluginCards();
         App.License.Changed += OnLicenseChanged;

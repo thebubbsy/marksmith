@@ -99,6 +99,9 @@ test.cs
 .reasonix/
 reasonix.toml
 
+# Dependencies
+node_modules/
+
 # Internal & private documents — kept locally for the author, never published to the public repo
 GEMINI.md
 ORIGINAL_REQUEST.md

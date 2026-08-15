@@ -1,0 +1,15 @@
+<Project>
+  <!-- Single version source of truth for the solution.
+
+       MarksmithBaseVersion = the NEXT planned release. Dev builds are stamped
+       "<base>-dev.<utc>" (a SemVer prerelease: sorts BELOW that stable, and ABOVE every
+       lower stable), so a locally-built copy can never masquerade as an outdated release.
+       release.yml overrides everything with the exact tag (-p:Version=<tag>), so shipped
+       binaries carry clean SemVer with no suffix.
+
+       RELEASE CHECKLIST step 1: after cutting vX.Y.Z, bump this to the next version so the
+       dev line immediately compares newer than the freshly published stable tag. -->
+  <PropertyGroup>
+    <MarksmithBaseVersion>2.18.0</MarksmithBaseVersion>
+  </PropertyGroup>
+</Project>

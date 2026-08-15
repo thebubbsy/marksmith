@@ -6,8 +6,7 @@ public sealed class RecentFilesService
 {
     private const int MaxRecentFiles = 10;
 
-    private static readonly string ConfigDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+    private static readonly string ConfigDir = AppPaths.ConfigDir;
 
     private static readonly string RecentFilesPath = Path.Combine(ConfigDir, "recent_files.json");
 

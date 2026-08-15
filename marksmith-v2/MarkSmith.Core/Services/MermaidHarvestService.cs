@@ -115,8 +115,8 @@ public sealed class MermaidHarvestService
             }
         }
         catch { /* rendering is best-effort; exporter falls back per-diagram */ }
-        finally { await host.EndHarvestAsync(); }
-        while (result.Count < fences.Count) result.Add(null);
+        if (result.Count < fences.Count)
+            result.AddRange(Enumerable.Repeat<byte[]?>(null, fences.Count - result.Count));
         return result;
     }
 
@@ -250,8 +250,8 @@ public sealed class MermaidHarvestService
 #endif
             System.Diagnostics.Debug.WriteLine($"[MERMAID-HARVEST] Exception: {ex}");
         }
-        finally { await host.EndHarvestAsync(); }
-        while (result.Count < fences.Count) result.Add(null);
+        if (result.Count < fences.Count)
+            result.AddRange(Enumerable.Repeat<Mermaid.HarvestedDiagram?>(null, fences.Count - result.Count));
         return result;
     }
 
@@ -352,7 +352,8 @@ public sealed class MermaidHarvestService
         }
         catch { /* best-effort; the exporter falls back to snapshot/code for any fence that fails */ }
         finally { await host.EndHarvestAsync(); }
-        while (result.Count < fences.Count) result.Add(null);
+        if (result.Count < fences.Count)
+            result.AddRange(Enumerable.Repeat<Mermaid.GenericDiagram?>(null, fences.Count - result.Count));
         return result;
     }
 }

@@ -29,8 +29,7 @@ public sealed class LicenseService
 
     public LicenseService()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+        var dir = AppPaths.ConfigDir;
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "license.json");
     }

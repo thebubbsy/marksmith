@@ -19,7 +19,7 @@ namespace MarkSmith.Core.Composer
 
         public bool Dither { get; set; } = true;
         public int PaletteColors { get; set; } = 16;
-        public double InsetInches { get; set; } = 0.04;
+        public double InsetInches { get; set; } = 0.0;
     }
 
     /// <summary>One absolutely-positioned native DrawingML shape (wps:wsp / prstGeom).</summary>
@@ -129,7 +129,7 @@ namespace MarkSmith.Core.Composer
                         double cg = Math.Clamp(c.Green + errG[y, x], 0, 255);
                         double cb = Math.Clamp(c.Blue + errB[y, x], 0, 255);
                         var nearest = Nearest(palette, cr, cg, cb);
-                        AddShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, nearest);
+                        AddOverlappingShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, nearest);
                         double dr = cr - nearest.Red, dg = cg - nearest.Green, db = cb - nearest.Blue;
                         if (x + 1 < gx) { errR[y, x + 1] += dr * 7 / 16.0; errG[y, x + 1] += dg * 7 / 16.0; errB[y, x + 1] += db * 7 / 16.0; }
                         if (y + 1 < gy)
@@ -148,7 +148,7 @@ namespace MarkSmith.Core.Composer
                     for (int x = 0; x < gx; x++)
                     {
                         var c = cells[y, x];
-                        AddShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, Nearest(palette, c.Red, c.Green, c.Blue));
+                        AddOverlappingShape(result, shapes, x, y, gx, gy, cellW, cellH, inset, Nearest(palette, c.Red, c.Green, c.Blue));
                     }
                 }
             }
@@ -156,99 +156,58 @@ namespace MarkSmith.Core.Composer
             return result;
         }
 
-        /// <summary>
-        /// Sketch mode: the image is drawn with short, CURVED strokes (native custGeom
-        /// polylines drawn with a thick line — the same Word-proven mechanism the Mermaid
-        /// curve tracer uses). Each row splits into segments; per segment a wavy open polyline
-        /// stroke is emitted whose thickness follows local luminance. Light areas stay paper.
-        /// </summary>
+        /// <summary>Curved stroke line art composition delegating to high-definition line tracer.</summary>
         public static List<ComposedShape> ComposeSketch(string imagePath, ShapeComposerOptions? options = null)
         {
             var opt = options ?? new ShapeComposerOptions();
-            int rows = Math.Clamp(opt.Grid, 8, 8192);
-            int segments = 12;
-
-            double imgW, imgH;
-            SKColor[,]? cells = null;
-            try
+            return ImageLineTracer.TraceLines(imagePath, new LineTraceOptions
             {
-                using var src = SKBitmap.Decode(imagePath);
-                if (src == null || src.Width <= 0 || src.Height <= 0) throw new InvalidDataException("decode failed");
-                imgW = src.Width;
-                imgH = src.Height;
-                cells = SampleCells(src, segments, rows);
-            }
-            catch
-            {
-                imgW = 32; imgH = 32;
-                cells = GradientCells(segments, rows);
-            }
-
-            double totalW = DefaultCanvasWidthInches;
-            double totalH = totalW * (imgH / imgW);
-            double rowH = totalH / rows;
-            double segW = totalW / segments;
-
-            var result = new List<ComposedShape>(rows * segments);
-            for (int y = 0; y < rows; y++)
-            {
-                double phase = y * 1.7;
-                for (int x = 0; x < segments; x++)
-                {
-                    var c = cells[y, x];
-                    double lum = 0.299 * c.Red + 0.587 * c.Green + 0.114 * c.Blue;
-                    if (lum > 232) continue; // near-white: paper, no stroke
-
-                    double darkness = 1 - lum / 255.0;
-                    double amp = Math.Max(0.02, rowH * (0.6 + darkness * 0.8));
-                    double strokePt = 0.6 + darkness * 2.8;
-
-                    // Wavy open polyline across the segment, 0..100 local space.
-                    var pts = new List<(double X, double Y)>();
-                    const int n = 5;
-                    for (int i = 0; i <= n; i++)
-                    {
-                        double t = i / (double)n;
-                        double px = t * 100;
-                        double py = 50 + 32 * Math.Sin(t * Math.PI * 2 + phase + x * 1.1);
-                        pts.Add((px, py));
-                    }
-
-                    result.Add(new ComposedShape
-                    {
-                        Prst = "sketch",
-                        X = x * segW,
-                        Y = y * rowH + (rowH - amp) / 2,
-                        W = segW,
-                        H = amp,
-                        Fill = $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}",
-                        PathPoints = pts,
-                        StrokeWidthPt = strokePt
-                    });
-                }
-            }
-            return result;
+                Rows = Math.Clamp(opt.Grid, 8, 8192),
+                Mode = LineTraceMode.TopographicWaves
+            });
         }
 
-        private static void AddShape(List<ComposedShape> result, List<string> shapes, int x, int y, int gx, int gy,
+        private static void AddOverlappingShape(List<ComposedShape> result, List<string> shapes, int x, int y, int gx, int gy,
             double cellW, double cellH, double inset, SKColor color)
         {
-            string prst = shapes[(x + y * gx) % shapes.Count];
-            double cx = x * cellW + cellW / 2;
-            double cy = y * cellH + cellH / 2;
+            // Interlocking staggered rows: odd rows are shifted by half a cell so shapes nest into gaps
+            double xOffset = (y % 2 == 1) ? (cellW * 0.5) : 0.0;
 
-            double w = Math.Max(0.05, cellW - inset);
-            double h = Math.Max(0.05, cellH - inset);
-            if (prst is "chevron" or "parallelogram") { w = Math.Max(0.08, cellW - inset * 0.4); h = Math.Max(0.05, cellH * 0.62); }
-            if (prst == "line") { w = Math.Max(0.08, cellW - inset * 0.4); h = Math.Max(0.02, cellH * 0.34); }
+            // Intelligent shape variety: alternate and interleave selected shape types across the grid
+            int shapeIndex = (x * 3 + y * 7 + (x ^ y)) % shapes.Count;
+            string prst = shapes[Math.Abs(shapeIndex) % shapes.Count];
+
+            // 1.35x overlap factor ensures neighboring shapes overlap generously with ZERO white space
+            double overlapFactor = (inset <= 0.0001) ? 1.36 : 1.0;
+            double w = Math.Max(0.001, cellW * overlapFactor - inset);
+            double h = Math.Max(0.001, cellH * overlapFactor - inset);
+
+            double posX = x * cellW + xOffset - (w - cellW) / 2.0;
+            double posY = y * cellH - (h - cellH) / 2.0;
+
+            // Tessellation rotations: invert alternating triangles and directionally orient chevrons/diamonds
+            int rot = 0;
+            if (prst == "triangle")
+            {
+                rot = ((x + y) % 2 == 1) ? 180 : 0;
+            }
+            else if (prst == "chevron")
+            {
+                rot = ((x + y) % 4 == 0) ? 90 : ((x + y) % 4 == 2) ? 270 : (y % 2 == 1) ? 180 : 0;
+            }
+            else if (prst == "diamond" && (x + y) % 3 == 0)
+            {
+                rot = 45;
+            }
 
             result.Add(new ComposedShape
             {
                 Prst = prst,
-                X = cx - w / 2,
-                Y = cy - h / 2,
+                X = posX,
+                Y = posY,
                 W = w,
                 H = h,
+                Rot = rot,
                 Fill = $"{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
             });
         }
@@ -271,6 +230,12 @@ namespace MarkSmith.Core.Composer
                 imgW = src.Width;
                 imgH = src.Height;
 
+                // Flat pixel array — one bulk copy instead of GetPixel per pixel (GetPixel does
+                // bounds checking + color-type decoding EVERY call; at rows×width pixels over a
+                // 4k image that is millions of calls).
+                var px = src.Pixels;
+                int srcW = src.Width;
+
                 rowColors = new SKColor[rows];
                 for (int y = 0; y < rows; y++)
                 {
@@ -278,10 +243,13 @@ namespace MarkSmith.Core.Composer
                     int y1 = Math.Max(y0 + 1, (y + 1) * src.Height / rows);
                     long r = 0, g = 0, b = 0, n = 0;
                     for (int py = y0; py < y1; py++)
-                    for (int px = 0; px < src.Width; px++)
                     {
-                        var c = src.GetPixel(px, py);
-                        r += c.Red; g += c.Green; b += c.Blue; n++;
+                        int rowBase = py * srcW;
+                        for (int x = 0; x < srcW; x++)
+                        {
+                            var c = px[rowBase + x];
+                            r += c.Red; g += c.Green; b += c.Blue; n++;
+                        }
                     }
                     rowColors[y] = n > 0 ? new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n)) : new SKColor(0, 0, 0);
                 }
@@ -323,21 +291,29 @@ namespace MarkSmith.Core.Composer
 
         private static SKColor[,] SampleCells(SKBitmap src, int gx, int gy)
         {
+            // Flat pixel array — one bulk copy instead of GetPixel per pixel (the mosaic grid
+            // can sample every pixel of the source once; GetPixel's per-call overhead made
+            // high-density composition the slowest step in the studio).
+            var px = src.Pixels;
+            int srcW = src.Width, srcH = src.Height;
             var cells = new SKColor[gy, gx];
             for (int y = 0; y < gy; y++)
             {
                 for (int x = 0; x < gx; x++)
                 {
-                    int x0 = x * src.Width / gx;
-                    int x1 = Math.Max(x0 + 1, (x + 1) * src.Width / gx);
-                    int y0 = y * src.Height / gy;
-                    int y1 = Math.Max(y0 + 1, (y + 1) * src.Height / gy);
+                    int x0 = x * srcW / gx;
+                    int x1 = Math.Max(x0 + 1, (x + 1) * srcW / gx);
+                    int y0 = y * srcH / gy;
+                    int y1 = Math.Max(y0 + 1, (y + 1) * srcH / gy);
                     long r = 0, g = 0, b = 0, n = 0;
                     for (int py = y0; py < y1; py++)
-                    for (int px = x0; px < x1; px++)
                     {
-                        var c = src.GetPixel(px, py);
-                        r += c.Red; g += c.Green; b += c.Blue; n++;
+                        int rowBase = py * srcW;
+                        for (int pxI = x0; pxI < x1; pxI++)
+                        {
+                            var c = px[rowBase + pxI];
+                            r += c.Red; g += c.Green; b += c.Blue; n++;
+                        }
                     }
                     cells[y, x] = n > 0 ? new SKColor((byte)(r / n), (byte)(g / n), (byte)(b / n)) : new SKColor(0, 0, 0);
                 }
@@ -515,6 +491,8 @@ namespace MarkSmith.Core.Composer
             {
                 "ellipse" or "circle" => $"<ellipse cx=\"{cx:F1}\" cy=\"{cy:F1}\" rx=\"{w / 2:F1}\" ry=\"{h / 2:F1}\" fill=\"{fill}\"{transform}/>",
                 "roundrect" => $"<rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{w:F1}\" height=\"{h:F1}\" rx=\"{(w * 0.16):F1}\" fill=\"{fill}\"{transform}/>",
+                "trapezoid" => $"<polygon points=\"{x + w * 0.20:F1},{y:F1} {x + w * 0.80:F1},{y:F1} {x + w:F1},{y + h:F1} {x:F1},{y + h:F1}\" fill=\"{fill}\"{transform}/>",
+                "cylinder" or "can" => $"<g{transform}><path d=\"M {x:F1} {y + h * 0.15:F1} A {w / 2:F1} {h * 0.15:F1} 0 0 0 {x + w:F1} {y + h * 0.15:F1} L {x + w:F1} {y + h * 0.85:F1} A {w / 2:F1} {h * 0.15:F1} 0 0 1 {x:F1} {y + h * 0.85:F1} Z\" fill=\"{fill}\"/><ellipse cx=\"{cx:F1}\" cy=\"{y + h * 0.15:F1}\" rx=\"{w / 2:F1}\" ry=\"{h * 0.15:F1}\" fill=\"{fill}\" opacity=\"0.9\"/></g>",
                 "diamond" => $"<polygon points=\"{cx:F1},{y:F1} {x + w:F1},{cy:F1} {cx:F1},{y + h:F1} {x:F1},{cy:F1}\" fill=\"{fill}\"{transform}/>",
                 "triangle" => $"<polygon points=\"{cx:F1},{y:F1} {x + w:F1},{y + h:F1} {x:F1},{y + h:F1}\" fill=\"{fill}\"{transform}/>",
                 "hexagon" => $"<polygon points=\"{x + w * 0.25:F1},{y:F1} {x + w * 0.75:F1},{y:F1} {x + w:F1},{cy:F1} {x + w * 0.75:F1},{y + h:F1} {x + w * 0.25:F1},{y + h:F1} {x:F1},{cy:F1}\" fill=\"{fill}\"{transform}/>",

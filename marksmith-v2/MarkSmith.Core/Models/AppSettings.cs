@@ -96,6 +96,15 @@ public sealed class AppSettings
     // WITHOUT blur"). Ctrl+Alt+X toggles it live in the preview. Persisted.
     public bool PortalFocusBlur { get; set; } = true;
 
+    // Portal surrounding blur radius in px (0..25px, default 6px).
+    public double PortalSurroundBlurRadius { get; set; } = 6.0;
+
+    // Portal inside blur: whether the looking glass itself has a blur effect. Persisted.
+    public bool PortalInsideBlur { get; set; } = true;
+
+    // Portal inside blur radius in px (0..25px, default 5px).
+    public double PortalInsideBlurRadius { get; set; } = 5.0;
+
     public bool UnlimitedHeight { get; set; } = true;
     public bool A4FixedWidth { get; set; } = true;
 
@@ -339,6 +348,9 @@ public sealed class AppSettings
         PortalRevealScope = other.PortalRevealScope;
         PortalShape = other.PortalShape;
         PortalFocusBlur = other.PortalFocusBlur;
+        PortalSurroundBlurRadius = other.PortalSurroundBlurRadius;
+        PortalInsideBlur = other.PortalInsideBlur;
+        PortalInsideBlurRadius = other.PortalInsideBlurRadius;
         UnlimitedHeight = other.UnlimitedHeight;
         A4FixedWidth = other.A4FixedWidth;
         NormalizeLlm = other.NormalizeLlm;
@@ -405,10 +417,14 @@ public sealed class AppSettings
         CheckForUpdatesOnStartup = other.CheckForUpdatesOnStartup;
         AutoInstallUpdatesOnLaunch = other.AutoInstallUpdatesOnLaunch;
         AutoRestartAfterUpdate = other.AutoRestartAfterUpdate;
+        ShowLineNumbers = other.ShowLineNumbers;
+        AutoFocusOnSplit = other.AutoFocusOnSplit;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
     }
 
     public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
     public bool AutoRestartAfterUpdate { get; set; } = true;
+    public bool ShowLineNumbers { get; set; }
+    public bool AutoFocusOnSplit { get; set; }
 }

@@ -64,9 +64,7 @@ public sealed class EditorUndoHistory
 
     public EditorUndoHistory(string? storePath = null)
     {
-        _storePath = storePath
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "MarkSmith", StoreFileName);
+        _storePath = storePath ?? Path.Combine(AppPaths.ConfigDir, StoreFileName);
         Load();
     }
 

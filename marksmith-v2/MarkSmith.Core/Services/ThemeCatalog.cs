@@ -4,8 +4,8 @@ namespace MarkSmith.Services;
 
 // 1:1 port of the THEMES dict in md_to_pdf_tui.py — same hex values, same 10 themes — plus any
 // user-created themes from the in-app theme editor. Customs are read live from CustomThemeStore on
-// every access, so a theme saved mid-session appears in every catalog instance at once (several
-// services keep their own long-lived ThemeCatalog).
+// every access, so a theme saved mid-session appears in every catalog instance at once. Production
+// code shares the AppServices.Themes singleton; fresh instances are for tests only.
 public sealed class ThemeCatalog
 {
     // Cached snapshot of Builtin + custom themes. CustomThemeStore bumps its Version on every
@@ -39,7 +39,7 @@ public sealed class ThemeCatalog
         }
     }
 
-    public bool IsBuiltin(string name) => Builtin.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    public bool IsBuiltin(string name) => !string.IsNullOrEmpty(name) && BuiltinNames.Contains(name);
 
     private static readonly List<ThemeDefinition> Builtin = new()
     {
@@ -54,6 +54,10 @@ public sealed class ThemeCatalog
         new("Forest",          "#0b1a0b", "#d4e1d4", "#78a75a", "#1a2f1a", "#3d5a3d", "#a3bfa3", "#0b1a0b", "#78a75a"),
         new("Obsidian",        "#050000", "#e0e0e0", "#ff4500", "#1a0000", "#ff0000", "#ff4500", "#050000", "#ff0000"),
     };
+
+    // O(1) builtin-name lookup for IsBuiltin (declared after Builtin: static initializers run in
+    // textual order). Replaces the old per-call linear Builtin.Any(...) scan.
+    private static readonly HashSet<string> BuiltinNames = new(Builtin.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
 
     public ThemeDefinition GetOrDefault(string name)
     {

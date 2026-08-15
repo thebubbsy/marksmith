@@ -60,6 +60,24 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     private string _searchQuery = "";
 
     [ObservableProperty]
+    private string _selectedCategory = "All";
+
+    [ObservableProperty]
+    private ObservableCollection<string> _categories = new()
+    {
+        "All", "Hierarchy", "Process", "Cycle", "Matrix", "Pyramid", "Venn", "Relationship", "List"
+    };
+
+    [ObservableProperty]
+    private string _selectedPalette = "Office Blue";
+
+    [ObservableProperty]
+    private ObservableCollection<string> _palettes = new()
+    {
+        "Office Blue", "Emerald Forest", "Sunset Warmth", "Ocean Cyan", "Purple Modern", "Monochrome Dark"
+    };
+
+    [ObservableProperty]
     private ObservableCollection<StudioLayoutItem> _layouts = new();
 
     [ObservableProperty]

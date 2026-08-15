@@ -326,6 +326,8 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private bool _checkForUpdatesOnStartup = true;
     [ObservableProperty] private bool _autoInstallUpdatesOnLaunch = true;
     [ObservableProperty] private bool _autoRestartAfterUpdate = true;
+    [ObservableProperty] private bool _autoFocusOnSplit;
+    [ObservableProperty] private bool _showLineNumbers;
 
     [ObservableProperty] private bool _isUpdateAvailable;
     [ObservableProperty] private bool _isDownloadingUpdate;
@@ -335,6 +337,9 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _latestUpdateTag = "";
     [ObservableProperty] private string _updateDownloadUrl = "";
     [ObservableProperty] private bool _portalFocusBlur = true;
+    [ObservableProperty] private double _portalSurroundBlurRadius = 6.0;
+    [ObservableProperty] private bool _portalInsideBlur = true;
+    [ObservableProperty] private double _portalInsideBlurRadius = 5.0;
 
     // Typography preset (Task 16) — id from FontManagerService.Presets ("System" default).
     [ObservableProperty] private string _fontPreset = "System";
@@ -387,54 +392,53 @@ private readonly MarkdownExportService _mdExport = new();
         if (!string.IsNullOrWhiteSpace(value) && File.Exists(value))
         {
             var syncContext = SynchronizationContext.Current;
-            Task.Run(async () =>
-            {
-                try
-                {
-                    var text = await File.ReadAllTextAsync(value, token);
-                    if (!token.IsCancellationRequested)
-                    {
-                        // Version history: baseline the opened file the moment we read it, so even
-                        // files we only ever open appear in the timeline. Never throws/awaits the UI.
-                        CaptureVersionSafe(value, text, "opened");
-                        _cachedFileMarkdown = text;
-                        // Persistent undo: seed the loaded content so it does NOT become an undo
-                        // step (undoing a file open to a blank editor would be wrong).
-                        _editorUndo.Seed(value, text);
-                        if (syncContext != null)
-                        {
-                            syncContext.Post(_ =>
-                            {
-                                if (!token.IsCancellationRequested)
-                                {
-                                    PastedMarkdown = text;
-                                    OnPropertyChanged(nameof(CurrentMarkdown));
-                                }
-                            }, null);
-                        }
-                        else
-                        {
-                            PastedMarkdown = text;
-                            OnPropertyChanged(nameof(CurrentMarkdown));
-                        }
-                    }
-                }
-                catch
-                {
-                    if (!token.IsCancellationRequested)
-                    {
-                        _editorUndo.SetDocument(value); // read failed — keep the key in sync
-                        _cachedFileMarkdown = string.Empty;
-                        OnPropertyChanged(nameof(CurrentMarkdown));
-                    }
-                }
-            });
+            _ = ReadInputFileAsync(value, token, syncContext);
         }
         else
         {
             _editorUndo.SetDocument(value);
             _cachedFileMarkdown = string.Empty;
             OnPropertyChanged(nameof(CurrentMarkdown));
+        }
+    }
+
+    private async Task ReadInputFileAsync(string value, CancellationToken token, SynchronizationContext? syncContext)
+    {
+        try
+        {
+            var text = await File.ReadAllTextAsync(value, token);
+            if (!token.IsCancellationRequested)
+            {
+                CaptureVersionSafe(value, text, "opened");
+                _cachedFileMarkdown = text;
+                _editorUndo.Seed(value, text);
+                if (syncContext != null)
+                {
+                    syncContext.Post(_ =>
+                    {
+                        if (!token.IsCancellationRequested)
+                        {
+                            PastedMarkdown = text;
+                            OnPropertyChanged(nameof(CurrentMarkdown));
+                        }
+                    }, null);
+                }
+                else
+                {
+                    PastedMarkdown = text;
+                    OnPropertyChanged(nameof(CurrentMarkdown));
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _editorUndo.SetDocument(value);
+                _cachedFileMarkdown = string.Empty;
+                OnPropertyChanged(nameof(CurrentMarkdown));
+            }
         }
     }
 
@@ -792,8 +796,13 @@ private readonly MarkdownExportService _mdExport = new();
         _checkForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         _autoInstallUpdatesOnLaunch = settings.AutoInstallUpdatesOnLaunch;
         _autoRestartAfterUpdate = settings.AutoRestartAfterUpdate;
+        _autoFocusOnSplit = settings.AutoFocusOnSplit;
+        _showLineNumbers = settings.ShowLineNumbers;
         _showWordCount = settings.ShowWordCount;
         _portalFocusBlur = settings.PortalFocusBlur;
+        _portalSurroundBlurRadius = settings.PortalSurroundBlurRadius;
+        _portalInsideBlur = settings.PortalInsideBlur;
+        _portalInsideBlurRadius = settings.PortalInsideBlurRadius;
 
         RefreshCloudProviders();
 
@@ -927,7 +936,12 @@ private readonly MarkdownExportService _mdExport = new();
         OnPropertyChanged(nameof(IsDocxFormat));
         OnPropertyChanged(nameof(TargetFormatIndex));
     }
-    partial void OnContentWidthChanged(int value) { _settingsService.Current.ContentWidth = value; SaveSettingsDebounced(); }
+    partial void OnContentWidthChanged(int value) {
+        // A4 lock is authoritative: a manual width edit while locked reverts to the A4 width so the
+        // canvas/PDF/DOCX/Google page models never desync (review-fix pin: A4_Lock_Is_Authoritative).
+        if (_a4FixedWidth && value != 794) { ContentWidth = 794; return; }
+        _settingsService.Current.ContentWidth = value; SaveSettingsDebounced();
+    }
     partial void OnA4FixedWidthChanged(bool value) { 
         _settingsService.Current.A4FixedWidth = value; 
         SaveSettingsDebounced(); 
@@ -1030,8 +1044,13 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnCheckForUpdatesOnStartupChanged(bool value) { _settingsService.Current.CheckForUpdatesOnStartup = value; SaveSettingsDebounced(); }
     partial void OnAutoInstallUpdatesOnLaunchChanged(bool value) { _settingsService.Current.AutoInstallUpdatesOnLaunch = value; SaveSettingsDebounced(); }
     partial void OnAutoRestartAfterUpdateChanged(bool value) { _settingsService.Current.AutoRestartAfterUpdate = value; SaveSettingsDebounced(); }
+    partial void OnAutoFocusOnSplitChanged(bool value) { _settingsService.Current.AutoFocusOnSplit = value; SaveSettingsDebounced(); }
+    partial void OnShowLineNumbersChanged(bool value) { _settingsService.Current.ShowLineNumbers = value; SaveSettingsDebounced(); }
     partial void OnShowWordCountChanged(bool value) { _settingsService.Current.ShowWordCount = value; SaveSettingsDebounced(); }
     partial void OnPortalFocusBlurChanged(bool value) { _settingsService.Current.PortalFocusBlur = value; SaveSettingsDebounced(); }
+    partial void OnPortalSurroundBlurRadiusChanged(double value) { _settingsService.Current.PortalSurroundBlurRadius = value; SaveSettingsDebounced(); }
+    partial void OnPortalInsideBlurChanged(bool value) { _settingsService.Current.PortalInsideBlur = value; SaveSettingsDebounced(); }
+    partial void OnPortalInsideBlurRadiusChanged(double value) { _settingsService.Current.PortalInsideBlurRadius = value; SaveSettingsDebounced(); }
 
     // Live preview of the page-number chrome with sample values (Task 10), so Settings shows what the
     // tokens expand to. Falls back to the default template when the matching band is empty.

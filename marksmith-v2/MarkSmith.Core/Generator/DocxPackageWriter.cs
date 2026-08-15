@@ -56,10 +56,10 @@ namespace MarkSmith.Core.Generator
 
                 if (File.Exists(imagePath))
                 {
-                    byte[] imageBytes = File.ReadAllBytes(imagePath);
+                    using var imgStream = File.OpenRead(imagePath);
                     var entry = archive.CreateEntry(mediaName);
                     using var stream = entry.Open();
-                    stream.Write(imageBytes, 0, imageBytes.Length);
+                    imgStream.CopyTo(stream);
                 }
                 else
                 {

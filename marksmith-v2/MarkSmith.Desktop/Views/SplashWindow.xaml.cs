@@ -18,33 +18,53 @@ public sealed partial class SplashWindow : Window
     {
         InitializeComponent();
         Title = "MarkSmith";
+        ConfigureFramelessWindow();
 
         try
         {
-            // file:// URI, NOT ms-appx:/// — this app is unpackaged (WindowsPackageType=None) and
-            // the media pipeline cannot resolve ms-appx URIs there: the player silently shows a
-            // black frame (MediaFailed never fires) and the splash sat on its 12s timeout — the
-            // "black screen launch". BaseDirectory is the exact path App.OnLaunched gates on with
-            // File.Exists, so a file URI is guaranteed resolvable.
-            var videoPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4");
+            var splashPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "splash_video.mp4");
+            var launchPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4");
+            var videoPath = System.IO.File.Exists(splashPath) ? splashPath : launchPath;
             var uri = new Uri(videoPath);
+
             Player.Source = MediaSource.CreateFromUri(uri);
             Player.MediaPlayer.MediaEnded += (_, _) => SafeClose();
-            Player.MediaPlayer.MediaFailed += (_, _) => SafeClose(); // corrupt/unsupported asset — never hang
+            Player.MediaPlayer.MediaFailed += (_, _) => SafeClose();
+            Player.MediaPlayer.MediaOpened += (_, _) =>
+            {
+                try { Player.MediaPlayer.PlaybackSession.PlaybackRate = 2.5; } catch { }
+            };
+
             Player.MediaPlayer.Play();
+            try { Player.MediaPlayer.PlaybackSession.PlaybackRate = 2.5; } catch { }
         }
         catch
         {
-            // Any synchronous setup failure must not block the app — but we must NOT Close() here:
-            // App attaches splash.Closed -> ShowMainWindow AFTER this constructor returns, so a
-            // synchronous Close would fire with no handler and the main window would never appear.
-            // Defer the close to the dispatcher queue (runs after App has wired the continuation).
             DispatcherQueue.TryEnqueue(SafeClose);
             return;
         }
 
         CenterWindow(960, 540);
         _ = AutoCloseAsync();
+    }
+
+    private void ConfigureFramelessWindow()
+    {
+        try
+        {
+            ExtendsContentIntoTitleBar = true;
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+            {
+                presenter.SetBorderAndTitleBar(false, false);
+                presenter.IsResizable = false;
+                presenter.IsMinimizable = false;
+                presenter.IsMaximizable = false;
+            }
+        }
+        catch { }
     }
 
     private void OnRootPointerPressed(object sender, PointerRoutedEventArgs e) => SafeClose();
@@ -55,13 +75,18 @@ public sealed partial class SplashWindow : Window
         SafeClose();
     }
 
-    // Close() is not idempotent; every path funnels through here so a second Close (timeout after
-    // the video ended, a click racing the timer) can never throw or double-fire.
     private void SafeClose()
     {
         if (_closed) return;
         _closed = true;
-        Close();
+        if (DispatcherQueue.HasThreadAccess)
+        {
+            Close();
+        }
+        else
+        {
+            DispatcherQueue.TryEnqueue(Close);
+        }
     }
 
     private void CenterWindow(int width, int height)
@@ -81,6 +106,6 @@ public sealed partial class SplashWindow : Window
                     area.Y + (area.Height - height) / 2));
             }
         }
-        catch { /* centering is best-effort */ }
+        catch { }
     }
 }

@@ -1,9 +1,19 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using MarkSmith.Services;
 
 namespace MarkSmith.ViewModels.Mermaid;
 
 public partial class DiagramNodeViewModel : ObservableObject
 {
+    // Theme-aware default fill: a brand-new node sits on the studio's dark canvas (#1E1E2E), so the
+    // current theme's accent is routed through ContrastGuard.EnsureVisibleFill — a theme-derived
+    // fill can never blend into the canvas (the "black node on dark canvas" review claim).
+    public DiagramNodeViewModel()
+    {
+        var theme = AppServices.Themes.GetOrDefault(AppServices.Settings.Current.Theme);
+        _fillColor = "#" + ContrastGuard.EnsureVisibleFill(theme.Heading, "1E1E2E");
+    }
+
     [ObservableProperty]
     private string _id = Guid.NewGuid().ToString("N")[..8];
 

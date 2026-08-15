@@ -11,28 +11,19 @@ namespace MarkSmith.Views.ShapeStudio
     public sealed partial class ShapeDesignStudioWindow : Window
     {
         public ShapeDesignStudioViewModel ViewModel { get; }
+        public event EventHandler<string>? InsertToDocumentRequested;
         private ShapeCanvasItemViewModel? _dragShape;
         private Point _dragStart;
 
         public ShapeDesignStudioWindow()
         {
             this.InitializeComponent();
-            // The ViewModel MUST exist before any control state is set below: setting
-            // ModeEngraved.IsChecked fires Checked → OnTraceModeChecked → ViewModel.TraceModeIndex.
-            // With the VM created after, that was a NullReferenceException on the XAML thread
-            // (0xc000027b) and the studio crashed the whole app the moment it opened.
             ViewModel = new ShapeDesignStudioViewModel();
-            // ToggleButton.IsChecked must NOT be set literally in this window's XAML — WinUI 3
-            // throws a XamlParseException ("Failed to assign to property ToggleButton.IsChecked")
-            // while parsing it, crashing the whole app the moment the studio opens. Restore the
-            // initial control states here, in code, after InitializeComponent.
-            ModeEngraved.IsChecked = true;
-            CompEllipse.IsChecked = true;
-            CompRoundRect.IsChecked = true;
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             this.RootGrid.DataContext = ViewModel;
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
         }
 
         private async void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -63,27 +54,6 @@ namespace MarkSmith.Views.ShapeStudio
             var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
             await bmp.SetSourceAsync(stream);
             return bmp;
-        }
-
-        // ---- trace workflow ----
-
-        private void OnTraceModeChecked(object sender, RoutedEventArgs e)
-        {
-            if (sender is not RadioButton rb || ViewModel is null) return; // ctor may fire Checked before DataContext is wired
-            ViewModel.TraceModeIndex =
-                rb == ModeEngraved ? 0 :
-                rb == ModeEdges ? 1 :
-                rb == ModeSilhouette ? 2 : 3;
-        }
-
-        private async void OnTraceClick(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(_composeImagePath))
-            {
-                ViewModel.StatusMessage = "Choose an image first.";
-                return;
-            }
-            await ViewModel.TraceImageAsync(_composeImagePath);
         }
 
         // ---- palette ----
@@ -142,99 +112,138 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
+        // item -> the Path its template loaded. Paths live INSIDE the ItemsControl item
+        // templates (never as direct children of MainCanvas), so this map is the only way to
+        // reach a shape's visual for live updates (fill/preset edits repaint immediately).
+        private readonly System.Collections.Generic.Dictionary<ShapeCanvasItemViewModel, Microsoft.UI.Xaml.Shapes.Path> _shapePaths = new();
+
         private void OnShapeLoaded(object sender, RoutedEventArgs e)
         {
             // Set geometry + fill from the item in code — the XamlReader-based geometry
             // builder is not reliable inside a value converter at template-load time.
             if (sender is Microsoft.UI.Xaml.Shapes.Path p && p.DataContext is ShapeCanvasItemViewModel s)
             {
-                try
-                {
-                    p.Data = s.PathPoints is { Count: >= 2 }
-                        ? ParsePathGeometry(s.PathPoints)          // curved sketch strokes
-                        : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
-                }
-                catch { }
-                try
-                {
-                    p.Fill = s.PathPoints is { Count: >= 2 } ? null : BrushFromHex(s.Fill);
-                    p.Stroke = BrushFromHex(s.Fill);
-                    p.StrokeThickness = s.PathPoints is { Count: >= 2 } ? Math.Max(1, s.StrokeWidthPt) : 1.5;
-                }
-                catch { }
+                ApplyShapeVisual(p, s);
 
                 s.PropertyChanged -= OnShapeItemChanged;
                 s.PropertyChanged += OnShapeItemChanged;
+                _shapePaths[s] = p;
+                p.Unloaded -= OnShapePathUnloaded;
+                p.Unloaded += OnShapePathUnloaded;
             }
         }
 
-        private static Microsoft.UI.Xaml.Media.Geometry ParsePathGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
+        private void OnShapeDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
         {
-            // Polyline (0..100 space) -> XAML Path.Data mini-language.
-            var d = new System.Text.StringBuilder("M");
-            foreach (var p in pts)
+            if (sender is Microsoft.UI.Xaml.Shapes.Path p && args.NewValue is ShapeCanvasItemViewModel s)
             {
-                d.Append(' ').Append(p.X.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))
-                 .Append(' ').Append(p.Y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                ApplyShapeVisual(p, s);
+
+                s.PropertyChanged -= OnShapeItemChanged;
+                s.PropertyChanged += OnShapeItemChanged;
+                _shapePaths[s] = p;
+                p.Unloaded -= OnShapePathUnloaded;
+                p.Unloaded += OnShapePathUnloaded;
             }
-            var path = (Microsoft.UI.Xaml.Shapes.Path)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-                $"<Path xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Data='{d}'/>");
-            return path.Data;
+        }
+
+        private void OnShapePathUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Microsoft.UI.Xaml.Shapes.Path p)
+            {
+                p.Unloaded -= OnShapePathUnloaded;
+                if (p.DataContext is ShapeCanvasItemViewModel s)
+                {
+                    _shapePaths.Remove(s);
+                    s.PropertyChanged -= OnShapeItemChanged;
+                }
+            }
+        }
+
+        /// <summary>(Re)paint one shape's Path from its item — geometry, fill, stroke.</summary>
+        private static void ApplyShapeVisual(Microsoft.UI.Xaml.Shapes.Path p, ShapeCanvasItemViewModel s)
+        {
+            bool isLine = s.PathPoints is { Count: >= 2 };
+            try
+            {
+                p.Data = isLine ? BuildPolylineGeometry(s.PathPoints!) : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
+            }
+            catch { }
+            try
+            {
+                p.Fill = isLine ? null : BrushFromHex(s.Fill);
+                p.Stroke = BrushFromHex(s.Fill);
+                p.StrokeThickness = isLine ? Math.Max(1, s.StrokeWidthPt) : 1.5;
+            }
+            catch { }
         }
 
         private void OnShapeItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (sender is not ShapeCanvasItemViewModel s) return;
-            if (e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst))
+            if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst)) &&
+                _shapePaths.TryGetValue(s, out var path))
             {
-                // The Path that loaded this item is its visual parent's child; find and update it.
-                // Simpler: selection re-triggers Loaded for new items only — fill changes are
-                // reflected on the next edit because the inspector writes to the VM, and we
-                // refresh the whole canvas cheaply here:
-                if (e.PropertyName == nameof(s.Prst))
-                {
-                    RefreshAllShapeVisuals();
-                }
+                ApplyShapeVisual(path, s);
             }
         }
 
-        private void RefreshAllShapeVisuals()
+        /// <summary>The straight mid-line every traced run shares (0..100 local space) — built
+        /// once and reused by all of them instead of parsing XAML per stroke.</summary>
+        private static readonly Microsoft.UI.Xaml.Media.PathGeometry StraightLineGeometry = MakePolylineGeometry(
+            new System.Collections.Generic.List<(double X, double Y)> { (0, 50), (100, 50) });
+
+        private static Microsoft.UI.Xaml.Media.Geometry BuildPolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
         {
-            foreach (var item in MainCanvas.Children.OfType<Microsoft.UI.Xaml.Shapes.Path>())
-            {
-                if (item.DataContext is ShapeCanvasItemViewModel s)
-                {
-                    try { item.Data = MarkSmith.Converters.ShapeGeometries.For(s.Prst); } catch { }
-                    try { item.Fill = BrushFromHex(s.Fill); } catch { }
-                }
-            }
+            // Every traced run is the same straight mid-line — share ONE geometry instance
+            // across all of them instead of building one per stroke.
+            if (pts.Count == 2 && pts[0] == (0, 50) && pts[1] == (100, 50)) return StraightLineGeometry;
+            return MakePolylineGeometry(pts);
         }
+
+        private static Microsoft.UI.Xaml.Media.PathGeometry MakePolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
+        {
+            // Programmatic PathGeometry — no XamlReader round-trip per stroke (a trace can put
+            // tens of thousands of strokes through here).
+            var figure = new Microsoft.UI.Xaml.Media.PathFigure { StartPoint = new Point(pts[0].X, pts[0].Y) };
+            for (int i = 1; i < pts.Count; i++)
+            {
+                figure.Segments.Add(new Microsoft.UI.Xaml.Media.LineSegment { Point = new Point(pts[i].X, pts[i].Y) });
+            }
+            var geo = new Microsoft.UI.Xaml.Media.PathGeometry();
+            geo.Figures.Add(figure);
+            return geo;
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.SolidColorBrush> BrushCache = new();
 
         private static Microsoft.UI.Xaml.Media.SolidColorBrush BrushFromHex(string hex)
         {
             hex = (hex ?? "0078D4").Trim().TrimStart('#');
-            try
+            if (hex.Length != 6) hex = "0078D4";
+            return BrushCache.GetOrAdd(hex, static h =>
             {
-                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
-                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
-            }
-            catch
-            {
-                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
-            }
+                try
+                {
+                    byte r = Convert.ToByte(h.Substring(0, 2), 16);
+                    byte g = Convert.ToByte(h.Substring(2, 2), 16);
+                    byte b = Convert.ToByte(h.Substring(4, 2), 16);
+                    return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
+                }
+                catch
+                {
+                    return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
+                }
+            });
         }
 
         private void OnCopyMarkdownClick(object sender, RoutedEventArgs e)
         {
             try
             {
-                var block = MarkSmith.Core.Composer.ShapeMarkdownCodec.Serialize(ViewModel.Shapes.Select(s => new MarkSmith.Core.Composer.ComposedShape
-                {
-                    Prst = s.Prst, X = s.X, Y = s.Y, W = s.Width, H = s.Height, Fill = s.Fill, Rot = s.Rotation,
-                    PathPoints = s.PathPoints, StrokeWidthPt = s.StrokeWidthPt
-                }));
+                // SnapshotComposed carries Text/TextColor too — the copy must round-trip the
+                // exact same payload that export writes, or labels vanish on paste.
+                var block = MarkSmith.Core.Composer.ShapeMarkdownCodec.Serialize(ViewModel.SnapshotComposed());
                 var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dp.SetText(block);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
@@ -246,15 +255,17 @@ namespace MarkSmith.Views.ShapeStudio
             }
         }
 
-        private void OnLoadMarkdownClick(object sender, RoutedEventArgs e)
+        private async void OnLoadMarkdownClick(object sender, RoutedEventArgs e)
         {
             try
             {
                 var dpv = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
                 if (dpv.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
                 {
-                    var text = dpv.GetTextAsync().AsTask().GetAwaiter().GetResult();
-                    ViewModel.LoadMarkdown(text);
+                    // Await the clipboard — a sync .GetResult() here can deadlock the UI thread
+                    // against the clipboard's own async completion.
+                    var text = await dpv.GetTextAsync();
+                    await ViewModel.LoadMarkdownAsync(text);
                 }
                 else
                 {
@@ -279,6 +290,14 @@ namespace MarkSmith.Views.ShapeStudio
 
         private string? _composeImagePath;
 
+        private void OnPresetItemClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b && b.Tag is DiagramPreset preset)
+            {
+                ViewModel.ApplyPreset(preset);
+            }
+        }
+
         private async void OnPickImageClick(object sender, RoutedEventArgs e)
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
@@ -291,18 +310,19 @@ namespace MarkSmith.Views.ShapeStudio
             var file = await picker.PickSingleFileAsync();
             if (file == null) return;
             _composeImagePath = file.Path;
-            ComposeImageLabel.Text = System.IO.Path.GetFileName(file.Path);
-            TraceImageLabel.Text = System.IO.Path.GetFileName(file.Path);
+            string fileName = System.IO.Path.GetFileName(file.Path);
+            if (FuseImageLabel != null) FuseImageLabel.Text = fileName;
             ViewModel.HasImage = true;
             try
             {
-                TraceThumb.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(file.Path));
+                var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(file.Path));
+                if (FuseThumb != null) FuseThumb.Source = bmp;
             }
             catch { }
-            ViewModel.StatusMessage = $"Composer image: {file.Path}";
+            ViewModel.StatusMessage = $"Selected image: {file.Path}";
         }
 
-        private void OnComposeImageClick(object sender, RoutedEventArgs e)
+        private async void OnFuseImageClick(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_composeImagePath))
             {
@@ -310,30 +330,46 @@ namespace MarkSmith.Views.ShapeStudio
                 return;
             }
 
-            var shapes = new System.Collections.Generic.List<string>();
-            if (CompEllipse.IsChecked == true) shapes.Add("ellipse");
-            if (CompRoundRect.IsChecked == true) shapes.Add("roundrect");
-            if (CompRect.IsChecked == true) shapes.Add("rect");
-            if (CompChevron.IsChecked == true) shapes.Add("chevron");
-            if (CompDiamond.IsChecked == true) shapes.Add("diamond");
-            if (CompHexagon.IsChecked == true) shapes.Add("hexagon");
-            if (CompTriangle.IsChecked == true) shapes.Add("triangle");
-            if (CompParallelogram.IsChecked == true) shapes.Add("parallelogram");
-            if (CompLine.IsChecked == true) shapes.Add("line");
-            if (CompArc.IsChecked == true) shapes.Add("arc");
-            if (CompCloud.IsChecked == true) shapes.Add("cloud");
-            if (CompHeart.IsChecked == true) shapes.Add("heart");
-            if (CompMoon.IsChecked == true) shapes.Add("moon");
-            if (CompCircularArrow.IsChecked == true) shapes.Add("circulararrow");
-            if (CompSmiley.IsChecked == true) shapes.Add("smileyface");
+            int mosaicDensity = (int)(FuseMosaicDensity?.Value ?? 0);
+            int lineDensity = (int)(FuseLineDensity?.Value ?? 0);
 
-            if (CompSketch.IsChecked == true)
+            if (mosaicDensity <= 0 && lineDensity <= 0)
             {
-                ViewModel.ComposeSketchImage(_composeImagePath, (int)ComposeDensity.Value);
+                ViewModel.StatusMessage = "Set Shape Density or Line Density above 0.";
                 return;
             }
 
-            ViewModel.ComposeImage(_composeImagePath, (int)ComposeDensity.Value, shapes);
+            var shapes = new System.Collections.Generic.List<string>();
+            if (CompRoundRect?.IsChecked == true) shapes.Add("roundrect");
+            if (CompRect?.IsChecked == true) shapes.Add("rect");
+            if (CompEllipse?.IsChecked == true) shapes.Add("ellipse");
+            if (CompChevron?.IsChecked == true) shapes.Add("chevron");
+            if (CompDiamond?.IsChecked == true) shapes.Add("diamond");
+            if (CompHexagon?.IsChecked == true) shapes.Add("hexagon");
+            if (CompTriangle?.IsChecked == true) shapes.Add("triangle");
+            if (CompCloud?.IsChecked == true) shapes.Add("cloud");
+
+            var lineMode = MarkSmith.Core.Composer.LineTraceMode.CrossHatch;
+            if (FuseModeTopographic?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.TopographicWaves;
+            else if (FuseModeCalligraphic?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.Calligraphic;
+            else if (FuseModeEdges?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.Edges;
+            else if (FuseModeEngraved?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.Engraved;
+            else if (FuseModeScanlines?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.Scanlines;
+            else if (FuseModeSilhouette?.IsChecked == true) lineMode = MarkSmith.Core.Composer.LineTraceMode.Silhouette;
+
+            bool monochrome = FuseMonochrome?.IsChecked ?? true;
+            int edgeThreshold = (int)(FuseEdgeSensitivity?.Value ?? 30);
+            double strokeWidth = FuseStrokeWidth?.Value ?? 1.5;
+
+            await ViewModel.ComposeHybridFusionAsync(
+                _composeImagePath,
+                mosaicDensity,
+                lineDensity,
+                shapes,
+                lineMode,
+                monochrome,
+                edgeThreshold,
+                strokeWidth);
         }
     }
 }
