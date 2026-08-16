@@ -38,13 +38,18 @@ namespace MarkSmith.Converters
             => throw new NotSupportedException();
     }
 
-    /// <summary>true → dashed stroke collection; false → null (solid).</summary>
+    /// <summary>true → dashed stroke collection; false → empty DoubleCollection (solid).
+    /// Returns fresh instance to avoid WinUI 3 DependencyObject sharing and null E_INVALIDARG crashes.</summary>
     public class DashConverter : IValueConverter
     {
-        private static readonly DoubleCollection Dashed = new() { 6, 4 };
-
         public object Convert(object value, Type targetType, object parameter, string language)
-            => value is true ? Dashed : null;
+        {
+            if (value is true)
+            {
+                return new DoubleCollection { 6, 4 };
+            }
+            return new DoubleCollection();
+        }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
             => throw new NotSupportedException();

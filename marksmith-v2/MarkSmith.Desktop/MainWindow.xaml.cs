@@ -2475,7 +2475,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 "})();</script></body>");
         }
 
-        PreviewWebView.CoreWebView2.NavigateToString(html);
+        try
+        {
+            if (PreviewWebView?.CoreWebView2 != null && !string.IsNullOrEmpty(html))
+            {
+                PreviewWebView.CoreWebView2.NavigateToString(html);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebView2] NavigateToString skipped: {ex.Message}");
+        }
     }
 
     private async Task<string> ResolvePreviewMarkdownAsync()
@@ -2741,7 +2751,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Document Galaxy Mind Map", "Galaxy", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Diagram Studio", "Action", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Vector Shape Studio", "Action", () => { OnOpenShapeStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Vector Shape Studio", "Action", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Settings", "Action", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Take the welcome tour", "Action", ShowWelcomeTourAsync),
             new("Show keyboard shortcuts", "Action", ShowShortcutsCheatsheetAsync),
