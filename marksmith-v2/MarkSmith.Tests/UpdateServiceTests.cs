@@ -6,6 +6,11 @@ namespace MarkSmith.Core.Tests;
 // Task 13 — Auto-Updater. The network call itself (CheckAsync) is thin; the decision logic that
 // matters is the dotted-version comparison and the GitHub "releases/latest" JSON evaluation, both
 // exercised here directly (internal helpers are visible to this assembly via InternalsVisibleTo).
+//
+// COLLECTION "UpdateSpool": DownloadAndInstallAsync spools to one fixed path
+// (%TEMP%\MarksmithUpdates\Marksmith-Setup-Latest.exe) — every test that downloads (here and in
+// R3R4AdversarialTests) must run SERIALLY or one test deletes/truncates the file another asserts.
+[Collection("UpdateSpool")]
 public sealed class UpdateServiceTests
 {
     // ---- Compare: ordering ----
@@ -217,5 +222,56 @@ public sealed class UpdateServiceTests
     public void CurrentVersion_includes_all_four_parts()
     {
         Assert.Matches(@"^\d+\.\d+\.\d+\.\d+$", new UpdateService().CurrentVersion);
+    }
+
+    // ---- Dev-vs-stable versioning (docs/VERSIONING.md): local builds carry a SemVer prerelease
+    //      suffix ("<next>-dev.<utc>") that UpdateService uses to short-circuit update checks. ----
+
+    [Theory]
+    [InlineData("2.18.0-dev.8161030", true)]
+    [InlineData("v2.18.0-dev.8161030", true)]   // leading v tolerated
+    [InlineData("2.18.0-rc.1", true)]
+    [InlineData("2.17.0", false)]                // shipped stable: clean SemVer
+    [InlineData("2.17.0.0", false)]              // four-part file version
+    [InlineData(" 2.17.0 ", false)]
+    [InlineData("", false)]
+    public void IsPrerelease_detects_dev_suffix(string version, bool expected)
+    {
+        Assert.Equal(expected, UpdateService.IsPrerelease(version));
+    }
+
+    [Fact]
+    public void IsPrerelease_ignores_build_metadata()
+    {
+        // '+sha' is SemVer build metadata, NOT a prerelease marker — a CI-stamped
+        // "2.17.0+abc123" release must not be mistaken for a dev build.
+        Assert.False(UpdateService.IsPrerelease("2.17.0+abc123"));
+        // ...while a prerelease carrying build metadata still counts as prerelease.
+        Assert.True(UpdateService.IsPrerelease("2.18.0-dev.8161030+abc123"));
+    }
+
+    [Fact]
+    public void EvaluateReleaseJson_dev_build_for_next_release_is_not_flagged_outdated()
+    {
+        // The released tag is v2.17.0; the dev build works toward 2.18.0 and stamps
+        // "2.18.0-dev.<utc>". Its numeric core (2.18.0) sorts above the stable tag, so even
+        // without the CheckAsync short-circuit no update is flagged.
+        const string json = """{"tag_name":"v2.17.0","html_url":"https://github.com/thebubbsy/marksmith/releases/tag/v2.17.0"}""";
+        var r = UpdateService.EvaluateReleaseJson(json, "2.18.0-dev.8161030");
+
+        Assert.True(r.Ok);
+        Assert.False(r.UpdateAvailable);
+    }
+
+    [Fact]
+    public void Compare_dev_build_never_loses_to_same_or_lower_stable_line()
+    {
+        // Dev for the next release must not read as "older" than the latest stable (the original
+        // misfire: 2.16.0.<rev> vs tag 2.17.0), nor than its own future stable core.
+        Assert.True(UpdateService.Compare("2.17.0", "2.18.0-dev.8161030") < 0);
+        Assert.True(UpdateService.Compare("2.18.0-dev.8161030", "2.17.0") > 0);
+        // Prerelease ranks below its own stable core, so cutting v2.18.0 itself is still "newer"
+        // than the dev line that produced it.
+        Assert.True(UpdateService.Compare("2.18.0", "2.18.0-dev.8161030") > 0);
     }
 }

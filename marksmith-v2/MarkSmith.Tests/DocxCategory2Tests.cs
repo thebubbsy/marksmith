@@ -32,7 +32,7 @@ public class DocxCategory2Tests
     }
 
     [Fact]
-    public void M2_01_MathBlock_Justification_Precedes_Spacing()
+    public void M2_01_MathBlock_Spacing_Precedes_Justification()
     {
         var md = "$$\nx^2 + y^2 = z^2\n$$";
         var xml = ExportXml(md);
@@ -40,7 +40,7 @@ public class DocxCategory2Tests
         int spacingIndex = xml.IndexOf("w:spacing");
         Assert.True(jcIndex >= 0, "w:jc element should exist");
         Assert.True(spacingIndex >= 0, "w:spacing element should exist");
-        Assert.True(jcIndex < spacingIndex, "w:jc must precede w:spacing in math block paragraph properties");
+        Assert.True(spacingIndex < jcIndex, "w:spacing must precede w:jc in math block paragraph properties per OpenXML schema");
     }
 
     [Fact]

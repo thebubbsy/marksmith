@@ -1,11 +1,23 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MarkSmith.Services;
 
 namespace MarkSmith.ViewModels.History;
 
-/// <summary>One selectable row on the version timeline.</summary>
+public enum HistoryDiffMode
+{
+    Unified,
+    Split,
+    Preview
+}
+
+/// <summary>One selectable row on the version timeline with stars, labels, and delta metrics.</summary>
 public sealed partial class VersionItemViewModel : ObservableObject
 {
     public VersionItemViewModel(VersionEntry entry, string timestampLabel, string snippet)
@@ -13,11 +25,30 @@ public sealed partial class VersionItemViewModel : ObservableObject
         Entry = entry;
         TimestampLabel = timestampLabel;
         Snippet = snippet;
+        _label = entry.Label ?? "";
+        _isStarred = entry.IsStarred;
+        LinesAdded = entry.LinesAdded;
+        LinesRemoved = entry.LinesRemoved;
+
         SourceLabel = entry.Source switch
         {
             "opened" => "Opened",
+            "autosave" => "Auto-Save",
+            "snapshot" or "manual" => "Snapshot",
+            "ingest" => "AI Ingest",
             var s when s.StartsWith("export:") => "Export · " + s["export:".Length..].ToUpperInvariant(),
             _ => entry.Source,
+        };
+
+        SourceIcon = entry.Source switch
+        {
+            "opened" => "📂",
+            "autosave" => "✏️",
+            "snapshot" or "manual" => "💾",
+            "ingest" => "📥",
+            var s when s.Contains("pdf") => "📄",
+            var s when s.Contains("docx") => "📝",
+            _ => "⏱️"
         };
     }
 
@@ -25,10 +56,27 @@ public sealed partial class VersionItemViewModel : ObservableObject
     public string TimestampLabel { get; }
     public string Snippet { get; }
     public string SourceLabel { get; }
+    public string SourceIcon { get; }
     public string Id => Entry.Id;
+    public int LinesAdded { get; }
+    public int LinesRemoved { get; }
+
+    public string DeltaBadge => LinesAdded > 0 && LinesRemoved > 0
+        ? $"+{LinesAdded}  −{LinesRemoved}"
+        : (LinesAdded > 0 ? $"+{LinesAdded}" : (LinesRemoved > 0 ? $"−{LinesRemoved}" : "0"));
+
+    public bool HasDelta => LinesAdded > 0 || LinesRemoved > 0;
+
+    [ObservableProperty]
+    private string _label;
+
+    [ObservableProperty]
+    private bool _isStarred;
 
     [ObservableProperty]
     private bool _isSelected;
+
+    public bool HasLabel => !string.IsNullOrWhiteSpace(Label);
 }
 
 /// <summary>A file in the global edit history hub (every file ever touched).</summary>
@@ -53,9 +101,8 @@ public sealed partial class FileSummaryViewModel : ObservableObject
 }
 
 /// <summary>
-/// The version-history hub: a running history of EVERY file the user has ever touched, newest
-/// first. Picking a file shows its Time Machine timeline (Today / Yesterday / This Week / … /
-/// Older), and picking a version shows a GitHub-style code-by-code diff (red removed, green added).
+/// The version-history hub: interactive Time Machine with visual timeline spine,
+/// stars/bookmarks, instant search, unified & split diffs, and live preview.
 /// </summary>
 public sealed partial class HistoryWindowViewModel : ObservableObject
 {
@@ -107,11 +154,30 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private FileSummaryViewModel? _selectedFile;
 
-    // ---- Diff view (GitHub/VS Code style) ----
-    public ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
+    [ObservableProperty]
+    private string _searchQuery = "";
+
+    partial void OnSearchQueryChanged(string value) => ApplyTimelineFilter();
+
+    [ObservableProperty]
+    private bool _isStarredOnlyFilter;
+
+    partial void OnIsStarredOnlyFilterChanged(bool value) => ApplyTimelineFilter();
+
+    [ObservableProperty]
+    private HistoryDiffMode _diffMode = HistoryDiffMode.Unified;
 
     [ObservableProperty]
     private bool _showDiff = true;
+
+    [ObservableProperty]
+    private bool _showUnifiedDiff = true;
+
+    [ObservableProperty]
+    private bool _showSplitDiff = false;
+
+    [ObservableProperty]
+    private bool _showPreview = false;
 
     [ObservableProperty]
     private string _diffTitle = "Select a version to see its changes";
@@ -122,17 +188,31 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _diffHeader = "";
 
-    [RelayCommand]
-    private void ShowDiffView() => ShowDiff = true;
+    public ObservableCollection<DiffRowViewModel> DiffRows { get; } = new();
+    public ObservableCollection<LineDiff.UnifiedRow> UnifiedDiffRows { get; } = new();
 
     [RelayCommand]
-    private void ShowPreviewView() => ShowDiff = false;
+    public void SetDiffMode(HistoryDiffMode mode)
+    {
+        DiffMode = mode;
+        ShowDiff = mode != HistoryDiffMode.Preview;
+        ShowUnifiedDiff = mode == HistoryDiffMode.Unified;
+        ShowSplitDiff = mode == HistoryDiffMode.Split;
+        ShowPreview = mode == HistoryDiffMode.Preview;
+    }
 
     [RelayCommand]
-    private async Task LoadAsync()
+    private void ShowDiffView() => SetDiffMode(HistoryDiffMode.Unified);
+
+    [RelayCommand]
+    private void ShowPreviewView() => SetDiffMode(HistoryDiffMode.Preview);
+
+    [RelayCommand]
+    public async Task LoadAsync()
     {
         try
         {
+            Files.Clear();
             var overview = await _history.GetOverviewAsync();
             foreach (var summary in overview)
                 Files.Add(new FileSummaryViewModel(summary));
@@ -152,7 +232,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SelectFileAsync(FileSummaryViewModel file)
+    public async Task SelectFileAsync(FileSummaryViewModel file)
     {
         if (SelectedFile is not null) SelectedFile.IsSelected = false;
         SelectedFile = file;
@@ -165,12 +245,12 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
     private async Task LoadTimelineAsync(string filePath)
     {
-        // Bump the token too so an in-flight diff for the PREVIOUS file can't bleed into this one.
         _selectionToken++;
         _currentFile = filePath;
         FileName = Path.GetFileName(filePath);
         Bands.Clear();
         DiffRows.Clear();
+        UnifiedDiffRows.Clear();
         Selected = null;
         SelectedHeader = "Select a version";
         DiffTitle = "Select a version to see its changes";
@@ -179,31 +259,12 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         try
         {
             var versions = await _history.GetVersionsAsync(filePath);
-            if (filePath != _currentFile) return; // user switched files while we were reading
+            if (filePath != _currentFile) return;
             _allVersions = versions;
             HasVersions = versions.Count > 0;
             if (versions.Count == 0) return;
 
-            var now = DateTime.Now;
-            var byBand = new Dictionary<string, List<VersionItemViewModel>>();
-            foreach (var entry in versions)
-            {
-                var content = await _history.GetContentAsync(entry.Id) ?? "";
-                if (filePath != _currentFile) return;
-                var band = BandName(entry.CreatedAt.LocalDateTime, now);
-                if (!byBand.TryGetValue(band, out var list))
-                {
-                    list = new List<VersionItemViewModel>();
-                    byBand[band] = list;
-                }
-                list.Add(new VersionItemViewModel(entry, TimestampLabel(entry.CreatedAt.LocalDateTime, now), Snippet(content)));
-            }
-
-            foreach (var band in new[] { "Today", "Yesterday", "This Week", "This Month", "This Year", "Older" })
-            {
-                if (!byBand.TryGetValue(band, out var items)) continue;
-                Bands.Add(new TimeBandViewModel(band, items));
-            }
+            ApplyTimelineFilter();
 
             if (Bands.Count > 0 && Bands[0].Items.Count > 0)
                 SelectVersion(Bands[0].Items[0]);
@@ -214,8 +275,49 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         }
     }
 
+    private void ApplyTimelineFilter()
+    {
+        Bands.Clear();
+        if (_allVersions.Count == 0) return;
+
+        var now = DateTime.Now;
+        var q = SearchQuery?.Trim() ?? "";
+        bool filterStarred = IsStarredOnlyFilter;
+
+        var filtered = _allVersions.Where(v =>
+        {
+            if (filterStarred && !v.IsStarred) return false;
+            if (!string.IsNullOrEmpty(q))
+            {
+                bool matchesLabel = v.Label?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false;
+                bool matchesSource = v.Source.Contains(q, StringComparison.OrdinalIgnoreCase);
+                bool matchesId = v.Id.Contains(q, StringComparison.OrdinalIgnoreCase);
+                return matchesLabel || matchesSource || matchesId;
+            }
+            return true;
+        }).ToList();
+
+        var byBand = new Dictionary<string, List<VersionItemViewModel>>();
+        foreach (var entry in filtered)
+        {
+            var band = BandName(entry.CreatedAt.LocalDateTime, now);
+            if (!byBand.TryGetValue(band, out var list))
+            {
+                list = new List<VersionItemViewModel>();
+                byBand[band] = list;
+            }
+            list.Add(new VersionItemViewModel(entry, TimestampLabel(entry.CreatedAt.LocalDateTime, now), entry.Label ?? entry.Source));
+        }
+
+        foreach (var band in new[] { "Today", "Yesterday", "This Week", "This Month", "This Year", "Older" })
+        {
+            if (!byBand.TryGetValue(band, out var items) || items.Count == 0) continue;
+            Bands.Add(new TimeBandViewModel(band, items));
+        }
+    }
+
     [RelayCommand]
-    private void SelectVersion(VersionItemViewModel item)
+    public void SelectVersion(VersionItemViewModel item)
     {
         if (Selected is not null) Selected.IsSelected = false;
         Selected = item;
@@ -224,16 +326,60 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
             item.IsSelected = true;
             var t = item.Entry.CreatedAt.LocalDateTime;
             SelectedHeader = t.ToString("dddd, d MMMM yyyy") + " · " + t.ToString("HH:mm");
-            // Stamp a selection token: a slower fetch for an EARLIER click must never clobber the
-            // diff/preview of a newer click (the blob reads race, and size varies per version).
             var token = ++_selectionToken;
             _ = RefreshDiffAsync(item, token);
             _ = RefreshPreviewAsync(item, token);
         }
     }
 
-    /// <summary>Diffs the selected version against the version before it (GitHub commit view):
-    /// green = added in this version, red = removed. The oldest version diffs against nothing.</summary>
+    [RelayCommand]
+    public async Task ToggleStarAsync(VersionItemViewModel? item)
+    {
+        var target = item ?? Selected;
+        if (target == null) return;
+        bool isStarred = await _history.ToggleStarAsync(target.Id);
+        target.IsStarred = isStarred;
+    }
+
+    [RelayCommand]
+    public async Task RenameVersionAsync((VersionItemViewModel? item, string newLabel) args)
+    {
+        var target = args.item ?? Selected;
+        if (target == null) return;
+        if (await _history.SetLabelAsync(target.Id, args.newLabel))
+        {
+            target.Label = args.newLabel;
+        }
+    }
+
+    [RelayCommand]
+    public async Task DeleteVersionAsync(VersionItemViewModel? item)
+    {
+        var target = item ?? Selected;
+        if (target == null) return;
+        if (await _history.DeleteVersionAsync(target.Id))
+        {
+            _allVersions.RemoveAll(v => v.Id == target.Id);
+            ApplyTimelineFilter();
+            if (Bands.Count > 0 && Bands[0].Items.Count > 0)
+                SelectVersion(Bands[0].Items[0]);
+        }
+    }
+
+    [RelayCommand]
+    public async Task TakeSnapshotAsync(string? label)
+    {
+        if (string.IsNullOrEmpty(_currentFile)) return;
+        var currentContent = Selected != null ? await _history.GetContentAsync(Selected.Id) : "";
+        if (string.IsNullOrEmpty(currentContent)) return;
+
+        if (await _history.CaptureAsync(_currentFile, currentContent, "snapshot", label ?? "Manual Snapshot", isStarred: true))
+        {
+            await LoadTimelineAsync(_currentFile);
+        }
+    }
+
+    /// <summary>Diffs the selected version against the version before it.</summary>
     private async Task RefreshDiffAsync(VersionItemViewModel item, int token)
     {
         try
@@ -248,8 +394,13 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
 
             var lines = LineDiff.Diff(prevContent, selectedContent);
             var rows = LineDiff.BuildSideBySide(lines);
+            var unified = LineDiff.BuildUnified(lines);
+
             DiffRows.Clear();
             foreach (var row in rows) DiffRows.Add(new DiffRowViewModel(row));
+
+            UnifiedDiffRows.Clear();
+            foreach (var u in unified) UnifiedDiffRows.Add(u);
 
             int added = lines.Count(l => l.Kind == LineDiff.Kind.Added);
             int removed = lines.Count(l => l.Kind == LineDiff.Kind.Removed);
@@ -275,7 +426,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task RestoreAsync()
+    public async Task RestoreAsync()
     {
         if (Selected is null || IsRestoring) return;
         IsRestoring = true;
@@ -301,17 +452,6 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
         if (t.Month == now.Month && t.Year == now.Year) return t.ToString("d MMM") + " · " + t.ToString("HH:mm");
         if (t.Year == now.Year) return t.ToString("d MMM");
         return t.ToString("d MMM yyyy");
-    }
-
-    private static string Snippet(string content)
-    {
-        foreach (var line in content.Split('\n'))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Length > 0 && !trimmed.StartsWith('#'))
-                return trimmed.Length <= 90 ? trimmed : trimmed[..90] + "…";
-        }
-        return content.Length <= 90 ? content : content[..90] + "…";
     }
 }
 

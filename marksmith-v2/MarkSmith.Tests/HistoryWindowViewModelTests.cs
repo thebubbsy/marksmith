@@ -99,4 +99,58 @@ public class HistoryWindowViewModelTests : IDisposable
         await WaitForAsync(() => vm.DiffHeader.Contains("first version"));
         Assert.Contains("added", vm.DiffStats);
     }
+
+    [Fact]
+    public async Task UnifiedDiff_IsGeneratedAlongsideSplitDiff()
+    {
+        var (vm, _) = await BuildAsync(@"C:\docs\a.md", "line 1\nline 2", "line 1\nline 2 modified\nline 3");
+        await WaitForAsync(() => vm.UnifiedDiffRows.Count > 0);
+        Assert.NotEmpty(vm.UnifiedDiffRows);
+        Assert.Contains(vm.UnifiedDiffRows, r => r.IsAdded && r.Text.Contains("line 3"));
+    }
+
+    [Fact]
+    public async Task DiffMode_SwitchesBetweenUnifiedSplitAndPreview()
+    {
+        var (vm, _) = await BuildAsync(@"C:\docs\a.md", "a", "b");
+        vm.SetDiffMode(HistoryDiffMode.Unified);
+        Assert.True(vm.ShowUnifiedDiff);
+        Assert.False(vm.ShowSplitDiff);
+        Assert.False(vm.ShowPreview);
+
+        vm.SetDiffMode(HistoryDiffMode.Split);
+        Assert.False(vm.ShowUnifiedDiff);
+        Assert.True(vm.ShowSplitDiff);
+        Assert.False(vm.ShowPreview);
+
+        vm.SetDiffMode(HistoryDiffMode.Preview);
+        Assert.False(vm.ShowUnifiedDiff);
+        Assert.False(vm.ShowSplitDiff);
+        Assert.True(vm.ShowPreview);
+    }
+
+    [Fact]
+    public async Task StarFilter_And_SearchFilter_NarrowTimeline()
+    {
+        var service = new VersionHistoryService(Path.Combine(_dir, "history"));
+        await service.CaptureAsync(@"C:\docs\search.md", "content v1", "manual", "Special Milestone", isStarred: true);
+        await Task.Delay(20);
+        await service.CaptureAsync(@"C:\docs\search.md", "content v2", "autosave", "Quick edit", isStarred: false);
+
+        var vm = new HistoryWindowViewModel(_ => "<html/>", _ => Task.FromResult(true), service, initialFilePath: @"C:\docs\search.md");
+        await vm.LoadCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, vm.Bands[0].Items.Count);
+
+        // Filter by Starred
+        vm.IsStarredOnlyFilter = true;
+        Assert.Single(vm.Bands[0].Items);
+        Assert.Equal("Special Milestone", vm.Bands[0].Items[0].Label);
+
+        // Filter by Search Query
+        vm.IsStarredOnlyFilter = false;
+        vm.SearchQuery = "Quick";
+        Assert.Single(vm.Bands[0].Items);
+        Assert.Equal("Quick edit", vm.Bands[0].Items[0].Label);
+    }
 }

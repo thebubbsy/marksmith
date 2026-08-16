@@ -159,4 +159,70 @@ public class ShapeMarkdownTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Codec_RoundTrips_CompressedBinary()
+    {
+        var originalShapes = Enumerable.Range(0, 50).Select(i => new ComposedShape
+        {
+            Prst = i % 2 == 0 ? "roundrect" : "ellipse",
+            X = i * 0.1,
+            Y = i * 0.05,
+            W = 0.5,
+            H = 0.4,
+            Fill = $"{i * 5 % 256:X2}78D4",
+            Rot = i * 10 % 360,
+            StrokeWidthPt = 1.5,
+            Text = $"Node {i}",
+            TextColor = "FFFFFF"
+        }).ToList();
+
+        string compressedMd = ShapeMarkdownCodec.Serialize(originalShapes, compact: true);
+        Assert.Contains(ShapeMarkdownCodec.CompressedPrefix, compressedMd);
+        Assert.Contains("compact=true", compressedMd);
+
+        var decoded = ShapeMarkdownCodec.Parse(compressedMd);
+        Assert.Equal(originalShapes.Count, decoded.Count);
+        for (int i = 0; i < originalShapes.Count; i++)
+        {
+            Assert.Equal(originalShapes[i].Prst, decoded[i].Prst);
+            Assert.Equal(originalShapes[i].X, decoded[i].X, 2);
+            Assert.Equal(originalShapes[i].Y, decoded[i].Y, 2);
+            Assert.Equal(originalShapes[i].Fill, decoded[i].Fill);
+            Assert.Equal(originalShapes[i].Text, decoded[i].Text);
+        }
+    }
+
+    [Fact]
+    public void CompressedShapes_PreviewAndDocx_WorkIdentically()
+    {
+        var shapes = Enumerable.Range(0, 25).Select(i => new ComposedShape
+        {
+            Prst = "hexagon",
+            X = i * 0.2,
+            Y = i * 0.1,
+            W = 0.8,
+            H = 0.6,
+            Fill = "0078D4",
+            Text = $"Hex {i}"
+        }).ToList();
+
+        string md = ShapeMarkdownCodec.Serialize(shapes, compact: true);
+        string html = ShapeMarkdownHtml.PreTransform(md);
+        Assert.Contains("<svg", html);
+        Assert.Contains("Hex 0", html);
+
+        string path = Path.Combine(Path.GetTempPath(), $"compact-shapes-{Guid.NewGuid():N}.docx");
+        try
+        {
+            new DocxExportService().ExportAsync(md, path, new Models.AppSettings()).GetAwaiter().GetResult();
+            using var doc = WordprocessingDocument.Open(path, false);
+            var validator = new OpenXmlValidator();
+            Assert.Empty(validator.Validate(doc));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

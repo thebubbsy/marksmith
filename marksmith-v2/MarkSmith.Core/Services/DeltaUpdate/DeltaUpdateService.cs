@@ -31,8 +31,7 @@ public static class DeltaUpdateService
     public static string ArchSuffix =>
         RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
 
-    public static string StagingRoot { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "update-staging");
+    public static string StagingRoot { get; } = Path.Combine(AppPaths.ConfigDir, "update-staging");
 
     /// <summary>A single path segment for use in URLs and staging paths: no separators, no '.',
     /// no '..', no drive letter, non-empty. A malicious manifest cannot relocate staging outside
@@ -285,7 +284,7 @@ public static class DeltaUpdateService
             await semaphore.WaitAsync(ct);
             try
             {
-                using var stream = File.OpenRead(f);
+                await using var stream = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
                 var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
                 var rel = Path.GetRelativePath(installDir, f).Replace('\\', '/');
                 lock (result) result[rel] = hash;

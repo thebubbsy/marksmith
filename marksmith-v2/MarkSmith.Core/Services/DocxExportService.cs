@@ -571,8 +571,8 @@ public sealed class DocxExportService
             {
                 // Display math → a centered paragraph holding a real, editable Word equation (OMML).
                 var mp = new W.Paragraph(new W.ParagraphProperties(
-                    new W.Justification { Val = W.JustificationValues.Center },
-                    new W.SpacingBetweenLines { Before = "120", After = "120" }));
+                    new W.SpacingBetweenLines { Before = "120", After = "120" },
+                    new W.Justification { Val = W.JustificationValues.Center }));
                 mp.Append(LatexToOmml.Build(math.Lines.ToString()));
                 target.Append(mp);
                 break;
@@ -821,6 +821,32 @@ public sealed class DocxExportService
                 }
                 break;
             }
+
+            case Markdig.Extensions.DefinitionLists.DefinitionList dl:
+                // "Term\n: definition" — Word has no native <dl>, so the term becomes a bold
+                // paragraph and each definition an indented one (mirrors the HTML path's dl/dt/dd).
+                foreach (var item in dl.OfType<Markdig.Extensions.DefinitionLists.DefinitionItem>())
+                {
+                    foreach (var child in item)
+                    {
+                        if (child is Markdig.Extensions.DefinitionLists.DefinitionTerm term)
+                        {
+                            var tp = new W.Paragraph();
+                            RenderInlines(tp, term.Inline, ctx, new Fmt { Bold = true, Color = ctx.TextHex });
+                            target.Append(tp);
+                        }
+                        else if (child is ParagraphBlock def) // the ": definition" bodies arrive as paragraphs
+                        {
+                            var dp = new W.Paragraph(new W.ParagraphProperties(
+                                new W.Indentation { Left = "360" }));
+                            RenderInlines(dp, def.Inline, ctx, default);
+                            target.Append(dp);
+                        }
+                        else
+                            RenderBlock(child, target, ctx, -1); // loose blocks inside a definition (code, lists)
+                    }
+                }
+                break;
 
             case ContainerBlock container: // footnote groups, custom containers, etc.
                 foreach (var child in container)
@@ -1500,6 +1526,11 @@ public sealed class DocxExportService
         MarkSmith.Core.Kanban.SmartArtKanbanBuilder.BuildKanban(kanban, ctx.MainPart, target, ctx.Theme, ref ctx.NextDrawingId, forceFallback: true);
     }
 
+    // Tab-header matchers for ParseTabsFromContent — compiled once instead of interpreted on
+    // every line of the tab-split loop.
+    private static readonly Regex TabLineRegex = new(@"^:::tab(?:\s+title=(?:""(?<t1>.*)""|(?<t2>\S+))|\s+(?<t3>[^\n]+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex TabHeaderRegex = new(@"^={2,3}\s+(?:""(?<t1>.*)""|(?<t3>[^\n]+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static List<(string Title, string Content)> ParseTabsFromContent(string innerContent)
     {
         var result = new List<(string Title, string Content)>();
@@ -1539,8 +1570,8 @@ public sealed class DocxExportService
                 continue;
             }
 
-            var tabMatch = Regex.Match(trimmed, @"^:::tab(?:\s+title=(?:""(?<t1>.*)""|(?<t2>\S+))|\s+(?<t3>[^\n]+))?$", RegexOptions.IgnoreCase);
-            var headerMatch = Regex.Match(trimmed, @"^={2,3}\s+(?:""(?<t1>.*)""|(?<t3>[^\n]+))$", RegexOptions.IgnoreCase);
+            var tabMatch = TabLineRegex.Match(trimmed);
+            var headerMatch = TabHeaderRegex.Match(trimmed);
 
             if (tabMatch.Success || headerMatch.Success)
             {
@@ -1685,8 +1716,9 @@ public sealed class DocxExportService
         {
             try
             {
-                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : "process";
+                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : null;
                 var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
+                layoutType ??= MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
                 ast.RequestedLayout = layoutType;
 
                 // SmartArt colors resolve against the document theme's accents (accent1..accent6).
@@ -1957,12 +1989,12 @@ public sealed class DocxExportService
         };
 
         var linkPara = new W.Paragraph(new W.ParagraphProperties(
-            new W.Justification { Val = W.JustificationValues.Center },
-            new W.SpacingBetweenLines { Before = "200", After = "60" },
-            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
             new W.ParagraphBorders(
                 new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
-                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex })));
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex }),
+            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
+            new W.SpacingBetweenLines { Before = "200", After = "60" },
+            new W.Justification { Val = W.JustificationValues.Center }));
 
         var hyperlink = new W.Hyperlink { Id = rel.Id };
         hyperlink.Append(new W.Run(
@@ -1978,8 +2010,8 @@ public sealed class DocxExportService
         if (!string.IsNullOrWhiteSpace(caption))
         {
             var captionPara = new W.Paragraph(new W.ParagraphProperties(
-                new W.Justification { Val = W.JustificationValues.Center },
-                new W.SpacingBetweenLines { After = "120" }));
+                new W.SpacingBetweenLines { After = "120" },
+                new W.Justification { Val = W.JustificationValues.Center }));
             AddText(captionPara, caption, new Fmt { Italic = true });
             target.Append(captionPara);
         }
@@ -2120,6 +2152,22 @@ public sealed class DocxExportService
     private static readonly Regex HtmlTableRow = new(@"<tr\b[^>]*>(.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HtmlTableCell = new(@"<(t[hd])\b[^>]*>(.*?)</t[hd]>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
+    // Compiled once — RenderHtmlBlock/StripHtmlToText used to rebuild these interpreted regexes
+    // for EVERY HTML block on every export.
+    private static readonly Regex ScriptStyleStrip = new(@"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BrToSpace = new(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WhitespaceCollapse = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex FeatureMarkerRe = new(@"^<!-- MARKSMITH_FEATURE:(?<id>[a-f0-9\-]+) -->$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex PageBreakDivRe = new(@"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex LabeledDivRe = new("^<div class=\"(code-title|tab-label)\">(.*?)</div>$", RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex HrRe = new(@"<hr\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex TableRe = new(@"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex OpenDetailsRe = new(@"^<details\b[^>]*>\s*<summary\b[^>]*>(.*?)</summary>\s*$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex DetailsCloseRe = new(@"^</details>$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DetailsOpenTagRe = new(@"<details\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex SummaryRe = new(@"<summary\b[^>]*>(.*?)</summary>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex AltSizeHintRe = new(@"\|(\d{2,4})$", RegexOptions.Compiled);
+
     private static readonly System.Net.Http.HttpClient SharedImageHttpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(8)
@@ -2201,7 +2249,7 @@ public sealed class DocxExportService
 
             var alt = GetPlainText(link);
             double? hintW = null;
-            var hint = Regex.Match(alt, @"\|(\d{2,4})$");
+            var hint = AltSizeHintRe.Match(alt);
             if (hint.Success) { hintW = double.Parse(hint.Groups[1].Value); alt = alt[..hint.Index].Trim(); }
 
             // Check if payload or URL represents an SVG
@@ -2335,12 +2383,12 @@ public sealed class DocxExportService
     {
         // script/style CONTENT is code, not prose — drop it whole, or "alert(1)" from a pasted
         // <script> block would land in the document as body text.
-        html = Regex.Replace(html, @"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>", "", RegexOptions.IgnoreCase);
+        html = ScriptStyleStrip.Replace(html, "");
         // <br> → space so lines don't glue together; then drop all remaining tags and decode entities.
-        var brToSpace = Regex.Replace(html, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
+        var brToSpace = BrToSpace.Replace(html, " ");
         var noTags = HtmlTagStrip.Replace(brToSpace, "");
         var decoded = System.Net.WebUtility.HtmlDecode(noTags);
-        return Regex.Replace(decoded, @"\s+", " ").Trim();
+        return WhitespaceCollapse.Replace(decoded, " ").Trim();
     }
 
     private static void RenderHtmlBlock(string raw, OpenXmlCompositeElement target, Ctx ctx)
@@ -2348,7 +2396,7 @@ public sealed class DocxExportService
         raw = raw.Trim();
         if (raw.Length == 0) return;
         
-        var advancedMatch = Regex.Match(raw, @"^<!-- MARKSMITH_FEATURE:(?<id>[a-f0-9\-]+) -->$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var advancedMatch = FeatureMarkerRe.Match(raw);
         if (advancedMatch.Success)
         {
             var id = advancedMatch.Groups["id"].Value;
@@ -2363,14 +2411,14 @@ public sealed class DocxExportService
         // page-break-after div an AI emitted directly) → a REAL Word page break, the one thing
         // Word does better than any web renderer.
         if (raw.Contains("class=\"page-break\"", StringComparison.OrdinalIgnoreCase) ||
-            Regex.IsMatch(raw, @"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase))
+            PageBreakDivRe.IsMatch(raw))
         {
             target.Append(new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Page })));
             return;
         }
 
         // Code-fence filename captions and tab labels (DialectNormalizer output): styled one-liners.
-        var labeled = Regex.Match(raw, "^<div class=\"(code-title|tab-label)\">(.*?)</div>$", RegexOptions.Singleline);
+        var labeled = LabeledDivRe.Match(raw);
         if (labeled.Success)
         {
             var p = new W.Paragraph();
@@ -2385,9 +2433,9 @@ public sealed class DocxExportService
         // following text line into the SAME block ("<hr>\nBelow the rule."), so an exact match
         // missed the tag and the rule silently vanished while the text survived via the catch-all.
         // Split on every <hr> and render the segments around it instead.
-        if (Regex.IsMatch(raw, @"<hr\s*/?>", RegexOptions.IgnoreCase))
+        if (HrRe.IsMatch(raw))
         {
-            var segments = Regex.Split(raw, @"<hr\s*/?>", RegexOptions.IgnoreCase);
+            var segments = HrRe.Split(raw);
             for (int i = 0; i < segments.Length; i++)
             {
                 if (i > 0) // a rule between (and after) segments — one per <hr> that split them
@@ -2400,7 +2448,7 @@ public sealed class DocxExportService
         }
 
         // <table> → a real Word table (the biggest data-loss fix: whole tables used to disappear).
-        var table = Regex.Match(raw, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var table = TableRe.Match(raw);
         if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
 
         // Foldable-callout <details> whose body was split into following markdown blocks (blank
@@ -2408,8 +2456,7 @@ public sealed class DocxExportService
         // block with no closing tag; render its summary as a Word-native collapsible heading
         // (outlineLvl 4 + collapsed) so the body blocks that follow fold under it, matching the
         // preview's collapsed-<details>. The bare </details> closer that arrives later is dropped.
-        var openDetails = Regex.Match(raw, @"^<details\b[^>]*>\s*<summary\b[^>]*>(.*?)</summary>\s*$",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var openDetails = OpenDetailsRe.Match(raw);
         if (openDetails.Success)
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
@@ -2418,7 +2465,7 @@ public sealed class DocxExportService
             target.Append(head);
             return;
         }
-        if (Regex.IsMatch(raw, @"^</details>$", RegexOptions.IgnoreCase)) return;
+        if (DetailsCloseRe.IsMatch(raw)) return;
 
         // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
         // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
@@ -2426,36 +2473,71 @@ public sealed class DocxExportService
         // matching <details>'s default-closed semantics. Outline level 8 keeps it out of the
         // document's TOC field (which collects levels 1–3 only) so a summary line never pollutes
         // the table of contents. Avoids manual glyph insertion; leverages native Word outline expand/collapse rendering.
-        var details = Regex.Match(raw, @"<details\b[^>]*>(.*?)</details>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        if (details.Success)
+        // The closing tag is found with a NESTING-AWARE scan (not a non-greedy regex) so a nested
+        // <details> can't truncate the outer block at the INNER closer — the outer tail and any
+        // content after the block must survive.
+        var openTag = DetailsOpenTagRe.Match(raw);
+        if (openTag.Success)
         {
-            var inner = details.Groups[1].Value;
-            var summary = Regex.Match(inner, @"<summary\b[^>]*>(.*?)</summary>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            var summaryText = summary.Success ? StripHtmlToText(summary.Groups[1].Value) : "Details";
-            var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
-
-            var head = new W.Paragraph(new W.ParagraphProperties(
-                new W.OutlineLevel { Val = 8 },
-                new W15.DefaultCollapsed { Val = true }));
-            AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
-            target.Append(head);
-
-            var nestedTable = Regex.Match(body, @"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (nestedTable.Success) { RenderHtmlTable(nestedTable.Value, target, ctx); return; }
-            if (body.Contains("<details", StringComparison.OrdinalIgnoreCase))
+            var bodyStart = openTag.Index + openTag.Length;
+            var closeAt = FindBalancedTagClose(raw, bodyStart);
+            if (closeAt >= 0)
             {
-                var innerDoc = Markdig.Markdown.Parse(body, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
-                foreach (var block in innerDoc) RenderBlock(block, target, ctx, listLevel: -1);
+                var inner = raw.Substring(bodyStart, closeAt - bodyStart);
+                var summary = SummaryRe.Match(inner);
+                var summaryText = summary.Success ? StripHtmlToText(summary.Groups[1].Value) : "Details";
+                var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
+
+                var head = new W.Paragraph(new W.ParagraphProperties(
+                    new W.OutlineLevel { Val = 8 },
+                    new W15.DefaultCollapsed { Val = true }));
+                AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
+                target.Append(head);
+
+                var remainder = raw[(closeAt + "</details>".Length)..].Trim();
+
+                var nestedTable = TableRe.Match(body);
+                if (nestedTable.Success)
+                {
+                    RenderHtmlTable(nestedTable.Value, target, ctx);
+                    if (remainder.Length > 0) RenderHtmlBlock(remainder, target, ctx);
+                    return;
+                }
+                if (body.Contains("<details", StringComparison.OrdinalIgnoreCase))
+                {
+                    var innerDoc = Markdig.Markdown.Parse(body, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                    foreach (var block in innerDoc) RenderBlock(block, target, ctx, listLevel: -1);
+                    if (remainder.Length > 0) RenderHtmlBlock(remainder, target, ctx);
+                    return;
+                }
+                var bodyText = StripHtmlToText(body);
+                if (bodyText.Length > 0) { var bp = new W.Paragraph(); AddText(bp, bodyText, default); target.Append(bp); }
+                if (remainder.Length > 0) RenderHtmlBlock(remainder, target, ctx);
                 return;
             }
-            var bodyText = StripHtmlToText(body);
-            if (bodyText.Length > 0) { var bp = new W.Paragraph(); AddText(bp, bodyText, default); target.Append(bp); }
-            return;
         }
 
         // Catch-all: never lose the content — strip tags and emit the remaining text.
         var text = StripHtmlToText(raw);
         if (text.Length > 0) { var p = new W.Paragraph(); AddText(p, text, default); target.Append(p); }
+    }
+
+    // Returns the index of the </details> closer that MATCHES the opener ending at bodyStart,
+    // tracking nested <details> depth. A non-greedy regex used to stop at the first closer — the
+    // INNER one in a nested collapsible — which truncated the outer block and silently dropped its
+    // tail. Returns -1 when the tags never re-balance (unclosed block; the caller falls through).
+    private static int FindBalancedTagClose(string raw, int bodyStart)
+    {
+        int depth = 1, i = bodyStart;
+        while (i < raw.Length)
+        {
+            var open = raw.IndexOf("<details", i, StringComparison.OrdinalIgnoreCase);
+            var close = raw.IndexOf("</details>", i, StringComparison.OrdinalIgnoreCase);
+            if (close < 0) return -1;
+            if (open >= 0 && open < close) { depth++; i = open + "<details".Length; }
+            else { depth--; if (depth == 0) return close; i = close + "</details>".Length; }
+        }
+        return -1;
     }
 
     private static void RenderHtmlTable(string html, OpenXmlCompositeElement target, Ctx ctx)
@@ -2519,8 +2601,6 @@ public sealed class DocxExportService
         tblPr.TableBorders = new W.TableBorders(
             Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
             Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
-        tblPr.TableCaption = new W.TableCaption { Val = "Table exported from Markdown" };
-        tblPr.TableDescription = new W.TableDescription { Val = "Table exported from Markdown by MarkSmith" };
 
         var wTable = new W.Table(
             tblPr,
@@ -2598,8 +2678,7 @@ public sealed class DocxExportService
 
     // Word renders adjacent tables as one; a tiny paragraph keeps them (and following text) apart.
     private static W.Paragraph SpacerParagraph() => new(new W.ParagraphProperties(
-        new W.SpacingBetweenLines { Before = "0", After = "0" },
-        new W.ParagraphMarkRunProperties(new W.FontSize { Val = "8" })));
+        new W.SpacingBetweenLines { Before = "0", After = "0" }));
 
     // Real TOC field over Heading1-N with hyperlinks (\h) — combined with w:updateFields, Word
     // rebuilds it (page numbers and all) the moment the document opens. The upper bound adapts to

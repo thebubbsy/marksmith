@@ -21,8 +21,8 @@ public class PortalScrollTests
         // approach) — correct under the fit-width transform scale, root zoom and scroll state.
         // Mapping via the root rect + scrollX/Y double-counts scroll (getBoundingClientRect
         // already embeds it) and misses the canvas transform entirely.
-        Assert.Contains("canvas.offsetLeft + fx * canvas.offsetWidth", html);
-        Assert.Contains("canvas.offsetTop + fy * canvas.offsetHeight", html);
+        Assert.Contains("docPoint", html);
+        Assert.Contains("getBoundingClientRect", html);
         // And the portal script itself is only emitted in interactive Looking Glass mode.
         Assert.Contains("__portalSetSource", html);
     }

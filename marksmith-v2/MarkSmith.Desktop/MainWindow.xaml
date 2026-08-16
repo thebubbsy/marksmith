@@ -6,7 +6,8 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     xmlns:localcontrols="using:MarkSmith.Controls">
 
-    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden">
+    <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden"
+          AllowDrop="True" DragOver="OnWindowDragOver" Drop="OnWindowDrop">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control,Menu" Key="T" Invoked="OnToggleDebugModeInvoked" />
             <!-- HIDDEN developer/test command: Ctrl+Shift+Alt+L resets the license to Free (clears
@@ -589,11 +590,34 @@
                             </Border>
 
                             <Grid Grid.Row="1">
-                                <TextBox x:Name="PasteTextBox" MinHeight="180"
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="LineGutterCol" Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Line counter gutter -->
+                                <Border x:Name="LineGutter" Grid.Column="0" Visibility="Collapsed"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1,1,0,1" CornerRadius="4,0,0,4" Padding="6,6,6,6">
+                                    <ScrollViewer x:Name="LineNumberScrollViewer"
+                                                  VerticalScrollBarVisibility="Hidden"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  VerticalScrollMode="Disabled">
+                                        <TextBlock x:Name="LineNumberText"
+                                                   FontFamily="Cascadia Mono, Consolas, monospace"
+                                                   FontSize="13"
+                                                   Opacity="0.45"
+                                                   TextAlignment="Right"
+                                                   IsTextSelectionEnabled="False" />
+                                    </ScrollViewer>
+                                </Border>
+
+                                <TextBox x:Name="PasteTextBox" Grid.Column="1" MinHeight="180"
                                          Text="{Binding CurrentMarkdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          AcceptsReturn="True" TextWrapping="Wrap"
                                          FontFamily="Cascadia Mono, Consolas, monospace" FontSize="13"
-                                         PlaceholderText="Paste or type Markdown here... (drop an image to embed it)"
+                                         PlaceholderText="Paste or type Markdown here..."
                                          VerticalContentAlignment="Top" IsSpellCheckEnabled="False"
                                          AllowDrop="True" DragOver="OnEditorDragOver" Drop="OnEditorDrop"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -624,7 +648,12 @@
                                         <TextBlock Text="A+" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <ToggleButton x:Name="WordWrapToggle" ToolTipService.ToolTip="Word wrap — line numbers are always shown on the left"
+                                    <ToggleButton x:Name="LineNumbersToggle" ToolTipService.ToolTip="Line numbers — show line counter gutter on the left"
+                                                  Height="24" Padding="6,0" Checked="OnLineNumbersToggled" Unchecked="OnLineNumbersToggled">
+                                        <TextBlock Text="Lines" FontSize="11" />
+                                    </ToggleButton>
+                                    <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                                    <ToggleButton x:Name="WordWrapToggle" ToolTipService.ToolTip="Word wrap"
                                                   Height="24" Padding="6,0" Checked="OnWordWrapToggled" Unchecked="OnWordWrapToggled">
                                         <TextBlock Text="Wrap" FontSize="11" />
                                     </ToggleButton>
@@ -752,29 +781,54 @@
                          dials moved out of the always-visible header down to this portal-only row.
                          Shape: circle spotlight, focus bands, square, or logo cutout; the slider
                          scales the active shape live on every tick. -->
-                    <StackPanel x:Name="PortalControlsRow" Grid.Row="0" Orientation="Horizontal" Spacing="8"
+                    <!-- ISS-004: portal shape + size + glass/surround blur controls -->
+                    <StackPanel x:Name="PortalControlsRow" Grid.Row="0" Orientation="Horizontal" Spacing="6"
                                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,6"
                                 Visibility="Collapsed">
                         <FontIcon Glyph="&#xE7B3;" FontSize="13" VerticalAlignment="Center" Opacity="0.7"
                                   ToolTipService.ToolTip="Looking Glass portal dials" />
                         <ComboBox x:Name="PortalShapeCombo" ToolTipService.ToolTip="Looking Glass shape — circle spotlight, focus band, square, or Marksmith logo cutout"
-                                  Width="125" Height="32" VerticalAlignment="Center" SelectionChanged="OnPortalShapeChanged">
+                                  Width="115" Height="32" VerticalAlignment="Center" SelectionChanged="OnPortalShapeChanged">
                             <ComboBoxItem Content="Circle" Tag="circle" />
                             <ComboBoxItem Content="Focus" Tag="focus1" />
                             <ComboBoxItem Content="Square" Tag="square" />
                             <ComboBoxItem Content="Logo Cutout" Tag="logo" />
                         </ComboBox>
                         <Slider x:Name="PortalRevealSlider" ToolTipService.ToolTip="Looking Glass size — scales the active shape (circle diameter / focus band height)"
-                                Width="110" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="10"
+                                Width="85" Minimum="0" Maximum="100" StepFrequency="5" SmallChange="5" LargeChange="10"
                                 VerticalAlignment="Center" ValueChanged="OnPortalRevealChanged" />
-                        <ToggleButton ToolTipService.ToolTip="Blur the preview behind the portal (Ctrl+Alt+X)"
-                                      IsChecked="{Binding PortalFocusBlur, Mode=TwoWay}"
-                                      Click="OnPortalBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE8FD;" FontSize="13" />
-                                <TextBlock Text="Blur" FontSize="12" />
+
+                        <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="2,0" VerticalAlignment="Center" />
+
+                        <!-- Glass Blur: blur within the looking glass itself -->
+                        <ToggleButton x:Name="PortalInsideBlurToggle" ToolTipService.ToolTip="Glass Blur — turn on/off blur within the looking glass"
+                                      IsChecked="{Binding PortalInsideBlur, Mode=TwoWay}"
+                                      Click="OnPortalInsideBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <FontIcon Glyph="&#xE8FD;" FontSize="12" />
+                                <TextBlock Text="Glass" FontSize="12" />
                             </StackPanel>
                         </ToggleButton>
+                        <Slider x:Name="PortalInsideBlurSlider" ToolTipService.ToolTip="Glass blur intensity — adjust how blurry the looking glass itself is (0-25px)"
+                                Width="80" Minimum="0" Maximum="25" StepFrequency="1" SmallChange="1" LargeChange="5"
+                                Value="{Binding PortalInsideBlurRadius, Mode=TwoWay}"
+                                VerticalAlignment="Center" ValueChanged="OnPortalInsideBlurRadiusChanged" />
+
+                        <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="2,0" VerticalAlignment="Center" />
+
+                        <!-- Surround Blur: blur preview area around/behind the portal -->
+                        <ToggleButton x:Name="PortalSurroundBlurToggle" ToolTipService.ToolTip="Surround Blur — turn on/off blur of the preview area surrounding the portal (Ctrl+Alt+X)"
+                                      IsChecked="{Binding PortalFocusBlur, Mode=TwoWay}"
+                                      Click="OnPortalBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <FontIcon Glyph="&#xE8FD;" FontSize="12" />
+                                <TextBlock Text="Surround" FontSize="12" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <Slider x:Name="PortalSurroundBlurSlider" ToolTipService.ToolTip="Surround blur intensity — adjust how blurry the area surrounding the portal is (0-25px)"
+                                Width="80" Minimum="0" Maximum="25" StepFrequency="1" SmallChange="1" LargeChange="5"
+                                Value="{Binding PortalSurroundBlurRadius, Mode=TwoWay}"
+                                VerticalAlignment="Center" ValueChanged="OnPortalSurroundBlurRadiusChanged" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,4,0,10">
@@ -900,16 +954,20 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutSubItem Text="Diagram">
+                                        <MenuFlyoutSubItem Text="Diagram &amp; Galaxy">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="🌌 Document Galaxy &amp; Mind Map..." Click="OnOpenMindMapGalaxyClick" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="MLShape &amp; SmartArt Vector Studio..." Click="OnOpenShapeDesignStudioClick" />
                                             <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
-                                            <MenuFlyoutItem Text="SmartArt Design Studio..." Click="OnOpenSmartArtDesignStudioClick" />
-                                            <MenuFlyoutItem Text="MLShape Design Studio..." Click="OnOpenShapeDesignStudioClick" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
+                                        <MenuFlyoutItem Text="🌌 Document Galaxy..." Click="OnOpenMindMapGalaxyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE728;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
@@ -1504,5 +1562,7 @@
                            ToolTipService.ToolTip="Cursor position in the Markdown editor" />
             </Grid>
         </Border>
+        <!-- Dedicated background WebView2 host for headless exports and diagram harvesting — keeps background compiles from ever flashing or resetting the live preview pane. -->
+        <WebView2 x:Name="ExportWebView" Visibility="Collapsed" Width="0" Height="0" />
     </Grid>
 </Window>

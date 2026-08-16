@@ -12,6 +12,9 @@ let currentMeta = null;
 let connected = false;
 let hasContent = false;       // did we find an assistant reply on this tab?
 
+const dlButtons = Array.from(document.querySelectorAll(".dl"));
+const modeButtons = $("modeSeg") ? Array.from($("modeSeg").querySelectorAll("button")) : [];
+
 // ── messaging helper ────────────────────────────────────────────────────────
 // The background service worker is the single owner of extraction + fetch logic,
 // so the popup stays a thin UI. Every round-trip is a chrome.runtime message.
@@ -118,8 +121,8 @@ async function inspect() {
 }
 
 function prettySource(id) {
-    const map = { chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude", copilot: "Copilot" };
-    return map[id] || (id ? id[0].toUpperCase() + id.slice(1) : "This page");
+    const map = { chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude", copilot: "Copilot", selection: "Selection" };
+    return map[id] || (id ? id[0].toUpperCase() + id.slice(1) : "Selection");
 }
 
 // ── enable/disable actions based on state ───────────────────────────────────
@@ -127,7 +130,7 @@ function refreshButtons() {
     const ready = connected && hasContent;
     $("sendBtn").disabled = !ready;
     $("copyBtn").disabled = !hasContent;
-    for (const b of document.querySelectorAll(".dl")) b.disabled = !ready;
+    for (const b of dlButtons) b.disabled = !ready;
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
@@ -224,21 +227,35 @@ async function renderHistory() {
 // ── wiring ──────────────────────────────────────────────────────────────────
 $("sendBtn").addEventListener("click", doSend);
 $("copyBtn").addEventListener("click", doCopy);
+if ($("batchTabsBtn")) {
+    $("batchTabsBtn").addEventListener("click", async () => {
+        const btn = $("batchTabsBtn");
+        btn.disabled = true;
+        toast("Ingesting all open AI chat tabs…", "busy");
+        const r = await ask({ type: "batch-ingest-ai-tabs" });
+        if (r.ok) {
+            toast(`Ingested ${r.count} AI tab(s) into Marksmith ✓`, "ok");
+        } else {
+            toast(r.error || "Failed to batch ingest AI tabs.", "err");
+        }
+        btn.disabled = false;
+    });
+}
 $("histClear").addEventListener("click", async () => {
     try { await chrome.storage.local.remove("captureHistory"); } catch { /* best effort */ }
     renderHistory();
     toast("Capture history cleared", "ok");
 });
-for (const b of document.querySelectorAll(".dl")) {
+for (const b of dlButtons) {
     b.addEventListener("click", () => doDownload(b.dataset.format, b));
 }
 
 // Mode segmented control — re-inspect when the scope changes.
-for (const b of $("modeSeg").querySelectorAll("button")) {
+for (const b of modeButtons) {
     b.addEventListener("click", () => {
         if (b.dataset.mode === mode) return;
         mode = b.dataset.mode;
-        for (const x of $("modeSeg").querySelectorAll("button")) x.classList.toggle("on", x === b);
+        for (const x of modeButtons) x.classList.toggle("on", x === b);
         inspect();
     });
 }
@@ -259,6 +276,15 @@ $("extId").addEventListener("click", () => {
 const ver = chrome.runtime.getManifest().version;
 $("verTxt").textContent = `v${ver}`;
 
-// Kick off: connection first (fast), then page inspection.
+// Kick off: connection first (fast), check if selection is present, then inspect.
 checkHealth();
-inspect();
+(async () => {
+    try {
+        const selTest = await ask({ type: "inspect", mode: "selection" });
+        if (selTest?.ok && selTest?.markdown?.trim()) {
+            mode = "selection";
+            for (const x of modeButtons) x.classList.toggle("on", x.dataset.mode === "selection");
+        }
+    } catch {}
+    inspect();
+})();

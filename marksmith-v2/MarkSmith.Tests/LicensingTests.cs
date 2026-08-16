@@ -237,8 +237,9 @@ public class TrialModelTests : IDisposable
 
     public TrialModelTests()
     {
-        var dir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+        // AppPaths.ConfigDir so this follows the test suite's MARKSMITH_CONFIG_DIR redirect —
+        // the license file under test is the same one LicenseService actually reads/writes.
+        var dir = MarkSmith.Services.AppPaths.ConfigDir;
         _licensePath = Path.Combine(dir, "license.json");
         _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
     }

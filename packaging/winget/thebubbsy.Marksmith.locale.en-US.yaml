@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: thebubbsy.Marksmith
-PackageVersion: 1.0.0
+PackageVersion: 2.17.0
 PackageLocale: en-US
 Publisher: thebubbsy
 PublisherUrl: https://github.com/thebubbsy
@@ -30,7 +30,7 @@ Tags:
   - chatgpt
   - documents
   - winui
-ReleaseNotes: First public release.
-ReleaseNotesUrl: https://github.com/thebubbsy/marksmith/releases/tag/v1.0.0
+ReleaseNotes: See the GitHub release for the full changelog.
+ReleaseNotesUrl: https://github.com/thebubbsy/marksmith/releases/tag/v2.17.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

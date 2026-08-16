@@ -151,4 +151,58 @@ public class VersionHistoryServiceTests : IDisposable
         Assert.False(await svc.CaptureAsync("   ", "content"));
         Assert.False(svc.Exists);
     }
+
+    [Fact]
+    public async Task StarAndLabel_CanBeSetAndToggled()
+    {
+        var svc = NewService();
+        await svc.CaptureAsync(@"C:\docs\a.md", "version 1", "manual", "Initial Draft", isStarred: true);
+
+        var versions = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.Single(versions);
+        Assert.True(versions[0].IsStarred);
+        Assert.Equal("Initial Draft", versions[0].Label);
+
+        // Toggle star off
+        Assert.False(await svc.ToggleStarAsync(versions[0].Id));
+        versions = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.False(versions[0].IsStarred);
+
+        // Rename label
+        Assert.True(await svc.SetLabelAsync(versions[0].Id, "Renamed Milestone"));
+        versions = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.Equal("Renamed Milestone", versions[0].Label);
+    }
+
+    [Fact]
+    public async Task DeleteVersion_RemovesSpecificSnapshot()
+    {
+        var svc = NewService();
+        await svc.CaptureAsync(@"C:\docs\a.md", "v1");
+        await Task.Delay(10);
+        await svc.CaptureAsync(@"C:\docs\a.md", "v2");
+
+        var versions = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.Equal(2, versions.Count);
+
+        var toDeleteId = versions[0].Id;
+        Assert.True(await svc.DeleteVersionAsync(toDeleteId));
+
+        var remaining = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.Single(remaining);
+        Assert.NotEqual(toDeleteId, remaining[0].Id);
+    }
+
+    [Fact]
+    public async Task DeltaLines_AreCalculatedAutomatically()
+    {
+        var svc = NewService();
+        await svc.CaptureAsync(@"C:\docs\a.md", "line 1\nline 2\nline 3");
+        await Task.Delay(10);
+        await svc.CaptureAsync(@"C:\docs\a.md", "line 1\nline 2 modified\nline 3\nline 4 added");
+
+        var versions = await svc.GetVersionsAsync(@"C:\docs\a.md");
+        Assert.Equal(2, versions.Count);
+        Assert.True(versions[0].LinesAdded >= 1);
+    }
 }

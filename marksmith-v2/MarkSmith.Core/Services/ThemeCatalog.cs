@@ -4,8 +4,8 @@ namespace MarkSmith.Services;
 
 // 1:1 port of the THEMES dict in md_to_pdf_tui.py — same hex values, same 10 themes — plus any
 // user-created themes from the in-app theme editor. Customs are read live from CustomThemeStore on
-// every access, so a theme saved mid-session appears in every catalog instance at once (several
-// services keep their own long-lived ThemeCatalog).
+// every access, so a theme saved mid-session appears in every catalog instance at once. Production
+// code shares the AppServices.Themes singleton; fresh instances are for tests only.
 public sealed class ThemeCatalog
 {
     // Cached snapshot of Builtin + custom themes. CustomThemeStore bumps its Version on every
@@ -39,7 +39,7 @@ public sealed class ThemeCatalog
         }
     }
 
-    public bool IsBuiltin(string name) => Builtin.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    public bool IsBuiltin(string name) => !string.IsNullOrEmpty(name) && BuiltinNames.Contains(name);
 
     private static readonly List<ThemeDefinition> Builtin = new()
     {
@@ -54,6 +54,10 @@ public sealed class ThemeCatalog
         new("Forest",          "#0b1a0b", "#d4e1d4", "#78a75a", "#1a2f1a", "#3d5a3d", "#a3bfa3", "#0b1a0b", "#78a75a"),
         new("Obsidian",        "#050000", "#e0e0e0", "#ff4500", "#1a0000", "#ff0000", "#ff4500", "#050000", "#ff0000"),
     };
+
+    // O(1) builtin-name lookup for IsBuiltin (declared after Builtin: static initializers run in
+    // textual order). Replaces the old per-call linear Builtin.Any(...) scan.
+    private static readonly HashSet<string> BuiltinNames = new(Builtin.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
 
     public ThemeDefinition GetOrDefault(string name)
     {
@@ -105,16 +109,23 @@ public sealed class ThemeCatalog
     {
         r = g = b = 0;
         if (string.IsNullOrWhiteSpace(hex)) return false;
-        var s = hex.Trim().TrimStart('#');
-        if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
-        if (s.Length != 6) return false;
-        try
+        var s = hex.AsSpan().Trim();
+        if (s.StartsWith("#")) s = s[1..];
+        
+        if (s.Length == 3)
         {
-            r = Convert.ToInt32(s.Substring(0, 2), 16);
-            g = Convert.ToInt32(s.Substring(2, 2), 16);
-            b = Convert.ToInt32(s.Substring(4, 2), 16);
-            return true;
+            Span<char> expanded = stackalloc char[6];
+            expanded[0] = expanded[1] = s[0];
+            expanded[2] = expanded[3] = s[1];
+            expanded[4] = expanded[5] = s[2];
+            return int.TryParse(expanded[0..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out r) &&
+                   int.TryParse(expanded[2..4], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out g) &&
+                   int.TryParse(expanded[4..6], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out b);
         }
-        catch { return false; }
+
+        if (s.Length != 6) return false;
+        return int.TryParse(s[0..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out r) &&
+               int.TryParse(s[2..4], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out g) &&
+               int.TryParse(s[4..6], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out b);
     }
 }

@@ -37,10 +37,9 @@ public sealed partial class MarkdownHtmlService
     private static partial Regex MermaidDivRe();
 
     // :::smartart type="…" blocks: the marker line, then nested "- " bullets (indentation =
-    // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts. A blank
-    // line (or document start, allowing a leading BOM) must precede the block — matching Markdig's
-    // own block semantics; fenced-code spans are excluded separately via FencedSpans().
-    [GeneratedRegex(@"(?:\A\uFEFF?|\n\n)\s*:::smartart\s+type=""([^""]+)""\s*\r?\n(.*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts.
+    // Handles optional type, quotes or unquoted, and flexible line breaks; fenced-code spans excluded.
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::smartart(?:\s+type=[""']?([^""'\s>]+)[""']?)?\s*\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex SmartArtBlockRe();
 
     // Fenced code spans (```…``` or ~~~…~~~, same opener/closer) — smartart markers inside these
@@ -142,7 +141,8 @@ public sealed partial class MarkdownHtmlService
         }
 
         markdown = NormalizeForRender(markdown, settings);
-        markdown = MarkSmith.Core.Composer.ShapeMarkdownHtml.PreTransform(markdown);
+        var (cleanShapesMd, shapesBlocks) = MarkSmith.Core.Composer.ShapeMarkdownHtml.LiftShapes(markdown);
+        markdown = cleanShapesMd;
 
         // :::smartart blocks (the Markdig pipeline has no container extension) are lifted OUT of the
         // markdown into HTML-comment placeholders BEFORE parsing, then each placeholder is swapped
@@ -157,7 +157,7 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
             }
-            string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
+            string alias = m.Groups[1].Success ? m.Groups[1].Value.Trim().ToLowerInvariant() : "";
             smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
@@ -289,8 +289,12 @@ public sealed partial class MarkdownHtmlService
             try
             {
                 var ast = MarkdownAstParser.Parse(inner);
-                var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
-                svg = HtmlPreviewRenderer.RenderHtml(ast, pkg != null ? alias : "hierarchy", pkg?.Title ?? alias);
+                var resolvedAlias = !string.IsNullOrWhiteSpace(alias)
+                    ? alias
+                    : (SmartArtLayoutSuggester.Suggest(ast) ?? "list");
+                var pkg = SmartArtLayoutCatalog.Shared.TryResolve(resolvedAlias);
+                var resolvedTitle = pkg?.Title ?? resolvedAlias;
+                svg = HtmlPreviewRenderer.RenderHtml(ast, resolvedAlias, resolvedTitle);
             }
             catch (Exception ex)
             {
@@ -300,6 +304,8 @@ public sealed partial class MarkdownHtmlService
             string cls = isDark ? "smartart smartart-autoinvert" : "smartart";
             body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"{cls}\">{svg}</div>");
         }
+
+        body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -742,14 +748,17 @@ public sealed partial class MarkdownHtmlService
         // a short Web Audio whir + iris animation play as each portal opens. Edits are synced back
         // to the app over the postMessage bridge (portal-open / portal-edit / portal-closed).
         var revealScope = Math.Clamp(settings.PortalRevealScope, 0, 100);
-        // Portal shape: a circle spotlight, full-width "focus" reading bands in three heights, a
-        // square, or the logo cutout. Sanitized to the known set so the value can be inlined into
-        // the script safely.
         var portalShape = settings.PortalShape is "focus1" or "focus2" or "focus3" or "square" or "logo" ? settings.PortalShape : "circle";
         // Focus-blur initial state for this render: whether the rendered preview behind an open
         // portal blurs. Ctrl+Alt+X in the app toggles it live via __portalSetBlur; a full
         // re-render re-inlines the persisted choice. Inlined as a bare true/false literal.
         var portalFocusBlur = settings.PortalFocusBlur ? "true" : "false";
+        var portalSurroundBlurRadius = Math.Clamp(settings.PortalSurroundBlurRadius, 0.0, 30.0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var portalInsideBlur = settings.PortalInsideBlur ? "true" : "false";
+        var portalInsideBlurRadius = Math.Clamp(settings.PortalInsideBlurRadius, 0.0, 30.0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var initialInsideBlurStyle = settings.PortalInsideBlur && settings.PortalInsideBlurRadius > 0
+            ? $"backdrop-filter: blur({portalInsideBlurRadius}px); -webkit-backdrop-filter: blur({portalInsideBlurRadius}px);"
+            : "backdrop-filter: none; -webkit-backdrop-filter: none;";
         var portalScript = interactive && settings.LookingGlassMode ? $$"""
             <script>
             function playPortalWhirSound() {
@@ -787,8 +796,11 @@ public sealed partial class MarkdownHtmlService
                 ring.id = "portal-cursor-ring";
                 document.body.appendChild(ring);
 
-                let portal = null, portalTa = null, editTimer = null, pendingText = "";
+                let portal = null, portalTa = null, editTimer = null, pendingText = "", enablePointerTimer = null;
                 let blurFocus = {{portalFocusBlur}}; // focus WITH blur: preview behind the portal blurs
+                let surroundBlurRadius = {{portalSurroundBlurRadius}}; // surround blur radius in px
+                let blurInside = {{portalInsideBlur}}; // blur within the looking glass itself
+                let insideBlurRadius = {{portalInsideBlurRadius}}; // looking glass inside blur radius in px
                 let dragging = false, dragStartX = 0, dragStartY = 0, dragScrollLeft = 0, dragScrollTop = 0; // middle-button source panning
                 let clickFrac = 0; // vertical document fraction of the opening click (0..1) — positional caret fallback
                 let clickFracX = 0; // horizontal document fraction of the opening click (0..1) — left/right source positioning
@@ -835,24 +847,54 @@ public sealed partial class MarkdownHtmlService
 
                 // Light Markdown strip so rendered text can be matched back to a source line.
                 function stripMd(s) {
-                    return String(s).replace(/[#>*_`~\[\]()!|\\-]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+                    return String(s || "")
+                        .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1") // [text](url) -> text
+                        .replace(/`([^`]+)`/g, "$1")               // `code` -> code
+                        .replace(/[#>*_~\[\]()!|\\-]/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                        .toLowerCase();
                 }
-                // Match the clicked block's text back to a source line. Returns -1 when there's
-                // nothing to match — callers fall back to the click's document position instead of
-                // silently landing at the top. When the same text appears more than once (repeated
-                // headings, list items), the occurrence closest to the positional estimate wins.
-                function caretLineFromText(source, estimate) {
-                    const target = stripMd(pendingText).slice(0, 40);
-                    if (target.length < 4) return -1;
+
+                // Match the clicked block's text back to a source line in Markdown.
+                function findBestMatchingLine(source, targetText, estimateLine) {
+                    const target = stripMd(targetText).slice(0, 80);
+                    if (target.length < 3) return estimateLine >= 0 ? estimateLine : 0;
                     const lines = source.split("\n");
                     let best = -1;
+                    let bestScore = -1;
+                    let minLineDist = Infinity;
+
                     for (let i = 0; i < lines.length; i++) {
                         const sl = stripMd(lines[i]);
-                        if (sl.length >= 4 && (sl.indexOf(target) >= 0 || target.indexOf(sl.slice(0, 40)) >= 0)) {
-                            if (best < 0 || Math.abs(i - estimate) < Math.abs(best - estimate)) best = i;
+                        if (sl.length < 3) continue;
+
+                        let score = 0;
+                        if (sl === target) {
+                            score = 100;
+                        } else if (sl.indexOf(target) >= 0 || target.indexOf(sl) >= 0) {
+                            score = 80;
+                        } else {
+                            const tWords = target.split(" ").filter(w => w.length >= 3);
+                            let matchedWords = 0;
+                            for (let w of tWords) {
+                                if (sl.indexOf(w) >= 0) matchedWords++;
+                            }
+                            if (tWords.length > 0 && matchedWords > 0) {
+                                score = (matchedWords / tWords.length) * 60;
+                            }
+                        }
+
+                        if (score > 25) {
+                            const lineDist = Math.abs(i - estimateLine);
+                            if (score > bestScore || (score === bestScore && lineDist < minLineDist)) {
+                                bestScore = score;
+                                best = i;
+                                minLineDist = lineDist;
+                            }
                         }
                     }
-                    return best;
+                    return best >= 0 ? best : (estimateLine >= 0 ? estimateLine : 0);
                 }
 
                 function caretOffsetFromClickInfo(source, estimateLine) {
@@ -860,34 +902,56 @@ public sealed partial class MarkdownHtmlService
                     if (lines.length === 0) return { offset: 0, length: 0 };
 
                     const exactWord = (pendingClickInfo?.exactWord || "").trim().toLowerCase();
+                    const fullText = (pendingClickInfo?.fullText || "").trim();
+
+                    // 1. Find the best matching line for the clicked block
+                    const targetLineIdx = findBestMatchingLine(source, fullText, estimateLine);
+
+                    // 2. Search for the exact word starting on targetLineIdx first (expanding ±4 lines)
                     if (exactWord.length >= 2) {
                         let bestOffset = -1;
+                        let bestLen = exactWord.length;
                         let bestDist = Infinity;
-                        let curOff = 0;
-                        for (let i = 0; i < lines.length; i++) {
-                            const lineLower = lines[i].toLowerCase();
-                            let matchIdx = lineLower.indexOf(exactWord);
-                            while (matchIdx >= 0) {
-                                const dist = Math.abs(i - estimateLine);
-                                if (dist < bestDist) {
-                                    bestDist = dist;
-                                    bestOffset = curOff + matchIdx;
-                                }
-                                matchIdx = lineLower.indexOf(exactWord, matchIdx + 1);
-                            }
-                            curOff += lines[i].length + 1;
+
+                        const searchOrder = [];
+                        searchOrder.push(targetLineIdx);
+                        for (let d = 1; d <= Math.max(targetLineIdx, lines.length - 1 - targetLineIdx); d++) {
+                            if (targetLineIdx - d >= 0) searchOrder.push(targetLineIdx - d);
+                            if (targetLineIdx + d < lines.length) searchOrder.push(targetLineIdx + d);
                         }
-                        if (bestOffset >= 0) return { offset: bestOffset, length: exactWord.length };
+
+                        const lineOffsets = new Array(lines.length);
+                        let cur = 0;
+                        for (let i = 0; i < lines.length; i++) {
+                            lineOffsets[i] = cur;
+                            cur += lines[i].length + 1;
+                        }
+
+                        for (let idx of searchOrder) {
+                            const line = lines[idx];
+                            const lineLower = line.toLowerCase();
+                            const matchIdx = lineLower.indexOf(exactWord);
+                            if (matchIdx >= 0) {
+                                const lineDist = Math.abs(idx - targetLineIdx);
+                                if (lineDist < bestDist) {
+                                    bestDist = lineDist;
+                                    bestOffset = lineOffsets[idx] + matchIdx;
+                                    bestLen = exactWord.length;
+                                    if (lineDist === 0) break; // Direct line match
+                                }
+                            }
+                        }
+
+                        if (bestOffset >= 0 && bestDist <= 4) {
+                            return { offset: bestOffset, length: bestLen };
+                        }
                     }
 
-                    let bestLine = caretLineFromText(source, estimateLine);
-                    if (bestLine < 0) bestLine = estimateLine;
-                    bestLine = Math.max(0, Math.min(lines.length - 1, bestLine));
-
+                    // 3. Fallback: position caret at targetLineIdx
+                    const safeLine = Math.max(0, Math.min(lines.length - 1, targetLineIdx));
                     let off = 0;
-                    for (let i = 0; i < bestLine; i++) off += lines[i].length + 1;
-
-                    const lineLen = lines[bestLine].length;
+                    for (let i = 0; i < safeLine; i++) off += lines[i].length + 1;
+                    const lineLen = lines[safeLine].length;
                     const colEst = Math.round(clickFracX * lineLen);
                     return { offset: off + Math.min(colEst, lineLen), length: 0 };
                 }
@@ -897,18 +961,43 @@ public sealed partial class MarkdownHtmlService
                 // on the revealed source; the aperture and cursor ring stay sharp. The inline style
                 // survives in-place canvas swaps (only #canvas CONTENTS are replaced), and full
                 // re-renders re-inline the persisted choice.
-                function setPreviewBlur(on) {
+                function setPreviewBlur(on, radius) {
                     const canvas = document.getElementById("canvas");
                     if (!canvas) return;
                     canvas.style.transition = "filter 0.22s ease";
-                    canvas.style.filter = on ? "blur(6px)" : "";
+                    const r = (radius !== undefined && radius !== null) ? radius : surroundBlurRadius;
+                    canvas.style.filter = (on && r > 0) ? ("blur(" + r + "px)") : "";
                 }
-                window.__portalSetBlur = function (on) {
+
+                function setInsideBlur(on, radius) {
+                    const r = (radius !== undefined && radius !== null) ? radius : insideBlurRadius;
+                    const filterVal = (on && r > 0) ? ("blur(" + r + "px)") : "none";
+                    if (portal) {
+                        portal.style.backdropFilter = filterVal;
+                        portal.style.webkitBackdropFilter = filterVal;
+                    }
+                }
+
+                window.__portalSetBlur = function (on, radius) {
                     blurFocus = !!on;
-                    if (portal) setPreviewBlur(blurFocus);
+                    if (radius !== undefined && radius !== null) surroundBlurRadius = Math.max(0, Number(radius) || 0);
+                    if (portal) setPreviewBlur(blurFocus, surroundBlurRadius);
+                };
+
+                window.__portalSetSurroundBlur = function (on, radius) {
+                    blurFocus = !!on;
+                    if (radius !== undefined && radius !== null) surroundBlurRadius = Math.max(0, Number(radius) || 0);
+                    if (portal) setPreviewBlur(blurFocus, surroundBlurRadius);
+                };
+
+                window.__portalSetInsideBlur = function (on, radius) {
+                    blurInside = !!on;
+                    if (radius !== undefined && radius !== null) insideBlurRadius = Math.max(0, Number(radius) || 0);
+                    setInsideBlur(blurInside, insideBlurRadius);
                 };
 
                 function closePortal(silent) {
+                    if (enablePointerTimer) { clearTimeout(enablePointerTimer); enablePointerTimer = null; }
                     if (!portal) return;
                     const p = portal;
                     portal = null; portalTa = null;
@@ -939,23 +1028,44 @@ public sealed partial class MarkdownHtmlService
                 function openPortal(x, y, el, ev) {
                     closePortal(true);
                     let clickInfo = { exactWord: "", fullText: el ? (el.textContent || "") : "" };
+
+                    // 1. Try range from point, verifying startContainer is actually within el
                     if (ev && document.caretRangeFromPoint) {
                         try {
                             const range = document.caretRangeFromPoint(ev.clientX, ev.clientY);
                             if (range && range.startContainer) {
-                                const txt = range.startContainer.textContent || "";
-                                const off = range.startOffset || 0;
-                                const wordBefore = (txt.slice(0, off).match(/[\w\-]+$/) || [""])[0];
-                                const wordAfter = (txt.slice(off).match(/^[\w\-]+/) || [""])[0];
-                                clickInfo.exactWord = wordBefore + wordAfter;
+                                if (el && el.contains(range.startContainer)) {
+                                    const txt = range.startContainer.textContent || "";
+                                    const off = range.startOffset || 0;
+                                    const wordBefore = (txt.slice(0, off).match(/[\w\-]+$/) || [""])[0];
+                                    const wordAfter = (txt.slice(off).match(/^[\w\-]+/) || [""])[0];
+                                    clickInfo.exactWord = wordBefore + wordAfter;
+                                }
                             }
                         } catch (e) {}
                     }
+
+                    // 2. If range was not within el or yielded no word, extract directly from the target element
+                    if (!clickInfo.exactWord && el) {
+                        const targetTxt = (ev && ev.target && ev.target !== el && ev.target.textContent) ? ev.target.textContent.trim() : "";
+                        const sourceTxt = targetTxt || el.textContent || "";
+                        const words = sourceTxt.match(/[\w\-]+/g) || [];
+                        if (words.length === 1) {
+                            clickInfo.exactWord = words[0];
+                        } else if (words.length > 1 && ev) {
+                            const r = (ev.target || el).getBoundingClientRect();
+                            const fracX = r.width > 0 ? Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)) : 0;
+                            const wordIdx = Math.min(words.length - 1, Math.max(0, Math.floor(fracX * words.length)));
+                            clickInfo.exactWord = words[wordIdx];
+                        }
+                    }
+
                     pendingClickInfo = clickInfo;
                     pendingText = clickInfo.fullText;
 
                     portal = document.createElement("div");
                     portal.className = "portal-aperture" + (isBand ? " portal-band" : isSquare ? " portal-square" : isLogo ? " portal-logo" : "");
+                    setInsideBlur(blurInside, insideBlurRadius);
                     const docW = document.documentElement.scrollWidth;
                     const docH = document.documentElement.scrollHeight;
                     const pg = pageRect(); // the #canvas page column — bands match it, not the whole preview
@@ -997,6 +1107,14 @@ public sealed partial class MarkdownHtmlService
                     portal.appendChild(portalTa);
 
                     document.body.appendChild(portal);
+                    // Prevent the second click of a double-click on a word from immediately landing
+                    // inside the newly-created portal textarea instead of targeting the word.
+                    portal.style.pointerEvents = "none";
+                    if (enablePointerTimer) clearTimeout(enablePointerTimer);
+                    enablePointerTimer = setTimeout(() => {
+                        if (portal) portal.style.pointerEvents = "auto";
+                    }, 300);
+
                     if (blurFocus) setPreviewBlur(true);
                     playPortalWhirSound();
                     post({ type: "portal-open" });
@@ -1099,6 +1217,7 @@ public sealed partial class MarkdownHtmlService
                     portal.style.left = (isBand ? pg.left : Math.min(Math.max(cx - apW / 2, 8), Math.max(8, docW - apW - 8))) + "px";
                     portal.style.top = Math.min(Math.max(cy - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
                     curApH = apH;
+                    setInsideBlur(blurInside, insideBlurRadius);
                     const mask = isBand
                         ? "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 22%, rgba(0,0,0,1) 78%, transparent 100%)"
                         : (isSquare || isLogo) ? "none" : "radial-gradient(circle, rgba(0,0,0,1) " + clearStop + "%, rgba(0,0,0,0.55) " + ((clearStop + fadeStop) / 2) + "%, transparent " + fadeStop + "%)";
@@ -1248,7 +1367,7 @@ public sealed partial class MarkdownHtmlService
                     // hand caretLineFromText the whole page's text (body/#canvas), which "matched" the
                     // first lines of the source and threw the caret to the top of the document.
                     const el = (e.target && e.target.closest)
-                        ? e.target.closest("h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,table,code")
+                        ? e.target.closest("h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,table,code,th,td,span,a,summary,details")
                         : null;
                     const p = docPoint(e);
                     openPortal(p.x, p.y, el, e);
@@ -1282,10 +1401,10 @@ public sealed partial class MarkdownHtmlService
             canvas.style.transformOrigin = 'top center';
             canvas.style.transform = 'scale(' + scale + ')';
         }
-        // The height always tracks the (possibly grown) content so the page stays fully
-        // scrollable even when the scale itself did not change (late mermaid/images).
+        // The minHeight tracks the scaled content so the page stays fully scrollable
         var rect = canvas.getBoundingClientRect();
-        document.body.style.height = (rect.top + rect.height + PAD) + 'px';
+        var minH = Math.max(window.innerHeight, rect.top + rect.height + PAD + 60);
+        document.body.style.minHeight = minH + 'px';
     };
     var timer = 0;
     var schedule = function () { clearTimeout(timer); timer = setTimeout(fit, 60); };
@@ -1299,11 +1418,59 @@ public sealed partial class MarkdownHtmlService
 </script>
 """ : "";
 
+        var panScript = interactive ? """
+<script>
+(function () {
+    // marksmith-middle-mouse-pan: middle-click & drag to scroll vertically and horizontally
+    var isPanning = false;
+    var startX = 0, startY = 0;
+    var startScrollX = 0, startScrollY = 0;
+
+    window.addEventListener('mousedown', function (e) {
+        if (e.button === 1) { // Middle mouse button
+            isPanning = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+            startScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+            document.body.style.cursor = 'grabbing';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        }
+    }, true);
+
+    window.addEventListener('mousemove', function (e) {
+        if (isPanning) {
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            window.scrollTo(startScrollX - dx, startScrollY - dy);
+            e.preventDefault();
+        }
+    }, true);
+
+    var stopPanning = function () {
+        if (isPanning) {
+            isPanning = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    };
+
+    window.addEventListener('mouseup', stopPanning, true);
+    window.addEventListener('blur', stopPanning, true);
+    window.addEventListener('mouseleave', stopPanning, true);
+    window.addEventListener('auxclick', function (e) {
+        if (e.button === 1) e.preventDefault();
+    }, true);
+})();
+</script>
+""" : "";
+
         var shellKey = BuildShellKey(htmlAttrs, bodyClass, interactive, isDark, settings, theme,
             workspaceBg, effectiveBodyBg, effectiveText, bodyFontFamily, pageBg,
             fontFaceCss, alertCss, calloutCss,
             mermaidScript, lensScript, extraHead,
-            overflowScript, scrollSpyScript, radarScript, tabScript, portalScript, fitWidthScript);
+            overflowScript, scrollSpyScript, radarScript, tabScript, portalScript, fitWidthScript, panScript);
         if (!ShellCache.TryGetValue(shellKey, out var shell))
         {
             shell = (Head: $$"""
@@ -1362,14 +1529,20 @@ public sealed partial class MarkdownHtmlService
             {{extraHead}}
             <style>
             {{fontFaceCss}}
+            html { height: 100%; }
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
-                   -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "40px auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+                   -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                   /* Interactive preview: the sheet is a held-in-hand page floating on the backdrop —
+                      flex + auto margins centre it on BOTH axes whenever it fits the pane, and the
+                      auto margins collapse to 0 on any axis the zoomed sheet overflows (so panning
+                      works and never clips the sheet's start edge). */
+                   {{(interactive ? "display: flex; flex-direction: column; min-height: 100%; padding: 40px 0; box-sizing: border-box;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"flex-shrink: 0; min-height: 1123px; height: auto; background: {pageBg}; box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
               @page { margin: 0 !important; }
-              html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; height: auto !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; }
+              html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; height: auto !important; min-height: 0 !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; height: auto !important; }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
@@ -1476,17 +1649,16 @@ public sealed partial class MarkdownHtmlService
             body.ms-dark .mermaid-error-card { background: #2d1a1a; color: #f5c2c2; border-color: #e53e3e; }
             body.ms-dark .mermaid-error-card pre { background: #3d1f1f; color: #feb2b2; }
             
-            /* Multi-Page Preview Dividers showing backdrop between pages */
+            /* Multi-Page Preview Dividers showing clean page break markers without punching out the paper */
             #canvas { position: relative; }
             .page-break-gap {
                 position: absolute;
-                left: -40px;
-                right: -40px;
-                height: 24px;
-                margin-top: -12px;
-                background: {{workspaceBg}};
+                left: 0;
+                right: 0;
+                height: 0;
+                margin-top: 0;
+                background: transparent;
                 border-top: 1px dashed {{theme.Border}};
-                border-bottom: 1px dashed {{theme.Border}};
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -1497,16 +1669,16 @@ public sealed partial class MarkdownHtmlService
             .page-break-gap::after {
                 content: attr(data-page);
                 background: {{theme.Secondary}};
-                color: {{theme.Text}};
+                color: {{theme.Heading}};
                 border: 1px solid {{theme.Border}};
                 border-radius: 999px;
-                padding: 2px 14px;
+                padding: 3px 16px;
                 font-size: 11px;
                 font-weight: 700;
-                letter-spacing: 0.05em;
+                letter-spacing: 0.06em;
                 text-transform: uppercase;
-                opacity: 0.9;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                opacity: 0.95;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.25);
             }
             
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }
@@ -1537,7 +1709,8 @@ public sealed partial class MarkdownHtmlService
                inert otherwise. */
             #portal-cursor-ring { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(88, 166, 255, 0.65); box-shadow: 0 0 16px rgba(88, 166, 255, 0.35), inset 0 0 10px rgba(88, 166, 255, 0.15); pointer-events: none; transform: translate(-50%, -50%); animation: portalPulse 2s infinite ease-in-out; z-index: 60; }
             @keyframes portalPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.75; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } }
-            .portal-aperture { position: absolute; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
+            .portal-aperture { position: absolute; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); {{initialInsideBlurStyle}} border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
+            .portal-aperture.portal-square { border-radius: 12px; }
             @keyframes portalIris { from { transform: scale(0.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
             /* Full-width "focus" reading bands: rounded strip instead of a circle, iris opens
                vertically like a letterbox, and the close button moves to the right edge where a
@@ -1554,7 +1727,7 @@ public sealed partial class MarkdownHtmlService
             .portal-close { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; line-height: 22px; text-align: center; border-radius: 50%; background: rgba(88, 166, 255, 0.18); border: 1px solid rgba(88, 166, 255, 0.5); color: #9ecbff; font-size: 16px; cursor: pointer; z-index: 2; user-select: none; }
             </style></head><body class="{{bodyClass}}"><div id="canvas"><!--ms-canvas-start-->
             """, Tail: $$"""
-            <!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}{{fitWidthScript}}</body></html>
+            <!--ms-canvas-end--></div>{{overflowScript}}{{scrollSpyScript}}{{radarScript}}{{tabScript}}{{portalScript}}{{fitWidthScript}}{{panScript}}</body></html>
             """);
             if (ShellCache.Count > 12) ShellCache.Clear();
             ShellCache[shellKey] = shell;
@@ -1574,7 +1747,7 @@ public sealed partial class MarkdownHtmlService
         string workspaceBg, string effectiveBodyBg, string effectiveText, string bodyFontFamily, string pageBg,
         string fontFaceCss, string alertCss, string calloutCss,
         string mermaidScript, string lensScript, string extraHead,
-        string overflowScript, string scrollSpyScript, string radarScript, string tabScript, string portalScript, string fitWidthScript)
+        string overflowScript, string scrollSpyScript, string radarScript, string tabScript, string portalScript, string fitWidthScript, string panScript)
     {
         // ThemeDefinition is a value record, so GetHashCode() covers every theme property.
         // Script/CSS blocks are content-hashed (GetHashCode is stable within a process, which is
@@ -1591,7 +1764,7 @@ public sealed partial class MarkdownHtmlService
             fontFaceCss.GetHashCode().ToString(), "|", alertCss.GetHashCode().ToString(), "|", calloutCss.GetHashCode().ToString(), "|",
             mermaidScript.GetHashCode().ToString(), "|", lensScript.GetHashCode().ToString(), "|", extraHead.GetHashCode().ToString(), "|",
             overflowScript.GetHashCode().ToString(), "|", scrollSpyScript.GetHashCode().ToString(), "|", radarScript.GetHashCode().ToString(), "|",
-            tabScript.GetHashCode().ToString(), "|", portalScript.GetHashCode().ToString(), "|", fitWidthScript.GetHashCode().ToString());
+            tabScript.GetHashCode().ToString(), "|", portalScript.GetHashCode().ToString(), "|", fitWidthScript.GetHashCode().ToString(), "|", panScript.GetHashCode().ToString());
     }
 
     /// <summary>
@@ -1608,11 +1781,55 @@ public sealed partial class MarkdownHtmlService
             theme = theme.ApplyLightInfluence();
 
         markdown = NormalizeForRender(markdown, settings);
+        var (cleanShapesMd, shapesBlocks) = MarkSmith.Core.Composer.ShapeMarkdownHtml.LiftShapes(markdown);
+        markdown = cleanShapesMd;
+
+        var smartArtBlocks = new List<(string Alias, string Inner)>();
+        var smartArtFences = FencedSpans(markdown);
+        markdown = SmartArtBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in smartArtFences)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+            string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
+            smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
+            return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
+        });
+
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
 
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
         body = HtmlSanitizer.Apply(body);
         body = EmbedLocalImages(body);
+
+        var isDark = !settings.ThemeLightInfluence &&
+                     (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        for (int i = 0; i < smartArtBlocks.Count; i++)
+        {
+            var (alias, inner) = smartArtBlocks[i];
+            string svg;
+            try
+            {
+                var ast = MarkdownAstParser.Parse(inner);
+                var pkg = SmartArtLayoutCatalog.Shared.TryResolve(alias);
+                var resolvedAlias = pkg != null ? alias : (SmartArtLayoutSuggester.Suggest(ast) ?? "list");
+                // The suggester's alias may differ from `alias`; resolve its package once for the
+                // title (falling back to the alias text) instead of re-querying the catalog.
+                var titlePkg = pkg ?? SmartArtLayoutCatalog.Shared.TryResolve(resolvedAlias);
+                var resolvedTitle = titlePkg?.Title ?? resolvedAlias;
+                svg = HtmlPreviewRenderer.RenderHtml(ast, resolvedAlias, resolvedTitle);
+            }
+            catch (Exception ex)
+            {
+                svg = "<div class=\"smartart-error\">⚠ SmartArt couldn't render: " +
+                      System.Net.WebUtility.HtmlEncode(ex.Message) + "</div>";
+            }
+            string cls = isDark ? "smartart smartart-autoinvert" : "smartart";
+            body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"{cls}\">{svg}</div>");
+        }
+
+        body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         body = MermaidFenceHtmlRe().Replace(body,
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");

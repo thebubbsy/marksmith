@@ -85,14 +85,16 @@ public static class LineDiff
                 y++;
             }
         }
+        result.EnsureCapacity(result.Count + (n - x) + (m - y));
         while (x < n) { result.Add(new Line(Kind.Removed, aBase + x + 1, null, a[x])); x++; }
         while (y < m) { result.Add(new Line(Kind.Added, null, bBase + y + 1, b[y])); y++; }
     }
 
     private static void AppendReplace(List<Line> result, string[] a, string[] b, int aBase, int bBase)
     {
-        for (int i = 0; i < a.Length; i++) result.Add(new Line(Kind.Removed, aBase + i + 1, null, a[i]));
-        for (int j = 0; j < b.Length; j++) result.Add(new Line(Kind.Added, null, bBase + j + 1, b[j]));
+        result.EnsureCapacity(result.Count + a.Length + b.Length);
+        result.AddRange(a.Select((line, i) => new Line(Kind.Removed, aBase + i + 1, null, line)));
+        result.AddRange(b.Select((line, j) => new Line(Kind.Added, null, bBase + j + 1, line)));
     }
 
     /// <summary>Side-by-side rows: unchanged lines on both sides, removed on the left, added on the
@@ -114,22 +116,61 @@ public static class LineDiff
             }
 
             // Collect a contiguous removed+added run and pair them.
-            var removed = new List<Line>();
-            var added = new List<Line>();
-            while (i < lines.Count && lines[i].Kind == Kind.Removed) removed.Add(lines[i++]);
-            while (i < lines.Count && lines[i].Kind == Kind.Added) added.Add(lines[i++]);
+            int remStart = i;
+            while (i < lines.Count && lines[i].Kind == Kind.Removed) i++;
+            int remCount = i - remStart;
 
-            int paired = Math.Min(removed.Count, added.Count);
+            int addStart = i;
+            while (i < lines.Count && lines[i].Kind == Kind.Added) i++;
+            int addCount = i - addStart;
+
+            int paired = Math.Min(remCount, addCount);
             for (int k = 0; k < paired; k++)
+            {
+                var r = lines[remStart + k];
+                var a = lines[addStart + k];
                 rows.Add(new Row(
-                    new Cell(Kind.Removed, removed[k].OldNumber, removed[k].Text),
-                    new Cell(Kind.Added, added[k].NewNumber, added[k].Text)));
-            for (int k = paired; k < removed.Count; k++)
-                rows.Add(new Row(new Cell(Kind.Removed, removed[k].OldNumber, removed[k].Text), null));
-            for (int k = paired; k < added.Count; k++)
-                rows.Add(new Row(null, new Cell(Kind.Added, added[k].NewNumber, added[k].Text)));
+                    new Cell(Kind.Removed, r.OldNumber, r.Text),
+                    new Cell(Kind.Added, a.NewNumber, a.Text)));
+            }
+            for (int k = paired; k < remCount; k++)
+            {
+                var r = lines[remStart + k];
+                rows.Add(new Row(new Cell(Kind.Removed, r.OldNumber, r.Text), null));
+            }
+            for (int k = paired; k < addCount; k++)
+            {
+                var a = lines[addStart + k];
+                rows.Add(new Row(null, new Cell(Kind.Added, a.NewNumber, a.Text)));
+            }
         }
         return rows;
+    }
+
+    public sealed record UnifiedRow(Kind Kind, int? OldNumber, int? NewNumber, string Text, string Prefix)
+    {
+        public string OldNumberLabel => OldNumber?.ToString() ?? "";
+        public string NewNumberLabel => NewNumber?.ToString() ?? "";
+        public bool IsRemoved => Kind == Kind.Removed;
+        public bool IsAdded => Kind == Kind.Added;
+        public bool IsSame => Kind == Kind.Same;
+    }
+
+    /// <summary>Builds unified inline diff rows (GitHub/VS Code inline style) with old/new line numbers.</summary>
+    public static List<UnifiedRow> BuildUnified(IReadOnlyList<Line> lines)
+    {
+        var list = new List<UnifiedRow>(lines.Count);
+        foreach (var l in lines)
+        {
+            string prefix = l.Kind switch
+            {
+                Kind.Added => "+ ",
+                Kind.Removed => "- ",
+                _ => "  "
+            };
+            list.Add(new UnifiedRow(l.Kind, l.OldNumber, l.NewNumber, l.Text, prefix));
+        }
+        return list;
     }
 
     private static string[] SplitLines(string text) =>

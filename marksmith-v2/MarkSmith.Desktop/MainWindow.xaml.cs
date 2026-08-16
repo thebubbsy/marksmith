@@ -66,6 +66,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Single-instance studios (kept alive for the window's lifetime)
     private Views.SmartArtStudio.SmartArtDesignStudioWindow? _smartArtDesignStudio;
     private Views.ShapeStudio.ShapeDesignStudioWindow? _shapeDesignStudio;
+    private Views.MindMap.MindMapGalaxyWindow? _mindMapGalaxyWindow;
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -93,7 +94,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Forward (Code->Preview): we stash the editor's scroll fraction before re-navigating, then
     // apply it once NavigationCompleted fires. Reverse (Preview->Code): we read the WebView's
     // scroll fraction and mirror it onto the editor's internal ScrollViewer.
-    private double? _pendingPreviewScrollFraction;
+    private sealed record PreviewScrollState(double FractionX, double FractionY, double PixelX, double PixelY);
+    private PreviewScrollState? _pendingPreviewScroll;
 
     // Find bar (Ctrl+F): the current query's match offsets into the editor text, and which match is
     // highlighted. Recomputed on every keystroke of the query so the "n/m" count stays live.
@@ -159,6 +161,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Last markdown the preview canvas rendered (via navigation OR in-place swap) — lets the live
     // path skip no-op re-swaps, e.g. when a portal edit's own debounce echo comes back around.
     private string? _lastLiveCanvasMd;
+    private string? _lastRenderedHtml;
 
     public IRelayCommand ShowWindowCommand { get; }
     public IRelayCommand ExitApplicationCommand { get; }
@@ -191,6 +194,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         SetTitleBar(AppTitleBar);
 
         RootGrid.DataContext = ViewModel;
+        ViewModel.Host = new BackgroundExportHostImpl(this);
 
         // Style-panel expanders auto-scroll their newly-revealed fields into view. Wired in
         // code-behind because the XAML Expanded="…" attribute crashes XamlCompiler (it exits 1 with
@@ -231,11 +235,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _initializingCenterView = false;
         }
 
-        // Word wrap + line numbers: apply the persisted wrap setting (the gutter is always visible).
+        // Word wrap + line numbers: apply the persisted wrap and line-number settings.
         _initializingWordWrap = true;
         WordWrapToggle.IsChecked = App.Settings.Current.EditorWordWrap;
         _initializingWordWrap = false;
         ApplyWordWrap(App.Settings.Current.EditorWordWrap, persist: false);
+
+        _initializingLineNumbers = true;
+        if (LineNumbersToggle != null) LineNumbersToggle.IsChecked = App.Settings.Current.ShowLineNumbers;
+        if (LineGutter != null) LineGutter.Visibility = App.Settings.Current.ShowLineNumbers ? Visibility.Visible : Visibility.Collapsed;
+        _initializingLineNumbers = false;
+        if (App.Settings.Current.ShowLineNumbers) UpdateLineNumbers();
+
+        PasteTextBox.Loaded += (_, _) =>
+        {
+            if (FindEditorScrollViewer() is { } sv)
+            {
+                sv.ViewChanged += (_, _) => SyncLineGutterScroll();
+            }
+        };
 
         // ISS-004: reflect the persisted Looking Glass portal mode without firing a preview refresh.
         _initializingLookingGlass = true;
@@ -254,6 +272,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PortalShapeCombo.SelectedItem is null) PortalShapeCombo.SelectedIndex = 0; // unknown value -> Circle
         _initializingPortalReveal = false;
 
+        _initializingPortalBlur = true;
+        if (PortalInsideBlurSlider != null) PortalInsideBlurSlider.Value = App.Settings.Current.PortalInsideBlurRadius;
+        if (PortalSurroundBlurSlider != null) PortalSurroundBlurSlider.Value = App.Settings.Current.PortalSurroundBlurRadius;
+        _initializingPortalBlur = false;
+
         // Centre pane bottom bar: sync the portal row + editing clusters with the persisted
         // portal/view state now that both toggles are initialized.
         UpdateCenterBottomBar();
@@ -263,6 +286,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PasteTextBox.TextChanged += (_, _) =>
         {
             UpdateLintIndicator();
+            UpdateLineNumbers();
+            SyncLineGutterScroll();
             // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
             if (string.IsNullOrWhiteSpace(PasteTextBox?.Text))
             {
@@ -687,13 +712,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private static bool LooksLikePlainText(string t)
     {
-        if (t.Contains("```") || t.Contains("](") || t.Contains("**") || t.Contains("【")) return false;
+        if (t.Contains("```") || t.Contains("](") || t.Contains("**") || t.Contains("【")
+            || t.Contains(":::") || t.Contains("$$") || t.Contains(@"\(") || t.Contains(@"\[")
+            || t.Contains("=== \"") || t.Contains("[^") || t.Contains("~~") || t.Contains("==")
+            || t.Contains(@"\begin{") || t.Contains("<table") || t.Contains("<div") || t.Contains("<span"))
+            return false;
+
         foreach (var raw in t.Split('\n'))
         {
             var s = raw.TrimStart();
             if (s.StartsWith('#') || s.StartsWith("- ") || s.StartsWith("* ") || s.StartsWith("> ")
-                || s.StartsWith('|') || (s.Length > 2 && char.IsDigit(s[0]) && s[1] == '.' && s[2] == ' '))
-                return false; // any structural markdown → not a plain paste
+                || s.StartsWith('|') || s.StartsWith(":::") || s.StartsWith("- [") || s.StartsWith("* [")
+                || s.StartsWith("+ ") || s.StartsWith(": ")
+                || (s.Length > 2 && char.IsDigit(s[0]) && s[1] == '.' && s[2] == ' '))
+                return false; // any structural markdown or special MarkSmith syntax → not a plain paste
         }
         return true;
     }
@@ -1626,16 +1658,48 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Drag-and-drop image embedding: dropping picture files onto the Markdown editor copies them
-    // alongside the document (or into the output folder for pasted sources) and inserts a ready-to-
-    // render ![alt](path) reference at the caret, so screenshots flow straight into the export.
+    private void OnWindowDragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            if (e.DragUIOverride is not null)
+            {
+                e.DragUIOverride.Caption = "Drop to load document";
+            }
+        }
+    }
+
+    private async void OnWindowDrop(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+        var items = await e.DataView.GetStorageItemsAsync();
+        var importerExts = App.Plugins.AllImporterExtensions;
+        var docs = items.OfType<StorageFile>()
+            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
+                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
+            .ToList();
+        if (docs.Count == 0) return;
+
+        if (docs.Count == 1)
+        {
+            ViewModel.InputFilePath = docs[0].Path;
+            AutoCollapseLeftPane();
+            ViewModel.UsePasteSource = false;
+            return;
+        }
+
+        await RunMultiFileBatchAsync(docs);
+    }
+
+    // Drag-and-drop support on editor: accepts Markdown files (loads document) and image files (embeds reference).
     private void OnEditorDragOver(object sender, DragEventArgs e)
     {
         if (e.DataView.Contains(StandardDataFormats.StorageItems))
         {
             e.AcceptedOperation = DataPackageOperation.Copy;
             if (e.DragUIOverride is not null)
-                e.DragUIOverride.Caption = "Drop to embed image";
+                e.DragUIOverride.Caption = "Drop to open document or embed image";
         }
     }
 
@@ -1643,6 +1707,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
         var items = await e.DataView.GetStorageItemsAsync();
+
+        // 1. Check for documents first (Markdown or supported text formats)
+        var importerExts = App.Plugins.AllImporterExtensions;
+        var docs = items.OfType<StorageFile>()
+            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
+                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
+            .ToList();
+        if (docs.Count == 1)
+        {
+            ViewModel.InputFilePath = docs[0].Path;
+            AutoCollapseLeftPane();
+            ViewModel.UsePasteSource = false;
+            return;
+        }
+        if (docs.Count > 1)
+        {
+            await RunMultiFileBatchAsync(docs);
+            return;
+        }
+
+        // 2. Check for image files
         string[] imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg" };
         var images = items.OfType<StorageFile>()
             .Where(f => imageExts.Contains(f.FileType.ToLowerInvariant()))
@@ -1910,7 +1995,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Preview zoom: restore the persisted factor, install the Ctrl+wheel listener, and re-apply
         // the CSS zoom after every navigation (NavigateToString rebuilds the DOM, dropping the style).
-        ApplyPreviewZoom(App.Settings.Current.PreviewZoom, persist: false);
+        // Non-anchored here: a launch restore must keep the document at the top, not re-aim at the
+        // (still untracked) cursor.
+        ApplyPreviewZoom(App.Settings.Current.PreviewZoom, persist: false, anchored: false);
         await SetupPreviewZoomAsync();
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPreviewCssZoom(_lastPreviewZoom);
 
@@ -1931,10 +2018,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var type = typeProp.GetString();
 
             // Ctrl+wheel over the preview (bridged from the document-created listener): zoom one step.
+            // The cursor is over the document here, so the zoom may anchor to it on overflow axes.
             if (type == "preview-zoom")
             {
                 var delta = root.TryGetProperty("delta", out var dProp) ? dProp.GetDouble() : 0;
-                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), persist: true);
+                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), persist: true, cursor: true);
                 return;
             }
 
@@ -2184,13 +2272,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "document.body && document.body.classList.remove('ms-loading')");
     }
 
-    // ---- IWebRenderHost / IUiPrompts: the portable seam MainViewModel and MermaidHarvestService
-    // (both in MarkSmith.Core) drive PDF export and mermaid harvesting through, instead of reaching
-    // into a WebView2 control directly. See MarkSmith.Core/Rendering/IWebRenderHost.cs.
+    // ---- IWebRenderHost / IUiPrompts implementation ----
 
     public Task<bool> EnsureReadyAsync() => EnsurePreviewWebViewAsync();
 
-    public Task NavigateToStringAsync(string html)
+    public async Task NavigateToStringAsync(string html)
     {
         var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
         var tcs = new TaskCompletionSource();
@@ -2201,7 +2287,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         core.NavigationCompleted += OnNavigationCompleted;
         core.NavigateToString(html);
-        return tcs.Task;
+        await tcs.Task;
     }
 
     public async Task<string?> ExecuteScriptAsync(string javaScript)
@@ -2213,10 +2299,38 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     public async Task<bool> PrintToPdfAsync(string outputPath, Services.PdfPageSetup setup)
     {
         var core = PreviewWebView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 is not initialized.");
-        var hasHeaderFooter = !string.IsNullOrEmpty(setup.HeaderTemplate) || !string.IsNullOrEmpty(setup.FooterTemplate);
+        return await PrintExportToPdfInternalAsync(core, outputPath, setup);
+    }
 
-        // Fast path — no header/footer: use the native PrintToPdfAsync (zero-margin, edge-to-edge
-        // theme backgrounds), exactly as before Task 10.
+    private bool _exportWebViewInitialized;
+    private async Task<Microsoft.Web.WebView2.Core.CoreWebView2> EnsureExportCoreWebView2Async()
+    {
+        await ExportWebView.EnsureCoreWebView2Async();
+        if (!_exportWebViewInitialized && ExportWebView.CoreWebView2 is { } core)
+        {
+            MapAssetHost(core);
+            _exportWebViewInitialized = true;
+        }
+        return ExportWebView.CoreWebView2 ?? throw new InvalidOperationException("ExportWebView failed to initialize.");
+    }
+
+    private async Task<bool> EnsureExportWebViewAsync()
+    {
+        try
+        {
+            await EnsureExportCoreWebView2Async();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ExportWebView Init Error] {ex}");
+            return false;
+        }
+    }
+
+    private async Task<bool> PrintExportToPdfInternalAsync(Microsoft.Web.WebView2.Core.CoreWebView2 core, string outputPath, Services.PdfPageSetup setup)
+    {
+        var hasHeaderFooter = !string.IsNullOrEmpty(setup.HeaderTemplate) || !string.IsNullOrEmpty(setup.FooterTemplate);
         if (!hasHeaderFooter)
         {
             var printSettings = core.Environment.CreatePrintSettings();
@@ -2231,10 +2345,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return await core.PrintToPdfAsync(outputPath, printSettings);
         }
 
-        // Header/footer path (Task 10): WebView2's native print settings only expose HeaderTitle /
-        // FooterUri, not custom templates — so drive Chromium's Page.printToPDF over the DevTools
-        // protocol instead. It accepts headerTemplate / footerTemplate HTML with the auto-substituting
-        // pageNumber / totalPages / date / title spans that PdfExportService.BuildChromiumTemplate emits.
         var args = new Dictionary<string, object?>
         {
             ["paperWidth"] = setup.PageWidthIn,
@@ -2258,21 +2368,48 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return true;
     }
 
-    // The mermaid render page must not be clobbered by the live preview's debounced auto-refresh
-    // while a harvest is in flight; restore the live preview once the harvest ends. Exactly the
-    // wrapper the three harvest methods used to inline before their bodies moved to
-    // MarkSmith.Core/Services/MermaidHarvestService.cs.
-    public Task BeginHarvestAsync()
+    private sealed class BackgroundExportHostImpl : Services.IWebRenderHost
     {
-        _mermaidHarvestActive = true;
-        _previewDebounce.Stop();
-        return Task.CompletedTask;
+        private readonly MainWindow _window;
+        public BackgroundExportHostImpl(MainWindow window) => _window = window;
+
+        public Task<bool> EnsureReadyAsync() => _window.EnsureExportWebViewAsync();
+
+        public async Task NavigateToStringAsync(string html)
+        {
+            var core = await _window.EnsureExportCoreWebView2Async();
+            var tcs = new TaskCompletionSource();
+            void OnCompleted(object? s, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+            {
+                core.NavigationCompleted -= OnCompleted;
+                tcs.TrySetResult();
+            }
+            core.NavigationCompleted += OnCompleted;
+            core.NavigateToString(html);
+            await tcs.Task;
+        }
+
+        public async Task<string?> ExecuteScriptAsync(string javaScript)
+        {
+            var core = await _window.EnsureExportCoreWebView2Async();
+            return await core.ExecuteScriptAsync(javaScript);
+        }
+
+        public async Task<bool> PrintToPdfAsync(string outputPath, Services.PdfPageSetup setup)
+        {
+            var core = await _window.EnsureExportCoreWebView2Async();
+            return await _window.PrintExportToPdfInternalAsync(core, outputPath, setup);
+        }
+
+        public Task BeginHarvestAsync() => Task.CompletedTask;
+        public Task EndHarvestAsync() => Task.CompletedTask;
     }
 
-    public async Task EndHarvestAsync()
+    public Task BeginHarvestAsync() => Task.CompletedTask;
+    public Task EndHarvestAsync()
     {
         _mermaidHarvestActive = false;
-        await RefreshPreviewAsync(false);
+        return RefreshPreviewAsync(false);
     }
 
     private async Task RefreshPreviewAsync(bool heavy = true)
@@ -2294,10 +2431,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
-        // Same classify/normalize step the exports run, so the preview shows what will ship
-        // (and the detection badge appears for manual paste and file input, not just auto-ingest).
         var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
-        _lastLiveCanvasMd = markdown; // the fresh page will show this — keep the live path's dedupe honest
+
+        // Essential refresh check: skip re-navigating WebView2 if content is identical and not heavy
+        if (!heavy && markdown == _lastLiveCanvasMd && _lastRenderedHtml != null && html == _lastRenderedHtml)
+            return;
+
+        _lastLiveCanvasMd = markdown;
+        _lastRenderedHtml = html;
 
         if (vm.IsDebugModeEnabled)
         {
@@ -2308,50 +2449,56 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var logFile = Path.Combine(logsDir, $"Preview_Session_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("n").Substring(0, 4)}.log");
                 
                 var prompt = "Tell me everything wrong with the way we displayed the MD format in this HTML and how to resolve it:\n\n";
-                File.WriteAllText(logFile, prompt + html);
+                await File.WriteAllTextAsync(logFile, prompt + html);
                 _sessionLogFiles.Add(logFile);
             }
             catch { }
         }
 
-        // (Blur-while-rendering used to be injected here as an ms-loading body class; removed so
-        // the render happens in plain sight.)
+        if (_pendingPreviewScroll is null)
+            _pendingPreviewScroll = await CapturePreviewScrollPositionAsync();
 
-        // ISS-003: a re-render (NavigateToString) resets window.scrollY to 0. Stash the preview's
-        // current scroll fraction so ApplyPendingPreviewScroll (wired to NavigationCompleted) puts
-        // the reader back where they were. Only capture when nothing is already pending — a pending
-        // value set by a tab switch (editor->preview hand-off) takes precedence and must survive.
-        if (_pendingPreviewScrollFraction is null)
-            _pendingPreviewScrollFraction = await CapturePreviewScrollFractionAsync();
-
-        // Restore the scroll position during the initial parse — before the first paint — so the
-        // reader never sees the page land at the top and then jump back down. NavigateToString resets
-        // scrollY to 0; this inline script runs synchronously as the fresh document loads and puts us
-        // back where we were while the content is still blurred (heavy) or mid-repaint (light).
-        // ApplyPendingPreviewScroll (NavigationCompleted) still runs afterwards to fine-tune once
-        // async layout (mermaid / images) settles.
-        if (_pendingPreviewScrollFraction is { } frac)
+        if (_pendingPreviewScroll is { } sc)
         {
-            var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            var fxStr = sc.FractionX.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            var fyStr = sc.FractionY.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            var pxStr = sc.PixelX.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+            var pyStr = sc.PixelY.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+
             html = html.Replace("</body>",
-                "<script>(function(){var m=document.documentElement.scrollHeight-window.innerHeight;" +
-                $"if(m>0){{window.scrollTo(0,{f}*m);}}}})();</script></body>");
+                "<script>(function(){" +
+                "var maxX=document.documentElement.scrollWidth-window.innerWidth;" +
+                "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
+                $"var tx=maxX>0?Math.round({fxStr}*maxX):{pxStr};" +
+                $"var ty=maxY>0?Math.round({fyStr}*maxY):{pyStr};" +
+                "if(tx>0||ty>0){window.scrollTo(tx,ty);}" +
+                "})();</script></body>");
         }
 
-        PreviewWebView.CoreWebView2.NavigateToString(html);
+        try
+        {
+            if (PreviewWebView?.CoreWebView2 != null && !string.IsNullOrEmpty(html))
+            {
+                PreviewWebView.CoreWebView2.NavigateToString(html);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebView2] NavigateToString skipped: {ex.Message}");
+        }
     }
 
-    // ISS-004 "watch it generate": full refreshes re-navigate the page, which both tears any open
-    // portal out of the DOM and repaints under the reader — so typing-sized updates re-render the
-    // Markdown and swap ONLY the #canvas contents in place. The portal is a sibling of #canvas on
-    // <body>, so it — and the user's caret inside it — survive untouched while the preview updates
-    // live behind the shape. The template brackets the canvas contents with ms-canvas-start/end
-    // markers so extraction never has to parse nested divs.
-    //
-    // Returns false when the swap can't happen here — no page yet, markers missing, or the current
-    // page never loaded a renderer the new content needs (KaTeX / highlight.js are included
-    // per-navigation on demand; mermaid ships on every page) — so the caller can fall back to a
-    // real refresh. Pass null to render whatever the current preview source resolves to.
+    private async Task<string> ResolvePreviewMarkdownAsync()
+    {
+        var vm = ViewModel;
+        if (vm.UsePasteSource) return vm.PastedMarkdown ?? "";
+        if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
+            return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
+        if (!string.IsNullOrWhiteSpace(vm.PastedMarkdown))
+            return vm.PastedMarkdown;
+        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+    }
+
     private async Task<bool> UpdatePreviewCanvasLiveAsync(string? markdown = null)
     {
         var core = PreviewWebView.CoreWebView2;
@@ -2361,23 +2508,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (markdown == _lastLiveCanvasMd) return true; // canvas already shows exactly this source
 
         var vm = ViewModel;
-        // Canvas-only render: produces just the inner HTML (attribution + TOC + body + footer)
-        // without the ~50 KB page shell. Returns null for focused-diagram docs that need a full
-        // navigation (dedicated viewer page with zoom/pan controls).
         var inner = vm.BuildPreviewCanvasHtml(vm.PrepareMarkdown(markdown));
         if (inner is null) return false;
 
         var js = "(function(){var c=document.getElementById('canvas');if(!c)return 'nav';" +
                  "var h=" + System.Text.Json.JsonSerializer.Serialize(inner) + ";" +
-                 // First math/code block since the last navigation: its renderer isn't on this
-                 // page (BuildExtraHead includes them on demand) — ask for a real refresh.
                  "if(h.indexOf('class=\"math\"')>=0&&!window.__msRenderMath)return 'nav';" +
                  "if(h.indexOf('language-')>=0&&!window.hljs)return 'nav';" +
+                 "var sx=window.scrollX||0, sy=window.scrollY||0;" +
                  "c.innerHTML=h;" +
-                 // Fresh fences/spans arrive unrendered — best-effort re-runs, ignore if absent.
                  "try{if(window.mermaid&&window.mermaid.run){window.mermaid.run();}}catch(x){}" +
                  "try{if(window.__msRenderMath){window.__msRenderMath(c);}}catch(x){}" +
                  "try{if(window.hljs){c.querySelectorAll('pre code').forEach(function(el){window.hljs.highlightElement(el);});}}catch(x){}" +
+                 "window.scrollTo(sx, sy);" +
                  "return 'ok';})();";
         string result;
         try { result = await core.ExecuteScriptAsync(js); } catch { return false; }
@@ -2386,21 +2529,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return true;
     }
 
-    // The preview's markdown source, in priority order — shared by the full refresh and the live
-    // in-place canvas swap so both always render the same document.
-    private async Task<string> ResolvePreviewMarkdownAsync()
-    {
-        var vm = ViewModel;
-        if (vm.UsePasteSource) return vm.PastedMarkdown;
-        if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
-            return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
-        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
-    }
-
-    // Read the preview's current vertical scroll fraction (0..1), or null when the page isn't ready
-    // or the read fails — callers treat null as "nothing to restore". Mirror of the fraction math in
-    // CapturePreviewScrollAndApplyToEditorAsync, but returns the value instead of moving the editor.
-    private async Task<double?> CapturePreviewScrollFractionAsync()
+    private async Task<PreviewScrollState?> CapturePreviewScrollPositionAsync()
     {
         var core = PreviewWebView.CoreWebView2;
         if (core is null) return null;
@@ -2408,13 +2537,27 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try
         {
             result = await core.ExecuteScriptAsync(
-                "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
-                "return max>0?(window.scrollY/max):0;})();");
+                "(function(){" +
+                "var maxX=document.documentElement.scrollWidth-window.innerWidth;" +
+                "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
+                "var fx=maxX>0?(window.scrollX/maxX):0;" +
+                "var fy=maxY>0?(window.scrollY/maxY):0;" +
+                "return JSON.stringify({fx:fx,fy:fy,px:window.scrollX||0,py:window.scrollY||0});" +
+                "})();");
         }
         catch { return null; }
 
-        if (!double.TryParse(result, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var frac)) return null;
-        return Math.Clamp(frac, 0.0, 1.0);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(result);
+            var root = doc.RootElement;
+            var fx = Math.Clamp(root.GetProperty("fx").GetDouble(), 0.0, 1.0);
+            var fy = Math.Clamp(root.GetProperty("fy").GetDouble(), 0.0, 1.0);
+            var px = Math.Max(0.0, root.GetProperty("px").GetDouble());
+            var py = Math.Max(0.0, root.GetProperty("py").GetDouble());
+            return new PreviewScrollState(fx, fy, px, py);
+        }
+        catch { return null; }
     }
 
     private void OnToggleDebugModeInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -2606,7 +2749,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Export PPTX", "Action", () => ViewModel.ConvertToPptxAsync()),
             new("Export all formats", "Action", () => ViewModel.ExportAllAsync()),
             new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Document Galaxy Mind Map", "Galaxy", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Diagram Studio", "Action", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Vector Shape Studio", "Action", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Settings", "Action", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Take the welcome tour", "Action", ShowWelcomeTourAsync),
             new("Show keyboard shortcuts", "Action", ShowShortcutsCheatsheetAsync),
@@ -2868,7 +3013,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var showPreview = mode is ViewMode.Preview or ViewMode.Split;
 
         // Sync-scroll bookkeeping only matters for the pure preview tab transitions.
-        if (mode == ViewMode.Preview) _pendingPreviewScrollFraction = GetEditorScrollFraction();
+        if (mode == ViewMode.Preview) _pendingPreviewScroll = new PreviewScrollState(0.0, GetEditorScrollFraction() ?? 0.0, 0.0, 0.0);
         if (mode == ViewMode.Code) _ = CapturePreviewScrollAndApplyToEditorAsync();
 
         if (PastePanel != null) PastePanel.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
@@ -2880,12 +3025,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (SplitLeftCol != null) SplitLeftCol.Width = mode == ViewMode.Preview ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         if (SplitRightCol != null) SplitRightCol.Width = mode == ViewMode.Code ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
 
-        // ISS-017: Split view squeezes the editor + preview between the two step panels, so entering
-        // Split auto-collapses them into a full-canvas workspace and leaving restores them. Reuse the
-        // existing focus-mode machinery: syncing the toggle fires its Checked/Unchecked handler, which
-        // runs ApplyFocusMode (and saves/restores the pane widths). Setting the same value twice is a
-        // no-op, so we never re-save already-collapsed widths.
-        if (FocusModeToggle != null)
+        // Focus mode toggle on Split view: only when AutoFocusOnSplit setting is enabled.
+        if (App.Settings.Current.AutoFocusOnSplit && FocusModeToggle != null)
             FocusModeToggle.IsChecked = mode == ViewMode.Split;
 
         if (showPreview) _ = RefreshPreviewAsync(heavy: mode == ViewMode.Preview);
@@ -2925,15 +3066,25 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // a mermaid harvest owns the WebView so we never scroll a snapshot render page mid-export.
     private void ApplyPendingPreviewScroll()
     {
-        if (_pendingPreviewScrollFraction is not { } frac) return;
-        _pendingPreviewScrollFraction = null;
+        if (_pendingPreviewScroll is not { } sc) return;
+        _pendingPreviewScroll = null;
         if (_mermaidHarvestActive) return;
         var core = PreviewWebView.CoreWebView2;
         if (core is null) return;
-        var f = Math.Clamp(frac, 0.0, 1.0).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+
+        var fxStr = sc.FractionX.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        var fyStr = sc.FractionY.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        var pxStr = sc.PixelX.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        var pyStr = sc.PixelY.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+
         _ = core.ExecuteScriptAsync(
-            "(function(){var max=document.documentElement.scrollHeight-window.innerHeight;" +
-            $"if(max>0){{window.scrollTo(0,{f}*max);}}}})();");
+            "(function(){" +
+            "var maxX=document.documentElement.scrollWidth-window.innerWidth;" +
+            "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
+            $"var tx=maxX>0?Math.round({fxStr}*maxX):{pxStr};" +
+            $"var ty=maxY>0?Math.round({fyStr}*maxY):{pyStr};" +
+            "if(tx>0||ty>0){window.scrollTo(tx,ty);}" +
+            "})();");
     }
 
     // Read the preview's current scroll fraction and mirror it onto the editor's ScrollViewer.
@@ -3203,6 +3354,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var clamped = Math.Clamp(size, EditorFontMin, EditorFontMax);
         PasteTextBox.FontSize = clamped;
+        if (LineNumberText is not null) LineNumberText.FontSize = clamped;
         if (EditorZoomText is not null)
             EditorZoomText.Text = $"{(int)Math.Round(clamped / EditorFontBase * 100.0)}%";
         if (persist)
@@ -3214,8 +3366,54 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Word wrap + line numbers ----
 
-    // Word wrap is a persisted editor display setting. When wrapping is off the editor scrolls
-    // horizontally and shows a line-number gutter (wrapping would break line-number alignment).
+    private bool _initializingLineNumbers;
+
+    private void OnLineNumbersToggled(object sender, RoutedEventArgs e)
+    {
+        if (_initializingLineNumbers) return;
+        var show = LineNumbersToggle?.IsChecked == true;
+        if (LineGutter != null)
+            LineGutter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+
+        App.Settings.Current.ShowLineNumbers = show;
+        App.Settings.Save();
+        ViewModel.ShowLineNumbers = show;
+
+        if (show)
+        {
+            UpdateLineNumbers();
+            SyncLineGutterScroll();
+        }
+    }
+
+    private void UpdateLineNumbers()
+    {
+        if (LineNumberText is null || LineGutter?.Visibility != Visibility.Visible) return;
+        var text = PasteTextBox?.Text ?? "";
+        var lineCount = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n') lineCount++;
+        }
+        var sb = new System.Text.StringBuilder(lineCount * 5);
+        for (var i = 1; i <= lineCount; i++)
+        {
+            sb.Append(i).Append('\n');
+        }
+        LineNumberText.Text = sb.ToString().TrimEnd('\n');
+    }
+
+    private void SyncLineGutterScroll()
+    {
+        if (LineNumberScrollViewer is null || LineGutter?.Visibility != Visibility.Visible) return;
+        var sv = FindEditorScrollViewer();
+        if (sv != null)
+        {
+            LineNumberScrollViewer.ChangeView(null, sv.VerticalOffset, null, true);
+        }
+    }
+
+    // Word wrap is a persisted editor display setting.
     private void OnWordWrapToggled(object sender, RoutedEventArgs e)
     {
         if (_initializingWordWrap) return;
@@ -3652,32 +3850,64 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // Ctrl+Alt+X: toggle the Looking Glass portal's focus blur — whether the rendered preview
-    // behind an open aperture blurs (focus WITH blur) or stays sharp (focus WITHOUT blur). The
-    // choice is persisted and pushed straight into the live page (__portalSetBlur); when no
-    // portal is open the page just stores it for the next aperture.
+    private bool _initializingPortalBlur;
+
+    // Ctrl+Alt+X: toggle the Looking Glass portal's surrounding focus blur.
     private void OnTogglePortalBlurInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
         ViewModel.PortalFocusBlur = !ViewModel.PortalFocusBlur;
-        PushPortalBlurToPage(ViewModel.PortalFocusBlur);
+        PushPortalBlurToPage(ViewModel.PortalFocusBlur, ViewModel.PortalSurroundBlurRadius);
         args.Handled = true;
     }
 
-    // Pushes the portal focus-blur state into the live preview page and reports it in the status
-    // bar. Called from both the Ctrl+Alt+X accelerator and the portal-row blur toggle button.
-    private void PushPortalBlurToPage(bool on)
+    // Pushes the portal surrounding focus-blur state into the live preview page.
+    private void PushPortalBlurToPage(bool on, double? radius = null)
     {
-        var js = "if (window.__portalSetBlur) { window.__portalSetBlur(" + (on ? "true" : "false") + "); }";
+        var rad = radius ?? ViewModel.PortalSurroundBlurRadius;
+        var js = "if (window.__portalSetSurroundBlur) { window.__portalSetSurroundBlur(" + (on ? "true" : "false") + ", " + rad.ToString(System.Globalization.CultureInfo.InvariantCulture) + "); }";
         _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
         ViewModel.StatusText = on
-            ? "Portal focus: preview blurred behind the aperture — Ctrl+Alt+X for sharp."
-            : "Portal focus: preview sharp behind the aperture — Ctrl+Alt+X for blur.";
+            ? $"Surround blur: {rad:0}px behind portal aperture — Ctrl+Alt+X to toggle."
+            : "Surround blur: sharp preview behind portal aperture — Ctrl+Alt+X to toggle.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+    }
+
+    // Pushes the glass blur state (inside the looking glass itself) into the live preview page.
+    private void PushPortalInsideBlurToPage(bool on, double? radius = null)
+    {
+        var rad = radius ?? ViewModel.PortalInsideBlurRadius;
+        var js = "if (window.__portalSetInsideBlur) { window.__portalSetInsideBlur(" + (on ? "true" : "false") + ", " + rad.ToString(System.Globalization.CultureInfo.InvariantCulture) + "); }";
+        _ = PreviewWebView.CoreWebView2?.ExecuteScriptAsync(js);
+        ViewModel.StatusText = on
+            ? $"Glass blur: {rad:0}px within looking glass."
+            : "Glass blur: looking glass interior is clear (0px).";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
     }
 
     private void OnPortalBlurToggled(object sender, RoutedEventArgs e)
     {
-        // The TwoWay binding has already written ViewModel.PortalFocusBlur; push it to the page.
-        PushPortalBlurToPage(ViewModel.PortalFocusBlur);
+        PushPortalBlurToPage(ViewModel.PortalFocusBlur, ViewModel.PortalSurroundBlurRadius);
+    }
+
+    private void OnPortalSurroundBlurRadiusChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_initializingPortalBlur) return;
+        var r = PortalSurroundBlurSlider?.Value ?? 6.0;
+        ViewModel.PortalSurroundBlurRadius = r;
+        PushPortalBlurToPage(ViewModel.PortalFocusBlur, r);
+    }
+
+    private void OnPortalInsideBlurToggled(object sender, RoutedEventArgs e)
+    {
+        PushPortalInsideBlurToPage(ViewModel.PortalInsideBlur, ViewModel.PortalInsideBlurRadius);
+    }
+
+    private void OnPortalInsideBlurRadiusChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_initializingPortalBlur) return;
+        var r = PortalInsideBlurSlider?.Value ?? 5.0;
+        ViewModel.PortalInsideBlurRadius = r;
+        PushPortalInsideBlurToPage(ViewModel.PortalInsideBlur, r);
     }
 
     private void ApplyFocusMode(bool focus)
@@ -3759,11 +3989,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom - PreviewZoomStep, persist: true);
 
-    private void ApplyPreviewZoom(double factor, bool persist)
+    private void ApplyPreviewZoom(double factor, bool persist, bool anchored = true, bool cursor = false)
     {
         var clamped = Math.Clamp(factor, PreviewZoomMin, PreviewZoomMax);
         _lastPreviewZoom = clamped;
-        ApplyPreviewCssZoom(clamped);
+        ApplyPreviewCssZoom(clamped, anchored, cursor);
         if (PreviewZoomText is not null)
         {
             var percent = (int)Math.Round(clamped * 100.0);
@@ -3781,16 +4011,60 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Apply the zoom as a CSS zoom on the root element. Best-effort: the CoreWebView2 may not be
     // ready on the very first call (the value is re-applied after every navigation regardless).
-    private void ApplyPreviewCssZoom(double factor)
+    //
+    // anchored: true (user-initiated zoom — buttons / Ctrl+wheel) re-aims the viewport per axis,
+    // measured against the sheet (#canvas) rect so the units never lie:
+    //   * while the sheet is narrower than the pane, the document CSS (flex + auto margins)
+    //     keeps it centred on the backdrop — the script leaves that axis alone (scroll 0);
+    //   * while the sheet is shorter than the pane, it is likewise centred vertically and the
+    //     script leaves the axis alone;
+    //   * once the sheet overflows the pane on an axis, the mouse owns that axis: the document
+    //     point under the cursor stays under the cursor ((scroll + cursor) * newZoom/oldZoom -
+    //     cursor, clamped to the scrollable range).
+    // cursor: true only for Ctrl+wheel (the cursor is provably over the document then). Button
+    // zooms centre an overflowing horizontal axis instead (maxX/2) — anchoring to a stale
+    // mousemove position from the toolbar made near-fit zoom levels look off-centre; vertical
+    // still aims at the last hovered document row (or the viewport middle if never hovered).
+    // anchored: false (launch restore / re-apply after navigation) only sets the zoom so the
+    // scroll-restore script injected into the page keeps owning the scroll position.
+    private void ApplyPreviewCssZoom(double factor, bool anchored = false, bool cursor = false)
     {
         var core = PreviewWebView.CoreWebView2;
         if (core is null) return;
         var f = factor.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-        _ = core.ExecuteScriptAsync($"document.documentElement.style.zoom = '{f}';");
+        if (!anchored)
+        {
+            _ = core.ExecuteScriptAsync($"document.documentElement.style.zoom = '{f}';");
+            return;
+        }
+        _ = core.ExecuteScriptAsync(
+            "(function(f,cur){" +
+            "var old=parseFloat(getComputedStyle(document.documentElement).zoom)||1;" +
+            "var ratio=f/old;" +
+            "var hasX=cur===1&&(typeof window.__msX==='number'),hasY=(typeof window.__msY==='number');" +
+            "var ax=hasX?window.__msX:window.innerWidth/2;" +
+            "var ay=hasY?window.__msY:window.innerHeight/2;" +
+            "var preX=window.scrollX+ax,preY=window.scrollY+ay;" +
+            "document.documentElement.style.zoom=f;" +
+            "var maxX=document.documentElement.scrollWidth-window.innerWidth;" +
+            "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
+            "var tx=0,ty=0;" +
+            "var sheet=document.getElementById('canvas');" +
+            "if(sheet){" +
+            "var r=sheet.getBoundingClientRect();" +
+            "var vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight;" +
+            "if(r.width>vw){tx=hasX?preX*ratio-ax:maxX/2;}" +
+            "if(r.height>vh){ty=preY*ratio-ay;}" +
+            "}" +
+            "tx=Math.max(0,Math.min(maxX,tx));" +
+            "ty=Math.max(0,Math.min(maxY,ty));" +
+            "window.scrollTo(tx,ty);" +
+            $"}})({f},{(cursor ? 1 : 0)});");
     }
 
     // Install the Ctrl+wheel -> "preview-zoom" bridge once. Native browser zoom is disabled so the
     // wheel and the buttons both flow through ApplyPreviewZoom (one source of truth, no compounding).
+    // The mousemove tracker feeds the anchored zoom: zoom aims at wherever the cursor last was.
     private async Task SetupPreviewZoomAsync()
     {
         var core = PreviewWebView.CoreWebView2;
@@ -3799,8 +4073,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try
         {
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
+                "window.addEventListener('mousemove', function(e){" +
+                "window.__msX=e.clientX;window.__msY=e.clientY;});" +
                 "window.addEventListener('wheel', function(e){" +
                 "if(e.ctrlKey){e.preventDefault();" +
+                "window.__msX=e.clientX;window.__msY=e.clientY;" +
                 "try{window.chrome.webview.postMessage(JSON.stringify({type:'preview-zoom',delta:e.deltaY}));}catch(_){}" +
                 "}}, {passive:false});");
         }
@@ -3848,7 +4125,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         try
         {
             if (!File.Exists(RecoveryPath)) return;
-            var content = File.ReadAllText(RecoveryPath);
+            var content = await File.ReadAllTextAsync(RecoveryPath);
             if (string.IsNullOrWhiteSpace(content)) { File.Delete(RecoveryPath); return; }
 
             var dialog = new ContentDialog
@@ -4620,16 +4897,46 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         SmartArtOfferBar.Visibility = Visibility.Collapsed;
     }
 
-    // MLShape Design Studio — free-form native DrawingML shape composing
+    // MLShape & SmartArt Vector Studio — free-form native DrawingML shape & diagram composing
     private void OnOpenShapeDesignStudioClick(object sender, RoutedEventArgs e)
     {
         if (_shapeDesignStudio == null)
         {
             _shapeDesignStudio = new Views.ShapeStudio.ShapeDesignStudioWindow();
             _shapeDesignStudio.Closed += (s, args) => _shapeDesignStudio = null;
+            _shapeDesignStudio.InsertToDocumentRequested += (s, block) =>
+            {
+                ViewModel.BreakUndoBurst();
+                InsertMarkdown(block);
+                ViewModel.StatusText = "DrawingML vector shapes added to document.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            };
         }
         _shapeDesignStudio.Activate();
-        ViewModel.StatusText = "MLShape Design Studio opened.";
+        ViewModel.StatusText = "MLShape & SmartArt Vector Studio opened.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    // Document Galaxy & Mind Map Hub — visual interconnected document library
+    private void OnOpenMindMapGalaxyClick(object sender, RoutedEventArgs e)
+    {
+        if (_mindMapGalaxyWindow == null)
+        {
+            _mindMapGalaxyWindow = new Views.MindMap.MindMapGalaxyWindow();
+            _mindMapGalaxyWindow.Closed += (s, args) => _mindMapGalaxyWindow = null;
+            _mindMapGalaxyWindow.OpenDocumentRequested += (s, filePath) =>
+            {
+                if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
+                {
+                    ViewModel.InputFilePath = filePath;
+                    ViewModel.UsePasteSource = false;
+                    ViewModel.StatusText = $"Opened {System.IO.Path.GetFileName(filePath)} from Document Galaxy.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                }
+            };
+        }
+        _mindMapGalaxyWindow.Activate();
+        ViewModel.StatusText = "Document Galaxy & Mind Map Library opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 

@@ -7,18 +7,23 @@
     <RootNamespace>MarkSmith.Desktop</RootNamespace>
     <!-- Ship the binary as Marksmith.exe -->
     <AssemblyName>Marksmith</AssemblyName>
-    <!-- Auto-incrementing build version: the revision is a UTC timestamp (MddHHmm — unique per
-         minute, monotonic within a year, fits every consumer's caps), so EVERY build gets its own
-         increasing number — the About screen and the updater always agree with what's running, and
-         a freshly-built dev binary is never 'out of date' against the last release. The full stamp
-         lives in <Version> (NuGet) and <FileVersion> (free-form); <AssemblyVersion> stays a plain
-         four-part 2.16.0.0 because Roslyn rejects components above 9999 there. Release builds
-         override all of these via -p:Version=<tag> in release.yml, so shipped installers carry a
-         clean semver (e.g. 2.16.0). -->
+    <!-- Versioning scheme (see docs/VERSIONING.md + Directory.Build.props):
+         * <Version> is a SemVer PRERELEASE for every local build: "2.18.0-dev.<utc-revision>".
+           The prerelease suffix (a) sorts below the future stable 2.18.0 yet above every lower
+           stable tag, so a dev copy never looks "outdated" against the last release, and (b) is
+           the marker UpdateService.IsDevelopmentBuild uses to short-circuit update checks —
+           dev builds are compared against nothing on the releases feed.
+         * The revision is a UTC timestamp (MddHHmm — unique per minute, monotonic within a year),
+           so EVERY dev build gets its own increasing number and the About screen, the updater and
+           the running binary always agree.
+         * <AssemblyVersion> stays a plain four-part value because Roslyn rejects components above
+           9999 there; <FileVersion> keeps a numeric four-part form for the Win32 version resource.
+         * Release builds override all of this via -p:Version=<tag> in release.yml, which wipes the
+           -dev suffix too: shipped installers carry clean SemVer (e.g. 2.17.0). -->
     <BuildRevision>$([System.DateTime]::UtcNow.ToString("MddHHmm"))</BuildRevision>
-    <Version>2.16.0.$(BuildRevision)</Version>
-    <AssemblyVersion>2.16.0.0</AssemblyVersion>
-    <FileVersion>2.16.0.$(BuildRevision)</FileVersion>
+    <Version>$(MarksmithBaseVersion)-dev.$(BuildRevision)</Version>
+    <AssemblyVersion>$(MarksmithBaseVersion).0</AssemblyVersion>
+    <FileVersion>$(MarksmithBaseVersion).$(BuildRevision)</FileVersion>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
@@ -65,6 +70,7 @@
     <Content Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\logo.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\LaunchVideo.mp4" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\splash_video.mp4" CopyToOutputDirectory="PreserveNewest" />
     <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2
          virtual host — no CDN calls, works without internet, faster preview. -->
     <Content Include="Assets\web\**\*" CopyToOutputDirectory="PreserveNewest" />

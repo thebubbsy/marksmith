@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -7,8 +7,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Desktop", "MarkSmith.Desktop\MarkSmith.Desktop.csproj", "{5CC95BFE-2507-438A-B55D-994E3773C273}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Tests", "MarkSmith.Tests\MarkSmith.Tests.csproj", "{23972D4D-00B1-466A-AF02-A316E4DDF5B5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Wasm", "MarkSmith.Wasm\MarkSmith.Wasm.csproj", "{7805AE12-EF73-45AF-B1AA-A6BC08A4B9E0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkSmith.Cli", "MarkSmith.Cli\MarkSmith.Cli.csproj", "{2494A34C-65A5-498A-8EE4-30BB894C1C70}"
 EndProject
@@ -33,10 +31,6 @@ Global
 		{23972D4D-00B1-466A-AF02-A316E4DDF5B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{23972D4D-00B1-466A-AF02-A316E4DDF5B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{23972D4D-00B1-466A-AF02-A316E4DDF5B5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7805AE12-EF73-45AF-B1AA-A6BC08A4B9E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7805AE12-EF73-45AF-B1AA-A6BC08A4B9E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7805AE12-EF73-45AF-B1AA-A6BC08A4B9E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7805AE12-EF73-45AF-B1AA-A6BC08A4B9E0}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2494A34C-65A5-498A-8EE4-30BB894C1C70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2494A34C-65A5-498A-8EE4-30BB894C1C70}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2494A34C-65A5-498A-8EE4-30BB894C1C70}.Release|Any CPU.ActiveCfg = Release|Any CPU

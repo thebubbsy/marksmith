@@ -18,6 +18,11 @@ namespace MarkSmith.Core.Services
     /// </summary>
     public class FootnoteService
     {
+        // Shared compiled patterns — these used to be rebuilt via new Regex(...) on every
+        // ProcessFootnotes call (2026-08 performance review, audit finding #24).
+        private static readonly Regex DefinitionPattern = new(@"^\[\^([^\]]+)\]:\s*(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly Regex ReferencePattern = new(@"\[\^([^\]]+)\]", RegexOptions.Compiled);
+
         /// <summary>
         /// Processes footnotes in Markdown content, returning transformed HTML snippet or Markdown.
         /// </summary>
@@ -27,9 +32,8 @@ namespace MarkSmith.Core.Services
 
             // 1. Extract definitions: [^key]: definition text
             var definitions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var defPattern = new Regex(@"^\[\^([^\]]+)\]:\s*(.+)$", RegexOptions.Multiline);
-            
-            string content = defPattern.Replace(markdown, m =>
+
+            string content = DefinitionPattern.Replace(markdown, m =>
             {
                 string key = m.Groups[1].Value.Trim();
                 string text = m.Groups[2].Value.Trim();
@@ -43,11 +47,10 @@ namespace MarkSmith.Core.Services
             }
 
             // 2. Extract inline references in order of appearance
-            var refPattern = new Regex(@"\[\^([^\]]+)\]");
             var referencedKeys = new List<string>();
             var keyToIndexMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            string processedBody = refPattern.Replace(content, m =>
+            string processedBody = ReferencePattern.Replace(content, m =>
             {
                 string key = m.Groups[1].Value.Trim();
                 if (!definitions.ContainsKey(key))

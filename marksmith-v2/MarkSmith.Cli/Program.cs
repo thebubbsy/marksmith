@@ -1,98 +1,308 @@
 using System;
 using System.IO;
-using MarkSmith.Core.AST;
-using MarkSmith.Core.Generator;
-using MarkSmith.Core.Glox;
-using MarkSmith.Core.Mosaic;
-using MarkSmith.Core.Resolver;
-using MarkSmith.Core.Solver;
-using System.Text.Json;
-using MarkSmith.Core.Glox.Builder;
-using MarkSmith.Core.Glox.Packager;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using MarkSmith.Core.Composer;
+using MarkSmith.Models;
+using MarkSmith.Services;
 
 namespace MarkSmith.Cli
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
-            Console.WriteLine("MarkSmith SmartArt Compiler v2.0");
-            Console.WriteLine("Universal SmartArt Reverse-Engineering & Rendering Compiler");
-
-            if (args.Length < 2)
+            if (args.Length == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "/?")
             {
-                Console.WriteLine("Usage: marksmith <input.md|input.json|input.png> <output.docx> [layout_alias]");
-                Console.WriteLine("       marksmith build-layout <input_layout.json> <output.glox>");
-                return;
+                PrintHelp();
+                return 0;
             }
 
-            string commandOrInput = args[0];
-            string arg2 = args[1];
+            string cmd = args[0].ToLowerInvariant();
 
             try
             {
-                if (commandOrInput.Equals("build-layout", StringComparison.OrdinalIgnoreCase))
+                if (cmd == "batch" || args[0] == "--batch")
                 {
-                    Console.WriteLine("Invoking GLOX Packager...");
-                    string json = File.ReadAllText(arg2);
-                    string outputGlox = args.Length > 2 ? args[2] : arg2.Replace(".json", ".glox");
-                    
-                    var def = JsonLayoutParser.Parse(json);
-                    var xml = GloxXmlSerializer.Serialize(def);
-                    MarkSmith.Core.Glox.Packager.GloxPackager.Package(xml, outputGlox);
-                    
-                    Console.WriteLine($"Successfully generated custom SmartArt GLOX package: {outputGlox}");
-                    return;
-                }
+                    string inputPattern = args.Length > 1 ? args[1] : "./*.md";
+                    string format = "docx";
+                    string outputDir = ".";
+                    int concurrency = Environment.ProcessorCount;
 
-                string inputPath = commandOrInput;
-                string outputPath = arg2;
-                string? layoutOverride = args.Length > 2 ? args[2] : null;
-
-                var resolver = MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared;
-
-                CanonicalAst ast;
-                string ext = Path.GetExtension(inputPath).ToLower();
-
-                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg")
-                {
-                    Console.WriteLine("Raster input detected. Invoking Mosaic Engine...");
-                    var mosaicOptions = new RasterMosaicOptions
+                    for (int i = 2; i < args.Length; i++)
                     {
-                        GridWidth = 8,
-                        GridHeight = 8,
-                        TargetLayout = layoutOverride ?? "picturelist"
+                        if (args[i] == "--format" && i + 1 < args.Length) format = args[++i].ToLowerInvariant();
+                        if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
+                        if (args[i] == "--concurrency" && i + 1 < args.Length && int.TryParse(args[i + 1], out int c)) concurrency = c;
+                    }
+
+                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency);
+                }
+
+                if (cmd == "compose" && args.Length >= 3)
+                {
+                    string inputImage = args[1];
+                    string outputFile = args[2];
+                    int grid = 32;
+                    bool compact = args.Contains("--compact");
+                    for (int i = 3; i < args.Length; i++)
+                    {
+                        if (args[i] == "--grid" && i + 1 < args.Length && int.TryParse(args[i + 1], out int g))
+                            grid = g;
+                    }
+
+                    Console.WriteLine($"Composing '{inputImage}' into vector shapes (grid={grid})...");
+                    var shapes = ImageShapeComposer.Compose(inputImage, new ShapeComposerOptions { Grid = grid });
+                    string md = ShapeMarkdownCodec.Serialize(shapes, compact: compact);
+
+                    string outExt = Path.GetExtension(outputFile).ToLowerInvariant();
+                    if (outExt == ".docx" || outExt == ".dotx")
+                    {
+                        var docxService = new DocxExportService();
+                        await docxService.ExportAsync(md, outputFile, new AppSettings());
+                        Console.WriteLine($"✓ Generated Word document: {outputFile} ({shapes.Count} native DrawingML shapes)");
+                    }
+                    else
+                    {
+                        await File.WriteAllTextAsync(outputFile, md);
+                        Console.WriteLine($"✓ Generated Markdown shapes block: {outputFile} ({shapes.Count} shapes)");
+                    }
+                    return 0;
+                }
+
+                if (cmd == "trace" && args.Length >= 3)
+                {
+                    string inputImage = args[1];
+                    string outputFile = args[2];
+                    int rows = 300;
+                    var mode = LineTraceMode.CrossHatch;
+                    bool compact = args.Contains("--compact");
+                    for (int i = 3; i < args.Length; i++)
+                    {
+                        if (args[i] == "--rows" && i + 1 < args.Length && int.TryParse(args[i + 1], out int r))
+                            rows = r;
+                        if (args[i] == "--mode" && i + 1 < args.Length && Enum.TryParse<LineTraceMode>(args[i + 1], true, out var m))
+                            mode = m;
+                    }
+
+                    Console.WriteLine($"Tracing '{inputImage}' into line art ({mode}, rows={rows})...");
+                    var lines = ImageLineTracer.TraceLines(inputImage, new LineTraceOptions { Rows = rows, Mode = mode });
+                    string md = ShapeMarkdownCodec.Serialize(lines, compact: compact);
+
+                    string outExt = Path.GetExtension(outputFile).ToLowerInvariant();
+                    if (outExt == ".docx" || outExt == ".dotx")
+                    {
+                        var docxService = new DocxExportService();
+                        await docxService.ExportAsync(md, outputFile, new AppSettings());
+                        Console.WriteLine($"✓ Generated Word document: {outputFile} ({lines.Count} vector line strokes)");
+                    }
+                    else
+                    {
+                        await File.WriteAllTextAsync(outputFile, md);
+                        Console.WriteLine($"✓ Generated Markdown line art: {outputFile} ({lines.Count} lines)");
+                    }
+                    return 0;
+                }
+
+                bool watchMode = args.Contains("--watch") || args.Contains("-w");
+                var remainingArgs = args.Where(a => a != "--watch" && a != "-w").ToArray();
+
+                if (remainingArgs.Length < 2)
+                {
+                    PrintHelp();
+                    return 1;
+                }
+
+                string inputPath = Path.GetFullPath(remainingArgs[0]);
+                string outputPath = Path.GetFullPath(remainingArgs[1]);
+
+                if (!File.Exists(inputPath))
+                {
+                    Console.Error.WriteLine($"Error: Input file '{inputPath}' does not exist.");
+                    return 1;
+                }
+
+                var settings = new AppSettings();
+                for (int i = 2; i < remainingArgs.Length; i++)
+                {
+                    if (remainingArgs[i] == "--theme" && i + 1 < remainingArgs.Length)
+                        settings.Theme = remainingArgs[i + 1];
+                }
+
+                async Task CompileAsync()
+                {
+                    string markdown = await File.ReadAllTextAsync(inputPath);
+                    string ext = Path.GetExtension(outputPath).ToLowerInvariant();
+
+                    if (ext == ".docx" || ext == ".dotx")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        var docxService = new DocxExportService();
+                        await docxService.ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported native DOCX: {outputPath}");
+                    }
+                    else if (ext == ".html" || ext == ".htm")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Rendering '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                        string html = new MarkdownHtmlService().Render(markdown, settings, theme);
+                        await File.WriteAllTextAsync(outputPath, html);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported HTML: {outputPath}");
+                    }
+                    else
+                    {
+                        throw new NotSupportedException($"Unsupported output extension '{ext}'. Use .docx, .dotx, or .html.");
+                    }
+                }
+
+                await CompileAsync();
+
+                if (watchMode)
+                {
+                    Console.WriteLine($"[WATCH] Watching '{inputPath}' for changes (Ctrl+C to stop)...");
+                    using var cts = new CancellationTokenSource();
+                    Console.CancelKeyPress += (s, e) =>
+                    {
+                        e.Cancel = true;
+                        cts.Cancel();
                     };
-                    ast = RasterMosaicEngine.GenerateMosaicAst(inputPath, mosaicOptions);
+
+                    string inDir = Path.GetDirectoryName(inputPath) ?? ".";
+                    string inName = Path.GetFileName(inputPath);
+                    using var fsw = new FileSystemWatcher(inDir, inName)
+                    {
+                        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+                        EnableRaisingEvents = true
+                    };
+
+                    Timer? debounceTimer = null;
+                    fsw.Changed += (s, e) =>
+                    {
+                        debounceTimer?.Dispose();
+                        debounceTimer = new Timer(async _ =>
+                        {
+                            try
+                            {
+                                await CompileAsync();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine($"[WATCH ERROR] {ex.Message}");
+                            }
+                        }, null, 250, Timeout.Infinite);
+                    };
+
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        await Task.Delay(500, cts.Token).ConfigureAwait(false);
+                    }
+                    Console.WriteLine("[WATCH] Stopped watching.");
                 }
-                else if (ext == ".json")
-                {
-                    string json = File.ReadAllText(inputPath);
-                    ast = JsonAstParser.Parse(json);
-                }
-                else
-                {
-                    string md = File.ReadAllText(inputPath);
-                    ast = MarkdownAstParser.Parse(md);
-                }
 
-                string targetLayout = layoutOverride ?? ast.RequestedLayout ?? "hierarchy";
-                Console.WriteLine($"Resolving layout URN for target layout '{targetLayout}'...");
-
-                var gloxPkg = resolver.Resolve(targetLayout);
-                var solver = new ConstraintSolver();
-                var solvedStructure = solver.Solve(ast, gloxPkg);
-
-                var generator = new OpenXmlDiagramGenerator();
-                var genResult = generator.Generate(solvedStructure, gloxPkg);
-
-                DocxPackageWriter.WriteDocx(outputPath, genResult);
-                Console.WriteLine($"Successfully generated Word document with native SmartArt: {outputPath}");
+                return 0;
+            }
+            catch (OperationCanceledException)
+            {
+                return 0;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[COMPILER ERROR] {ex.Message}");
+                Console.Error.WriteLine($"[ERROR] {ex.Message}");
+                return 1;
             }
+        }
+
+        static async Task<int> ExecuteBatchAsync(string inputPattern, string outputDir, string format, int concurrency)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            string searchDir = Directory.Exists(inputPattern) ? inputPattern : (Path.GetDirectoryName(inputPattern) ?? ".");
+            if (string.IsNullOrEmpty(searchDir)) searchDir = ".";
+            string pattern = Directory.Exists(inputPattern) ? "*.md" : (Path.GetFileName(inputPattern) ?? "*.md");
+
+            if (!Directory.Exists(searchDir))
+            {
+                Console.Error.WriteLine($"[ERROR] Directory '{searchDir}' not found.");
+                return 1;
+            }
+
+            var files = Directory.GetFiles(searchDir, pattern, SearchOption.TopDirectoryOnly);
+            if (files.Length == 0)
+            {
+                Console.WriteLine($"No files matched pattern '{pattern}' in '{searchDir}'.");
+                return 0;
+            }
+
+            Directory.CreateDirectory(outputDir);
+            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency})...");
+
+            int completed = 0;
+            int errors = 0;
+            var docxService = new DocxExportService();
+            var htmlService = new MarkdownHtmlService();
+            var settings = new AppSettings();
+            var theme = ThemeCatalog.Default;
+
+            using var semaphore = new SemaphoreSlim(Math.Max(1, concurrency));
+
+            await Task.WhenAll(files.Select(async file =>
+            {
+                await semaphore.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    string outFile = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(file) + "." + format);
+                    string md = await File.ReadAllTextAsync(file).ConfigureAwait(false);
+
+                    if (format == "docx" || format == "dotx")
+                    {
+                        await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        string html = htmlService.Render(md, settings, theme);
+                        await File.WriteAllTextAsync(outFile, html).ConfigureAwait(false);
+                    }
+
+                    int cur = Interlocked.Increment(ref completed);
+                    int pct = (int)((cur / (double)files.Length) * 100);
+                    int barFilled = pct / 10;
+                    string bar = new string('█', barFilled) + new string('░', 10 - barFilled);
+                    Console.Write($"\r[BATCH] [{bar}] {pct}% ({cur}/{files.Length})");
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref errors);
+                    Console.Error.WriteLine($"\n[ERROR] Failed to convert '{file}': {ex.Message}");
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            })).ConfigureAwait(false);
+
+            sw.Stop();
+            Console.WriteLine($"\n[BATCH] ✓ Completed {completed} file(s) in {sw.ElapsedMilliseconds}ms ({errors} error(s)).");
+            return errors > 0 ? 1 : 0;
+        }
+
+        static void PrintHelp()
+        {
+            Console.WriteLine("MarkSmith CLI v2.18.0");
+            Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
+            Console.WriteLine();
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>]");
+            Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
+            Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
+            Console.WriteLine();
+            Console.WriteLine("Flags:");
+            Console.WriteLine("  -w, --watch    Watch the input file for changes and recompile automatically");
+            Console.WriteLine("  --batch        Batch process multiple markdown documents concurrently");
+            Console.WriteLine("  --compact      Compress vector shapes in markdown using dense deflate format");
+            Console.WriteLine("  --theme <name> Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
+            Console.WriteLine();
+            Console.WriteLine("Trace Modes: CrossHatch, TopographicWaves, Calligraphic, Engraved, Edges, Scanlines, Silhouette");
         }
     }
 }

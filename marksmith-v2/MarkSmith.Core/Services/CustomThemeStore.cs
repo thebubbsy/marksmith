@@ -10,8 +10,7 @@ namespace MarkSmith.Services;
 // to every catalog instantly — not only after an app restart.
 public static class CustomThemeStore
 {
-    private static readonly string StorePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "custom-themes.json");
+    private static readonly string StorePath = Path.Combine(AppPaths.ConfigDir, "custom-themes.json");
 
     private static readonly object Gate = new();
     private static List<ThemeDefinition>? _cache;

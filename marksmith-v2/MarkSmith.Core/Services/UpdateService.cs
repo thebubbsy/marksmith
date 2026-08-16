@@ -18,10 +18,11 @@ public sealed class UpdateService
         get
         {
             // The app's real version lives on the EXE: MarkSmith.Desktop stamps Version/FileVersion
-            // as 2.14.0.<auto-incrementing build>. Core.dll used to carry its OWN hardcoded
-            // 2.0.0.x (a stale product-line version), and reading THIS assembly's file version made
-            // the updater + About report 2.0.0.x — which is why the update banner fired on every
-            // launch ("a newer version is available") even for the newest dev builds.
+            // as <base>-dev.<auto-incrementing build> for local builds and clean SemVer for shipped
+            // releases. Core.dll used to carry its OWN hardcoded 2.0.0.x (a stale product-line
+            // version), and reading THIS assembly's file version made the updater + About report
+            // 2.0.0.x — which is why the update banner fired on every launch ("a newer version is
+            // available") even for the newest dev builds.
             // Read the ENTRY assembly (the app) first; fall back to this assembly only when the
             // entry isn't available (e.g. library-only hosts).
             foreach (var asm in new[] { System.Reflection.Assembly.GetEntryAssembly(), typeof(UpdateService).Assembly })
@@ -44,10 +45,80 @@ public sealed class UpdateService
         }
     }
 
+    /// <summary>Full SemVer stamp for display (About/Settings): carries the "-dev.<utc>"
+    /// prerelease suffix on local builds (e.g. 2.18.0-dev.8161030) and clean SemVer on shipped
+    /// releases (2.17.0). Falls back to <see cref="CurrentVersion"/> when unstampable.</summary>
+    public string CurrentDisplayVersion
+    {
+        get
+        {
+            foreach (var asm in new[] { System.Reflection.Assembly.GetEntryAssembly(), typeof(UpdateService).Assembly })
+            {
+                if (asm is null) continue;
+                var iv = InformationalVersionOf(asm);
+                if (!string.IsNullOrWhiteSpace(iv) && iv != "0.0.0") return iv;
+            }
+            return CurrentVersion;
+        }
+    }
+
+    /// <summary>True when the running binary carries a SemVer prerelease suffix — i.e. it is a
+    /// locally-built dev copy (2.18.0-dev.<utc>), not a shipped release. release.yml stamps clean
+    /// SemVer via -p:Version=<tag>, so no released build ever matches. Dev builds short-circuit
+    /// the update check: their version is ahead of (or between) stable tags BY DESIGN, so
+    /// comparing them against the releases feed can only produce false "update available" noise.
+    /// See docs/VERSIONING.md.</summary>
+    public static bool IsDevelopmentBuild
+    {
+        get
+        {
+            foreach (var asm in new[] { System.Reflection.Assembly.GetEntryAssembly(), typeof(UpdateService).Assembly })
+            {
+                if (asm is null) continue;
+                var iv = InformationalVersionOf(asm);
+                if (!string.IsNullOrWhiteSpace(iv)) return IsPrerelease(iv);
+            }
+            return false;
+        }
+    }
+
+    private static string? InformationalVersionOf(System.Reflection.Assembly asm)
+    {
+        try
+        {
+            var attr = (System.Reflection.AssemblyInformationalVersionAttribute?)
+                System.Reflection.AssemblyInformationalVersionAttribute.GetCustomAttribute(
+                    asm, typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+            var iv = attr?.InformationalVersion ?? "";
+            // The SDK appends "+<commit>" build metadata in some CI setups — it is not a version.
+            var plus = iv.IndexOf('+');
+            return plus >= 0 ? iv[..plus] : iv;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>SemVer prerelease test: a '-' AFTER the numeric core (and not part of '+' build
+    /// metadata, which is stripped by the caller) marks a prerelease. "2.18.0-dev.8161030" → true;
+    /// "2.17.0" / "2.17.0.0" → false.</summary>
+    internal static bool IsPrerelease(string version)
+    {
+        var v = version.Trim().TrimStart('v', 'V').Trim();
+        var plus = v.IndexOf('+');
+        if (plus >= 0) v = v[..plus]; // build metadata never marks a prerelease
+        return v.Contains('-');
+    }
+
     public sealed record Result(bool Ok, bool UpdateAvailable, string LatestTag, string ReleaseUrl, string DownloadUrl, string Message);
 
     public async Task<Result> CheckAsync()
     {
+        // Dev builds (prerelease-stamped, e.g. 2.18.0-dev.8161030) are by definition ahead of —
+        // or between — stable releases, so the releases feed can never offer them anything. Skip
+        // the network call entirely instead of letting Compare() misfire against the latest tag.
+        if (IsDevelopmentBuild)
+            return new(true, false, "", ReleasesUrl, "",
+                $"Development build ({CurrentDisplayVersion}) — update checks are disabled for non-release builds.");
+
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
@@ -131,18 +202,25 @@ public sealed class UpdateService
                 using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
                 using var fileStream = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
 
-                var buffer = new byte[64 * 1024];
-                var bytesRead = 0;
-                var totalRead = 0L;
-
-                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(64 * 1024);
+                try
                 {
-                    await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken).ConfigureAwait(false);
-                    totalRead += bytesRead;
-                    if (totalBytes > 0 && progress != null)
+                    var bytesRead = 0;
+                    var totalRead = 0L;
+
+                    while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
                     {
-                        progress.Report((double)totalRead / totalBytes * 100.0);
+                        await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                        totalRead += bytesRead;
+                        if (totalBytes > 0 && progress != null)
+                        {
+                            progress.Report((double)totalRead / totalBytes * 100.0);
+                        }
                     }
+                }
+                finally
+                {
+                    System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                 }
             }
 

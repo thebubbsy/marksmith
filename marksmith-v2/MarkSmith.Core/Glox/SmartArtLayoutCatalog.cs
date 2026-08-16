@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using MarkSmith.Core.AST;
 using MarkSmith.Core.Resolver;
 
 namespace MarkSmith.Core.Glox
@@ -246,6 +248,125 @@ namespace MarkSmith.Core.Glox
     {
         IReadOnlyList<GloxPackage> All { get; }
         GloxPackage? TryResolve(string? input);
+    }
+
+    /// <summary>
+    /// Intelligent content-shape classifier: analyzes document structure, hierarchy depth,
+    /// semantic keywords, and sequential patterns to recommend the optimal SmartArt FAMILY:
+    /// "list", "hierarchy", "process", "cycle", "matrix", "pyramid", "venn", "relationship", "picturelist".
+    /// Returns null when the content has no list structure at all.
+    /// </summary>
+    public static class SmartArtLayoutSuggester
+    {
+        public static string? Suggest(CanonicalAst ast)
+        {
+            if (ast == null || ast.Root == null) return null;
+
+            var items = CollectListItems(ast.Root);
+            if (items.Count == 0) return null;
+
+            // 1. Picture list: items with embedded images or image paths.
+            if (items.Any(n => n.NodeType == AstNodeType.Image || !string.IsNullOrEmpty(n.ImagePath)))
+                return "picturelist";
+
+            var rootText = (ast.Root.Text ?? "").ToLowerInvariant();
+
+            // ONE pass over the items computes every marker count/flag the family checks below
+            // need — the per-family predicates used to re-scan the whole list with their own
+            // regexes each (up to seven scans per preview render), and the Venn check joined
+            // every item's text into one big string just to run three Contains on it.
+            int swotCount = 0, tierCount = 0, cycleCount = 0, seqMarked = 0, topLevelCount = 0;
+            bool anyTopLevelSwot = false, hasDesirable = false, hasFeasible = false, hasViable = false;
+            foreach (var n in items)
+            {
+                if (n.Depth == 1) topLevelCount++;
+                if (SwotMarker.IsMatch(n.Text)) { swotCount++; if (n.Depth == 1) anyTopLevelSwot = true; }
+                if (TierMarker.IsMatch(n.Text)) tierCount++;
+                if (CycleMarker.IsMatch(n.Text)) cycleCount++;
+                if (SequentialMarker.IsMatch(n.Text) || TimelineYearMarker.IsMatch(n.Text) || n.Text.Contains("->") || n.Text.Contains("=>")) seqMarked++;
+                if (!hasDesirable && n.Text.Contains("desirable", StringComparison.OrdinalIgnoreCase)) hasDesirable = true;
+                if (!hasFeasible && n.Text.Contains("feasible", StringComparison.OrdinalIgnoreCase)) hasFeasible = true;
+                if (!hasViable && n.Text.Contains("viable", StringComparison.OrdinalIgnoreCase)) hasViable = true;
+            }
+
+            // 2. Matrix / SWOT / 2x2 Grid detection.
+            if (rootText.Contains("matrix") || rootText.Contains("swot") || rootText.Contains("quadrant") || rootText.Contains("2x2")
+                || swotCount >= 2
+                || (topLevelCount == 4 && (swotCount >= 1 || anyTopLevelSwot)))
+                return "matrix";
+
+            // 3. Pyramid / Layered / Tiered hierarchy detection.
+            if (rootText.Contains("pyramid") || rootText.Contains("maslow") || rootText.Contains("hierarchy of needs") || rootText.Contains("tiered") || rootText.Contains("layers")
+                || (tierCount >= 2 && tierCount >= items.Count / 2.0))
+                return "pyramid";
+
+            // 4. Cycle / Continuous loop / Feedback loop detection.
+            bool looksLikeCycle = rootText.Contains("cycle") || rootText.Contains("loop") || rootText.Contains("circular") || rootText.Contains("lifecycle") || rootText.Contains("feedback") || rootText.Contains("pdca")
+                || (cycleCount >= 2 && items.Count >= 3 && items.Count <= 8);
+            if (!looksLikeCycle && items.Count >= 3)
+            {
+                // Last item referencing repeating or looping back.
+                var lastText = items[items.Count - 1].Text.ToLowerInvariant();
+                if (lastText.Contains("repeat") || lastText.Contains("iterate") || lastText.Contains("loop") || lastText.Contains("restart") || lastText.Contains("continuous"))
+                    looksLikeCycle = true;
+            }
+            if (looksLikeCycle)
+                return "cycle";
+
+            // 5. Venn / Overlapping / Relationship detection.
+            if (rootText.Contains("venn") || rootText.Contains("intersection") || rootText.Contains("overlap")
+                || (hasDesirable && hasFeasible && hasViable))
+                return "venn";
+
+            if (rootText.Contains("relationship") || rootText.Contains("interconnect") || rootText.Contains("ecosystem") || rootText.Contains("hub and spoke") || rootText.Contains("radial"))
+                return "relationship";
+
+            // 6. Process / Workflow / Timeline / Sequential steps.
+            if (rootText.Contains("process") || rootText.Contains("workflow") || rootText.Contains("timeline") || rootText.Contains("roadmap") || rootText.Contains("pipeline") || rootText.Contains("funnel")
+                || (seqMarked >= 2 && seqMarked >= items.Count / 2.0))
+                return "process";
+
+            // 7. Hierarchy / Org Chart: structured nested trees (depth >= 2 or parent-child branches).
+            if (items.Any(n => n.Children.Count > 0) || items.Max(n => n.Depth) >= 2)
+                return "hierarchy";
+
+            // 8. Plain flat bullet list (skills, features, checklist) -> flat snake layout.
+            return "list";
+        }
+
+        private static List<AstNode> CollectListItems(AstNode root)
+        {
+            var result = new List<AstNode>();
+            var queue = new Queue<AstNode>();
+            queue.Enqueue(root);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                if (node != root && node.Depth >= 1) result.Add(node);
+                foreach (var child in node.Children) queue.Enqueue(child);
+            }
+            return result;
+        }
+
+        private static readonly Regex SequentialMarker = new(
+            @"^\s*(\d{1,2}[.)]|Step\b|Phase\b|Stage\b|Part\b|First\b|Next\b|Then\b|After\b|Finally\b|Last\b|Sprint\s*\d+|Q[1-4]\b)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex TimelineYearMarker = new(
+            @"\b(19\d{2}|20\d{2})\b|^\s*(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex TierMarker = new(
+            @"^\s*(Tier\s*\d+|Level\s*\d+|Layer\s*\d+|Top\b|Middle\b|Bottom\b|Apex\b|Foundation\b|Strategic\b|Tactical\b|Operational\b|Vision\b|Strategy\b|Execution\b|Self-Actualization|Esteem|Belonging|Safety|Physiological)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex SwotMarker = new(
+            @"\b(Strengths?|Weakness(es)?|Opportunit(y|ies)|Threats?|Quadrants?(\s*[1-4])?|Q[1-4]\b|Urgent|Important)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex CycleMarker = new(
+            @"\b(Plan\b|Do\b|Check\b|Act\b|Repeats?|Iterat(e|ion|ive)|Feedbacks?|Loops?|Continuous(ly)?|Recurring|Lifecycles?|Rotat(e|ion)|Cycles?|Retrospectives?|Reflect(ion)?|↺)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
 }
 

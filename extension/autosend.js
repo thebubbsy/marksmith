@@ -190,7 +190,7 @@
       for (const s of root.querySelectorAll('svg[id*="mermaid" i], canvas[id*="mermaid" i]')) {
         push(s.closest('[class*="mermaid" i], [class*="diagram" i], [data-testid*="mermaid" i]') || s.parentElement || s);
       }
-      for (const h of root.querySelectorAll("div, span, header, h1, h2, h3, h4, p")) {
+      for (const h of root.querySelectorAll("h1, h2, h3, h4, h5, h6, header, title, label, figcaption, [class*='title' i], [class*='header' i], [class*='label' i]")) {
         if (/^mermaid$/i.test((h.textContent || "").trim()) && !h.querySelector("svg, canvas")) {
           let anc = h.parentElement;
           for (let d = 0; anc && d < 8; d++, anc = anc.parentElement) {

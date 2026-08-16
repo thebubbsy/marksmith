@@ -23,7 +23,6 @@ public sealed class DiffKindBrushConverter : IValueConverter
         if (Application.Current.Resources.TryGetValue(key, out var b) && b is Brush brush)
             return brush;
         return new SolidColorBrush(Microsoft.UI.Colors.Gray);
-        return new SolidColorBrush(Microsoft.UI.Colors.Gray);
     }
 
     public object ConvertBack(object value, System.Type targetType, object parameter, string language)

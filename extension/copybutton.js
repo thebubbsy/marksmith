@@ -80,6 +80,23 @@
             50% { box-shadow: 0 0 0 5px rgba(139, 109, 255, 0.45); }
         }
         @media (prefers-reduced-motion: reduce) { .${BTN_CLASS}.mk-flash { animation: none; outline: 2px solid rgba(139,109,255,.7); } }
+
+        #mk-sel-floating-bar {
+            position: absolute; z-index: 2147483640; display: none; align-items: center; gap: 6px;
+            background: #181924; border: 1px solid #2e2e42; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45); padding: 4px 6px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px; color: #e2e2ec; animation: mk-fadein .15s ease-out;
+        }
+        @keyframes mk-fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .mk-sel-btn {
+            display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px;
+            border: 1px solid transparent; background: #262738; color: #f0f0fa; cursor: pointer;
+            font-weight: 500; font-size: 11.5px; transition: background .12s, border-color .12s;
+        }
+        .mk-sel-btn:hover { background: #35374e; border-color: #7c4dff; }
+        .mk-sel-btn.mk-primary { background: #7c4dff; color: #fff; }
+        .mk-sel-btn.mk-primary:hover { background: #8f66ff; }
     `;
     document.documentElement.appendChild(style);
 
@@ -232,7 +249,7 @@
         for (const s of root.querySelectorAll('svg[id*="mermaid" i], canvas[id*="mermaid" i]')) {
             push(s.closest('[class*="mermaid" i], [class*="diagram" i], [data-testid*="mermaid" i]') || s.parentElement || s);
         }
-        for (const h of root.querySelectorAll("div, span, header, h1, h2, h3, h4, p")) {
+        for (const h of root.querySelectorAll("h1, h2, h3, h4, h5, h6, header, title, label, figcaption, [class*='title' i], [class*='header' i], [class*='label' i]")) {
             if (/^mermaid$/i.test((h.textContent || "").trim()) && !h.querySelector("svg, canvas")) {
                 let anc = h.parentElement;
                 for (let d = 0; anc && d < 8; d++, anc = anc.parentElement) {
@@ -398,22 +415,160 @@
     }
 
     function scan() {
-        for (const root of document.querySelectorAll(site.messages)) {
-            if (root.dataset.mkCopyBtn) continue;
-            // Only decorate messages that have real content (streaming placeholders come back later).
-            if ((root.textContent || "").trim().length < 8) continue;
-            root.dataset.mkCopyBtn = "1";
-            root.appendChild(makeButton(root));
+        requestAnimationFrame(() => {
+            const elements = document.querySelectorAll(site.messages);
+            for (let i = 0; i < elements.length; i++) {
+                const root = elements[i];
+                if (root.dataset.mkCopyBtn) continue;
+                // Only decorate messages that have real content (streaming placeholders come back later).
+                if ((root.textContent || "").trim().length < 8) continue;
+                root.dataset.mkCopyBtn = "1";
+                root.appendChild(makeButton(root));
+            }
+        });
+    }
+
+    let scanTimer = null;
+    new MutationObserver(() => {
+        if (scanTimer) clearTimeout(scanTimer);
+        scanTimer = setTimeout(scan, 350);
+    }).observe(document.body, { childList: true, subtree: true });
+    scan();
+
+    // ---------- Floating selection action bar ----------
+    const floatBar = document.createElement("div");
+    floatBar.id = "mk-sel-floating-bar";
+        <button type="button" class="mk-sel-btn mk-primary" id="mk-sel-send-btn">
+            <span>⚡ Send to Marksmith</span>
+        </button>
+        <button type="button" class="mk-sel-btn" id="mk-sel-copy-btn">
+            <span>📋 Copy MD</span>
+        </button>
+        <button type="button" class="mk-sel-btn" id="mk-sel-lens-btn" title="Inspect Markdown Source">
+            <span>🔍 Lens</span>
+        </button>
+    `;
+    document.documentElement.appendChild(floatBar);
+
+    function getSelectionMarkdown() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !sel.toString().trim()) return "";
+        try {
+            const holder = document.createElement("div");
+            for (let i = 0; i < sel.rangeCount; i++) holder.appendChild(sel.getRangeAt(i).cloneContents());
+            const md = conv(holder).trim();
+            return md || sel.toString().trim();
+        } catch {
+            return sel.toString().trim();
         }
     }
 
-    let scanQueued = false;
-    new MutationObserver(() => {
-        if (scanQueued) return;
-        scanQueued = true;
-        setTimeout(() => { scanQueued = false; scan(); }, 700);
-    }).observe(document.body, { childList: true, subtree: true });
-    scan();
+    const sendBtn = floatBar.querySelector("#mk-sel-send-btn");
+    const copyMdBtn = floatBar.querySelector("#mk-sel-copy-btn");
+
+    sendBtn.addEventListener("mousedown", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const md = getSelectionMarkdown();
+        if (!md) return;
+        const origText = sendBtn.firstElementChild.textContent;
+        sendBtn.firstElementChild.textContent = "Sending…";
+        try {
+            chrome.runtime.sendMessage({
+                type: "send-text",
+                text: md,
+                meta: { title: document.title, source: site.id }
+            }, (resp) => {
+                if (resp?.ok) {
+                    sendBtn.firstElementChild.textContent = "✓ Ingested";
+                    setTimeout(() => {
+                        floatBar.style.display = "none";
+                        sendBtn.firstElementChild.textContent = origText;
+                    }, 1200);
+                } else {
+                    sendBtn.firstElementChild.textContent = "Error";
+                    setTimeout(() => { sendBtn.firstElementChild.textContent = origText; }, 1500);
+                }
+            });
+        } catch {
+            sendBtn.firstElementChild.textContent = origText;
+        }
+    });
+
+    copyMdBtn.addEventListener("mousedown", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const md = getSelectionMarkdown();
+        if (!md) return;
+        const origText = copyMdBtn.firstElementChild.textContent;
+        try {
+            await navigator.clipboard.writeText(md);
+            copyMdBtn.firstElementChild.textContent = "✓ Copied";
+            setTimeout(() => {
+                floatBar.style.display = "none";
+                copyMdBtn.firstElementChild.textContent = origText;
+            }, 1200);
+    const lensBtn = floatBar.querySelector("#mk-sel-lens-btn");
+
+    lensBtn?.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const md = getSelectionMarkdown();
+        if (!md) return;
+
+        let lensModal = document.getElementById("mk-lens-preview-modal");
+        if (!lensModal) {
+            lensModal = document.createElement("div");
+            lensModal.id = "mk-lens-preview-modal";
+            lensModal.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,640px);max-height:80vh;background:#181824;color:#f0f0ff;border:1px solid #7c4dff;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:999999;display:flex;flex-direction:column;font-family:monospace;padding:16px;";
+            document.documentElement.appendChild(lensModal);
+        }
+
+        lensModal.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid #333;padding-bottom:6px;">
+                <span style="font-weight:bold;color:#a855f7;">🔍 Markdown Lens Inspector (${md.length} chars)</span>
+                <button type="button" id="mk-lens-close" style="background:#28283c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;">✕</button>
+            </div>
+            <pre style="overflow:auto;flex:1;background:#0d0d15;padding:12px;border-radius:6px;margin:0;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">${md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+        `;
+        lensModal.style.display = "flex";
+        lensModal.querySelector("#mk-lens-close")?.addEventListener("click", () => {
+            lensModal.style.display = "none";
+        });
+    });
+
+    document.addEventListener("mouseup", (e) => {
+        if (floatBar.contains(e.target)) return;
+        setTimeout(() => {
+            const sel = window.getSelection();
+            if (!sel || sel.isCollapsed || !sel.toString().trim() || sel.toString().trim().length < 3) {
+                floatBar.style.display = "none";
+                return;
+            }
+            try {
+                const range = sel.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                if (rect.width === 0 && rect.height === 0) {
+                    floatBar.style.display = "none";
+                    return;
+                }
+                const top = Math.max(10, window.scrollY + rect.top - 42);
+                const left = Math.max(10, Math.min(window.scrollX + rect.left, window.innerWidth - 240));
+                floatBar.style.top = `${top}px`;
+                floatBar.style.left = `${left}px`;
+                floatBar.style.display = "flex";
+            } catch {
+                floatBar.style.display = "none";
+            }
+        }, 30);
+    });
+
+    document.addEventListener("selectionchange", () => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+            floatBar.style.display = "none";
+        }
+    });
 
     // ---------- attention channel (Marksmith app -> these buttons) ----------
     let lastFlash = Date.now(); // ignore anything the app raised before this page existed

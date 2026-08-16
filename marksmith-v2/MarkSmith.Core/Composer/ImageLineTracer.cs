@@ -8,21 +8,26 @@ namespace MarkSmith.Core.Composer
     /// <summary>How the image is turned into line items.</summary>
     public enum LineTraceMode
     {
-        /// <summary>Hatch engraving: every dark run becomes one ink line whose thickness tracks
-        /// local darkness. Reads like a photo-engraving — an image, not a shape collage.</summary>
+        /// <summary>Hatch engraving: horizontal ink lines whose thickness tracks local darkness.</summary>
         Engraved,
 
-        /// <summary>Hard silhouette: dark regions become solid bands of line — the exact shape
-        /// outline with paper showing through the background.</summary>
+        /// <summary>Hard silhouette: solid bands in dark regions.</summary>
         Silhouette,
 
-        /// <summary>Edge tracing: strokes only where the luminance gradient is steep — the
-        /// shape's contour lines (Sobel-style magnitude), like a line drawing.</summary>
+        /// <summary>Edge tracing: contour lines at luminance gradients.</summary>
         Edges,
 
-        /// <summary>Full-width scanlines: one stroke per row whose thickness follows darkness
-        /// (the classic engraving/scanline look; every row is one selectable line).</summary>
-        Scanlines
+        /// <summary>Full-width scanlines across each row.</summary>
+        Scanlines,
+
+        /// <summary>Dual-angle 45° cross-hatching: intersecting etching strokes that build shadow depth.</summary>
+        CrossHatch,
+
+        /// <summary>Topographic flow: undulating sinusoidal contour waves modulated by luminance.</summary>
+        TopographicWaves,
+
+        /// <summary>Directional 30° calligraphic chisel-tip ink strokes.</summary>
+        Calligraphic
     }
 
     /// <summary>Options for <see cref="ImageLineTracer.TraceLines"/>.</summary>
@@ -36,7 +41,7 @@ namespace MarkSmith.Core.Composer
         /// <summary>Sample each line's color from the image; false = monochrome ink.</summary>
         public bool UseColor { get; set; } = true;
 
-        /// <summary>Luminance (0..255) below which a pixel is "ink" (Engraved/Silhouette).</summary>
+        /// <summary>Luminance (0..255) below which a pixel is "ink" (Engraved/Silhouette/CrossHatch).</summary>
         public double InkThreshold { get; set; } = 205;
 
         /// <summary>Gradient magnitude above which a pixel is an edge (Edges mode).</summary>
@@ -56,15 +61,11 @@ namespace MarkSmith.Core.Composer
     }
 
     /// <summary>
-    /// Turns a raster image into a dense, NON-OVERLAPPING set of line items — the "MLShape"
-    /// tracing engine. Each line is one <see cref="ComposedShape"/> with a straight PathPoints
+    /// Turns a raster image into a dense, high-fidelity set of line items — the "MLShape"
+    /// tracing engine. Each line is one <see cref="ComposedShape"/> with a PathPoints
     /// polyline (the same custGeom stroke mechanism the Word curve tracer uses), so every line is
     /// individually selectable on the studio canvas, renders as a native Word line in
     /// .docx/.dotx export, and shows as an SVG <path> in the HTML preview.
-    ///
-    /// Non-overlap is by construction: rows are disjoint horizontal bands, and within a row the
-    /// ink runs are disjoint — adjacent lines never touch, which is what makes high densities
-    /// readable (an image, not scribble).
     /// </summary>
     public static class ImageLineTracer
     {
@@ -73,6 +74,13 @@ namespace MarkSmith.Core.Composer
 
         /// <summary>Working width cap — dense tracings stay fast; the canvas is 6.2" wide.</summary>
         private const int MaxWorkingWidth = 1280;
+
+        /// <summary>Every traced run is the same straight mid-line (0..100 local space) — share
+        /// ONE list instance across up to 65k lines instead of allocating one per line.</summary>
+        private static readonly List<(double X, double Y)> StraightLinePoints = new() { (0, 50), (100, 50) };
+        private static readonly List<(double X, double Y)> DiagForwardPoints = new() { (0, 100), (100, 0) };
+        private static readonly List<(double X, double Y)> DiagBackwardPoints = new() { (0, 0), (100, 100) };
+        private static readonly List<(double X, double Y)> CalligraphicPoints = new() { (0, 75), (100, 25) };
 
         public static List<ComposedShape> TraceLines(string imagePath, LineTraceOptions? options = null)
         {
@@ -91,11 +99,10 @@ namespace MarkSmith.Core.Composer
                 using var bmp = Downscale(src, MaxWorkingWidth);
                 pxW = bmp.Width;
                 pxH = bmp.Height;
-                pixels = bmp.Pixels; // flat SKColor[] — one fast call, no per-pixel boxing
+                pixels = bmp.Pixels;
             }
             catch
             {
-                // Unreadable image -> deterministic vertical gradient so tracing never throws.
                 imgW = 32; imgH = 32; pxW = 32; pxH = 32;
                 pixels = new SKColor[pxW * pxH];
                 for (int y = 0; y < pxH; y++)
@@ -110,9 +117,19 @@ namespace MarkSmith.Core.Composer
             double rowHpt = rowH * 72.0;
             int minRunPx = Math.Max(1, (int)Math.Round(opt.MinRunFraction * pxW));
 
-            // When the run count would blow past the practical ceiling, trace FEWER rows spread
-            // EVENLY across the image (every Nth row) rather than head-truncating: the whole
-            // picture stays represented and the result respects MaxLines.
+            if (opt.Mode == LineTraceMode.TopographicWaves)
+            {
+                return EmitTopographicWaves(pixels, pxW, pxH, rows, opt, totalW, totalH, rowH);
+            }
+            if (opt.Mode == LineTraceMode.CrossHatch)
+            {
+                return EmitCrossHatch(pixels, pxW, pxH, rows, opt, totalW, totalH, rowH, rowHpt, cellW, minRunPx);
+            }
+            if (opt.Mode == LineTraceMode.Calligraphic)
+            {
+                return EmitCalligraphic(pixels, pxW, pxH, rows, opt, totalW, totalH, rowH, rowHpt, cellW, minRunPx);
+            }
+
             int lineCount = CountRuns(pixels, pxW, pxH, rows, opt, minRunPx);
             int emitRows = rows;
             if (lineCount > opt.MaxLines)
@@ -121,6 +138,163 @@ namespace MarkSmith.Core.Composer
             }
 
             return EmitLines(pixels, pxW, pxH, rows, emitRows, opt, minRunPx, rowH, rowHpt, cellW);
+        }
+
+        private static List<ComposedShape> EmitCrossHatch(SKColor[] px, int pxW, int pxH, int rows,
+            LineTraceOptions opt, double totalW, double totalH, double rowH, double rowHpt, double cellW, int minRunPx)
+        {
+            var result = new List<ComposedShape>();
+            var luma = new double[pxW];
+            double inkThreshold = Math.Clamp(opt.InkThreshold, 0, 255);
+            string inkHex = opt.UseColor ? "" : "181818";
+            int step = Math.Max(1, pxW / Math.Max(8, rows));
+
+            // Forward hatch lines (/)
+            for (int y = 0; y < rows; y++)
+            {
+                if (result.Count >= opt.MaxLines) break;
+                int py = Math.Min(pxH - 1, y * pxH / rows);
+                LoadLuma(px, pxW, py, luma);
+                double bandY = y * rowH;
+
+                for (int x = 0; x < pxW - step; x += step)
+                {
+                    double lum = luma[x];
+                    if (lum > inkThreshold) continue;
+                    double darkness = 1 - lum / 255.0;
+                    double thickPt = Math.Clamp(0.4 + darkness * rowHpt * 1.6, 0.3, opt.MaxThicknessPt);
+                    double thickIn = thickPt / 72.0;
+
+                    var c = px[py * pxW + x];
+                    string fill = inkHex.Length > 0 ? inkHex : $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
+
+                    result.Add(new ComposedShape
+                    {
+                        Prst = "sketch",
+                        X = x * cellW,
+                        Y = bandY,
+                        W = step * cellW * 1.4,
+                        H = Math.Max(thickIn, rowH),
+                        Fill = fill,
+                        PathPoints = DiagForwardPoints,
+                        StrokeWidthPt = thickPt
+                    });
+
+                    // Cross hatch in shadows (darkness > 0.45)
+                    if (darkness > 0.45 && result.Count < opt.MaxLines)
+                    {
+                        result.Add(new ComposedShape
+                        {
+                            Prst = "sketch",
+                            X = x * cellW,
+                            Y = bandY,
+                            W = step * cellW * 1.4,
+                            H = Math.Max(thickIn, rowH),
+                            Fill = fill,
+                            PathPoints = DiagBackwardPoints,
+                            StrokeWidthPt = thickPt * 0.85
+                        });
+                    }
+                }
+            }
+            return result;
+        }
+
+        private static List<ComposedShape> EmitCalligraphic(SKColor[] px, int pxW, int pxH, int rows,
+            LineTraceOptions opt, double totalW, double totalH, double rowH, double rowHpt, double cellW, int minRunPx)
+        {
+            var result = new List<ComposedShape>();
+            var luma = new double[pxW];
+            double inkThreshold = Math.Clamp(opt.InkThreshold, 0, 255);
+            string inkHex = opt.UseColor ? "" : "181818";
+            int step = Math.Max(2, pxW / Math.Max(8, rows / 2));
+
+            for (int y = 0; y < rows; y++)
+            {
+                if (result.Count >= opt.MaxLines) break;
+                int py = Math.Min(pxH - 1, y * pxH / rows);
+                LoadLuma(px, pxW, py, luma);
+                double bandY = y * rowH;
+
+                for (int x = 0; x < pxW - step; x += step)
+                {
+                    double lum = luma[x];
+                    if (lum > inkThreshold) continue;
+                    double darkness = 1 - lum / 255.0;
+                    double thickPt = Math.Clamp(0.6 + darkness * rowHpt * 2.2, 0.4, opt.MaxThicknessPt);
+                    double thickIn = thickPt / 72.0;
+
+                    var c = px[py * pxW + x];
+                    string fill = inkHex.Length > 0 ? inkHex : $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
+
+                    result.Add(new ComposedShape
+                    {
+                        Prst = "sketch",
+                        X = x * cellW,
+                        Y = bandY,
+                        W = step * cellW * 1.25,
+                        H = Math.Max(thickIn, rowH * 1.2),
+                        Fill = fill,
+                        PathPoints = CalligraphicPoints,
+                        StrokeWidthPt = thickPt
+                    });
+                }
+            }
+            return result;
+        }
+
+        private static List<ComposedShape> EmitTopographicWaves(SKColor[] px, int pxW, int pxH, int rows,
+            LineTraceOptions opt, double totalW, double totalH, double rowH)
+        {
+            var result = new List<ComposedShape>();
+            int segments = Math.Clamp(rows / 2, 16, 120);
+            double segW = totalW / segments;
+            string inkHex = opt.UseColor ? "" : "181818";
+
+            for (int y = 0; y < rows; y++)
+            {
+                if (result.Count >= opt.MaxLines) break;
+                int py = Math.Min(pxH - 1, y * pxH / rows);
+                double bandY = y * rowH;
+                double phase = y * 0.85;
+
+                for (int s = 0; s < segments; s++)
+                {
+                    int pxX = Math.Min(pxW - 1, s * pxW / segments);
+                    var c = px[py * pxW + pxX];
+                    double lum = 0.299 * c.Red + 0.587 * c.Green + 0.114 * c.Blue;
+                    if (lum > 248) continue; // paper
+
+                    double darkness = 1 - lum / 255.0;
+                    double strokePt = Math.Clamp(0.5 + darkness * 3.5, 0.4, opt.MaxThicknessPt);
+                    double amp = Math.Max(0.04, rowH * (0.8 + darkness * 1.4));
+
+                    var pts = new List<(double X, double Y)>();
+                    const int subSteps = 6;
+                    for (int i = 0; i <= subSteps; i++)
+                    {
+                        double t = i / (double)subSteps;
+                        double pxPos = t * 100;
+                        double wave = Math.Sin(t * Math.PI * 2 + phase + s * 0.7);
+                        double pyPos = 50 + 40 * wave * darkness;
+                        pts.Add((pxPos, pyPos));
+                    }
+
+                    string fill = inkHex.Length > 0 ? inkHex : $"{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
+                    result.Add(new ComposedShape
+                    {
+                        Prst = "sketch",
+                        X = s * segW,
+                        Y = bandY + (rowH - amp) / 2,
+                        W = segW * 1.02,
+                        H = amp,
+                        Fill = fill,
+                        PathPoints = pts,
+                        StrokeWidthPt = strokePt
+                    });
+                }
+            }
+            return result;
         }
 
         // ---- pass 1: count ink runs (feeds the adaptive cap) ----
@@ -272,7 +446,7 @@ namespace MarkSmith.Core.Composer
                 W = runLen * cellW,
                 H = thicknessIn,
                 Fill = fill,
-                PathPoints = new List<(double X, double Y)> { (0, 50), (100, 50) },
+                PathPoints = StraightLinePoints,
                 StrokeWidthPt = thicknessPt
             });
         }
@@ -309,7 +483,7 @@ namespace MarkSmith.Core.Composer
                 W = opt.CanvasWidthInches,
                 H = thicknessIn,
                 Fill = fill,
-                PathPoints = new List<(double X, double Y)> { (0, 50), (100, 50) },
+                PathPoints = StraightLinePoints,
                 StrokeWidthPt = thicknessPt
             });
         }

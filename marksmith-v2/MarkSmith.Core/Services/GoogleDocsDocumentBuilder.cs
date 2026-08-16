@@ -154,6 +154,22 @@ public static class GoogleDocsDocumentBuilder
                 st.Result.Requests.Add(new { insertHorizontalRule = new { location = EndOfSegment } });
                 break;
 
+            case Markdig.Extensions.DefinitionLists.DefinitionList dl:
+                // "Term\n: definition" — Docs has no native <dl>; the term becomes a bold
+                // paragraph and each definition an indented one (same shape as DOCX and HTML).
+                foreach (var item in dl.OfType<Markdig.Extensions.DefinitionLists.DefinitionItem>())
+                {
+                    foreach (var child in item)
+                    {
+                        if (child is Markdig.Extensions.DefinitionLists.DefinitionTerm term)
+                            InsertParagraph(st, Runs(term.Inline, st).Select(r => r with { Bold = true }).ToList(),
+                                indentPt: quoteDepth * 36);
+                        else if (child is ParagraphBlock def) // the ": definition" bodies arrive as paragraphs
+                            InsertParagraph(st, Runs(def.Inline, st), indentPt: quoteDepth * 36 + 36);
+                    }
+                }
+                break;
+
             default:
                 // HtmlBlock, YamlFrontMatter, ListItemBlock handled above — ignore the rest.
                 break;

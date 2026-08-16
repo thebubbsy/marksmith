@@ -131,4 +131,42 @@ public class SmartArtDesignFlowTests
         Assert.False(fired);
         Assert.Contains("build a hierarchy", vm.StatusMessage);
     }
+
+    [Fact]
+    public void Preview_Pyramid1_RendersAllLayers()
+    {
+        const string md = @":::smartart type=""pyramid1""
+- Executive Board
+  - CEO
+    - Engineering Team
+    - Product Team
+  - CFO
+  - CMO
+:::";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.Contains("class=\"smartart", html);
+        Assert.Contains("Executive Board", html);
+        Assert.Contains("CEO", html);
+        Assert.Contains("Engineering Team", html);
+        Assert.Contains("Product Team", html);
+        Assert.Contains("CFO", html);
+        Assert.Contains("CMO", html);
+        Assert.True(CountOccurrences(html, "<polygon") >= 6, "Pyramid should have at least 6 polygon layer slices");
+    }
+
+    [Fact]
+    public void Preview_ConsecutiveSmartArtBlocks_RendersBoth()
+    {
+        const string md = @":::smartart type=""pyramid1""
+- A
+- B
+:::
+:::smartart type=""orgChart1""
+- C
+- D
+:::";
+        var html = new MarkdownHtmlService().Render(md, new AppSettings(), LightTheme);
+        Assert.Equal(2, CountOccurrences(html, "<svg"));
+        Assert.DoesNotContain(":::smartart type=", html);
+    }
 }

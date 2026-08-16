@@ -166,7 +166,10 @@ namespace MarkSmith.Core.AdvancedFeatures
         public double Threshold => 0.85;
 
         private static readonly HashSet<string> ValidTypes = new(StringComparer.OrdinalIgnoreCase)
-            { "process", "hierarchy", "cycle", "list", "relationship", "matrix", "pyramid" };
+            { "process", "hierarchy", "cycle", "list", "relationship", "matrix", "pyramid", "venn", "picturelist", "mosaic", "org", "tree", "workflow", "target", "grid", "basic", "default" };
+
+        // Compiled once — the type attribute check ran interpreted on every validated block.
+        private static readonly Regex TypeAttrRegex = new(@"type=[""']?([^""'\s>]+)[""']?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::smartart", StringComparison.OrdinalIgnoreCase);
@@ -176,12 +179,16 @@ namespace MarkSmith.Core.AdvancedFeatures
             var errors = new List<string>();
             var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
-            // Check for type attribute
-            var typeMatch = Regex.Match(firstLine, @"type=""?(\w+)""?", RegexOptions.IgnoreCase);
-            if (!typeMatch.Success)
-                errors.Add("Missing type attribute (e.g., type=\"process\")");
-            else if (!ValidTypes.Contains(typeMatch.Groups[1].Value))
-                errors.Add($"Unknown SmartArt type: '{typeMatch.Groups[1].Value}'. Valid: {string.Join(", ", ValidTypes)}");
+            // Check for type attribute — OPTIONAL: type-less blocks are auto-classified from
+            // content shape (SmartArtLayoutSuggester), so "make it SmartArt" never has to
+            // force a hierarchy. When given, it must be a known family or layout alias.
+            var typeMatch = TypeAttrRegex.Match(firstLine);
+            if (typeMatch.Success)
+            {
+                var val = typeMatch.Groups[1].Value;
+                if (!ValidTypes.Contains(val) && Glox.SmartArtLayoutCatalog.Shared.TryResolve(val) == null)
+                    errors.Add($"Unknown SmartArt type: '{val}'. Valid: {string.Join(", ", ValidTypes)} or any layout URN/alias");
+            }
 
             // Must have at least 2 nodes (list items or non-empty lines)
             var lines = DetectorHelpers.GetInnerLines(rawBlock);
@@ -213,25 +220,21 @@ namespace MarkSmith.Core.AdvancedFeatures
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
-            var lines = DetectorHelpers.GetInnerLines(rawBlock);
-            int valid = 0;
-            foreach (var line in lines)
+            var inner = string.Join("\n", DetectorHelpers.GetInnerLines(rawBlock));
+            try
             {
-                var t = line.Trim();
-                if (t.Length == 0 || t.StartsWith("#")) continue;
-                var parts = t.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 6)
+                var shapes = MarkSmith.Core.Composer.ShapeMarkdownCodec.Parse(inner);
+                if (shapes.Count == 0)
                 {
-                    valid++;
-                }
-                else
-                {
-                    errors.Add($"Malformed shape line (need: shape x y w h hex): {t}");
+                    errors.Add("No valid shape lines found.");
                 }
             }
-            if (valid == 0) errors.Add("No shape lines found.");
+            catch (Exception ex)
+            {
+                errors.Add($"Malformed shapes block: {ex.Message}");
+            }
 
-            double conf = errors.Count == 0 ? 0.92 : 0.4;
+            double conf = errors.Count == 0 ? 0.95 : 0.4;
             return (errors.Count == 0, conf, errors.ToArray());
         }
     }
@@ -422,13 +425,16 @@ namespace MarkSmith.Core.AdvancedFeatures
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::embed", StringComparison.OrdinalIgnoreCase);
 
+        // Compiled once — interpreted per validated embed block.
+        private static readonly Regex SrcAttrRegex = new(@"src=""?([^""\s]+)""?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
             var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
             // Check for src attribute
-            var srcMatch = Regex.Match(firstLine, @"src=""?([^""\s]+)""?", RegexOptions.IgnoreCase);
+            var srcMatch = SrcAttrRegex.Match(firstLine);
             if (!srcMatch.Success)
                 errors.Add("Missing src attribute (e.g., src=\"https://youtube.com/...\")");
             else if (!Uri.TryCreate(srcMatch.Groups[1].Value, UriKind.Absolute, out _))
@@ -450,6 +456,9 @@ namespace MarkSmith.Core.AdvancedFeatures
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::canvas", StringComparison.OrdinalIgnoreCase);
 
+        // Compiled once — interpreted per validated canvas block.
+        private static readonly Regex PathCmdRegex = new(@"[MLHVCSQTAZmlhvcsqtaz]\s*[\d.-]", RegexOptions.Compiled);
+
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
@@ -458,7 +467,7 @@ namespace MarkSmith.Core.AdvancedFeatures
             // Must contain SVG markup or path commands
             bool hasSvg = inner.Contains("<svg", StringComparison.OrdinalIgnoreCase) ||
                           inner.Contains("<path", StringComparison.OrdinalIgnoreCase);
-            bool hasPathCmds = Regex.IsMatch(inner, @"[MLHVCSQTAZmlhvcsqtaz]\s*[\d.-]");
+            bool hasPathCmds = PathCmdRegex.IsMatch(inner);
 
             if (!hasSvg && !hasPathCmds)
                 errors.Add("No SVG markup or path commands found");
@@ -479,13 +488,16 @@ namespace MarkSmith.Core.AdvancedFeatures
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::columns", StringComparison.OrdinalIgnoreCase);
 
+        // Compiled once — interpreted per validated columns block.
+        private static readonly Regex CountAttrRegex = new(@"count=(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
             var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
 
             // Parse count attribute (default to 2 if missing — that's fine)
-            var countMatch = Regex.Match(firstLine, @"count=(\d+)", RegexOptions.IgnoreCase);
+            var countMatch = CountAttrRegex.Match(firstLine);
             if (countMatch.Success)
             {
                 int count = int.Parse(countMatch.Groups[1].Value);

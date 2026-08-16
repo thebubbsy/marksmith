@@ -20,7 +20,7 @@
                 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                     <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" />
-                    <TextBlock Text="Headings, tables and code were probably lost on the way. In your AI chat, use the MarkSmith Connector's 'Copy as Markdown' button (it's pulsing there now) to keep the formatting."
+                    <TextBlock Text="Headings, tables, code, math ($...$), tabs (:::tabs), SmartArt (:::smartart), vector shapes (:::shapes), timelines, columns, and callouts were probably lost on the way. In your AI chat, use the MarkSmith Connector's 'Copy as Markdown' button (it's pulsing there now) to preserve full native formatting and diagrams."
                                TextWrapping="Wrap" Opacity="0.75" />
                 </StackPanel>
                 

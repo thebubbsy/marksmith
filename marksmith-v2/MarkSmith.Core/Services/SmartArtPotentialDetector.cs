@@ -30,6 +30,9 @@ public sealed record SmartArtSuggestion(SmartArtKind Kind, int Score, string Rea
 /// </summary>
 public static class SmartArtPotentialDetector
 {
+    // Compiled once — CountOrderedSteps matched this interpreted pattern on every line of a paste.
+    private static readonly Regex OrderedMarker = new(@"^(\d+)[.)]\s+", RegexOptions.Compiled);
+
     /// <summary>Minimum total nodes for a hierarchy suggestion (a tiny 3-item list is not an org
     /// chart, a 12-row org tree is).</summary>
     private const int HierarchyMinNodes = 4;
@@ -114,7 +117,7 @@ public static class SmartArtPotentialDetector
         {
             var line = rawLine.Trim();
             if (line.Length == 0) { run = 0; expected = 1; continue; }
-            var m = Regex.Match(line, @"^(\d+)[.)]\s+");
+            var m = OrderedMarker.Match(line);
             if (m.Success && int.TryParse(m.Groups[1].Value, out var n))
             {
                 run = n == expected ? run + 1 : 1;

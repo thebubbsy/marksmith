@@ -230,7 +230,7 @@ internal static class PluginInstall
 
         if (!string.IsNullOrWhiteSpace(expectedSha256))
         {
-            await using var stream = File.OpenRead(destPath);
+            await using var stream = new FileStream(destPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
             var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct)).ToLowerInvariant();
             if (!string.Equals(actual, expectedSha256.Trim().ToLowerInvariant(), StringComparison.Ordinal))
             {

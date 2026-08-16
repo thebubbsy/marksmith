@@ -21,6 +21,14 @@ namespace MarkSmith.Core.Services
 
     public class TocAnchorInjectorService
     {
+        // Compiled once — the heading match ran interpreted on EVERY line and the slug cleanup
+        // rebuilt four more interpreted regexes per heading on the TOC hot path.
+        private static readonly Regex HeadingRegex = new(@"^(#{1,6})\s+(.+)$", RegexOptions.Compiled);
+        private static readonly Regex InlineFormatStrip = new(@"[*_`~]", RegexOptions.Compiled);
+        private static readonly Regex LinkToText = new(@"\[([^\]]+)\]\([^\)]+\)", RegexOptions.Compiled);
+        private static readonly Regex NonSlugChars = new(@"[^a-z0-9\s-]", RegexOptions.Compiled);
+        private static readonly Regex WhitespaceToDash = new(@"\s+", RegexOptions.Compiled);
+
         public TocInjectorResult Process(string markdown)
         {
             if (string.IsNullOrWhiteSpace(markdown))
@@ -48,7 +56,7 @@ namespace MarkSmith.Core.Services
 
                 if (!inCodeBlock)
                 {
-                    var match = Regex.Match(line, @"^(#{1,6})\s+(.+)$");
+                    var match = HeadingRegex.Match(line);
                     if (match.Success)
                     {
                         int level = match.Groups[1].Value.Length;
@@ -124,12 +132,12 @@ namespace MarkSmith.Core.Services
             if (string.IsNullOrWhiteSpace(text)) return "heading";
 
             // Strip markdown bold/italic/code formatting
-            string clean = Regex.Replace(text, @"[*_`~]", "");
-            clean = Regex.Replace(clean, @"\[([^\]]+)\]\([^\)]+\)", "$1"); // links
+            string clean = InlineFormatStrip.Replace(text, "");
+            clean = LinkToText.Replace(clean, "$1"); // links
 
             string slug = clean.ToLowerInvariant();
-            slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "");
-            slug = Regex.Replace(slug, @"\s+", "-").Trim('-');
+            slug = NonSlugChars.Replace(slug, "");
+            slug = WhitespaceToDash.Replace(slug, "-").Trim('-');
 
             return string.IsNullOrEmpty(slug) ? "heading" : slug;
         }

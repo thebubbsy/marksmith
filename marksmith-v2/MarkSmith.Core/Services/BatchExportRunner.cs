@@ -44,7 +44,9 @@ public sealed class BatchExportRunner
         _htmlSvc = htmlSvc ?? new MarkdownHtmlService();
         _docxSvc = docxSvc ?? new DocxExportService();
         _epubSvc = epubSvc ?? new EpubExportService();
-        _themeCatalog = new ThemeCatalog();
+        // Shared AppServices.Themes singleton instead of a private catalog (see DocxExportService) —
+        // batch exports must see custom themes saved mid-session, same as every other exporter.
+        _themeCatalog = AppServices.Themes;
     }
 
     public async Task<BatchExportResult> RunAsync(BatchExportOptions options, AppSettings? settings = null)

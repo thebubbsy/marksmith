@@ -121,6 +121,27 @@ public class ShapeTextContrastTests
     }
 
     [Fact]
+    public void Shape_Parse_TokensInAnyOrder_AndTokensInsideLabels_AreHandled()
+    {
+        // Tokens in a non-canonical order (tcolor/text/sw before pts) must parse identically.
+        const string reordered = ":::shapes\nsketch 0.10 0.20 3.00 0.04 181818 sw=2.5 tcolor=ABCDEF text=\"label\" pts=\"0.0,50.0;100.0,50.0\"\n:::";
+        var r = ShapeMarkdownCodec.Parse(reordered);
+        Assert.Single(r);
+        Assert.Equal(2.5, r[0].StrokeWidthPt);
+        Assert.Equal("ABCDEF", r[0].TextColor);
+        Assert.Equal("label", r[0].Text);
+        Assert.Equal(2, r[0].PathPoints!.Count);
+
+        // A sw= INSIDE a quoted label is label data — it must not leak into StrokeWidthPt
+        // (the old sequential removal never let it match; the fast path must behave the same).
+        const string nested = ":::shapes\nrect 0 0 1 1 FFFFFF sw=1.5 text=\"sw=9.9 inside\"\n:::";
+        var n = ShapeMarkdownCodec.Parse(nested);
+        Assert.Single(n);
+        Assert.Equal(1.5, n[0].StrokeWidthPt);
+        Assert.Equal("sw=9.9 inside", n[0].Text);
+    }
+
+    [Fact]
     public void Shape_TextLabel_DoesNotAppear_OnTracedLinesOrPlainShapes()
     {
         var line = new ComposedShape
