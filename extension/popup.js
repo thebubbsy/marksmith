@@ -121,8 +121,8 @@ async function inspect() {
 }
 
 function prettySource(id) {
-    const map = { chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude", copilot: "Copilot" };
-    return map[id] || (id ? id[0].toUpperCase() + id.slice(1) : "This page");
+    const map = { chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude", copilot: "Copilot", selection: "Selection" };
+    return map[id] || (id ? id[0].toUpperCase() + id.slice(1) : "Selection");
 }
 
 // ── enable/disable actions based on state ───────────────────────────────────
@@ -262,6 +262,15 @@ $("extId").addEventListener("click", () => {
 const ver = chrome.runtime.getManifest().version;
 $("verTxt").textContent = `v${ver}`;
 
-// Kick off: connection first (fast), then page inspection.
+// Kick off: connection first (fast), check if selection is present, then inspect.
 checkHealth();
-inspect();
+(async () => {
+    try {
+        const selTest = await ask({ type: "inspect", mode: "selection" });
+        if (selTest?.ok && selTest?.markdown?.trim()) {
+            mode = "selection";
+            for (const x of modeButtons) x.classList.toggle("on", x.dataset.mode === "selection");
+        }
+    } catch {}
+    inspect();
+})();

@@ -180,10 +180,15 @@ function scheduleResultCollection(port, jobId, tabId) {
 
 // ── context-menu clicks ─────────────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "mdpdfm-selection") grabAndSend(tab, "selection");
-    else if (info.menuItemId === "mdpdfm-conversation") grabAndSend(tab, "all");
-    else if (info.menuItemId === "mdpdfm-dl-pdf") downloadFromTab(tab, "latest", "pdf");
-    else if (info.menuItemId === "mdpdfm-dl-docx") downloadFromTab(tab, "latest", "docx");
+    if (info.menuItemId === "mdpdfm-selection") {
+        grabAndSend(tab, "selection", { selectionText: info.selectionText, notify: true });
+    } else if (info.menuItemId === "mdpdfm-conversation") {
+        grabAndSend(tab, "all", { notify: true });
+    } else if (info.menuItemId === "mdpdfm-dl-pdf") {
+        downloadFromTab(tab, "latest", "pdf", { notify: true });
+    } else if (info.menuItemId === "mdpdfm-dl-docx") {
+        downloadFromTab(tab, "latest", "docx", { notify: true });
+    }
 });
 
 // ── message router ──────────────────────────────────────────────────────────
@@ -212,6 +217,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (msg?.type === "inspect") {
         (async () => sendResponse(await inspectActiveTab(msg.mode || "latest")))();
+        return true;
+    }
+
+    if (msg?.type === "send-text") {
+        (async () => {
+            sendResponse(await sendDirectMarkdown(msg.text, msg.meta || {}, { notify: msg.notify !== false }));
+        })();
         return true;
     }
 
@@ -325,6 +337,47 @@ async function inspectActiveTab(mode) {
     return { ok: true, markdown: extracted.markdown, meta: extracted.meta, cls, dlp };
 }
 
+// ── direct send to the app (/api/ingest) ────────────────────────────────────
+async function sendDirectMarkdown(markdown, meta = {}, opts = {}) {
+    const showNotify = opts.notify !== false;
+    if (!markdown || !markdown.trim()) {
+        if (showNotify) notify("Nothing to send", "The selection is empty.");
+        return { ok: false, error: "Empty content." };
+    }
+
+    const cfg = await chrome.storage.sync.get({ stripPips: true });
+    if (cfg.stripPips) markdown = stripCitationPips(markdown);
+    await pushHistory({ markdown, meta });
+
+    try {
+        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
+        const m = meta || {};
+        const merged = {
+            ...(output || {}),
+            sourceFontFamily: m.font || undefined,
+            sourceId: m.source || undefined,
+            sourceModel: m.model || undefined,
+            sourceTitle: m.title || undefined,
+            sourceLanguage: m.lang || undefined,
+            sourceDirection: m.dir || undefined,
+            sourceAccentColor: m.accent || undefined,
+        };
+        const hasAny = Object.values(merged).some((v) => v !== undefined && v !== null);
+        const resp = await fetch(`http://127.0.0.1:${port}/api/ingest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ markdown, output: hasAny ? merged : undefined }),
+        });
+        if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
+        if (showNotify) notify("Sent to Marksmith ✓", `${markdown.length.toLocaleString()} chars ingested — check the preview.`);
+        return { ok: true, chars: markdown.length };
+    } catch (e) {
+        const err = "Is the app running with Automation → Local REST API enabled? " + e.message;
+        if (showNotify) notify("Marksmith unreachable", err);
+        return { ok: false, error: err };
+    }
+}
+
 // ── send to the app (/api/ingest) ───────────────────────────────────────────
 async function grabAndSend(tab, mode, opts = {}) {
     const showNotify = opts.notify !== false;
@@ -337,7 +390,9 @@ async function grabAndSend(tab, mode, opts = {}) {
         try {
             const { imgEmbedPref } = await chrome.storage.sync.get({ imgEmbedPref: "ask" });
             if (imgEmbedPref === "ask") {
-                const [q] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: detectAndQueryImagePref });
+                const qPromise = chrome.scripting.executeScript({ target: { tabId: tab.id }, func: detectAndQueryImagePref });
+                const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([{ result: { needed: false, choice: "url" } }]), 3500));
+                const [q] = await Promise.race([qPromise, timeoutPromise]);
                 const ans = q?.result || {};
                 if (ans.needed) {
                     imgMode = ans.choice === "base64" ? "base64" : "url";
@@ -353,14 +408,22 @@ async function grabAndSend(tab, mode, opts = {}) {
     try {
         extracted = await extractFromTab(tab.id, mode, imgMode);
     } catch (e) {
-        if (showNotify) notify("Cannot read this page", e.message);
-        return { ok: false, error: "Cannot read this page — " + e.message };
+        if (opts.selectionText) {
+            extracted = { ok: true, markdown: opts.selectionText, meta: { title: tab?.title || "Selection", source: "selection" } };
+        } else {
+            if (showNotify) notify("Cannot read this page", e.message);
+            return { ok: false, error: "Cannot read this page — " + e.message };
+        }
     }
 
     if (!extracted?.ok) {
-        const err = extracted?.error || "Could not find assistant content on this page.";
-        if (showNotify) notify("Nothing to send", err);
-        return { ok: false, error: err };
+        if (opts.selectionText) {
+            extracted = { ok: true, markdown: opts.selectionText, meta: { title: tab?.title || "Selection", source: "selection" } };
+        } else {
+            const err = extracted?.error || "Could not find assistant content on this page.";
+            if (showNotify) notify("Nothing to send", err);
+            return { ok: false, error: err };
+        }
     }
 
     // Opt-in embedding: the in-page pass already inlined any CORS-friendly images; now use the
@@ -369,41 +432,7 @@ async function grabAndSend(tab, mode, opts = {}) {
         extracted.markdown = await embedRemainingRemoteImages(extracted.markdown);
     }
 
-    // Capture hygiene: strip citation pips (opt-out in Options) and keep a local history entry.
-    const cfg = await chrome.storage.sync.get({ stripPips: true });
-    if (cfg.stripPips) extracted.markdown = stripCitationPips(extracted.markdown);
-    await pushHistory({ markdown: extracted.markdown, meta: extracted.meta });
-
-    try {
-        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
-        // Fold the captured source metadata into the output profile so the app applies it on
-        // ingest (definitive source, model, title, font, language/direction, brand accent). The
-        // user's saved output profile keeps priority for any field it explicitly sets.
-        const m = extracted.meta || {};
-        const merged = {
-            ...(output || {}),
-            sourceFontFamily: m.font || undefined,
-            sourceId: m.source || undefined,
-            sourceModel: m.model || undefined,
-            sourceTitle: m.title || undefined,
-            sourceLanguage: m.lang || undefined,
-            sourceDirection: m.dir || undefined,
-            sourceAccentColor: m.accent || undefined,
-        };
-        const hasAny = Object.values(merged).some((v) => v !== undefined && v !== null);
-        const resp = await fetch(`http://127.0.0.1:${port}/api/ingest`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ markdown: extracted.markdown, output: hasAny ? merged : undefined }),
-        });
-        if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
-        if (showNotify) notify("Sent to Marksmith ✓", `${extracted.markdown.length.toLocaleString()} chars ingested — check the preview.`);
-        return { ok: true, chars: extracted.markdown.length };
-    } catch (e) {
-        const err = "Is the app running with Automation → Local REST API enabled? " + e.message;
-        if (showNotify) notify("Marksmith unreachable", err);
-        return { ok: false, error: err };
-    }
+    return await sendDirectMarkdown(extracted.markdown, extracted.meta, { notify: showNotify });
 }
 
 // ── direct in-browser download (/api/convert) ───────────────────────────────
@@ -965,28 +994,37 @@ async function extractMarkdown(mode, imgMode) {
     }
 
     if (mode === "selection") {
-        const sel = getSelection();
-        const selText = sel?.toString();
-        if (selText?.trim()) {
-            const anchor = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
-            // Prefer a FORMATTED capture: clone the selection's DOM fragment and run it through
-            // the same HTML→Markdown walker used for full replies, so headings, bold, lists,
-            // links, tables and code fences arrive as Markdown instead of flat text. Best-effort —
-            // anything the walker can't turn into Markdown falls back to the raw selected text.
+        let sel = getSelection();
+        let selText = sel?.toString() || "";
+        let anchor = sel?.anchorNode?.nodeType === 1 ? sel.anchorNode : sel?.anchorNode?.parentElement;
+
+        if (!selText.trim()) {
+            const activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === "TEXTAREA" || activeEl.tagName === "INPUT")) {
+                const start = activeEl.selectionStart;
+                const end = activeEl.selectionEnd;
+                if (typeof start === "number" && typeof end === "number" && end > start) {
+                    selText = activeEl.value.substring(start, end);
+                    anchor = activeEl;
+                }
+            } else if (activeEl?.shadowRoot) {
+                const shadowSel = activeEl.shadowRoot.getSelection ? activeEl.shadowRoot.getSelection() : null;
+                if (shadowSel?.toString()?.trim()) {
+                    sel = shadowSel;
+                    selText = shadowSel.toString();
+                    anchor = shadowSel.anchorNode?.nodeType === 1 ? shadowSel.anchorNode : shadowSel.anchorNode?.parentElement;
+                }
+            }
+        }
+
+        if (selText.trim()) {
             let markdown = "";
             try {
-                if (sel.rangeCount > 0) {
+                if (sel && sel.rangeCount > 0) {
                     const holder = document.createElement("div");
                     for (let i = 0; i < sel.rangeCount; i++) {
                         holder.appendChild(sel.getRangeAt(i).cloneContents());
                     }
-                    // Rendered diagrams (GitHub): the selection may have grabbed only the VISIBLE
-                    // diagram (SVG), while its raw source sits in a sibling <pre lang="mermaid">
-                    // outside the selected range — and the walker strips the SVG itself. Pull every
-                    // source the selection touched BUT didn't already clone into the fragment, so
-                    // the diagram still ships as a proper ```mermaid fence. (A range that intersects
-                    // the pre has already cloned it — even when it's display:none — so those are
-                    // skipped to avoid duplicates.)
                     for (const pre of document.querySelectorAll('pre[lang="mermaid"]')) {
                         const zone = pre.closest(".js-render-enrichment-fallback")
                             || pre.parentElement?.parentElement || pre.parentElement || pre;
@@ -998,7 +1036,6 @@ async function extractMarkdown(mode, imgMode) {
                         }
                         if (hit && !inClone) holder.appendChild(pre.cloneNode(true));
                     }
-                    // Opt-in: bake the images' pixels in as base64 instead of linking them.
                     if (imgMode === "base64") await embedImagesAsBase64(holder);
                     markdown = clean(conv(holder)).trim();
                 }
