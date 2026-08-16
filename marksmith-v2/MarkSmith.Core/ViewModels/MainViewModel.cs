@@ -488,6 +488,7 @@ private readonly MarkdownExportService _mdExport = new();
         // history service coalesces a typing burst into one step and dedupes the binding
         // round-trip that follows an undo/redo, so no guard flag is needed here.
         _editorUndo.RecordChange(value ?? "", EditorCaret);
+        ScheduleAutoSnapshot(value);
 
         HasMermaidDiagram = value?.Contains("```mermaid", StringComparison.Ordinal) == true;
         if (HasMermaidDiagram)
@@ -651,14 +652,47 @@ private readonly MarkdownExportService _mdExport = new();
         AppServices.History.Add(entry);
 
         // Version history: every successful export is a version of the working document.
-        if (!UsePasteSource && !string.IsNullOrWhiteSpace(InputFilePath))
-            CaptureVersionSafe(InputFilePath, markdown, "export:" + kind.ToLowerInvariant());
+        var effectivePath = !string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md";
+        CaptureVersionSafe(effectivePath, markdown, "export:" + kind.ToLowerInvariant());
+    }
+
+    private CancellationTokenSource? _autoSnapshotCts;
+
+    private void ScheduleAutoSnapshot(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return;
+        _autoSnapshotCts?.Cancel();
+        _autoSnapshotCts = new CancellationTokenSource();
+        var token = _autoSnapshotCts.Token;
+
+        _ = Task.Delay(20000, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled && !string.IsNullOrWhiteSpace(markdown))
+            {
+                var effectivePath = !string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md";
+                CaptureVersionSafe(effectivePath, markdown, "autosave");
+            }
+        }, TaskScheduler.Default);
+    }
+
+    [RelayCommand]
+    public async Task CreateManualSnapshotAsync(string? label = null)
+    {
+        var text = CurrentMarkdown;
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var effectivePath = !string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md";
+        var captured = await AppServices.VersionHistory.CaptureAsync(effectivePath, text, "snapshot", label ?? "Manual Checkpoint", isStarred: true);
+        if (captured)
+        {
+            StatusText = $"Saved checkpoint: {label ?? "Manual Checkpoint"}";
+            StatusSeverity = StatusSeverity.Success;
+        }
     }
 
     /// <summary>Best-effort version-history capture — never throws, never blocks the UI.</summary>
-    private async void CaptureVersionSafe(string filePath, string content, string source)
+    private async void CaptureVersionSafe(string filePath, string content, string source, string? label = null, bool isStarred = false)
     {
-        try { await AppServices.VersionHistory.CaptureAsync(filePath, content, source); }
+        try { await AppServices.VersionHistory.CaptureAsync(filePath, content, source, label, isStarred); }
         catch { /* history is best-effort; a store failure must never break the app */ }
     }
 

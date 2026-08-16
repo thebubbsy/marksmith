@@ -4,9 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:conv="using:MarkSmith.Converters"
-    Title="Version History">
+    Title="Document Time Machine — Version History">
 
-    <Grid x:Name="RootGrid" Background="{ThemeResource LayerFillColorDefaultBrush}">
+    <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
             <conv:SelectedBrushConverter x:Key="SelectedBrush" />
@@ -18,57 +18,107 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Padding="22,16,22,10" ColumnSpacing="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="⏱ Version History" FontSize="20" FontWeight="SemiBold"
-                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="2" Text="scroll the timeline with the mouse wheel"
-                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" VerticalAlignment="Center" />
-        </Grid>
+        <!-- ═══ Modern Header Bar ═══ -->
+        <Border Grid.Row="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="20,14,20,14">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-        <Grid Grid.Row="1" Margin="22,0,22,20" ColumnSpacing="14">
+                <!-- Brand & Current File -->
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}" Width="36" Height="36" CornerRadius="8">
+                        <TextBlock Text="⏱️" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Spacing="1">
+                        <TextBlock Text="Time Machine &amp; Version History" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding FileName}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Search Input -->
+                <TextBox x:Name="SearchBox" Grid.Column="1" Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="🔍 Search versions, labels, commits..." Width="280" HorizontalAlignment="Right"
+                         CornerRadius="6" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                <!-- Filter Starred -->
+                <ToggleButton Grid.Column="2" IsChecked="{Binding IsStarredOnlyFilter, Mode=TwoWay}"
+                               Padding="10,6" CornerRadius="6" VerticalAlignment="Center"
+                               ToolTipService.ToolTip="Show Starred Milestones Only">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="⭐" FontSize="13" />
+                        <TextBlock Text="Starred" FontSize="12" />
+                    </StackPanel>
+                </ToggleButton>
+
+                <!-- Take Checkpoint -->
+                <Button Grid.Column="3" Click="OnTakeSnapshotClick" Padding="12,6" CornerRadius="6"
+                        VerticalAlignment="Center" ToolTipService.ToolTip="Create a manual milestone checkpoint (Ctrl+Shift+S)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="💾" FontSize="13" />
+                        <TextBlock Text="Take Checkpoint" FontSize="12" FontWeight="Medium" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Restore Hero Action -->
+                <Button Grid.Column="4" Command="{Binding RestoreCommand}" Padding="16,6" CornerRadius="6"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                        FontWeight="SemiBold" VerticalAlignment="Center" ToolTipService.ToolTip="Restore this version into editor">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="⏮" FontSize="13" />
+                        <TextBlock Text="Restore to Editor" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ═══ 3-Pane Body ═══ -->
+        <Grid Grid.Row="1" Margin="20,16,20,16" ColumnSpacing="14">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="230" />
-                <ColumnDefinition Width="330" />
+                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="340" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ═══ All files (global edit history) ═══ -->
+            <!-- ═══ Pane 1: Document Vault ═══ -->
             <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Files you've touched" Margin="14,12,14,8" FontSize="13" FontWeight="SemiBold"
-                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <TextBlock Text="DOCUMENT VAULT" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Files}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
-                                            CornerRadius="8" Padding="10,8" Margin="4,2,4,4"
+                                            CornerRadius="6" Padding="10,8" Margin="6,3,6,3"
                                             Tapped="OnFileTapped">
                                         <Grid RowSpacing="2">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding FileName}" FontSize="14" FontWeight="SemiBold"
+                                            <TextBlock Text="📄" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="1" Text="{Binding VersionCountLabel}" FontSize="11"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Detail}"
-                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
+                                            <Border Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10" Padding="6,1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding VersionCountLabel}" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </Border>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
                                                        FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                         </Grid>
                                     </Border>
@@ -79,52 +129,81 @@
                 </Grid>
             </Border>
 
-            <!-- ═══ Timeline (macOS Time Machine style) ═══ -->
+            <!-- ═══ Pane 2: Visual Timeline Spine ═══ -->
             <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Timeline" Margin="14,12,14,8" FontSize="13" FontWeight="SemiBold"
-                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Padding="10,0,10,12" Spacing="10">
-                            <TextBlock Text="No versions yet — open or export this file and its history will build up here."
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="13" TextWrapping="Wrap"
+                    <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="TIMELINE SPINE" FontSize="11" FontWeight="Bold" CharacterSpacing="60"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="{Binding SelectedHeader}" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="TimelineScroll">
+                        <StackPanel Padding="10,6,10,12" Spacing="8">
+                            <TextBlock Text="No versions captured yet. Type or export to build history."
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" TextWrapping="Wrap"
                                        Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
-                                       Margin="6,10,6,10" />
+                                       Margin="8,16" />
                             <ItemsControl ItemsSource="{Binding Bands}"
                                           Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Spacing="6" Margin="0,2,0,8">
-                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Margin="6,6,0,0" />
+                                        <StackPanel Spacing="4" Margin="0,4,0,8">
+                                            <!-- Time Band Header -->
+                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" CharacterSpacing="40"
+                                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Margin="8,4,0,2" />
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
                                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
-                                                                Padding="10,8" Margin="2,0,2,6"
-                                                                Tapped="OnVersionTapped"
-                                                                ToolTipService.ToolTip="Click to preview this version">
-                                                            <Grid RowSpacing="3">
+                                                                Padding="10,8" Margin="2,2,2,4"
+                                                                Tapped="OnVersionTapped">
+                                                            <Grid RowSpacing="4">
                                                                 <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
-                                                                <TextBlock Text="{Binding TimestampLabel}" FontSize="16" FontWeight="SemiBold"
-                                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                                                <Border Grid.Column="1" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8" Padding="6,2"
-                                                                        VerticalAlignment="Top">
-                                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="10"
-                                                                               Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                                                <TextBlock Text="{Binding SourceIcon}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding TimestampLabel}" FontSize="13" FontWeight="SemiBold"
+                                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="11"
+                                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                                </StackPanel>
+
+                                                                <!-- Delta Badge -->
+                                                                <Border Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                                                        CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                        Visibility="{Binding HasDelta, Converter={StaticResource BoolToVis}}">
+                                                                    <TextBlock Text="{Binding DeltaBadge}" FontSize="10" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                                                 </Border>
-                                                                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Snippet}"
-                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
+
+                                                                <!-- Star Button -->
+                                                                <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Padding="4"
+                                                                        Tapped="OnStarTapped" ToolTipService.ToolTip="Star / Bookmark milestone">
+                                                                    <TextBlock Text="{Binding IsStarred, Converter={StaticResource BoolToVis}, ConverterParameter='⭐|☆'}"
+                                                                               FontSize="13" />
+                                                                </Button>
+
+                                                                <!-- Custom Label / Snippet -->
+                                                                <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Text="{Binding Snippet}"
+                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
@@ -139,56 +218,82 @@
                 </Grid>
             </Border>
 
-            <!-- ═══ Diff / preview + restore ═══ -->
-            <Grid Grid.Column="2" RowSpacing="10">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <Grid ColumnSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <ToggleButton x:Name="DiffToggle" Content="Diff" IsChecked="True" Padding="12,5"
-                                      Click="OnDiffToggleClick" ToolTipService.ToolTip="Code-by-code view of what changed in this version" />
-                        <ToggleButton x:Name="PreviewToggle" Content="Preview" Padding="12,5"
-                                      Click="OnPreviewToggleClick" ToolTipService.ToolTip="Rendered document at this version" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                        <TextBlock Text="{Binding DiffTitle}" FontSize="16" FontWeight="SemiBold"
-                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <TextBlock Text="{Binding DiffHeader}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
-                        <TextBlock Text="{Binding DiffStats}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" />
-                    </StackPanel>
-                    <Button Grid.Column="2" Content="Restore this version" FontWeight="SemiBold" Padding="16,8"
-                            Command="{Binding RestoreCommand}" VerticalAlignment="Center" />
-                </Grid>
-
-                <!-- Diff view -->
-                <Grid Grid.Row="1" Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVis}}">
+            <!-- ═══ Pane 3: Interactive Diff & Inspector ═══ -->
+            <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
+                <Grid RowSpacing="0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Previous version" Margin="14,6,0,4" FontSize="12"
-                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="Selected version" Margin="14,6,0,4" FontSize="12"
-                                   Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+
+                    <!-- Top Inspector Toolbar -->
+                    <Border Padding="14,10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Mode Selector -->
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <ToggleButton x:Name="UnifiedToggle" Content="Unified Diff" IsChecked="True" Padding="10,4" CornerRadius="4"
+                                              Click="OnUnifiedToggleClick" ToolTipService.ToolTip="Inline continuous diff" />
+                                <ToggleButton x:Name="SplitToggle" Content="Split Diff" Padding="10,4" CornerRadius="4"
+                                              Click="OnSplitToggleClick" ToolTipService.ToolTip="Side-by-side comparative diff" />
+                                <ToggleButton x:Name="PreviewToggle" Content="Live Preview" Padding="10,4" CornerRadius="4"
+                                              Click="OnPreviewToggleClick" ToolTipService.ToolTip="Rendered visual document" />
+                            </StackPanel>
+
+                            <!-- Diff Summary Info -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <TextBlock Text="{Binding DiffTitle}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding DiffHeader}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+
+                            <!-- Delta Meter -->
+                            <Border Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DiffStats}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- 1. Unified Diff View -->
+                    <Grid Grid.Row="1" Visibility="{Binding ShowUnifiedDiff, Converter={StaticResource BoolToVis}}">
+                        <ScrollViewer x:Name="UnifiedScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding UnifiedDiffRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Kind, Converter={StaticResource DiffBrush}}" Padding="6,1">
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="40" />
+                                                    <ColumnDefinition Width="40" />
+                                                    <ColumnDefinition Width="16" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding OldNumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Column="1" Text="{Binding NewNumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Prefix}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="Bold" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </Grid>
-                    <Border Grid.Row="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" Height="1" />
-                    <Border Grid.Row="2" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                            CornerRadius="12" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                        <ScrollViewer x:Name="DiffScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+
+                    <!-- 2. Split Side-by-Side Diff View -->
+                    <Grid Grid.Row="1" Visibility="{Binding ShowSplitDiff, Converter={StaticResource BoolToVis}}">
+                        <ScrollViewer x:Name="SplitScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding DiffRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -198,31 +303,27 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Background="{Binding Left.Kind, Converter={StaticResource DiffBrush}}"
-                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
-                                                <Grid>
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Padding="4,1">
+                                                <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="38" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Left.NumberLabel}" FontSize="12" LineHeight="19"
-                                                               FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" Margin="0,0,8,0" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Left.Text}" FontSize="12.5" LineHeight="19"
-                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                    <TextBlock Text="{Binding Left.NumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Left.Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                                 </Grid>
                                             </Border>
-                                            <Border Grid.Column="1" Background="{Binding Right.Kind, Converter={StaticResource DiffBrush}}">
-                                                <Grid>
+                                            <Border Grid.Column="1" Background="{Binding Right.Kind, Converter={StaticResource DiffBrush}}" Padding="4,1">
+                                                <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="38" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Right.NumberLabel}" FontSize="12" LineHeight="19"
-                                                               FontFamily="Cascadia Mono, Consolas, monospace"
-                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" Margin="0,0,8,0" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Right.Text}" FontSize="12.5" LineHeight="19"
-                                                               FontFamily="Cascadia Mono, Consolas, monospace"
+                                                    <TextBlock Text="{Binding Right.NumberLabel}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Right.Text}" FontSize="12" FontFamily="Cascadia Mono, Consolas, monospace"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                                 </Grid>
                                             </Border>
@@ -231,16 +332,14 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
+                    </Grid>
+
+                    <!-- 3. Rendered HTML/Visual Preview -->
+                    <Border Grid.Row="1" Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVis}}">
+                        <controls:WebView2 x:Name="PreviewWeb" />
                     </Border>
                 </Grid>
-
-                <!-- Rendered preview -->
-                <Border Grid.Row="1" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                        CornerRadius="12" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                        Visibility="{Binding ShowDiff, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
-                    <controls:WebView2 x:Name="PreviewWeb" />
-                </Border>
-            </Grid>
+            </Border>
         </Grid>
     </Grid>
 </Window>

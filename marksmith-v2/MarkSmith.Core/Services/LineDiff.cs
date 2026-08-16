@@ -147,6 +147,32 @@ public static class LineDiff
         return rows;
     }
 
+    public sealed record UnifiedRow(Kind Kind, int? OldNumber, int? NewNumber, string Text, string Prefix)
+    {
+        public string OldNumberLabel => OldNumber?.ToString() ?? "";
+        public string NewNumberLabel => NewNumber?.ToString() ?? "";
+        public bool IsRemoved => Kind == Kind.Removed;
+        public bool IsAdded => Kind == Kind.Added;
+        public bool IsSame => Kind == Kind.Same;
+    }
+
+    /// <summary>Builds unified inline diff rows (GitHub/VS Code inline style) with old/new line numbers.</summary>
+    public static List<UnifiedRow> BuildUnified(IReadOnlyList<Line> lines)
+    {
+        var list = new List<UnifiedRow>(lines.Count);
+        foreach (var l in lines)
+        {
+            string prefix = l.Kind switch
+            {
+                Kind.Added => "+ ",
+                Kind.Removed => "- ",
+                _ => "  "
+            };
+            list.Add(new UnifiedRow(l.Kind, l.OldNumber, l.NewNumber, l.Text, prefix));
+        }
+        return list;
+    }
+
     private static string[] SplitLines(string text) =>
         text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
 }

@@ -6,13 +6,22 @@ namespace MarkSmith.Services;
 
 /// <summary>A single stored version of a markdown file.</summary>
 public sealed record VersionEntry(
-    string Id, string FilePath, string Hash, DateTimeOffset CreatedAt, string Source, int Bytes);
+    string Id,
+    string FilePath,
+    string Hash,
+    DateTimeOffset CreatedAt,
+    string Source,
+    int Bytes,
+    string? Label = null,
+    bool IsStarred = false,
+    int LinesAdded = 0,
+    int LinesRemoved = 0);
 
 /// <summary>
 /// Local version-history database for markdown files. Created LAZILY on the first capture — there
 /// is no file on disk until the user actually starts working. Layout:
 ///   %LOCALAPPDATA%\MarkSmith\history\versions.json   (the index — one list of versions per file)
-///   %LOCALAPPDATA%\MarkSmith\history\blobs\&lt;sha256&gt;.md  (content snapshots, deduped by hash)
+///   %LOCALAPPDATA%\MarkSmith\history\blobs\<sha256>.md  (content snapshots, deduped by hash)
 /// Zero external dependencies: plain JSON index + content-addressed blobs. All mutations run under
 /// a single gate so concurrent captures (open + export racing) can never corrupt the index.
 /// </summary>
@@ -44,7 +53,7 @@ public sealed class VersionHistoryService
 
     /// <summary>Captures a new version of a file's content. Returns false when nothing changed
     /// (identical to the latest version) or the path is blank — no version row, no disk write.</summary>
-    public async Task<bool> CaptureAsync(string filePath, string content, string source = "auto")
+    public async Task<bool> CaptureAsync(string filePath, string content, string source = "auto", string? label = null, bool isStarred = false)
     {
         if (string.IsNullOrWhiteSpace(filePath) || content is null) return false;
         var key = Normalize(filePath);
@@ -68,9 +77,26 @@ public sealed class VersionHistoryService
                 File.Move(tmpBlob, blobPath, overwrite: false);
             }
 
+            int added = 0, removed = 0;
+            if (versions is { Count: > 0 })
+            {
+                var prevBlob = Path.Combine(_blobDir, versions[0].Hash + ".md");
+                if (File.Exists(prevBlob))
+                {
+                    var prevContent = await File.ReadAllTextAsync(prevBlob);
+                    var diffLines = LineDiff.Diff(prevContent, content);
+                    added = diffLines.Count(l => l.Kind == LineDiff.Kind.Added);
+                    removed = diffLines.Count(l => l.Kind == LineDiff.Kind.Removed);
+                }
+            }
+            else
+            {
+                added = content.Split('\n').Length;
+            }
+
             versions ??= new List<VersionEntry>();
             versions.Insert(0, new VersionEntry(
-                NewId(hash), key, hash, DateTimeOffset.Now, source, content.Length));
+                NewId(hash), key, hash, DateTimeOffset.Now, source, content.Length, label, isStarred, added, removed));
             if (versions.Count > _maxVersionsPerFile)
                 versions.RemoveRange(_maxVersionsPerFile, versions.Count - _maxVersionsPerFile);
 
@@ -78,6 +104,80 @@ public sealed class VersionHistoryService
             await SaveIndexAsync(index);
             await CollectGarbageBlobsAsync(index);
             return true;
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Updates the custom label or bookmark description for a stored version.</summary>
+    public async Task<bool> SetLabelAsync(string id, string? label)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        await _gate.WaitAsync();
+        try
+        {
+            var index = await LoadIndexAsync();
+            foreach (var kvp in index)
+            {
+                for (int i = 0; i < kvp.Value.Count; i++)
+                {
+                    if (kvp.Value[i].Id == id)
+                    {
+                        kvp.Value[i] = kvp.Value[i] with { Label = label };
+                        await SaveIndexAsync(index);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Toggles the starred / pinned bookmark state of a version.</summary>
+    public async Task<bool> ToggleStarAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        await _gate.WaitAsync();
+        try
+        {
+            var index = await LoadIndexAsync();
+            foreach (var kvp in index)
+            {
+                for (int i = 0; i < kvp.Value.Count; i++)
+                {
+                    if (kvp.Value[i].Id == id)
+                    {
+                        bool newStar = !kvp.Value[i].IsStarred;
+                        kvp.Value[i] = kvp.Value[i] with { IsStarred = newStar };
+                        await SaveIndexAsync(index);
+                        return newStar;
+                    }
+                }
+            }
+            return false;
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Deletes a single snapshot by ID.</summary>
+    public async Task<bool> DeleteVersionAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        await _gate.WaitAsync();
+        try
+        {
+            var index = await LoadIndexAsync();
+            foreach (var kvp in index)
+            {
+                int removed = kvp.Value.RemoveAll(v => v.Id == id);
+                if (removed > 0)
+                {
+                    await SaveIndexAsync(index);
+                    await CollectGarbageBlobsAsync(index);
+                    return true;
+                }
+            }
+            return false;
         }
         finally { _gate.Release(); }
     }
@@ -212,11 +312,11 @@ public sealed class VersionHistoryService
 
     /// <summary>Deletes blob files no longer referenced by any index row (pruned versions leave
     /// orphaned snapshots behind — this keeps the store bounded).</summary>
-    private async Task CollectGarbageBlobsAsync(Dictionary<string, List<VersionEntry>> index)
+    private Task CollectGarbageBlobsAsync(Dictionary<string, List<VersionEntry>> index)
     {
         try
         {
-            if (!Directory.Exists(_blobDir)) return;
+            if (!Directory.Exists(_blobDir)) return Task.CompletedTask;
             var referenced = index.Values
                 .SelectMany(v => v)
                 .Select(v => v.Hash)
@@ -231,6 +331,7 @@ public sealed class VersionHistoryService
             }
         }
         catch { /* garbage collection is best-effort */ }
+        return Task.CompletedTask;
     }
 
     private async Task SaveIndexAsync(Dictionary<string, List<VersionEntry>> index)
