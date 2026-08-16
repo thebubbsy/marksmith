@@ -1401,10 +1401,10 @@ public sealed partial class MarkdownHtmlService
             canvas.style.transformOrigin = 'top center';
             canvas.style.transform = 'scale(' + scale + ')';
         }
-        // The height always tracks the (possibly grown) content so the page stays fully
-        // scrollable even when the scale itself did not change (late mermaid/images).
+        // The minHeight tracks the scaled content so the page stays fully scrollable
         var rect = canvas.getBoundingClientRect();
-        document.body.style.height = (rect.top + rect.height + PAD) + 'px';
+        var minH = Math.max(window.innerHeight, rect.top + rect.height + PAD + 60);
+        document.body.style.minHeight = minH + 'px';
     };
     var timer = 0;
     var schedule = function () { clearTimeout(timer); timer = setTimeout(fit, 60); };
@@ -1538,11 +1538,11 @@ public sealed partial class MarkdownHtmlService
                       auto margins collapse to 0 on any axis the zoomed sheet overflows (so panning
                       works and never clips the sheet's start edge). */
                    {{(interactive ? "display: flex; flex-direction: column; min-height: 100%; padding: 40px 0; box-sizing: border-box;" : "")}} }
-            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"min-height: 1123px; background: {pageBg}; box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
+            #canvas { padding: 60px 40px; width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; min-width: {{(settings.TargetFormat == "docx" ? 794 : settings.ContentWidth)}}px; max-width: none; margin: {{(interactive ? "auto" : "0 auto")}}; box-sizing: border-box; transition: filter .3s ease, opacity .3s ease; {{(interactive ? $"flex-shrink: 0; min-height: 1123px; height: auto; background: {pageBg}; box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 10px 24px rgba(0,0,0,0.22), 0 28px 56px rgba(0,0,0,0.18); border: 1px solid {theme.Border}; border-radius: 4px;" : "")}} }
             @media print {
               @page { margin: 0 !important; }
               html, body { margin: 0 !important; padding: 0 !important; background: {{effectiveBodyBg}} !important; height: auto !important; min-height: 0 !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; }
+              #canvas { background: {{effectiveBodyBg}} !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 48px 54px !important; transform: none !important; height: auto !important; }
             }
             body.ms-loading #canvas { filter: blur(14px); opacity: .6; }
             h1, h2 { color: {{theme.Heading}}; border-bottom: 2px solid {{theme.Border}}; padding-bottom: 8px; }
@@ -1649,17 +1649,16 @@ public sealed partial class MarkdownHtmlService
             body.ms-dark .mermaid-error-card { background: #2d1a1a; color: #f5c2c2; border-color: #e53e3e; }
             body.ms-dark .mermaid-error-card pre { background: #3d1f1f; color: #feb2b2; }
             
-            /* Multi-Page Preview Dividers showing backdrop between pages */
+            /* Multi-Page Preview Dividers showing clean page break markers without punching out the paper */
             #canvas { position: relative; }
             .page-break-gap {
                 position: absolute;
-                left: -40px;
-                right: -40px;
-                height: 24px;
-                margin-top: -12px;
-                background: {{workspaceBg}};
+                left: 0;
+                right: 0;
+                height: 0;
+                margin-top: 0;
+                background: transparent;
                 border-top: 1px dashed {{theme.Border}};
-                border-bottom: 1px dashed {{theme.Border}};
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -1670,16 +1669,16 @@ public sealed partial class MarkdownHtmlService
             .page-break-gap::after {
                 content: attr(data-page);
                 background: {{theme.Secondary}};
-                color: {{theme.Text}};
+                color: {{theme.Heading}};
                 border: 1px solid {{theme.Border}};
                 border-radius: 999px;
-                padding: 2px 14px;
+                padding: 3px 16px;
                 font-size: 11px;
                 font-weight: 700;
-                letter-spacing: 0.05em;
+                letter-spacing: 0.06em;
                 text-transform: uppercase;
-                opacity: 0.9;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                opacity: 0.95;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.25);
             }
             
             #overflow-banner { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: rgba(254, 243, 199, 0.95); border: 1px solid #f59e0b; color: #78350f; padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(4px); font-family: sans-serif; animation: slideIn 0.3s ease-out; }

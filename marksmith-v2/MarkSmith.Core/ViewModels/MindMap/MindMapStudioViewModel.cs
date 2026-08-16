@@ -55,6 +55,14 @@ namespace MarkSmith.ViewModels.MindMap
         private string _searchQuery = "";
 
         [ObservableProperty]
+        private string? _selectedTagFilter;
+
+        public ObservableCollection<string> DistinctTags { get; } = new();
+
+        partial void OnSearchQueryChanged(string value) => ApplyFilterAndSearch();
+        partial void OnSelectedTagFilterChanged(string? value) => ApplyFilterAndSearch();
+
+        [ObservableProperty]
         private bool _isPreviewCardVisible;
 
         [ObservableProperty]
@@ -121,8 +129,48 @@ namespace MarkSmith.ViewModels.MindMap
                 Links.Add(new MindMapLinkViewModel(l));
             }
 
+            RefreshDistinctTags();
             SelectedNode = Nodes.FirstOrDefault();
             StatusMessage = $"Loaded galaxy with {Nodes.Count} nodes and {Links.Count} cross-links.";
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void RefreshDistinctTags()
+        {
+            var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in Nodes)
+            {
+                foreach (var t in n.Tags)
+                {
+                    if (!string.IsNullOrWhiteSpace(t)) tags.Add(t.Trim());
+                }
+            }
+
+            DistinctTags.Clear();
+            foreach (var tag in tags.OrderBy(t => t))
+            {
+                DistinctTags.Add(tag);
+            }
+        }
+
+        public void ApplyFilterAndSearch()
+        {
+            var q = SearchQuery?.Trim();
+            var tag = SelectedTagFilter;
+            bool hasSearch = !string.IsNullOrEmpty(q);
+            bool hasTag = !string.IsNullOrEmpty(tag);
+
+            foreach (var n in Nodes)
+            {
+                bool matchesSearch = !hasSearch || n.Title.Contains(q!, StringComparison.OrdinalIgnoreCase) || (n.MarkdownContent?.Contains(q!, StringComparison.OrdinalIgnoreCase) ?? false);
+                bool matchesTag = !hasTag || n.Tags.Any(t => t.Equals(tag, StringComparison.OrdinalIgnoreCase));
+
+                bool matchesAll = matchesSearch && matchesTag;
+
+                n.IsDimmed = (hasSearch || hasTag) && !matchesAll;
+                n.IsHighlighted = (hasSearch || hasTag) && matchesAll;
+            }
+
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 

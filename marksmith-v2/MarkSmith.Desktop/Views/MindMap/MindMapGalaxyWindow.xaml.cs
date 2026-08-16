@@ -39,6 +39,15 @@ namespace MarkSmith.Views.MindMap
             ViewModel.OpenDocumentRequested += (s, path) => OpenDocumentRequested?.Invoke(this, path);
 
             this.Activated += (s, e) => RedrawCanvas();
+
+            this.RootGrid.KeyDown += (s, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.F && Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+                {
+                    SearchBox.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                }
+            };
         }
 
         private Grid RootGrid => (Grid)this.Content;
@@ -167,8 +176,9 @@ namespace MarkSmith.Views.MindMap
                 Width = width,
                 Height = height,
                 Background = new SolidColorBrush(ColorFromHex("#1C1C28")),
-                BorderBrush = new SolidColorBrush(isSelected ? Colors.White : color),
-                BorderThickness = new Thickness(isSelected ? 2.5 : 1.5),
+                BorderBrush = new SolidColorBrush(isSelected ? Colors.White : (node.IsHighlighted ? ColorFromHex("#22D3EE") : color)),
+                BorderThickness = new Thickness(isSelected || node.IsHighlighted ? 2.5 : 1.5),
+                Opacity = node.IsDimmed ? 0.25 : 1.0,
                 CornerRadius = new CornerRadius(8 * zoom),
                 Padding = new Thickness(8 * zoom, 6 * zoom, 8 * zoom, 6 * zoom),
                 Tag = node
@@ -505,19 +515,18 @@ namespace MarkSmith.Views.MindMap
         private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
             string q = sender.Text.Trim();
-            if (string.IsNullOrEmpty(q))
-            {
-                RedrawCanvas();
-                return;
-            }
+            ViewModel.SearchQuery = q;
 
-            var match = ViewModel.Nodes.FirstOrDefault(n => n.Title.Contains(q, StringComparison.OrdinalIgnoreCase));
-            if (match != null)
+            if (!string.IsNullOrEmpty(q))
             {
-                ViewModel.SelectedNode = match;
-                ViewModel.ViewportOffsetX = -match.X;
-                ViewModel.ViewportOffsetY = -match.Y;
-                RedrawCanvas();
+                var match = ViewModel.Nodes.FirstOrDefault(n => n.Title.Contains(q, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    ViewModel.SelectedNode = match;
+                    ViewModel.ViewportOffsetX = -match.X;
+                    ViewModel.ViewportOffsetY = -match.Y;
+                    RedrawCanvas();
+                }
             }
         }
 

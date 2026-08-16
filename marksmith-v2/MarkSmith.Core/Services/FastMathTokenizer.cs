@@ -152,5 +152,23 @@ namespace MarkSmith.Services
 
             return results;
         }
+
+        /// <summary>
+        /// Scans whether the span contains \ce{...} or \pu{...} mhchem formulas in linear time.
+        /// </summary>
+        public static bool HasChemistryFormulas(ReadOnlySpan<char> text)
+        {
+            int len = text.Length;
+            for (int i = 0; i < len - 4; i++)
+            {
+                if (text[i] == '\\' &&
+                    ((text[i + 1] == 'c' && text[i + 2] == 'e' && text[i + 3] == '{') ||
+                     (text[i + 1] == 'p' && text[i + 2] == 'u' && text[i + 3] == '{')))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

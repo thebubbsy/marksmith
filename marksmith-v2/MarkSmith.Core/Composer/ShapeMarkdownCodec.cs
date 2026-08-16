@@ -328,5 +328,61 @@ namespace MarkSmith.Core.Composer
             }
             return (w + 0.5, h + 0.5);
         }
+
+        /// <summary>
+        /// Simplifies redundant collinear points in polyline vector strokes (Ramer-Douglas-Peucker).
+        /// Reduces serialized markdown size and SVG/DrawingML vertex count while preserving exact geometry.
+        /// </summary>
+        public static List<(double X, double Y)> SimplifyPolyline(IReadOnlyList<(double X, double Y)> points, double epsilon = 0.5)
+        {
+            if (points == null || points.Count <= 2) return points != null ? new List<(double X, double Y)>(points) : new List<(double X, double Y)>();
+
+            double maxDist = 0;
+            int maxIdx = 0;
+            var start = points[0];
+            var end = points[points.Count - 1];
+
+            for (int i = 1; i < points.Count - 1; i++)
+            {
+                double dist = PerpendicularDistance(points[i], start, end);
+                if (dist > maxDist)
+                {
+                    maxDist = dist;
+                    maxIdx = i;
+                }
+            }
+
+            if (maxDist > epsilon)
+            {
+                var left = SimplifyPolyline(points.Take(maxIdx + 1).ToList(), epsilon);
+                var right = SimplifyPolyline(points.Skip(maxIdx).ToList(), epsilon);
+
+                var merged = new List<(double X, double Y)>(left);
+                merged.AddRange(right.Skip(1));
+                return merged;
+            }
+
+            return new List<(double X, double Y)> { start, end };
+        }
+
+        private static double PerpendicularDistance((double X, double Y) pt, (double X, double Y) lineStart, (double X, double Y) lineEnd)
+        {
+            double dx = lineEnd.X - lineStart.X;
+            double dy = lineEnd.Y - lineStart.Y;
+            double mag = Math.Sqrt(dx * dx + dy * dy);
+            if (mag < 1e-6)
+            {
+                double px = pt.X - lineStart.X;
+                double py = pt.Y - lineStart.Y;
+                return Math.Sqrt(px * px + py * py);
+            }
+
+            double u = ((pt.X - lineStart.X) * dx + (pt.Y - lineStart.Y) * dy) / (mag * mag);
+            double ix = lineStart.X + u * dx;
+            double iy = lineStart.Y + u * dy;
+            double rx = pt.X - ix;
+            double ry = pt.Y - iy;
+            return Math.Sqrt(rx * rx + ry * ry);
+        }
     }
 }

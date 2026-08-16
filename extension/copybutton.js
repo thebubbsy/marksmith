@@ -438,12 +438,14 @@
     // ---------- Floating selection action bar ----------
     const floatBar = document.createElement("div");
     floatBar.id = "mk-sel-floating-bar";
-    floatBar.innerHTML = `
         <button type="button" class="mk-sel-btn mk-primary" id="mk-sel-send-btn">
             <span>⚡ Send to Marksmith</span>
         </button>
         <button type="button" class="mk-sel-btn" id="mk-sel-copy-btn">
             <span>📋 Copy MD</span>
+        </button>
+        <button type="button" class="mk-sel-btn" id="mk-sel-lens-btn" title="Inspect Markdown Source">
+            <span>🔍 Lens</span>
         </button>
     `;
     document.documentElement.appendChild(floatBar);
@@ -506,10 +508,33 @@
                 floatBar.style.display = "none";
                 copyMdBtn.firstElementChild.textContent = origText;
             }, 1200);
-        } catch {
-            copyMdBtn.firstElementChild.textContent = "Error";
-            setTimeout(() => { copyMdBtn.firstElementChild.textContent = origText; }, 1500);
+    const lensBtn = floatBar.querySelector("#mk-sel-lens-btn");
+
+    lensBtn?.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const md = getSelectionMarkdown();
+        if (!md) return;
+
+        let lensModal = document.getElementById("mk-lens-preview-modal");
+        if (!lensModal) {
+            lensModal = document.createElement("div");
+            lensModal.id = "mk-lens-preview-modal";
+            lensModal.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,640px);max-height:80vh;background:#181824;color:#f0f0ff;border:1px solid #7c4dff;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:999999;display:flex;flex-direction:column;font-family:monospace;padding:16px;";
+            document.documentElement.appendChild(lensModal);
         }
+
+        lensModal.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid #333;padding-bottom:6px;">
+                <span style="font-weight:bold;color:#a855f7;">🔍 Markdown Lens Inspector (${md.length} chars)</span>
+                <button type="button" id="mk-lens-close" style="background:#28283c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;">✕</button>
+            </div>
+            <pre style="overflow:auto;flex:1;background:#0d0d15;padding:12px;border-radius:6px;margin:0;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">${md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+        `;
+        lensModal.style.display = "flex";
+        lensModal.querySelector("#mk-lens-close")?.addEventListener("click", () => {
+            lensModal.style.display = "none";
+        });
     });
 
     document.addEventListener("mouseup", (e) => {

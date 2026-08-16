@@ -59,6 +59,12 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private string? _parentId;
 
+        [ObservableProperty]
+        private bool _isDimmed;
+
+        [ObservableProperty]
+        private bool _isHighlighted;
+
         public ObservableCollection<string> Tags { get; } = new();
 
         public string FormatBadge =>
