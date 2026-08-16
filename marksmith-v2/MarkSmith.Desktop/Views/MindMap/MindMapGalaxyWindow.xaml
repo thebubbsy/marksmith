@@ -4,11 +4,16 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:conv="using:MarkSmith.Converters"
     xmlns:vm="using:MarkSmith.ViewModels.MindMap"
     mc:Ignorable="d"
     Title="Document Galaxy &amp; Mind Map Library — MarkSmith">
 
     <Grid Background="#12131C">
+        <Grid.Resources>
+            <conv:FillBrushConverter x:Key="FillBrushConverter" />
+            <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -97,7 +102,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <AutoSuggestBox x:Name="SearchBox" PlaceholderText="🔍 Search galaxy..." Width="150" TextChanged="OnSearchTextChanged" />
                     <Button Click="OnZoomOutClick" ToolTipService.ToolTip="Zoom Out (-)" Padding="6,5"><TextBlock Text="➖" FontSize="11" /></Button>
-                    <TextBlock Text="{Binding ZoomLevel, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0:P0}'}" VerticalAlignment="Center" Width="42" TextAlignment="Center" FontSize="11" Foreground="#9A9AB0" />
+                    <TextBlock Text="{Binding ZoomLevelText}" VerticalAlignment="Center" Width="42" TextAlignment="Center" FontSize="11" Foreground="#9A9AB0" />
                     <Button Click="OnZoomInClick" ToolTipService.ToolTip="Zoom In (+)" Padding="6,5"><TextBlock Text="➕" FontSize="11" /></Button>
                     <Button Click="OnFitToWindowClick" ToolTipService.ToolTip="Fit Galaxy to Window" Padding="6,5"><TextBlock Text="⛶" FontSize="11" /></Button>
                 </StackPanel>
@@ -112,7 +117,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- GALAXY CANVAS AREA -->
-            <Grid Grid.Column="0" Background="#12131C" ClipToBounds="True" x:Name="CanvasContainer">
+            <Grid Grid.Column="0" Background="#12131C" x:Name="CanvasContainer">
                 <!-- Interactive Pan & Zoom Canvas -->
                 <Canvas x:Name="GalaxyCanvas" Background="Transparent"
                         PointerPressed="OnCanvasPointerPressed"
@@ -124,12 +129,11 @@
 
                 <!-- FLOATING MARKDOWN PREVIEW CARD (Overlay) -->
                 <Border x:Name="PreviewOverlayCard"
-                        Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVis}}"
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
                         Margin="0,0,24,24" Width="400" MaxHeight="320"
                         Background="#1C1C28" BorderBrush="#FF7C4D" BorderThickness="1.5"
-                        CornerRadius="12" Padding="14"
-                        Shadow="{StaticResource SharedShadow}">
+                        CornerRadius="12" Padding="14">
                     <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -182,7 +186,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Click="OnPaletteSwatchClick" Tag="{Binding}" Padding="0" Margin="3" Width="32" Height="30" CornerRadius="6" BorderThickness="1" BorderBrush="#40FFFFFF">
-                                            <Border CornerRadius="5" Background="{Binding Converter={StaticResource HexToBrushConverter}}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                            <Border CornerRadius="5" Background="{Binding Converter={StaticResource FillBrushConverter}}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -218,7 +222,7 @@
                             <StackPanel Spacing="4">
                                 <Grid>
                                     <TextBlock Text="Completion / Progress" FontSize="12" Foreground="#C8C8D8" />
-                                    <TextBlock Text="{Binding Progress, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0}%'}" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#34D399" />
+                                    <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#34D399" />
                                 </Grid>
                                 <Slider Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" />
                             </StackPanel>
@@ -240,8 +244,8 @@
             <Grid>
                 <TextBlock Text="{Binding StatusMessage}" FontSize="11.5" Foreground="#9A9AB0" VerticalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding Nodes.Count, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0} Nodes'}" FontSize="11" Foreground="#7C7C90" />
-                    <TextBlock Text="{Binding Links.Count, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0} Cross-Links'}" FontSize="11" Foreground="#7C7C90" />
+                    <TextBlock Text="{Binding NodesCountText}" FontSize="11" Foreground="#7C7C90" />
+                    <TextBlock Text="{Binding LinksCountText}" FontSize="11" Foreground="#7C7C90" />
                 </StackPanel>
             </Grid>
         </Border>

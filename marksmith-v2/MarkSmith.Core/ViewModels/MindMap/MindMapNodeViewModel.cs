@@ -67,6 +67,13 @@ namespace MarkSmith.ViewModels.MindMap
         public bool HasFile => !string.IsNullOrEmpty(FilePath);
 
         public bool HasProgress => Progress > 0;
+        public string ProgressText => $"{Progress}%";
+
+        partial void OnProgressChanged(int value)
+        {
+            OnPropertyChanged(nameof(ProgressText));
+            OnPropertyChanged(nameof(HasProgress));
+        }
 
         public MindMapNodeViewModel(MindMapNode model)
         {

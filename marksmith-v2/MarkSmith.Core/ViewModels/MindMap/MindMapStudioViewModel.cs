@@ -27,6 +27,15 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private double _zoomLevel = 1.0;
 
+        public string ZoomLevelText => $"{(int)Math.Round(ZoomLevel * 100)}%";
+        public string NodesCountText => $"{Nodes.Count} Nodes";
+        public string LinksCountText => $"{Links.Count} Cross-Links";
+
+        partial void OnZoomLevelChanged(double value)
+        {
+            OnPropertyChanged(nameof(ZoomLevelText));
+        }
+
         [ObservableProperty]
         private double _viewportOffsetX = 0;
 
