@@ -92,5 +92,32 @@ $$
                 if (File.Exists(path)) File.Delete(path);
             }
         }
+
+        [Fact]
+        public void ThemeCatalog_NearestByAccent_SpanParsingAccurate()
+        {
+            var catalog = new ThemeCatalog();
+            // Test 6-digit hex
+            string? theme1 = catalog.NearestByAccent("#10a37f");
+            Assert.NotNull(theme1);
+
+            // Test 3-digit hex
+            string? theme2 = catalog.NearestByAccent("#fff");
+            Assert.NotNull(theme2);
+
+            // Test invalid hex fallback
+            string? invalid = catalog.NearestByAccent("not-a-color");
+            Assert.Null(invalid);
+        }
+
+        [Fact]
+        public void LatexToOmml_GeneratesValidOfficeMath()
+        {
+            string latex = @"\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}";
+            var omml = LatexToOmml.Build(latex);
+            Assert.NotNull(omml);
+            Assert.True(omml.HasChildren);
+            Assert.Contains("2a", omml.InnerText);
+        }
     }
 }

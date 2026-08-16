@@ -109,16 +109,23 @@ public sealed class ThemeCatalog
     {
         r = g = b = 0;
         if (string.IsNullOrWhiteSpace(hex)) return false;
-        var s = hex.Trim().TrimStart('#');
-        if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
-        if (s.Length != 6) return false;
-        try
+        var s = hex.AsSpan().Trim();
+        if (s.StartsWith("#")) s = s[1..];
+        
+        if (s.Length == 3)
         {
-            r = Convert.ToInt32(s.Substring(0, 2), 16);
-            g = Convert.ToInt32(s.Substring(2, 2), 16);
-            b = Convert.ToInt32(s.Substring(4, 2), 16);
-            return true;
+            Span<char> expanded = stackalloc char[6];
+            expanded[0] = expanded[1] = s[0];
+            expanded[2] = expanded[3] = s[1];
+            expanded[4] = expanded[5] = s[2];
+            return int.TryParse(expanded[0..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out r) &&
+                   int.TryParse(expanded[2..4], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out g) &&
+                   int.TryParse(expanded[4..6], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out b);
         }
-        catch { return false; }
+
+        if (s.Length != 6) return false;
+        return int.TryParse(s[0..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out r) &&
+               int.TryParse(s[2..4], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out g) &&
+               int.TryParse(s[4..6], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out b);
     }
 }

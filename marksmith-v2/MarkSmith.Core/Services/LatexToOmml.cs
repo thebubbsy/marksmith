@@ -54,16 +54,25 @@ internal static class LatexToOmml
     private enum Kind { Cmd, LBrace, RBrace, LBracket, RBracket, Sup, Sub, Chr, Amp, Space }
     private readonly record struct Tok(Kind Kind, string Text);
 
+    private static readonly string[] AsciiStrings = InitAsciiStrings();
+    private static string[] InitAsciiStrings()
+    {
+        var arr = new string[128];
+        for (int i = 0; i < 128; i++) arr[i] = ((char)i).ToString();
+        return arr;
+    }
+    private static string CharToString(char c) => c < 128 ? AsciiStrings[c] : c.ToString();
+
     private static List<Tok> Tokenize(string s)
     {
-        var toks = new List<Tok>();
+        var toks = new List<Tok>(Math.Min(s.Length, 1024));
         int i = 0;
         while (i < s.Length)
         {
             char c = s[i];
             if (char.IsWhiteSpace(c) || c == '~')
             {
-                toks.Add(new Tok(Kind.Space, c == '~' ? "\u00A0" : c.ToString()));
+                toks.Add(new Tok(Kind.Space, c == '~' ? "\u00A0" : CharToString(c)));
                 i++;
                 continue;
             }
@@ -83,7 +92,7 @@ internal static class LatexToOmml
                     char e = s[i++];
                     if (e is ',' or ';' or ':' or '!' or ' ') continue; // thin spaces
                     if (e == '\\') toks.Add(new Tok(Kind.Cmd, "\\"));
-                    else toks.Add(new Tok(Kind.Chr, e.ToString()));
+                    else toks.Add(new Tok(Kind.Chr, CharToString(e)));
                 }
                 continue;
             }
@@ -97,7 +106,7 @@ internal static class LatexToOmml
                 case '^': toks.Add(new Tok(Kind.Sup, "^")); break;
                 case '_': toks.Add(new Tok(Kind.Sub, "_")); break;
                 case '&': toks.Add(new Tok(Kind.Amp, "&")); break;
-                default: toks.Add(new Tok(Kind.Chr, c.ToString())); break;
+                default: toks.Add(new Tok(Kind.Chr, CharToString(c))); break;
             }
         }
         return toks;

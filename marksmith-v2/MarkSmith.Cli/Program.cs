@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using MarkSmith.Core.Composer;
 using MarkSmith.Models;
@@ -87,14 +88,17 @@ namespace MarkSmith.Cli
                     return 0;
                 }
 
-                if (args.Length < 2)
+                bool watchMode = args.Contains("--watch") || args.Contains("-w");
+                var remainingArgs = args.Where(a => a != "--watch" && a != "-w").ToArray();
+
+                if (remainingArgs.Length < 2)
                 {
                     PrintHelp();
                     return 1;
                 }
 
-                string inputPath = args[0];
-                string outputPath = args[1];
+                string inputPath = Path.GetFullPath(remainingArgs[0]);
+                string outputPath = Path.GetFullPath(remainingArgs[1]);
 
                 if (!File.Exists(inputPath))
                 {
@@ -102,37 +106,87 @@ namespace MarkSmith.Cli
                     return 1;
                 }
 
-                string markdown = await File.ReadAllTextAsync(inputPath);
-                string ext = Path.GetExtension(outputPath).ToLowerInvariant();
-
                 var settings = new AppSettings();
-                for (int i = 2; i < args.Length; i++)
+                for (int i = 2; i < remainingArgs.Length; i++)
                 {
-                    if (args[i] == "--theme" && i + 1 < args.Length)
-                        settings.Theme = args[i + 1];
+                    if (remainingArgs[i] == "--theme" && i + 1 < remainingArgs.Length)
+                        settings.Theme = remainingArgs[i + 1];
                 }
 
-                if (ext == ".docx" || ext == ".dotx")
+                async Task CompileAsync()
                 {
-                    Console.WriteLine($"Compiling '{inputPath}' -> '{outputPath}' via DocxExportService...");
-                    var docxService = new DocxExportService();
-                    await docxService.ExportAsync(markdown, outputPath, settings);
-                    Console.WriteLine($"✓ Successfully exported native DOCX: {outputPath}");
-                }
-                else if (ext == ".html" || ext == ".htm")
-                {
-                    Console.WriteLine($"Rendering '{inputPath}' -> '{outputPath}'...");
-                    var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                    string html = new MarkdownHtmlService().Render(markdown, settings, theme);
-                    await File.WriteAllTextAsync(outputPath, html);
-                    Console.WriteLine($"✓ Successfully exported HTML: {outputPath}");
-                }
-                else
-                {
-                    Console.Error.WriteLine($"Unsupported output extension '{ext}'. Use .docx, .dotx, or .html.");
-                    return 1;
+                    string markdown = await File.ReadAllTextAsync(inputPath);
+                    string ext = Path.GetExtension(outputPath).ToLowerInvariant();
+
+                    if (ext == ".docx" || ext == ".dotx")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        var docxService = new DocxExportService();
+                        await docxService.ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported native DOCX: {outputPath}");
+                    }
+                    else if (ext == ".html" || ext == ".htm")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Rendering '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                        string html = new MarkdownHtmlService().Render(markdown, settings, theme);
+                        await File.WriteAllTextAsync(outputPath, html);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported HTML: {outputPath}");
+                    }
+                    else
+                    {
+                        throw new NotSupportedException($"Unsupported output extension '{ext}'. Use .docx, .dotx, or .html.");
+                    }
                 }
 
+                await CompileAsync();
+
+                if (watchMode)
+                {
+                    Console.WriteLine($"[WATCH] Watching '{inputPath}' for changes (Ctrl+C to stop)...");
+                    using var cts = new CancellationTokenSource();
+                    Console.CancelKeyPress += (s, e) =>
+                    {
+                        e.Cancel = true;
+                        cts.Cancel();
+                    };
+
+                    string inDir = Path.GetDirectoryName(inputPath) ?? ".";
+                    string inName = Path.GetFileName(inputPath);
+                    using var fsw = new FileSystemWatcher(inDir, inName)
+                    {
+                        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+                        EnableRaisingEvents = true
+                    };
+
+                    Timer? debounceTimer = null;
+                    fsw.Changed += (s, e) =>
+                    {
+                        debounceTimer?.Dispose();
+                        debounceTimer = new Timer(async _ =>
+                        {
+                            try
+                            {
+                                await CompileAsync();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine($"[WATCH ERROR] {ex.Message}");
+                            }
+                        }, null, 250, Timeout.Infinite);
+                    };
+
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        await Task.Delay(500, cts.Token).ConfigureAwait(false);
+                    }
+                    Console.WriteLine("[WATCH] Stopped watching.");
+                }
+
+                return 0;
+            }
+            catch (OperationCanceledException)
+            {
                 return 0;
             }
             catch (Exception ex)
@@ -148,9 +202,14 @@ namespace MarkSmith.Cli
             Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage:");
-            Console.WriteLine("  marksmith <input.md> <output.docx|output.html> [--theme <name>]");
+            Console.WriteLine("  marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
+            Console.WriteLine();
+            Console.WriteLine("Flags:");
+            Console.WriteLine("  -w, --watch    Watch the input file for changes and recompile automatically");
+            Console.WriteLine("  --compact      Compress vector shapes in markdown using dense deflate format");
+            Console.WriteLine("  --theme <name> Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
             Console.WriteLine();
             Console.WriteLine("Trace Modes: CrossHatch, TopographicWaves, Calligraphic, Engraved, Edges, Scanlines, Silhouette");
         }

@@ -1280,11 +1280,21 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private CancellationTokenSource? _generationCts;
+    private CancellationToken NextGenerationToken()
+    {
+        _generationCts?.Cancel();
+        _generationCts?.Dispose();
+        _generationCts = new CancellationTokenSource();
+        return _generationCts.Token;
+    }
+
     /// <summary>Trace a picture into dense line items (the MLShape workflow). Heavy work runs on
     /// the thread pool; the collection is replaced wholesale so a 16k-row trace doesn't fire tens
     /// of thousands of per-item change notifications on the UI thread.</summary>
     public async System.Threading.Tasks.Task TraceImageAsync(string imagePath)
     {
+        var ct = NextGenerationToken();
         try
         {
             var mode = TraceModeIndex switch
@@ -1302,7 +1312,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             };
             StatusMessage = $"Tracing {Path.GetFileName(imagePath)}…";
 
-            var traced = await System.Threading.Tasks.Task.Run(() => ImageLineTracer.TraceLines(imagePath, opt));
+            var traced = await System.Threading.Tasks.Task.Run(() => ImageLineTracer.TraceLines(imagePath, opt), ct);
+            if (ct.IsCancellationRequested) return;
+
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(traced.Select(ToItem));
             SelectedShape = null;
             LineStats = $"{traced.Count:N0} lines";
@@ -1313,8 +1325,10 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 var (w, h) = MarkSmith.Core.Composer.ShapeMarkdownCodec.CanvasSize(traced);
                 var snapshot = traced;
                 png = await System.Threading.Tasks.Task.Run(
-                    () => ImageLineTracer.RenderPreviewPng(snapshot, w, h, previewCap: 24000));
+                    () => ImageLineTracer.RenderPreviewPng(snapshot, w, h, previewCap: 24000), ct);
             }
+            if (ct.IsCancellationRequested) return;
+
             PreviewPng = png;
             CanvasMode = traced.Count == 0 ? "empty" : "dense";
             StatusMessage = $"✓ Traced {traced.Count:N0} lines from {Path.GetFileName(imagePath)}";
@@ -1406,6 +1420,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         int edgeThreshold = 30,
         double maxThicknessPt = 1.8)
     {
+        var ct = NextGenerationToken();
         try
         {
             if (mosaicGrid <= 0 && lineDensity <= 0)
@@ -1446,7 +1461,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 }
 
                 return result;
-            });
+            }, ct);
+
+            if (ct.IsCancellationRequested) return;
 
             if (fused.Count == 0)
             {
@@ -1461,6 +1478,10 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             StatusMessage = $"⚡ Vector Fusion: {fused.Count:N0} elements ({shapeCount:N0} shapes + {lineCount:N0} contour lines)";
             await RefreshCanvasModeAsync();
             CanvasChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (OperationCanceledException)
+        {
+            // Clean cancellation of superseded generation
         }
         catch (Exception ex)
         {
