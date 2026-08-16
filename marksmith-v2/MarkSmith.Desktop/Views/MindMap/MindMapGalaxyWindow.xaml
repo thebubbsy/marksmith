@@ -1,0 +1,249 @@
+<Window
+    x:Class="MarkSmith.Views.MindMap.MindMapGalaxyWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:MarkSmith.ViewModels.MindMap"
+    mc:Ignorable="d"
+    Title="Document Galaxy &amp; Mind Map Library — MarkSmith">
+
+    <Grid Background="#12131C">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- TOP TOOLBAR & HEADER -->
+        <Border Grid.Row="0" Background="#1C1C28" BorderBrush="#2E2E42" BorderThickness="0,0,0,1" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: Title & Badge -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="🌌" FontSize="20" VerticalAlignment="Center" />
+                    <StackPanel Spacing="1">
+                        <TextBlock Text="Document Galaxy &amp; Mind Map" FontSize="14" FontWeight="Bold" Foreground="#E8E8F0" />
+                        <TextBlock Text="Interconnected Vault · PDF, MD &amp; DOCX" FontSize="11" Foreground="#9A9AB0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Center: Action Tools -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Command="{Binding AddChildNodeCommand}" ToolTipService.ToolTip="Add Child Node (Tab)" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="➕" FontSize="12" />
+                            <TextBlock Text="Child" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding AddSiblingNodeCommand}" ToolTipService.ToolTip="Add Sibling Node (Enter)" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="➕" FontSize="12" />
+                            <TextBlock Text="Sibling" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Click="OnConnectSelectedClick" ToolTipService.ToolTip="Link Two Documents / Nodes" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="🔗" FontSize="12" />
+                            <TextBlock Text="Link" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding DeleteSelectionCommand}" ToolTipService.ToolTip="Delete Node / Link (Del)" Padding="8,5">
+                        <TextBlock Text="🗑️" FontSize="12" />
+                    </Button>
+
+                    <AppBarSeparator />
+
+                    <!-- Layout Dropdown -->
+                    <DropDownButton Content="✨ Auto-Layout" Padding="8,5">
+                        <DropDownButton.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="🌿 Mind Map Tree (Horizontal)" Click="OnLayoutTreeClick" />
+                                <MenuFlyoutItem Text="🪐 Galaxy Constellation (Radial)" Click="OnLayoutRadialClick" />
+                                <MenuFlyoutItem Text="⚛️ Force-Directed Cluster" Click="OnLayoutForceClick" />
+                                <MenuFlyoutItem Text="🏢 Hierarchy (Top-Down)" Click="OnLayoutHierarchyClick" />
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+
+                    <Button Click="OnImportFolderClick" ToolTipService.ToolTip="Auto-Scan &amp; Link Workspace Folder" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="📂" FontSize="12" />
+                            <TextBlock Text="Import Vault" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Click="OnExportDocxClick" ToolTipService.ToolTip="Export to Editable Word DrawingML Document" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="📄" FontSize="12" />
+                            <TextBlock Text="Export DOCX" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Command="{Binding SaveCommand}" ToolTipService.ToolTip="Save Galaxy Map (.msmap)" Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="💾" FontSize="12" />
+                            <TextBlock Text="Save" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Right: Zoom Controls & Search -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <AutoSuggestBox x:Name="SearchBox" PlaceholderText="🔍 Search galaxy..." Width="150" TextChanged="OnSearchTextChanged" />
+                    <Button Click="OnZoomOutClick" ToolTipService.ToolTip="Zoom Out (-)" Padding="6,5"><TextBlock Text="➖" FontSize="11" /></Button>
+                    <TextBlock Text="{Binding ZoomLevel, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0:P0}'}" VerticalAlignment="Center" Width="42" TextAlignment="Center" FontSize="11" Foreground="#9A9AB0" />
+                    <Button Click="OnZoomInClick" ToolTipService.ToolTip="Zoom In (+)" Padding="6,5"><TextBlock Text="➕" FontSize="11" /></Button>
+                    <Button Click="OnFitToWindowClick" ToolTipService.ToolTip="Fit Galaxy to Window" Padding="6,5"><TextBlock Text="⛶" FontSize="11" /></Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- MAIN INTERACTIVE CANVAS BODY + SIDEBAR -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- GALAXY CANVAS AREA -->
+            <Grid Grid.Column="0" Background="#12131C" ClipToBounds="True" x:Name="CanvasContainer">
+                <!-- Interactive Pan & Zoom Canvas -->
+                <Canvas x:Name="GalaxyCanvas" Background="Transparent"
+                        PointerPressed="OnCanvasPointerPressed"
+                        PointerMoved="OnCanvasPointerMoved"
+                        PointerReleased="OnCanvasPointerReleased"
+                        PointerWheelChanged="OnCanvasPointerWheelChanged">
+                    <!-- Bezier lines and shape nodes are drawn dynamically in code-behind for 60fps performance -->
+                </Canvas>
+
+                <!-- FLOATING MARKDOWN PREVIEW CARD (Overlay) -->
+                <Border x:Name="PreviewOverlayCard"
+                        Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Margin="0,0,24,24" Width="400" MaxHeight="320"
+                        Background="#1C1C28" BorderBrush="#FF7C4D" BorderThickness="1.5"
+                        CornerRadius="12" Padding="14"
+                        Shadow="{StaticResource SharedShadow}">
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header -->
+                        <Grid Grid.Row="0">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Text="📝" FontSize="14" />
+                                <TextBlock Text="{Binding PreviewTitle}" FontSize="13" FontWeight="Bold" Foreground="#E8E8F0" TextTrimming="CharacterEllipsis" MaxWidth="280" />
+                            </StackPanel>
+                            <Button Click="OnClosePreviewCardClick" HorizontalAlignment="Right" Padding="4,2" Background="Transparent" BorderThickness="0">
+                                <TextBlock Text="✕" FontSize="11" Foreground="#9A9AB0" />
+                            </Button>
+                        </Grid>
+
+                        <!-- Markdown snippet scroll -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding PreviewMarkdown}" FontSize="12" Foreground="#C8C8D8" TextWrapping="Wrap" FontFamily="Consolas, monospace" />
+                        </ScrollViewer>
+
+                        <!-- Open in MarkSmith Action -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                            <TextBlock Text="{Binding PreviewFilePath}" FontSize="10" Foreground="#7C7C90" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                            <Button Content="Open in Editor ➔" Click="OnOpenInEditorClick" Background="#7C4DFF" Foreground="White" FontWeight="SemiBold" FontSize="11" Padding="10,4" CornerRadius="6" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- RIGHT PROPERTY & APPEARANCE INSPECTOR -->
+            <Border Grid.Column="1" Background="#181924" BorderBrush="#2E2E42" BorderThickness="1,0,0,0" Padding="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+
+                        <!-- SECTION 1: APPEARANCE & THEMES -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="GALAXY APPEARANCE" FontSize="11" FontWeight="Bold" Foreground="#9A9AB0" CharacterSpacing="60" />
+                            <ComboBox ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding SelectedThemeName, Mode=TwoWay}" HorizontalAlignment="Stretch" SelectionChanged="OnThemeChanged" />
+
+                            <TextBlock Text="Branch Accent Swatches" FontSize="11" Foreground="#9A9AB0" Margin="0,4,0,0" />
+                            <ItemsControl ItemsSource="{Binding PaletteColors}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" ItemWidth="40" ItemHeight="36" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Click="OnPaletteSwatchClick" Tag="{Binding}" Padding="0" Margin="3" Width="32" Height="30" CornerRadius="6" BorderThickness="1" BorderBrush="#40FFFFFF">
+                                            <Border CornerRadius="5" Background="{Binding Converter={StaticResource HexToBrushConverter}}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <MenuFlyoutSeparator />
+
+                        <!-- SECTION 2: NODE DETAILS & LINKING -->
+                        <StackPanel Spacing="10" DataContext="{Binding SelectedNode}">
+                            <TextBlock Text="SELECTED DOCUMENT / NODE" FontSize="11" FontWeight="Bold" Foreground="#9A9AB0" CharacterSpacing="60" />
+
+                            <TextBox Header="Title" Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Document title..." />
+
+                            <TextBox Header="Linked File Path" Text="{Binding FilePath, Mode=TwoWay}" PlaceholderText="C:\docs\project.md" />
+
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" Header="Format / Type" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="Document" />
+                                    <ComboBoxItem Content="Project" />
+                                    <ComboBoxItem Content="Concept" />
+                                    <ComboBoxItem Content="Milestone" />
+                                    <ComboBoxItem Content="Note" />
+                                </ComboBox>
+                                <TextBox Grid.Column="1" Header="Icon" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch" />
+                            </Grid>
+
+                            <!-- Progress Slider -->
+                            <StackPanel Spacing="4">
+                                <Grid>
+                                    <TextBlock Text="Completion / Progress" FontSize="12" Foreground="#C8C8D8" />
+                                    <TextBlock Text="{Binding Progress, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0}%'}" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#34D399" />
+                                </Grid>
+                                <Slider Value="{Binding Progress, Mode=TwoWay}" Minimum="0" Maximum="100" StepFrequency="5" />
+                            </StackPanel>
+
+                            <!-- Markdown Notes -->
+                            <TextBox Header="Markdown Summary / Notes" Text="{Binding MarkdownContent, Mode=TwoWay}" AcceptsReturn="True" Height="110" TextWrapping="Wrap" PlaceholderText="# Notes &amp; details..." />
+
+                            <!-- Action Buttons -->
+                            <Button Content="📂 Open Document in MarkSmith" Click="OnOpenSelectedDocumentClick" HorizontalAlignment="Stretch" Background="#262738" BorderBrush="#7C4DFF" Foreground="#E8E8F0" FontWeight="SemiBold" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- STATUS BAR -->
+        <Border Grid.Row="2" Background="#14141E" BorderBrush="#2E2E42" BorderThickness="0,1,0,0" Padding="12,5">
+            <Grid>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="11.5" Foreground="#9A9AB0" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding Nodes.Count, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0} Nodes'}" FontSize="11" Foreground="#7C7C90" />
+                    <TextBlock Text="{Binding Links.Count, Converter={StaticResource StringFormatConverter}, ConverterParameter='{}{0} Cross-Links'}" FontSize="11" Foreground="#7C7C90" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

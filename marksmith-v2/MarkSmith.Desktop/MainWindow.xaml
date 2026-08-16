@@ -954,8 +954,10 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutSubItem Text="Diagram">
+                                        <MenuFlyoutSubItem Text="Diagram &amp; Galaxy">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="🌌 Document Galaxy &amp; Mind Map..." Click="OnOpenMindMapGalaxyClick" />
+                                            <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="MLShape &amp; SmartArt Vector Studio..." Click="OnOpenShapeDesignStudioClick" />
                                             <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
                                             <MenuFlyoutSeparator />
@@ -963,6 +965,9 @@
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
+                                        <MenuFlyoutItem Text="🌌 Document Galaxy..." Click="OnOpenMindMapGalaxyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE728;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>

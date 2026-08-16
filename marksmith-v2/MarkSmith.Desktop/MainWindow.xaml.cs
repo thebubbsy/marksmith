@@ -66,6 +66,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Single-instance studios (kept alive for the window's lifetime)
     private Views.SmartArtStudio.SmartArtDesignStudioWindow? _smartArtDesignStudio;
     private Views.ShapeStudio.ShapeDesignStudioWindow? _shapeDesignStudio;
+    private Views.MindMap.MindMapGalaxyWindow? _mindMapGalaxyWindow;
     private const int HeavyChangeThreshold = 32; // chars changed in one edit above which it's a paste, not typing
     private readonly Services.ClipboardIngestService _clipboardIngest;
     private readonly Services.FolderIngestService _folderIngest;
@@ -4901,6 +4902,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
         _shapeDesignStudio.Activate();
         ViewModel.StatusText = "MLShape & SmartArt Vector Studio opened.";
+        ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    // Document Galaxy & Mind Map Hub — visual interconnected document library
+    private void OnOpenMindMapGalaxyClick(object sender, RoutedEventArgs e)
+    {
+        if (_mindMapGalaxyWindow == null)
+        {
+            _mindMapGalaxyWindow = new Views.MindMap.MindMapGalaxyWindow();
+            _mindMapGalaxyWindow.Closed += (s, args) => _mindMapGalaxyWindow = null;
+            _mindMapGalaxyWindow.OpenDocumentRequested += (s, filePath) =>
+            {
+                if (!string.IsNullOrEmpty(filePath) && System.IO.File.Exists(filePath))
+                {
+                    ViewModel.InputFilePath = filePath;
+                    ViewModel.UsePasteSource = false;
+                    ViewModel.StatusText = $"Opened {System.IO.Path.GetFileName(filePath)} from Document Galaxy.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+                }
+            };
+        }
+        _mindMapGalaxyWindow.Activate();
+        ViewModel.StatusText = "Document Galaxy & Mind Map Library opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 
