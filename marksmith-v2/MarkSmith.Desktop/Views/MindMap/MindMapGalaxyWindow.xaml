@@ -127,6 +127,21 @@
                     <!-- Bezier lines and shape nodes are drawn dynamically in code-behind for 60fps performance -->
                 </Canvas>
 
+                <!-- FLOATING MINIMAP RADAR HUD (Bottom-Left) -->
+                <Border x:Name="MinimapOverlay"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Margin="24,0,0,24" Width="180" Height="120"
+                        Background="#E0161722" BorderBrush="#7C4DFF" BorderThickness="1.5"
+                        CornerRadius="8" Padding="6">
+                    <Grid>
+                        <Canvas x:Name="MinimapCanvas" Background="Transparent"
+                                PointerPressed="OnMinimapPointerPressed"
+                                PointerMoved="OnMinimapPointerMoved"
+                                PointerReleased="OnMinimapPointerReleased" />
+                        <TextBlock Text="RADAR" FontSize="9" FontWeight="Bold" Foreground="#60FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,4,0" IsHitTestVisible="False"/>
+                    </Grid>
+                </Border>
+
                 <!-- FLOATING MARKDOWN PREVIEW CARD (Overlay) -->
                 <Border x:Name="PreviewOverlayCard"
                         Visibility="{Binding IsPreviewCardVisible, Converter={StaticResource BoolToVis}}"

@@ -241,6 +241,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 
+    if (msg?.type === "batch-ingest-ai-tabs") {
+        (async () => {
+            try {
+                const tabs = await chrome.tabs.query({ url: CHAT_URLS });
+                if (!tabs || tabs.length === 0) {
+                    return sendResponse({ ok: false, error: "No open AI chat tabs found." });
+                }
+
+                const results = [];
+                for (const tab of tabs) {
+                    try {
+                        const extracted = await extractFromTab(tab.id, "conversation");
+                        if (extracted?.text && extracted.text.trim().length > 0) {
+                            results.push({
+                                title: tab.title || "AI Conversation",
+                                url: tab.url,
+                                text: extracted.text.trim()
+                            });
+                        }
+                    } catch {
+                        // Skip failed tab
+                    }
+                }
+
+                if (results.length === 0) {
+                    return sendResponse({ ok: false, error: "No conversation content could be extracted from open tabs." });
+                }
+
+                const chapters = results.map((r, i) => `# Chapter ${i + 1}: ${r.title}\n\n> Source: ${r.url}\n\n${r.text}`).join("\n\n---\n\n");
+                const res = await sendDirectMarkdown(chapters, { source: "batch-ai-tabs", count: results.length });
+                sendResponse({ ok: res.ok, count: results.length, error: res.error });
+            } catch (e) {
+                sendResponse({ ok: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     if (msg?.type === "history") {
         (async () => sendResponse({ ok: true, list: await getHistory() }))();
         return true;

@@ -23,6 +23,23 @@ namespace MarkSmith.Cli
 
             try
             {
+                if (cmd == "batch" || args[0] == "--batch")
+                {
+                    string inputPattern = args.Length > 1 ? args[1] : "./*.md";
+                    string format = "docx";
+                    string outputDir = ".";
+                    int concurrency = Environment.ProcessorCount;
+
+                    for (int i = 2; i < args.Length; i++)
+                    {
+                        if (args[i] == "--format" && i + 1 < args.Length) format = args[++i].ToLowerInvariant();
+                        if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
+                        if (args[i] == "--concurrency" && i + 1 < args.Length && int.TryParse(args[i + 1], out int c)) concurrency = c;
+                    }
+
+                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency);
+                }
+
                 if (cmd == "compose" && args.Length >= 3)
                 {
                     string inputImage = args[1];
@@ -196,6 +213,78 @@ namespace MarkSmith.Cli
             }
         }
 
+        static async Task<int> ExecuteBatchAsync(string inputPattern, string outputDir, string format, int concurrency)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            string searchDir = Directory.Exists(inputPattern) ? inputPattern : (Path.GetDirectoryName(inputPattern) ?? ".");
+            if (string.IsNullOrEmpty(searchDir)) searchDir = ".";
+            string pattern = Directory.Exists(inputPattern) ? "*.md" : (Path.GetFileName(inputPattern) ?? "*.md");
+
+            if (!Directory.Exists(searchDir))
+            {
+                Console.Error.WriteLine($"[ERROR] Directory '{searchDir}' not found.");
+                return 1;
+            }
+
+            var files = Directory.GetFiles(searchDir, pattern, SearchOption.TopDirectoryOnly);
+            if (files.Length == 0)
+            {
+                Console.WriteLine($"No files matched pattern '{pattern}' in '{searchDir}'.");
+                return 0;
+            }
+
+            Directory.CreateDirectory(outputDir);
+            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency})...");
+
+            int completed = 0;
+            int errors = 0;
+            var docxService = new DocxExportService();
+            var htmlService = new MarkdownHtmlService();
+            var settings = new AppSettings();
+            var theme = ThemeCatalog.Default;
+
+            using var semaphore = new SemaphoreSlim(Math.Max(1, concurrency));
+
+            await Task.WhenAll(files.Select(async file =>
+            {
+                await semaphore.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    string outFile = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(file) + "." + format);
+                    string md = await File.ReadAllTextAsync(file).ConfigureAwait(false);
+
+                    if (format == "docx" || format == "dotx")
+                    {
+                        await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        string html = htmlService.Render(md, settings, theme);
+                        await File.WriteAllTextAsync(outFile, html).ConfigureAwait(false);
+                    }
+
+                    int cur = Interlocked.Increment(ref completed);
+                    int pct = (int)((cur / (double)files.Length) * 100);
+                    int barFilled = pct / 10;
+                    string bar = new string('█', barFilled) + new string('░', 10 - barFilled);
+                    Console.Write($"\r[BATCH] [{bar}] {pct}% ({cur}/{files.Length})");
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref errors);
+                    Console.Error.WriteLine($"\n[ERROR] Failed to convert '{file}': {ex.Message}");
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            })).ConfigureAwait(false);
+
+            sw.Stop();
+            Console.WriteLine($"\n[BATCH] ✓ Completed {completed} file(s) in {sw.ElapsedMilliseconds}ms ({errors} error(s)).");
+            return errors > 0 ? 1 : 0;
+        }
+
         static void PrintHelp()
         {
             Console.WriteLine("MarkSmith CLI v2.18.0");
@@ -203,11 +292,13 @@ namespace MarkSmith.Cli
             Console.WriteLine();
             Console.WriteLine("Usage:");
             Console.WriteLine("  marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
             Console.WriteLine();
             Console.WriteLine("Flags:");
             Console.WriteLine("  -w, --watch    Watch the input file for changes and recompile automatically");
+            Console.WriteLine("  --batch        Batch process multiple markdown documents concurrently");
             Console.WriteLine("  --compact      Compress vector shapes in markdown using dense deflate format");
             Console.WriteLine("  --theme <name> Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
             Console.WriteLine();

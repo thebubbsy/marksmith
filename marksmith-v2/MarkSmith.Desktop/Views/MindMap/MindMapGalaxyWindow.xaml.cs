@@ -123,6 +123,8 @@ namespace MarkSmith.Views.MindMap
                 Canvas.SetTop(nodeBorder, p.Y);
                 GalaxyCanvas.Children.Add(nodeBorder);
             }
+
+            RedrawMinimap();
         }
 
         private Microsoft.UI.Xaml.Shapes.Path CreateBezierConnector(Point start, Point end, string hexColor, bool dashed, double strokeThickness = 2.0)
@@ -534,5 +536,125 @@ namespace MarkSmith.Views.MindMap
         {
             ViewModel.HidePreviewCard();
         }
+
+        #region Minimap Radar Navigation
+
+        private bool _isMinimapDragging;
+        private double _minimapMinX, _minimapMinY, _minimapScale = 1.0;
+
+        private void RedrawMinimap()
+        {
+            if (MinimapCanvas == null) return;
+            MinimapCanvas.Children.Clear();
+
+            if (ViewModel.Nodes.Count == 0) return;
+
+            double minX = ViewModel.Nodes.Min(n => n.X);
+            double maxX = ViewModel.Nodes.Max(n => n.X + n.Width);
+            double minY = ViewModel.Nodes.Min(n => n.Y);
+            double maxY = ViewModel.Nodes.Max(n => n.Y + n.Height);
+
+            // Add world padding
+            double padding = 250;
+            minX -= padding; maxX += padding;
+            minY -= padding; maxY += padding;
+
+            double worldW = Math.Max(100, maxX - minX);
+            double worldH = Math.Max(100, maxY - minY);
+
+            double miniW = 168.0;
+            double miniH = 108.0;
+            double scale = Math.Min(miniW / worldW, miniH / worldH);
+
+            _minimapMinX = minX;
+            _minimapMinY = minY;
+            _minimapScale = scale;
+
+            // 1. Draw node dots
+            foreach (var node in ViewModel.Nodes)
+            {
+                double nx = (node.X - minX) * scale;
+                double ny = (node.Y - minY) * scale;
+                double nw = Math.Max(3, node.Width * scale);
+                double nh = Math.Max(2, node.Height * scale);
+
+                var dot = new Microsoft.UI.Xaml.Shapes.Rectangle
+                {
+                    Width = nw,
+                    Height = nh,
+                    Fill = new SolidColorBrush(ColorFromHex(node.ColorHex)),
+                    RadiusX = 1,
+                    RadiusY = 1,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, nx);
+                Canvas.SetTop(dot, ny);
+                MinimapCanvas.Children.Add(dot);
+            }
+
+            // 2. Draw Viewport Camera Lens
+            double cx = (CanvasContainer.ActualWidth > 0 ? CanvasContainer.ActualWidth : 900) / 2.0;
+            double cy = (CanvasContainer.ActualHeight > 0 ? CanvasContainer.ActualHeight : 600) / 2.0;
+            double zoom = ViewModel.ZoomLevel;
+
+            double viewWorldLeft = -ViewModel.ViewportOffsetX - (cx / zoom);
+            double viewWorldTop = -ViewModel.ViewportOffsetY - (cy / zoom);
+            double viewWorldWidth = (CanvasContainer.ActualWidth > 0 ? CanvasContainer.ActualWidth : 900) / zoom;
+            double viewWorldHeight = (CanvasContainer.ActualHeight > 0 ? CanvasContainer.ActualHeight : 600) / zoom;
+
+            double vx = (viewWorldLeft - minX) * scale;
+            double vy = (viewWorldTop - minY) * scale;
+            double vw = Math.Max(6, viewWorldWidth * scale);
+            double vh = Math.Max(4, viewWorldHeight * scale);
+
+            var lens = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = vw,
+                Height = vh,
+                Stroke = new SolidColorBrush(ColorFromHex("#7C4DFF")),
+                StrokeThickness = 1.5,
+                Fill = new SolidColorBrush(Color.FromArgb(40, 124, 77, 255)),
+                RadiusX = 2,
+                RadiusY = 2,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(lens, vx);
+            Canvas.SetTop(lens, vy);
+            MinimapCanvas.Children.Add(lens);
+        }
+
+        private void OnMinimapPointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            _isMinimapDragging = true;
+            MinimapCanvas.CapturePointer(e.Pointer);
+            PanToMinimapPoint(e.GetCurrentPoint(MinimapCanvas).Position);
+        }
+
+        private void OnMinimapPointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (_isMinimapDragging)
+            {
+                PanToMinimapPoint(e.GetCurrentPoint(MinimapCanvas).Position);
+            }
+        }
+
+        private void OnMinimapPointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            _isMinimapDragging = false;
+            MinimapCanvas.ReleasePointerCapture(e.Pointer);
+        }
+
+        private void PanToMinimapPoint(Point pt)
+        {
+            if (_minimapScale <= 0) return;
+            double targetWorldX = _minimapMinX + (pt.X / _minimapScale);
+            double targetWorldY = _minimapMinY + (pt.Y / _minimapScale);
+
+            ViewModel.ViewportOffsetX = -targetWorldX;
+            ViewModel.ViewportOffsetY = -targetWorldY;
+            RedrawCanvas();
+        }
+
+        #endregion
     }
 }

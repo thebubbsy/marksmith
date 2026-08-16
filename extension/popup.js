@@ -227,6 +227,20 @@ async function renderHistory() {
 // ── wiring ──────────────────────────────────────────────────────────────────
 $("sendBtn").addEventListener("click", doSend);
 $("copyBtn").addEventListener("click", doCopy);
+if ($("batchTabsBtn")) {
+    $("batchTabsBtn").addEventListener("click", async () => {
+        const btn = $("batchTabsBtn");
+        btn.disabled = true;
+        toast("Ingesting all open AI chat tabs…", "busy");
+        const r = await ask({ type: "batch-ingest-ai-tabs" });
+        if (r.ok) {
+            toast(`Ingested ${r.count} AI tab(s) into Marksmith ✓`, "ok");
+        } else {
+            toast(r.error || "Failed to batch ingest AI tabs.", "err");
+        }
+        btn.disabled = false;
+    });
+}
 $("histClear").addEventListener("click", async () => {
     try { await chrome.storage.local.remove("captureHistory"); } catch { /* best effort */ }
     renderHistory();
