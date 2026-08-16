@@ -571,8 +571,8 @@ public sealed class DocxExportService
             {
                 // Display math → a centered paragraph holding a real, editable Word equation (OMML).
                 var mp = new W.Paragraph(new W.ParagraphProperties(
-                    new W.Justification { Val = W.JustificationValues.Center },
-                    new W.SpacingBetweenLines { Before = "120", After = "120" }));
+                    new W.SpacingBetweenLines { Before = "120", After = "120" },
+                    new W.Justification { Val = W.JustificationValues.Center }));
                 mp.Append(LatexToOmml.Build(math.Lines.ToString()));
                 target.Append(mp);
                 break;
@@ -1989,12 +1989,12 @@ public sealed class DocxExportService
         };
 
         var linkPara = new W.Paragraph(new W.ParagraphProperties(
-            new W.Justification { Val = W.JustificationValues.Center },
-            new W.SpacingBetweenLines { Before = "200", After = "60" },
-            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
             new W.ParagraphBorders(
                 new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
-                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex })));
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex }),
+            new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex },
+            new W.SpacingBetweenLines { Before = "200", After = "60" },
+            new W.Justification { Val = W.JustificationValues.Center }));
 
         var hyperlink = new W.Hyperlink { Id = rel.Id };
         hyperlink.Append(new W.Run(
@@ -2010,8 +2010,8 @@ public sealed class DocxExportService
         if (!string.IsNullOrWhiteSpace(caption))
         {
             var captionPara = new W.Paragraph(new W.ParagraphProperties(
-                new W.Justification { Val = W.JustificationValues.Center },
-                new W.SpacingBetweenLines { After = "120" }));
+                new W.SpacingBetweenLines { After = "120" },
+                new W.Justification { Val = W.JustificationValues.Center }));
             AddText(captionPara, caption, new Fmt { Italic = true });
             target.Append(captionPara);
         }
@@ -2601,8 +2601,6 @@ public sealed class DocxExportService
         tblPr.TableBorders = new W.TableBorders(
             Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
             Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
-        tblPr.TableCaption = new W.TableCaption { Val = "Table exported from Markdown" };
-        tblPr.TableDescription = new W.TableDescription { Val = "Table exported from Markdown by MarkSmith" };
 
         var wTable = new W.Table(
             tblPr,
@@ -2680,8 +2678,7 @@ public sealed class DocxExportService
 
     // Word renders adjacent tables as one; a tiny paragraph keeps them (and following text) apart.
     private static W.Paragraph SpacerParagraph() => new(new W.ParagraphProperties(
-        new W.SpacingBetweenLines { Before = "0", After = "0" },
-        new W.ParagraphMarkRunProperties(new W.FontSize { Val = "8" })));
+        new W.SpacingBetweenLines { Before = "0", After = "0" }));
 
     // Real TOC field over Heading1-N with hyperlinks (\h) — combined with w:updateFields, Word
     // rebuilds it (page numbers and all) the moment the document opens. The upper bound adapts to

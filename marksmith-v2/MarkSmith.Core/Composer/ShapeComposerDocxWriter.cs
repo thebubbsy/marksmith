@@ -104,7 +104,7 @@ namespace MarkSmith.Core.Composer
         public static string BuildInlineXml(List<ComposedShape> shapes,
             double canvasWidthInches, double canvasHeightInches)
         {
-            var sb = new StringBuilder();
+            var sb = new StringBuilder(Math.Max(1024, shapes.Count * 320));
             int id = 2;
             foreach (var s in shapes)
             {

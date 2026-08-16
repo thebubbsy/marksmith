@@ -183,7 +183,7 @@ namespace MarkSmith.Core.Composer
 
         public static byte[] EncodeBinary(IReadOnlyList<ComposedShape> shapes)
         {
-            using var ms = new MemoryStream();
+            using var ms = new MemoryStream(Math.Max(64, shapes.Count * 28));
             using (var def = new DeflateStream(ms, CompressionLevel.Optimal, leaveOpen: true))
             using (var bw = new BinaryWriter(def, Encoding.UTF8))
             {
@@ -223,13 +223,13 @@ namespace MarkSmith.Core.Composer
 
         public static List<ComposedShape> DecodeBinary(byte[] compressedBytes)
         {
-            var list = new List<ComposedShape>();
             using var ms = new MemoryStream(compressedBytes);
             using var def = new DeflateStream(ms, CompressionMode.Decompress);
             using var br = new BinaryReader(def, Encoding.UTF8);
 
             byte version = br.ReadByte();
             int count = br.ReadInt32();
+            var list = new List<ComposedShape>(Math.Clamp(count, 0, 100_000));
             for (int i = 0; i < count; i++)
             {
                 string prst = br.ReadString();

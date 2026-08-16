@@ -398,20 +398,23 @@
     }
 
     function scan() {
-        for (const root of document.querySelectorAll(site.messages)) {
-            if (root.dataset.mkCopyBtn) continue;
-            // Only decorate messages that have real content (streaming placeholders come back later).
-            if ((root.textContent || "").trim().length < 8) continue;
-            root.dataset.mkCopyBtn = "1";
-            root.appendChild(makeButton(root));
-        }
+        requestAnimationFrame(() => {
+            const elements = document.querySelectorAll(site.messages);
+            for (let i = 0; i < elements.length; i++) {
+                const root = elements[i];
+                if (root.dataset.mkCopyBtn) continue;
+                // Only decorate messages that have real content (streaming placeholders come back later).
+                if ((root.textContent || "").trim().length < 8) continue;
+                root.dataset.mkCopyBtn = "1";
+                root.appendChild(makeButton(root));
+            }
+        });
     }
 
-    let scanQueued = false;
+    let scanTimer = null;
     new MutationObserver(() => {
-        if (scanQueued) return;
-        scanQueued = true;
-        setTimeout(() => { scanQueued = false; scan(); }, 700);
+        if (scanTimer) clearTimeout(scanTimer);
+        scanTimer = setTimeout(scan, 350);
     }).observe(document.body, { childList: true, subtree: true });
     scan();
 

@@ -706,9 +706,9 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (AppServices.License.CanAutomate) return;
         bool changed = false;
-        if (_autoClipboardIngest) { _autoClipboardIngest = false; changed = true; }
-        if (_watchFolderEnabled) { _watchFolderEnabled = false; changed = true; }
-        if (_autoConvertIngests) { _autoConvertIngests = false; changed = true; }
+        if (AutoClipboardIngest) { AutoClipboardIngest = false; changed = true; }
+        if (WatchFolderEnabled) { WatchFolderEnabled = false; changed = true; }
+        if (AutoConvertIngests) { AutoConvertIngests = false; changed = true; }
         if (changed)
         {
             _settingsService.Current.AutoClipboardIngest = false;
@@ -939,7 +939,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnContentWidthChanged(int value) {
         // A4 lock is authoritative: a manual width edit while locked reverts to the A4 width so the
         // canvas/PDF/DOCX/Google page models never desync (review-fix pin: A4_Lock_Is_Authoritative).
-        if (_a4FixedWidth && value != 794) { ContentWidth = 794; return; }
+        if (A4FixedWidth && value != 794) { ContentWidth = 794; return; }
         _settingsService.Current.ContentWidth = value; SaveSettingsDebounced();
     }
     partial void OnA4FixedWidthChanged(bool value) { 
