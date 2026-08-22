@@ -16,8 +16,9 @@ public static class Program
 
     // Per-user, always-writable app data root. The install lives under Program Files (read-only for
     // standard users), so neither WebView2's data folder nor the crash log may live next to the exe.
-    private static readonly string AppDataDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+    // Batch 11 (#59): AppPaths.ConfigDir is dependency-free static, so even the bootstrap crash log
+    // honors the MARKSMITH_CONFIG_DIR redirect (defaults to %LOCALAPPDATA%\MarkSmith).
+    private static readonly string AppDataDir = Services.AppPaths.ConfigDir;
 
     private static readonly string LogPath = Path.Combine(AppDataDir, "startup-crash.log");
 

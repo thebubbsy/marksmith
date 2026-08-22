@@ -999,7 +999,7 @@ public sealed class DocxExportService
     // <asvg:svgBlip> ext under the PNG blip is exactly what Word writes when you Insert > Picture an SVG.
     // Preserves vector SVG definitions natively to ensure loss-free document round-trips. Returns null if the SVG can't be rasterized
     // (caller then falls back to the code block).
-    private static W.Paragraph? SvgDiagramParagraph(string svg, Ctx ctx)
+    private static W.Paragraph? SvgDiagramParagraph(string svg, Ctx ctx, string descr = "Diagram rendered by a MarkSmith plugin")
     {
         var png = SvgRasterizer.ToPng(svg);
         if (png is null) return null;
@@ -1030,7 +1030,7 @@ public sealed class DocxExportService
                 <wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
                   <wp:extent cx="{cx}" cy="{cy}"/>
                   <wp:effectExtent l="0" t="0" r="0" b="0"/>
-                  <wp:docPr id="{id}" name="Diagram" descr="Diagram rendered by a MarkSmith plugin"/>
+                  <wp:docPr id="{id}" name="Diagram" descr="{descr}"/>
                   <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
                   <a:graphic>
                     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -1064,6 +1064,29 @@ public sealed class DocxExportService
                 new W.SpacingBetweenLines { Before = "120", After = "120" },
                 new W.Justification { Val = W.JustificationValues.Center }),
             new W.Run(drawing));
+    }
+
+    // Batch 14 (#69): the Cycle 22–29 engineering/science fences (:::doppler, :::smith-chart, …
+    // 49 visualizers) used to render ONLY in the HTML preview — the DOCX path left the raw fence
+    // text in the document, the biggest open MD_ENGINE_GOVERNANCE two-pipeline divergence. Renders
+    // through the SAME dispatch table the preview uses (MarkdownHtmlService.TryRenderEngineeringFence)
+    // and embeds the SVG+PNG picture exactly like the diagram-plugin path. Last resort is the
+    // captioned source code block — the mermaid/plugin fallback convention, never nothing.
+    private static void RenderEngineeringDiagram(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        MarkdownHtmlService.TryGetEngineeringFenceName(node.Block.RawText, out var fenceName);
+
+        if (MarkdownHtmlService.TryRenderEngineeringFence(node.Block.RawText, out var svg) &&
+            SvgDiagramParagraph(svg, ctx, $"Engineering diagram (:::{fenceName}) rendered by MarkSmith") is { } para)
+        {
+            target.Append(para);
+            return;
+        }
+
+        // Render failed (or rasterization did) — show the fence source with the divergence caption
+        // so readers know the preview/PDF display the diagram.
+        target.Append(DiagramSourceCaption($"{fenceName} engineering", ctx));
+        target.Append(CodeParagraph(node.Block.RawText, "", ctx));
     }
 
     private static W.Paragraph SnapshotParagraph(byte[] png, Ctx ctx)
@@ -1321,6 +1344,9 @@ public sealed class DocxExportService
                 break;
             case "Canvas":
                 RenderCanvas(node, target, ctx);
+                break;
+            case "EngineeringDiagram":
+                RenderEngineeringDiagram(node, target, ctx);
                 break;
             case "Kanban":
                 RenderKanban(node, target, ctx);
@@ -2168,12 +2194,153 @@ public sealed class DocxExportService
     private static readonly Regex SummaryRe = new(@"<summary\b[^>]*>(.*?)</summary>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex AltSizeHintRe = new(@"\|(\d{2,4})$", RegexOptions.Compiled);
 
-    private static readonly System.Net.Http.HttpClient SharedImageHttpClient = new()
+    private static readonly System.Net.Http.HttpClient SharedImageHttpClient = new(new System.Net.Http.SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectTimeout = TimeSpan.FromSeconds(5),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    })
     {
         Timeout = TimeSpan.FromSeconds(8)
     };
 
-    private static byte[]? FetchImageBytes(string rawUrl)
+    internal const int MaxImageSizeBytes = 20 * 1024 * 1024; // 20 MB size cap
+
+    internal static bool IsSafeRemoteUrl(string rawUrl, out Uri? validUri)
+    {
+        validUri = null;
+        if (string.IsNullOrWhiteSpace(rawUrl))
+            return false;
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
+            return false;
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        var host = uri.Host;
+        if (string.IsNullOrWhiteSpace(host))
+            return false;
+
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (System.Net.IPAddress.TryParse(host, out var directIp))
+            {
+                if (IsRestrictedIp(directIp)) return false;
+            }
+            else
+            {
+                var addresses = System.Net.Dns.GetHostAddresses(uri.DnsSafeHost);
+                if (addresses.Length == 0) return false;
+                foreach (var addr in addresses)
+                {
+                    if (IsRestrictedIp(addr)) return false;
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        validUri = uri;
+        return true;
+    }
+
+    internal static bool IsRestrictedIp(System.Net.IPAddress ip)
+    {
+        if (ip.IsIPv4MappedToIPv6)
+        {
+            ip = ip.MapToIPv4();
+        }
+
+        if (System.Net.IPAddress.IsLoopback(ip)) return true;
+
+        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            var bytes = ip.GetAddressBytes();
+            // 0.0.0.0/8 (Unspecified / current network)
+            if (bytes[0] == 0) return true;
+            // 10.0.0.0/8 (RFC 1918 Private)
+            if (bytes[0] == 10) return true;
+            // 127.0.0.0/8 (Loopback)
+            if (bytes[0] == 127) return true;
+            // 169.254.0.0/16 (Link-local / Cloud metadata)
+            if (bytes[0] == 169 && bytes[1] == 254) return true;
+            // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 - 172.31.255.255)
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            // 192.168.0.0/16 (RFC 1918 Private)
+            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            // 100.64.0.0/10 (Carrier-Grade NAT RFC 6598: 100.64.0.0 - 100.127.255.255)
+            if (bytes[0] == 100 && (bytes[1] & 0xC0) == 64) return true;
+            // 192.0.0.0/24 (IETF Protocol Assignments RFC 6890)
+            if (bytes[0] == 192 && bytes[1] == 0 && bytes[2] == 0) return true;
+            // 192.0.2.0/24 (TEST-NET-1 RFC 5737)
+            if (bytes[0] == 192 && bytes[1] == 0 && bytes[2] == 2) return true;
+            // 198.18.0.0/15 (Benchmarking RFC 2544: 198.18.0.0 - 198.19.255.255)
+            if (bytes[0] == 198 && (bytes[1] == 18 || bytes[1] == 19)) return true;
+            // 198.51.100.0/24 (TEST-NET-2 RFC 5737)
+            if (bytes[0] == 198 && bytes[1] == 51 && bytes[2] == 100) return true;
+            // 203.0.113.0/24 (TEST-NET-3 RFC 5737)
+            if (bytes[0] == 203 && bytes[1] == 0 && bytes[2] == 113) return true;
+            // 224.0.0.0/4 (Multicast) & 240.0.0.0/4 (Reserved / Future Use / Broadcast 255.255.255.255)
+            if (bytes[0] >= 224) return true;
+        }
+        else if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast) return true;
+            if (ip.Equals(System.Net.IPAddress.IPv6Any) || ip.Equals(System.Net.IPAddress.IPv6None)) return true;
+
+            var bytes = ip.GetAddressBytes();
+            // fc00::/7 (Unique Local Address - ULA)
+            if ((bytes[0] & 0xFE) == 0xFC) return true;
+            // fe80::/10 (Link-Local unicast check)
+            if (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80) return true;
+            // Discard prefix (0100::/64)
+            if (bytes[0] == 0x01 && bytes[1] == 0x00) return true;
+            // Documentation prefix (2001:db8::/32)
+            if (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0D && bytes[3] == 0xB8) return true;
+        }
+
+        return false;
+    }
+
+    internal static byte[]? ReadImageResponseWithLimit(System.Net.Http.HttpResponseMessage response, int maxSizeBytes = MaxImageSizeBytes)
+    {
+        if (response.Content.Headers.ContentLength.HasValue &&
+            (response.Content.Headers.ContentLength.Value > maxSizeBytes || response.Content.Headers.ContentLength.Value < 0))
+        {
+            return null;
+        }
+
+        using var stream = response.Content.ReadAsStream();
+        using var ms = new MemoryStream();
+        var buffer = new byte[65536];
+        int bytesRead;
+        int totalRead = 0;
+
+        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            totalRead += bytesRead;
+            if (totalRead > maxSizeBytes)
+            {
+                return null;
+            }
+            ms.Write(buffer, 0, bytesRead);
+        }
+
+        return ms.ToArray();
+    }
+
+    internal static byte[]? FetchImageBytes(string rawUrl)
     {
         if (string.IsNullOrWhiteSpace(rawUrl)) return null;
         try
@@ -2201,13 +2368,14 @@ public sealed class DocxExportService
             if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
+                if (!IsSafeRemoteUrl(rawUrl, out var safeUri) || safeUri is null)
+                    return null;
+
+                using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, safeUri);
                 request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Marksmith/1.0");
-                using var response = SharedImageHttpClient.Send(request);
+                using var response = SharedImageHttpClient.Send(request, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
                 if (!response.IsSuccessStatusCode) return null;
-                using var ms = new MemoryStream();
-                response.Content.ReadAsStream().CopyTo(ms);
-                return ms.ToArray();
+                return ReadImageResponseWithLimit(response, MaxImageSizeBytes);
             }
 
             // 3. Local File
@@ -2223,6 +2391,12 @@ public sealed class DocxExportService
                 if (File.Exists(altPath1)) path = altPath1;
                 else if (File.Exists(altPath2)) path = altPath2;
                 else return null;
+            }
+
+            var fileInfo = new FileInfo(path);
+            if (fileInfo.Length > MaxImageSizeBytes)
+            {
+                return null;
             }
 
             return File.ReadAllBytes(path);
@@ -3671,13 +3845,13 @@ public sealed class DocxExportService
             {
                 var f = sectPr.Elements<W.FooterReference>()
                     .FirstOrDefault(r => r.Type is null || r.Type == W.HeaderFooterValues.Default);
-                if (f?.Id is { } fid && !string.IsNullOrEmpty(fid)) srcPart = srcMain.GetPartById(fid);
+                if (f?.Id?.Value is { Length: > 0 } fid && srcMain is not null) srcPart = srcMain.GetPartById(fid);
             }
             else
             {
                 var h = sectPr.Elements<W.HeaderReference>()
                     .FirstOrDefault(r => r.Type is null || r.Type == W.HeaderFooterValues.Default);
-                if (h?.Id is { } hid && !string.IsNullOrEmpty(hid)) srcPart = srcMain.GetPartById(hid);
+                if (h?.Id?.Value is { Length: > 0 } hid && srcMain is not null) srcPart = srcMain.GetPartById(hid);
             }
             if (srcPart is null) return;
 

@@ -109,8 +109,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Auto-recovery: the paste buffer is debounced-written to a recovery file so an unexpected exit
     // (crash, power loss, forced close) never loses an unsaved document; it's offered back on launch.
-    private static readonly string RecoveryDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith");
+    // Batch 11 (#59): flows through AppPaths.ConfigDir like every other persisted state, so the
+    // MARKSMITH_CONFIG_DIR redirect (test isolation / portable installs) is honored here too.
+    private static readonly string RecoveryDir = Services.AppPaths.ConfigDir;
     private static readonly string RecoveryPath = Path.Combine(RecoveryDir, "autosave_recovery.md");
     private DispatcherQueueTimer? _autosaveTimer;
 
@@ -287,6 +288,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             UpdateLintIndicator();
             UpdateLineNumbers();
+            UpdateFoldStatus();
             SyncLineGutterScroll();
             // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
             if (string.IsNullOrWhiteSpace(PasteTextBox?.Text))
@@ -775,6 +777,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnUpgradeClick(object sender, RoutedEventArgs e)
     {
+        if (!Services.LicenseService.IsStoreConfigured)
+        {
+            ViewModel.StatusText = "The online store link isn't configured yet.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
+        }
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
         catch { /* no browser / bad uri */ }
     }
@@ -1388,14 +1396,32 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
                 return ok;
             }
-            return true; // "Upgrade to Pro" opens the store below
+            // Go-live fix: the caller fire-and-forgets this method, so the store must open HERE —
+            // the old "return true" never reached any store-launching code.
+            await OpenStoreAsync();
+            return false;
         }
         if (result == ContentDialogResult.Secondary)
+        {
+            await OpenStoreAsync();
+        }
+        return false;
+    }
+
+    // Opens the checkout link; while StoreUrl still carries the placeholder the user gets a status
+    // line instead of a broken browser launch.
+    private async Task OpenStoreAsync()
+    {
+        if (Services.LicenseService.IsStoreConfigured)
         {
             try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
             catch { /* no browser / bad uri — ignore */ }
         }
-        return false;
+        else
+        {
+            ViewModel.StatusText = "The online store link isn't configured yet.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
     }
 
     // Hidden Ctrl+Shift+Alt+L: full license reset to Free (key + trial + used flag) — the
@@ -1412,10 +1438,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnHiddenResetLicenseInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
         args.Handled = true;
+#if !DEBUG
+        // Go-live: the hidden reset (which refunds the trial) is a developer affordance — dead in
+        // shipped Release builds, matching the DevProKey treatment in LicenseValidator.
+        return;
+#else
         App.License.ResetToFree();
         ViewModel.StatusText = "License reset to Free (hidden command) — free-tier limits are active. Start 3-export trial from Settings to re-test.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
         UpdateLicenseBanner();
+#endif
     }
 
     private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
@@ -2444,7 +2476,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             try
             {
-                var logsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MarkSmith", "DebugLogs");
+                var logsDir = Path.Combine(Services.AppPaths.ConfigDir, "DebugLogs");
                 Directory.CreateDirectory(logsDir);
                 var logFile = Path.Combine(logsDir, $"Preview_Session_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("n").Substring(0, 4)}.log");
                 
@@ -3420,6 +3452,50 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyWordWrap(WordWrapToggle?.IsChecked == true, persist: true);
     }
 
+    private void OnToggleFoldAtCursorClick(object sender, RoutedEventArgs e)
+    {
+        if (PasteTextBox is null) return;
+        var text = PasteTextBox.Text ?? string.Empty;
+        var cursorLine = GetCursorLine(text, PasteTextBox.SelectionStart);
+        var folded = Services.Editor.EditorFoldingService.ToggleFoldAtLine(text, cursorLine);
+        if (folded != text)
+        {
+            PasteTextBox.Text = folded;
+            UpdateFoldStatus();
+        }
+    }
+
+    private void OnFoldAllCodeClick(object sender, RoutedEventArgs e)
+    {
+        if (PasteTextBox is null) return;
+        var text = PasteTextBox.Text ?? string.Empty;
+        var folded = Services.Editor.EditorFoldingService.FoldAllCodeBlocks(text);
+        if (folded != text)
+        {
+            PasteTextBox.Text = folded;
+            UpdateFoldStatus();
+        }
+    }
+
+    private void OnUnfoldAllClick(object sender, RoutedEventArgs e)
+    {
+        if (PasteTextBox is null) return;
+        var text = PasteTextBox.Text ?? string.Empty;
+        var unfolded = Services.Editor.EditorFoldingService.UnfoldAll(text);
+        if (unfolded != text)
+        {
+            PasteTextBox.Text = unfolded;
+            UpdateFoldStatus();
+        }
+    }
+
+    private void UpdateFoldStatus()
+    {
+        if (FoldStatusText is null || PasteTextBox is null) return;
+        int foldedCount = Services.Editor.EditorFoldingService.GetFoldedCount(PasteTextBox.Text ?? string.Empty);
+        FoldStatusText.Text = foldedCount > 0 ? $"Folded ({foldedCount})" : "Fold";
+    }
+
     // ISS-004: toggle the Looking Glass portal overlay (fog-of-war lens + glowing cursor ring,
     // rendered inside the preview page). The flag lives in AppSettings so MarkdownHtmlService
     // picks it up on the next render — which we trigger right away.
@@ -4383,6 +4459,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var control = new Views.NumbersInsertControl(("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
         if (await ShowInsertDialogAsync("Insert drawing canvas", control) != ContentDialogResult.Primary) return;
         InsertMarkdown(Services.InsertSnippetBuilder.Canvas(control.Value(0), control.Value(1)));
+    }
+
+    private async void OnInsertWaveFunctionClick(object sender, RoutedEventArgs e)
+    {
+        if (App.Settings.Current.ProMode)
+        {
+            InsertMarkdown("\n:::wavefunction \"Quantum Superposition & Collapse\"\nstates: |0⟩: 0.6, |1⟩: 0.8\ncollapse_to: |1⟩\n:::\n");
+            return;
+        }
+
+        var control = new Views.NumbersInsertControl(("Grid Width", 5, 2, 20), ("Grid Height", 5, 2, 20));
+        if (await ShowInsertDialogAsync("Insert Wave Function Collapse (WFC)", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", control.Value(0), control.Value(1)));
     }
 
     private void OnBulletListClick(object sender, RoutedEventArgs e)

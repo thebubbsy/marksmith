@@ -150,12 +150,12 @@ public static partial class TemplateThemeService
         // Default (first-page-run) header/footer, verbatim XML.
         var hdrRef = sectPr.Elements<W.HeaderReference>()
             .FirstOrDefault(h => h.Type is null || h.Type == W.HeaderFooterValues.Default);
-        if (hdrRef?.Id is { } hId && !string.IsNullOrEmpty(hId) && main.GetPartById(hId) is HeaderPart hp)
+        if (hdrRef?.Id?.Value is { Length: > 0 } hId && main.GetPartById(hId) is HeaderPart hp)
             layout.HeaderXml = hp.Header?.OuterXml;
 
         var ftrRef = sectPr.Elements<W.FooterReference>()
             .FirstOrDefault(f => f.Type is null || f.Type == W.HeaderFooterValues.Default);
-        if (ftrRef?.Id is { } fId && !string.IsNullOrEmpty(fId) && main.GetPartById(fId) is FooterPart fp)
+        if (ftrRef?.Id?.Value is { Length: > 0 } fId && main.GetPartById(fId) is FooterPart fp)
             layout.FooterXml = fp.Footer?.OuterXml;
 
         return layout;

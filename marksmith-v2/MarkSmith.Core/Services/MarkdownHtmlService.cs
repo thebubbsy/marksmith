@@ -162,6 +162,11 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
 
+        // Batch 11 (#57): the Cycle 22-29 engineering/science diagram fences are lifted in ONE
+        // compiled dispatch pass (see MarkdownHtmlService.EngineeringDiagrams.cs) instead of 49
+        // separate interpreted full-document regex scans per preview render.
+        markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
+
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
@@ -282,6 +287,7 @@ public sealed partial class MarkdownHtmlService
 
         // SmartArt diagrams: swap each lifted placeholder for its generated SVG, framed like
         // .mermaid and auto-inverted on dark themes (the renderer's art assumes a light page).
+        var renderedSmartArt = new List<string>(smartArtBlocks.Count);
         for (int i = 0; i < smartArtBlocks.Count; i++)
         {
             var (alias, inner) = smartArtBlocks[i];
@@ -302,10 +308,13 @@ public sealed partial class MarkdownHtmlService
                       System.Net.WebUtility.HtmlEncode(ex.Message) + "</div>";
             }
             string cls = isDark ? "smartart smartart-autoinvert" : "smartart";
-            body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"{cls}\">{svg}</div>");
+            renderedSmartArt.Add($"<div class=\"{cls}\">{svg}</div>");
         }
+        body = ReplaceCommentPlaceholders(body, "SMARTART", renderedSmartArt);
 
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
+
+        body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -425,11 +434,11 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
-        // Click-to-expand zoom lens — works for BOTH Mermaid and plugin (Graphviz/D2/Typst/…)
-        // diagrams, so it lives in its own script gated on either being present, NOT bundled with
-        // mermaid.js's loader (a Graphviz-only document must still get the lens without pulling in
-        // 2.5 MB of mermaid.js it never uses).
-        var hasZoomable = mermaidEnabled || body.Contains("plugin-diagram", StringComparison.Ordinal);
+        // Click-to-expand zoom lens — works for Mermaid, plugin, SmartArt, and engineering diagrams
+        // gated on any being present in the body.
+        var hasZoomable = mermaidEnabled || body.Contains("plugin-diagram", StringComparison.Ordinal)
+                          || body.Contains("smartart", StringComparison.Ordinal)
+                          || body.Contains("-diagram", StringComparison.Ordinal);
         var lensScript = hasZoomable ? """
             <script>
             window.addEventListener("DOMContentLoaded", () => {
@@ -456,9 +465,9 @@ public sealed partial class MarkdownHtmlService
                     lens.classList.add("open"); bar.style.display = "flex"; apply();
                 };
                 const closeLens = () => { lens.classList.remove("open"); bar.style.display = "none"; };
-                document.querySelectorAll(".mermaid, .plugin-diagram").forEach(m =>
+                document.querySelectorAll(".mermaid, .plugin-diagram, .smartart, [class*=\"-diagram\"]").forEach(m =>
                     m.addEventListener("click", (e) => {
-                        if (e.target.closest(".mermaid-edit-btn")) return;
+                        if (e.target.closest(".mermaid-edit-btn") || e.target.closest(".smartart-error")) return;
                         const s = m.querySelector("svg"); if (s) openLens(s);
                     }));
                 lens.addEventListener("wheel", (e) => {
@@ -838,9 +847,8 @@ public sealed partial class MarkdownHtmlService
                 }
 
                 document.addEventListener("mousemove", (e) => {
-                    const p = docPoint(e);
-                    ring.style.left = p.x + "px";
-                    ring.style.top = p.y + "px";
+                    ring.style.left = e.clientX + "px";
+                    ring.style.top = e.clientY + "px";
                 });
 
                 function post(msg) { try { chrome.webview.postMessage(JSON.stringify(msg)); } catch (e) {} }
@@ -1068,6 +1076,8 @@ public sealed partial class MarkdownHtmlService
                     setInsideBlur(blurInside, insideBlurRadius);
                     const docW = document.documentElement.scrollWidth;
                     const docH = document.documentElement.scrollHeight;
+                    const vw = window.innerWidth || 800;
+                    const vh = window.innerHeight || 800;
                     const pg = pageRect(); // the #canvas page column — bands match it, not the whole preview
                     // Bands span the page (#canvas) width and align to its left edge; circles stay
                     // square on the click point.
@@ -1083,9 +1093,19 @@ public sealed partial class MarkdownHtmlService
                     // same left/right fraction, so clicking the right of the preview reveals the
                     // right of the raw Markdown (and the left reveals the left).
                     clickFracX = docW > 0 ? Math.min(1, Math.max(0, x / docW)) : 0;
-                    portal.style.left = isBand ? pg.left + "px"
-                        : Math.min(Math.max(x - apW / 2, 8), Math.max(8, docW - apW - 8)) + "px";
-                    portal.style.top = Math.min(Math.max(y - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+
+                    const clientX = (ev && ev.clientX !== undefined) ? ev.clientX : (x - (window.scrollX || 0));
+                    const clientY = (ev && ev.clientY !== undefined) ? ev.clientY : (y - (window.scrollY || 0));
+
+                    if (isBand) {
+                        const canvasEl = document.getElementById("canvas");
+                        const cr = canvasEl ? canvasEl.getBoundingClientRect() : { left: 8, width: vw - 16 };
+                        portal.style.left = cr.left + "px";
+                        portal.style.width = cr.width + "px";
+                    } else {
+                        portal.style.left = Math.min(Math.max(clientX - apW / 2, 8), Math.max(8, vw - apW - 8)) + "px";
+                    }
+                    portal.style.top = Math.min(Math.max(clientY - apH / 2, 8), Math.max(8, vh - apH - 8)) + "px";
 
                     const closeBtn = document.createElement("div");
                     closeBtn.className = "portal-close";
@@ -1132,6 +1152,26 @@ public sealed partial class MarkdownHtmlService
                     });
                 }
 
+                let basePageScrollX = 0, basePageScrollY = 0;
+                let basePortalScrollLeft = 0, basePortalScrollTop = 0;
+                let isSyncingScroll = false;
+
+                function syncPortalWithPageScroll() {
+                    if (!portalTa || isSyncingScroll) return;
+                    isSyncingScroll = true;
+                    try {
+                        const curScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+                        const curScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                        const dy = curScrollY - basePageScrollY;
+                        const dx = curScrollX - basePageScrollX;
+                        portalTa.scrollTop = basePortalScrollTop + dy;
+                        portalTa.scrollLeft = basePortalScrollLeft + dx;
+                    } finally {
+                        isSyncingScroll = false;
+                    }
+                }
+                window.addEventListener("scroll", syncPortalWithPageScroll, { passive: true });
+
                 // The portal follows the | typing cursor: as the caret walks along (or down) a line,
                 // the source pans under the fixed aperture exactly as if the user were middle-mouse
                 // grab-dragging it, so what they type is always inside the clear centre of the shape.
@@ -1164,6 +1204,11 @@ public sealed partial class MarkdownHtmlService
                     else if (cx > w * 0.70) portalTa.scrollLeft = x - w * 0.70;
                     if (cy < h * 0.35) portalTa.scrollTop = Math.max(0, y - h * 0.35);
                     else if (cy > h * 0.65) portalTa.scrollTop = y - h * 0.65;
+
+                    basePortalScrollTop = portalTa.scrollTop;
+                    basePortalScrollLeft = portalTa.scrollLeft;
+                    basePageScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+                    basePageScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
                 }
 
                 // The app calls this with the editor's current Markdown to fill the open portal and
@@ -1196,6 +1241,10 @@ public sealed partial class MarkdownHtmlService
 
                     portalTa.scrollTop = Math.max(0, targetY - curApH / 2 + lineH / 2);
                     portalTa.scrollLeft = Math.max(0, targetX - curApW / 2);
+                    basePortalScrollTop = portalTa.scrollTop;
+                    basePortalScrollLeft = portalTa.scrollLeft;
+                    basePageScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+                    basePageScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
                 };
 
                 // Live size dial: the app calls this on every slider tick so the open aperture
@@ -1205,17 +1254,23 @@ public sealed partial class MarkdownHtmlService
                 // fog-of-war mask is rebuilt too, since its clear/fade stops track the dial.
                 function resizeOpenPortal() {
                     if (!portal || !portalTa) return;
-                    const docW = document.documentElement.scrollWidth;
-                    const docH = document.documentElement.scrollHeight;
-                    const pg = pageRect(); // bands stay locked to the #canvas page column
-                    const apW = isBand ? Math.max(240, pg.width) : apertureSize;
+                    const vw = window.innerWidth || 800;
+                    const vh = window.innerHeight || 800;
+                    const apW = isBand ? Math.max(240, (document.getElementById("canvas")?.getBoundingClientRect().width || vw - 16)) : apertureSize;
                     const apH = isBand ? bandH : apertureSize;
                     const cx = (parseFloat(portal.style.left) || 0) + (parseFloat(portal.style.width) || apW) / 2;
                     const cy = (parseFloat(portal.style.top) || 0) + (parseFloat(portal.style.height) || apH) / 2;
                     portal.style.width = apW + "px";
                     portal.style.height = apH + "px";
-                    portal.style.left = (isBand ? pg.left : Math.min(Math.max(cx - apW / 2, 8), Math.max(8, docW - apW - 8))) + "px";
-                    portal.style.top = Math.min(Math.max(cy - apH / 2, 8), Math.max(8, docH - apH - 8)) + "px";
+                    if (isBand) {
+                        const canvasEl = document.getElementById("canvas");
+                        const cr = canvasEl ? canvasEl.getBoundingClientRect() : { left: 8, width: vw - 16 };
+                        portal.style.left = cr.left + "px";
+                        portal.style.width = cr.width + "px";
+                    } else {
+                        portal.style.left = Math.min(Math.max(cx - apW / 2, 8), Math.max(8, vw - apW - 8)) + "px";
+                    }
+                    portal.style.top = Math.min(Math.max(cy - apH / 2, 8), Math.max(8, vh - apH - 8)) + "px";
                     curApH = apH;
                     setInsideBlur(blurInside, insideBlurRadius);
                     const mask = isBand
@@ -1334,29 +1389,72 @@ public sealed partial class MarkdownHtmlService
                     portalTa.dispatchEvent(new Event("input", { bubbles: true }));
                 };
 
-                // Middle-button (button 1) press-and-drag pans the Markdown source inside the open
-                // aperture — the circle stays put while the text behind it scrolls, so you can read
-                // up/down/left/right through the fixed window. Grab-and-pan like touch scrolling:
-                // drag down to see earlier content, drag up to see later. preventDefault + capture
-                // phase free the middle button from its default autoscroll and keep the caret still.
+                // Middle-button (button 1) press-and-drag pans BOTH the page and the Markdown source
+                // inside the open aperture simultaneously in 1:1 synchronization based on actual page displacement.
+                let dragPageScrollX = 0, dragPageScrollY = 0;
                 document.addEventListener("mousedown", (e) => {
-                    if (e.button !== 1 || !portalTa) return;
+                    if (e.button !== 1) return;
                     dragging = true;
                     dragStartX = e.clientX;
                     dragStartY = e.clientY;
-                    dragScrollLeft = portalTa.scrollLeft;
-                    dragScrollTop = portalTa.scrollTop;
+                    dragPageScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+                    dragPageScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                    if (portalTa) {
+                        dragScrollLeft = portalTa.scrollLeft;
+                        dragScrollTop = portalTa.scrollTop;
+                        basePageScrollX = dragPageScrollX;
+                        basePageScrollY = dragPageScrollY;
+                        basePortalScrollLeft = dragScrollLeft;
+                        basePortalScrollTop = dragScrollTop;
+                    }
+                    document.body.style.cursor = 'grabbing';
+                    document.body.style.userSelect = 'none';
                     e.preventDefault();
                     e.stopPropagation();
                 }, true);
+
                 document.addEventListener("mousemove", (e) => {
-                    if (!dragging || !portalTa) return;
-                    if (!(e.buttons & 4)) { dragging = false; return; } // released (even outside the window)
-                    portalTa.scrollLeft = dragScrollLeft - (e.clientX - dragStartX);
-                    portalTa.scrollTop = dragScrollTop - (e.clientY - dragStartY);
+                    if (!dragging) return;
+                    if (!(e.buttons & 4)) {
+                        dragging = false;
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                        return;
+                    }
+                    const dx = e.clientX - dragStartX;
+                    const dy = e.clientY - dragStartY;
+
+                    // 1. Scroll the entire preview page/canvas
+                    window.scrollTo(dragPageScrollX - dx, dragPageScrollY - dy);
+
+                    // 2. Scroll the portal source content in 1:1 lockstep based on actual page scroll delta
+                    if (portalTa) {
+                        const curScrollX = window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || 0;
+                        const curScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+                        const actualDx = curScrollX - dragPageScrollX;
+                        const actualDy = curScrollY - dragPageScrollY;
+                        portalTa.scrollLeft = dragScrollLeft + actualDx;
+                        portalTa.scrollTop = dragScrollTop + actualDy;
+                    }
+
+                    // 3. Update cursor ring position
+                    const p = docPoint(e);
+                    ring.style.left = p.x + "px";
+                    ring.style.top = p.y + "px";
+
                     e.preventDefault();
                 }, true);
-                document.addEventListener("mouseup", (e) => { if (e.button === 1) dragging = false; }, true);
+
+                const stopPortalDragging = function () {
+                    if (dragging) {
+                        dragging = false;
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    }
+                };
+                document.addEventListener("mouseup", (e) => { if (e.button === 1) stopPortalDragging(); }, true);
+                window.addEventListener("blur", stopPortalDragging, true);
+                window.addEventListener("mouseleave", stopPortalDragging, true);
 
                 // In portal mode the whole preview is a "click to reveal the source behind it"
                 // surface: a click opens (or moves) a portal at that spot. Capture phase + default
@@ -1418,7 +1516,7 @@ public sealed partial class MarkdownHtmlService
 </script>
 """ : "";
 
-        var panScript = interactive ? """
+        var panScript = interactive && !settings.LookingGlassMode ? """
 <script>
 (function () {
     // marksmith-middle-mouse-pan: middle-click & drag to scroll vertically and horizontally
@@ -1524,11 +1622,15 @@ public sealed partial class MarkdownHtmlService
                 });
             };
             </script>
+            <script>
+            {{MarkSmith.Services.Code.CollapsibleCodeBoxService.GetJavaScript()}}
+            </script>
             {{mermaidScript}}
             {{lensScript}}
             {{extraHead}}
             <style>
             {{fontFaceCss}}
+            {{MarkSmith.Services.Code.CollapsibleCodeBoxService.GetCss()}}
             html { height: 100%; }
             body { margin: 0; padding: 0; background: {{workspaceBg}}; color: {{effectiveText}}; 
                    font-family: {{bodyFontFamily}}; font-size: 16px; line-height: 1.6; word-wrap: break-word; overflow-x: auto;
@@ -1576,10 +1678,13 @@ public sealed partial class MarkdownHtmlService
             .plugin-diagram-autoinvert svg { {{pluginDiagramSvgFilter}} }
             /* SmartArt diagrams (:::smartart blocks) get the same themed frame as mermaid; on dark
                themes the renderer's light-page artwork is auto-inverted for legibility. */
-            .smartart { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; }
+            .smartart { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
             .smartart .smartart-container { margin: 0 auto; }
             .smartart-autoinvert .smartart-container { {{pluginDiagramSvgFilter}} }
             .smartart-error { color: #cf222e; font-size: 13px; text-align: center; padding: 12px; }
+            /* Engineering & Science diagrams */
+            [class$="-diagram"] { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
+            [class$="-diagram"] svg { max-width: 100%; height: auto; }
             .plugin-diagram-error, .plugin-diagram-missing { margin: 10px 0 24px; padding: 10px 14px; border-radius: 6px; background: {{theme.Secondary}}; border: 1px solid {{theme.Border}}; color: {{theme.Text}}; font-size: 13px; }
             /* Diagrams recovered from a string literal inside a code EXAMPLE (not a real ```mermaid
                fence) sit directly under that code block instead of floating at the normal 32px
@@ -1707,9 +1812,9 @@ public sealed partial class MarkdownHtmlService
                fog-of-war blur (clear at the caret, blurring back to the preview). The ring/aperture
                elements are only created by the portal script when the mode is on, so this CSS is
                inert otherwise. */
-            #portal-cursor-ring { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(88, 166, 255, 0.65); box-shadow: 0 0 16px rgba(88, 166, 255, 0.35), inset 0 0 10px rgba(88, 166, 255, 0.15); pointer-events: none; transform: translate(-50%, -50%); animation: portalPulse 2s infinite ease-in-out; z-index: 60; }
+            #portal-cursor-ring { position: fixed; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(88, 166, 255, 0.65); box-shadow: 0 0 16px rgba(88, 166, 255, 0.35), inset 0 0 10px rgba(88, 166, 255, 0.15); pointer-events: none; transform: translate(-50%, -50%); animation: portalPulse 2s infinite ease-in-out; z-index: 60; }
             @keyframes portalPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.75; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } }
-            .portal-aperture { position: absolute; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); {{initialInsideBlurStyle}} border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
+            .portal-aperture { position: fixed; border-radius: 50%; overflow: hidden; z-index: 55; background: rgba(13, 17, 23, 0.42); {{initialInsideBlurStyle}} border: 2px solid rgba(88, 166, 255, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(88, 166, 255, 0.12); animation: portalIris 0.22s ease-out; }
             .portal-aperture.portal-square { border-radius: 12px; }
             @keyframes portalIris { from { transform: scale(0.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
             /* Full-width "focus" reading bands: rounded strip instead of a circle, iris opens
@@ -1797,6 +1902,10 @@ public sealed partial class MarkdownHtmlService
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
 
+        // Batch 11 (#58): same single-pass engineering-fence lift as Render() — without it the
+        // incremental canvas swap would show raw :::fence text where full renders show SVG.
+        markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
+
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
 
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
@@ -1805,6 +1914,7 @@ public sealed partial class MarkdownHtmlService
 
         var isDark = !settings.ThemeLightInfluence &&
                      (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        var renderedSmartArt = new List<string>(smartArtBlocks.Count);
         for (int i = 0; i < smartArtBlocks.Count; i++)
         {
             var (alias, inner) = smartArtBlocks[i];
@@ -1826,10 +1936,13 @@ public sealed partial class MarkdownHtmlService
                       System.Net.WebUtility.HtmlEncode(ex.Message) + "</div>";
             }
             string cls = isDark ? "smartart smartart-autoinvert" : "smartart";
-            body = body.Replace($"<!--SMARTART:{i}-->", $"<div class=\"{cls}\">{svg}</div>");
+            renderedSmartArt.Add($"<div class=\"{cls}\">{svg}</div>");
         }
+        body = ReplaceCommentPlaceholders(body, "SMARTART", renderedSmartArt);
 
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
+
+        body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
 
         body = MermaidFenceHtmlRe().Replace(body,
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
@@ -2364,6 +2477,53 @@ public sealed partial class MarkdownHtmlService
             sb.Append($"<li style=\"margin-left:{indent}px\"><a href=\"#{m.Groups[2].Value}\">{text}</a></li>");
         }
         sb.Append("</ul>\n </nav>");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Performs single-pass O(N) streaming replacement of indexed HTML comment placeholders
+    /// (e.g. &lt;!--ENGDIAGRAM:0--&gt;) avoiding repeated full-document string allocations.
+    /// </summary>
+    private static string ReplaceCommentPlaceholders(string source, string prefix, IReadOnlyList<string> replacements)
+    {
+        if (replacements.Count == 0 || string.IsNullOrEmpty(source)) return source;
+        if (replacements.Count == 1) return source.Replace($"<!--{prefix}:0-->", replacements[0]);
+
+        var tagPrefix = $"<!--{prefix}:";
+        int firstIndex = source.IndexOf(tagPrefix, StringComparison.Ordinal);
+        if (firstIndex < 0) return source;
+
+        var sb = new StringBuilder(source.Length + replacements.Count * 256);
+        int cursor = 0;
+        while (cursor < source.Length)
+        {
+            int idx = source.IndexOf(tagPrefix, cursor, StringComparison.Ordinal);
+            if (idx < 0)
+            {
+                sb.Append(source, cursor, source.Length - cursor);
+                break;
+            }
+            sb.Append(source, cursor, idx - cursor);
+            int endIdx = source.IndexOf("-->", idx + tagPrefix.Length, StringComparison.Ordinal);
+            if (endIdx > 0)
+            {
+                string numStr = source.Substring(idx + tagPrefix.Length, endIdx - (idx + tagPrefix.Length));
+                if (int.TryParse(numStr, out int num) && num >= 0 && num < replacements.Count)
+                {
+                    sb.Append(replacements[num]);
+                }
+                else
+                {
+                    sb.Append(source, idx, (endIdx + 3) - idx);
+                }
+                cursor = endIdx + 3;
+            }
+            else
+            {
+                sb.Append(source, idx, source.Length - idx);
+                break;
+            }
+        }
         return sb.ToString();
     }
 }

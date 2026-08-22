@@ -32,9 +32,9 @@ public static class AdmonitionNormalizer
     };
 
     // Opener: leading colons or exclamations, a type word, then an optional title
-    private static readonly Regex Opener = new(@"^\s*:::+\s*([A-Za-z]+)\s*(?:\[(?<t1>[^\]]*)\]|""(?<t2>[^""]*)""|\s+(?<t3>\S.*?))?\s*$");
-    private static readonly Regex PyOpener = new(@"^\s*!!!\s*([A-Za-z]+)(?:\s+""(?<t1>[^""]*)""|\s+(?<t2>\S.*?))?\s*$");
-    private static readonly Regex Closer = new(@"^\s*:::+\s*$");
+    private static readonly Regex Opener = new(@"^\s*:::+\s*([A-Za-z]+)\s*(?:\[(?<t1>[^\]]*)\]|""(?<t2>[^""]*)""|\s+(?<t3>\S.*?))?\s*$", RegexOptions.Compiled);
+    private static readonly Regex PyOpener = new(@"^\s*!!!\s*([A-Za-z]+)(?:\s+""(?<t1>[^""]*)""|\s+(?<t2>\S.*?))?\s*$", RegexOptions.Compiled);
+    private static readonly Regex Closer = new(@"^\s*:::+\s*$", RegexOptions.Compiled);
 
     // Obsidian's foldable-callout variants: `> [!tip]- Title` (collapsed) / `> [!tip]+ Title`
     // (expanded). Markdig's alert parser only recognizes the plain `> [!TIP]` form and leaks the
@@ -42,7 +42,7 @@ public static class AdmonitionNormalizer
     // preview gets genuine browser-native collapse behaviour — folded closed by default for `-`,
     // open for `+`, and toggled on click — with the body kept as markdown (blank lines around it
     // so Markdig still parses **bold**, code, math inside). Group 3 captures the fold char.
-    private static readonly Regex FoldedCallout = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]([-+])\s*(.*)$");
+    private static readonly Regex FoldedCallout = new(@"^(\s*)>\s*\[!([A-Za-z]+)\]([-+])\s*(.*)$", RegexOptions.Compiled);
 
     private static readonly Regex BlockquoteStartRx = new(@"^\s*>", RegexOptions.Compiled);
     private static readonly Regex StripBlockquoteRx = new(@"^\s*>\s?", RegexOptions.Compiled);

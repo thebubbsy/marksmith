@@ -48,6 +48,7 @@ namespace MarkSmith.Tests
             {
                 await service.SaveAsync(doc, tempFile);
                 Assert.True(File.Exists(tempFile));
+                Assert.False(File.Exists(tempFile + ".tmp"));
 
                 var loaded = await service.LoadAsync(tempFile);
                 Assert.NotNull(loaded);

@@ -176,6 +176,8 @@ public sealed class ReverseImportService
     private static readonly Regex TJArrayPattern = new(@"\[(.*?)\]\s*TJ", RegexOptions.Compiled);
     private static readonly Regex TJStringPattern = new(@"\(([^)]*)\)", RegexOptions.Compiled);
     private static readonly Regex QuotePattern = new(@"\(([^)]*)\)\s*'", RegexOptions.Compiled);
+    // Line-break detection used to be rebuilt per reverse-import call.
+    private static readonly Regex TdPattern = new(@"([\d.-]+)\s+([\d.-]+)\s+Td|([\d.-]+)\s+([\d.-]+)\s+TD|T\*", RegexOptions.Compiled);
 
     private static void AppendContentStreamText(StringBuilder sb, string content)
     {
@@ -201,8 +203,7 @@ public sealed class ReverseImportService
 
         // Detect line breaks via Td/TD/T* operators.
         var newLinePositions = new HashSet<int>();
-        var tdPattern = new Regex(@"([\d.-]+)\s+([\d.-]+)\s+Td|([\d.-]+)\s+([\d.-]+)\s+TD|T\*", RegexOptions.Compiled);
-        foreach (Match m in tdPattern.Matches(content))
+        foreach (Match m in TdPattern.Matches(content))
         {
             newLinePositions.Add(m.Index);
             // If Y offset is significant (negative = move down), it's a paragraph break.

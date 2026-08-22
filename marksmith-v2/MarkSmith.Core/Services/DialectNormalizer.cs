@@ -42,6 +42,8 @@ public static class DialectNormalizer
     private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
     private static readonly Regex CriticComment = new(@"\{>>((?:(?!<<\}).)*)\<<\}", RegexOptions.Compiled);
+    private static readonly Regex TableDelimiterRegex = new(@"^\|[\s|:\-]+$", RegexOptions.Compiled);
+    private static readonly Regex TabbedBlockRegex = new(@"===\s*""([^""]+)""\r?\n([\s\S]*?)(?=(===\s*""|$))", RegexOptions.Compiled);
 
     public static string Apply(string markdown) => Apply(markdown, -1);
 
@@ -191,7 +193,7 @@ public static class DialectNormalizer
             line = ReplaceOutsideInlineCode(line, CriticComment, m => "");
 
             // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
-            if (trimmed.StartsWith('|') && Regex.IsMatch(trimmed, @"^\|[\s|:\-]+$"))
+            if (trimmed.StartsWith('|') && TableDelimiterRegex.IsMatch(trimmed))
             {
                 line = line.Replace("--:", "---:").Replace(":--", ":---");
             }
@@ -249,7 +251,7 @@ public static class DialectNormalizer
     // that HtmlSanitizer strips. Kept as a building block for a future sanitizer-safe tab strip.
     public static string NormalizeTabbedBlocks(string markdown)
     {
-        return Regex.Replace(markdown, "===\\s*\"([^\"]+)\"\\r?\\n([\\s\\S]*?)(?=(===\\s*\"|$))", m =>
+        return TabbedBlockRegex.Replace(markdown, m =>
         {
             var title = m.Groups[1].Value;
             var content = m.Groups[2].Value.Trim();

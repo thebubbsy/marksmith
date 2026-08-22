@@ -237,8 +237,8 @@ namespace MarkSmith.Views.MindMap
             Grid.SetRow(topPanel, 0);
             grid.Children.Add(topPanel);
 
-            // Bottom Row: Progress / Tags (if present)
-            if (node.Progress > 0 || node.Tags.Count > 0)
+            // Bottom Row: Progress / Tags / Version count (if present)
+            if (node.Progress > 0 || node.Tags.Count > 0 || node.HasVersions)
             {
                 var bottomPanel = new StackPanel
                 {
@@ -272,17 +272,52 @@ namespace MarkSmith.Views.MindMap
                     bottomPanel.Children.Add(tagText);
                 }
 
+                if (node.HasVersions)
+                {
+                    var versionBadge = new Border
+                    {
+                        Background = new SolidColorBrush(ColorFromHex("#1C2D42")),
+                        CornerRadius = new CornerRadius(3 * zoom),
+                        Padding = new Thickness(4 * zoom, 1 * zoom, 4 * zoom, 1 * zoom),
+                        Child = new TextBlock
+                        {
+                            Text = $"⏱️ {node.VersionCount}",
+                            FontSize = 8.5 * zoom,
+                            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                            Foreground = new SolidColorBrush(ColorFromHex("#38BDF8"))
+                        }
+                    };
+                    bottomPanel.Children.Add(versionBadge);
+                }
+
                 Grid.SetRow(bottomPanel, 1);
                 grid.Children.Add(bottomPanel);
             }
 
             border.Child = grid;
 
+            // Context Menu (Right Click)
+            var flyout = new MenuFlyout();
+            var openItem = new MenuFlyoutItem { Text = "📂 Open Document" };
+            openItem.Click += (s, e) => ViewModel.OpenLinkedDocument(node);
+            flyout.Items.Add(openItem);
+
+            var histItem = new MenuFlyoutItem { Text = "⏱️ Time Machine & History" };
+            histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
+            flyout.Items.Add(histItem);
+
+            var deleteItem = new MenuFlyoutItem { Text = "🗑️ Delete Node" };
+            deleteItem.Click += (s, e) => ViewModel.DeleteSelectionCommand.Execute(null);
+            flyout.Items.Add(deleteItem);
+
+            border.ContextFlyout = flyout;
+
             // Events
             border.PointerPressed += (s, e) =>
             {
                 e.Handled = true;
                 ViewModel.SelectedNode = node;
+                _ = node.RefreshVersionHistoryAsync(AppServices.VersionHistory);
                 _draggedNode = node;
                 _dragStartNodePoint = new Point(node.X, node.Y);
                 _dragStartPointerPoint = e.GetCurrentPoint(GalaxyCanvas).Position;
@@ -530,9 +565,47 @@ namespace MarkSmith.Views.MindMap
             }
         }
 
+        private void OnTagPillClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string tag)
+            {
+                ViewModel.SelectedTagFilter = (ViewModel.SelectedTagFilter == tag) ? null : tag;
+            }
+        }
+
+        private void OnAllTagsClick(object sender, RoutedEventArgs e)
+        {
+            ViewModel.SelectedTagFilter = null;
+        }
+
         private void OnOpenSelectedDocumentClick(object sender, RoutedEventArgs e)
         {
             ViewModel.OpenLinkedDocument(ViewModel.SelectedNode);
+        }
+
+        private void OnOpenVersionHistoryClick(object sender, RoutedEventArgs e)
+        {
+            OpenVersionHistoryForNode(ViewModel.SelectedNode);
+        }
+
+        private void OnPreviewVersionHistoryClick(object sender, RoutedEventArgs e)
+        {
+            var path = !string.IsNullOrWhiteSpace(ViewModel.PreviewFilePath)
+                ? ViewModel.PreviewFilePath
+                : (ViewModel.SelectedNode?.FilePath ?? ViewModel.SelectedNode?.Title);
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                var historyWin = new History.HistoryWindow(initialFilePath: path);
+                historyWin.Activate();
+            }
+        }
+
+        private void OpenVersionHistoryForNode(MindMapNodeViewModel? node)
+        {
+            if (node == null) return;
+            var path = !string.IsNullOrWhiteSpace(node.FilePath) ? node.FilePath : node.Title;
+            var historyWin = new History.HistoryWindow(initialFilePath: path);
+            historyWin.Activate();
         }
 
         private void OnOpenInEditorClick(object sender, RoutedEventArgs e)

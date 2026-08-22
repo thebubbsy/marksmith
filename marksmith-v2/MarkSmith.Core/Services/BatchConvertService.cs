@@ -22,10 +22,6 @@ public sealed class BatchConvertService
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException($"Source directory not found: {sourceDir}");
 
-        Directory.CreateDirectory(outputDir);
-
-        var mdFiles = Directory.GetFiles(sourceDir, "*.md", SearchOption.AllDirectories);
-        
         var format = targetFormat.ToLowerInvariant();
         bool isPdf = format == "pdf";
         bool isDocx = format == "docx";
@@ -33,10 +29,24 @@ public sealed class BatchConvertService
         if (!isPdf && !isDocx)
             throw new ArgumentException("Target format must be 'pdf' or 'docx'");
 
+        if (isDocx && !AppServices.License.CanExportDocx)
+            throw new InvalidOperationException("DOCX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in Settings.");
+
+        Directory.CreateDirectory(outputDir);
+
+        var mdFiles = Directory.GetFiles(sourceDir, "*.md", SearchOption.AllDirectories);
+        Array.Sort(mdFiles, StringComparer.OrdinalIgnoreCase);
+
         foreach (var file in mdFiles)
         {
             try
             {
+                if (isDocx && !AppServices.License.CanExportDocx)
+                {
+                    progressCallback?.Invoke($"Failed to convert {file}: DOCX export trial quota exhausted. Upgrade to MarkSmith Pro.");
+                    continue;
+                }
+
                 var relPath = Path.GetRelativePath(sourceDir, file);
                 var outFileDir = Path.Combine(outputDir, Path.GetDirectoryName(relPath) ?? "");
                 Directory.CreateDirectory(outFileDir);

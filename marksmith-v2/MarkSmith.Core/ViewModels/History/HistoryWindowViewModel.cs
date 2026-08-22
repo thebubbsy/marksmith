@@ -77,6 +77,10 @@ public sealed partial class VersionItemViewModel : ObservableObject
     private bool _isSelected;
 
     public bool HasLabel => !string.IsNullOrWhiteSpace(Label);
+
+    public bool HasSnippet => !string.IsNullOrWhiteSpace(Snippet) &&
+                              !string.Equals(Snippet, SourceLabel, StringComparison.OrdinalIgnoreCase) &&
+                              !string.Equals(Snippet, Entry.Source, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>A file in the global edit history hub (every file ever touched).</summary>
@@ -306,7 +310,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject
                 list = new List<VersionItemViewModel>();
                 byBand[band] = list;
             }
-            list.Add(new VersionItemViewModel(entry, TimestampLabel(entry.CreatedAt.LocalDateTime, now), entry.Label ?? entry.Source));
+            list.Add(new VersionItemViewModel(entry, TimestampLabel(entry.CreatedAt.LocalDateTime, now), entry.Label ?? ""));
         }
 
         foreach (var band in new[] { "Today", "Yesterday", "This Week", "This Month", "This Year", "Older" })

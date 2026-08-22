@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using MarkSmith.Models;
 using MarkSmith.Services;
 using Xunit;
@@ -27,6 +28,26 @@ public class CustomThemeStoreTests
             CustomThemeStore.AddOrUpdate(theme);
             Assert.True(CustomThemeStore.Version > initialVersion);
             Assert.Contains(CustomThemeStore.All, t => t.Name == theme.Name);
+        }
+        finally
+        {
+            CustomThemeStore.Remove(theme.Name);
+        }
+    }
+
+    [Fact]
+    public void CustomThemeStore_Save_WritesAtomicallyWithoutLeavingTmpFile()
+    {
+        var theme = new ThemeDefinition(
+            "Atomic Test Theme " + Guid.NewGuid().ToString("N"),
+            "#123456", "#654321", "#ABCDEF", "#FEDCBA", "#000000", "#FFFFFF", "#AAAAAA", "#555555");
+
+        try
+        {
+            CustomThemeStore.AddOrUpdate(theme);
+            string storePath = Path.Combine(AppPaths.ConfigDir, "custom-themes.json");
+            Assert.True(File.Exists(storePath));
+            Assert.False(File.Exists(storePath + ".tmp"));
         }
         finally
         {

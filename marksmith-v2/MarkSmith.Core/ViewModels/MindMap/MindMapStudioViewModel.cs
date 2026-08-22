@@ -374,8 +374,18 @@ namespace MarkSmith.ViewModels.MindMap
         [RelayCommand]
         public void ExportToDocx(string outputFilePath)
         {
+            // Go-live licensing: the galaxy DOCX export is another entrance to DOCX generation —
+            // it honors the same paywall and spends trial exports the same way (the MindMap
+            // exporter builds the package directly, bypassing DocxExportService's chokepoint).
+            if (!AppServices.License.CanExportDocx)
+            {
+                StatusMessage = "⚠ DOCX export is a MarkSmith Pro feature — start the 3-export trial or upgrade in Settings.";
+                return;
+            }
             SyncAllToModel();
             _docxExporter.ExportToDocx(Document, outputFilePath);
+            if (AppServices.License.State.Edition == Models.Edition.Trial)
+                AppServices.License.ConsumeDocxExport();
             StatusMessage = $"✓ Exported editable Word Document Galaxy to: {outputFilePath}";
         }
 

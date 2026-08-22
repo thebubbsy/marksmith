@@ -20,4 +20,13 @@
     <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Collection parallelism OFF: the suite shares process-global state (AppServices.License
+         singleton + license.json/trial.state, temp spool paths). Under parallel collections the
+         DocxExportService trial-consumption chokepoint couples every DOCX export to whichever
+         licensing test currently holds Trial state — deterministic failures. Serial collections
+         keep the run deterministic. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

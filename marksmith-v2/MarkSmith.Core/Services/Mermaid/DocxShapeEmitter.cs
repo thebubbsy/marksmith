@@ -668,10 +668,25 @@ public static class DocxShapeEmitter
 
     private static double Norm(double deg) { deg %= 360; if (deg < 0) deg += 360; return deg; }
 
+    public static string GradientFillXml(string startHex, string endHex, int angleDegrees = 90)
+    {
+        long angEmu = (long)Math.Round(angleDegrees * 60000.0);
+        return $"<a:gradFill><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"{Hex(startHex)}\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"{Hex(endHex)}\"/></a:gs></a:gsLst><a:lin ang=\"{angEmu}\"/></a:gradFill>";
+    }
+
     private static string FillXml(MShape s, ThemeDefinition t)
     {
         if (s.Kind is ShapeKind.Frame or ShapeKind.Text) return "<a:noFill/>";
         var fill = s.Fill ?? (s.Kind == ShapeKind.Subgraph ? t.Secondary : t.Code);
+        if (fill.Contains("->") || fill.StartsWith("gradient:", StringComparison.OrdinalIgnoreCase) || fill.StartsWith("linear:", StringComparison.OrdinalIgnoreCase))
+        {
+            var raw = fill.Replace("gradient:", "", StringComparison.OrdinalIgnoreCase).Replace("linear:", "", StringComparison.OrdinalIgnoreCase);
+            var parts = raw.Split("->");
+            if (parts.Length == 2)
+            {
+                return GradientFillXml(parts[0].Trim(), parts[1].Trim(), 90);
+            }
+        }
         return $"<a:solidFill><a:srgbClr val=\"{Hex(fill)}\"/></a:solidFill>";
     }
 
@@ -708,7 +723,7 @@ public static class DocxShapeEmitter
         // Straight traced line items (2 points, no arrowheads) use flat caps so adjacent lines in
         // a dense trace never bleed into each other (round caps extend half the stroke width past
         // the end of each run).
-        var cap = c.Points.Count == 2 && c.StartHead == ArrowHead.None && c.EndHead == ArrowHead.None
+        var cap = pts.Count == 2 && c.StartHead == ArrowHead.None && c.EndHead == ArrowHead.None
             ? "<a:flat/>"
             : "";
         var head = HeadXml("headEnd", c.StartHead);

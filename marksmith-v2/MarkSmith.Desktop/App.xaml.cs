@@ -35,9 +35,7 @@ public partial class App : Application
         {
             try
             {
-                string dir = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "MarkSmith");
+                string dir = AppPaths.ConfigDir;
                 System.IO.Directory.CreateDirectory(dir);
                 System.IO.File.AppendAllText(
                     System.IO.Path.Combine(dir, "startup-crash.log"),

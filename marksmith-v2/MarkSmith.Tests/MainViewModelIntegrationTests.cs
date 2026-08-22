@@ -30,23 +30,22 @@ public class MainViewModelIntegrationTests
     }
 
     // DOCX export is gated on the license (Free users can't export DOCX). These integration tests
-    // start a one-export trial (which grants it) and restore the real license file afterwards so
-    // the suite never clobbers a genuine activation.
+    // start the 3-export trial (which grants it) and restore the real license file afterwards so
+    // the suite never clobbers a genuine activation. The trial.state shadow is backed up too —
+    // exports spent here would otherwise leak a used-shadow that caps other collections' trials.
     private static string? _licenseBackup;
+    private static string? _shadowBackup;
     private static string LicensePath =>
         Path.Combine(MarkSmith.Services.AppPaths.ConfigDir, "license.json");
+    private static string ShadowPath =>
+        Path.Combine(MarkSmith.Services.AppPaths.ConfigDir, "trial.state");
 
     private static void AllowDocxExport()
     {
         _licenseBackup = File.Exists(LicensePath) ? File.ReadAllText(LicensePath) : null;
-        AppServices.License.Load();
-        if (!AppServices.License.CanExportDocx)
-        {
-            // Self-healing: a leftover SPENT trial (TrialUsed=true) from an earlier test run would
-            // make StartTrial refuse and the docx gate fire. Reset to Free first, then re-trial.
-            if (!AppServices.License.StartTrial().ok) AppServices.License.ResetToFree();
-            if (!AppServices.License.CanExportDocx) AppServices.License.StartTrial();
-        }
+        _shadowBackup = File.Exists(ShadowPath) ? File.ReadAllText(ShadowPath) : null;
+        AppServices.License.ResetToFree();
+        AppServices.License.StartTrial();
     }
 
     private static void RestoreLicense()
@@ -55,6 +54,8 @@ public class MainViewModelIntegrationTests
         {
             if (_licenseBackup is null) { if (File.Exists(LicensePath)) File.Delete(LicensePath); }
             else File.WriteAllText(LicensePath, _licenseBackup);
+            if (_shadowBackup is null) { if (File.Exists(ShadowPath)) File.Delete(ShadowPath); }
+            else File.WriteAllText(ShadowPath, _shadowBackup);
             AppServices.License.Load();
         }
         catch { /* best-effort */ }

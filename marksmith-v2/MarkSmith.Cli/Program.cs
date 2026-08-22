@@ -37,6 +37,7 @@ namespace MarkSmith.Cli
                         if (args[i] == "--concurrency" && i + 1 < args.Length && int.TryParse(args[i + 1], out int c)) concurrency = c;
                     }
 
+                    if ((format == "docx" || format == "dotx") && !EnsureDocxEntitlement()) return 1;
                     return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency);
                 }
 
@@ -59,6 +60,7 @@ namespace MarkSmith.Cli
                     string outExt = Path.GetExtension(outputFile).ToLowerInvariant();
                     if (outExt == ".docx" || outExt == ".dotx")
                     {
+                        if (!EnsureDocxEntitlement()) return 1;
                         var docxService = new DocxExportService();
                         await docxService.ExportAsync(md, outputFile, new AppSettings());
                         Console.WriteLine($"✓ Generated Word document: {outputFile} ({shapes.Count} native DrawingML shapes)");
@@ -93,6 +95,7 @@ namespace MarkSmith.Cli
                     string outExt = Path.GetExtension(outputFile).ToLowerInvariant();
                     if (outExt == ".docx" || outExt == ".dotx")
                     {
+                        if (!EnsureDocxEntitlement()) return 1;
                         var docxService = new DocxExportService();
                         await docxService.ExportAsync(md, outputFile, new AppSettings());
                         Console.WriteLine($"✓ Generated Word document: {outputFile} ({lines.Count} vector line strokes)");
@@ -120,6 +123,13 @@ namespace MarkSmith.Cli
                 if (!File.Exists(inputPath))
                 {
                     Console.Error.WriteLine($"Error: Input file '{inputPath}' does not exist.");
+                    return 1;
+                }
+
+                // Gate the whole compile+watch session up front when the target is a Pro format.
+                if (Path.GetExtension(outputPath).ToLowerInvariant() is ".docx" or ".dotx"
+                    && !EnsureDocxEntitlement())
+                {
                     return 1;
                 }
 
@@ -241,7 +251,7 @@ namespace MarkSmith.Cli
             var docxService = new DocxExportService();
             var htmlService = new MarkdownHtmlService();
             var settings = new AppSettings();
-            var theme = ThemeCatalog.Default;
+            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
 
             using var semaphore = new SemaphoreSlim(Math.Max(1, concurrency));
 
@@ -283,6 +293,18 @@ namespace MarkSmith.Cli
             sw.Stop();
             Console.WriteLine($"\n[BATCH] ✓ Completed {completed} file(s) in {sw.ElapsedMilliseconds}ms ({errors} error(s)).");
             return errors > 0 ? 1 : 0;
+        }
+
+        // Go-live licensing: the CLI is another entrance to the DOCX exporter, so it enforces the
+        // same paywall as the desktop app. Loads the shared license file from AppPaths.ConfigDir
+        // (so an activation or a trial started in the app is honored here — and trial exports spent
+        // here are consumed by the same chokepoint inside DocxExportService).
+        static bool EnsureDocxEntitlement()
+        {
+            AppServices.License.Load();
+            if (AppServices.License.CanExportDocx) return true;
+            Console.Error.WriteLine("✗ DOCX export is a MarkSmith Pro feature. Activate Pro (or start the 3-export trial) in the MarkSmith app, then retry.");
+            return false;
         }
 
         static void PrintHelp()

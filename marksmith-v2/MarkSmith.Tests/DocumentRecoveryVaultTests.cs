@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using MarkSmith.Core.Services;
+using MarkSmith.Services;
 using Xunit;
 
 namespace MarkSmith.Core.Tests
@@ -25,6 +26,35 @@ namespace MarkSmith.Core.Tests
         }
 
         [Fact]
+        public void DefaultConstructor_ResolvesUnderAppPathsConfigDir_AndSavesAtomicallyWithoutTmpFiles()
+        {
+            var defaultVault = new DocumentRecoveryVault();
+            string docId = "default_vault_test_" + Guid.NewGuid().ToString("N");
+            string content = "# Content for default vault test";
+            string title = "Default Vault Test";
+
+            string path = defaultVault.SaveSnapshot(docId, content, title);
+
+            try
+            {
+                Assert.StartsWith(AppPaths.ConfigDir, path, StringComparison.OrdinalIgnoreCase);
+                Assert.True(File.Exists(path));
+                Assert.False(File.Exists(path + ".tmp"));
+
+                var snapshot = defaultVault.GetLatestSnapshot(docId);
+                Assert.NotNull(snapshot);
+                Assert.Equal(docId, snapshot.DocId);
+                Assert.Equal(title, snapshot.Title);
+                Assert.Equal(content, snapshot.Content);
+            }
+            finally
+            {
+                defaultVault.DeleteSnapshot(docId);
+                Assert.False(File.Exists(path));
+            }
+        }
+
+        [Fact]
         public void SaveSnapshot_CreatesSnapshotFile()
         {
             string docId = "doc_101";
@@ -34,6 +64,7 @@ namespace MarkSmith.Core.Tests
             string path = _vault.SaveSnapshot(docId, content, title);
 
             Assert.True(File.Exists(path));
+            Assert.False(File.Exists(path + ".tmp"));
             var snapshot = _vault.GetLatestSnapshot(docId);
             Assert.NotNull(snapshot);
             Assert.Equal(docId, snapshot.DocId);
@@ -70,6 +101,41 @@ namespace MarkSmith.Core.Tests
 
             Assert.True(deleted);
             Assert.Null(_vault.GetLatestSnapshot(docId));
+        }
+
+        [Fact]
+        public void SaveSnapshot_SuccessiveUpdates_AtomicallyOverwrites_WithoutLeavingTmpFiles()
+        {
+            string docId = "successive_doc";
+            string initialContent = "Initial content v1";
+            string updatedContent = "Updated content v2 with expanded text";
+
+            string path1 = _vault.SaveSnapshot(docId, initialContent, "Draft v1");
+            Assert.True(File.Exists(path1));
+            Assert.False(File.Exists(path1 + ".tmp"));
+            Assert.Equal(initialContent, _vault.GetLatestSnapshot(docId)?.Content);
+
+            string path2 = _vault.SaveSnapshot(docId, updatedContent, "Draft v2");
+            Assert.Equal(path1, path2);
+            Assert.True(File.Exists(path2));
+            Assert.False(File.Exists(path2 + ".tmp"));
+            Assert.Equal(updatedContent, _vault.GetLatestSnapshot(docId)?.Content);
+        }
+
+        [Fact]
+        public void SaveSnapshot_ConcurrentSaves_DoNotCorruptOrLeaveTmpFiles()
+        {
+            int iterations = 20;
+            System.Threading.Tasks.Parallel.For(0, iterations, i =>
+            {
+                string docId = $"concurrent_doc_{i}";
+                string path = _vault.SaveSnapshot(docId, $"Content {i}", $"Title {i}");
+                Assert.True(File.Exists(path));
+                Assert.False(File.Exists(path + ".tmp"));
+            });
+
+            var all = _vault.GetAllSnapshots();
+            Assert.True(all.Count >= iterations);
         }
 
         [Fact]

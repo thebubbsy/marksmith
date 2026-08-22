@@ -201,6 +201,52 @@ public class AdversarialSecurityAndLicensingTests
         server.Stop();
     }
 
+    [Fact]
+    public async Task ApiServer_R1_Settings_And_Batch_Endpoints_Block_Browser_Origins()
+    {
+        using var server = CreateServer();
+        int port = 59405;
+        server.Start(port);
+
+        using var client = new HttpClient();
+
+        // GET /api/settings from browser origin -> 403 Forbidden
+        var req1 = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/api/settings");
+        req1.Headers.Add("Origin", "http://127.0.0.1:3000");
+        var resp1 = await client.SendAsync(req1);
+        Assert.Equal(HttpStatusCode.Forbidden, resp1.StatusCode);
+        Assert.Contains("settings are not readable cross-origin", await resp1.Content.ReadAsStringAsync());
+
+        // POST /api/settings from extension origin -> 403 Forbidden
+        var req2 = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/settings");
+        req2.Headers.Add("Origin", "chrome-extension://test-extension-id");
+        req2.Content = new StringContent("{\"theme\":\"Dracula\"}", Encoding.UTF8, "application/json");
+        var resp2 = await client.SendAsync(req2);
+        Assert.Equal(HttpStatusCode.Forbidden, resp2.StatusCode);
+        Assert.Contains("settings cannot be modified cross-origin", await resp2.Content.ReadAsStringAsync());
+
+        // POST /api/batch from browser origin -> 403 Forbidden
+        var req3 = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
+        req3.Headers.Add("Origin", "http://127.0.0.1:3000");
+        req3.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"pdf\"}", Encoding.UTF8, "application/json");
+        var resp3 = await client.SendAsync(req3);
+        Assert.Equal(HttpStatusCode.Forbidden, resp3.StatusCode);
+        Assert.Contains("batch conversion is not permitted cross-origin", await resp3.Content.ReadAsStringAsync());
+
+        // Direct GET /api/settings -> 200 OK
+        var req4 = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/api/settings");
+        var resp4 = await client.SendAsync(req4);
+        Assert.Equal(HttpStatusCode.OK, resp4.StatusCode);
+
+        // Direct POST /api/batch -> 200 OK
+        var req5 = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
+        req5.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"pdf\"}", Encoding.UTF8, "application/json");
+        var resp5 = await client.SendAsync(req5);
+        Assert.Equal(HttpStatusCode.OK, resp5.StatusCode);
+
+        server.Stop();
+    }
+
     // ==========================================
     // R4: Licensing & Pro Unlock Stress Tests
     // ==========================================

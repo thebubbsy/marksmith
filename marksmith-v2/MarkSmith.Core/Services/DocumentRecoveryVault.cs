@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using MarkSmith.Services;
 
 namespace MarkSmith.Core.Services
 {
@@ -28,8 +29,7 @@ namespace MarkSmith.Core.Services
         {
             if (string.IsNullOrWhiteSpace(vaultDirectory))
             {
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                _vaultDirectory = Path.Combine(appData, "Marksmith", "recovery_vault");
+                _vaultDirectory = Path.Combine(AppPaths.ConfigDir, "recovery_vault");
             }
             else
             {
@@ -67,7 +67,7 @@ namespace MarkSmith.Core.Services
             snapshot.FilePath = snapshotPath;
 
             string json = JsonSerializer.Serialize(snapshot, JsonOpts);
-            File.WriteAllText(snapshotPath, json);
+            AtomicFile.WriteAllText(snapshotPath, json);
 
             return snapshotPath;
         }

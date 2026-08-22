@@ -30,16 +30,20 @@ public static class LicenseValidator
         [property: JsonPropertyName("iss")] string? Iss);
 
     // Returns the verified payload, or null if the key is missing, malformed, or the signature fails.
+#if DEBUG
     // Hidden developer/verification key: lets the app be flipped straight into Pro for testing
-    // and demos (MainWindow's Ctrl+Shift+Alt+P toggles it). Never shown to users — the keyboard
-    // command is the only way in/out, and the key is only accepted here, never advertised.
+    // and demos (MainWindow's Ctrl+Shift+Alt+P toggles it). DEBUG-ONLY: it is compiled OUT of
+    // Release builds so no shipped binary carries a hardcoded free-Pro backdoor.
     public const string DevProKey = "MARKSMI TH-DEV-PRO-0001";
+#endif
 
     public static Payload? Verify(string? key, string? publicKeyPem = null)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
+#if DEBUG
         if (string.Equals(key.Trim(), DevProKey, StringComparison.Ordinal))
             return new Payload("dev@marksmith.local", "pro", null, "marksmith-dev");
+#endif
         var parts = key.Trim().Split('.');
         if (parts.Length != 2) return null;
         try

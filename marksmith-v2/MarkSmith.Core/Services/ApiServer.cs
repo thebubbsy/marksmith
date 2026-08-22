@@ -318,9 +318,9 @@ public sealed class ApiServer : IDisposable
     // Which cross-origin callers may use the local API. Exact-host matching via Uri parsing — a
     // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
     // A browser-originated request (a web page OR any extension). Used to bar governance reads,
-    // which must not be reachable from a page/extension even though IsAllowedOrigin permits the
-    // extension for its normal ingest/report flow. Empty/"null" (non-browser or opaque) is NOT a
-    // browser origin.
+    // settings access, and batch conversions, which must not be reachable from a page/extension even
+    // though IsAllowedOrigin permits the extension for its normal ingest/report flow. Empty/"null"
+    // (non-browser or opaque) is NOT a browser origin.
     private bool IsBrowserOrigin(string? origin) =>
         !string.IsNullOrEmpty(origin) && origin != "null";
 
@@ -465,6 +465,11 @@ public sealed class ApiServer : IDisposable
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
                     var ovr = req.Output ?? new OutputOverride { Theme = req.Theme, NormalizeLlm = req.Normalize, Format = req.Format };
+                    // Go-live licensing: the local API is a SECOND entrance to the Pro exporters
+                    // (browser extension, automation scripts) — enforce the same paywall the UI
+                    // applies so a free install can't bypass it by calling /api/convert directly.
+                    var gateError = LicenseGateError(ovr.Format);
+                    if (gateError is not null) { await WriteJsonAsync(ctx, 402, new { error = gateError }); break; }
                     var bytes = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
                     if (ovr.Format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true)
@@ -562,11 +567,13 @@ public sealed class ApiServer : IDisposable
                     break;
 
                 case ("GET", "/api/settings"):
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings are not readable cross-origin" }); break; }
                     await WriteJsonAsync(ctx, 200, _getSettings());
                     break;
 
                 case ("POST", "/api/settings"):
                 {
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings cannot be modified cross-origin" }); break; }
                     var body = await ReadBoundedBodyAsync(ctx);
                     var newSettings = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<AppSettings>(body, JsonOpts);
                     if (newSettings is null) { await WriteJsonAsync(ctx, 400, new { error = "invalid settings payload" }); break; }
@@ -577,9 +584,12 @@ public sealed class ApiServer : IDisposable
 
                 case ("POST", "/api/batch"):
                 {
+                    if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "batch conversion is not permitted cross-origin" }); break; }
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Folder is not { Length: > 0 } folder) { await WriteJsonAsync(ctx, 400, new { error = "folder is required" }); break; }
                     var format = req.Format ?? "pdf";
+                    var gateError = LicenseGateError(format);
+                    if (gateError is not null) { await WriteJsonAsync(ctx, 402, new { error = gateError }); break; }
                     var result = await _batchConvert(folder, format, req.Output);
                     await WriteJsonAsync(ctx, 200, result);
                     break;
@@ -635,6 +645,23 @@ public sealed class ApiServer : IDisposable
         ctx.Response.StatusCode = status;
         ctx.Response.ContentType = "application/json";
         await ctx.Response.OutputStream.WriteAsync(bytes);
+    }
+
+    // Go-live licensing: /api/convert and /api/batch are second entrances to the Pro exporters
+    // (browser extension, automation scripts) — they enforce the same paywall the UI applies so a
+    // free install can't bypass it by calling the API directly. LicenseSource defaults to the
+    // app-wide singleton; tests point it at an isolated LicenseService so parallel collections
+    // can't race the shared state.
+    internal static Func<LicenseService> LicenseSource { get; set; } = () => AppServices.License;
+
+    private static string? LicenseGateError(string? format)
+    {
+        var license = LicenseSource();
+        if (format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true && !license.CanExportDocx)
+            return "DOCX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in the MarkSmith app.";
+        if (format?.Equals("pptx", StringComparison.OrdinalIgnoreCase) == true && !license.CanExportPptx)
+            return "PPTX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in the MarkSmith app.";
+        return null;
     }
 
     public void Dispose() => Stop();

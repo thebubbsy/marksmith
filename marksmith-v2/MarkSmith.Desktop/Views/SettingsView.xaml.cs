@@ -37,9 +37,10 @@ public sealed partial class SettingsView : UserControl
         var ed = App.License.State.Edition;
         // "Remove license" only makes sense for an actual activated Pro key.
         DeactivateButton.Visibility = ed == Models.Edition.Pro ? Visibility.Visible : Visibility.Collapsed;
-        // "Start trial" is available to Free users who haven't spent their one export.
+        // "Start trial" is offered to Free users; StartTrial() itself refuses (with the reason) if
+        // the 3-export trial is already active or spent.
         StartTrialButton.Visibility = ed == Models.Edition.Free ? Visibility.Visible : Visibility.Collapsed;
-        // Always surface the resolved state (Free / Trial — ONE export remaining / Pro).
+        // Always surface the resolved state (Free / Trial — N exports remaining / Pro).
         LicenseStatus.Text = App.License.State.Status ?? "Free";
         LicenseStatus.Visibility = Visibility.Visible;
     }
@@ -65,6 +66,12 @@ public sealed partial class SettingsView : UserControl
 
     private async void OnBuyPro(object sender, RoutedEventArgs e)
     {
+        if (!Services.LicenseService.IsStoreConfigured)
+        {
+            LicenseStatus.Text = "The online store link isn't configured yet.";
+            LicenseStatus.Visibility = Visibility.Visible;
+            return;
+        }
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
         catch { /* no browser / bad uri — ignore */ }
     }

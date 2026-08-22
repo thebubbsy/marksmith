@@ -227,13 +227,15 @@ internal class MockHttpMessageHandler : HttpMessageHandler
 }
 
 
-// ===== One-export trial model (no automatic trial) =====
+// ===== 3-export trial model (no automatic trial) =====
 
 [Collection("LicenseState")]
 public class TrialModelTests : IDisposable
 {
     private readonly string _licensePath;
+    private readonly string _shadowPath;
     private readonly string? _backup;
+    private readonly string? _shadowBackup;
 
     public TrialModelTests()
     {
@@ -241,17 +243,22 @@ public class TrialModelTests : IDisposable
         // the license file under test is the same one LicenseService actually reads/writes.
         var dir = MarkSmith.Services.AppPaths.ConfigDir;
         _licensePath = Path.Combine(dir, "license.json");
+        _shadowPath = Path.Combine(dir, "trial.state");
         _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
+        _shadowBackup = File.Exists(_shadowPath) ? File.ReadAllText(_shadowPath) : null;
     }
 
     public void Dispose()
     {
         // Restore whatever license state existed before the test — these tests must never
-        // clobber a real user's trial/Pro activation.
+        // clobber a real user's trial/Pro activation. The trial-consumption shadow is restored
+        // too: a leaked shadow would silently re-cap the trial for the NEXT test in this class.
         try
         {
             if (_backup is null) { if (File.Exists(_licensePath)) File.Delete(_licensePath); }
             else File.WriteAllText(_licensePath, _backup);
+            if (_shadowBackup is null) { if (File.Exists(_shadowPath)) File.Delete(_shadowPath); }
+            else File.WriteAllText(_shadowPath, _shadowBackup);
         }
         catch { /* best-effort */ }
     }
@@ -447,6 +454,95 @@ public class TrialModelTests : IDisposable
         var (ok, _) = service.StartTrial();
         Assert.True(ok, "after ResetToFree the trial must be startable again");
     }
+
+    // ---- Trial-consumption shadow (go-live hardening) ----
+
+    [Fact]
+    public void DeletingLicenseFile_DoesNotRefund_A_SpentTrial()
+    {
+        // The casual bypass: spend all 3 trial exports, delete license.json, restart — the old
+        // code read a fresh default and let the user start the trial again. The shadow marker
+        // must keep the trial spent across that delete.
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+        for (int i = 0; i < 3; i++) service.ConsumeDocxExport();
+        Assert.Equal(Edition.Free, service.State.Edition);
+
+        File.Delete(_licensePath); // the tamper
+
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        Assert.Equal(Edition.Free, reloaded.State.Edition);
+        Assert.False(reloaded.CanExportDocx);
+        Assert.Contains("trial used", reloaded.State.Status);
+        var (again, _) = reloaded.StartTrial();
+        Assert.False(again, "deleting license.json must not refund a spent trial");
+    }
+
+    [Fact]
+    public void DeletingLicenseFile_KeepsAPartialTrial_ButNeverRefundsIt()
+    {
+        // Spend 1 of 3: the primary file says 2 remaining, and neither hand-editing it upward
+        // nor deleting it outright can top the balance back up to 3 — the shadow record of the
+        // spend is authoritative.
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+        service.ConsumeDocxExport();
+        Assert.Equal(2, service.State.TrialExportsRemaining);
+
+        // Tamper #1: hand-edit the primary file to claim a full trial again.
+        var edited = File.ReadAllText(_licensePath).Replace("\"TrialExportsRemaining\": 2", "\"TrialExportsRemaining\": 3");
+        File.WriteAllText(_licensePath, edited);
+        var tampered = new LicenseService();
+        tampered.Load();
+        Assert.Equal(2, tampered.State.TrialExportsRemaining);
+
+        // Tamper #2: delete the file entirely — the shadow restores the REAL balance.
+        File.Delete(_licensePath);
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        Assert.Equal(Edition.Trial, reloaded.State.Edition);
+        Assert.True(reloaded.CanExportDocx);
+        Assert.Equal(2, reloaded.State.TrialExportsRemaining);
+    }
+
+    [Fact]
+    public void DeletingLicenseFile_ImmediatelyAfterTrialStart_DoesNotMintASecondOne()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+
+        File.Delete(_licensePath); // try to mint a fresh trial by hiding the started one
+
+        var reloaded = new LicenseService();
+        reloaded.Load();
+        // The shadow proves a trial was started: it is restored as active (3 exports), not
+        // resolved to a never-trialed Free that could StartTrial() again later.
+        Assert.Equal(Edition.Trial, reloaded.State.Edition);
+        Assert.Equal(3, reloaded.State.TrialExportsRemaining);
+    }
+
+    [Fact]
+    public void CorruptShadow_FallsBackToPrimaryFile()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+        service.StartTrial();
+
+        File.WriteAllText(_shadowPath, "not json — a corrupt shadow must be treated as absent");
+
+        var reloaded = new LicenseService();
+        reloaded.Load(); // must not throw
+        Assert.Equal(Edition.Trial, reloaded.State.Edition);
+        Assert.Equal(3, reloaded.State.TrialExportsRemaining);
+    }
 }
 
 // ===== Top-down feature classification =====
@@ -468,7 +564,7 @@ public class FeatureClassifierTests
     public void DocxExport_AllowedForProAndTrial_NotForFree()
     {
         Assert.False(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Free));
-        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Trial));  // the one-export trial
+        Assert.True(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Trial));  // the 3-export trial
         Assert.True(FeatureClassifier.LicenseAllows(FeatureId.DocxExport, Pro));
     }
 

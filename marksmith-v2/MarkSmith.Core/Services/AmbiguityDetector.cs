@@ -25,7 +25,7 @@ public static class AmbiguityDetector
         public static List<AmbiguityCase> Detect(MarkdownDocument doc, string rawMarkdown)
     {
         var cases = new List<AmbiguityCase>();
-        var lines = rawMarkdown.Replace("\r\n", "\n").Split('\n');
+        var lines = TextNormalizer.Newlines(rawMarkdown).Split('\n');
         var prefs = AppServices.Settings.Current.AmbiguityPreferences;
         
         var codeBlockRanges = doc.Descendants<FencedCodeBlock>()
@@ -62,7 +62,7 @@ public static class AmbiguityDetector
                             Kind = AmbiguityKind.DiagramSize,
                             Description = "Mermaid diagram may be too large to fit on a printed page.",
                             SourceLine = block.Line,
-                            SourceMarkdown = string.Join("\n", content.Replace("\r\n", "\n").Split('\n').Take(3)) + "...",
+                            SourceMarkdown = string.Join("\n", TextNormalizer.Newlines(content).Split('\n').Take(3)) + "...",
                             Options = new List<RenderOption>
                             {
                                 new RenderOption { Label = "Scale to fit", Priority = 1 },

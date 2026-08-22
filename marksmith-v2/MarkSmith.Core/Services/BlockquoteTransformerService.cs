@@ -37,8 +37,9 @@ public static partial class BlockquoteTransformerService
     public static string Transform(string? markdown)
     {
         if (markdown is null || string.IsNullOrWhiteSpace(markdown)) return "";
+        if (!markdown.Contains("[!", StringComparison.Ordinal)) return markdown;
 
-        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = TextNormalizer.Newlines(markdown).Split('\n');
         var output = new List<string>(lines.Length);
         int i = 0;
 

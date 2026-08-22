@@ -114,14 +114,15 @@ public static class PdfCompressorService
                     int newWidth = Math.Max(1, (int)(bitmap.Width * scale));
                     int newHeight = Math.Max(1, (int)(bitmap.Height * scale));
                     using var resized = bitmap.Resize(new SkiaSharp.SKImageInfo(newWidth, newHeight), SkiaSharp.SKFilterQuality.Medium);
+                    if (resized is null) continue;
                     using var image = SkiaSharp.SKImage.FromBitmap(resized);
                     using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, quality);
                     var bytes = data?.ToArray();
                     if (bytes is null || bytes.Length >= jpeg.Length) continue; // not worth it — keep original
 
                     stream.Value = bytes;
-                    dict.Elements.SetInteger("/Width", newWidth);
-                    dict.Elements.SetInteger("/Height", newHeight);
+                    dict.Elements?.SetInteger("/Width", newWidth);
+                    dict.Elements?.SetInteger("/Height", newHeight);
                 }
             }
         }
@@ -133,7 +134,7 @@ public static class PdfCompressorService
     public static PdfAnalysisResult Analyze(Stream pdf)
     {
         var total = pdf.Length;
-        using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.ReadOnly);
+        using var document = PdfReader.Open(pdf, PdfDocumentOpenMode.Import);
 
         var (imageCount, imageBytes) = CountImages(document);
         return new PdfAnalysisResult(total, document.PageCount, imageCount, imageBytes);

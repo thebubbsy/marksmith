@@ -65,7 +65,7 @@ namespace MarkSmith.Core.Services
 
             // Strip headings formatting, markdown symbols
             string plainText = MdSymbolStrip.Replace(cleaned, " ");
-            string[] words = NonWordSplit.Split(plainText.ToLower());
+            string[] words = NonWordSplit.Split(plainText.ToLowerInvariant());
 
             var wordCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var word in words)

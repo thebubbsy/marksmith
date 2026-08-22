@@ -10,6 +10,7 @@ using Xunit;
 
 namespace MarkSmith.Core.Tests;
 
+[Collection("LicenseState")]
 public class FiveDocumentXmlVerificationTests
 {
     private static readonly XNamespace W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";

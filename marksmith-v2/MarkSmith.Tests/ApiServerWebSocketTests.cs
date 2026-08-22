@@ -14,8 +14,6 @@ namespace MarkSmith.Tests;
 [Collection("ApiServer")]
 public class ApiServerWebSocketTests
 {
-    private static int port;
-
     // The free-port probe releases the port before Start() binds it, so a parallel test (other
     // collections run concurrently) can steal it between probe and bind. Retry the probe+bind;
     // a stolen port fails the first bind, not the test.
@@ -23,11 +21,11 @@ public class ApiServerWebSocketTests
     {
         for (int attempt = 0; ; attempt++)
         {
-            port = GetFreePort();
+            int p = GetFreePort();
             try
             {
-                server.Start(port);
-                return port;
+                server.Start(p);
+                return p;
             }
             catch (System.Net.HttpListenerException) when (attempt < 5)
             {
@@ -135,11 +133,15 @@ public class ApiServerWebSocketTests
         var sink = new Sink();
         sink.Settings.EnableStreamingApi = true;
         using var server = sink.CreateServer();
-        port = await StartServerRetryingAsync(server);
+        int localPort = await StartServerRetryingAsync(server);
         try
         {
             using var ws = new ClientWebSocket();
-            await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
+            await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{localPort}/api/stream"), CancellationToken.None);
+
+            var regDeadline = DateTime.UtcNow.AddSeconds(3);
+            while (server.StreamClientCount == 0 && DateTime.UtcNow < regDeadline)
+                await Task.Delay(25);
 
             // Side-effecting request: send exactly ONCE (a retry would double-ingest). Delivery is
             // proven by the ingest side effect; the ack is best-effort fire-and-forget, so don't
@@ -162,7 +164,7 @@ public class ApiServerWebSocketTests
         sink.Settings.EnableStreamingApi = true;
         sink.Preview = "<html>the live preview</html>";
         using var server = sink.CreateServer();
-        port = await StartServerRetryingAsync(server);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using var reply = await SendAndReceiveAsync(port, new { type = "preview" });
@@ -178,7 +180,7 @@ public class ApiServerWebSocketTests
         var sink = new Sink();
         sink.Settings.EnableStreamingApi = true;
         using var server = sink.CreateServer();
-        port = await StartServerRetryingAsync(server);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             // Broadcasts are server-initiated, so each attempt gets a fresh socket: a dropped
@@ -221,15 +223,12 @@ public class ApiServerWebSocketTests
         var sink = new Sink();
         sink.Settings.EnableStreamingApi = true;
         using var server = sink.CreateServer();
-        int port = GetFreePort();
-        server.Start(port);
+        int port = await StartServerRetryingAsync(server);
         try
         {
             using (var ws = new ClientWebSocket())
             {
                 await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/api/stream"), CancellationToken.None);
-                // The server registers the socket asynchronously AFTER the handshake completes —
-                // poll both directions so a slow full-suite run can't flake either assertion.
                 await WaitForAsync(() => server.StreamClientCount >= 1);
                 Assert.Equal(1, server.StreamClientCount);
             }

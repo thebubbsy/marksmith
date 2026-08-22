@@ -95,8 +95,7 @@ public sealed class GovernanceService
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(StorePath)!);
-            File.WriteAllText(StorePath, JsonSerializer.Serialize(_events, JsonOpts));
+            AtomicFile.WriteAllText(StorePath, JsonSerializer.Serialize(_events, JsonOpts));
         }
         catch { /* best-effort */ }
     }

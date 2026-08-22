@@ -87,8 +87,7 @@ public static class CustomThemeStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(StorePath)!);
-            File.WriteAllText(StorePath, JsonSerializer.Serialize(_cache, JsonOpts));
+            AtomicFile.WriteAllText(StorePath, JsonSerializer.Serialize(_cache, JsonOpts));
         }
         catch { /* disk-full/locked: keep the in-memory theme working for this session */ }
     }

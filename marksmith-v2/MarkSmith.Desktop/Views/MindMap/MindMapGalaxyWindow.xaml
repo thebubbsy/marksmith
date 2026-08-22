@@ -127,6 +127,34 @@
                     <!-- Bezier lines and shape nodes are drawn dynamically in code-behind for 60fps performance -->
                 </Canvas>
 
+                <!-- FLOATING TAG FILTER PILL BAR (Top-Center) -->
+                <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0"
+                        Background="#D0161722" BorderBrush="#2E2E42" BorderThickness="1"
+                        CornerRadius="20" Padding="8,4"
+                        Visibility="{Binding DistinctTags.Count, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🏷️" FontSize="11" VerticalAlignment="Center" Margin="2,0,4,0" />
+                        <Button Click="OnAllTagsClick" Padding="8,3" CornerRadius="12" Background="#262738">
+                            <TextBlock Text="All Tags" FontSize="11" Foreground="White" />
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding DistinctTags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Click="OnTagPillClick" Tag="{Binding}" Padding="8,3" CornerRadius="12"
+                                            Background="#1C1C28" BorderBrush="#38BDF8" BorderThickness="1">
+                                        <TextBlock Text="{Binding}" FontSize="11" Foreground="#38BDF8" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <!-- FLOATING MINIMAP RADAR HUD (Bottom-Left) -->
                 <Border x:Name="MinimapOverlay"
                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
@@ -174,7 +202,8 @@
 
                         <!-- Open in MarkSmith Action -->
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                            <TextBlock Text="{Binding PreviewFilePath}" FontSize="10" Foreground="#7C7C90" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                            <TextBlock Text="{Binding PreviewFilePath}" FontSize="10" Foreground="#7C7C90" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+                            <Button Content="⏱️ History" Click="OnPreviewVersionHistoryClick" Background="#262738" BorderBrush="#38BDF8" Foreground="White" FontSize="11" Padding="8,4" CornerRadius="6" />
                             <Button Content="Open in Editor ➔" Click="OnOpenInEditorClick" Background="#7C4DFF" Foreground="White" FontWeight="SemiBold" FontSize="11" Padding="10,4" CornerRadius="6" />
                         </StackPanel>
                     </Grid>
@@ -247,6 +276,15 @@
 
                             <!-- Action Buttons -->
                             <Button Content="📂 Open Document in MarkSmith" Click="OnOpenSelectedDocumentClick" HorizontalAlignment="Stretch" Background="#262738" BorderBrush="#7C4DFF" Foreground="#E8E8F0" FontWeight="SemiBold" />
+                            <Button Click="OnOpenVersionHistoryClick" HorizontalAlignment="Stretch" Background="#262738" BorderBrush="#38BDF8" Foreground="#E8E8F0" FontWeight="SemiBold" Margin="0,6,0,0" ToolTipService.ToolTip="Open Version History &amp; Time Machine for this document">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <TextBlock Text="⏱️" FontSize="13" />
+                                    <TextBlock Text="Document Time Machine" FontSize="12" />
+                                    <Border Background="#1C2D42" CornerRadius="10" Padding="6,1" Margin="4,0,0,0" Visibility="{Binding HasVersions, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding VersionCountText}" FontSize="10" Foreground="#38BDF8" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
 
                     </StackPanel>

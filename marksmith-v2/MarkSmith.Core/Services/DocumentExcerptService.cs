@@ -77,8 +77,11 @@ public static partial class DocumentExcerptService
         return text[..cut].TrimEnd() + "…";
     }
 
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRe();
+
     private static string CollapseWhitespace(string s) =>
-        Regex.Replace(s, @"\s+", " ").Trim();
+        WhitespaceRe().Replace(s, " ").Trim();
 
     /// <summary>Flattens an inline tree to visible text, dropping images and link URLs.</summary>
     private static void AppendPlainText(ContainerInline? inline, StringBuilder sb)

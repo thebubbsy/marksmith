@@ -67,6 +67,46 @@ namespace MarkSmith.ViewModels.MindMap
 
         public ObservableCollection<string> Tags { get; } = new();
 
+        [ObservableProperty]
+        private int _versionCount;
+
+        [ObservableProperty]
+        private string _versionCountText = "";
+
+        [ObservableProperty]
+        private string _latestVersionLabel = "";
+
+        public bool HasVersions => VersionCount > 0;
+
+        public async Task RefreshVersionHistoryAsync(Services.VersionHistoryService history)
+        {
+            if (string.IsNullOrWhiteSpace(FilePath))
+            {
+                VersionCount = 0;
+                VersionCountText = "";
+                LatestVersionLabel = "";
+                return;
+            }
+            try
+            {
+                var versions = await history.GetVersionsAsync(FilePath);
+                VersionCount = versions.Count;
+                if (versions.Count > 0)
+                {
+                    VersionCountText = $"⏱️ {versions.Count} {(versions.Count == 1 ? "version" : "versions")}";
+                    var latest = versions[0];
+                    LatestVersionLabel = latest.CreatedAt.LocalDateTime.ToString("d MMM · HH:mm");
+                }
+                else
+                {
+                    VersionCountText = "";
+                    LatestVersionLabel = "";
+                }
+                OnPropertyChanged(nameof(HasVersions));
+            }
+            catch { /* best-effort history lookup */ }
+        }
+
         public string FormatBadge =>
             !string.IsNullOrEmpty(FileExtension) ? FileExtension.TrimStart('.').ToUpperInvariant() : NodeType.ToString().ToUpperInvariant();
 

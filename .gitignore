@@ -42,6 +42,7 @@ TestRegex/
 TestTransform/
 site/
 docx_unzip/
+peaceful-euclid/
 
 # Transient & Scratch Files
 *.bak

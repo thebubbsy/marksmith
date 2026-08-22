@@ -131,7 +131,7 @@ public static class GoogleDocsDocumentBuilder
 
             case Table t:
             {
-                var table = new GoogleTable { Order = st.TableCount };
+                var table = new GoogleTable { Order = st.TableCount++ };
                 foreach (var rowObj in t)
                 {
                     if (rowObj is not TableRow row) continue;
@@ -280,7 +280,7 @@ public static class GoogleDocsDocumentBuilder
                     return;
                 }
                 var next = ctx with { Link = link.Url };
-                if (link.IsAutoLink) AddRun(runs, link.Url, next);
+                if (link.IsAutoLink) AddRun(runs, link.Url ?? string.Empty, next);
                 else foreach (var c in link) EmitInline(c, runs, next, st);
                 break;
             }

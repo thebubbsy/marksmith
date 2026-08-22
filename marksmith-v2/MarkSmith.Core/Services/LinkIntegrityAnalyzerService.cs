@@ -33,13 +33,16 @@ namespace MarkSmith.Core.Services
 
     public class LinkIntegrityAnalyzerService
     {
+        private static readonly MarkdownPipeline DefaultPipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+        private static readonly Regex SlugPunctuationRegex = new(@"[^\w\s-]", RegexOptions.Compiled);
+        private static readonly Regex SlugWhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+
         public LinkIntegrityReport Analyze(string markdown, string? documentDirectory = null)
         {
             var report = new LinkIntegrityReport();
             if (string.IsNullOrWhiteSpace(markdown)) return report;
 
-            var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
-            var doc = Markdown.Parse(markdown, pipeline);
+            var doc = Markdown.Parse(markdown, DefaultPipeline);
 
             // 1. Collect all header anchors
             var anchors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -113,8 +116,8 @@ namespace MarkSmith.Core.Services
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
             string slug = text.Trim().ToLowerInvariant();
-            slug = Regex.Replace(slug, @"[^\w\s-]", "");
-            slug = Regex.Replace(slug, @"\s+", "-");
+            slug = SlugPunctuationRegex.Replace(slug, "");
+            slug = SlugWhitespaceRegex.Replace(slug, "-");
             return slug;
         }
     }

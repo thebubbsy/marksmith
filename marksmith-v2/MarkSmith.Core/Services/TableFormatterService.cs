@@ -8,6 +8,8 @@ namespace MarkSmith.Core.Services
 {
     public class TableFormatterService
     {
+        private static readonly Regex SeparatorCellRegex = new(@"^:?-+:?$", RegexOptions.Compiled);
+
         public string FormatTable(string markdownTable)
         {
             if (string.IsNullOrWhiteSpace(markdownTable)) return markdownTable;
@@ -38,7 +40,7 @@ namespace MarkSmith.Core.Services
 
             // Identify separator row (row 1)
             var separatorRow = rows[1];
-            bool isSeparator = separatorRow.All(c => Regex.IsMatch(c, @"^:?-+:?$"));
+            bool isSeparator = separatorRow.All(c => SeparatorCellRegex.IsMatch(c));
             if (!isSeparator) return markdownTable;
 
             // Compute col widths

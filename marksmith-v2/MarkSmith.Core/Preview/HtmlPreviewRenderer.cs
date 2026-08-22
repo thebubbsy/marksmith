@@ -9,6 +9,14 @@ namespace MarkSmith.Core.Preview
 {
     public static class HtmlPreviewRenderer
     {
+        private static readonly string[] PyramidColors = { "#d13438", "#ff8c00", "#107c41", "#0078d4", "#5c2d91", "#008272", "#8764b8", "#e3008c" };
+        private static readonly string[] CycleColors = { "#0078d4", "#107c41", "#d13438", "#ff8c00", "#5c2d91", "#008272" };
+        private static readonly string[] MatrixColors = { "#0078d4", "#107c41", "#d13438", "#ff8c00" };
+        private static readonly string[] MatrixDefaultTitles = { "Strengths / Q1", "Weaknesses / Q2", "Opportunities / Q3", "Threats / Q4" };
+        private static readonly string[] LinearColors = { "#0078d4", "#107c41", "#ff8c00", "#d13438", "#5c2d91", "#008272" };
+        private static readonly string[] VennColors = { "rgba(0,120,212,0.6)", "rgba(16,124,65,0.6)", "rgba(209,52,56,0.6)", "rgba(255,140,0,0.6)" };
+        private static readonly (double ox, double oy)[] VennOffsets = { (-60, -30), (60, -30), (0, 60), (0, -70) };
+
         public static string RenderHtml(CanonicalAst ast, string layoutAlias, string layoutTitle = "SmartArt Diagram")
         {
             int width = 800;
@@ -88,8 +96,6 @@ namespace MarkSmith.Core.Preview
             double maxBaseW = Math.Min(650, w - 80);
             double minApexW = 120;
 
-            string[] colors = { "#d13438", "#ff8c00", "#107c41", "#0078d4", "#5c2d91", "#008272", "#8764b8", "#e3008c" };
-
             for (int i = 0; i < n; i++)
             {
                 double yTop = topMargin + i * layerH;
@@ -107,7 +113,7 @@ namespace MarkSmith.Core.Preview
                 double xBotR = cx + wBot / 2.0;
 
                 string points = $"{xTopL:F1},{yTop:F1} {xTopR:F1},{yTop:F1} {xBotR:F1},{yBot:F1} {xBotL:F1},{yBot:F1}";
-                string bg = colors[i % colors.Length];
+                string bg = PyramidColors[i % PyramidColors.Length];
 
                 sb.Append($@"<polygon points=""{points}"" fill=""{bg}"" stroke=""#ffffff"" stroke-width=""2"" filter=""drop-shadow(0 1px 2px rgba(0,0,0,0.15))""/>");
 
@@ -236,14 +242,13 @@ namespace MarkSmith.Core.Preview
                 sb.Append($@"<line x1=""{x1}"" y1=""{y1}"" x2=""{x2}"" y2=""{y2}"" stroke=""#d13438"" stroke-width=""2.5"" stroke-dasharray=""4"" marker-end=""url(#arrow)""/>");
             }
 
-            string[] colors = { "#0078d4", "#107c41", "#d13438", "#ff8c00", "#5c2d91", "#008272" };
             int cardW = n > 5 ? 90 : 110;
             int cardH = n > 5 ? 45 : 55;
 
             for (int i = 0; i < coords.Count; i++)
             {
                 var (nx, ny, node) = coords[i];
-                string c = colors[i % colors.Length];
+                string c = CycleColors[i % CycleColors.Length];
                 sb.Append(DrawShape((int)nx, (int)ny, cardW, cardH, node.Text, shapeType, c));
             }
 
@@ -260,13 +265,9 @@ namespace MarkSmith.Core.Preview
             int n = nodes.Count;
 
             int cols = 2;
-            int rows = 2;
             double pad = 30;
             double cellW = (w - pad * 3) / 2.0;
             double cellH = (h - pad * 3 - 30) / 2.0;
-
-            string[] colors = { "#0078d4", "#107c41", "#d13438", "#ff8c00" };
-            string[] defaultTitles = { "Strengths / Q1", "Weaknesses / Q2", "Opportunities / Q3", "Threats / Q4" };
 
             for (int i = 0; i < Math.Min(4, n); i++)
             {
@@ -274,10 +275,10 @@ namespace MarkSmith.Core.Preview
                 int c = i % cols;
                 double x = pad + c * (cellW + pad);
                 double y = 40 + pad + r * (cellH + pad);
-                string bg = colors[i % colors.Length];
+                string bg = MatrixColors[i % MatrixColors.Length];
 
                 var node = nodes[i];
-                string title = !string.IsNullOrWhiteSpace(node.Text) ? node.Text : defaultTitles[i];
+                string title = !string.IsNullOrWhiteSpace(node.Text) ? node.Text : MatrixDefaultTitles[i];
 
                 sb.Append($@"<g>
   <rect x=""{x}"" y=""{y}"" width=""{cellW}"" height=""{cellH}"" rx=""8"" fill=""{bg}"" stroke=""#ffffff"" stroke-width=""2"" opacity=""0.9""/>
@@ -311,12 +312,10 @@ namespace MarkSmith.Core.Preview
             int cardW = Math.Max(60, Math.Min(120, (int)(step * 0.75)));
             int cardH = 55;
 
-            string[] colors = { "#0078d4", "#107c41", "#ff8c00", "#d13438", "#5c2d91", "#008272" };
-
             for (int i = 0; i < n; i++)
             {
                 double cx = pad + (i + 0.5) * step;
-                string bg = colors[i % colors.Length];
+                string bg = LinearColors[i % LinearColors.Length];
 
                 if (i < n - 1)
                 {
@@ -338,14 +337,12 @@ namespace MarkSmith.Core.Preview
             int n = Math.Min(nodes.Count, 4);
             double cx = w / 2.0, cy = h / 2.0;
             double r = 110;
-            string[] colors = { "rgba(0,120,212,0.6)", "rgba(16,124,65,0.6)", "rgba(209,52,56,0.6)", "rgba(255,140,0,0.6)" };
-            (double ox, double oy)[] offsets = { (-60, -30), (60, -30), (0, 60), (0, -70) };
 
             for (int i = 0; i < n; i++)
             {
-                var (ox, oy) = offsets[i % offsets.Length];
+                var (ox, oy) = VennOffsets[i % VennOffsets.Length];
                 double nx = cx + ox, ny = cy + oy;
-                string c = colors[i % colors.Length];
+                string c = VennColors[i % VennColors.Length];
                 sb.Append($@"<circle cx=""{nx}"" cy=""{ny}"" r=""{r}"" fill=""{c}"" stroke=""#ffffff"" stroke-width=""2""/>");
                 sb.Append($@"<text x=""{nx}"" y=""{ny}"" fill=""#ffffff"" font-weight=""bold"" font-size=""13"" text-anchor=""middle"" dominant-baseline=""middle"">{WebUtility.HtmlEncode(nodes[i].Text)}</text>");
             }

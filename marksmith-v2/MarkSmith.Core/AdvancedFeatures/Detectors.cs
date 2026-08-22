@@ -544,4 +544,27 @@ namespace MarkSmith.Core.AdvancedFeatures
             return (errors.Count == 0, conf, errors.ToArray());
         }
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 14. EngineeringDiagram — the Cycle 22–29 engineering/science fences (49 visualizers:
+    // :::doppler, :::smith-chart, :::bode, …). The fence-name table lives in
+    // MarkdownHtmlService.EngineeringDiagrams (the preview's dispatch table) so both pipelines
+    // share ONE definition of which fences exist — the detector never keeps its own copy.
+    // ───────────────────────────────────────────────────────────────────
+    public class EngineeringDiagramDetector : IFeatureDetector
+    {
+        public string FeatureName => "EngineeringDiagram";
+        public double Threshold => 0.9;
+
+        public bool Matches(string rawBlock) =>
+            MarkSmith.Services.MarkdownHtmlService.TryGetEngineeringFenceName(rawBlock, out _);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            // The fence name alone is authoritative (the preview lift pass makes no further
+            // demands); rendering failures fall back to the source code block at render time,
+            // exactly like the mermaid/plugin last-resort convention.
+            return (true, 0.95, Array.Empty<string>());
+        }
+    }
 }

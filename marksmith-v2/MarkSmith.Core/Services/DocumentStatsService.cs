@@ -120,6 +120,9 @@ public static partial class DocumentStatsService
         };
     }
 
+    private const string Backtick3 = "```";
+    private const string Tilde3 = "~~~";
+
     // Returns the fence marker (a run of >= 3 backticks or tildes) a line opens with, or null.
     private static string? FenceMarker(string trimmed)
     {
@@ -127,7 +130,9 @@ public static partial class DocumentStatsService
         if (c != '`' && c != '~') return null;
         int n = 0;
         while (n < trimmed.Length && trimmed[n] == c) n++;
-        return n >= 3 ? new string(c, n) : null;
+        if (n < 3) return null;
+        if (n == 3) return c == '`' ? Backtick3 : Tilde3;
+        return new string(c, n);
     }
 
     private static int CountWords(string prose)

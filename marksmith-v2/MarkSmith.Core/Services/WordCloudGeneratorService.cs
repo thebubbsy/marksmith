@@ -99,5 +99,37 @@ namespace MarkSmith.Core.Services
 
             return result;
         }
+
+        /// <summary>
+        /// Renders a responsive spiral word cloud SVG with dynamic font scaling and palette styling.
+        /// </summary>
+        public static string RenderWordCloudSvg(List<WordCloudItem> items, double width = 600, double height = 400)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"""<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" class="ms-wordcloud-svg">""");
+            sb.AppendLine("""  <style>.wc-word { font-family: 'Segoe UI', system-ui, sans-serif; font-weight: 600; text-anchor: middle; dominant-baseline: central; }</style>""");
+
+            string[] colors = new[] { "#58a6ff", "#3fb950", "#d29922", "#f85149", "#bc8cff", "#79c0ff", "#56d364", "#e3b341" };
+            double centerX = width / 2.0;
+            double centerY = height / 2.0;
+            double angle = 0.0;
+            double radius = 0.0;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                string color = colors[i % colors.Length];
+                double x = centerX + radius * Math.Cos(angle);
+                double y = centerY + radius * Math.Sin(angle);
+
+                angle += 0.8;
+                radius += 3.5;
+
+                sb.AppendLine($"  <text x=\"{x.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}\" y=\"{y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}\" font-size=\"{item.ScaledFontSizePx.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}px\" fill=\"{color}\" class=\"wc-word\">{System.Net.WebUtility.HtmlEncode(item.Word)}</text>");
+            }
+
+            sb.AppendLine("</svg>");
+            return sb.ToString();
+        }
     }
 }

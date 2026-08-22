@@ -128,9 +128,26 @@ namespace MarkSmith.Services.MindMap
             var nodes = doc.Nodes;
             if (nodes.Count < 2) return;
 
+            var nodeMap = nodes.ToDictionary(n => n.Id);
+            var edges = new List<(MindMapNode S, MindMapNode T)>();
+            foreach (var n in nodes)
+            {
+                if (!string.IsNullOrEmpty(n.ParentId) && nodeMap.TryGetValue(n.ParentId, out var p))
+                {
+                    edges.Add((p, n));
+                }
+            }
+            foreach (var l in doc.Links)
+            {
+                if (nodeMap.TryGetValue(l.SourceNodeId, out var s) && nodeMap.TryGetValue(l.TargetNodeId, out var t))
+                {
+                    edges.Add((s, t));
+                }
+            }
+
             double k = Math.Sqrt((1200.0 * 800.0) / nodes.Count);
-            var dispX = new Dictionary<string, double>();
-            var dispY = new Dictionary<string, double>();
+            var dispX = new Dictionary<string, double>(nodes.Count);
+            var dispY = new Dictionary<string, double>(nodes.Count);
 
             for (int iter = 0; iter < iterations; iter++)
             {
@@ -153,22 +170,8 @@ namespace MarkSmith.Services.MindMap
                 }
 
                 // Attraction along links and parent-child edges
-                var edges = new List<(string S, string T)>();
-                foreach (var n in nodes)
+                foreach (var (u, v) in edges)
                 {
-                    if (!string.IsNullOrEmpty(n.ParentId)) edges.Add((n.ParentId, n.Id));
-                }
-                foreach (var l in doc.Links)
-                {
-                    edges.Add((l.SourceNodeId, l.TargetNodeId));
-                }
-
-                foreach (var (srcId, tgtId) in edges)
-                {
-                    var u = nodes.FirstOrDefault(n => n.Id == srcId);
-                    var v = nodes.FirstOrDefault(n => n.Id == tgtId);
-                    if (u == null || v == null) continue;
-
                     double dx = v.X - u.X;
                     double dy = v.Y - u.Y;
                     double dist = Math.Max(Math.Sqrt(dx * dx + dy * dy), 0.1);

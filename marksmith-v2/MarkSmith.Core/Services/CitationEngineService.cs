@@ -22,6 +22,8 @@ namespace MarkSmith.Core.Services
 
     public class CitationEngineService
     {
+        private static readonly Regex CitationClusterRegex = new(@"\[@([\w\-]+(?:;\s*@[\w\-]+)*)\]", RegexOptions.Compiled);
+
         public CitationProcessResult Process(string markdown, Dictionary<string, CitationEntry> library)
         {
             var result = new CitationProcessResult();
@@ -31,11 +33,17 @@ namespace MarkSmith.Core.Services
                 return result;
             }
 
+            if (!markdown.Contains("[@", StringComparison.Ordinal))
+            {
+                result.ProcessedMarkdown = markdown;
+                return result;
+            }
+
             var usedKeys = new List<string>();
             var keyToIndexMap = new Dictionary<string, int>();
 
             // Match [@citekey1; @citekey2] or [@citekey]
-            string processed = Regex.Replace(markdown, @"\[@([\w\-]+(?:;\s*@[\w\-]+)*)\]", match =>
+            string processed = CitationClusterRegex.Replace(markdown, match =>
             {
                 string rawKeys = match.Groups[1].Value;
                 string[] keys = rawKeys.Split(';');

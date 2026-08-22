@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MarkSmith.Models.MindMap;
+using MarkSmith.Services;
 
 namespace MarkSmith.Services.MindMap
 {
@@ -18,8 +19,9 @@ namespace MarkSmith.Services.MindMap
 
         public static string GetDefaultLibraryStoragePath()
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string dir = Path.Combine(appData, "MarkSmith", "MindMaps");
+            // Flow through AppPaths.ConfigDir so MARKSMITH_CONFIG_DIR can redirect the whole
+            // config surface — hardcoding %LOCALAPPDATA% here breaks test isolation (#27 convention).
+            string dir = Path.Combine(AppPaths.ConfigDir, "MindMaps");
             if (!Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
@@ -31,12 +33,8 @@ namespace MarkSmith.Services.MindMap
         {
             doc.LastSaved = DateTime.Now.ToString("o");
             string json = JsonSerializer.Serialize(doc, JsonOpts);
-            string? dir = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-            await File.WriteAllTextAsync(filePath, json, Encoding.UTF8);
+            AtomicFile.WriteAllText(filePath, json);
+            await Task.CompletedTask;
         }
 
         public async Task<MindMapDocument> LoadAsync(string filePath)

@@ -7,8 +7,35 @@ using Xunit;
 
 namespace MarkSmith.Core.Tests;
 
-public class BatchConvertServiceTests
+[Collection("LicenseState")]
+public class BatchConvertServiceTests : IDisposable
 {
+    private readonly string _licensePath;
+    private readonly string _shadowPath;
+    private readonly string? _backup;
+    private readonly string? _shadowBackup;
+
+    public BatchConvertServiceTests()
+    {
+        var dir = MarkSmith.Services.AppPaths.ConfigDir;
+        _licensePath = Path.Combine(dir, "license.json");
+        _shadowPath = Path.Combine(dir, "trial.state");
+        _backup = File.Exists(_licensePath) ? File.ReadAllText(_licensePath) : null;
+        _shadowBackup = File.Exists(_shadowPath) ? File.ReadAllText(_shadowPath) : null;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (_backup is null) { if (File.Exists(_licensePath)) File.Delete(_licensePath); }
+            else File.WriteAllText(_licensePath, _backup);
+            if (_shadowBackup is null) { if (File.Exists(_shadowPath)) File.Delete(_shadowPath); }
+            else File.WriteAllText(_shadowPath, _shadowBackup);
+            AppServices.License.Load();
+        }
+        catch { /* best-effort */ }
+    }
     [Fact]
     public async Task ConvertDirectoryAsync_Throws_If_SourceDirectory_Missing()
     {
@@ -42,6 +69,9 @@ public class BatchConvertServiceTests
     [Fact]
     public async Task ConvertDirectoryAsync_Converts_Multiple_Markdown_Files_To_Docx()
     {
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+
         var service = new BatchConvertService();
         var tempSourceDir = Path.Combine(Path.GetTempPath(), $"batch_src_{Guid.NewGuid():N}");
         var outputDir = Path.Combine(Path.GetTempPath(), $"batch_out_{Guid.NewGuid():N}");
@@ -69,6 +99,9 @@ public class BatchConvertServiceTests
     [Fact]
     public async Task ConvertDirectoryAsync_Isolates_Errors_For_Individual_Files()
     {
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+
         var service = new BatchConvertService();
         var tempSourceDir = Path.Combine(Path.GetTempPath(), $"batch_iso_src_{Guid.NewGuid():N}");
         var outputDir = Path.Combine(Path.GetTempPath(), $"batch_iso_out_{Guid.NewGuid():N}");
@@ -91,6 +124,9 @@ public class BatchConvertServiceTests
     [Fact]
     public async Task ConvertDirectoryAsync_Handles_Empty_Source_Directory()
     {
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+
         var service = new BatchConvertService();
         var tempSourceDir = Path.Combine(Path.GetTempPath(), $"batch_empty_src_{Guid.NewGuid():N}");
         var outputDir = Path.Combine(Path.GetTempPath(), $"batch_empty_out_{Guid.NewGuid():N}");

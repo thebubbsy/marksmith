@@ -218,6 +218,86 @@ public sealed class VersionHistoryService
         finally { _gate.Release(); }
     }
 
+    public enum DiffExportFormat
+    {
+        Patch,
+        Html,
+        Markdown
+    }
+
+    /// <summary>Generates a formatted diff report between two historical versions in Patch, HTML, or Markdown.</summary>
+    public async Task<string> ExportDiffReportAsync(string filePath, string oldVersionId, string newVersionId, DiffExportFormat format)
+    {
+        var oldText = await GetContentAsync(oldVersionId) ?? "";
+        var newText = await GetContentAsync(newVersionId) ?? "";
+        var lines = LineDiff.Diff(oldText, newText);
+        var fileName = SafeFileName(filePath);
+
+        if (format == DiffExportFormat.Patch)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"--- a/{fileName}");
+            sb.AppendLine($"+++ b/{fileName}");
+            var hunks = LineDiff.ExtractHunks(lines);
+            if (hunks.Count == 0)
+            {
+                sb.AppendLine("@@ -1,0 +1,0 @@");
+            }
+            foreach (var h in hunks)
+            {
+                sb.AppendLine(h.Header);
+                foreach (var l in h.Lines)
+                {
+                    char prefix = l.Kind switch { LineDiff.Kind.Added => '+', LineDiff.Kind.Removed => '-', _ => ' ' };
+                    sb.AppendLine($"{prefix}{l.Text}");
+                }
+            }
+            return sb.ToString();
+        }
+        else if (format == DiffExportFormat.Markdown)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"# Diff Report: `{fileName}`");
+            sb.AppendLine($"*Compared version `{oldVersionId}` with `{newVersionId}`*");
+            sb.AppendLine();
+            sb.AppendLine("```diff");
+            foreach (var l in lines)
+            {
+                if (l.Kind == LineDiff.Kind.Added) sb.AppendLine($"+ {l.Text}");
+                else if (l.Kind == LineDiff.Kind.Removed) sb.AppendLine($"- {l.Text}");
+                else sb.AppendLine($"  {l.Text}");
+            }
+            sb.AppendLine("```");
+            return sb.ToString();
+        }
+        else // Html
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("<!DOCTYPE html>");
+            sb.AppendLine("<html><head><meta charset=\"utf-8\"><title>Diff Report - " + System.Net.WebUtility.HtmlEncode(fileName) + "</title>");
+            sb.AppendLine("<style>");
+            sb.AppendLine("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0D1117; color: #C9D1D9; margin: 0; padding: 24px; }");
+            sb.AppendLine("h2 { margin-top: 0; color: #58A6FF; }");
+            sb.AppendLine("table { width: 100%; border-collapse: collapse; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; }");
+            sb.AppendLine("td { padding: 2px 8px; vertical-align: top; }");
+            sb.AppendLine(".num { width: 40px; color: #6E7681; text-align: right; user-select: none; }");
+            sb.AppendLine(".add { background: rgba(46, 160, 67, 0.15); color: #3FB950; }");
+            sb.AppendLine(".rem { background: rgba(248, 81, 73, 0.15); color: #F85149; }");
+            sb.AppendLine("</style></head><body>");
+            sb.AppendLine($"<h2>Diff Report: {System.Net.WebUtility.HtmlEncode(fileName)}</h2>");
+            sb.AppendLine($"<p style=\"color:#8B949E; font-size:12px;\">From version <code>{oldVersionId}</code> &rarr; <code>{newVersionId}</code></p>");
+            sb.AppendLine("<table>");
+            foreach (var l in lines)
+            {
+                string cls = l.Kind switch { LineDiff.Kind.Added => "add", LineDiff.Kind.Removed => "rem", _ => "" };
+                string sign = l.Kind switch { LineDiff.Kind.Added => "+", LineDiff.Kind.Removed => "-", _ => " " };
+                sb.AppendLine($"<tr class=\"{cls}\"><td class=\"num\">{l.OldNumber?.ToString() ?? ""}</td><td class=\"num\">{l.NewNumber?.ToString() ?? ""}</td><td style=\"width:15px;\">{sign}</td><td>{System.Net.WebUtility.HtmlEncode(l.Text)}</td></tr>");
+            }
+            sb.AppendLine("</table></body></html>");
+            return sb.ToString();
+        }
+    }
+
     /// <summary>One file in the global edit history (every file ever touched).</summary>
     public sealed record FileHistorySummary(
         string FilePath, string FileName, int VersionCount, DateTimeOffset LastModified, string LatestSource);
@@ -247,6 +327,8 @@ public sealed class VersionHistoryService
 
     private static string SafeFileName(string filePath)
     {
+        if (filePath.StartsWith("scratch://", StringComparison.OrdinalIgnoreCase))
+            return "Scratch Workspace";
         try { return Path.GetFileName(filePath); }
         catch { return filePath; }
     }
@@ -272,8 +354,16 @@ public sealed class VersionHistoryService
 
     private static string Normalize(string filePath)
     {
-        try { return Path.GetFullPath(filePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToLowerInvariant(); }
-        catch { return filePath.ToLowerInvariant(); }
+        if (string.IsNullOrWhiteSpace(filePath)) return string.Empty;
+        var trimmed = filePath.Trim();
+        if (trimmed.StartsWith("scratch://", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Path.GetFileName(trimmed), "workspace-session.md", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(trimmed, "workspace-session.md", StringComparison.OrdinalIgnoreCase))
+        {
+            return "scratch://workspace-session.md";
+        }
+        try { return Path.GetFullPath(trimmed).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToLowerInvariant(); }
+        catch { return trimmed.ToLowerInvariant(); }
     }
 
     private static string ComputeSha256(string content)
@@ -287,12 +377,40 @@ public sealed class VersionHistoryService
 
     private async Task<Dictionary<string, List<VersionEntry>>> LoadIndexAsync()
     {
-        if (!File.Exists(_indexPath)) return new Dictionary<string, List<VersionEntry>>();
+        if (!File.Exists(_indexPath)) return new Dictionary<string, List<VersionEntry>>(StringComparer.OrdinalIgnoreCase);
         try
         {
             await using var stream = new FileStream(_indexPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-            var index = await JsonSerializer.DeserializeAsync<Dictionary<string, List<VersionEntry>>>(stream, ReadOpts);
-            return index ?? new Dictionary<string, List<VersionEntry>>();
+            var raw = await JsonSerializer.DeserializeAsync<Dictionary<string, List<VersionEntry>>>(stream, ReadOpts);
+            var canonical = new Dictionary<string, List<VersionEntry>>(StringComparer.OrdinalIgnoreCase);
+            if (raw != null)
+            {
+                foreach (var kvp in raw)
+                {
+                    var normKey = Normalize(kvp.Key);
+                    if (string.IsNullOrWhiteSpace(normKey)) continue;
+
+                    if (!canonical.TryGetValue(normKey, out var list))
+                    {
+                        list = new List<VersionEntry>();
+                        canonical[normKey] = list;
+                    }
+
+                    foreach (var v in kvp.Value)
+                    {
+                        if (!list.Any(existing => existing.Id == v.Id || (existing.Hash == v.Hash && Math.Abs((existing.CreatedAt - v.CreatedAt).TotalSeconds) < 2)))
+                        {
+                            list.Add(v with { FilePath = normKey });
+                        }
+                    }
+                }
+
+                foreach (var list in canonical.Values)
+                {
+                    list.Sort((a, b) => b.CreatedAt.CompareTo(a.CreatedAt));
+                }
+            }
+            return canonical;
         }
         catch (Exception ex)
         {

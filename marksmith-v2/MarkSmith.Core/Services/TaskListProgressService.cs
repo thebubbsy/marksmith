@@ -73,7 +73,7 @@ public readonly record struct TaskListProgress(int Completed, int Total)
     public double Percentage => Total == 0 ? 0 : Math.Round(Completed * 100.0 / Total, 1);
 
     /// <summary>Display form, e.g. "66.7%" (or "0%" when empty).</summary>
-    public string PercentageText => $"{Percentage.ToString(Percentage == Math.Floor(Percentage) ? "0" : "0.#")}%";
+    public string PercentageText => $"{Percentage.ToString(Percentage == Math.Floor(Percentage) ? "0" : "0.#", System.Globalization.CultureInfo.InvariantCulture)}%";
 
     /// <summary>Compact status-bar form, e.g. "2/3 tasks done (66.7%)".</summary>
     public string SummaryText => HasTasks

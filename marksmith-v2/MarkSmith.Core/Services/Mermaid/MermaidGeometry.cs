@@ -154,7 +154,7 @@ public sealed class GenericDiagram
         var m = Regex.Match(c, @"rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?");
         if (m.Success)
         {
-            if (m.Groups[4].Success && double.TryParse(m.Groups[4].Value, out var a) && a < 0.05) return null; // fully transparent
+            if (m.Groups[4].Success && double.TryParse(m.Groups[4].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var a) && a < 0.05) return null; // fully transparent
             return $"#{int.Parse(m.Groups[1].Value):X2}{int.Parse(m.Groups[2].Value):X2}{int.Parse(m.Groups[3].Value):X2}";
         }
         return c.StartsWith('#') ? c : null;

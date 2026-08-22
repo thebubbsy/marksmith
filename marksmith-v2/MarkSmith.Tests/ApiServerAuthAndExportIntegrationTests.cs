@@ -133,6 +133,190 @@ public class ApiServerExtensionAuthTests
     }
 }
 
+// Go-live licensing: /api/convert and /api/batch are second entrances to the Pro exporters
+// (browser extension, automation scripts). They must enforce the same paywall the UI applies, so
+// a Free install gets 402 while a trial/Pro license exports normally. Runs in the LicenseState
+// collection because the gate reads the shared license file the other license tests mutate.
+[Collection("LicenseState")]
+public class ApiLicenseGateTests : IDisposable
+{
+    private readonly Func<LicenseService> _originalLicenseSource = ApiServer.LicenseSource;
+
+    public void Dispose()
+    {
+        ApiServer.LicenseSource = _originalLicenseSource;
+        AppServices.License.ResetToFree(); // leave the shared license file as these tests found it
+    }
+
+    private static ApiServer CreateServer(Func<string, OutputOverride, Task<byte[]>> convert)
+    {
+        return new ApiServer(
+            new LlmSourceService(),
+            () => new List<string> { "GitHub Dark" },
+            (md, orig, ovr) => { },
+            convert,
+            new GovernanceService(),
+            () => "",
+            () => new AppSettings(),
+            s => { },
+            (folder, fmt, ovr) => Task.FromResult<object>(new { done = 1 }));
+    }
+
+    private static async Task<HttpResponseMessage> PostJsonAsync(int port, string path, string json)
+    {
+        using var client = new HttpClient();
+        var body = new StringContent(json, Encoding.UTF8, "application/json");
+        return await client.PostAsync($"http://127.0.0.1:{port}{path}", body);
+    }
+
+    private static async Task<int> StartServerRetryingAsync(ApiServer server)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            int port = GetFreePort();
+            try { server.Start(port); return port; }
+            catch (HttpListenerException) when (attempt < 5) { await Task.Delay(50); }
+        }
+    }
+
+    private static int GetFreePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    [Fact]
+    public async Task Api_Convert_Docx_Returns_402_When_Free()
+    {
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(new byte[] { 1, 2, 3 }));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            var resp = await PostJsonAsync(port, "/api/convert", "{\"markdown\":\"# X\",\"format\":\"docx\"}");
+            Assert.Equal(HttpStatusCode.PaymentRequired, resp.StatusCode);
+            Assert.Contains("Pro", await resp.Content.ReadAsStringAsync());
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task Api_Convert_Pptx_Returns_402_When_Free()
+    {
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(new byte[] { 1, 2, 3 }));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            var resp = await PostJsonAsync(port, "/api/convert", "{\"markdown\":\"# X\",\"format\":\"pptx\"}");
+            Assert.Equal(HttpStatusCode.PaymentRequired, resp.StatusCode);
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task Api_Batch_Docx_Returns_402_When_Free()
+    {
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(Array.Empty<byte>()));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            var resp = await PostJsonAsync(port, "/api/batch", "{\"folder\":\"C:\\\\nonexistent\",\"format\":\"docx\"}");
+            Assert.Equal(HttpStatusCode.PaymentRequired, resp.StatusCode);
+            Assert.Contains("Pro", await resp.Content.ReadAsStringAsync());
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task Api_Convert_Free_Formats_Are_Not_Gated()
+    {
+        // PDF is a free format — the gate must not touch it even on a Free install.
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+        var pdfStub = Encoding.ASCII.GetBytes("%PDF-1.7\n%free\n%%EOF");
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(pdfStub));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            var resp = await PostJsonAsync(port, "/api/convert", "{\"markdown\":\"# X\"}");
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            Assert.Equal(pdfStub, await resp.Content.ReadAsByteArrayAsync());
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task Api_Convert_Docx_Allowed_During_Trial()
+    {
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+        var (started, _) = AppServices.License.StartTrial();
+        Assert.True(started);
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(new byte[] { 0x50, 0x4B }));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            var resp = await PostJsonAsync(port, "/api/convert", "{\"markdown\":\"# X\",\"format\":\"docx\"}");
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
+    public async Task Api_Convert_Docx_Roundtrips_A_Real_Archive()
+    {
+        // End-to-end through /api/convert: the convert delegate runs the real DOCX exporter and the
+        // response bytes must still be a valid OOXML archive with the right content type. DOCX is
+        // Pro-gated, so the shared license gets a trial for the duration of the test (restored in
+        // Dispose).
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+
+        using var server = CreateServer(async (md, ovr) =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"mk-api-rt-{Guid.NewGuid():N}.docx");
+            try
+            {
+                await new DocxExportService().ExportAsync(md, path, new AppSettings());
+                return await File.ReadAllBytesAsync(path);
+            }
+            finally { try { File.Delete(path); } catch { } }
+        });
+
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            using var client = new HttpClient();
+            var body = new StringContent("{\"markdown\":\"# Api Export\\n\\nBody text.\",\"format\":\"docx\"}", Encoding.UTF8, "application/json");
+            var resp = await client.PostAsync($"http://127.0.0.1:{port}/api/convert", body);
+
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            Assert.Equal("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                resp.Content.Headers.ContentType?.MediaType);
+
+            var bytes = await resp.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 0, "/api/convert returned zero bytes");
+            using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+            Assert.NotNull(zip.GetEntry("word/document.xml"));
+        }
+        finally { server.Stop(); }
+    }
+}
+
 // QODER Task 4b: multi-format export integration — each exporter must produce a non-zero-byte,
 // structurally valid archive from a representative document without throwing. PDF rendering needs
 // a live WebView2 host, so the PDF leg exercises the /api/convert plumbing end-to-end instead
@@ -242,50 +426,6 @@ public class MultiFormatExportIntegrationTests
             Assert.NotNull(zip.GetEntry("META-INF/container.xml"));
         }
         finally { try { File.Delete(path); } catch { } }
-    }
-
-    [Fact]
-    public async Task Api_Convert_Docx_Roundtrips_A_Real_Archive()
-    {
-        // End-to-end through /api/convert: the convert delegate runs the real DOCX exporter and the
-        // response bytes must still be a valid OOXML archive with the right content type.
-        using var server = new ApiServer(
-            new LlmSourceService(),
-            () => new List<string> { "GitHub Dark" },
-            (md, orig, ovr) => { },
-            async (md, ovr) =>
-            {
-                var path = TempPath("docx");
-                try
-                {
-                    await new DocxExportService().ExportAsync(md, path, new AppSettings());
-                    return await File.ReadAllBytesAsync(path);
-                }
-                finally { try { File.Delete(path); } catch { } }
-            },
-            new GovernanceService(),
-            () => "",
-            () => new AppSettings(),
-            s => { },
-            (folder, fmt, ovr) => Task.FromResult<object>(new { done = 0 }));
-
-        int port = await StartServerRetryingAsync(server);
-        try
-        {
-            using var client = new HttpClient();
-            var body = new StringContent("{\"markdown\":\"# Api Export\\n\\nBody text.\",\"format\":\"docx\"}", Encoding.UTF8, "application/json");
-            var resp = await client.PostAsync($"http://127.0.0.1:{port}/api/convert", body);
-
-            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-            Assert.Equal("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                resp.Content.Headers.ContentType?.MediaType);
-
-            var bytes = await resp.Content.ReadAsByteArrayAsync();
-            Assert.True(bytes.Length > 0, "/api/convert returned zero bytes");
-            using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-            Assert.NotNull(zip.GetEntry("word/document.xml"));
-        }
-        finally { server.Stop(); }
     }
 
     [Fact]

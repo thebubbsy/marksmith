@@ -228,14 +228,14 @@ public class R3R4AdversarialTests : IDisposable
 
             // Verify progress reached ~100%
             var deadline = DateTime.UtcNow.AddSeconds(3);
-            double lastReport = -1;
+            bool reached100 = false;
             while (DateTime.UtcNow < deadline)
             {
-                lock (reports) { if (reports.Count > 0) lastReport = reports[^1]; }
-                if (lastReport >= 99.5) break;
+                lock (reports) { reached100 = reports.Any(p => p >= 99.5); }
+                if (reached100) break;
                 await Task.Delay(25);
             }
-            Assert.True(lastReport >= 99.5, $"Progress was {lastReport}");
+            Assert.True(reached100, $"Progress list: {string.Join(", ", reports)}");
         }
         finally
         {

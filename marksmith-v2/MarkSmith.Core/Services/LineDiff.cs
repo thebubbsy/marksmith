@@ -173,6 +173,64 @@ public static class LineDiff
         return list;
     }
 
+    public sealed record DiffHunk(int OldStart, int OldCount, int NewStart, int NewCount, List<Line> Lines)
+    {
+        public string Header => $"@@ -{OldStart},{OldCount} +{NewStart},{NewCount} @@";
+    }
+
+    /// <summary>Groups unified diff lines into standard Git/unified hunks with context.</summary>
+    public static List<DiffHunk> ExtractHunks(IReadOnlyList<Line> lines, int context = 3)
+    {
+        var hunks = new List<DiffHunk>();
+        if (lines.Count == 0) return hunks;
+
+        int i = 0;
+        while (i < lines.Count)
+        {
+            if (lines[i].Kind == Kind.Same) { i++; continue; }
+
+            int changeStart = Math.Max(0, i - context);
+            int changeEnd = i;
+            while (changeEnd < lines.Count)
+            {
+                if (lines[changeEnd].Kind != Kind.Same)
+                {
+                    changeEnd++;
+                }
+                else
+                {
+                    int nextChange = changeEnd;
+                    while (nextChange < lines.Count && nextChange - changeEnd <= 2 * context && lines[nextChange].Kind == Kind.Same)
+                    {
+                        nextChange++;
+                    }
+                    if (nextChange < lines.Count && lines[nextChange].Kind != Kind.Same)
+                    {
+                        changeEnd = nextChange;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            int hunkEnd = Math.Min(lines.Count, changeEnd + context);
+            var hunkLines = new List<Line>();
+            for (int k = changeStart; k < hunkEnd; k++) hunkLines.Add(lines[k]);
+
+            int oldStart = hunkLines.FirstOrDefault(l => l.OldNumber.HasValue)?.OldNumber ?? 1;
+            int oldCount = hunkLines.Count(l => l.Kind != Kind.Added);
+            int newStart = hunkLines.FirstOrDefault(l => l.NewNumber.HasValue)?.NewNumber ?? 1;
+            int newCount = hunkLines.Count(l => l.Kind != Kind.Removed);
+
+            hunks.Add(new DiffHunk(oldStart, oldCount, newStart, newCount, hunkLines));
+            i = hunkEnd;
+        }
+
+        return hunks;
+    }
+
     private static string[] SplitLines(string text) =>
         text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
 }

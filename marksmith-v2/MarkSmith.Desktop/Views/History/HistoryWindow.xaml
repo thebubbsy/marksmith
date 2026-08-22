@@ -106,20 +106,24 @@
                                     <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
                                             CornerRadius="6" Padding="10,8" Margin="6,3,6,3"
                                             Tapped="OnFileTapped">
-                                        <Grid RowSpacing="2">
+                                        <Grid RowSpacing="3">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="📄" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="📄" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                            <Border Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10" Padding="6,1" VerticalAlignment="Center">
+                                            <Border Grid.Row="0" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="10" Padding="6,1" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding VersionCountLabel}" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </Border>
                                             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastModifiedLabel}"
-                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                       FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,2,0,0" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -171,14 +175,18 @@
                                                                 Padding="10,8" Margin="2,2,2,4"
                                                                 Tapped="OnVersionTapped">
                                                             <Grid RowSpacing="4">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto" />
+                                                                    <RowDefinition Height="Auto" />
+                                                                </Grid.RowDefinitions>
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="Auto" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="Auto" />
                                                                     <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
-                                                                <TextBlock Text="{Binding SourceIcon}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SourceIcon}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                                <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
                                                                     <TextBlock Text="{Binding TimestampLabel}" FontSize="13" FontWeight="SemiBold"
                                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                                                     <TextBlock Text="{Binding SourceLabel}" FontSize="11"
@@ -186,7 +194,7 @@
                                                                 </StackPanel>
 
                                                                 <!-- Delta Badge -->
-                                                                <Border Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                                                <Border Grid.Row="0" Grid.Column="2" Background="{ThemeResource LayerFillColorDefaultBrush}"
                                                                         CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,0,6,0"
                                                                         Visibility="{Binding HasDelta, Converter={StaticResource BoolToVis}}">
                                                                     <TextBlock Text="{Binding DeltaBadge}" FontSize="10" FontFamily="Cascadia Mono, Consolas, monospace"
@@ -194,16 +202,17 @@
                                                                 </Border>
 
                                                                 <!-- Star Button -->
-                                                                <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Padding="4"
+                                                                <Button Grid.Row="0" Grid.Column="3" Background="Transparent" BorderThickness="0" Padding="4"
                                                                         Tapped="OnStarTapped" ToolTipService.ToolTip="Star / Bookmark milestone">
                                                                     <TextBlock Text="{Binding IsStarred, Converter={StaticResource BoolToVis}, ConverterParameter='⭐|☆'}"
                                                                                FontSize="13" />
                                                                 </Button>
 
                                                                 <!-- Custom Label / Snippet -->
-                                                                <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Text="{Binding Snippet}"
+                                                                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Snippet}"
                                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"
-                                                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                                           TextTrimming="CharacterEllipsis" MaxLines="1" Margin="0,2,0,0"
+                                                                           Visibility="{Binding HasSnippet, Converter={StaticResource BoolToVis}}" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>

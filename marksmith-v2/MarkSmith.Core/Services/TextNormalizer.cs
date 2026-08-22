@@ -7,5 +7,5 @@ namespace MarkSmith.Services;
 public static class TextNormalizer
 {
     public static string Newlines(string s) =>
-        string.IsNullOrEmpty(s) ? s : s.Replace("\r\n", "\n").Replace('\r', '\n');
+        string.IsNullOrEmpty(s) || !s.Contains('\r') ? s : s.Replace("\r\n", "\n").Replace('\r', '\n');
 }

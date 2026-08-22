@@ -15,14 +15,14 @@ public sealed partial class HistoryWindow : Window
     private readonly Microsoft.UI.Xaml.Controls.WebView2 _preview;
     private bool _webViewReady;
 
-    public HistoryWindow(MainViewModel mainViewModel, string? initialFilePath = null)
+    public HistoryWindow(MainViewModel? mainViewModel = null, string? initialFilePath = null)
     {
         InitializeComponent();
         Title = "Document Time Machine — Version History";
 
         _vm = new HistoryWindowViewModel(
-            html => mainViewModel.BuildPreviewHtml(html),
-            id => mainViewModel.RestoreVersionAsync(id),
+            html => mainViewModel != null ? mainViewModel.BuildPreviewHtml(html) : AppServices.MarkdownHtml.Render(html, AppServices.Settings.Current, AppServices.Themes.GetOrDefault(AppServices.Settings.Current.Theme)),
+            id => mainViewModel != null ? mainViewModel.RestoreVersionAsync(id) : Task.FromResult(false),
             initialFilePath: initialFilePath);
         RootGrid.DataContext = _vm;
         _vm.PropertyChanged += OnVmPropertyChanged;

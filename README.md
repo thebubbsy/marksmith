@@ -35,29 +35,61 @@ It is a native **WinUI 3** desktop app with a simple, left-to-right workflow: **
 
 ## What Marksmith Does Better Than Anyone Else
 
-I didn't just build a text paster—I constructed a native Word element engine from the ground up. Here is a taste of what a solo developer reverse-engineering Microsoft's formats actually looks like:
+I didn't just build a text paster—I constructed a native Word element engine from the ground up. Here is a comprehensive overview of what Marksmith delivers:
 
-### 🧩 True Native Rendering
-Marksmith doesn't just screenshot your diagrams. It translates complex structures like **Mermaid diagrams** and charts directly into **editable, native vector shapes (DrawingML)** inside your document. Whether it's a flowchart or a complex global datacenter network, Marksmith scales it flawlessly into Word.
+### 🧩 True Native Rendering & SmartArt Solver
+- **Reverse-Engineered SmartArt Engine** — Fully reverse-engineered Word's undocumented SmartArt spatial constraint solver (`<constr>`, `<layoutDef>`, `<rule>`). Builds dynamic hierarchies, cycle workflows, SWOT matrices, pyramids, and Venn topologies directly into native Office DrawingML shapes.
+- **Native Mermaid Diagrams** — Translates flowcharts, sequence diagrams, state diagrams, class diagrams, and entity-relationship models directly into **editable, native vector shapes (DrawingML)** inside your `.docx`.
+- **Engineering & Science Visualizations** — Native SVG & DrawingML rendering for logic gates, breadboard circuits, DNA/RNA sequences, astronomy orbital charts, and interactive periodic tables.
+
+![Reverse-Engineered SmartArt Engine and DrawingML Shapes](docs/images/smartart-visualizer.png)
 
 ### 📄 Advanced Word & OpenXML Capabilities
-- **Flawless Math (OMML)** — Other converters choke on LaTeX. Marksmith converts equations directly into Word's native Equation editor formats (`$x^2 + y^2 = z^2$`). Click any formula and edit it right in Word.
-- **Native Lists done right** — I built proper `numbering.xml` linking with `ilvl` indents and `abstractNum` definitions so your lists don't break.
-- **Reverse-Engineered SmartArt Engine** — I fully reverse-engineered Word's undocumented SmartArt spatial constraint solver by hand. Marksmith builds completely custom SmartArt topologies from scratch natively.
-- **Complex Structures** — Native Word tabs (`:::tabs`), web link cards (`:::embed`), styled data grids (`:::datagrid`), continuous column breaks (`:::columns`), and real Word pie/line/bar charts (`:::chart`) backed by embedded Excel parts.
+- **Flawless Math (OMML)** — Other converters choke on LaTeX. Marksmith converts equations directly into Word's native Equation editor formats (`$x^2 + y^2 = z^2$`, `$$E=mc^2$$`, `\(...\)`, `\[...\]`). Click any formula and edit it right in Word. Includes full chemistry (`mhchem`) support.
+- **Native Lists Done Right** — Proper `numbering.xml` linking with `ilvl` indents, abstract numbering definitions, and task check-lists.
+- **Complex Structures** — Native Word tabs (`:::tabs` / `=== "Tab"`), web link cards (`:::embed`), styled data grids (`:::datagrid`), continuous multi-column section breaks (`:::columns`), and real Word pie/line/bar charts (`:::chart`) backed by embedded Excel parts.
+- **Callout Alert Blocks** — Native single-cell themed callouts with accent borders (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
+- **Collapsible Headings** — Native Word 2013+ collapsible sections using `<w15:collapsed w:val="true"/>`.
 
-### 🧠 AI Normalization & Cleanup
-Marksmith fingerprints the AI assistant that generated your text and normalizes the unique quirks of each. With one click, you can strip out citation pips, swap machine-generated em-dashes for human formatting, kill emojis, and restructure heading levels to match human writing.
+### 📊 Data Visualization, Analytics & Statistics
+- **Inline Sparklines** — Embeds live SVG trend lines and deltas directly within Markdown table cells (`[sparkline: 10, 25, 18, 42, 60]`).
+- **Multidimensional Pivot Tables** — Compute aggregations (Sum, Avg, Min, Max, Count) over tabular Markdown datasets on the fly (`:::pivot`).
+- **Statistical Histograms** — Calculate frequency distributions and render responsive SVG column histograms (`:::histogram`).
+- **Live Document Metrics** — Instant, non-allocating prose word count, character density, estimated reading time, and structural manifests (`DocumentStatsService`).
+- **Revision Heatmaps & Diff Views** — Section edit churn intensity heatmaps (`:::revision-heatmap`) and side-by-side synchronized HTML comparison tables (`:::diff-view`).
+- **Academic Citations & Manifests** — Automatic citation clustering (`[@key]`), bibliography backlinks, and automated Lists of Figures/Tables (`TableOfFiguresService`).
 
-![Cleanup and formatting settings](docs/images/_new/settings.png)
+### 🌌 Interactive Preview, Looking Glass & MindMap Galaxy
+- **Pixel-Perfect HTML Preview & Pan/Zoom Lens** — Live preview with an interactive pan/zoom lens (`#mk-lens`) for high-DPI diagram and SmartArt inspection.
+- **Looking Glass Mode** — Fuses editor and preview into a single interactive canvas with fog-of-war portal apertures and collapsible wave code blocks.
+- **Document Galaxy MindMap Vault** — Visual canvas organizing documents, projects, notes, and research nodes with real-time SHA-256 version history tracking.
+- **Audio Voiceover Narration** — Automatically parses speech narration scripts (`VoiceOverScriptService`) with bullet, link, and formatting cleanup.
+- **Crash-Proof Recovery Vault** — Automatic periodic snapshot vault with atomic replacement semantics (`DocumentRecoveryVault`) guaranteeing zero data loss.
 
-### 🖼️ Pixel-Perfect HTML Preview
-Marksmith's live preview is a faithful HTML recreation of the finished Word document — same page layout, styles, spacing, math, and diagrams — staying as true as possible to what the document looks like when Word renders it. If you ever want the ground truth, exporting takes about two seconds: send it to Word and see exactly what you get when you open it.
+### 🧠 AI Normalization & Security Governance
+- **AI Fingerprinting & Cleanup** — Detects source AI (ChatGPT, Gemini, Claude, Copilot) and strips citation pips, hallucinated delimiters, and machine-generated formatting.
+- **DLP & Usage Governance** — Real-time regex-based Data Loss Prevention, PII masking, and local telemetry reporting for enterprise environments.
+- **Loopback REST API & Zero-Click Pipeline** — High-performance background daemon with CORS/CSRF origin protection and automated `.dotx` corporate brand matching.
 
-### ⌨️ A Live Markdown Editor
-You don't even need an AI chat to use Marksmith. Switch to the **Paste** tab, start writing, and use the Visual Markdown Toolbar to inject elements right at your cursor. Every keystroke re-renders the document live.
+---
 
-![Typing Markdown into Marksmith with the preview updating live, then exporting a PDF](docs/images/editor-demo.gif)
+### 🚀 What's New (Added in the Last 2 Weeks)
+
+| Capability | Category | Description |
+|---|---|---|
+| **Dynamic GLOX Constraint Engine** | SmartArt / DOCX | Real-time XML constraint solver parsing `.glox` layout rules to compute mathematically accurate bounding boxes. |
+| **Interactive Pan/Zoom Lens** | UI / Preview | Click-to-expand vector pan & zoom lens (`#mk-lens`) across all SmartArt and engineering diagrams. |
+| **Document Galaxy Vault** | Organization | Visual spatial mind-map organizing documents with integrated version history and star bookmarks. |
+| **Inline Table Sparklines** | Data Visualization | Fast inline SVG trend polylines directly inside Markdown table columns (`[sparkline: ...]`). |
+| **Multidimensional Pivot Tables** | Data Engine | 2D grouping and statistical aggregation over Markdown table datasets (`:::pivot`). |
+| **Statistical Histograms** | Visualization | Automatic statistical distribution and frequency bin SVG charts (`:::histogram`). |
+| **Synchronized Diff Views** | Analytics | Side-by-side comparative Markdown diff viewer with syntax highlighting (`:::diff-view`). |
+| **Revision Activity Heatmaps** | Analytics | Section churn scoring and visual color-coded activity heatmaps (`:::revision-heatmap`). |
+| **Speech Narration Transpiler** | Audio / Media | Automated generation of voiceover scripts with formatting sanitization (`VoiceOverScriptService`). |
+| **Academic Citation Backlinks** | Citations | Academic citation parsing (`[@key]`) with automated Figure/Table manifest indexes. |
+| **Periodic Table Explorer** | Science | Interactive SVG chemical element visualization with atomic properties (`:::periodic-table`). |
+| **Crash-Proof Atomic Vault** | Core Engine | Zero-window atomic file replace semantics preventing corrupted saves across all app stores. |
+| **Hardened Loopback API** | Security | Cross-origin browser isolation (`IsBrowserOrigin`) and license paywall enforcement on REST endpoints. |
 
 
 ---
@@ -76,19 +108,19 @@ marksmith <input.md> <output.docx> [layout_alias]
 marksmith build-layout <input_layout.json> <output.glox>
 ```
 
-### 🔌 Local REST API
+### 🔌 Local REST API & Marksmith Express
 
-A loopback‑only API (`127.0.0.1:47821`) lets scripts and other tools drive Marksmith:
+A loopback‑only API (`127.0.0.1:47821` / `127.0.0.1:5000`) and the zero-dependency **Marksmith Express** web UI let scripts and users convert markdown on any platform:
 
 ```bash
 # Convert Markdown to a PDF or DOCX over HTTP
-curl -X POST http://127.0.0.1:47821/api/convert \
+curl -X POST http://127.0.0.1:5000/api/convert \
      -H "Content-Type: application/json" \
-     -d '{"markdown":"# Hello\n\nFrom **Marksmith**.","theme":"GitHub Dark"}' \
-     -o out.pdf
+     -d '{"markdown":"# Hello\n\nFrom **Marksmith Express**.","theme":"Modern Clean"}' \
+     -o out.docx
 ```
 
-![REST API Conversion Process and Outputs](docs/images/api-conversion-process.png)
+![REST API and Marksmith Express UI](docs/images/api-conversion-process.png)
 
 | Endpoint | Purpose |
 | --- | --- |

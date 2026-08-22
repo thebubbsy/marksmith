@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,6 +23,17 @@ public static class MathMacroService
     private static readonly Regex NewCommandArgsRe = new(
         @"\\newcommand\s*\{\\([a-zA-Z]+)\}\s*\[(\d+)\]\s*\{((?:[^{}]|\{[^{}]*\})*)\}",
         RegexOptions.Compiled);
+
+    // Compiled once — the math-region scan used to rebuild this regex on every Apply call.
+    private static readonly Regex MathBlockRe = new(
+        @"(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)",
+        RegexOptions.Compiled);
+
+    // Macro-call / argument patterns are keyed by macro name; a document defines few macros but
+    // Apply re-runs per preview render, so cache the compiled regexes instead of rebuilding them
+    // once per formula × per macro.
+    private static readonly ConcurrentDictionary<string, Regex> MacroCallCache = new();
+    private static readonly ConcurrentDictionary<(string Name, int ArgCount), Regex> ArgMacroCache = new();
 
     public static string Apply(string markdown)
     {
@@ -63,8 +75,7 @@ public static class MathMacroService
         var sb = new StringBuilder();
         var pos = 0;
 
-        var mathBlockRe = new Regex(@"(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)", RegexOptions.Compiled);
-        foreach (Match m in mathBlockRe.Matches(markdown))
+        foreach (Match m in MathBlockRe.Matches(markdown))
         {
             sb.Append(markdown.Substring(pos, m.Index - pos));
             var formula = m.Value;
@@ -72,9 +83,8 @@ public static class MathMacroService
             // Expand simple macros first
             foreach (var (name, body) in simpleMacros)
             {
-                var target = @"\" + name;
                 // Avoid replacing longer macro names starting with the same prefix
-                var macroCallRe = new Regex(@"\\" + name + @"(?![a-zA-Z])");
+                var macroCallRe = MacroCallCache.GetOrAdd(name, n => new Regex(@"\\" + n + @"(?![a-zA-Z])", RegexOptions.Compiled));
                 formula = macroCallRe.Replace(formula, body);
             }
 
@@ -94,12 +104,15 @@ public static class MathMacroService
 
     private static string ExpandArgMacro(string formula, string macroName, int argCount, string body)
     {
-        var pattern = @"\\" + macroName;
-        for (int i = 0; i < argCount; i++)
+        var re = ArgMacroCache.GetOrAdd((macroName, argCount), key =>
         {
-            pattern += @"\s*\{([^{}]*)\}";
-        }
-        var re = new Regex(pattern, RegexOptions.Compiled);
+            var pattern = @"\\" + key.Name;
+            for (int i = 0; i < key.ArgCount; i++)
+            {
+                pattern += @"\s*\{([^{}]*)\}";
+            }
+            return new Regex(pattern, RegexOptions.Compiled);
+        });
 
         return re.Replace(formula, m =>
         {

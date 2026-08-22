@@ -657,6 +657,27 @@
                                                   Height="24" Padding="6,0" Checked="OnWordWrapToggled" Unchecked="OnWordWrapToggled">
                                         <TextBlock Text="Wrap" FontSize="11" />
                                     </ToggleButton>
+                                    <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                                    <DropDownButton ToolTipService.ToolTip="Code &amp; Section Folding" Height="24" Padding="6,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE70D;" FontSize="11" />
+                                            <TextBlock x:Name="FoldStatusText" Text="Fold" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <DropDownButton.Flyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem Text="Toggle Fold at Cursor" Click="OnToggleFoldAtCursorClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70D;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutItem Text="Fold All Code Blocks" Click="OnFoldAllCodeClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Text="Unfold All" Click="OnUnfoldAllClick">
+                                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70E;" /></MenuFlyoutItem.Icon>
+                                                </MenuFlyoutItem>
+                                            </MenuFlyout>
+                                        </DropDownButton.Flyout>
+                                    </DropDownButton>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <!-- Markdown lint: live issue count; the flyout lists issues and jumps to them. -->
@@ -952,6 +973,9 @@
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Wave Function Collapse…" Click="OnInsertWaveFunctionClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
                                         <MenuFlyoutSubItem Text="Diagram &amp; Galaxy">

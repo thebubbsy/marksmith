@@ -75,7 +75,9 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(value))
         {
             string guarded = Services.ContrastGuard.EnsureVisibleFill(value, ShapeDesignStudioViewModel.CanvasBackgroundHex);
+#pragma warning disable MVVMTK0034
             if (guarded != value) _fill = guarded;
+#pragma warning restore MVVMTK0034
         }
         OnPropertyChanged(nameof(TextForegroundHex));
     }

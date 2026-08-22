@@ -989,7 +989,9 @@ private readonly MarkdownExportService _mdExport = new();
         {
             // Gate at the SOURCE: a free user cannot even switch automation on, so the feature
             // never half-runs (the old bug: watchers started and only the export step complained).
+#pragma warning disable MVVMTK0034
             _autoClipboardIngest = false;
+#pragma warning restore MVVMTK0034
             OnPropertyChanged();
             StatusText = FeatureClassifier.DisplayName(FeatureId.ClipboardIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
@@ -1002,7 +1004,9 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (value && !AppServices.License.CanAutomate)
         {
+#pragma warning disable MVVMTK0034
             _watchFolderEnabled = false;
+#pragma warning restore MVVMTK0034
             OnPropertyChanged();
             StatusText = FeatureClassifier.DisplayName(FeatureId.WatchFolder) + " is a MarkSmith Pro feature - upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
@@ -1015,7 +1019,9 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (value && !AppServices.License.CanAutomate)
         {
+#pragma warning disable MVVMTK0034
             _autoConvertIngests = false;
+#pragma warning restore MVVMTK0034
             OnPropertyChanged();
             StatusText = FeatureClassifier.DisplayName(FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
             StatusSeverity = StatusSeverity.Warning;
@@ -1663,6 +1669,14 @@ private readonly MarkdownExportService _mdExport = new();
 
     public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
     {
+        if (targetFormat.Equals("docx", StringComparison.OrdinalIgnoreCase) && !AppServices.License.CanExportDocx)
+        {
+            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
+            StatusSeverity = StatusSeverity.Warning;
+            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
+            return;
+        }
+
         await RunConversionAsync($"Batch {targetFormat.ToUpper()}", async ct =>
         {
             var settings = _settingsService.Current;
