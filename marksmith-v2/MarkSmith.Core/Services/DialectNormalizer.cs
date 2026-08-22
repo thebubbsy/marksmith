@@ -38,10 +38,16 @@ public static class DialectNormalizer
     private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
     private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
     private static readonly Regex CriticSub = new(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
-    private static readonly Regex CriticDel = new(@"\{~~((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
+    private static readonly Regex CriticDel = new(@"\{(--|~~)((?:(?!--\}|~~\}).)+)\1\}", RegexOptions.Compiled);
     private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
     private static readonly Regex CriticComment = new(@"\{>>((?:(?!<<\}).)*)\<<\}", RegexOptions.Compiled);
+    private static readonly Regex ReviewerComment = new(@"\^\[(?!(?:index|\^))\s*(?<author>[^:\]\n]+?)(?:\s*\((?<date>[^\)]+)\))?:\s*(?:[""“](?<comment>(?:[^""”\\]|\\.)*?)[""”]|(?<comment>[^\]\n]+))\s*\]", RegexOptions.Compiled);
+    private static readonly Regex IndexAnchor = new(@"\^\[index:\s*(?:[""“](?<entry>(?:[^""”\\]|\\.)*?)[""”]|(?<entry>[^\]\n]+))\s*\]", RegexOptions.Compiled);
+    private static readonly Regex DropdownControl = new(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DateControl = new(@"\[date(?::\s*(?<date>[^\]]+))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TextControl = new(@"\[text(?::\s*(?:[""“](?<ph>(?:[^""”\\]|\\.)*?)[""”]|(?<ph>[^\]]+)))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex CheckboxControl = new(@"(?<=^|[|\s])(?:-\s*)?\[(?<checked>[ xX])\](?=\s|[|]|$)", RegexOptions.Compiled);
     private static readonly Regex TableDelimiterRegex = new(@"^\|[\s|:\-]+$", RegexOptions.Compiled);
     private static readonly Regex TabbedBlockRegex = new(@"===\s*""([^""]+)""\r?\n([\s\S]*?)(?=(===\s*""|$))", RegexOptions.Compiled);
 
@@ -185,12 +191,64 @@ public static class DialectNormalizer
             line = ReplaceOutsideInlineCode(line, DoubleColonEmoji, m =>
                 EmojiReplacer.ReplaceShortcode(m.Groups[1].Value, m.Value));
 
-            // ---- CriticMarkup syntax normalization ({++ins++}, {~~del~~}, {==hl==}, {~~old~>~new~~}, {>>comment<<}) ----
+            // ---- CriticMarkup / revision markers ----
             line = ReplaceOutsideInlineCode(line, CriticSub, m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>");
-            line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[1].Value}</del>");
+            line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[2].Value}</del>");
             line = ReplaceOutsideInlineCode(line, CriticIns, m => $"<ins>{m.Groups[1].Value}</ins>");
             line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>");
             line = ReplaceOutsideInlineCode(line, CriticComment, m => "");
+
+            // ---- Reviewer comment annotations (^[Author: "Comment"] / ^[Author (Date): "Comment"]) ----
+            line = ReplaceOutsideInlineCode(line, ReviewerComment, m =>
+            {
+                var author = m.Groups["author"].Value.Trim();
+                var date = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
+                var comment = m.Groups["comment"].Value.Trim();
+                var dateAttr = !string.IsNullOrWhiteSpace(date) ? $" data-date=\"{System.Net.WebUtility.HtmlEncode(date)}\"" : "";
+                return $"<span class=\"ms-comment-anchor\" data-author=\"{System.Net.WebUtility.HtmlEncode(author)}\"{dateAttr} data-comment=\"{System.Net.WebUtility.HtmlEncode(comment)}\"><sup class=\"ms-comment-badge\" title=\"{System.Net.WebUtility.HtmlEncode(author)}: {System.Net.WebUtility.HtmlEncode(comment)}\">💬 {System.Net.WebUtility.HtmlEncode(author)}</sup></span>";
+            }, protectHtml: false);
+
+            // ---- Concordance / Subject Index term anchors (^[index: "Category:Topic"]) ----
+            line = ReplaceOutsideInlineCode(line, IndexAnchor, m =>
+            {
+                var entry = m.Groups["entry"].Value.Trim();
+                return $"<span class=\"ms-index-anchor\" data-index=\"{System.Net.WebUtility.HtmlEncode(entry)}\"></span>";
+            }, protectHtml: false);
+
+            // ---- Fillable Form Controls (SDT): [dropdown: ...], [date: ...], [text: ...] ----
+            line = ReplaceOutsideInlineCode(line, DropdownControl, m =>
+            {
+                var options = m.Groups["options"].Value.Split('|').Select(o => o.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToList();
+                var sb = new StringBuilder();
+                sb.Append("<select class=\"ms-form-dropdown\"");
+                sb.Append($" data-options=\"{System.Net.WebUtility.HtmlEncode(string.Join("|", options))}\">");
+                foreach (var opt in options)
+                {
+                    sb.Append($"<option value=\"{System.Net.WebUtility.HtmlEncode(opt)}\">{System.Net.WebUtility.HtmlEncode(opt)}</option>");
+                }
+                sb.Append("</select>");
+                return sb.ToString();
+            }, protectHtml: false);
+
+            line = ReplaceOutsideInlineCode(line, DateControl, m =>
+            {
+                var d = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
+                var valAttr = !string.IsNullOrEmpty(d) ? $" value=\"{System.Net.WebUtility.HtmlEncode(d)}\"" : "";
+                return $"<input type=\"date\" class=\"ms-form-date\"{valAttr} />";
+            }, protectHtml: false);
+
+            line = ReplaceOutsideInlineCode(line, TextControl, m =>
+            {
+                var ph = m.Groups["ph"].Success ? m.Groups["ph"].Value.Trim() : "";
+                var phAttr = !string.IsNullOrEmpty(ph) ? $" placeholder=\"{System.Net.WebUtility.HtmlEncode(ph)}\" value=\"{System.Net.WebUtility.HtmlEncode(ph)}\"" : "";
+                return $"<input type=\"text\" class=\"ms-form-text\"{phAttr} />";
+            }, protectHtml: false);
+
+            line = ReplaceOutsideInlineCode(line, CheckboxControl, m =>
+            {
+                bool isChecked = m.Groups["checked"].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+                return isChecked ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />" : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />";
+            }, protectHtml: false);
 
             // ---- table delimiter line normalization: e.g. |--:| -> |---:| ----
             if (trimmed.StartsWith('|') && TableDelimiterRegex.IsMatch(trimmed))
@@ -271,17 +329,20 @@ public static class DialectNormalizer
     }
 
     // Applies `rx` replacements to the parts of a single line NOT inside `inline code` spans or HTML tags.
-    private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator)
+    private static string ReplaceOutsideInlineCode(string line, Regex rx, MatchEvaluator evaluator, bool protectHtml = true)
     {
         if (!rx.IsMatch(line)) return line;
         
         var codeSpans = InlineCode.Matches(line);
-        var htmlSpans = HtmlTag.Matches(line);
-        if (codeSpans.Count == 0 && htmlSpans.Count == 0) return rx.Replace(line, evaluator);
+        var htmlSpans = protectHtml ? HtmlTag.Matches(line) : null;
+        if (codeSpans.Count == 0 && (htmlSpans == null || htmlSpans.Count == 0)) return rx.Replace(line, evaluator);
 
         var protectedRanges = new List<(int Start, int End)>();
         foreach (Match m in codeSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
-        foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        if (htmlSpans != null)
+        {
+            foreach (Match m in htmlSpans) protectedRanges.Add((m.Index, m.Index + m.Length));
+        }
 
         protectedRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
 

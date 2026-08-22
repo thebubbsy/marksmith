@@ -23,7 +23,7 @@
     <BuildRevision>$([System.DateTime]::UtcNow.ToString("MddHHmm"))</BuildRevision>
     <Version>$(MarksmithBaseVersion)-dev.$(BuildRevision)</Version>
     <AssemblyVersion>$(MarksmithBaseVersion).0</AssemblyVersion>
-    <FileVersion>$(MarksmithBaseVersion).$(BuildRevision)</FileVersion>
+    <FileVersion>$(MarksmithBaseVersion).0</FileVersion>
     <!-- Embedded into the exe (Explorer/taskbar); the runtime title-bar icon is set via
          AppWindow.SetIcon in MainWindow, which needs the .ico copied to the output folder. -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>

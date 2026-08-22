@@ -9,12 +9,16 @@ namespace MarkSmith.Services
 {
     /// <summary>
     /// Evaluates spreadsheet-like formulas inside Markdown table cells
-    /// (e.g. =SUM(B1:B4), =AVERAGE(C2:C10), =COUNT, =MIN, =MAX, =PRODUCT).
+    /// (e.g. =SUM(ABOVE), =AVERAGE(LEFT), =COUNT, =MIN, =MAX, =PRODUCT, =SUM(B1:B4)).
     /// </summary>
     public static class TableFormulaEvaluator
     {
-        private static readonly Regex FormulaRegex = new(
-            @"^=\s*(SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*([A-Za-z]+[0-9]+)\s*:\s*([A-Za-z]+[0-9]+)\s*\)\s*$",
+        private static readonly Regex PositionalFormulaRegex = new(
+            @"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<pos>ABOVE|LEFT|RIGHT|BELOW)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex RangeFormulaRegex = new(
+            @"^=\s*(?<op>SUM|AVERAGE|AVG|COUNT|MIN|MAX|PRODUCT)\s*\(\s*(?<from>[A-Za-z]+[0-9]+)\s*:\s*(?<to>[A-Za-z]+[0-9]+)\s*\)(?:\s*(?:\\#\s*)?(?:""(?<fmt>[^""]*)""|(?<fmt>\S+)))?\s*$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static string EvaluateTableMarkdown(string markdownTable)
@@ -31,7 +35,6 @@ namespace MarkSmith.Services
                 var line = rawLines[i].Trim();
                 if (line.StartsWith('|') && line.EndsWith('|'))
                 {
-                    // Check if separator line (|---|---|)
                     if (IsSeparatorLine(line)) continue;
 
                     var cells = line.Trim('|').Split('|').Select(c => c.Trim()).ToList();
@@ -42,11 +45,12 @@ namespace MarkSmith.Services
 
             if (tableRows.Count == 0) return markdownTable;
 
+            int maxRows = tableRows.Count;
             int maxCols = tableRows.Max(r => r.Count);
-            var grid = new double?[tableRows.Count, maxCols];
+            var grid = new double?[maxRows, maxCols];
 
             // 1. First pass: extract literal numeric values
-            for (int r = 0; r < tableRows.Count; r++)
+            for (int r = 0; r < maxRows; r++)
             {
                 for (int c = 0; c < tableRows[r].Count; c++)
                 {
@@ -60,41 +64,15 @@ namespace MarkSmith.Services
 
             // 2. Second pass: evaluate formula cells
             var outputLines = (string[])rawLines.Clone();
-            for (int r = 0; r < tableRows.Count; r++)
+            for (int r = 0; r < maxRows; r++)
             {
                 for (int c = 0; c < tableRows[r].Count; c++)
                 {
                     var cellText = tableRows[r][c];
-                    var match = FormulaRegex.Match(cellText);
-                    if (match.Success)
+                    if (TryEvaluateCell(cellText, r, c, grid, maxRows, maxCols, out double result, out string formattedResult, out _))
                     {
-                        string op = match.Groups[1].Value.ToUpperInvariant();
-                        string fromCoord = match.Groups[2].Value;
-                        string toCoord = match.Groups[3].Value;
-
-                        if (TryParseCoordinate(fromCoord, out int r1, out int c1) &&
-                            TryParseCoordinate(toCoord, out int r2, out int c2))
-                        {
-                            var values = new List<double>();
-                            int minR = Math.Min(r1, r2), maxR = Math.Max(r1, r2);
-                            int minC = Math.Min(c1, c2), maxC = Math.Max(c1, c2);
-
-                            for (int row = minR; row <= maxR && row < tableRows.Count; row++)
-                            {
-                                for (int col = minC; col <= maxC && col < maxCols; col++)
-                                {
-                                    if (grid[row, col].HasValue)
-                                    {
-                                        values.Add(grid[row, col]!.Value);
-                                    }
-                                }
-                            }
-
-                            double result = ExecuteOperation(op, values);
-                            string formattedResult = FormatNumber(result);
-                            tableRows[r][c] = formattedResult;
-                            grid[r, c] = result;
-                        }
+                        tableRows[r][c] = formattedResult;
+                        grid[r, c] = result;
                     }
                 }
             }
@@ -117,19 +95,193 @@ namespace MarkSmith.Services
             return string.Join('\n', outputLines);
         }
 
+        public static bool TryEvaluateCell(string cellText, int r, int c, double?[,] grid, int maxRows, int maxCols, out double result, out string formattedResult, out string formulaInstruction)
+        {
+            result = 0;
+            formattedResult = "";
+            formulaInstruction = "";
+
+            if (string.IsNullOrWhiteSpace(cellText) || !cellText.TrimStart().StartsWith('='))
+                return false;
+
+            var trimmed = cellText.Trim();
+            var posMatch = PositionalFormulaRegex.Match(trimmed);
+            if (posMatch.Success)
+            {
+                string op = posMatch.Groups["op"].Value.ToUpperInvariant();
+                string pos = posMatch.Groups["pos"].Value.ToUpperInvariant();
+                string fmt = posMatch.Groups["fmt"].Success ? posMatch.Groups["fmt"].Value : "";
+
+                var values = new List<double>();
+                if (pos == "ABOVE")
+                {
+                    for (int row = r - 1; row >= 0; row--)
+                    {
+                        if (grid[row, c].HasValue)
+                        {
+                            values.Add(grid[row, c]!.Value);
+                        }
+                    }
+                    values.Reverse(); // Preserve top-to-bottom order
+                }
+                else if (pos == "LEFT")
+                {
+                    for (int col = c - 1; col >= 0; col--)
+                    {
+                        if (grid[r, col].HasValue)
+                        {
+                            values.Add(grid[r, col]!.Value);
+                        }
+                    }
+                    values.Reverse(); // Preserve left-to-right order
+                }
+                else if (pos == "RIGHT")
+                {
+                    for (int col = c + 1; col < maxCols; col++)
+                    {
+                        if (grid[r, col].HasValue)
+                        {
+                            values.Add(grid[r, col]!.Value);
+                        }
+                    }
+                }
+                else if (pos == "BELOW")
+                {
+                    for (int row = r + 1; row < maxRows; row++)
+                    {
+                        if (grid[row, c].HasValue)
+                        {
+                            values.Add(grid[row, c]!.Value);
+                        }
+                    }
+                }
+
+                result = ExecuteOperation(op, values);
+                formattedResult = FormatNumber(result, fmt);
+
+                if (!string.IsNullOrEmpty(fmt))
+                {
+                    var cleanFmt = fmt.Trim('"', '\'');
+                    formulaInstruction = $"={op}({pos}) \\# \"{cleanFmt}\"";
+                }
+                else
+                {
+                    formulaInstruction = $"={op}({pos})";
+                }
+                return true;
+            }
+
+            var rangeMatch = RangeFormulaRegex.Match(trimmed);
+            if (rangeMatch.Success)
+            {
+                string op = rangeMatch.Groups["op"].Value.ToUpperInvariant();
+                string fromCoord = rangeMatch.Groups["from"].Value;
+                string toCoord = rangeMatch.Groups["to"].Value;
+                string fmt = rangeMatch.Groups["fmt"].Success ? rangeMatch.Groups["fmt"].Value : "";
+
+                if (TryParseCoordinate(fromCoord, out int r1, out int c1) &&
+                    TryParseCoordinate(toCoord, out int r2, out int c2))
+                {
+                    var values = new List<double>();
+                    int minR = Math.Min(r1, r2), maxR = Math.Max(r1, r2);
+                    int minC = Math.Min(c1, c2), maxC = Math.Max(c1, c2);
+
+                    for (int row = minR; row <= maxR && row < maxRows; row++)
+                    {
+                        for (int col = minC; col <= maxC && col < maxCols; col++)
+                        {
+                            if (grid[row, col].HasValue)
+                            {
+                                values.Add(grid[row, col]!.Value);
+                            }
+                        }
+                    }
+
+                    result = ExecuteOperation(op, values);
+                    formattedResult = FormatNumber(result, fmt);
+
+                    if (!string.IsNullOrEmpty(fmt))
+                    {
+                        var cleanFmt = fmt.Trim('"', '\'');
+                        formulaInstruction = $"={op}({fromCoord}:{toCoord}) \\# \"{cleanFmt}\"";
+                    }
+                    else
+                    {
+                        formulaInstruction = $"={op}({fromCoord}:{toCoord})";
+                    }
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsSeparatorLine(string line)
         {
             var content = line.Trim('|', ' ', '-', ':');
             return string.IsNullOrEmpty(content) || content.All(ch => ch == '-' || ch == ':' || ch == '|' || ch == ' ');
         }
 
-        private static bool TryParseNumber(string text, out double val)
+        public static bool TryParseNumber(string text, out double val)
         {
             val = 0;
             if (string.IsNullOrWhiteSpace(text)) return false;
-            var cleaned = text.Trim('$', '€', '£', '%', ' ', ',');
-            return double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out val) ||
-                   double.TryParse(cleaned, NumberStyles.Any, CultureInfo.CurrentCulture, out val);
+            var s = text.Trim();
+
+            // Negative in parentheses e.g. (100) or ($100)
+            bool isNegative = false;
+            if (s.StartsWith("(") && s.EndsWith(")"))
+            {
+                isNegative = true;
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            else if (s.StartsWith("-"))
+            {
+                isNegative = true;
+                s = s.Substring(1).Trim();
+            }
+
+            var sb = new StringBuilder();
+            foreach (var ch in s)
+            {
+                if (char.IsDigit(ch) || ch == '.' || ch == ',' || ch == '-')
+                {
+                    sb.Append(ch);
+                }
+            }
+            var cleaned = sb.ToString().Trim();
+            if (cleaned.Length == 0) return false;
+
+            if (cleaned.Contains(',') && cleaned.Contains('.'))
+            {
+                if (cleaned.IndexOf(',') < cleaned.IndexOf('.'))
+                {
+                    cleaned = cleaned.Replace(",", "");
+                }
+                else
+                {
+                    cleaned = cleaned.Replace(".", "").Replace(',', '.');
+                }
+            }
+            else if (cleaned.Contains(','))
+            {
+                var parts = cleaned.Split(',');
+                if (parts.Length > 1 && parts.Skip(1).All(p => p.Length == 3))
+                {
+                    cleaned = cleaned.Replace(",", "");
+                }
+                else
+                {
+                    cleaned = cleaned.Replace(',', '.');
+                }
+            }
+
+            if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out val))
+            {
+                if (isNegative) val = -val;
+                return true;
+            }
+            return false;
         }
 
         private static bool TryParseCoordinate(string coord, out int row, out int col)
@@ -172,11 +324,31 @@ namespace MarkSmith.Services
             };
         }
 
-        private static string FormatNumber(double val)
+        public static string FormatNumber(double val, string? formatSwitch = null)
         {
+            if (!string.IsNullOrWhiteSpace(formatSwitch))
+            {
+                var fmt = formatSwitch.Trim('"', '\'', ' ', '\\', '#').Trim();
+                if (fmt.Contains("$#,##0.00") || fmt.Contains("$#,##0") || fmt.Contains("0.00") || fmt.Contains("#,##0.00"))
+                {
+                    if (fmt.Contains("$"))
+                    {
+                        var absVal = Math.Abs(val);
+                        var formatted = absVal.ToString("N2", CultureInfo.InvariantCulture);
+                        return val < 0 ? $"(${formatted})" : $"${formatted}";
+                    }
+                    return val.ToString("N2", CultureInfo.InvariantCulture);
+                }
+                try
+                {
+                    return val.ToString(fmt, CultureInfo.InvariantCulture);
+                }
+                catch { }
+            }
+
             if (Math.Abs(val % 1) < 0.0001)
-                return ((long)Math.Round(val)).ToString("N0", CultureInfo.InvariantCulture);
-            return val.ToString("N2", CultureInfo.InvariantCulture);
+                return ((long)Math.Round(val)).ToString("0", CultureInfo.InvariantCulture);
+            return val.ToString("0.##", CultureInfo.InvariantCulture);
         }
     }
 }

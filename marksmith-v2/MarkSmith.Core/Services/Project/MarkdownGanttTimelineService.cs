@@ -29,8 +29,8 @@ public class GanttTimelineModel
 public static class MarkdownGanttTimelineService
 {
     private static readonly Regex TaskRegex = new(
-        @"\[(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})\]\s*([^%\r\n]+?)(?:\s*%(\d{1,3}))?$",
-        RegexOptions.Compiled | RegexOptions.Multiline);
+        @"^\[(\d{4}-\d{2}-\d{2})\s*(?:->|→|–|—|-)\s*(\d{4}-\d{2}-\d{2})\]\s*(?:(?<name>[^%]+?)\s*%(?<pct>\d{1,3})|(?<name>[^%]+?))\s*$",
+        RegexOptions.Compiled);
 
     /// <summary>
     /// Parses Gantt timeline entries from Markdown text.
@@ -41,17 +41,20 @@ public static class MarkdownGanttTimelineService
         if (string.IsNullOrWhiteSpace(markdown))
             return model;
 
-        var matches = TaskRegex.Matches(markdown);
-        foreach (Match m in matches)
+        var lines = TextNormalizer.Newlines(markdown).Split('\n');
+        for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
         {
-            if (DateTime.TryParseExact(m.Groups[1].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) &&
+            var line = lines[lineIdx].Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var m = TaskRegex.Match(line);
+            if (m.Success &&
+                DateTime.TryParseExact(m.Groups[1].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) &&
                 DateTime.TryParseExact(m.Groups[2].Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
             {
-                string name = m.Groups[3].Value.Trim();
-                int progress = m.Groups[4].Success && int.TryParse(m.Groups[4].Value, out int p) ? Math.Clamp(p, 0, 100) : 0;
-
-                int lineNum = 1 + (m.Index > 0 ? markdown.Substring(0, m.Index).Split('\n').Length - 1 : 0);
-                model.Tasks.Add(new GanttTask(name, start, end, progress, lineNum));
+                string name = m.Groups["name"].Value.Trim();
+                int progress = m.Groups["pct"].Success && int.TryParse(m.Groups["pct"].Value, out int p) ? Math.Clamp(p, 0, 100) : 0;
+                model.Tasks.Add(new GanttTask(name, start, end, progress, lineIdx + 1));
             }
         }
 

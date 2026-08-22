@@ -77,6 +77,15 @@ I didn't just build a text paster—I constructed a native Word element engine f
 
 | Capability | Category | Description |
 |---|---|---|
+| **High-Resolution Snapshot Rasterizer** | CLI / Export | Headless SkiaSharp PNG rasterizer generating pixel-perfect document snapshots (`render-image`) with theme backgrounds and High-DPI scaling. |
+| **Bilingual Parallel Columns** | Layout Engine | Dual synchronized multi-row columns (`:::parallel`) rendering borderless `cantSplit` tables with rich Markdown and interactive form controls. |
+| **Interactive Form SDTs** | WordprocessingML | Fillable Structured Document Tags for dropdown lists (`[dropdown]`), date pickers (`[date]`), text inputs (`[text]`), and checkboxes (`- [ ]`). |
+| **Native Table Formulas** | Formulas | Dynamic table calculation engine (`=SUM(ABOVE)`, `=AVERAGE(LEFT)`, `=COUNT`, range coordinates `A1:B4`, currency formatting `\$#,##0.00`). |
+| **Editorial Drop Caps** | Typography | Traditional typographic 3-line dropped capital letters (`:::dropcap`) anchored via native `w:framePr` text frames. |
+| **Concordance & Subject Index** | Indexing | Automated document-wide concordance indexing (`:::index`) with inline topic anchors (`^[index: "..."]`) and Word `INDEX` field codes. |
+| **Executive Cover Page Gallery** | Branding | Multi-theme cover page generator (`:::cover-page`) with metadata fields, layout styles, and `w:titlePg` section break separation. |
+| **Legal & Academic Line Numbering** | Typography | Precision margin line numbering (`:::line-numbers`) supporting count intervals and per-page/continuous restart rules (`w:lnNumType`). |
+| **Native Vector Watermarks** | Document Security | Diagonal translucent WordprocessingML VML header watermarks (`:::watermark`) with customizable opacity and text. |
 | **Dynamic GLOX Constraint Engine** | SmartArt / DOCX | Real-time XML constraint solver parsing `.glox` layout rules to compute mathematically accurate bounding boxes. |
 | **Interactive Pan/Zoom Lens** | UI / Preview | Click-to-expand vector pan & zoom lens (`#mk-lens`) across all SmartArt and engineering diagrams. |
 | **Document Galaxy Vault** | Organization | Visual spatial mind-map organizing documents with integrated version history and star bookmarks. |
@@ -91,7 +100,6 @@ I didn't just build a text paster—I constructed a native Word element engine f
 | **Crash-Proof Atomic Vault** | Core Engine | Zero-window atomic file replace semantics preventing corrupted saves across all app stores. |
 | **Hardened Loopback API** | Security | Cross-origin browser isolation (`IsBrowserOrigin`) and license paywall enforcement on REST endpoints. |
 
-
 ---
 
 ## 🤖 Automation & CLI Tools
@@ -101,11 +109,18 @@ I didn't just build a text paster—I constructed a native Word element engine f
 Marksmith includes a standalone command-line compiler for terminal workflows and automated build scripts:
 
 ```pwsh
-# Convert Markdown to Word DOCX
-marksmith <input.md> <output.docx> [layout_alias]
+# Convert Markdown to Word DOCX or HTML
+marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]
 
-# Build a custom SmartArt GLOX package
-marksmith build-layout <input_layout.json> <output.glox>
+# Render high-resolution PNG snapshot
+marksmith render-image <input.md> <output.png> [--width 1200] [--height 0] [--scale 2.0] [--theme "GitHub Light"]
+
+# Batch convert multiple Markdown files
+marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>]
+
+# Vector Shape & Line Art tools
+marksmith compose <image.png> <output.docx|output.md> [--grid 32] [--compact]
+marksmith trace <image.png> <output.docx|output.md> [--rows 300] [--mode CrossHatch]
 ```
 
 ### 🔌 Local REST API & Marksmith Express

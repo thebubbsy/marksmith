@@ -108,6 +108,42 @@ namespace MarkSmith.Cli
                     return 0;
                 }
 
+                if (cmd == "render-image" && args.Length >= 3)
+                {
+                    string inputMd = args[1];
+                    string outputFile = args[2];
+                    int width = 1200;
+                    int height = 0;
+                    double scale = 2.0;
+                    int quality = 100;
+                    string themeName = "GitHub Light";
+
+                    for (int i = 3; i < args.Length; i++)
+                    {
+                        if (args[i] == "--width" && i + 1 < args.Length && int.TryParse(args[i + 1], out int w)) width = w;
+                        if (args[i] == "--height" && i + 1 < args.Length && int.TryParse(args[i + 1], out int h)) height = h;
+                        if (args[i] == "--scale" && i + 1 < args.Length && double.TryParse(args[i + 1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double s)) scale = s;
+                        if (args[i] == "--quality" && i + 1 < args.Length && int.TryParse(args[i + 1], out int q)) quality = q;
+                        if (args[i] == "--theme" && i + 1 < args.Length) themeName = args[i + 1];
+                    }
+
+                    if (!File.Exists(inputMd))
+                    {
+                        Console.Error.WriteLine($"Error: Input file '{inputMd}' does not exist.");
+                        return 1;
+                    }
+
+                    Console.WriteLine($"Rendering snapshot '{inputMd}' -> '{outputFile}' ({width}x{(height > 0 ? height.ToString() : "auto")}, scale={scale}x, theme='{themeName}')...");
+                    var mdContent = await File.ReadAllTextAsync(inputMd);
+                    var rasterizer = new DocumentImageRasterizerService();
+                    var renderSettings = new AppSettings { Theme = themeName };
+                    var theme = AppServices.Themes.GetOrDefault(themeName);
+                    var options = new ImageRenderOptions(width, height, scale, quality, themeName);
+                    await rasterizer.RenderPngToFileAsync(mdContent, outputFile, renderSettings, theme, options);
+                    Console.WriteLine($"✓ Generated PNG snapshot: {outputFile}");
+                    return 0;
+                }
+
                 bool watchMode = args.Contains("--watch") || args.Contains("-w");
                 var remainingArgs = args.Where(a => a != "--watch" && a != "-w").ToArray();
 
@@ -160,9 +196,18 @@ namespace MarkSmith.Cli
                         await File.WriteAllTextAsync(outputPath, html);
                         Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported HTML: {outputPath}");
                     }
+                    else if (ext == ".png")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Rasterizing snapshot '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+                        var rasterizer = new DocumentImageRasterizerService();
+                        var options = new ImageRenderOptions { Theme = settings.Theme ?? "GitHub Light" };
+                        await rasterizer.RenderPngToFileAsync(markdown, outputPath, settings, theme, options);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported PNG snapshot: {outputPath}");
+                    }
                     else
                     {
-                        throw new NotSupportedException($"Unsupported output extension '{ext}'. Use .docx, .dotx, or .html.");
+                        throw new NotSupportedException($"Unsupported output extension '{ext}'. Use .docx, .dotx, .html, or .png.");
                     }
                 }
 
@@ -313,7 +358,8 @@ namespace MarkSmith.Cli
             Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage:");
-            Console.WriteLine("  marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith <input.md> <output.docx|output.html|output.png> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
             Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
@@ -323,6 +369,9 @@ namespace MarkSmith.Cli
             Console.WriteLine("  --batch        Batch process multiple markdown documents concurrently");
             Console.WriteLine("  --compact      Compress vector shapes in markdown using dense deflate format");
             Console.WriteLine("  --theme <name> Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
+            Console.WriteLine("  --width <w>    Snapshot logical width in pixels (default 1200)");
+            Console.WriteLine("  --height <h>   Snapshot logical height in pixels (0 = auto height)");
+            Console.WriteLine("  --scale <s>    High-DPI device scale multiplier (default 2.0)");
             Console.WriteLine();
             Console.WriteLine("Trace Modes: CrossHatch, TopographicWaves, Calligraphic, Engraved, Edges, Scanlines, Silhouette");
         }

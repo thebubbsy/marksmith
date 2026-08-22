@@ -26,7 +26,7 @@ namespace MarkSmith.Core.AdvancedFeatures
             var cache = _splitCache;
             if (cache is { } c && string.Equals(c.Block, rawBlock, StringComparison.Ordinal))
                 return c.Lines;
-            var lines = rawBlock.Split('\n');
+            var lines = rawBlock.TrimStart('\r', '\n').Split('\n');
             _splitCache = (rawBlock, lines);
             return lines;
         }
@@ -42,7 +42,8 @@ namespace MarkSmith.Core.AdvancedFeatures
             for (int i = 1; i < lines.Length; i++)
             {
                 var trimmed = lines[i].TrimEnd('\r');
-                if (trimmed == ":::" && i == lines.Length - 1) break;
+                if (i == lines.Length - 1 && trimmed.Trim() == ":::") break;
+                if (i == lines.Length - 2 && trimmed.Trim() == ":::" && string.IsNullOrWhiteSpace(lines[^1])) break;
                 result.Add(trimmed);
             }
             return result;
@@ -565,6 +566,224 @@ namespace MarkSmith.Core.AdvancedFeatures
             // demands); rendering failures fall back to the source code block at render time,
             // exactly like the mermaid/plugin last-resort convention.
             return (true, 0.95, Array.Empty<string>());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 15. Watermark — validates vector watermark text, color, opacity, diagonal
+    // ───────────────────────────────────────────────────────────────────
+    public class WatermarkDetector : IFeatureDetector
+    {
+        public string FeatureName => "Watermark";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::watermark", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+            var innerLines = DetectorHelpers.GetInnerLines(rawBlock);
+
+            string? text = null;
+            var quotedMatch = Regex.Match(firstLine, @"^:::watermark\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            if (quotedMatch.Success)
+            {
+                text = quotedMatch.Groups[1].Value;
+            }
+            else
+            {
+                var textAttrMatch = Regex.Match(firstLine, @"(?:text=|--text\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase);
+                if (textAttrMatch.Success)
+                {
+                    text = textAttrMatch.Groups[1].Success ? textAttrMatch.Groups[1].Value : textAttrMatch.Groups[2].Value;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                var firstNonEmpty = innerLines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+                if (!string.IsNullOrWhiteSpace(firstNonEmpty))
+                {
+                    text = firstNonEmpty.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = "CONFIDENTIAL";
+            }
+
+            var opacityMatch = Regex.Match(firstLine, @"(?:opacity=|--opacity\s+)(?:""([^""]*)""|([0-9.]+))", RegexOptions.IgnoreCase);
+            if (opacityMatch.Success)
+            {
+                var opStr = opacityMatch.Groups[1].Success ? opacityMatch.Groups[1].Value : opacityMatch.Groups[2].Value;
+                if (double.TryParse(opStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var opVal))
+                {
+                    if (opVal <= 0.0 || opVal > 1.0)
+                        errors.Add($"Watermark opacity must be between 0.01 and 1.0, got {opVal}");
+                }
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 16. LineNumbers — validates legal and academic line numbering options
+    // ───────────────────────────────────────────────────────────────────
+    public class LineNumbersDetector : IFeatureDetector
+    {
+        public string FeatureName => "LineNumbers";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::line-numbers", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+
+            var countMatch = Regex.Match(firstLine, @"(?:count-by=|countBy=|count=|--count-by\s+|--countBy\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+            if (countMatch.Success)
+            {
+                var valStr = countMatch.Groups[1].Success ? countMatch.Groups[1].Value : countMatch.Groups[2].Value;
+                if (int.TryParse(valStr, out int countVal) && countVal < 1)
+                {
+                    errors.Add($"Line number count-by must be at least 1, got {countVal}");
+                }
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 17. CoverPage — validates executive cover page gallery metadata
+    // ───────────────────────────────────────────────────────────────────
+    public class CoverPageDetector : IFeatureDetector
+    {
+        public string FeatureName => "CoverPage";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::cover-page", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+            var innerLines = DetectorHelpers.GetInnerLines(rawBlock);
+
+            bool hasTitle = Regex.IsMatch(firstLine, @"title=", RegexOptions.IgnoreCase) ||
+                            innerLines.Any(l => Regex.IsMatch(l, @"^\s*title\s*[:=]", RegexOptions.IgnoreCase));
+            bool hasAnyMeta = innerLines.Any(l => l.Contains(':') || l.Contains('=') || !string.IsNullOrWhiteSpace(l));
+
+            if (!hasTitle && !hasAnyMeta && !firstLine.Contains('='))
+            {
+                errors.Add("Cover page must contain a title or metadata fields");
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 18. Parallel — validates bilingual and parallel synchronized columns
+    // ───────────────────────────────────────────────────────────────────
+    public class ParallelDetector : IFeatureDetector
+    {
+        public string FeatureName => "Parallel";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::parallel", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var innerLines = DetectorHelpers.GetInnerLines(rawBlock);
+            if (innerLines.All(l => string.IsNullOrWhiteSpace(l)))
+                errors.Add("No content inside :::parallel block");
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 19. DropCap — validates editorial drop cap blocks
+    // ───────────────────────────────────────────────────────────────────
+    public class DropCapDetector : IFeatureDetector
+    {
+        public string FeatureName => "DropCap";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::dropcap", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+            var innerLines = DetectorHelpers.GetInnerLines(rawBlock);
+
+            if (innerLines.All(l => string.IsNullOrWhiteSpace(l)))
+                errors.Add("No paragraph content found inside :::dropcap block");
+
+            var numMatch = Regex.Match(firstLine, @"^:::dropcap\s+(\d+)", RegexOptions.IgnoreCase);
+            if (numMatch.Success)
+            {
+                if (int.TryParse(numMatch.Groups[1].Value, out int lVal) && lVal < 1)
+                    errors.Add($"Drop cap line count must be at least 1, got {lVal}");
+            }
+            else
+            {
+                var linesMatch = Regex.Match(firstLine, @"(?:lines=|--lines\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+                if (linesMatch.Success)
+                {
+                    var valStr = linesMatch.Groups[1].Success ? linesMatch.Groups[1].Value : linesMatch.Groups[2].Value;
+                    if (int.TryParse(valStr, out int lVal) && lVal < 1)
+                        errors.Add($"Drop cap line count must be at least 1, got {lVal}");
+                }
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // 20. Index — validates concordance & subject index generator blocks
+    // ───────────────────────────────────────────────────────────────────
+    public class IndexDetector : IFeatureDetector
+    {
+        public string FeatureName => "Index";
+        public double Threshold => 0.75;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.TrimStart().StartsWith(":::index", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var firstLine = DetectorHelpers.SplitLines(rawBlock)[0];
+
+            var colMatch = Regex.Match(firstLine, @"(?:columns=|count=|--columns\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+            if (colMatch.Success)
+            {
+                var valStr = colMatch.Groups[1].Success ? colMatch.Groups[1].Value : colMatch.Groups[2].Value;
+                if (int.TryParse(valStr, out int cVal) && cVal < 1)
+                    errors.Add($"Index column count must be at least 1, got {cVal}");
+            }
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
         }
     }
 }

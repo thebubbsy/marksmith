@@ -62,7 +62,7 @@ public readonly record struct Fmt(
     bool Highlight, bool Underline, string? Color, bool WikiLink = false, bool NoProof = false, bool UnderlineDash = false,
     RevisionKind Revision = RevisionKind.None, string? RevisionAuthor = null, DateTime? RevisionDate = null, int RevisionId = 0,
     W.UnderlineValues? UnderlineStyle = null, string? UnderlineColor = null,
-    W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null)
+    W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null, bool Hidden = false)
 {
     public bool EffectiveUnderline => Underline || (UnderlineStyle.HasValue && UnderlineStyle.Value != W.UnderlineValues.None);
 

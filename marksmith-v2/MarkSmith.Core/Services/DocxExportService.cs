@@ -27,6 +27,8 @@ using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using S = DocumentFormat.OpenXml.Spreadsheet;
 using Wps = DocumentFormat.OpenXml.Office2010.Word.DrawingShape;
+using V = DocumentFormat.OpenXml.Vml;
+using Ovml = DocumentFormat.OpenXml.Vml.Office;
 namespace MarkSmith.Services;
 
 // Native DOCX export via DocumentFormat.OpenXml (option 2 of the design decision that used to live
@@ -144,7 +146,7 @@ public sealed class DocxExportService
                 foreach (var node in featureNodes.OrderBy(n => n.Block.Start))
                 {
                     marked.Append(markdown, cursor, node.Block.Start - cursor);
-                    marked.Append("<!-- MARKSMITH_FEATURE:").Append(node.StableId).Append(" -->");
+                    marked.Append("\n\n<!-- MARKSMITH_FEATURE:").Append(node.StableId).Append(" -->\n\n");
                     cursor = node.Block.End;
                 }
                 marked.Append(markdown, cursor, markdown.Length - cursor);
@@ -207,6 +209,16 @@ public sealed class DocxExportService
                 AdvancedFeatures = featureDict,
             };
 
+            foreach (var (_, featNode) in featureDict)
+            {
+                if (featNode.Detector.FeatureName == "Watermark")
+                    ctx.Watermark = ExtractWatermark(featNode);
+                else if (featNode.Detector.FeatureName == "LineNumbers")
+                    ctx.LineNumbers = ExtractLineNumbers(featNode);
+                else if (featNode.Detector.FeatureName == "CoverPage")
+                    ctx.CoverPage = ExtractCoverPage(featNode);
+            }
+
             AddStyles(main, ctx);
             CollectAnchors(doc, ctx);
 
@@ -235,7 +247,7 @@ public sealed class DocxExportService
             var wantWeb = ctx.ForceWebLayout || (settings.TargetFormat != "docx"
                           && (!settings.PageBorder && settings.UnlimitedHeight
                               || !ThemeDefinition.IsLight(ctx.Theme.Background)));
-            AddSettings(main, updateFieldsOnOpen: settings.IncludeToc, trackChanges: settings.TrackChanges,
+            AddSettings(main, ctx, updateFieldsOnOpen: settings.IncludeToc || ctx.HasIndex || ctx.HasFormulas, trackChanges: settings.TrackChanges || ctx.HasRevisions,
                 webLayout: wantWeb);
 
             body.Append(BuildSectionProperties(main, ctx, settings, title));
@@ -420,6 +432,15 @@ public sealed class DocxExportService
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=AggressiveShrink,5=CompressGaps,6=CompressNodes,7=CompressBoth
         public bool SmartConnectors = true;
         
+        public WatermarkInfo? Watermark { get; set; }
+        public LineNumbersInfo? LineNumbers { get; set; }
+        public CoverPageInfo? CoverPage { get; set; }
+
+        public int NextCommentId = 1;
+        public bool HasRevisions;
+        public bool HasIndex;
+        public bool HasFormulas;
+
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
         public System.Collections.Concurrent.ConcurrentDictionary<string, byte[]?> ImageCache { get; } = new();
 
@@ -462,13 +483,122 @@ public sealed class DocxExportService
         bool Highlight, bool Underline, string? Color, bool NoProof = false, bool WikiLink = false, bool UnderlineDash = false,
         RevisionKind Revision = RevisionKind.None, string? RevisionAuthor = null, DateTime? RevisionDate = null, int RevisionId = 0,
         W.UnderlineValues? UnderlineStyle = null, string? UnderlineColor = null,
-        W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null)
+        W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null,
+        string? FontSize = null, bool Hidden = false)
     {
         public bool EffectiveUnderline => Underline || (UnderlineStyle.HasValue && UnderlineStyle.Value != W.UnderlineValues.None);
 
         public W.UnderlineValues EffectiveUnderlineStyle => UnderlineStyle ?? (WikiLink ? W.UnderlineValues.Dash : (Underline ? W.UnderlineValues.Single : W.UnderlineValues.None));
 
         public W.HighlightColorValues? EffectiveHighlightColor => HighlightColor ?? (Highlight ? W.HighlightColorValues.Yellow : null);
+    }
+
+    private sealed record WatermarkInfo(string Text, string Color, double Opacity, bool Diagonal);
+    private sealed record LineNumbersInfo(int CountBy, string Restart, int Distance, int Start);
+    private sealed record CoverPageInfo(
+        string Title,
+        string? Subtitle,
+        string? Author,
+        string? Organization,
+        string? Date,
+        string? Version,
+        string? Abstract,
+        string Theme);
+
+    private static WatermarkInfo ExtractWatermark(FeatureNode node)
+    {
+        string text = "CONFIDENTIAL";
+        if (node.Attributes.TryGetValue("text", out var t) && !string.IsNullOrWhiteSpace(t))
+            text = t;
+        else if (node.Attributes.TryGetValue("title", out var tit) && !string.IsNullOrWhiteSpace(tit))
+            text = tit;
+        else if (!string.IsNullOrWhiteSpace(node.InnerContent))
+        {
+            var firstLine = node.InnerContent.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+            if (!string.IsNullOrWhiteSpace(firstLine)) text = firstLine.Trim();
+        }
+
+        string color = "CCCCCC";
+        if (node.Attributes.TryGetValue("color", out var c) && !string.IsNullOrWhiteSpace(c))
+            color = c.TrimStart('#');
+
+        double opacity = 0.15;
+        if (node.Attributes.TryGetValue("opacity", out var opStr) && double.TryParse(opStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedOp))
+            opacity = Math.Clamp(parsedOp, 0.01, 1.0);
+
+        bool diagonal = true;
+        if (node.Attributes.TryGetValue("diagonal", out var dStr))
+            diagonal = !dStr.Equals("false", StringComparison.OrdinalIgnoreCase) && !dStr.Equals("0", StringComparison.OrdinalIgnoreCase);
+        if (node.Attributes.ContainsKey("horizontal"))
+            diagonal = false;
+
+        return new WatermarkInfo(text, color, opacity, diagonal);
+    }
+
+    private static LineNumbersInfo ExtractLineNumbers(FeatureNode node)
+    {
+        int countBy = 5;
+        if (node.Attributes.TryGetValue("count-by", out var cStr) ||
+            node.Attributes.TryGetValue("countBy", out cStr) ||
+            node.Attributes.TryGetValue("count", out cStr))
+        {
+            int.TryParse(cStr, out countBy);
+        }
+        if (countBy < 1) countBy = 1;
+
+        string restart = "continuous";
+        if (node.Attributes.TryGetValue("restart", out var rStr) && !string.IsNullOrWhiteSpace(rStr))
+            restart = rStr.ToLowerInvariant();
+
+        int distance = 360;
+        if (node.Attributes.TryGetValue("distance", out var dStr) && int.TryParse(dStr, out var parsedD))
+            distance = parsedD;
+
+        int start = 1;
+        if (node.Attributes.TryGetValue("start", out var sStr) && int.TryParse(sStr, out var parsedS))
+            start = parsedS;
+
+        return new LineNumbersInfo(countBy, restart, distance, start);
+    }
+
+    private static CoverPageInfo ExtractCoverPage(FeatureNode node)
+    {
+        var dict = new Dictionary<string, string>(node.Attributes, StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(node.InnerContent))
+        {
+            var lines = node.InnerContent.Split('\n');
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) continue;
+                int colonIdx = trimmed.IndexOf(':');
+                int eqIdx = trimmed.IndexOf('=');
+                int sepIdx = colonIdx >= 0 && eqIdx >= 0 ? Math.Min(colonIdx, eqIdx) : Math.Max(colonIdx, eqIdx);
+                if (sepIdx > 0)
+                {
+                    var k = trimmed.Substring(0, sepIdx).Trim();
+                    var v = trimmed.Substring(sepIdx + 1).Trim().Trim('"', '\'');
+                    dict[k] = v;
+                }
+            }
+        }
+
+        string theme = dict.TryGetValue("theme", out var th) && !string.IsNullOrWhiteSpace(th) ? th.ToLowerInvariant() : "modern";
+        string title = dict.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t) ? t : "Document Title";
+        dict.TryGetValue("subtitle", out var subtitle);
+        dict.TryGetValue("author", out var author);
+        if (string.IsNullOrEmpty(author) && dict.TryGetValue("by", out var by)) author = by;
+        dict.TryGetValue("organization", out var org);
+        if (string.IsNullOrEmpty(org) && dict.TryGetValue("org", out var o)) org = o;
+        if (string.IsNullOrEmpty(org) && dict.TryGetValue("company", out var comp)) org = comp;
+        dict.TryGetValue("date", out var date);
+        dict.TryGetValue("version", out var version);
+        if (string.IsNullOrEmpty(version) && dict.TryGetValue("ver", out var ver)) version = ver;
+        dict.TryGetValue("abstract", out var abstractText);
+        if (string.IsNullOrEmpty(abstractText) && dict.TryGetValue("description", out var desc)) abstractText = desc;
+        if (string.IsNullOrEmpty(abstractText) && dict.TryGetValue("summary", out var sum)) abstractText = sum;
+
+        return new CoverPageInfo(title, subtitle, author, org, date, version, abstractText, theme);
     }
 
     private static string Hex(string cssColor) => cssColor.TrimStart('#').ToUpperInvariant();
@@ -1293,20 +1423,20 @@ public sealed class DocxExportService
 
     private static void ApplyQuoteFormatting(W.Paragraph p, Ctx ctx)
     {
-        p.ParagraphProperties ??= new W.ParagraphProperties();
-        p.ParagraphProperties.ParagraphBorders = new W.ParagraphBorders(
+        var pp = p.ParagraphProperties ?? p.PrependChild(new W.ParagraphProperties());
+        pp.ParagraphBorders = new W.ParagraphBorders(
             new W.LeftBorder { Val = W.BorderValues.Single, Size = 18, Space = 8, Color = ctx.BorderHex });
-        p.ParagraphProperties.Shading = new W.Shading
+        pp.Shading = new W.Shading
         {
             Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex
         };
         
         int leftIndent = 360;
-        if (p.ParagraphProperties.Indentation?.Left?.Value != null && int.TryParse(p.ParagraphProperties.Indentation.Left.Value, out int existing))
+        if (pp.Indentation?.Left?.Value != null && int.TryParse(pp.Indentation.Left.Value, out int existing))
         {
             leftIndent += existing;
         }
-        p.ParagraphProperties.Indentation = new W.Indentation { Left = leftIndent.ToString() };
+        pp.Indentation = new W.Indentation { Left = leftIndent.ToString() };
     }
 
     private static void RenderAdvancedFeature(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
@@ -1351,6 +1481,24 @@ public sealed class DocxExportService
             case "Kanban":
                 RenderKanban(node, target, ctx);
                 break;
+            case "Parallel":
+                RenderParallel(node, target, ctx);
+                break;
+            case "Watermark":
+                // Native vector watermark is emitted inside the Section Header Part (HeaderPart)
+                break;
+            case "LineNumbers":
+                RenderLineNumbers(node, target, ctx);
+                break;
+            case "CoverPage":
+                RenderCoverPage(node, target, ctx);
+                break;
+            case "DropCap":
+                RenderDropCap(node, target, ctx);
+                break;
+            case "Index":
+                RenderIndex(node, target, ctx);
+                break;
             default:
                 // Placeholder for features not yet implemented — red bold label in the Word doc.
                 var p = new W.Paragraph(new W.ParagraphProperties(
@@ -1360,6 +1508,423 @@ public sealed class DocxExportService
                 target.Append(p);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Renders a :::cover-page block as an executive cover/title page.
+    /// Emits structured layout elements and closes with a section break configured for distinct first-page header/footer.
+    /// </summary>
+    private static void RenderCoverPage(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var cover = ctx.CoverPage ?? ExtractCoverPage(node);
+
+        // Top accent spacing & colored bar
+        var barP = new W.Paragraph(new W.ParagraphProperties(
+            new W.ParagraphBorders(new W.BottomBorder { Val = W.BorderValues.Single, Size = 24, Space = 4, Color = ctx.HeadingHex }),
+            new W.SpacingBetweenLines { Before = "1440", After = "360" }));
+        target.Append(barP);
+
+        // Organization
+        if (!string.IsNullOrWhiteSpace(cover.Organization))
+        {
+            var orgP = new W.Paragraph(new W.ParagraphProperties(
+                new W.SpacingBetweenLines { After = "180" }));
+            AddText(orgP, cover.Organization, new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "22" });
+            target.Append(orgP);
+        }
+
+        // Title
+        var titleP = new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "240", After = "180" }));
+        AddText(titleP, cover.Title, new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "56" });
+        target.Append(titleP);
+
+        // Subtitle
+        if (!string.IsNullOrWhiteSpace(cover.Subtitle))
+        {
+            var subP = new W.Paragraph(new W.ParagraphProperties(
+                new W.SpacingBetweenLines { After = "360" }));
+            AddText(subP, cover.Subtitle, new Fmt { Color = "555555", FontSize = "28" });
+            target.Append(subP);
+        }
+
+        // Abstract / Description callout
+        if (!string.IsNullOrWhiteSpace(cover.Abstract))
+        {
+            var absP = new W.Paragraph(new W.ParagraphProperties(
+                new W.ParagraphBorders(new W.LeftBorder { Val = W.BorderValues.Single, Size = 24, Space = 12, Color = ctx.HeadingHex }),
+                new W.SpacingBetweenLines { Before = "240", After = "480" },
+                new W.Indentation { Left = "240" }));
+            AddText(absP, cover.Abstract, new Fmt { Italic = true, Color = ctx.TextHex, FontSize = "22" });
+            target.Append(absP);
+        }
+
+        // Metadata grid/items (Author, Date, Version)
+        var metaItems = new List<(string Label, string Value)>();
+        if (!string.IsNullOrWhiteSpace(cover.Author)) metaItems.Add(("Author", cover.Author));
+        if (!string.IsNullOrWhiteSpace(cover.Date)) metaItems.Add(("Date", cover.Date));
+        if (!string.IsNullOrWhiteSpace(cover.Version)) metaItems.Add(("Version", cover.Version));
+
+        if (metaItems.Count > 0)
+        {
+            var metaTable = new W.Table();
+            var metaProps = new W.TableProperties(
+                new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+                new W.TableBorders(
+                    new W.TopBorder { Val = W.BorderValues.Single, Size = 6, Space = 0, Color = ctx.BorderHex },
+                    new W.LeftBorder { Val = W.BorderValues.None },
+                    new W.BottomBorder { Val = W.BorderValues.None },
+                    new W.RightBorder { Val = W.BorderValues.None },
+                    new W.InsideHorizontalBorder { Val = W.BorderValues.None },
+                    new W.InsideVerticalBorder { Val = W.BorderValues.None }));
+            metaTable.Append(metaProps);
+
+            int colWidth = 9000 / metaItems.Count;
+            var grid = new W.TableGrid();
+            for (int i = 0; i < metaItems.Count; i++)
+            {
+                grid.Append(new W.GridColumn { Width = colWidth.ToString() });
+            }
+            metaTable.Append(grid);
+
+            var row = new W.TableRow();
+            foreach (var (lbl, val) in metaItems)
+            {
+                var cell = new W.TableCell();
+                cell.Append(new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidth.ToString() }));
+                var pLabel = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { Before = "120", After = "40" }));
+                AddText(pLabel, lbl.ToUpperInvariant(), new Fmt { Bold = true, Color = "888888", FontSize = "18" });
+                var pVal = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
+                AddText(pVal, val, new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "22" });
+                cell.Append(pLabel);
+                cell.Append(pVal);
+                row.Append(cell);
+            }
+            metaTable.Append(row);
+            target.Append(metaTable);
+        }
+
+        // Section break to separate cover page section from main body section
+        var breakP = new W.Paragraph(new W.ParagraphProperties(
+            new W.SpacingBetweenLines { Before = "720", After = "0" },
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.NextPage },
+                new W.PageSize { Width = 12240u, Height = 15840u },
+                new W.PageMargin { Top = 1440, Bottom = 1440, Left = 1440, Right = 1440, Header = 720, Footer = 720 },
+                new W.TitlePage()
+            )));
+        target.Append(breakP);
+    }
+
+    /// <summary>
+    /// Renders a :::line-numbers block wrapping inner content with continuous section breaks and line numbering.
+    /// </summary>
+    private static void RenderLineNumbers(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        if (string.IsNullOrWhiteSpace(node.InnerContent))
+            return; // Handled document-wide via BuildSectionProperties
+
+        int countBy = 5;
+        if (node.Attributes.TryGetValue("count-by", out var cStr) ||
+            node.Attributes.TryGetValue("countBy", out cStr) ||
+            node.Attributes.TryGetValue("count", out cStr))
+        {
+            int.TryParse(cStr, out countBy);
+        }
+        if (countBy < 1) countBy = 1;
+
+        string restart = "continuous";
+        if (node.Attributes.TryGetValue("restart", out var rStr))
+            restart = rStr;
+
+        var restartVal = restart.Equals("per-page", StringComparison.OrdinalIgnoreCase) || restart.Equals("newpage", StringComparison.OrdinalIgnoreCase)
+            ? W.LineNumberRestartValues.NewPage
+            : W.LineNumberRestartValues.Continuous;
+
+        var openSect = new W.Paragraph(new W.ParagraphProperties(
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.Continuous },
+                new W.LineNumberType
+                {
+                    CountBy = (Int16Value)(short)countBy,
+                    Restart = restartVal,
+                    Distance = "360"
+                })));
+        target.Append(openSect);
+
+        var innerDoc = Markdig.Markdown.Parse(node.InnerContent, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+        foreach (var block in innerDoc)
+            RenderBlock(block, target, ctx, listLevel: -1);
+
+        var closeSect = new W.Paragraph(new W.ParagraphProperties(
+            new W.SectionProperties(
+                new W.SectionType { Val = W.SectionMarkValues.Continuous },
+                new W.LineNumberType { CountBy = 0 })));
+        target.Append(closeSect);
+    }
+
+    /// <summary>
+    /// Renders a :::parallel block as a synchronized multi-column table.
+    /// </summary>
+    private static void RenderParallel(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var rawFirstLine = DetectorHelpers.SplitLines(node.Block.RawText)[0];
+        var headers = new List<string>();
+        var headerMatch = Regex.Match(rawFirstLine, @"^:::parallel\s+(.*)$", RegexOptions.IgnoreCase);
+        if (headerMatch.Success)
+        {
+            var parts = headerMatch.Groups[1].Value.Split('|');
+            foreach (var p in parts)
+            {
+                var h = p.Trim().Trim('"', '\'');
+                if (!string.IsNullOrWhiteSpace(h)) headers.Add(h);
+            }
+        }
+
+        int colCount = Math.Max(2, headers.Count);
+        int colWidth = 9000 / colCount;
+
+        var table = new W.Table();
+        var tableProps = new W.TableProperties(
+            new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+            new W.TableBorders(
+                new W.TopBorder { Val = W.BorderValues.None },
+                new W.LeftBorder { Val = W.BorderValues.None },
+                new W.BottomBorder { Val = W.BorderValues.None },
+                new W.RightBorder { Val = W.BorderValues.None },
+                new W.InsideHorizontalBorder { Val = W.BorderValues.None },
+                new W.InsideVerticalBorder { Val = W.BorderValues.None }
+            )
+        );
+        table.Append(tableProps);
+
+        var tableGrid = new W.TableGrid();
+        for (int i = 0; i < colCount; i++)
+        {
+            tableGrid.Append(new W.GridColumn { Width = colWidth.ToString() });
+        }
+        table.Append(tableGrid);
+
+        if (headers.Count > 0)
+        {
+            var hRow = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
+            foreach (var h in headers)
+            {
+                var cell = new W.TableCell(new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidth.ToString() }));
+                var p = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
+                AddText(p, h, new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = "22" });
+                cell.Append(p);
+                hRow.Append(cell);
+            }
+            table.Append(hRow);
+        }
+
+        var rows = Regex.Split(node.InnerContent, @"(?:\r?\n|^)---(?:\r?\n|$)");
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row)) continue;
+            var cols = Regex.Split(row, @"(?:\r?\n|^)===(?:\r?\n|$)");
+            var tr = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
+            for (int i = 0; i < colCount; i++)
+            {
+                var colText = i < cols.Length ? cols[i].Trim() : "";
+                colText = DialectNormalizer.Apply(colText, ctx.Settings.DashMode);
+                var cell = new W.TableCell(new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidth.ToString() }));
+                var innerDoc = Markdig.Markdown.Parse(colText, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                if (innerDoc.Count > 0)
+                {
+                    foreach (var block in innerDoc)
+                    {
+                        RenderBlock(block, cell, ctx, listLevel: -1);
+                    }
+                }
+                if (cell.LastChild is not W.Paragraph)
+                {
+                    var p = new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "120" }));
+                    cell.Append(p);
+                }
+                tr.Append(cell);
+            }
+            table.Append(tr);
+        }
+
+        target.Append(table);
+    }
+
+    /// <summary>
+    /// Renders a :::dropcap block as a paragraph with an initial dropped capital letter frame.
+    /// </summary>
+    private static void RenderDropCap(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        int lines = 3;
+        if (node.Attributes.TryGetValue("lines", out var lStr) && int.TryParse(lStr, out int lVal) && lVal >= 1)
+            lines = lVal;
+        else if (node.Attributes.TryGetValue("count", out var cStr) && int.TryParse(cStr, out int cVal) && cVal >= 1)
+            lines = cVal;
+
+        var innerDoc = Markdig.Markdown.Parse(node.InnerContent, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+        if (innerDoc.Count == 0) return;
+
+        bool dropCapRendered = false;
+        foreach (var block in innerDoc)
+        {
+            if (!dropCapRendered && block is ParagraphBlock p && p.Inline != null)
+            {
+                if (TryExtractFirstLiteral(p.Inline, out var targetLit, out var firstChar))
+                {
+                    var dropPr = new W.ParagraphProperties(
+                        new W.FrameProperties
+                        {
+                            DropCap = W.DropCapLocationValues.Drop,
+                            Lines = lines,
+                            Wrap = W.TextWrappingValues.Around,
+                            VerticalPosition = W.VerticalAnchorValues.Text,
+                            HorizontalPosition = W.HorizontalAnchorValues.Text,
+                        },
+                        new W.SpacingBetweenLines { After = "0", Line = "240", LineRule = W.LineSpacingRuleValues.Auto });
+
+                    var dropRun = new W.Run();
+                    var dropRPr = BuildRunProperties(new Fmt { Bold = true, Color = ctx.HeadingHex, FontSize = (lines * 32).ToString() });
+                    if (dropRPr != null) dropRun.Append(dropRPr);
+                    dropRun.Append(new W.Text(firstChar));
+
+                    var dropPara = new W.Paragraph(dropPr, dropRun);
+                    target.Append(dropPara);
+
+                    var restPara = new W.Paragraph();
+                    RenderInlines(restPara, p.Inline, ctx, default);
+                    target.Append(restPara);
+                    dropCapRendered = true;
+                    continue;
+                }
+            }
+
+            RenderBlock(block, target, ctx, listLevel: -1);
+        }
+    }
+
+    private static bool TryExtractFirstLiteral(ContainerInline container, out LiteralInline? targetLiteral, out string firstChar)
+    {
+        targetLiteral = null;
+        firstChar = "";
+
+        foreach (var inline in container)
+        {
+            if (inline is LiteralInline lit)
+            {
+                var content = lit.Content.ToString();
+                if (content.Length > 0)
+                {
+                    targetLiteral = lit;
+                    firstChar = content[..1];
+                    lit.Content = new Markdig.Helpers.StringSlice(content[1..]);
+                    return true;
+                }
+            }
+            else if (inline is ContainerInline childContainer)
+            {
+                if (TryExtractFirstLiteral(childContainer, out targetLiteral, out firstChar))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Renders a :::index block as a back-of-document subject concordance index with INDEX field code.
+    /// </summary>
+    private static void RenderIndex(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        ctx.HasIndex = true;
+        int cols = 2;
+        if (node.Attributes.TryGetValue("columns", out var colStr) && int.TryParse(colStr, out int cVal) && cVal >= 1)
+            cols = cVal;
+        else if (node.Attributes.TryGetValue("count", out var cntStr) && int.TryParse(cntStr, out int cntVal) && cntVal >= 1)
+            cols = cntVal;
+
+        var titlePara = new W.Paragraph(new W.ParagraphProperties(
+            new W.ParagraphStyleId { Val = "Heading1" },
+            new W.SpacingBetweenLines { Before = "360", After = "180" }));
+        AddText(titlePara, "Index", new Fmt { Bold = true, FontSize = "36", Color = ctx.HeadingHex }, ctx);
+        target.Append(titlePara);
+
+        var indexPara = new W.Paragraph();
+        var indexFld = new W.SimpleField
+        {
+            Instruction = $"INDEX \\c \"{cols}\" \\z \"1033\""
+        };
+        indexPara.Append(indexFld);
+        target.Append(indexPara);
+    }
+
+    private static string GetInitials(string? author)
+    {
+        if (string.IsNullOrWhiteSpace(author)) return "MS";
+        var parts = author.Split(new[] { ' ', '.', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+        return string.Concat(parts.Take(3).Select(p => p[0])).ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Builds a WordprocessingML VML Watermark shape paragraph inside the running header.
+    /// </summary>
+    private static W.Paragraph BuildWatermarkParagraph(WatermarkInfo wm)
+    {
+        int angle = wm.Diagonal ? -45 : 0;
+        string color = string.IsNullOrWhiteSpace(wm.Color) ? "silver" : wm.Color.TrimStart('#');
+        string opacity = (wm.Opacity * 100).ToString("0", CultureInfo.InvariantCulture) + "%";
+        string text = string.IsNullOrWhiteSpace(wm.Text) ? "CONFIDENTIAL" : wm.Text;
+
+        var shape = new V.Shape
+        {
+            Id = "WatermarkShape",
+            Type = "#_x0000_t136",
+            Style = $"position:absolute;margin-left:0;margin-top:0;width:520pt;height:120pt;z-index:-251656704;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin;rotation:{angle}",
+            FillColor = color,
+            Stroked = false
+        };
+        shape.Append(new V.Fill { Opacity = opacity });
+        shape.Append(new V.TextPath
+        {
+            Style = "font-family:\"Calibri\";font-size:1pt;font-weight:bold",
+            String = text
+        });
+
+        var shapeType = new V.Shapetype
+        {
+            Id = "_x0000_t136",
+            CoordinateSize = "21600,21600",
+            OptionalString = "136",
+            Adjustment = "10800"
+        };
+        var formulas = new V.Formulas();
+        formulas.Append(new V.Formula { Equation = "val #0" });
+        formulas.Append(new V.Formula { Equation = "prod @0 4 1" });
+        formulas.Append(new V.Formula { Equation = "prod #0 1 2" });
+        formulas.Append(new V.Formula { Equation = "prod @2 1 2" });
+        formulas.Append(new V.Formula { Equation = "sum 1 0 @3" });
+        formulas.Append(new V.Formula { Equation = "sum 0 0 @3" });
+        formulas.Append(new V.Formula { Equation = "prod 21600 1 1" });
+        formulas.Append(new V.Formula { Equation = "sum 21600 0 @3" });
+        formulas.Append(new V.Formula { Equation = "val #0" });
+        shapeType.Append(formulas);
+        shapeType.Append(new V.TextPath { On = true, FitShape = true });
+        shapeType.Append(new Ovml.Lock { Extension = V.ExtensionHandlingBehaviorValues.Edit, ShapeType = true });
+
+        var pict = new W.Picture();
+        pict.Append(shapeType);
+        pict.Append(shape);
+
+        return new W.Paragraph(
+            new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = "Header" },
+                new W.SpacingBetweenLines { After = "0" }),
+            new W.Run(pict));
     }
 
     /// <summary>
@@ -2183,7 +2748,7 @@ public sealed class DocxExportService
     private static readonly Regex ScriptStyleStrip = new(@"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BrToSpace = new(@"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WhitespaceCollapse = new(@"\s+", RegexOptions.Compiled);
-    private static readonly Regex FeatureMarkerRe = new(@"^<!-- MARKSMITH_FEATURE:(?<id>[a-f0-9\-]+) -->$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex FeatureMarkerRe = new(@"<!--\s*MARKSMITH_FEATURE:(?<id>[a-f0-9\-]+)\s*-->", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex PageBreakDivRe = new(@"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex LabeledDivRe = new("^<div class=\"(code-title|tab-label)\">(.*?)</div>$", RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HrRe = new(@"<hr\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -2780,10 +3345,47 @@ public sealed class DocxExportService
             tblPr,
             new W.TableGrid(table.ColumnDefinitions.Select(_ => (OpenXmlElement)new W.GridColumn())));
 
-        var dataRowIndex = 0;
-        foreach (var rowObj in table)
+        var rowList = table.OfType<MdTableRow>().ToList();
+        int rowCount = rowList.Count;
+        int colCount = table.ColumnDefinitions.Count;
+        var cellTexts = new string[rowCount, colCount];
+        var numGrid = new double?[rowCount, colCount];
+
+        for (int r = 0; r < rowCount; r++)
         {
-            if (rowObj is not MdTableRow row) continue;
+            var rObj = rowList[r];
+            for (int c = 0; c < rObj.Count && c < colCount; c++)
+            {
+                if (rObj[c] is MdTableCell mdCell)
+                {
+                    var text = GetCellText(mdCell);
+                    cellTexts[r, c] = text;
+                    if (TableFormulaEvaluator.TryParseNumber(text, out double val))
+                    {
+                        numGrid[r, c] = val;
+                    }
+                }
+            }
+        }
+
+        // Evaluate formula cells
+        for (int r = 0; r < rowCount; r++)
+        {
+            for (int c = 0; c < colCount; c++)
+            {
+                var txt = cellTexts[r, c];
+                if (TableFormulaEvaluator.TryEvaluateCell(txt, r, c, numGrid, rowCount, colCount, out double res, out _, out _))
+                {
+                    numGrid[r, c] = res;
+                    ctx.HasFormulas = true;
+                }
+            }
+        }
+
+        var dataRowIndex = 0;
+        for (int rIdx = 0; rIdx < rowList.Count; rIdx++)
+        {
+            var row = rowList[rIdx];
             var wRow = new W.TableRow();
             var banded = false;
             if (row.IsHeader)
@@ -2812,8 +3414,24 @@ public sealed class DocxExportService
                     }));
 
                 if (row[c] is MdTableCell mdCell)
-                    foreach (var child in mdCell)
-                        RenderBlock(child, wCell, ctx, -1);
+                {
+                    var txt = cellTexts[rIdx, c];
+                    if (TableFormulaEvaluator.TryEvaluateCell(txt, rIdx, c, numGrid, rowCount, colCount, out _, out string formatted, out string instr))
+                    {
+                        ctx.HasFormulas = true;
+                        var p = new W.Paragraph();
+                        var fld = new W.SimpleField { Instruction = instr };
+                        var r = new W.Run(new W.Text(formatted) { Space = SpaceProcessingModeValues.Preserve });
+                        fld.Append(r);
+                        p.Append(fld);
+                        wCell.Append(p);
+                    }
+                    else
+                    {
+                        foreach (var child in mdCell)
+                            RenderBlock(child, wCell, ctx, -1);
+                    }
+                }
                 if (wCell.LastChild is not W.Paragraph)
                     wCell.Append(new W.Paragraph());
 
@@ -2822,8 +3440,8 @@ public sealed class DocxExportService
                 {
                     foreach (var p in wCell.Descendants<W.Paragraph>())
                     {
-                        p.ParagraphProperties ??= new W.ParagraphProperties();
-                        p.ParagraphProperties.Justification = new W.Justification
+                        var pp = p.ParagraphProperties ?? p.PrependChild(new W.ParagraphProperties());
+                        pp.Justification = new W.Justification
                         {
                             Val = align == TableColumnAlign.Center
                                 ? W.JustificationValues.Center
@@ -2836,9 +3454,36 @@ public sealed class DocxExportService
                 foreach (var run in wCell.Descendants<W.Run>())
                 {
                     run.RunProperties ??= new W.RunProperties();
-                    if (row.IsHeader) run.RunProperties.Bold ??= new W.Bold();
+                    if (row.IsHeader && run.RunProperties.Bold == null)
+                    {
+                        var bold = new W.Bold();
+                        if (run.RunProperties.GetFirstChild<W.RunFonts>() is { } rf)
+                            run.RunProperties.InsertAfter(bold, rf);
+                        else
+                            run.RunProperties.PrependChild(bold);
+                    }
                     var curColor = run.RunProperties.Color?.Val?.Value ?? ctx.Theme.Text.TrimStart('#');
-                    run.RunProperties.Color = new W.Color { Val = ContrastGuard.EnsureLegibleText(curColor, cellBg) };
+                    var newColorHex = ContrastGuard.EnsureLegibleText(curColor, cellBg);
+                    if (run.RunProperties.Color != null)
+                    {
+                        run.RunProperties.Color.Val = newColorHex;
+                    }
+                    else
+                    {
+                        var newColor = new W.Color { Val = newColorHex };
+                        var afterAnchor = run.RunProperties.Elements<W.SpacingBetweenLines>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.FontSize>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.FontSizeComplexScript>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.Highlight>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.Underline>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.Border>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.Elements<W.Shading>().FirstOrDefault() as OpenXmlElement
+                            ?? run.RunProperties.GetFirstChild<DocumentFormat.OpenXml.AlternateContent>();
+                        if (afterAnchor != null)
+                            run.RunProperties.InsertBefore(newColor, afterAnchor);
+                        else
+                            run.RunProperties.Append(newColor);
+                    }
                 }
 
                 wRow.Append(wCell);
@@ -2899,8 +3544,51 @@ public sealed class DocxExportService
                     break;
 
                 case LiteralInline literal:
-                    AddText(target, literal.Content.ToString(), current, ctx);
+                {
+                    var raw = literal.Content.ToString();
+                    if (raw.Contains("[ ]") || raw.Contains("[x]") || raw.Contains("[X]"))
+                    {
+                        var parts = Regex.Split(raw, @"((?:-\s*)?\[[ xX]\])");
+                        foreach (var part in parts)
+                        {
+                            if (part is "- [ ]" or "[ ]")
+                            {
+                                target.Append(new W.SdtRun(
+                                    new W.SdtProperties(
+                                        new W14.SdtContentCheckBox(
+                                            new W14.Checked { Val = W14.OnOffValues.Zero },
+                                            new W14.CheckedState { Val = "2612", Font = "Segoe UI Symbol" },
+                                            new W14.UncheckedState { Val = "2610", Font = "Segoe UI Symbol" })),
+                                    new W.SdtContentRun(
+                                        new W.Run(
+                                            new W.RunProperties(new W.RunFonts { Ascii = "Segoe UI Symbol", HighAnsi = "Segoe UI Symbol", EastAsia = "Segoe UI Symbol", ComplexScript = "Segoe UI Symbol" }),
+                                            new W.Text("\u2610")))));
+                            }
+                            else if (part is "- [x]" or "[x]" or "- [X]" or "[X]")
+                            {
+                                target.Append(new W.SdtRun(
+                                    new W.SdtProperties(
+                                        new W14.SdtContentCheckBox(
+                                            new W14.Checked { Val = W14.OnOffValues.One },
+                                            new W14.CheckedState { Val = "2612", Font = "Segoe UI Symbol" },
+                                            new W14.UncheckedState { Val = "2610", Font = "Segoe UI Symbol" })),
+                                    new W.SdtContentRun(
+                                        new W.Run(
+                                            new W.RunProperties(new W.RunFonts { Ascii = "Segoe UI Symbol", HighAnsi = "Segoe UI Symbol", EastAsia = "Segoe UI Symbol", ComplexScript = "Segoe UI Symbol" }),
+                                            new W.Text("\u2612")))));
+                            }
+                            else if (!string.IsNullOrEmpty(part))
+                            {
+                                AddText(target, part, current, ctx);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        AddText(target, raw, current, ctx);
+                    }
                     break;
+                }
 
                 case EmphasisInline em:
                     RenderInlines(target, em, ctx, ApplyEmphasis(current, em));
@@ -3209,6 +3897,20 @@ public sealed class DocxExportService
         }
         if (name is "wbr" or "hr") return;
 
+        if (t.Contains("MARKSMITH_FEATURE:", StringComparison.OrdinalIgnoreCase))
+        {
+            var match = FeatureMarkerRe.Match(t);
+            if (match.Success)
+            {
+                var id = match.Groups["id"].Value;
+                if (ctx.AdvancedFeatures.TryGetValue(id, out var featureNode))
+                {
+                    RenderAdvancedFeature(featureNode, target, ctx);
+                    return;
+                }
+            }
+        }
+
         if (closing)
         {
             if (stack.Count > 0)
@@ -3218,6 +3920,139 @@ public sealed class DocxExportService
             }
             return;
         }
+
+        // Form SDTs: <select class="ms-form-dropdown">, <input type="date">, <input type="text">, <input type="checkbox">
+        if (name is "select")
+        {
+            var optStr = ExtractAttribute(t, "data-options") ?? "";
+            var options = optStr.Split('|').Select(o => o.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToList();
+            if (options.Count == 0)
+            {
+                var matches = Regex.Matches(t, @"value=""([^""]*)""");
+                foreach (Match om in matches) options.Add(om.Groups[1].Value);
+            }
+            if (options.Count == 0) options.Add("Option");
+
+            var sdt = new W.SdtRun();
+            var sdtPr = new W.SdtProperties();
+            var dropList = new W.SdtContentDropDownList();
+            foreach (var opt in options)
+            {
+                dropList.Append(new W.ListItem { DisplayText = opt, Value = opt });
+            }
+            sdtPr.Append(dropList);
+            sdt.Append(sdtPr);
+            sdt.Append(new W.SdtContentRun(new W.Run(new W.Text(options[0]) { Space = SpaceProcessingModeValues.Preserve })));
+            target.Append(sdt);
+            if (!selfClosing) { stack.Push(current); current = current with { Hidden = true }; }
+            return;
+        }
+
+        if (name is "option")
+        {
+            return;
+        }
+
+        if (name is "input")
+        {
+            var type = ExtractAttribute(t, "type")?.ToLowerInvariant();
+            if (type == "date" || t.Contains("ms-form-date", StringComparison.OrdinalIgnoreCase))
+            {
+                var dateVal = ExtractAttribute(t, "value") ?? "";
+                var sdt = new W.SdtRun();
+                var sdtPr = new W.SdtProperties();
+                var dateEl = new W.SdtContentDate();
+                if (!string.IsNullOrEmpty(dateVal) && DateTime.TryParse(dateVal, out var dtVal))
+                    dateEl.FullDate = dtVal;
+                dateEl.Append(new W.DateFormat { Val = "yyyy-MM-dd" });
+                dateEl.Append(new W.LanguageId { Val = "en-US" });
+                sdtPr.Append(dateEl);
+                sdt.Append(sdtPr);
+                sdt.Append(new W.SdtContentRun(new W.Run(new W.Text(!string.IsNullOrEmpty(dateVal) ? dateVal : "2026-01-01") { Space = SpaceProcessingModeValues.Preserve })));
+                target.Append(sdt);
+                return;
+            }
+            else if (type == "text" || t.Contains("ms-form-text", StringComparison.OrdinalIgnoreCase))
+            {
+                var phVal = ExtractAttribute(t, "placeholder") ?? ExtractAttribute(t, "value") ?? "Text";
+                var sdt = new W.SdtRun();
+                var sdtPr = new W.SdtProperties();
+                sdtPr.Append(new W.SdtContentText());
+                sdt.Append(sdtPr);
+                sdt.Append(new W.SdtContentRun(new W.Run(new W.Text(phVal) { Space = SpaceProcessingModeValues.Preserve })));
+                target.Append(sdt);
+                return;
+            }
+            else if (type == "checkbox")
+            {
+                bool isChecked = t.Contains("checked", StringComparison.OrdinalIgnoreCase);
+                target.Append(new W.SdtRun(
+                    new W.SdtProperties(
+                        new W14.SdtContentCheckBox(
+                            new W14.Checked { Val = isChecked ? W14.OnOffValues.One : W14.OnOffValues.Zero },
+                            new W14.CheckedState { Val = "2612", Font = "Segoe UI Symbol" },
+                            new W14.UncheckedState { Val = "2610", Font = "Segoe UI Symbol" })),
+                    new W.SdtContentRun(
+                        new W.Run(
+                            new W.RunProperties(new W.RunFonts { Ascii = "Segoe UI Symbol", HighAnsi = "Segoe UI Symbol", EastAsia = "Segoe UI Symbol", ComplexScript = "Segoe UI Symbol" }),
+                            new W.Text(isChecked ? "\u2612" : "\u2610")))));
+                return;
+            }
+        }
+
+        // Reviewer comments: anchored via word/comments.xml with <w:commentRangeStart>, <w:commentRangeEnd>, and <w:commentReference>
+        if (name is "span" && t.Contains("ms-comment-anchor", StringComparison.OrdinalIgnoreCase))
+        {
+            var author = ExtractAttribute(t, "data-author") ?? ExtractAttribute(t, "author") ?? "Reviewer";
+            var dateStr = ExtractAttribute(t, "data-date") ?? ExtractAttribute(t, "date");
+            var commentBody = ExtractAttribute(t, "data-comment") ?? ExtractAttribute(t, "comment") ?? "";
+            ctx.HasRevisions = true;
+
+            var commentsPart = ctx.MainPart.WordprocessingCommentsPart ?? ctx.MainPart.AddNewPart<WordprocessingCommentsPart>();
+            commentsPart.Comments ??= new W.Comments();
+
+            var commentId = (ctx.NextCommentId++).ToString();
+            DateTime? commentDate = null;
+            if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var cd)) commentDate = cd;
+
+            var comment = new W.Comment
+            {
+                Id = commentId,
+                Author = author,
+                Initials = GetInitials(author),
+                Date = commentDate ?? DateTime.UtcNow
+            };
+            comment.Append(new W.Paragraph(new W.Run(new W.Text(commentBody) { Space = SpaceProcessingModeValues.Preserve })));
+            commentsPart.Comments.Append(comment);
+
+            target.Append(new W.CommentRangeStart { Id = commentId });
+            target.Append(new W.CommentRangeEnd { Id = commentId });
+            target.Append(new W.Run(new W.CommentReference { Id = commentId }));
+
+            if (!selfClosing) { stack.Push(current); current = current with { Hidden = true }; }
+            return;
+        }
+
+        // Concordance / Subject Index inline entry anchors: emit <w:fldSimple w:instr="XE ..."/>
+        if (name is "span" && t.Contains("ms-index-anchor", StringComparison.OrdinalIgnoreCase))
+        {
+            var term = ExtractAttribute(t, "data-index") ?? ExtractAttribute(t, "index") ?? "";
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                ctx.HasIndex = true;
+                target.Append(new W.SimpleField { Instruction = $"XE \"{term}\"" });
+            }
+            if (!selfClosing) { stack.Push(current); current = current with { Hidden = true }; }
+            return;
+        }
+
+        if (name is "sup" && t.Contains("ms-comment-badge", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!selfClosing) { stack.Push(current); current = current with { Hidden = true }; }
+            return;
+        }
+
+        if (name is "ins" || name is "del") ctx.HasRevisions = true;
 
         var htmlColor = ExtractHtmlColor(t);
         var uStyle = ExtractUnderlineStyle(t, name);
@@ -3381,13 +4216,27 @@ public sealed class DocxExportService
         }
     }
 
+    private static string GetCellText(MdTableCell cell)
+    {
+        var sb = new StringBuilder();
+        foreach (var b in cell)
+        {
+            if (b is ParagraphBlock pb && pb.Inline != null)
+            {
+                sb.Append(GetPlainText(pb.Inline));
+            }
+        }
+        return sb.ToString().Trim();
+    }
+
     private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
 
     private static int _globalRevisionId = 0;
 
     private static void AddText(OpenXmlCompositeElement target, string text, Fmt fmt, Ctx? ctx = null)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrEmpty(text) || fmt.Hidden) return;
+        if (fmt.Revision != RevisionKind.None && ctx != null) ctx.HasRevisions = true;
         var parts = EmojiRegex.Split(text);
         foreach (var part in parts)
         {
@@ -3479,7 +4328,10 @@ public sealed class DocxExportService
             rPr.Append(new W.Color { Val = fmt.Color });
         }
 
-        if (fmt.Code) rPr.Append(new W.FontSize { Val = "20" }); // 10pt for code
+        if (fmt.FontSize is not null)
+            rPr.Append(new W.FontSize { Val = fmt.FontSize });
+        else if (fmt.Code)
+            rPr.Append(new W.FontSize { Val = "20" }); // 10pt for code
 
         if (hlColor is not null)
         {
@@ -3665,7 +4517,7 @@ public sealed class DocxExportService
         part.Styles = styles;
     }
 
-    private static void AddSettings(MainDocumentPart main, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
+    private static void AddSettings(MainDocumentPart main, Ctx ctx, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
     {
         var part = main.AddNewPart<DocumentSettingsPart>();
         var settings = new W.Settings();
@@ -3684,6 +4536,23 @@ public sealed class DocxExportService
         settings.Append(new W.AutoHyphenation());
         if (updateFieldsOnOpen)
             settings.Append(new W.UpdateFieldsOnOpen { Val = true }); // TOC rebuilds itself on open
+
+        if (ctx.CoverPage is { } cp)
+        {
+            var docVars = new W.DocumentVariables();
+            if (!string.IsNullOrWhiteSpace(cp.Title))
+                docVars.Append(new W.DocumentVariable { Name = "Title", Val = cp.Title });
+            if (!string.IsNullOrWhiteSpace(cp.Author))
+                docVars.Append(new W.DocumentVariable { Name = "Author", Val = cp.Author });
+            if (!string.IsNullOrWhiteSpace(cp.Organization))
+                docVars.Append(new W.DocumentVariable { Name = "Company", Val = cp.Organization });
+            if (!string.IsNullOrWhiteSpace(cp.Date))
+                docVars.Append(new W.DocumentVariable { Name = "Date", Val = cp.Date });
+            if (!string.IsNullOrWhiteSpace(cp.Version))
+                docVars.Append(new W.DocumentVariable { Name = "Version", Val = cp.Version });
+            settings.Append(docVars);
+        }
+
         part.Settings = settings;
     }
 
@@ -3698,6 +4567,10 @@ public sealed class DocxExportService
         {
             var headerPart = main.AddNewPart<HeaderPart>();
             headerPart.Header = new W.Header(hdrXml);
+            if (ctx.Watermark is { } wm)
+            {
+                headerPart.Header.Append(BuildWatermarkParagraph(wm));
+            }
             CopyHeaderFooterImages(headerPart, settings.BrandTemplatePath, footer: false);
             headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
         }
@@ -3719,6 +4592,11 @@ public sealed class DocxExportService
                         new W.Spacing { Val = 30 },
                         new W.FontSize { Val = "18" }),
                     new W.Text(title) { Space = SpaceProcessingModeValues.Preserve })));
+
+            if (ctx.Watermark is { } wm)
+            {
+                headerPart.Header.Append(BuildWatermarkParagraph(wm));
+            }
             headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
         }
 
@@ -3813,7 +4691,25 @@ public sealed class DocxExportService
             });
         }
 
-        // Document-level columns inherited from the house-style template (w:cols, after pgBorders).
+        if (ctx.LineNumbers is { } ln)
+        {
+            sp.Append(new W.LineNumberType
+            {
+                CountBy = (Int16Value)(short)ln.CountBy,
+                Restart = ln.Restart == "per-page" || ln.Restart == "newpage"
+                    ? W.LineNumberRestartValues.NewPage
+                    : W.LineNumberRestartValues.Continuous,
+                Distance = ln.Distance.ToString(),
+                Start = (Int16Value)(short)ln.Start
+            });
+        }
+
+        if (ctx.CoverPage is not null)
+        {
+            sp.Append(new W.PageNumberType { Start = 1 });
+        }
+
+        // Document-level columns inherited from the house-style template (w:cols, after pgBorders/pgNumType).
         if (layout is { HasColumns: true })
         {
             sp.Append(new W.Columns
@@ -3823,6 +4719,12 @@ public sealed class DocxExportService
                 EqualWidth = true,
             });
         }
+
+        if (ctx.CoverPage is not null)
+        {
+            sp.Append(new W.TitlePage());
+        }
+
         return sp;
     }
 

@@ -40,6 +40,11 @@ namespace MarkSmith.Core.AdvancedFeatures
         {
             _detectorsInPrecedence = new IFeatureDetector[]
             {
+                new CoverPageDetector(),
+                new WatermarkDetector(),
+                new LineNumbersDetector(),
+                new DropCapDetector(),
+                new IndexDetector(),
                 new AiContextDetector(),
                 new DatagridDetector(),
                 new ChartDetector(),
@@ -52,6 +57,7 @@ namespace MarkSmith.Core.AdvancedFeatures
                 new TabsDetector(),
                 new EmbedDetector(),
                 new CanvasDetector(),
+                new ParallelDetector(),
                 new ColumnsDetector(),
                 new ReferencesDetector()
             };
@@ -133,11 +139,43 @@ namespace MarkSmith.Core.AdvancedFeatures
             var lines = DetectorHelpers.SplitLines(rawBlock);
             var attrs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            // Parse attributes from the first line: :::feature key=value key="quoted value"
+            // Parse attributes from the first line: :::feature key=value key="quoted value" --flag val
             if (lines.Length > 0)
             {
                 var firstLine = lines[0];
-                var attrMatches = Regex.Matches(firstLine, @"(\w+)=(?:""([^""]*)""|(\S+))");
+
+                // Check for positional quoted string e.g. :::watermark "CONFIDENTIAL"
+                var quotedPosMatch = Regex.Match(firstLine, @"^:::[a-zA-Z0-9_-]+\s+""([^""]+)""");
+                if (quotedPosMatch.Success)
+                {
+                    attrs["text"] = quotedPosMatch.Groups[1].Value;
+                    attrs["title"] = quotedPosMatch.Groups[1].Value;
+                }
+
+                // Check for positional number e.g. :::dropcap 4 or :::index 3
+                var dropCapPosMatch = Regex.Match(firstLine, @"^:::dropcap\s+(\d+)", RegexOptions.IgnoreCase);
+                if (dropCapPosMatch.Success)
+                {
+                    attrs["lines"] = dropCapPosMatch.Groups[1].Value;
+                }
+                var indexPosMatch = Regex.Match(firstLine, @"^:::index\s+(\d+)", RegexOptions.IgnoreCase);
+                if (indexPosMatch.Success)
+                {
+                    attrs["columns"] = indexPosMatch.Groups[1].Value;
+                    attrs["count"] = indexPosMatch.Groups[1].Value;
+                }
+
+                // CLI style flags: --key "val" or --key val or --flag (boolean true)
+                var flagMatches = Regex.Matches(firstLine, @"--([a-zA-Z0-9_-]+)(?:\s+(?:""([^""]*)""|([^\s-]+)))?");
+                foreach (Match m in flagMatches)
+                {
+                    var key = m.Groups[1].Value;
+                    var val = m.Groups[2].Success ? m.Groups[2].Value : (m.Groups[3].Success ? m.Groups[3].Value : "true");
+                    attrs[key] = val;
+                }
+
+                // Standard key=value or key="value"
+                var attrMatches = Regex.Matches(firstLine, @"([a-zA-Z0-9_-]+)=(?:""([^""]*)""|(\S+))");
                 foreach (Match m in attrMatches)
                 {
                     var key = m.Groups[1].Value;
@@ -147,15 +185,7 @@ namespace MarkSmith.Core.AdvancedFeatures
             }
 
             // Inner content: everything between the first line and the closing :::
-            var innerLines = new List<string>();
-            for (int i = 1; i < lines.Length; i++)
-            {
-                var trimmed = lines[i].TrimEnd('\r');
-                if (trimmed == ":::" && i == lines.Length - 1)
-                    break; // Skip the closing marker
-                innerLines.Add(trimmed);
-            }
-
+            var innerLines = DetectorHelpers.GetInnerLines(rawBlock);
             return (string.Join('\n', innerLines), attrs);
         }
 
@@ -212,6 +242,61 @@ namespace MarkSmith.Core.AdvancedFeatures
                     // Look for an opening ::: container marker (e.g., :::tabs, :::columns count=3)
                     if (Regex.IsMatch(trimmed, @"^:::(?!tab\b)[a-zA-Z]", RegexOptions.IgnoreCase))
                     {
+                        // Check if this is a standalone single-line directive without a matching closing :::
+                        if (Regex.IsMatch(trimmed, @"^:::(watermark|line-numbers|index)\b", RegexOptions.IgnoreCase))
+                        {
+                            bool hasClosing = false;
+                            for (int j = i + 1; j < lines.Length; j++)
+                            {
+                                var nextTrim = lines[j].TrimEnd('\r').TrimStart();
+                                if (nextTrim == ":::") { hasClosing = true; break; }
+                                if (Regex.IsMatch(nextTrim, @"^:::(?!tab\b)[a-zA-Z]", RegexOptions.IgnoreCase) || nextTrim.StartsWith("#") || string.IsNullOrWhiteSpace(nextTrim)) break;
+                            }
+                            if (!hasClosing)
+                            {
+                                var endIndex = charIndex + lines[i].Length;
+                                blocks.Add(new MarkdownBlock
+                                {
+                                    RawText = line,
+                                    Start = charIndex,
+                                    End = endIndex
+                                });
+                                charIndex += lines[i].Length + 1;
+                                continue;
+                            }
+                        }
+
+                        if (Regex.IsMatch(trimmed, @"^:::dropcap\b", RegexOptions.IgnoreCase))
+                        {
+                            bool hasClosing = false;
+                            int endLineIdx = i;
+                            for (int j = i + 1; j < lines.Length; j++)
+                            {
+                                var nextTrim = lines[j].TrimEnd('\r').TrimStart();
+                                if (nextTrim == ":::") { hasClosing = true; break; }
+                                if (string.IsNullOrWhiteSpace(nextTrim) || nextTrim.StartsWith("#") || Regex.IsMatch(nextTrim, @"^:::(?!tab\b)[a-zA-Z]", RegexOptions.IgnoreCase))
+                                {
+                                    endLineIdx = j - 1;
+                                    break;
+                                }
+                            }
+                            if (!hasClosing && endLineIdx > i)
+                            {
+                                var rawText = string.Join('\n', lines.Skip(i).Take(endLineIdx - i + 1).Select(l => l.TrimEnd('\r')));
+                                int len = lines.Skip(i).Take(endLineIdx - i + 1).Sum(l => l.Length + 1) - 1;
+                                blocks.Add(new MarkdownBlock
+                                {
+                                    RawText = rawText,
+                                    Start = charIndex,
+                                    End = charIndex + len
+                                });
+                                int advance = lines.Skip(i).Take(endLineIdx - i + 1).Sum(l => l.Length + 1);
+                                charIndex += advance;
+                                i = endLineIdx;
+                                continue;
+                            }
+                        }
+
                         blockStartIndex = charIndex;
                         blockStartLine = i;
                         blockOpenLine = line;

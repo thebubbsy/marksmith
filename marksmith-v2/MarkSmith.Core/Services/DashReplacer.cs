@@ -20,10 +20,10 @@ public static partial class DashReplacer
     [GeneratedRegex(@"(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`)|[ \t]*—[ \t]*", RegexOptions.Compiled)]
     private static partial Regex EmDashOutsideCode();
 
-    // Group 1 = protected spans (HTML comments, HTML tags/attributes, autolinks, inline code,
+    // Group 1 = protected spans (HTML comments, HTML tags/attributes, CriticMarkup deletions, CLI flags, autolinks, inline code,
     // LaTeX math, Markdown link URLs, bare URLs, table delimiters);
     // otherwise a double-hyphen (?<!-)--(?!-) is matched for replacement with native em-dash (—).
-    [GeneratedRegex(@"(<!--[\s\S]*?-->|</?[a-zA-Z!?:][^>]*>|`+[^`\n]*?`+|\$\$[\s\S]*?\$\$|\$(?!\s)[^\$\n]*?\S\$|\]\([^)]*\)|https?://[^\s<>""'\(\)]+|(?m)^\s*\|?[\s|:-]+\|?\s*$)|(?<!-)--(?!-)", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(<!--[\s\S]*?-->|</?[a-zA-Z!?:][^>]*>|\{--[\s\S]*?--\}|(?<!\w)--[a-zA-Z0-9_-]+|`+[^`\n]*?`+|\$\$[\s\S]*?\$\$|\$(?!\s)[^\$\n]*?\S\$|\]\([^)]*\)|https?://[^\s<>""'\(\)]+|(?m)^\s*\|?[\s|:-]+\|?\s*$)|(?<!-)--(?!-)", RegexOptions.Compiled)]
     private static partial Regex DoubleHyphenRegex();
 
     public static string NormalizeDoubleHyphens(string markdown)

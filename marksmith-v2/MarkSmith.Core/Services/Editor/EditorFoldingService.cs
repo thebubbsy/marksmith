@@ -210,7 +210,8 @@ public static class EditorFoldingService
             }
         }
 
-        return string.Join("\n", result);
+        string nl = markdownText.Contains("\r\n") ? "\r\n" : "\n";
+        return string.Join(nl, result);
     }
 
     /// <summary>
@@ -247,7 +248,8 @@ public static class EditorFoldingService
             }
         }
 
-        return string.Join("\n", result);
+        string nl = markdownText.Contains("\r\n") ? "\r\n" : "\n";
+        return string.Join(nl, result);
     }
 
     /// <summary>

@@ -682,6 +682,64 @@ public static class InsertSnippetBuilder
                ":::\n";
     }
 
+    /// <summary>:::watermark snippet.</summary>
+    public static string Watermark(string text = "CONFIDENTIAL", double opacity = 0.15, bool diagonal = true) =>
+        $"\n:::watermark \"{Or(text, "CONFIDENTIAL")}\" opacity={opacity:0.00}{(diagonal ? "" : " diagonal=false")}\n";
+
+    /// <summary>:::line-numbers snippet.</summary>
+    public static string LineNumbers(int countBy = 5, string restart = "per-page") =>
+        $"\n:::line-numbers count-by={Math.Max(1, countBy)} restart=\"{Or(restart, "per-page")}\"\n";
+
+    /// <summary>:::cover-page executive gallery snippet.</summary>
+    public static string CoverPage(string title = "Document Title", string subtitle = "Executive Brief", string author = "Author Name", string date = "2026-08-23", string version = "v1.0") =>
+        $"\n:::cover-page\n" +
+        $"title: \"{Or(title, "Document Title")}\"\n" +
+        $"subtitle: \"{Or(subtitle, "Executive Brief")}\"\n" +
+        $"author: \"{Or(author, "Author Name")}\"\n" +
+        $"date: \"{Or(date, "2026-08-23")}\"\n" +
+        $"version: \"{Or(version, "v1.0")}\"\n" +
+        $":::\n";
+
+    /// <summary>:::dropcap editorial paragraph snippet.</summary>
+    public static string DropCap(string text = "Paragraph beginning with a styled dropped capital letter.", int lines = 3) =>
+        $"\n:::dropcap lines={Math.Max(1, lines)}\n{Or(text, "Paragraph text...")}\n:::\n";
+
+    /// <summary>:::index back-of-document concordance index snippet.</summary>
+    public static string ConcordanceIndex(int columns = 2) =>
+        $"\n:::index count={Math.Max(1, columns)}\n:::\n";
+
+    /// <summary>Inline index anchor ^[index: "Category:Topic"].</summary>
+    public static string IndexAnchor(string category, string topic) =>
+        $"^[index: \"{Or(category, "General")}:{Or(topic, "Topic")}\"]";
+
+    /// <summary>:::parallel bilingual synchronized columns snippet.</summary>
+    public static string ParallelColumns(string leftHeader = "English", string rightHeader = "Français", string leftContent = "Left column content", string rightContent = "Right column content") =>
+        $"\n:::parallel \"{Or(leftHeader, "English")}\" | \"{Or(rightHeader, "Français")}\"\n" +
+        $"{Or(leftContent, "Left text")}\n" +
+        $"===\n" +
+        $"{Or(rightContent, "Right text")}\n" +
+        $":::\n";
+
+    /// <summary>Fillable form dropdown [dropdown: Opt1 | Opt2 | Opt3].</summary>
+    public static string FormDropdown(IEnumerable<string>? options = null)
+    {
+        var list = Clean(options).ToList();
+        if (list.Count == 0) { list.Add("Option 1"); list.Add("Option 2"); list.Add("Option 3"); }
+        return $"[dropdown: {string.Join(" | ", list)}]";
+    }
+
+    /// <summary>Fillable form date [date: YYYY-MM-DD].</summary>
+    public static string FormDate(string? defaultDate = null) =>
+        string.IsNullOrWhiteSpace(defaultDate) ? "[date]" : $"[date: {defaultDate.Trim()}]";
+
+    /// <summary>Fillable form text [text: "Placeholder"].</summary>
+    public static string FormText(string placeholder = "Enter text...") =>
+        $"[text: \"{Or(placeholder, "Enter text...")}\"]";
+
+    /// <summary>Table calculation formula cell snippet.</summary>
+    public static string TableFormula(string formula = "=SUM(ABOVE)", string? format = null) =>
+        string.IsNullOrWhiteSpace(format) ? formula.Trim() : $"{formula.Trim()} \\# \"{format.Trim()}\"";
+
     // ---- helpers -------------------------------------------------------------------------------
 
     private static string BulletedBlock(string fence, IEnumerable<string> lines, string fallback)

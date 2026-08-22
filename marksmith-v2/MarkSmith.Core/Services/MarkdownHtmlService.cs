@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using MarkSmith.Core.AST;
@@ -41,6 +42,24 @@ public sealed partial class MarkdownHtmlService
     // Handles optional type, quotes or unquoted, and flexible line breaks; fenced-code spans excluded.
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::smartart(?:\s+type=[""']?([^""'\s>]+)[""']?)?\s*\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex SmartArtBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::watermark(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
+    private static partial Regex WatermarkBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::line-numbers(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
+    private static partial Regex LineNumbersBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::cover-page(?:\s+[^\r\n]*)?(?:\r?\n[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
+    private static partial Regex CoverPageBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::dropcap(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    private static partial Regex DropCapBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::index(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
+    private static partial Regex IndexBlockRe();
+
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::parallel(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    private static partial Regex ParallelBlockRe();
 
     // Fenced code spans (```…``` or ~~~…~~~, same opener/closer) — smartart markers inside these
     // must never be lifted out, even when a blank line sits inside the fence.
@@ -141,6 +160,8 @@ public sealed partial class MarkdownHtmlService
         }
 
         markdown = NormalizeForRender(markdown, settings);
+        var isDarkEarly = !settings.ThemeLightInfluence &&
+                          (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
         var (cleanShapesMd, shapesBlocks) = MarkSmith.Core.Composer.ShapeMarkdownHtml.LiftShapes(markdown);
         markdown = cleanShapesMd;
 
@@ -166,6 +187,19 @@ public sealed partial class MarkdownHtmlService
         // compiled dispatch pass (see MarkdownHtmlService.EngineeringDiagrams.cs) instead of 49
         // separate interpreted full-document regex scans per preview render.
         markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
+
+        // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
+        markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
+        markdown = LiftCoverPages(markdown, smartArtFences, out var coverPageBlocks);
+        markdown = TransformLineNumbers(markdown, smartArtFences);
+
+        // Milestone 2 (R4, R6): Drop Caps & Concordance Index
+        markdown = TransformDropCaps(markdown, smartArtFences);
+        markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
+
+        // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+        markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
+        markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
 
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
@@ -315,6 +349,10 @@ public sealed partial class MarkdownHtmlService
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
+        body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
+        body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
+        body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
+        body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -1747,6 +1785,342 @@ public sealed partial class MarkdownHtmlService
                and accented so a long document's place is always visible in the mini-TOC. */
             #toc a.active { color: {{theme.Heading}}; font-weight: 700; }
             sup.cite { font-size: 0.72em; color: {{theme.Heading}}; }
+
+            /* --- R2: Vector Watermarks --- */
+            .mk-watermark-overlay {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                overflow: hidden;
+                z-index: 5;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .mk-watermark-text {
+                font-size: 76px;
+                font-weight: 900;
+                color: var(--wm-color, {{theme.Text}});
+                opacity: var(--wm-opacity, 0.15);
+                transform: rotate(var(--wm-angle, -45deg));
+                text-transform: uppercase;
+                letter-spacing: 0.18em;
+                user-select: none;
+                white-space: nowrap;
+                text-align: center;
+                font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            }
+            @media print {
+                .mk-watermark-overlay {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 9999;
+                }
+            }
+
+            /* --- R3: Legal Line Numbering --- */
+            .line-numbered-section {
+                counter-reset: legal-line 0;
+                position: relative;
+                padding-left: 52px;
+                margin: 16px 0;
+            }
+            .line-numbered-section > p,
+            .line-numbered-section > h1,
+            .line-numbered-section > h2,
+            .line-numbered-section > h3,
+            .line-numbered-section > h4,
+            .line-numbered-section > h5,
+            .line-numbered-section > h6,
+            .line-numbered-section > blockquote,
+            .line-numbered-section > ul > li,
+            .line-numbered-section > ol > li,
+            .line-numbered-section > table tr {
+                position: relative;
+                counter-increment: legal-line;
+            }
+            .line-numbered-section > p::before,
+            .line-numbered-section > h1::before,
+            .line-numbered-section > h2::before,
+            .line-numbered-section > h3::before,
+            .line-numbered-section > h4::before,
+            .line-numbered-section > h5::before,
+            .line-numbered-section > h6::before,
+            .line-numbered-section > blockquote::before,
+            .line-numbered-section > ul > li::before,
+            .line-numbered-section > ol > li::before,
+            .line-numbered-section > table tr::before {
+                content: counter(legal-line);
+                position: absolute;
+                left: -48px;
+                width: 36px;
+                text-align: right;
+                font-size: 11px;
+                font-family: Consolas, "Courier New", monospace;
+                color: {{theme.Text}};
+                opacity: 0.45;
+                user-select: none;
+            }
+
+            /* --- R4: Editorial Drop Caps --- */
+            .dropcap > p:first-of-type::first-letter,
+            .dropcap::first-letter {
+                float: left;
+                font-size: calc(var(--dropcap-lines, 3) * 1.18em);
+                line-height: 0.82;
+                padding: 4px 8px 2px 0;
+                margin-right: 4px;
+                font-weight: 700;
+                color: {{theme.Heading}};
+                font-family: "Georgia", "Cambria", serif;
+            }
+
+            /* --- R5: Track Changes & Reviewer Comments --- */
+            del.ms-rev-del, del {
+                color: #e53e3e;
+                background: rgba(229, 62, 62, 0.12);
+                text-decoration: line-through;
+                padding: 1px 3px;
+                border-radius: 2px;
+            }
+            ins.ms-rev-ins, ins {
+                color: #2f855a;
+                background: rgba(47, 133, 90, 0.12);
+                text-decoration: underline;
+                padding: 1px 3px;
+                border-radius: 2px;
+            }
+            body.ms-dark del.ms-rev-del, body.ms-dark del {
+                color: #feb2b2;
+                background: rgba(229, 62, 62, 0.22);
+            }
+            body.ms-dark ins.ms-rev-ins, body.ms-dark ins {
+                color: #9ae6b4;
+                background: rgba(47, 133, 90, 0.22);
+            }
+            .ms-comment-anchor {
+                position: relative;
+                display: inline;
+            }
+            .ms-comment-badge {
+                background: #dd6b20;
+                color: #ffffff;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 2px 6px;
+                border-radius: 999px;
+                cursor: pointer;
+                margin-left: 2px;
+                vertical-align: super;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+
+            /* --- R6: Concordance & Subject Index --- */
+            .ms-index-block {
+                margin: 32px 0;
+                padding-top: 16px;
+                border-top: 2px solid {{theme.Border}};
+            }
+            .ms-index-title {
+                font-size: 20px;
+                font-weight: 800;
+                color: {{theme.Heading}};
+                margin-bottom: 16px;
+            }
+            .ms-index-grid {
+                column-count: var(--index-cols, 2);
+                column-gap: 32px;
+            }
+            .ms-index-group {
+                break-inside: avoid;
+                margin-bottom: 16px;
+            }
+            .ms-index-letter {
+                font-size: 18px;
+                font-weight: 800;
+                color: {{theme.Heading}};
+                border-bottom: 1px solid {{theme.Border}};
+                margin: 12px 0 6px;
+                break-after: avoid;
+            }
+            .ms-index-entry {
+                font-size: 13.5px;
+                margin: 4px 0;
+                break-inside: avoid;
+            }
+            .ms-index-subentry {
+                margin-left: 16px;
+                font-size: 12.5px;
+                color: {{theme.Text}};
+                opacity: 0.9;
+            }
+            .ms-index-anchor {
+                display: none;
+            }
+
+            /* --- R7: Bilingual Parallel Columns --- */
+            .ms-parallel-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                margin: 24px 0;
+                border: 1px solid {{theme.Border}};
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            .ms-parallel-header {
+                display: flex;
+                background: {{theme.Secondary}};
+                border-bottom: 2px solid {{theme.Border}};
+                font-weight: 700;
+            }
+            .ms-parallel-col-header {
+                flex: 1;
+                padding: 10px 16px;
+                color: {{theme.Heading}};
+            }
+            .ms-parallel-row {
+                display: flex;
+                border-bottom: 1px solid {{theme.Border}};
+            }
+            .ms-parallel-row:last-child {
+                border-bottom: none;
+            }
+            .ms-parallel-col {
+                flex: 1;
+                padding: 12px 16px;
+            }
+            .ms-parallel-col:first-child {
+                border-right: 1px solid {{theme.Border}};
+            }
+
+            /* --- R8: Fillable Form SDTs --- */
+            .ms-form-dropdown, .ms-form-date, .ms-form-text {
+                font-family: inherit;
+                font-size: 0.95em;
+                padding: 3px 6px;
+                border: 1px solid {{theme.Border}};
+                border-radius: 4px;
+                background: {{theme.Background}};
+                color: {{theme.Text}};
+                margin: 0 2px;
+            }
+            .ms-form-dropdown:focus, .ms-form-date:focus, .ms-form-text:focus {
+                outline: 2px solid {{theme.Primary}};
+            }
+
+            /* --- R9: Executive Cover Page Gallery --- */
+            .cover-page {
+                min-height: 800px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding: 60px 48px;
+                background: linear-gradient(135deg, {{theme.Secondary}} 0%, {{theme.Background}} 100%);
+                border: 1px solid {{theme.Border}};
+                border-radius: 8px;
+                margin-bottom: 36px;
+                box-sizing: border-box;
+            }
+            .cover-accent-bar {
+                width: 80px;
+                height: 6px;
+                background: {{theme.Primary}};
+                margin-bottom: 24px;
+                border-radius: 3px;
+            }
+            .cover-org {
+                font-size: 14px;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: {{theme.Primary}};
+                margin-bottom: 12px;
+            }
+            .cover-title {
+                font-size: 38px;
+                font-weight: 800;
+                line-height: 1.2;
+                color: {{theme.Heading}};
+                border-bottom: none !important;
+                margin: 16px 0 10px;
+            }
+            .cover-subtitle {
+                font-size: 20px;
+                font-weight: 400;
+                color: {{theme.Text}};
+                opacity: 0.85;
+                margin-bottom: 24px;
+                line-height: 1.4;
+            }
+            .cover-abstract {
+                font-size: 15px;
+                line-height: 1.6;
+                color: {{theme.Text}};
+                opacity: 0.9;
+                max-width: 680px;
+                margin-top: 16px;
+                padding: 16px;
+                border-left: 3px solid {{theme.Primary}};
+                background: {{theme.Secondary}}80;
+                border-radius: 0 6px 6px 0;
+            }
+            .cover-meta-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 16px;
+                border-top: 1px solid {{theme.Border}};
+                padding-top: 24px;
+                margin-top: 32px;
+            }
+            .cover-meta-item {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .cover-meta-item .meta-label {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: {{theme.Text}};
+                opacity: 0.55;
+            }
+            .cover-meta-item .meta-val {
+                font-size: 14px;
+                font-weight: 600;
+                color: {{theme.Heading}};
+            }
+            .cover-theme-corporate {
+                background: {{theme.Secondary}};
+                border-left: 8px solid {{theme.Primary}};
+            }
+            .cover-theme-classic {
+                background: {{theme.Background}};
+                text-align: center;
+                border: 2px solid {{theme.Border}};
+            }
+            .cover-theme-classic .cover-accent-bar { margin: 0 auto 24px; }
+            .cover-theme-classic .cover-title { font-family: "Georgia", "Cambria", serif; }
+            .cover-theme-minimal {
+                background: {{theme.Background}};
+                border: none;
+                border-top: 4px solid {{theme.Heading}};
+                border-radius: 0;
+            }
+            .cover-theme-bold {
+                background: {{theme.Secondary}};
+                border: 2px solid {{theme.Primary}};
+            }
+            @media print {
+                .cover-page {
+                    min-height: 100vh;
+                    page-break-after: always;
+                    break-after: page;
+                    border: none;
+                    border-radius: 0;
+                }
+            }
             
             /* Custom styles for diagram errors and page overflow warnings */
             .mermaid-error-card { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; padding: 16px; border-radius: 6px; font-family: sans-serif; margin: 10px 0; text-align: left; }
@@ -1906,14 +2280,29 @@ public sealed partial class MarkdownHtmlService
         // incremental canvas swap would show raw :::fence text where full renders show SVG.
         markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
 
+        var isDarkEarly = !settings.ThemeLightInfluence &&
+                          (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+
+        // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
+        markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
+        markdown = LiftCoverPages(markdown, smartArtFences, out var coverPageBlocks);
+        markdown = TransformLineNumbers(markdown, smartArtFences);
+
+        // Milestone 2 (R4, R6): Drop Caps & Concordance Index
+        markdown = TransformDropCaps(markdown, smartArtFences);
+        markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
+
+        // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+        markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
+        markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
+
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
 
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
         body = HtmlSanitizer.Apply(body);
         body = EmbedLocalImages(body);
 
-        var isDark = !settings.ThemeLightInfluence &&
-                     (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        var isDark = isDarkEarly;
         var renderedSmartArt = new List<string>(smartArtBlocks.Count);
         for (int i = 0; i < smartArtBlocks.Count; i++)
         {
@@ -1943,6 +2332,10 @@ public sealed partial class MarkdownHtmlService
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
+        body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
+        body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
+        body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
+        body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
 
         body = MermaidFenceHtmlRe().Replace(body,
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
@@ -2525,5 +2918,382 @@ public sealed partial class MarkdownHtmlService
             }
         }
         return sb.ToString();
+    }
+
+    private static string LiftWatermarks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, bool isDark, out List<string> watermarkBlocks)
+    {
+        watermarkBlocks = new List<string>();
+        var blocks = watermarkBlocks;
+        return WatermarkBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+            var lines = m.Value.TrimEnd().Split('\n');
+            var firstLine = lines[0].TrimEnd('\r');
+            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+
+            string text = "CONFIDENTIAL";
+            var qm = Regex.Match(firstLine, @"^:::watermark\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            if (qm.Success) text = qm.Groups[1].Value;
+            else
+            {
+                var tm = Regex.Match(firstLine, @"(?:text=|--text\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase);
+                if (tm.Success) text = tm.Groups[1].Success ? tm.Groups[1].Value : tm.Groups[2].Value;
+                else if (!string.IsNullOrWhiteSpace(inner))
+                {
+                    var firstInner = inner.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+                    if (!string.IsNullOrWhiteSpace(firstInner)) text = firstInner.Trim();
+                }
+            }
+
+            string color = isDark ? "#555555" : "#CCCCCC";
+            var cm = Regex.Match(firstLine, @"(?:color=|--color\s+)(?:""([^""]*)""|(\S+))", RegexOptions.IgnoreCase);
+            if (cm.Success) color = cm.Groups[1].Success ? cm.Groups[1].Value : cm.Groups[2].Value;
+            if (!color.StartsWith("#") && !color.StartsWith("rgb") && !color.StartsWith("hsl") && Regex.IsMatch(color, "^[0-9a-fA-F]{6}$"))
+                color = "#" + color;
+
+            double opacity = 0.15;
+            var om = Regex.Match(firstLine, @"(?:opacity=|--opacity\s+)(?:""([^""]*)""|([0-9.]+))", RegexOptions.IgnoreCase);
+            if (om.Success)
+            {
+                var opStr = om.Groups[1].Success ? om.Groups[1].Value : om.Groups[2].Value;
+                if (double.TryParse(opStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedOp))
+                    opacity = Math.Clamp(parsedOp, 0.01, 1.0);
+            }
+
+            bool diagonal = true;
+            if (firstLine.Contains("--horizontal", StringComparison.OrdinalIgnoreCase) ||
+                Regex.IsMatch(firstLine, @"diagonal=(?:""false""|false|""0""|0)", RegexOptions.IgnoreCase))
+                diagonal = false;
+
+            int angle = diagonal ? -45 : 0;
+            string opFormatted = opacity.ToString("0.00", CultureInfo.InvariantCulture);
+
+            string html = $"<div class=\"mk-watermark-overlay\" style=\"--wm-color: {color}; --wm-opacity: {opFormatted}; --wm-angle: {angle}deg;\"><div class=\"mk-watermark-text\">{System.Net.WebUtility.HtmlEncode(text)}</div></div>";
+            blocks.Add(html);
+            return $"\n\n<!--WATERMARK:{blocks.Count - 1}-->\n\n";
+        });
+    }
+
+    private static string LiftCoverPages(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> coverPageBlocks)
+    {
+        coverPageBlocks = new List<string>();
+        var blocks = coverPageBlocks;
+        return CoverPageBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+            var lines = m.Value.TrimEnd().Split('\n');
+            var firstLine = lines[0].TrimEnd('\r');
+            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var attrMatches = Regex.Matches(firstLine, @"([a-zA-Z0-9_-]+)=(?:""([^""]*)""|(\S+))");
+            foreach (Match am in attrMatches)
+            {
+                var key = am.Groups[1].Value;
+                var val = am.Groups[2].Success ? am.Groups[2].Value : am.Groups[3].Value;
+                dict[key] = val;
+            }
+            var innerLineList = inner.Split('\n');
+            foreach (var line in innerLineList)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) continue;
+                int colonIdx = trimmed.IndexOf(':');
+                int eqIdx = trimmed.IndexOf('=');
+                int sepIdx = colonIdx >= 0 && eqIdx >= 0 ? Math.Min(colonIdx, eqIdx) : Math.Max(colonIdx, eqIdx);
+                if (sepIdx > 0)
+                {
+                    var k = trimmed.Substring(0, sepIdx).Trim();
+                    var v = trimmed.Substring(sepIdx + 1).Trim().Trim('"', '\'');
+                    dict[k] = v;
+                }
+            }
+
+            string themeClass = dict.TryGetValue("theme", out var th) && !string.IsNullOrWhiteSpace(th) ? th.ToLowerInvariant() : "modern";
+            string title = dict.TryGetValue("title", out var t) ? t : "Document Title";
+            dict.TryGetValue("subtitle", out var subtitle);
+            dict.TryGetValue("author", out var author);
+            if (string.IsNullOrEmpty(author) && dict.TryGetValue("by", out var by)) author = by;
+            dict.TryGetValue("organization", out var org);
+            if (string.IsNullOrEmpty(org) && dict.TryGetValue("org", out var o)) org = o;
+            if (string.IsNullOrEmpty(org) && dict.TryGetValue("company", out var comp)) org = comp;
+            dict.TryGetValue("date", out var date);
+            dict.TryGetValue("version", out var version);
+            if (string.IsNullOrEmpty(version) && dict.TryGetValue("ver", out var ver)) version = ver;
+            dict.TryGetValue("abstract", out var abstractText);
+            if (string.IsNullOrEmpty(abstractText) && dict.TryGetValue("description", out var desc)) abstractText = desc;
+            if (string.IsNullOrEmpty(abstractText) && dict.TryGetValue("summary", out var sum)) abstractText = sum;
+
+            var sb = new StringBuilder();
+            sb.Append($"<div class=\"cover-page cover-theme-{themeClass}\">");
+            sb.Append("<div class=\"cover-header\">");
+            sb.Append("<div class=\"cover-accent-bar\"></div>");
+            if (!string.IsNullOrWhiteSpace(org))
+                sb.Append($"<div class=\"cover-org\">{System.Net.WebUtility.HtmlEncode(org)}</div>");
+            sb.Append("</div>");
+
+            sb.Append("<div class=\"cover-body\">");
+            sb.Append($"<h1 class=\"cover-title\">{System.Net.WebUtility.HtmlEncode(title)}</h1>");
+            if (!string.IsNullOrWhiteSpace(subtitle))
+                sb.Append($"<div class=\"cover-subtitle\">{System.Net.WebUtility.HtmlEncode(subtitle)}</div>");
+            if (!string.IsNullOrWhiteSpace(abstractText))
+                sb.Append($"<div class=\"cover-abstract\">{System.Net.WebUtility.HtmlEncode(abstractText)}</div>");
+            sb.Append("</div>");
+
+            sb.Append("<div class=\"cover-footer\">");
+            sb.Append("<div class=\"cover-meta-grid\">");
+            if (!string.IsNullOrWhiteSpace(author))
+                sb.Append($"<div class=\"cover-meta-item\"><span class=\"meta-label\">Author</span><span class=\"meta-val\">{System.Net.WebUtility.HtmlEncode(author)}</span></div>");
+            if (!string.IsNullOrWhiteSpace(date))
+                sb.Append($"<div class=\"cover-meta-item\"><span class=\"meta-label\">Date</span><span class=\"meta-val\">{System.Net.WebUtility.HtmlEncode(date)}</span></div>");
+            if (!string.IsNullOrWhiteSpace(version))
+                sb.Append($"<div class=\"cover-meta-item\"><span class=\"meta-label\">Version</span><span class=\"meta-val\">{System.Net.WebUtility.HtmlEncode(version)}</span></div>");
+            sb.Append("</div>");
+            sb.Append("</div>");
+            sb.Append("</div>");
+            sb.Append("<div class=\"page-break\" style=\"page-break-after: always; break-after: page;\"></div>");
+
+            blocks.Add(sb.ToString());
+            return $"\n\n<!--COVERPAGE:{blocks.Count - 1}-->\n\n";
+        });
+    }
+
+    private static string TransformLineNumbers(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans)
+    {
+        return LineNumbersBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+            var lines = m.Value.TrimEnd().Split('\n');
+            var firstLine = lines[0].TrimEnd('\r');
+            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+
+            int countBy = 5;
+            var countMatch = Regex.Match(firstLine, @"(?:count-by=|countBy=|count=|--count-by\s+|--countBy\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+            if (countMatch.Success)
+            {
+                var valStr = countMatch.Groups[1].Success ? countMatch.Groups[1].Value : countMatch.Groups[2].Value;
+                if (int.TryParse(valStr, out int cb) && cb >= 1) countBy = cb;
+            }
+
+            if (string.IsNullOrWhiteSpace(inner))
+            {
+                return $"<div class=\"line-numbered-section line-numbered-doc\" style=\"--line-count-by: {countBy};\"></div>";
+            }
+            return $"\n\n<div class=\"line-numbered-section\" style=\"--line-count-by: {countBy};\">\n\n{inner}\n\n</div>\n\n";
+        });
+    }
+
+    private static string TransformDropCaps(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans)
+    {
+        return DropCapBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+            var lines = m.Value.TrimEnd().Split('\n');
+            var firstLine = lines[0].TrimEnd('\r');
+            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+
+            int dropLines = 3;
+            var numMatch = Regex.Match(firstLine, @"^:::dropcap\s+(\d+)", RegexOptions.IgnoreCase);
+            if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out int nl))
+            {
+                dropLines = nl;
+            }
+            else
+            {
+                var linesMatch = Regex.Match(firstLine, @"(?:lines=|--lines\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+                if (linesMatch.Success)
+                {
+                    var val = linesMatch.Groups[1].Success ? linesMatch.Groups[1].Value : linesMatch.Groups[2].Value;
+                    if (int.TryParse(val, out int l)) dropLines = l;
+                }
+            }
+
+            return $"\n\n<div class=\"dropcap\" style=\"--dropcap-lines: {dropLines};\">\n\n{inner}\n\n</div>\n\n";
+        });
+    }
+
+    private static string LiftIndexBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> indexBlocks)
+    {
+        indexBlocks = new List<string>();
+        var blocks = indexBlocks;
+
+        // Collect all index terms from anchors across the document
+        var terms = new List<string>();
+        var anchorMatches = Regex.Matches(markdown, @"<span class=""ms-index-anchor"" data-index=""([^""]+)""");
+        foreach (Match am in anchorMatches)
+        {
+            terms.Add(System.Net.WebUtility.HtmlDecode(am.Groups[1].Value).Trim());
+        }
+        var rawAnchorMatches = Regex.Matches(markdown, @"\^\[index:\s*(?:[""“]([^""”\]]+)[""”]|([^\]\n]+))\s*\]");
+        foreach (Match ram in rawAnchorMatches)
+        {
+            var rawTerm = ram.Groups[1].Success ? ram.Groups[1].Value : ram.Groups[2].Value;
+            terms.Add(rawTerm.Trim());
+        }
+
+        var uniqueTerms = terms.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        return IndexBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+
+            var firstLine = m.Value.TrimEnd().Split('\n')[0].TrimEnd('\r');
+            int cols = 2;
+            var numMatch = Regex.Match(firstLine, @"^:::index\s+(\d+)", RegexOptions.IgnoreCase);
+            if (numMatch.Success && int.TryParse(numMatch.Groups[1].Value, out int nc))
+            {
+                cols = nc;
+            }
+            else
+            {
+                var colMatch = Regex.Match(firstLine, @"(?:columns=|count=|--columns\s+|--count\s+)(?:""([^""]*)""|(\d+))", RegexOptions.IgnoreCase);
+                if (colMatch.Success)
+                {
+                    var val = colMatch.Groups[1].Success ? colMatch.Groups[1].Value : colMatch.Groups[2].Value;
+                    if (int.TryParse(val, out int c)) cols = c;
+                }
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"<div class=\"ms-index-block\" style=\"--index-cols: {cols};\">");
+            sb.AppendLine("<h3 class=\"ms-index-title\">Index</h3>");
+
+            if (uniqueTerms.Count == 0)
+            {
+                sb.AppendLine("<div class=\"ms-index-grid\"></div>");
+            }
+            else
+            {
+                var catMap = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var t in uniqueTerms)
+                {
+                    var parts = t.Split(':', 2);
+                    var cat = parts[0].Trim();
+                    var sub = parts.Length > 1 ? parts[1].Trim() : null;
+
+                    if (!catMap.TryGetValue(cat, out var set))
+                    {
+                        set = new SortedSet<string>(StringComparer.InvariantCultureIgnoreCase);
+                        catMap[cat] = set;
+                    }
+                    if (!string.IsNullOrEmpty(sub))
+                    {
+                        set.Add(sub);
+                    }
+                }
+
+                var letterGroups = catMap.Keys
+                    .GroupBy(k => char.ToUpperInvariant(k.Length > 0 ? k[0] : '#'))
+                    .OrderBy(g => g.Key);
+
+                sb.AppendLine("<div class=\"ms-index-grid\">");
+                foreach (var group in letterGroups)
+                {
+                    sb.AppendLine("<div class=\"ms-index-group\">");
+                    sb.AppendLine($"<div class=\"ms-index-letter\">{group.Key}</div>");
+                    foreach (var cat in group.OrderBy(c => c, StringComparer.InvariantCultureIgnoreCase))
+                    {
+                        var subs = catMap[cat];
+                        sb.AppendLine("<div class=\"ms-index-entry\">");
+                        sb.AppendLine($"<strong>{System.Net.WebUtility.HtmlEncode(cat)}</strong>");
+                        if (subs.Count > 0)
+                        {
+                            foreach (var s in subs)
+                            {
+                                sb.AppendLine($"<div class=\"ms-index-subentry\">{System.Net.WebUtility.HtmlEncode(s)}</div>");
+                            }
+                        }
+                        sb.AppendLine("</div>");
+                    }
+                    sb.AppendLine("</div>");
+                }
+                sb.AppendLine("</div>");
+            }
+
+            sb.AppendLine("</div>");
+
+            blocks.Add(sb.ToString());
+            return $"\n\n<!--INDEX:{blocks.Count - 1}-->\n\n";
+        });
+    }
+
+    private static string LiftParallelBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> parallelHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        markdown = ParallelBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+
+            var lines = m.Value.TrimEnd().Split('\n');
+            var firstLine = lines[0].TrimEnd('\r');
+            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+
+            var headers = new List<string>();
+            var headerMatch = Regex.Match(firstLine, @"^:::parallel\s+(.*)$", RegexOptions.IgnoreCase);
+            if (headerMatch.Success)
+            {
+                var parts = headerMatch.Groups[1].Value.Split('|');
+                foreach (var p in parts)
+                {
+                    var h = p.Trim().Trim('"', '\'');
+                    if (!string.IsNullOrWhiteSpace(h)) headers.Add(h);
+                }
+            }
+
+            int colCount = Math.Max(2, headers.Count);
+            var sb = new StringBuilder();
+            sb.Append("<div class=\"ms-parallel-container\">\n");
+
+            if (headers.Count > 0)
+            {
+                sb.Append("  <div class=\"ms-parallel-header\">\n");
+                foreach (var h in headers)
+                {
+                    sb.Append($"    <div class=\"ms-parallel-col-header\">{System.Net.WebUtility.HtmlEncode(h)}</div>\n");
+                }
+                sb.Append("  </div>\n");
+            }
+
+            var rows = Regex.Split(inner, @"(?:\r?\n|^)---(?:\r?\n|$)");
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrWhiteSpace(row)) continue;
+                var cols = Regex.Split(row, @"(?:\r?\n|^)===(?:\r?\n|$)");
+                sb.Append("  <div class=\"ms-parallel-row\">\n");
+                for (int i = 0; i < colCount; i++)
+                {
+                    var colMd = i < cols.Length ? cols[i].Trim() : "";
+                    colMd = DialectNormalizer.Apply(colMd);
+                    var colHtml = Markdown.ToHtml(colMd, Pipeline).Trim();
+                    sb.Append($"    <div class=\"ms-parallel-col\">{colHtml}</div>\n");
+                }
+                sb.Append("  </div>\n");
+            }
+            sb.Append("</div>\n");
+
+            blocks.Add(sb.ToString());
+            return $"\n\n<!--PARALLEL:{blocks.Count - 1}-->\n\n";
+        });
+
+        parallelHtmlBlocks = blocks;
+        return markdown;
     }
 }
