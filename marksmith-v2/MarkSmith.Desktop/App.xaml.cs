@@ -77,23 +77,8 @@ public partial class App : Application
             try { Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Register(); }
             catch { /* toasts unavailable (e.g. notifications disabled) — app works without them */ }
 
-            // Launch intro: the branded video plays BEFORE the main window appears (skippable via
-            // Settings > General > Play intro video, and skip-able with a click). The main window is
-            // created only after the splash closes so the video is truly first. If the asset is
-            // missing or the setting is on, we go straight to the main window.
-            var skipIntro = AppServices.Settings.Current.SkipLaunchVideo;
-            var hasVideo = System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "splash_video.mp4"))
-                || System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "LaunchVideo.mp4"));
-            if (!skipIntro && hasVideo)
-            {
-                var splash = new Views.SplashWindow();
-                splash.Closed += (_, _) => ShowMainWindow();
-                splash.Activate();
-            }
-            else
-            {
-                ShowMainWindow();
-            }
+            var cliArgs = Environment.GetCommandLineArgs();
+            ShowMainWindow(cliArgs);
         }
         catch (Exception ex)
         {
@@ -109,7 +94,7 @@ public partial class App : Application
     }
 
     // Create + activate the real main window (after the launch intro, or immediately when skipped).
-    private void ShowMainWindow()
+    private void ShowMainWindow(string[]? cliArgs = null)
     {
         try
         {
@@ -118,6 +103,11 @@ public partial class App : Application
             ViewModel.Host = window;
             ViewModel.Prompts = window;
             MainAppWindow.Activate();
+
+            if (cliArgs != null && cliArgs.Length > 1 && System.IO.File.Exists(cliArgs[1]))
+            {
+                ViewModel.InputFilePath = System.IO.Path.GetFullPath(cliArgs[1]);
+            }
         }
         catch (Exception ex)
         {
