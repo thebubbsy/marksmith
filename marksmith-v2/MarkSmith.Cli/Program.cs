@@ -30,6 +30,7 @@ namespace MarkSmith.Cli
                     string outputDir = ".";
                     int concurrency = Environment.ProcessorCount;
                     bool recursive = false;
+                    bool continueOnError = false;
 
                     for (int i = 1; i < args.Length; i++)
                     {
@@ -43,11 +44,12 @@ namespace MarkSmith.Cli
                         else if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
                         else if (args[i] == "--concurrency" && i + 1 < args.Length && int.TryParse(args[i + 1], out int c)) concurrency = c;
                         else if (args[i] == "-r" || args[i] == "--recursive" || args[i] == "/r" || args[i] == "/s") recursive = true;
+                        else if (args[i] == "-f" || args[i] == "--force" || args[i] == "--continue-on-error" || args[i] == "--ignore-errors" || args[i] == "-k" || args[i] == "--keep-going") continueOnError = true;
                         else if (!args[i].StartsWith("-", StringComparison.Ordinal) && inputPattern == "./*.md") inputPattern = args[i];
                     }
 
                     if ((format == "docx" || format == "dotx") && !EnsureDocxEntitlement()) return 1;
-                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency, recursive);
+                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency, recursive, continueOnError);
                 }
 
                 if (cmd == "compose" && args.Length >= 3)
@@ -277,7 +279,7 @@ namespace MarkSmith.Cli
             }
         }
 
-        static async Task<int> ExecuteBatchAsync(string inputPattern, string outputDir, string format, int concurrency, bool recursive = false)
+        static async Task<int> ExecuteBatchAsync(string inputPattern, string outputDir, string format, int concurrency, bool recursive = false, bool continueOnError = false)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             string searchDir = Directory.Exists(inputPattern) ? inputPattern : (Path.GetDirectoryName(inputPattern) ?? ".");
@@ -287,11 +289,27 @@ namespace MarkSmith.Cli
             if (!Directory.Exists(searchDir))
             {
                 Console.Error.WriteLine($"[ERROR] Directory '{searchDir}' not found.");
-                return 1;
+                return continueOnError ? 0 : 1;
             }
 
-            var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-            var files = Directory.GetFiles(searchDir, pattern, searchOption);
+            string[] files;
+            try
+            {
+                var enumOpts = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = recursive,
+                    AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System,
+                    ReturnSpecialDirectories = false
+                };
+                files = Directory.EnumerateFiles(searchDir, pattern, enumOpts).ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[ERROR] Failed to scan directory '{searchDir}': {ex.Message}");
+                return continueOnError ? 0 : 1;
+            }
+
             if (files.Length == 0)
             {
                 Console.WriteLine($"No files matched pattern '{pattern}' in '{searchDir}' (recursive={recursive}).");
@@ -299,7 +317,7 @@ namespace MarkSmith.Cli
             }
 
             Directory.CreateDirectory(outputDir);
-            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency}, recursive={recursive})...");
+            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency}, recursive={recursive}, continueOnError={continueOnError})...");
 
             int completed = 0;
             int errors = 0;
@@ -318,12 +336,19 @@ namespace MarkSmith.Cli
                     string targetDir = outputDir;
                     if (recursive)
                     {
-                        string relPath = Path.GetRelativePath(searchDir, file);
-                        string relDir = Path.GetDirectoryName(relPath) ?? "";
-                        if (!string.IsNullOrEmpty(relDir))
+                        try
                         {
-                            targetDir = Path.Combine(outputDir, relDir);
-                            Directory.CreateDirectory(targetDir);
+                            string relPath = Path.GetRelativePath(searchDir, file);
+                            string relDir = Path.GetDirectoryName(relPath) ?? "";
+                            if (!string.IsNullOrEmpty(relDir))
+                            {
+                                targetDir = Path.Combine(outputDir, relDir);
+                                Directory.CreateDirectory(targetDir);
+                            }
+                        }
+                        catch
+                        {
+                            targetDir = outputDir;
                         }
                     }
 
@@ -349,7 +374,14 @@ namespace MarkSmith.Cli
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref errors);
-                    Console.Error.WriteLine($"\n[ERROR] Failed to convert '{file}': {ex.Message}");
+                    if (continueOnError)
+                    {
+                        Console.Error.WriteLine($"\n[WARN] Skipped '{file}': {ex.Message}");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"\n[ERROR] Failed to convert '{file}': {ex.Message}");
+                    }
                 }
                 finally
                 {
@@ -359,7 +391,7 @@ namespace MarkSmith.Cli
 
             sw.Stop();
             Console.WriteLine($"\n[BATCH] ✓ Completed {completed} file(s) in {sw.ElapsedMilliseconds}ms ({errors} error(s)).");
-            return errors > 0 ? 1 : 0;
+            return (errors > 0 && !continueOnError) ? 1 : 0;
         }
 
         // Go-live licensing: the CLI is another entrance to the DOCX exporter, so it enforces the
@@ -382,19 +414,20 @@ namespace MarkSmith.Cli
             Console.WriteLine("Usage:");
             Console.WriteLine("  marksmith <input.md> <output.docx|output.html|output.png> [--theme <name>] [--watch]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
-            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>] [-r|--recursive]");
+            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
             Console.WriteLine();
             Console.WriteLine("Flags:");
-            Console.WriteLine("  -w, --watch     Watch the input file for changes and recompile automatically");
-            Console.WriteLine("  -r, --recursive Recursively process subdirectories in batch conversion");
-            Console.WriteLine("  --batch         Batch process multiple markdown documents concurrently");
-            Console.WriteLine("  --compact       Compress vector shapes in markdown using dense deflate format");
-            Console.WriteLine("  --theme <name>  Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
-            Console.WriteLine("  --width <w>     Snapshot logical width in pixels (default 1200)");
-            Console.WriteLine("  --height <h>    Snapshot logical height in pixels (0 = auto height)");
-            Console.WriteLine("  --scale <s>     High-DPI device scale multiplier (default 2.0)");
+            Console.WriteLine("  -w, --watch               Watch the input file for changes and recompile automatically");
+            Console.WriteLine("  -r, --recursive           Recursively process subdirectories in batch conversion");
+            Console.WriteLine("  -f, --continue-on-error   Keep going and skip unreadable/corrupt files without halting (aliases: --ignore-errors, -k)");
+            Console.WriteLine("  --batch                   Batch process multiple markdown documents concurrently");
+            Console.WriteLine("  --compact                 Compress vector shapes in markdown using dense deflate format");
+            Console.WriteLine("  --theme <name>            Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
+            Console.WriteLine("  --width <w>               Snapshot logical width in pixels (default 1200)");
+            Console.WriteLine("  --height <h>              Snapshot logical height in pixels (0 = auto height)");
+            Console.WriteLine("  --scale <s>               High-DPI device scale multiplier (default 2.0)");
             Console.WriteLine();
             Console.WriteLine("Trace Modes: CrossHatch, TopographicWaves, Calligraphic, Engraved, Edges, Scanlines, Silhouette");
         }
