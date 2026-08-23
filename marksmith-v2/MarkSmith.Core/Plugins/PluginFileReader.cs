@@ -29,6 +29,14 @@ public static class PluginFileReader
                 return result.Markdown;
         }
 
+        // PDF: Tier 1 extracts lossless embedded Marksmith source; Tier 2 extracts structured text streams.
+        if (ext == "pdf")
+        {
+            var result = await new Services.ReverseImportService().ImportFromPdfAsync(path);
+            if (result.Tier != Services.ImportTier.None && !string.IsNullOrWhiteSpace(result.Markdown))
+                return result.Markdown;
+        }
+
         var importer = AppServices.Plugins.FindImporter(ext);
         if (importer != null)
         {

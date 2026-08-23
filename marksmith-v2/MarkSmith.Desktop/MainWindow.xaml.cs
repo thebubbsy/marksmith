@@ -1814,6 +1814,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
         picker.FileTypeFilter.Add(".md");
         picker.FileTypeFilter.Add(".markdown");
+        picker.FileTypeFilter.Add(".docx");
+        picker.FileTypeFilter.Add(".pdf");
+        picker.FileTypeFilter.Add(".txt");
+        picker.FileTypeFilter.Add(".html");
+        picker.FileTypeFilter.Add(".htm");
         foreach (var ext in App.Plugins.AllImporterExtensions) picker.FileTypeFilter.Add("." + ext);
         var file = await picker.PickSingleFileAsync();
         if (file is not null)
