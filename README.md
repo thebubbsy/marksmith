@@ -100,6 +100,10 @@ I didn't just build a text paster—I constructed a native Word element engine f
 | **Crash-Proof Atomic Vault** | Core Engine | Zero-window atomic file replace semantics preventing corrupted saves across all app stores. |
 | **Hardened Loopback API** | Security | Cross-origin browser isolation (`IsBrowserOrigin`) and license paywall enforcement on REST endpoints. |
 
+<div align="center">
+  <img src="docs/images/niche-word-showcase.png" alt="Marksmith Niche Word & OpenXML Features" width="100%" />
+</div>
+
 ---
 
 ## 🤖 Automation & CLI Tools
