@@ -12,7 +12,7 @@ If you do:
    placeholders in `<Identity>`.
 3. Publish the app first, then build:
    ```powershell
-   dotnet publish MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
+   dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
    packaging/msix/build-msix.ps1
    ```
    This produces `dist_installer/Marksmith-1.0.0-x64.msix`.

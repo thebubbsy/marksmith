@@ -12,6 +12,7 @@ public static class LemonSqueezyClient
     // Set to true when you sell via Lemon Squeezy and issue their license keys.
     public static bool Enabled { get; set; } = false;
     public static string ApiUrl { get; set; } = "https://api.lemonsqueezy.com/v1/licenses/activate";
+    public static string DeactivateApiUrl { get; set; } = "https://api.lemonsqueezy.com/v1/licenses/deactivate";
 
     private static HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
     internal static HttpClient Http { get => _http; set => _http = value; }
@@ -45,6 +46,33 @@ public static class LemonSqueezyClient
         catch (Exception ex)
         {
             return (false, ex.Message, null, null);
+        }
+    }
+
+    public static async Task<(bool ok, string message)> DeactivateAsync(string key, string instanceId)
+    {
+        try
+        {
+            var body = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["license_key"] = key,
+                ["instance_id"] = instanceId,
+            });
+            using var resp = await Http.PostAsync(DeactivateApiUrl, body);
+            var json = await resp.Content.ReadFromJsonAsync<JsonElement>();
+
+            bool deactivated = json.TryGetProperty("deactivated", out var d) && d.ValueKind == JsonValueKind.True;
+            if (!deactivated)
+            {
+                var err = json.TryGetProperty("error", out var e) ? e.GetString() : null;
+                return (false, err ?? "Deactivation failed. Check the key or your connection.");
+            }
+
+            return (true, "Deactivated.");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
         }
     }
 }

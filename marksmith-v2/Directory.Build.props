@@ -10,6 +10,6 @@
        RELEASE CHECKLIST step 1: after cutting vX.Y.Z, bump this to the next version so the
        dev line immediately compares newer than the freshly published stable tag. -->
   <PropertyGroup>
-    <MarksmithBaseVersion>2.18.0</MarksmithBaseVersion>
+    <MarksmithBaseVersion>3.0.0</MarksmithBaseVersion>
   </PropertyGroup>
 </Project>

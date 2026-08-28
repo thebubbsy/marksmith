@@ -408,7 +408,7 @@ namespace MarkSmith.Cli
 
         static void PrintHelp()
         {
-            Console.WriteLine("MarkSmith CLI v2.18.0");
+            Console.WriteLine("MarkSmith CLI v3.0.0");
             Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage:");

@@ -18,9 +18,9 @@
   #define PublishDir "..\..\marksmith-v2\MarkSmith.Desktop\bin\" + Arch + "\Release\net8.0-windows10.0.19041.0\win-" + Arch + "\publish"
 #endif
 
-; AppVersion is DERIVED from the published exe's FileVersion (e.g. "2.17.0.0" -> "2.17.0"), so
+; AppVersion is DERIVED from the published exe's FileVersion (e.g. "3.0.0.0" -> "3.0.0"), so
 ; the installer/uninstall registry always matches the shipped binary and the updater's stamp.
-; A hardcoded #define used to drift behind every release (it said 2.13.0 while shipping 2.17.0).
+; A hardcoded #define used to drift behind every release (it said 2.13.0 while shipping 3.0.0).
 ; Override when needed:  iscc /DAppVersion=2.18.0
 #ifndef AppVersion
   #define SrcExe AddBackslash(PublishDir) + AppExe
@@ -29,7 +29,7 @@
     #define AppVersion (Copy(RawVer, Len(RawVer) - 1, 2) == ".0" ? Copy(RawVer, 1, Len(RawVer) - 2) : RawVer)
   #else
     ; No publish output yet (e.g. script lint) — fallback only; ISCC on a real build reads the exe.
-    #define AppVersion "2.17.0"
+    #define AppVersion "3.0.0"
   #endif
 #endif
 

@@ -16,7 +16,7 @@ analytics.
 - **Documents and Markdown** you open, paste, or convert are processed entirely on your
   computer. Exported PDF/DOCX files are written only to the output folder you choose.
 - **Settings** (themes, formatting options, watch folders, recent files) are stored locally
-  in `%LOCALAPPDATA%\MdToPdf\settings.json`.
+  in `%LOCALAPPDATA%\MarkSmith\settings.json`.
 - **History** of your exports is stored locally.
 
 ## Network access

@@ -209,6 +209,58 @@ public class LicensingTests
             LemonSqueezyClient.Http = prevHttp;
         }
     }
+
+    [Fact]
+    public async Task LemonSqueezy_Online_Deactivation_Integration_Test()
+    {
+        var handler = new MockHttpMessageHandler((request, cancellationToken) =>
+        {
+            var content = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult() ?? "";
+            if (content.Contains("license_key=LS-VALID-KEY") && content.Contains("instance_id=inst_987654321"))
+            {
+                var responseJson = @"{
+                    ""deactivated"": true,
+                    ""error"": null
+                }";
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(responseJson, Encoding.UTF8, "application/json")
+                };
+            }
+            else
+            {
+                var errorJson = @"{
+                    ""deactivated"": false,
+                    ""error"": ""Instance not found or license key invalid.""
+                }";
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(errorJson, Encoding.UTF8, "application/json")
+                };
+            }
+        });
+
+        var prevEnabled = LemonSqueezyClient.Enabled;
+        var prevHttp = LemonSqueezyClient.Http;
+        try
+        {
+            LemonSqueezyClient.Enabled = true;
+            LemonSqueezyClient.Http = new HttpClient(handler);
+
+            var (ok, msg) = await LemonSqueezyClient.DeactivateAsync("LS-VALID-KEY", "inst_987654321");
+            Assert.True(ok);
+            Assert.Equal("Deactivated.", msg);
+
+            var (failOk, failMsg) = await LemonSqueezyClient.DeactivateAsync("LS-INVALID-KEY", "inst_invalid");
+            Assert.False(failOk);
+            Assert.Contains("Instance not found", failMsg);
+        }
+        finally
+        {
+            LemonSqueezyClient.Enabled = prevEnabled;
+            LemonSqueezyClient.Http = prevHttp;
+        }
+    }
 }
 
 internal class MockHttpMessageHandler : HttpMessageHandler

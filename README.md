@@ -227,6 +227,40 @@ nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
 
 ---
 
+## Pricing
+
+Marksmith is **free for PDF, HTML, and Markdown workflows**. Word (DOCX), PowerPoint (PPTX), and automation features require a one-time Pro upgrade.
+
+| | **Free** | **Pro** — A$39 one-time |
+|---|:---:|:---:|
+| Markdown → PDF / HTML / Markdown | ✅ | ✅ |
+| Live preview with 20+ themes | ✅ | ✅ |
+| Mermaid, LaTeX math, SmartArt, shapes | ✅ | ✅ |
+| Diagram Studio & Shape Studio | ✅ | ✅ |
+| Mind Map Galaxy | ✅ | ✅ |
+| CLI (`marksmith render-image`, `batch --format html`) | ✅ | ✅ |
+| **Markdown → Word (.docx)** | 3-export trial | ✅ Unlimited |
+| **Markdown → PowerPoint (.pptx)** | — | ✅ |
+| **Batch conversion** | — | ✅ |
+| **Watch-folder automation** | — | ✅ |
+| **Clipboard AI ingest** | — | ✅ |
+| **"Made with Marksmith" footer** | Shown | Removed |
+
+> **Try before you buy**: start a free 3-export trial from Settings → License. No account needed.
+
+<!-- LAUNCH: Replace with real Lemon Squeezy checkout URL -->
+<!-- [**Buy Marksmith Pro — A$39**](https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID) -->
+
+## Download
+
+| Channel | Link |
+|---|---|
+| **Windows Installer** | [GitHub Releases](https://github.com/thebubbsy/marksmith/releases/latest) |
+| **Portable ZIP** | [GitHub Releases](https://github.com/thebubbsy/marksmith/releases/latest) |
+| **winget** | `winget install thebubbsy.Marksmith` |
+| **Chocolatey** | `choco install marksmith` |
+| **CLI** | `dotnet tool install -g marksmith` *(coming soon)* |
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later.

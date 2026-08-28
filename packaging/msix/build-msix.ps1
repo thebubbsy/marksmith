@@ -7,7 +7,7 @@
 # .msix — the Store re-signs it. To sideload/test locally, sign it with a self-signed cert.
 
 param(
-  [string]$PublishDir = "$PSScriptRoot\..\..\MdToPdf\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish",
+  [string]$PublishDir = "$PSScriptRoot\..\..\marksmith-v2\MarkSmith.Desktop\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish",
   [string]$OutMsix    = "$PSScriptRoot\..\..\dist_installer\Marksmith-1.0.0-x64.msix",
   [string]$CertPfx    = "",   # optional: path to a .pfx to sign for local sideloading
   [string]$CertPass   = ""

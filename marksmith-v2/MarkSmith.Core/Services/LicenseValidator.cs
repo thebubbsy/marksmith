@@ -11,16 +11,17 @@ namespace MarkSmith.Services;
 // tools/licensing/. (An online Lemon Squeezy path also exists — see LemonSqueezyClient.)
 public static class LicenseValidator
 {
-    // Vendor public key. REPLACE with your own from tools/licensing/generate-keys.ps1 before selling.
+    // Production vendor public key. The corresponding private key is stored securely outside this
+    // repository at %USERPROFILE%\.marksmith-keys\private-key.pem — never commit it to version control.
     public const string PublicKeyPem =
         "-----BEGIN PUBLIC KEY-----\n" +
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwV1ZGKpYGX0Ve9O7K1cL\n" +
-        "vpv6UbLNtVk3W20V6XDILlWmBIkYjTVRs+XiN6/HUC66vqwNhxYMpOPViYJNic6n\n" +
-        "/z5oZuJOWjyjd080HZGDH+pMrU4s2OmlYjXLu3YsnVMRhbugRrAncvcTqOfW3okC\n" +
-        "u7ZPVz0WE8vNSfMXhqkYlk+O1OiWrcv3NgJ4N5Xk4B5TbkThTip7519uneXtH16S\n" +
-        "bckB0ybs91FDUosjadCVw0sU/++A16k3vJWRz5AhmdZVxYXl1sUhAeSdoYpMPm7c\n" +
-        "p7y7NVa3F1uiuPLmYG5i2rxolB0laCze6tuV8jgVpDNVKN8HpGstFO0xQqw+RwW0\n" +
-        "KQIDAQAB\n" +
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx2WNX3JOeuMJqIcsmvuC\n" +
+        "UgrRFkHaEFfN7S1n6sJA3a6i5GZia0/EoXDJ6+QXJ0JKWWiWJjh/IUspBQwAIuIy\n" +
+        "0uP2+vUd5luXUcKaqTUi+xflctFfvic6MeLZWT1hEJF42sKfGRaOJg0zeuBWlcLT\n" +
+        "UpTMI3K9bfefsHjg9KwiyZbtlp6v0TgxF+5NQta8Ujy1vd1VPTNCmavCRbT66Typ\n" +
+        "8aOtNsccAsZQgkGOG1kvs5jHJVIhdwuDjQuTAIflEkUZq2BkqEyO5YgCh30m41Xv\n" +
+        "+MketmR5/be/QMJOdBO6/+6FYqXXhLOcRz4P9E+m+TEPmPM8+PDzB/OR32yddds6\n" +
+        "pQIDAQAB\n" +
         "-----END PUBLIC KEY-----";
 
     public sealed record Payload(

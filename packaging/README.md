@@ -40,7 +40,7 @@ Release, and **prints its SHA256** in the workflow summary and a `checksums.txt`
 
 To build locally instead:
 ```powershell
-dotnet publish MdToPdf/MdToPdf.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
+dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:DebugType=none
 iscc packaging\installer\marksmith.iss          # needs Inno Setup 6 (free): https://jrsoftware.org
 Get-FileHash dist_installer\Marksmith-Setup-x64.exe -Algorithm SHA256   # → the checksum
 ```
@@ -97,7 +97,7 @@ Take that **SHA256** and paste it into:
 
 ## Updating for a new version
 
-1. Bump `<Version>` in `MdToPdf/MdToPdf.csproj` and the version in: `installer/marksmith.iss`,
+1. Bump `<Version>` in `marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj` and the version in: `installer/marksmith.iss`,
    all three `winget/*.yaml`, and `chocolatey/marksmith.nuspec` (+ the URLs/`v1.0.0` tags).
 2. Tag `vX.Y.Z` → the release workflow builds the installer and prints the new SHA256.
 3. Update `InstallerSha256` / `checksum64`, then submit the winget PR and `choco push`; create
