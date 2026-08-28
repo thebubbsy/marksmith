@@ -109,13 +109,13 @@ This is the **Architecture** system design.
 
         // 2. Verify Tab Headers Visual Styling (Active vs Inactive)
         var cell0Shd = cells[0].TableCellProperties?.Shading?.Fill?.Value;
-        Assert.Equal("EBF3FE", cell0Shd);
+        Assert.Equal("ffffff", cell0Shd?.ToLowerInvariant()); // Default light theme BackgroundHex is ffffff
 
         var cell1Shd = cells[1].TableCellProperties?.Shading?.Fill?.Value;
-        Assert.Equal("F8F9FA", cell1Shd);
+        Assert.Equal("f6f8fa", cell1Shd?.ToLowerInvariant()); // Default light theme SecondaryHex is f6f8fa
 
         var cell2Shd = cells[2].TableCellProperties?.Shading?.Fill?.Value;
-        Assert.Equal("F8F9FA", cell2Shd);
+        Assert.Equal("f6f8fa", cell2Shd?.ToLowerInvariant());
 
         // 3. Verify Hyperlinks pointing to Bookmarks
         var hyperlinks = tabTable.Descendants<W.Hyperlink>().ToList();
