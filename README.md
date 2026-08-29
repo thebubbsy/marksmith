@@ -111,16 +111,16 @@ preview and PDF.
 </td>
 <td width="50%" valign="top">
 
-**Tables that refuse to collapse**
+**Tables that survive the round-trip**
 
-Inline math, fenced code, nested lists and alert blocks *inside* table cells, in the preview and in
-the Word output.
+Inline math, code, emphasis and per-column alignment inside cells — preserved from the preview into
+the Word table, without the grid collapsing.
 
 </td>
 </tr>
 <tr>
 <td><img src="docs/media/feature-math.png" alt="LaTeX matrices, integrals and mhchem equations rendered by Marksmith" width="100%" /></td>
-<td><img src="docs/media/feature-tables.png" alt="A table containing inline math, code and nested lists" width="100%" /></td>
+<td><img src="docs/media/feature-tables.png" alt="A table whose cells carry inline math, code and emphasis, with per-column alignment" width="100%" /></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
