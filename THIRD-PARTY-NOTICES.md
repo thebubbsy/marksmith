@@ -21,7 +21,7 @@ projects or companies listed.
 | CommunityToolkit.Mvvm | MVVM source generators | MIT |
 | H.NotifyIcon.WinUI | System tray icon | MIT |
 
-## Loaded at runtime for preview/render (from a public CDN, not redistributed)
+## Loaded at runtime for preview/render (bundled locally, loaded offline)
 
 | Component | Used for | License |
 | --- | --- | --- |
