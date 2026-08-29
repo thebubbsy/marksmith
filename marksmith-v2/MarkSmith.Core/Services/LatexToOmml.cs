@@ -40,6 +40,63 @@ internal static class LatexToOmml
         return r;
     }
 
+    private static M.Run StyledRun(string s, M.StyleValues style)
+    {
+        var r = new M.Run(new M.RunProperties(new M.Style { Val = style }));
+        r.Append(new M.Text(s) { Space = SpaceProcessingModeValues.Preserve });
+        return r;
+    }
+
+    /// <summary>Marks every run in a parsed sub-expression bold-italic (LaTeX's \boldsymbol).</summary>
+    private static List<OpenXmlElement> Bolden(List<OpenXmlElement> parsed)
+    {
+        foreach (var run in parsed.OfType<M.Run>().Concat(parsed.SelectMany(e => e.Descendants<M.Run>())))
+        {
+            var props = run.GetFirstChild<M.RunProperties>();
+            if (props is null)
+            {
+                run.InsertAt(new M.RunProperties(new M.Style { Val = M.StyleValues.BoldItalic }), 0);
+                continue;
+            }
+            var style = props.GetFirstChild<M.Style>();
+            if (style is null) props.AppendChild(new M.Style { Val = M.StyleValues.BoldItalic });
+            else style.Val = style.Val?.Value == M.StyleValues.Plain
+                ? M.StyleValues.Bold          // upright content stays upright, just bolder
+                : M.StyleValues.BoldItalic;
+        }
+        return parsed;
+    }
+
+    /// <summary>
+    /// Maps ASCII letters and digits to their Unicode double-struck forms, so \mathbb{R} becomes ℝ.
+    /// The named characters (ℂ ℍ ℕ ℙ ℚ ℝ ℤ) live outside the contiguous Mathematical Alphanumeric
+    /// block and have to be special-cased.
+    /// </summary>
+    private static string ToDoubleStruck(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (var ch in s)
+        {
+            switch (ch)
+            {
+                case 'C': sb.Append('ℂ'); break;
+                case 'H': sb.Append('ℍ'); break;
+                case 'N': sb.Append('ℕ'); break;
+                case 'P': sb.Append('ℙ'); break;
+                case 'Q': sb.Append('ℚ'); break;
+                case 'R': sb.Append('ℝ'); break;
+                case 'Z': sb.Append('ℤ'); break;
+                default:
+                    if (ch is >= 'A' and <= 'Z') sb.Append(char.ConvertFromUtf32(0x1D538 + (ch - 'A')));
+                    else if (ch is >= 'a' and <= 'z') sb.Append(char.ConvertFromUtf32(0x1D552 + (ch - 'a')));
+                    else if (ch is >= '0' and <= '9') sb.Append(char.ConvertFromUtf32(0x1D7D8 + (ch - '0')));
+                    else sb.Append(ch);
+                    break;
+            }
+        }
+        return sb.ToString();
+    }
+
     private static T Arg<T>(IEnumerable<OpenXmlElement> kids) where T : OpenXmlCompositeElement, new()
     {
         var a = new T();
@@ -275,9 +332,26 @@ internal static class LatexToOmml
                         new M.DelimiterProperties(new M.BeginChar { Val = beg }, new M.EndChar { Val = end }),
                         Base(inner)) };
                 }
-                case "text": case "mathrm": case "operatorname": case "mathbf":
-                case "mathsf": case "mathtt": case "mathit": case "mathcal": case "mathbb":
+                case "text": case "mathrm": case "operatorname":
+                case "mathsf": case "mathtt": case "mathit": case "mathcal":
                     return new() { TextRun(ParseBracedRaw(), upright: cmd != "mathit") };
+                case "mathbf":
+                    // Upright AND bold. Falling through to the plain-text case above rendered
+                    // \mathbf{x} as an ordinary "x", losing the vector/matrix distinction the
+                    // notation exists to make.
+                    return new() { StyledRun(ParseBracedRaw(), M.StyleValues.Bold) };
+                case "mathbb":
+                    // Blackboard bold is a character set, not a font run: Word has no \mathbb, so
+                    // \mathbb{R} has to become the actual ℝ codepoint or it degrades to "R".
+                    return new() { TextRun(ToDoubleStruck(ParseBracedRaw()), upright: true) };
+                case "boldsymbol": case "bm": case "pmb":
+                {
+                    // \boldsymbol takes the NEXT ATOM, which is usually a command and usually
+                    // unbraced (\boldsymbol\mu). Reading it as raw text — as the other font
+                    // commands do — yielded the literal word "mu", and an unknown \boldsymbol
+                    // fell through to the verbatim fallback, printing "\boldsymbol" mid-equation.
+                    return Bolden(ParseGroupArg());
+                }
                 case "hat": case "bar": case "vec": case "tilde": case "dot": case "ddot": case "overline":
                 {
                     var inner = ParseBracedRaw();
@@ -581,6 +655,12 @@ internal static class LatexToOmml
         ["neg"]="¬",["land"]="∧",["wedge"]="∧",["lor"]="∨",["vee"]="∨",
         ["oplus"]="⊕",["otimes"]="⊗",["odot"]="⊙",["circ"]="∘",["bullet"]="∙",
         ["star"]="⋆",["ast"]="∗",["dagger"]="†",["angle"]="∠",["perp"]="⊥",
+        // \top is how transposes are written (A^\top); without it every transpose in a document
+        // printed the literal text "\top" as a superscript.
+        ["top"]="⊤",["bot"]="⊥",["vdash"]="⊢",["dashv"]="⊣",["models"]="⊨",
+        ["ddagger"]="‡",["surd"]="√",["triangle"]="△",["square"]="□",["diamond"]="⋄",
+        ["lceil"]="⌈",["rceil"]="⌉",["lfloor"]="⌊",["rfloor"]="⌋",
+        ["langle"]="⟨",["rangle"]="⟩",["backslash"]="\\",["colon"]=":",
         ["parallel"]="∥",["mid"]="∣",["cdots"]="⋯",["ldots"]="…",["dots"]="…",
         ["vdots"]="⋮",["ddots"]="⋱",["prime"]="′",["hbar"]="ℏ",["ell"]="ℓ",
         ["Re"]="ℜ",["Im"]="ℑ",["aleph"]="ℵ",["wp"]="℘",["degree"]="°",

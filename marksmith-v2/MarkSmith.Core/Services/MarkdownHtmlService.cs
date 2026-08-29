@@ -61,6 +61,10 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::parallel(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex ParallelBlockRe();
 
+    // The delimiter row under a pipe-table header: | :--- | ---: | etc.
+    [GeneratedRegex(@"^\s{0,3}\|?(?:\s*:?-{1,}:?\s*\|)+\s*:?-{0,}:?\s*\|?\s*$")]
+    private static partial Regex TableDelimiterRowRe();
+
     // Fenced code spans (```…``` or ~~~…~~~, same opener/closer) — smartart markers inside these
     // must never be lifted out, even when a blank line sits inside the fence.
     [GeneratedRegex(@"^[ \t]*(```+|~~~+)[^\n]*\n[\s\S]*?\n[ \t]*\1\s*$", RegexOptions.Multiline)]
@@ -200,6 +204,7 @@ public sealed partial class MarkdownHtmlService
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
+        markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
         
@@ -353,6 +358,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
+        body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -374,7 +380,7 @@ public sealed partial class MarkdownHtmlService
         var alertCss = string.Join("\n", alertStyles.Select(kv => $$"""
             .markdown-alert-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; background: {{theme.Secondary}}; }
             .markdown-alert-{{kv.Key}} .markdown-alert-title { color: {{kv.Value.Color}}; }
-            .markdown-alert-{{kv.Key}} .markdown-alert-title::before { content: "{{(settings.NoEmoji ? AlertGlyph(kv.Key) : kv.Value.Icon)}} "; }
+            .markdown-alert-{{kv.Key}} .markdown-alert-title svg { fill: {{kv.Value.Color}}; margin-right: 6px; vertical-align: text-bottom; }
             .md-callout-{{kv.Key}} { border-left: 5px solid {{kv.Value.Color}}; }
             .md-callout-{{kv.Key}} > summary { color: {{kv.Value.Color}}; }
             .md-callout-{{kv.Key}} > summary::after { content: " {{(settings.NoEmoji ? AlertGlyph(kv.Key) : kv.Value.Icon)}}"; }
@@ -2295,6 +2301,7 @@ public sealed partial class MarkdownHtmlService
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
+        markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
 
@@ -2336,6 +2343,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
+        body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
         body = MermaidFenceHtmlRe().Replace(body,
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
@@ -3232,6 +3240,117 @@ public sealed partial class MarkdownHtmlService
         });
     }
 
+    /// <summary>
+    /// Renders block content written inside a pipe-table cell.
+    ///
+    /// Markdig's table parser is inline-only, so an alert, list or fence in a cell would otherwise
+    /// come out as literal text. Qualifying cells (see <see cref="TableCellBlocks"/>) are rendered
+    /// here and swapped in after sanitization — the generated markup is ours, never the user's
+    /// re-injected, which is the rule the two-pipeline contract depends on.
+    /// </summary>
+    private static string LiftTableCellBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> cellHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        cellHtmlBlocks = blocks;
+        if (string.IsNullOrEmpty(markdown) || !markdown.Contains('|')) return markdown;
+
+        var lines = markdown.Split('\n');
+
+        // Offsets let a row be checked against the fenced spans, so a fenced code sample that merely
+        // SHOWS a table is never rewritten.
+        var offsets = new int[lines.Length];
+        for (int i = 1, running = 0; i < lines.Length; i++)
+        {
+            running += lines[i - 1].Length + 1;
+            offsets[i] = running;
+        }
+
+        bool changed = false;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            // Only rewrite rows of a real table: a header row, a delimiter row, then body rows.
+            if (!IsTableRow(lines[i]) || i + 1 >= lines.Length || !IsDelimiterRow(lines[i + 1]))
+                continue;
+
+            for (int r = i + 2; r < lines.Length && IsTableRow(lines[r]); r++)
+            {
+                if (fencedSpans.Any(f => offsets[r] >= f.Start && offsets[r] < f.End)) continue;
+
+                var cells = SplitTableRow(lines[r]);
+                bool rowChanged = false;
+                for (int c = 0; c < cells.Count; c++)
+                {
+                    var cellMarkdown = TableCellBlocks.TryGetBlockMarkdown(cells[c]);
+                    if (cellMarkdown is null) continue;
+
+                    var html = Markdown.ToHtml(DialectNormalizer.Apply(cellMarkdown), Pipeline).Trim();
+                    blocks.Add(html);
+                    cells[c] = $"<!--TBLCELL:{blocks.Count - 1}-->";
+                    rowChanged = true;
+                }
+
+                if (rowChanged)
+                {
+                    lines[r] = "| " + string.Join(" | ", cells) + " |";
+                    changed = true;
+                }
+            }
+
+            i++; // Skip the delimiter row; body rows were consumed above.
+        }
+
+        return changed ? string.Join("\n", lines) : markdown;
+    }
+
+    private static bool IsTableRow(string line)
+    {
+        var t = line.TrimStart();
+        return t.StartsWith('|') && t.TrimEnd().Length > 1;
+    }
+
+    private static bool IsDelimiterRow(string line) =>
+        TableDelimiterRowRe().IsMatch(line);
+
+    /// <summary>
+    /// Splits a pipe-table row into its cells, honouring <c>\|</c> escapes and backtick code spans
+    /// so a pipe inside inline code does not start a new cell.
+    /// </summary>
+    private static List<string> SplitTableRow(string line)
+    {
+        var cells = new List<string>();
+        var sb = new StringBuilder();
+        var trimmed = line.Trim();
+        int start = trimmed.StartsWith('|') ? 1 : 0;
+        int end = trimmed.EndsWith('|') && trimmed.Length > 1 ? trimmed.Length - 1 : trimmed.Length;
+
+        int backticks = 0;
+        for (int i = start; i < end; i++)
+        {
+            char ch = trimmed[i];
+            if (ch == '\\' && i + 1 < end && trimmed[i + 1] == '|')
+            {
+                sb.Append("\\|");
+                i++;
+                continue;
+            }
+            if (ch == '`')
+            {
+                backticks++;
+                sb.Append(ch);
+                continue;
+            }
+            if (ch == '|' && backticks % 2 == 0)
+            {
+                cells.Add(sb.ToString().Trim());
+                sb.Clear();
+                continue;
+            }
+            sb.Append(ch);
+        }
+        cells.Add(sb.ToString().Trim());
+        return cells;
+    }
+
     private static string LiftParallelBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> parallelHtmlBlocks)
     {
         var blocks = new List<string>();
@@ -3242,12 +3361,15 @@ public sealed partial class MarkdownHtmlService
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
 
-            var lines = m.Value.TrimEnd().Split('\n');
-            var firstLine = lines[0].TrimEnd('\r');
-            var inner = lines.Length > 1 ? string.Join('\n', lines.Skip(1).Take(lines.Length - (lines[^1].TrimEnd('\r').Trim() == ":::" ? 2 : 1))) : "";
+            // Take the body straight from the capture group. Slicing it off by line index assumed
+            // m.Value begins at ":::parallel", but the pattern's leading \s* also matches newlines,
+            // so a preceding blank line shifted every index: the ":::parallel" line itself became
+            // the first body line (rendering as an empty <div class="parallel">) and the last real
+            // line was dropped off the end.
+            var inner = m.Groups[1].Value;
 
             var headers = new List<string>();
-            var headerMatch = Regex.Match(firstLine, @"^:::parallel\s+(.*)$", RegexOptions.IgnoreCase);
+            var headerMatch = Regex.Match(m.Value, @":::parallel[ \t]+([^\r\n]*)", RegexOptions.IgnoreCase);
             if (headerMatch.Success)
             {
                 var parts = headerMatch.Groups[1].Value.Split('|');
@@ -3276,12 +3398,11 @@ public sealed partial class MarkdownHtmlService
             foreach (var row in rows)
             {
                 if (string.IsNullOrWhiteSpace(row)) continue;
-                var cols = Regex.Split(row, @"(?:\r?\n|^)===(?:\r?\n|$)");
+                var cols = ParallelRowParser.SplitColumns(row, colCount);
                 sb.Append("  <div class=\"ms-parallel-row\">\n");
                 for (int i = 0; i < colCount; i++)
                 {
-                    var colMd = i < cols.Length ? cols[i].Trim() : "";
-                    colMd = DialectNormalizer.Apply(colMd);
+                    var colMd = DialectNormalizer.Apply(cols[i]);
                     var colHtml = Markdown.ToHtml(colMd, Pipeline).Trim();
                     sb.Append($"    <div class=\"ms-parallel-col\">{colHtml}</div>\n");
                 }

@@ -79,14 +79,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 3. High-Complexity Nested Tables (The "Layout Exploder")
 
-Tables in Word often collapse or distort when cells contain complex layouts. This table tests code blocks, alerts, lists, and inline math inside individual table cells.
+Tables in Word often collapse or distort when cells contain complex layouts. Pipe-table cells are inline-only in GFM, so Marksmith recovers block content written into a cell — a `<br>`-joined list, a GitHub alert — and renders it as a real block in both the preview and the native Word table.
 
-| Feature / Element | Raw Syntax Test | Rendered Result & Constraints |
+| Feature / Element | Raw Syntax Test | Rendered Result |
 | :--- | :--- | :--- |
-| **Mathematics** | `$E = mc^2$` | Inline math in cells must render: $\sum_{i=1}^{k} x_i$ |
-| **Monospace / Code** | Inline `code` and block: <br>```js<br>let x = 1;<br>``` | Code blocks inside tables must not overflow the cell boundary or cause vertical collapse. |
-| **Nested Lists** | 1. Step A <br>&nbsp;&nbsp;&nbsp;&nbsp;- Detail 1<br>&nbsp;&nbsp;&nbsp;&nbsp;- Detail 2 | Lists must align inside cells: <br>- Subitem 1<br>- Subitem 2 |
-| **Alert Blocks** | `> [!WARNING]` <br>`> Mind the gap!` | Admonitions should retain their borders and background padding within the grid. |
+| **Mathematics** | `$E = mc^2$` | Inline math renders in the cell: $\sum_{i=1}^{k} x_i$ |
+| **Monospace / Code** | `` `let x = 1;` `` | Inline code keeps its face inside the grid: `let x = 1;` |
+| **Nested Lists** | `- Subitem 1<br>- Subitem 2` | - Subitem 1<br>- Subitem 2 |
+| **Alert Blocks** | `> [!WARNING] Mind the gap!` | > [!WARNING] Mind the gap! |
+| **Alert, multi-line** | `> [!TIP]<br>> Cells carry blocks.` | > [!TIP]<br>> Cells carry blocks, not just inline text. |
 
 ---
 
