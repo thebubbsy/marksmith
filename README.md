@@ -1,19 +1,18 @@
 <div align="center">
 
-![Marksmith](docs/images/logo.png)
+<img src="docs/images/logo.png" alt="Marksmith" width="120" />
 
 # Marksmith
 
-### Turn AI chats into polished documents.
+### Turn AI chats into documents that look like you wrote them.
 
-Paste a reply from ChatGPT, Gemini, Claude, or Copilot — Marksmith detects the source, cleans up
-the formatting quirks each one leaves behind, and exports a professional **PDF** or **DOCX**.
-Import your company's `.dotx` template and it even matches your brand — using the AI you already
-have, at zero extra cost.
-
-![Marksmith](docs/images/_new/hero.png)
+Paste a reply from ChatGPT, Gemini, Claude, or Copilot. Marksmith detects the source, strips the
+tells, and compiles it into **native Microsoft Word OOXML** — real equations, real vector shapes,
+real tables. Not a screenshot. Not an HTML-in-a-Word-wrapper approximation. The actual XML Word
+would have written itself.
 
 [![CI](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml/badge.svg)](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml)
+![version](https://img.shields.io/badge/version-3.0.0-2ea44f)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)
@@ -23,222 +22,306 @@ have, at zero extra cost.
 
 ---
 
-## Why Marksmith?
+## Watch it work
 
-Marksmith is, unequivocally, the most advanced **Markdown-to-DOCX converter** on the planet. Its entire existence is dedicated to taking the robotic, highly recognizable formatting of AI outputs (ChatGPT, Gemini, Claude, Copilot) and seamlessly converting it into polished, professional Word documents that actually look like **your own work**.
-
-While other converters often string together flimsy XML that barely resembles your original intent, Marksmith generates native, schema-valid, and flawlessly styled Microsoft Word OOXML. I didn't just approximate your formatting—I reconstructed it natively.
-
-It is a native **WinUI 3** desktop app with a simple, left-to-right workflow: **Source → Style → Preview & Export.**
-
----
-
-## What Marksmith Does Better Than Anyone Else
-
-I didn't just build a text paster—I constructed a native Word element engine from the ground up. Here is a comprehensive overview of what Marksmith delivers:
-
-### 🧩 True Native Rendering & SmartArt Solver
-- **Reverse-Engineered SmartArt Engine** — Fully reverse-engineered Word's undocumented SmartArt spatial constraint solver (`<constr>`, `<layoutDef>`, `<rule>`). Builds dynamic hierarchies, cycle workflows, SWOT matrices, pyramids, and Venn topologies directly into native Office DrawingML shapes.
-- **Native Mermaid Diagrams** — Translates flowcharts, sequence diagrams, state diagrams, class diagrams, and entity-relationship models directly into **editable, native vector shapes (DrawingML)** inside your `.docx`.
-- **Engineering & Science Visualizations** — Native SVG & DrawingML rendering for logic gates, breadboard circuits, DNA/RNA sequences, astronomy orbital charts, and interactive periodic tables.
-
-![Reverse-Engineered SmartArt Engine and DrawingML Shapes](docs/images/smartart-visualizer.png)
-
-### 📄 Advanced Word & OpenXML Capabilities
-- **Flawless Math (OMML)** — Other converters choke on LaTeX. Marksmith converts equations directly into Word's native Equation editor formats (`$x^2 + y^2 = z^2$`, `$$E=mc^2$$`, `\(...\)`, `\[...\]`). Click any formula and edit it right in Word. Includes full chemistry (`mhchem`) support.
-- **Native Lists Done Right** — Proper `numbering.xml` linking with `ilvl` indents, abstract numbering definitions, and task check-lists.
-- **Complex Structures** — Native Word tabs (`:::tabs` / `=== "Tab"`), web link cards (`:::embed`), styled data grids (`:::datagrid`), continuous multi-column section breaks (`:::columns`), and real Word pie/line/bar charts (`:::chart`) backed by embedded Excel parts.
-- **Callout Alert Blocks** — Native single-cell themed callouts with accent borders (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`).
-- **Collapsible Headings** — Native Word 2013+ collapsible sections using `<w15:collapsed w:val="true"/>`.
-
-### 📊 Data Visualization, Analytics & Statistics
-- **Inline Sparklines** — Embeds live SVG trend lines and deltas directly within Markdown table cells (`[sparkline: 10, 25, 18, 42, 60]`).
-- **Multidimensional Pivot Tables** — Compute aggregations (Sum, Avg, Min, Max, Count) over tabular Markdown datasets on the fly (`:::pivot`).
-- **Statistical Histograms** — Calculate frequency distributions and render responsive SVG column histograms (`:::histogram`).
-- **Live Document Metrics** — Instant, non-allocating prose word count, character density, estimated reading time, and structural manifests (`DocumentStatsService`).
-- **Revision Heatmaps & Diff Views** — Section edit churn intensity heatmaps (`:::revision-heatmap`) and side-by-side synchronized HTML comparison tables (`:::diff-view`).
-- **Academic Citations & Manifests** — Automatic citation clustering (`[@key]`), bibliography backlinks, and automated Lists of Figures/Tables (`TableOfFiguresService`).
-
-### 🌌 Interactive Preview, Looking Glass & MindMap Galaxy
-- **Pixel-Perfect HTML Preview & Pan/Zoom Lens** — Live preview with an interactive pan/zoom lens (`#mk-lens`) for high-DPI diagram and SmartArt inspection.
-- **Looking Glass Mode** — Fuses editor and preview into a single interactive canvas with fog-of-war portal apertures and collapsible wave code blocks.
-- **Document Galaxy MindMap Vault** — Visual canvas organizing documents, projects, notes, and research nodes with real-time SHA-256 version history tracking.
-- **Audio Voiceover Narration** — Automatically parses speech narration scripts (`VoiceOverScriptService`) with bullet, link, and formatting cleanup.
-- **Crash-Proof Recovery Vault** — Automatic periodic snapshot vault with atomic replacement semantics (`DocumentRecoveryVault`) guaranteeing zero data loss.
-
-### 🧠 AI Normalization & Security Governance
-- **AI Fingerprinting & Cleanup** — Detects source AI (ChatGPT, Gemini, Claude, Copilot) and strips citation pips, hallucinated delimiters, and machine-generated formatting.
-- **DLP & Usage Governance** — Real-time regex-based Data Loss Prevention, PII masking, and local telemetry reporting for enterprise environments.
-- **Loopback REST API & Zero-Click Pipeline** — High-performance background daemon with CORS/CSRF origin protection and automated `.dotx` corporate brand matching.
-
----
-
-### 🚀 What's New (Added in the Last 2 Weeks)
-
-| Capability | Category | Description |
-|---|---|---|
-| **High-Resolution Snapshot Rasterizer** | CLI / Export | Headless SkiaSharp PNG rasterizer generating pixel-perfect document snapshots (`render-image`) with theme backgrounds and High-DPI scaling. |
-| **Bilingual Parallel Columns** | Layout Engine | Dual synchronized multi-row columns (`:::parallel`) rendering borderless `cantSplit` tables with rich Markdown and interactive form controls. |
-| **Interactive Form SDTs** | WordprocessingML | Fillable Structured Document Tags for dropdown lists (`[dropdown]`), date pickers (`[date]`), text inputs (`[text]`), and checkboxes (`- [ ]`). |
-| **Native Table Formulas** | Formulas | Dynamic table calculation engine (`=SUM(ABOVE)`, `=AVERAGE(LEFT)`, `=COUNT`, range coordinates `A1:B4`, currency formatting `\$#,##0.00`). |
-| **Editorial Drop Caps** | Typography | Traditional typographic 3-line dropped capital letters (`:::dropcap`) anchored via native `w:framePr` text frames. |
-| **Concordance & Subject Index** | Indexing | Automated document-wide concordance indexing (`:::index`) with inline topic anchors (`^[index: "..."]`) and Word `INDEX` field codes. |
-| **Executive Cover Page Gallery** | Branding | Multi-theme cover page generator (`:::cover-page`) with metadata fields, layout styles, and `w:titlePg` section break separation. |
-| **Legal & Academic Line Numbering** | Typography | Precision margin line numbering (`:::line-numbers`) supporting count intervals and per-page/continuous restart rules (`w:lnNumType`). |
-| **Native Vector Watermarks** | Document Security | Diagonal translucent WordprocessingML VML header watermarks (`:::watermark`) with customizable opacity and text. |
-| **Dynamic GLOX Constraint Engine** | SmartArt / DOCX | Real-time XML constraint solver parsing `.glox` layout rules to compute mathematically accurate bounding boxes. |
-| **Interactive Pan/Zoom Lens** | UI / Preview | Click-to-expand vector pan & zoom lens (`#mk-lens`) across all SmartArt and engineering diagrams. |
-| **Document Galaxy Vault** | Organization | Visual spatial mind-map organizing documents with integrated version history and star bookmarks. |
-| **Inline Table Sparklines** | Data Visualization | Fast inline SVG trend polylines directly inside Markdown table columns (`[sparkline: ...]`). |
-| **Multidimensional Pivot Tables** | Data Engine | 2D grouping and statistical aggregation over Markdown table datasets (`:::pivot`). |
-| **Statistical Histograms** | Visualization | Automatic statistical distribution and frequency bin SVG charts (`:::histogram`). |
-| **Synchronized Diff Views** | Analytics | Side-by-side comparative Markdown diff viewer with syntax highlighting (`:::diff-view`). |
-| **Revision Activity Heatmaps** | Analytics | Section churn scoring and visual color-coded activity heatmaps (`:::revision-heatmap`). |
-| **Speech Narration Transpiler** | Audio / Media | Automated generation of voiceover scripts with formatting sanitization (`VoiceOverScriptService`). |
-| **Academic Citation Backlinks** | Citations | Academic citation parsing (`[@key]`) with automated Figure/Table manifest indexes. |
-| **Periodic Table Explorer** | Science | Interactive SVG chemical element visualization with atomic properties (`:::periodic-table`). |
-| **Crash-Proof Atomic Vault** | Core Engine | Zero-window atomic file replace semantics preventing corrupted saves across all app stores. |
-| **Hardened Loopback API** | Security | Cross-origin browser isolation (`IsBrowserOrigin`) and license paywall enforcement on REST endpoints. |
+Markdown arrives over the loopback API — from the browser extension, the clipboard, or a file — and
+the preview keeps up with it live: GitHub alerts, KaTeX math and Mermaid diagrams rendering as the
+document streams in.
 
 <div align="center">
-  <img src="docs/images/niche-word-showcase.png" alt="Marksmith Niche Word & OpenXML Features" width="100%" />
+  <img src="docs/media/desktop-demo.gif" alt="Marksmith rendering a document live as it is ingested" width="100%" />
+  <br />
+  <em><a href="docs/media/desktop-demo.mp4">Full-resolution MP4</a> · recorded from a Release build, driven over <code>POST /api/ingest</code></em>
 </div>
 
 ---
 
-## 🤖 Automation & CLI Tools
+## The part nobody else does
 
-### 💻 Standalone Marksmith CLI
+Every "Markdown to Word" tool can produce a `.docx`. Almost all of them shove HTML into a Word
+wrapper, or paste a picture of your diagram. Marksmith emits the real thing — so the equation opens
+in Word's equation editor, and the flowchart is a group of shapes you can drag.
 
-Marksmith includes a standalone command-line compiler for terminal workflows and automated build scripts:
+**Below is a Marksmith `.docx`, opened in Microsoft Word and exported by Word's own engine.**
+Nothing on this page was rasterized by us.
 
-```pwsh
-# Convert Markdown to Word DOCX or HTML
-marksmith <input.md> <output.docx|output.html> [--theme <name>] [--watch]
+<div align="center">
+  <img src="docs/media/word-gauntlet.png" alt="A Marksmith-generated DOCX open in Microsoft Word: native OMML equations, syntax-highlighted code, and a complex table" width="100%" />
+</div>
 
-# Render high-resolution PNG snapshot
-marksmith render-image <input.md> <output.png> [--width 1200] [--height 0] [--scale 2.0] [--theme "GitHub Light"]
+There is a Schrödinger equation and a 3×3 Hamiltonian matrix living in Word's **native OMML**
+equation editor, a Rust code block with **preserved syntax colouring**, a running header and page
+numbering, and a table whose cells hold inline math, nested lists and code without collapsing.
 
-# Batch convert multiple Markdown files
-marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>]
+Diagrams get the same treatment — a Mermaid `flowchart` fence becomes **native DrawingML shapes**,
+with cylinders for the datastores and real connectors between them:
 
-# Vector Shape & Line Art tools
-marksmith compose <image.png> <output.docx|output.md> [--grid 32] [--compact]
-marksmith trace <image.png> <output.docx|output.md> [--rows 300] [--mode CrossHatch]
-```
+<div align="center">
+  <img src="docs/media/word-product-spec.png" alt="A Mermaid architecture diagram compiled into native, editable Word shapes" width="100%" />
+</div>
 
-### 🔌 Local REST API & Marksmith Express
+> Click any box in Word and drag it. It moves — because it is a shape, not a PNG.
 
-A loopback‑only API (`127.0.0.1:47821` / `127.0.0.1:5000`) and the zero-dependency **Marksmith Express** web UI let scripts and users convert markdown on any platform:
+---
+
+## The workflow
+
+Marksmith is a native **WinUI 3** app with one left-to-right path:
+**Source → Editor / Preview → Style & Export.**
+
+### 1. It knows where the text came from
+
+Paste a ChatGPT reply and Marksmith fingerprints it, then removes the citation pips, the
+`:contentReference[oaicite:0]` residue, the stray "Copy code" lines and the trailing disclaimer.
+The status bar says exactly what it found and how many fixes it applied.
+
+<div align="center">
+  <img src="docs/media/desktop-editor.png" alt="Marksmith detecting a ChatGPT export and reporting the cleanup it applied" width="100%" />
+</div>
+
+### 2. Split view keeps source and result honest
+
+Markdown on the left, the real rendered document on the right — the same HTML pipeline that backs
+the PDF export, so what you see is what ships.
+
+<div align="center">
+  <img src="docs/media/desktop-split.png" alt="Split view: Mermaid source on the left, the rendered architecture diagram on the right" width="100%" />
+</div>
+
+### 3. Export
+
+**PDF**, **DOCX**, **PPTX**, **EPUB**, **HTML** or a high-DPI **PNG** snapshot — from the title bar,
+the command palette (`Ctrl+K`), a keyboard shortcut, or the CLI.
+
+---
+
+## What the engine actually renders
+
+Every image below is the real preview pipeline, captured from a compiled build.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**LaTeX → OMML, with chemistry**
+
+`$$…$$`, `\[…\]`, matrices, limits, integrals — and `mhchem` (`\ce{}`) reaction arrows in the
+preview and PDF.
+
+</td>
+<td width="50%" valign="top">
+
+**Tables that refuse to collapse**
+
+Inline math, fenced code, nested lists and alert blocks *inside* table cells, in the preview and in
+the Word output.
+
+</td>
+</tr>
+<tr>
+<td><img src="docs/media/feature-math.png" alt="LaTeX matrices, integrals and mhchem equations rendered by Marksmith" width="100%" /></td>
+<td><img src="docs/media/feature-tables.png" alt="A table containing inline math, code and nested lists" width="100%" /></td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Mermaid, natively**
+
+Flowcharts, sequence, state, class, ER, Gantt, mindmap and more — vector in the preview, DrawingML
+shapes in Word.
+
+</td>
+<td width="50%" valign="top">
+
+**Dialects, callouts and folds**
+
+GitHub alerts, Obsidian foldable callouts, wiki-links and tags — normalized from Notion, MkDocs and
+Docusaurus forms too.
+
+</td>
+</tr>
+<tr>
+<td><img src="docs/media/feature-mermaid.png" alt="A Mermaid architecture diagram with subgraphs rendered in the preview" width="100%" /></td>
+<td><img src="docs/media/feature-callouts.png" alt="Foldable Obsidian-style callouts, wiki-links and tags" width="100%" /></td>
+</tr>
+</table>
+
+### Word features Markdown was never supposed to reach
+
+| Wrapper | What Word gets |
+|---|---|
+| `:::smartart type="hierarchy…"` | Native SmartArt via embedded `.glox` layouts and a constraint solver |
+| `:::watermark "DRAFT"` | Diagonal VML watermark in `word/header1.xml` |
+| `:::line-numbers --count-by 5` | `<w:lnNumType>` margin numbering, per-page or continuous |
+| `:::cover-page` | Title page with `<w:titlePg>` and a page-2 numbering restart |
+| `:::dropcap 3` | A real `<w:framePr>` dropped capital |
+| `:::index` + `^[index: "…"]` | `XE` field anchors and a generated `INDEX` back-of-book concordance |
+| `=SUM(ABOVE)`, `=AVERAGE(LEFT)` | `<w:fldSimple>` formulas Word recalculates on open |
+| `- [ ]`, `[dropdown: …]`, `[date: …]` | `<w:sdt>` content controls — checkboxes, pickers, text fields |
+| `{--cut--}` / `{++added++}` / `^[Author: "…"]` | `<w:del>` / `<w:ins>` tracked changes and `word/comments.xml` |
+| `:::columns`, `:::tabs`, `:::chart`, `:::timeline` | Section breaks, outline tabs, charts backed by embedded Excel parts |
+| `> [!NOTE]` … `> [!CAUTION]` | Single-cell themed callout tables with accent borders |
+
+The full syntax contract lives in [`docs/MD_ENGINE_GOVERNANCE.md`](docs/MD_ENGINE_GOVERNANCE.md) —
+both pipelines must accept the same wrappers, and adding one to only half of them is a bug.
+
+---
+
+## Marksmith Express — the cross-platform edition
+
+A zero-dependency loopback web UI and REST API over the same `MarkSmith.Core` engine. No Windows, no
+installer, no account: one binary, one port.
 
 ```bash
-# Convert Markdown to a PDF or DOCX over HTTP
+marksmith-express --port 5000
+```
+
+<div align="center">
+  <img src="docs/media/express-loaded.png" alt="The Marksmith Express web UI with a document loaded and Word selected as the output format" width="100%" />
+</div>
+
+<div align="center">
+  <img src="docs/media/express-demo.gif" alt="Composing a document in Marksmith Express and switching output formats" width="90%" />
+  <br />
+  <em><a href="docs/media/express-demo.mp4">Full-resolution MP4</a></em>
+</div>
+
+```bash
 curl -X POST http://127.0.0.1:5000/api/convert \
      -H "Content-Type: application/json" \
      -d '{"markdown":"# Hello\n\nFrom **Marksmith Express**.","theme":"Modern Clean"}' \
      -o out.docx
 ```
 
-![REST API and Marksmith Express UI](docs/images/api-conversion-process.png)
+---
+
+## CLI
+
+A standalone compiler for terminals, build scripts and CI.
+
+```pwsh
+# Markdown -> Word, HTML, or a high-DPI PNG snapshot
+marksmith <input.md> <output.docx|.html|.png> [--theme <name>] [--watch]
+marksmith render-image <input.md> <output.png> [--width 1200] [--scale 2.0] [--theme "GitHub Light"]
+
+# Whole folders, recursively, without stopping on a bad file
+marksmith batch <folder|glob> [--output <dir>] [--format docx|html] [-r] [-f] [--concurrency <n>]
+
+# Vector shape and line-art tools
+marksmith compose <image.png> <output.docx|.md> [--grid 32] [--compact]
+marksmith trace   <image.png> <output.docx|.md> [--rows 300] [--mode CrossHatch]
+```
+
+---
+
+## Local REST API
+
+The desktop app runs a loopback-only API on `127.0.0.1:47821` (Express defaults to `:5000`), with
+CORS and origin protection so a random web page cannot drive your machine.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET  /api/health` | Liveness + endpoint list |
+| `GET  /api/health` | Liveness and endpoint list |
 | `GET  /api/themes` | Available theme names |
-| `GET  /api/settings` | Retrieve active application settings |
-| `POST /api/settings` | Update persistent settings |
-| `POST /api/classify` | Detect the AI source of a Markdown blob |
-| `POST /api/ingest` | Push Markdown into the app UI |
-| `POST /api/convert` | Return a rendered PDF, DOCX, PPTX, or EPUB |
-| `POST /api/batch` | Batch convert all Markdown files in a folder |
-| `GET  /api/commands` | Pending jobs for the browser extension (Zero‑Click Pipeline) |
-| `POST /api/commands/result` | Extension posts a completed job's reply |
+| `GET  /api/settings` · `POST /api/settings` | Read / update persistent settings |
+| `POST /api/classify` | Detect which AI wrote a Markdown blob |
+| `POST /api/ingest` | Push Markdown straight into the app UI |
+| `POST /api/convert` | Return a rendered PDF, DOCX, PPTX or EPUB |
+| `POST /api/batch` | Convert every Markdown file in a folder |
+| `GET  /api/commands` · `POST /api/commands/result` | Zero-click pipeline job channel for the extension |
 
-### 🧩 Browser extension
+### Browser extension
 
-The **Marksmith Connector** (Chrome/Edge, MV3) adds a one‑click "send to Marksmith" button on
-ChatGPT, Gemini, Claude, and Copilot — it converts the reply to Markdown and posts it to the local
-API. It can also **auto-send at the end of a conversation** (when you stop interacting) and carries
-its own **output profile** — theme, page layout, and formatting set in the connector's Options page —
-so automated PDFs use those settings independently of the app's own Style panel.
+**Marksmith Connector** (Chrome/Edge, MV3) adds a one-click *send to Marksmith* button on ChatGPT,
+Gemini, Claude and Copilot. It converts the reply to Markdown, posts it to the local API, and can
+**auto-send when a conversation goes quiet**. It carries its own output profile — theme, page layout,
+formatting — so automated exports do not depend on whatever the app's Style panel happens to be set
+to.
 
-### 🏢 House‑Style Automation (Zero‑Click Pipeline)
+### House-style automation, with no API key
 
-Make every export match your company's brand — **without touching an API key or paying a token.**
-Marksmith stays 100% offline; the AI you *already use* in the browser does the creative work.
+Match your employer's brand **without paying for a single token.** Marksmith stays offline; the AI
+you already have open in the browser does the creative work.
 
-1. **Import a `.dotx` template** — Settings → Automation → *Import Company Template*. Marksmith
-   parses the OOXML locally: body & heading fonts, heading colors, and the full `theme1.xml` color
-   palette (accents, hyperlinks, page background).
-2. **Zero‑click prompt delivery** — the style summary is engineered into an unambiguous prompt and
-   pushed to the browser extension over the loopback command channel. The extension finds your
-   active ChatGPT / Gemini / Claude / Copilot tab, pastes the prompt into the composer, and hits
-   send.
+1. **Import a `.dotx`** — Settings → Automation → *Import Company Template*. Marksmith parses the
+   OOXML locally: body and heading fonts, heading colours, and the whole `theme1.xml` palette.
+2. **Zero-click prompt delivery** — the style summary is compiled into an unambiguous prompt and
+   pushed to the extension over the loopback command channel, which pastes it into your active
+   ChatGPT / Gemini / Claude / Copilot tab and sends it.
 
-![The engineered prompt auto-injected into a web AI](docs/images/housestyle-ai-prompt.png)
+   <img src="docs/images/housestyle-ai-prompt.png" alt="The engineered prompt auto-injected into a web AI" width="100%" />
 
-3. **Your AI answers, Marksmith listens** — the reply is a strict `ThemeDefinition` JSON. Marksmith
-   parses it, saves it as a custom theme, and applies it to preview, PDF, and DOCX.
+3. **The reply comes back as a strict `ThemeDefinition` JSON**, which Marksmith saves as a custom
+   theme and applies to preview, PDF and DOCX.
 
-![A document rendered in Marksmith using the brand-matched custom theme](docs/images/housestyle-themed-preview.png)
+   <img src="docs/images/housestyle-themed-preview.png" alt="A document rendered in the brand-matched custom theme" width="100%" />
 
-### 🏢 AI Usage Governance (for organizations)
+### AI usage governance (for organisations)
 
-Marksmith can double as a **configurable AI‑usage governance and DLP tool.** In org mode the
-extension monitors employee interactions with AI chats, reporting metadata and data-loss-prevention flags to a self-hosted admin dashboard. 
+In org mode the extension reports interaction metadata and data-loss-prevention flags to a
+self-hosted admin dashboard — regex-based DLP, PII masking, and local-only telemetry.
 
-![AI Usage Governance dashboard](docs/images/governance.png)
+<div align="center">
+  <img src="docs/images/governance.png" alt="AI usage governance dashboard" width="100%" />
+</div>
 
 ---
 
 ## Examples
 
-Real documents run through Marksmith — inputs *and* their rendered PDFs **and DOCXs** — live in [`examples/`](examples/).
+Real documents — inputs *and* rendered outputs — live in [`examples/`](examples/):
 
-What sets Marksmith apart is its **proprietary native Word rendering**. Our unique converter takes Markdown and builds native, schema-valid OOXML under the hood. No other software on the market can do this:
-
-- **[`product-spec.md`](examples/product-spec.md)** features a **massive, complex Mermaid architecture diagram** that is reconstructed into *native, editable Word shapes* in the resulting DOCX.
-- **[`math-cheatsheet.md`](examples/math-cheatsheet.md)** demonstrates our **Clean Math** rendering, translating complex LaTeX blocks natively into Word's OMML equation editor.
-- **[`chatgpt-export.md`](examples/chatgpt-export.md)** shows off how messy conversational artifacts are automatically cleansed.
-
-<img src="docs/images/example-product-spec.png" width="540" alt="The product-spec example rendered to PDF by Marksmith">
-
----
-
-## Download
-
-**[⬇️ Download the latest release](https://github.com/thebubbsy/marksmith/releases/latest)** —
-grab `Marksmith-win-x64.zip`, unzip anywhere, and run `Marksmith.exe`. No installer, no .NET SDK,
-nothing else to set up — the .NET runtime and Windows App SDK are bundled in.
+- **[`product-spec.md`](examples/product-spec.md)** — a large Mermaid architecture diagram
+  reconstructed as native, editable Word shapes.
+- **[`math-cheatsheet.md`](examples/math-cheatsheet.md)** — LaTeX translated into Word's OMML
+  equation editor.
+- **[`gauntlet.md`](examples/gauntlet.md)** — the stress test: matrices, mhchem, nested tables, tabs,
+  dialect callouts, deep lists and multi-line footnotes.
+- **[`chatgpt-export.md`](examples/chatgpt-export.md)** — a messy conversational dump, cleaned.
 
 ---
 
 ## Architecture
 
-- **UI:** WinUI 3 (Windows App SDK 1.6), MVVM via CommunityToolkit.Mvvm in `marksmith-v2/MarkSmith.Desktop`
-- **Core Engine (`marksmith-v2/MarkSmith.Core`):** Reverse-engineered SmartArt layout engine, constraint solver, GLOX Builder Suite, AST parsers, & document exporters
-- **CLI (`marksmith-v2/MarkSmith.Cli`):** Standalone zero-dependency command-line compiler and `.glox` layout builder
-- **REST API Daemon (`marksmith-v2/MarkSmith.Api`):** Local loopback REST API server
-- **Test Suite (`marksmith-v2/MarkSmith.Tests`):** Consolidated empirical test suite and OpenXML schema validator
-- **Rendering:** Markdig (Markdown → HTML) → WebView2 (Chromium) for preview and PDF
-- **DOCX Exporter:** DocumentFormat.OpenXml, native AST‑to‑OOXML mapping & OMML math
-- **Automation:** `FileSystemWatcher`, clipboard polling, and `HttpListener` REST API
-- **Governance:** local JSON collector with a self‑contained HTML dashboard
+| Project | Role |
+|---|---|
+| `marksmith-v2/MarkSmith.Core` | The engine: normalizers, feature pipeline, SmartArt constraint solver, GLOX builder, DOCX/PPTX/EPUB exporters, SkiaSharp rasterizer |
+| `marksmith-v2/MarkSmith.Desktop` | WinUI 3 app (Windows App SDK 1.6), MVVM via CommunityToolkit.Mvvm |
+| `marksmith-v2/MarkSmith.Cli` | Standalone compiler, batch runner and `.glox` layout builder |
+| `marksmith-v2/MarkSmith.Express` | Cross-platform loopback web UI and REST server |
+| `marksmith-v2/MarkSmith.Tests` | Empirical suite with an ECMA-376 `OpenXmlValidator` schema gate |
+
+- **Rendering:** Markdig → HTML → WebView2 (Chromium) for preview and PDF. KaTeX, Mermaid and
+  highlight.js are bundled and served from a local virtual host, so the app never phones home.
+- **DOCX:** DocumentFormat.OpenXml, AST-to-OOXML mapping, OMML math, dynamic relationship IDs.
+- **Automation:** `FileSystemWatcher`, clipboard polling, `HttpListener` REST API.
+
+### Regenerating the media in this README
+
+Every screenshot, GIF and video above is reproducible from a Release build:
+
+```pwsh
+python tools/capture/capture_desktop.py                                   # app screenshots (PrintWindow — app window only)
+python tools/capture/record_desktop.py                                    # the demo recording, driven over /api/ingest
+python tools/capture/capture_word.py <doc.docx> <out.png> --pages 1,2     # Word's own rendering, via COM + PyMuPDF
+node   tools/capture/render-doc.mjs <doc.html> <out.png> --from "Heading"  # preview close-ups
+node   tools/capture/cdp-capture.mjs http://127.0.0.1:5000/ docs/media     # Marksmith Express
+```
 
 ---
 
 ## Pricing
 
-Marksmith is **free for PDF, HTML, and Markdown workflows**. Word (DOCX), PowerPoint (PPTX), and automation features require a one-time Pro upgrade.
+Free for PDF, HTML and Markdown. Word, PowerPoint and automation need a one-time Pro upgrade.
 
 | | **Free** | **Pro** — A$39 one-time |
 |---|:---:|:---:|
 | Markdown → PDF / HTML / Markdown | ✅ | ✅ |
 | Live preview with 20+ themes | ✅ | ✅ |
 | Mermaid, LaTeX math, SmartArt, shapes | ✅ | ✅ |
-| Diagram Studio & Shape Studio | ✅ | ✅ |
+| Diagram Studio and Shape Studio | ✅ | ✅ |
 | Mind Map Galaxy | ✅ | ✅ |
-| CLI (`marksmith render-image`, `batch --format html`) | ✅ | ✅ |
+| CLI (`render-image`, `batch --format html`) | ✅ | ✅ |
 | **Markdown → Word (.docx)** | 3-export trial | ✅ Unlimited |
 | **Markdown → PowerPoint (.pptx)** | — | ✅ |
 | **Batch conversion** | — | ✅ |
@@ -246,30 +329,29 @@ Marksmith is **free for PDF, HTML, and Markdown workflows**. Word (DOCX), PowerP
 | **Clipboard AI ingest** | — | ✅ |
 | **"Made with Marksmith" footer** | Shown | Removed |
 
-> **Try before you buy**: start a free 3-export trial from Settings → License. No account needed.
-
-<!-- LAUNCH: Replace with real Lemon Squeezy checkout URL -->
-<!-- [**Buy Marksmith Pro — A$39**](https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID) -->
+> Start a free 3-export trial from Settings → License. No account needed.
 
 ## Download
 
 | Channel | Link |
 |---|---|
-| **Windows Installer** | [GitHub Releases](https://github.com/thebubbsy/marksmith/releases/latest) |
-| **Portable ZIP** | [GitHub Releases](https://github.com/thebubbsy/marksmith/releases/latest) |
+| **Windows installer** | [GitHub Releases](https://github.com/thebubbsy/marksmith/releases/latest) |
+| **Portable ZIP** | [`Marksmith-win-x64.zip`](https://github.com/thebubbsy/marksmith/releases/latest) — unzip anywhere and run `Marksmith.exe`. The .NET runtime and Windows App SDK are bundled. |
 | **winget** | `winget install thebubbsy.Marksmith` |
 | **Chocolatey** | `choco install marksmith` |
 | **CLI** | `dotnet tool install -g marksmith` *(coming soon)* |
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full Now / Next / Later.
+See [FIVE-YEAR-PLAN.md](FIVE-YEAR-PLAN.md) and [FEATURES.md](FEATURES.md).
 
 ---
 
 ## License
 
 **Proprietary — © 2026 Matthew Bubb. All rights reserved.**
-Marksmith is commercial, proprietary technology. The source is shown publicly for transparency, but please respect that this is a paid product, not freeware — unauthorized copying, redistribution, or reuse of the code is not permitted.
 
-Use is governed by the [End-User License Agreement](LICENSE); redistribution, modification, and reverse engineering are not permitted except as allowed by law. Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Marksmith is commercial software. The source is public for transparency, not for reuse: copying,
+redistribution, modification and reverse engineering are not permitted except as allowed by law. Use
+is governed by the [End-User License Agreement](LICENSE); third-party components are listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

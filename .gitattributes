@@ -3,6 +3,8 @@
 
 # Binary files
 *.png binary
+*.gif binary
+*.mp4 binary
 *.ico binary
 *.pdf binary
 *.docx binary
