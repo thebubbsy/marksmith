@@ -1,4 +1,5 @@
 using System.Globalization;
+using MarkSmith.Core.AdvancedFeatures;
 using System.Text;
 using System.Text.RegularExpressions;
 using MarkSmith.Core.AST;
@@ -57,6 +58,11 @@ public sealed partial class MarkdownHtmlService
 
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::index(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
     private static partial Regex IndexBlockRe();
+
+    // Horizontal whitespace only before the fence: \s* also matches newlines, which is what made
+    // the parallel lift slice its body by the wrong line index.
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::chart(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline)]
+    private static partial Regex ChartBlockRe();
 
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::parallel(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex ParallelBlockRe();
@@ -199,6 +205,7 @@ public sealed partial class MarkdownHtmlService
 
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
+        markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
 
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
@@ -353,6 +360,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
+        body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
 
         var extraHead = BuildExtraHead(body, theme);
         var attribution = BuildAttribution(settings, classification, theme);
@@ -2294,6 +2302,7 @@ public sealed partial class MarkdownHtmlService
 
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
+        markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
 
         var body = Markdown.ToHtml(markdown, settings.NoEmoji ? PipelineNoEmoji : Pipeline);
@@ -2336,6 +2345,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
+        body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
 
         body = MermaidFenceHtmlRe().Replace(body,
             m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
@@ -3230,6 +3240,165 @@ public sealed partial class MarkdownHtmlService
             blocks.Add(sb.ToString());
             return $"\n\n<!--INDEX:{blocks.Count - 1}-->\n\n";
         });
+    }
+
+    /// <summary>
+    /// Renders a <c>:::chart</c> block as generated inline SVG.
+    ///
+    /// The DOCX path has emitted a native chart part (with an embedded workbook) since the feature
+    /// landed, but the preview had no handler at all, so the block fell through to Markdig and the
+    /// reader saw the raw "Alpha,10" lines. The wrapper contract requires both pipelines to accept
+    /// the same syntax, so this is the preview half.
+    ///
+    /// The markup is built here, not taken from the document, which is what makes it safe to
+    /// re-inject after the sanitize step.
+    /// </summary>
+    private static string LiftChartBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans,
+        ThemeDefinition theme, out List<string> chartHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        markdown = ChartBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+
+            var attrs = m.Groups["attrs"].Value;
+            var kind = Regex.Match(attrs, @"type\s*=\s*[""']?([A-Za-z]+)", RegexOptions.IgnoreCase)
+                            .Groups[1].Value.ToLowerInvariant();
+            if (kind.Length == 0) kind = "bar";
+
+            var labels = new List<string>();
+            var values = new List<double>();
+            var lines = m.Groups["body"].Value
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => l.TrimEnd('\r').Trim())
+                .Where(l => l.Length > 0)
+                .ToList();
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                // Same optional-header rule as the exporter, so both pipelines read the same rows.
+                if (i == 0 && !ChartDetector.IsLabelValueLine(lines[0])) continue;
+                var comma = lines[i].LastIndexOf(',');
+                if (comma <= 0) continue;
+                if (!double.TryParse(lines[i][(comma + 1)..].Trim(), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out var v)) continue;
+                labels.Add(lines[i][..comma].Trim());
+                values.Add(v);
+            }
+
+            if (labels.Count == 0) return m.Value;   // not chart data — leave it alone
+
+            blocks.Add(BuildChartSvg(kind, labels, values, theme));
+            return $"\n\n<!--CHART:{blocks.Count - 1}-->\n\n";
+        });
+
+        chartHtmlBlocks = blocks;
+        return markdown;
+    }
+
+    /// <summary>Builds the chart SVG. Colours come from the active theme so it matches the page.</summary>
+    private static string BuildChartSvg(string kind, List<string> labels, List<double> values, ThemeDefinition theme)
+    {
+        static string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
+        string F(double d) => d.ToString("0.##", CultureInfo.InvariantCulture);
+
+        // Categorical hues in fixed order, stepped for the surface. Deriving them from the theme
+        // (Heading/Primary/Line) produced eight shades of black on GitHub Light, whose accent IS
+        // black — every bar identical and the pie unreadable. Both rows below pass the lightness,
+        // chroma, CVD-separation and normal-vision checks against their own surface; the light
+        // row's sub-3:1 contrast is discharged by the visible labels every chart here carries.
+        var light = ThemeDefinition.IsLight(theme.Background);
+        var palette = light
+            ? new[] { "#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948" }
+            : new[] { "#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767" };
+        // Never cycled: past the eighth slot the hue repeats rather than inventing a new one.
+        string Colour(int i) => palette[i % palette.Length];
+
+        // Bar and line carry ONE series, so they take one hue — the categories are already named
+        // on the axis. Only the pie encodes identity by colour, and it ships a labelled legend.
+        var series = palette[0];
+
+        var max = values.Count == 0 ? 0 : values.Max();
+        if (max <= 0) max = 1;
+        var sb = new StringBuilder();
+
+        if (kind is "pie" or "doughnut")
+        {
+            const double cx = 160, cy = 130, r = 105;
+            var total = values.Sum();
+            if (total <= 0) total = 1;
+            sb.Append($"<svg viewBox=\"0 0 460 270\" role=\"img\" class=\"ms-chart ms-chart-{Esc(kind)}\">");
+            double angle = -Math.PI / 2;
+            for (int i = 0; i < values.Count; i++)
+            {
+                var sweep = values[i] / total * Math.PI * 2;
+                var (x1, y1) = (cx + r * Math.Cos(angle), cy + r * Math.Sin(angle));
+                angle += sweep;
+                var (x2, y2) = (cx + r * Math.Cos(angle), cy + r * Math.Sin(angle));
+                var large = sweep > Math.PI ? 1 : 0;
+                sb.Append($"<path d=\"M{F(cx)},{F(cy)} L{F(x1)},{F(y1)} A{F(r)},{F(r)} 0 {large} 1 {F(x2)},{F(y2)} Z\" ")
+                  .Append($"fill=\"{Esc(Colour(i))}\" stroke=\"{Esc(theme.Background)}\" stroke-width=\"2\" />");
+            }
+            if (kind == "doughnut")
+                sb.Append($"<circle cx=\"{F(cx)}\" cy=\"{F(cy)}\" r=\"{F(r * 0.55)}\" fill=\"{Esc(theme.Background)}\" />");
+
+            for (int i = 0; i < labels.Count; i++)
+            {
+                var ly = 40 + i * 22;
+                sb.Append($"<rect x=\"300\" y=\"{ly - 10}\" width=\"12\" height=\"12\" rx=\"2\" fill=\"{Esc(Colour(i))}\" />")
+                  .Append($"<text x=\"320\" y=\"{ly}\" font-size=\"13\" fill=\"{Esc(theme.Text)}\">")
+                  .Append(Esc(labels[i])).Append(" — ").Append(F(values[i])).Append("</text>");
+            }
+            return sb.Append("</svg>").ToString();
+        }
+
+        // Bar / column / line share one axis frame.
+        const double left = 48, top = 16, plotW = 380, plotH = 190;
+        var baseline = top + plotH;
+        sb.Append($"<svg viewBox=\"0 0 460 260\" role=\"img\" class=\"ms-chart ms-chart-{Esc(kind)}\">");
+        sb.Append($"<line x1=\"{F(left)}\" y1=\"{F(baseline)}\" x2=\"{F(left + plotW)}\" y2=\"{F(baseline)}\" ")
+          .Append($"stroke=\"{Esc(theme.Border)}\" stroke-width=\"1\" />");
+        for (int g = 1; g <= 3; g++)
+        {
+            var gy = baseline - plotH * g / 3.0;
+            sb.Append($"<line x1=\"{F(left)}\" y1=\"{F(gy)}\" x2=\"{F(left + plotW)}\" y2=\"{F(gy)}\" ")
+              .Append($"stroke=\"{Esc(theme.Border)}\" stroke-width=\"1\" stroke-dasharray=\"3 4\" opacity=\"0.55\" />")
+              .Append($"<text x=\"{F(left - 8)}\" y=\"{F(gy + 4)}\" text-anchor=\"end\" font-size=\"11\" ")
+              .Append($"fill=\"{Esc(theme.Text)}\" opacity=\"0.7\">{F(max * g / 3.0)}</text>");
+        }
+
+        var slot = plotW / Math.Max(labels.Count, 1);
+        if (kind == "line")
+        {
+            var pts = string.Join(" ", values.Select((v, i) =>
+                $"{F(left + slot * (i + 0.5))},{F(baseline - v / max * plotH)}"));
+            sb.Append($"<polyline points=\"{pts}\" fill=\"none\" stroke=\"{Esc(series)}\" stroke-width=\"2\" ")
+              .Append("stroke-linejoin=\"round\" stroke-linecap=\"round\" />");
+            // A surface ring keeps a marker legible where the line passes under it.
+            for (int i = 0; i < values.Count; i++)
+                sb.Append($"<circle cx=\"{F(left + slot * (i + 0.5))}\" cy=\"{F(baseline - values[i] / max * plotH)}\" ")
+                  .Append($"r=\"4\" fill=\"{Esc(series)}\" stroke=\"{Esc(theme.Background)}\" stroke-width=\"2\" />");
+        }
+        else
+        {
+            var barW = Math.Min(slot * 0.62, 54);
+            for (int i = 0; i < values.Count; i++)
+            {
+                var h = values[i] / max * plotH;
+                sb.Append($"<rect x=\"{F(left + slot * (i + 0.5) - barW / 2)}\" y=\"{F(baseline - h)}\" ")
+                  .Append($"width=\"{F(barW)}\" height=\"{F(h)}\" rx=\"4\" fill=\"{Esc(series)}\" />");
+            }
+        }
+
+        for (int i = 0; i < labels.Count; i++)
+        {
+            sb.Append($"<text x=\"{F(left + slot * (i + 0.5))}\" y=\"{F(baseline + 18)}\" text-anchor=\"middle\" ")
+              .Append($"font-size=\"12\" fill=\"{Esc(theme.Text)}\">{Esc(labels[i])}</text>");
+        }
+        return sb.Append("</svg>").ToString();
     }
 
     private static string LiftParallelBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> parallelHtmlBlocks)
