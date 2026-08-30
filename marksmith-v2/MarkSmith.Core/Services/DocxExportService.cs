@@ -1726,12 +1726,11 @@ public sealed class DocxExportService
         foreach (var row in rows)
         {
             if (string.IsNullOrWhiteSpace(row)) continue;
-            var cols = Regex.Split(row, @"(?:\r?\n|^)===(?:\r?\n|$)");
+            var cols = ParallelRowParser.SplitColumns(row, colCount);
             var tr = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
             for (int i = 0; i < colCount; i++)
             {
-                var colText = i < cols.Length ? cols[i].Trim() : "";
-                colText = DialectNormalizer.Apply(colText, ctx.Settings.DashMode);
+                var colText = DialectNormalizer.Apply(cols[i], ctx.Settings.DashMode);
                 var cell = new W.TableCell(new W.TableCellProperties(
                     new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidth.ToString() }));
                 var innerDoc = Markdig.Markdown.Parse(colText, ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
@@ -3427,6 +3426,19 @@ public sealed class DocxExportService
                         p.Append(fld);
                         wCell.Append(p);
                     }
+                    else if (TableCellBlocks.TryGetBlockMarkdown(GetCellMarkdown(mdCell)) is { } cellMarkdown)
+                    {
+                        // Markdig's pipe-table parser only ever yields inline content, so an alert,
+                        // list or fence written into a cell arrives as literal text. Re-parse it as
+                        // a document and render the real blocks — RenderBlock already handles
+                        // AlertBlock, lists and code, so the cell gets a native Word callout rather
+                        // than the characters "> [!WARNING]".
+                        var cellDoc = Markdig.Markdown.Parse(
+                            DialectNormalizer.Apply(cellMarkdown, ctx.Settings.DashMode),
+                            ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+                        foreach (var child in cellDoc)
+                            RenderBlock(child, wCell, ctx, -1);
+                    }
                     else
                     {
                         foreach (var child in mdCell)
@@ -4212,6 +4224,62 @@ public sealed class DocxExportService
                     case LiteralInline l: sb.Append(l.Content.ToString()); break;
                     case CodeInline ci: sb.Append(ci.Content); break;
                     case ContainerInline nested: Collect(nested, sb); break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds a table cell's Markdown source.
+    ///
+    /// <see cref="GetCellText"/> flattens to plain text, which drops exactly what decides whether a
+    /// cell holds block content: Markdig parses a cell's <c>&lt;br&gt;</c> as an HtmlInline, and
+    /// that is the only line break a pipe row can carry. Backticks and emphasis delimiters are
+    /// restored too, so the re-parsed cell renders the same constructs the author wrote.
+    /// </summary>
+    private static string GetCellMarkdown(MdTableCell cell)
+    {
+        var sb = new StringBuilder();
+        foreach (var b in cell)
+        {
+            if (b is ParagraphBlock pb && pb.Inline != null)
+                Collect(pb.Inline, sb);
+        }
+        return sb.ToString().Trim();
+
+        static void Collect(ContainerInline container, StringBuilder sb)
+        {
+            foreach (var inline in container)
+            {
+                switch (inline)
+                {
+                    case LiteralInline l:
+                        sb.Append(l.Content.ToString());
+                        break;
+                    case CodeInline ci:
+                        var fence = new string('`', Math.Max(1, ci.DelimiterCount));
+                        sb.Append(fence).Append(ci.Content).Append(fence);
+                        break;
+                    case HtmlInline hi:
+                        sb.Append(hi.Tag);
+                        break;
+                    case LineBreakInline:
+                        sb.Append('\n');
+                        break;
+                    case EmphasisInline em:
+                        var delim = new string(em.DelimiterChar, em.DelimiterCount);
+                        sb.Append(delim);
+                        Collect(em, sb);
+                        sb.Append(delim);
+                        break;
+                    case LinkInline link:
+                        sb.Append(link.IsImage ? "![" : "[");
+                        Collect(link, sb);
+                        sb.Append("](").Append(link.Url).Append(')');
+                        break;
+                    case ContainerInline nested:
+                        Collect(nested, sb);
+                        break;
                 }
             }
         }

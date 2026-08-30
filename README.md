@@ -111,16 +111,16 @@ preview and PDF.
 </td>
 <td width="50%" valign="top">
 
-**Tables that survive the round-trip**
+**Blocks inside table cells**
 
-Inline math, code, emphasis and per-column alignment inside cells — preserved from the preview into
-the Word table, without the grid collapsing.
+GFM says a table cell is inline-only. Marksmith recovers the block content anyway — a GitHub alert,
+a `<br>`-joined list — as a real callout and a real list, in the preview *and* the native Word table.
 
 </td>
 </tr>
 <tr>
 <td><img src="docs/media/feature-math.png" alt="LaTeX matrices, integrals and mhchem equations rendered by Marksmith" width="100%" /></td>
-<td><img src="docs/media/feature-tables.png" alt="A table whose cells carry inline math, code and emphasis, with per-column alignment" width="100%" /></td>
+<td><img src="docs/media/feature-tables.png" alt="A table whose cells render a real bullet list and real GitHub alert callouts alongside inline math" width="100%" /></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
@@ -162,8 +162,9 @@ Docusaurus forms too.
 | `:::columns`, `:::tabs`, `:::chart`, `:::timeline` | Section breaks, outline tabs, charts backed by embedded Excel parts |
 | `> [!NOTE]` … `> [!CAUTION]` | Single-cell themed callout tables with accent borders |
 
-The full syntax contract lives in [`docs/MD_ENGINE_GOVERNANCE.md`](docs/MD_ENGINE_GOVERNANCE.md) —
-both pipelines must accept the same wrappers, and adding one to only half of them is a bug.
+Every wrapper is held to a two-pipeline contract: the DOCX exporter and the HTML preview must accept
+the same syntax, and adding one to only half of them is a bug. Working examples of each live in
+[`examples/`](examples/).
 
 ---
 
@@ -343,7 +344,7 @@ Free for PDF, HTML and Markdown. Word, PowerPoint and automation need a one-time
 
 ## Roadmap
 
-See [FIVE-YEAR-PLAN.md](FIVE-YEAR-PLAN.md) and [FEATURES.md](FEATURES.md).
+See [FEATURES.md](FEATURES.md) for the current capability matrix.
 
 ---
 
