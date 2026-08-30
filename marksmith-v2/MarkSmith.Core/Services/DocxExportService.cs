@@ -4906,15 +4906,24 @@ public sealed class DocxExportService
         }
         else if (node.InnerContent != null)
         {
+            // A header row is optional. Skipping the first line unconditionally silently ate the
+            // first data point of every chart written in the documented "label,value" form — which
+            // is the form InsertSnippetBuilder.Chart produces, with no header at all.
             var lines = node.InnerContent.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
             bool first = true;
-            foreach(var line in lines)
+            foreach (var line in lines)
             {
-                if (first) { first = false; continue; } // Skip header
-                var parts = line.Split(',');
-                if (parts.Length >= 2 && double.TryParse(parts[1], out double val))
+                if (first)
                 {
-                    labels.Add(parts[0] ?? "");
+                    first = false;
+                    if (!ChartDetector.IsLabelValueLine(line)) continue; // a real header
+                }
+                var comma = line.LastIndexOf(',');
+                if (comma > 0 && double.TryParse(line[(comma + 1)..].Trim(),
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double val))
+                {
+                    labels.Add(line[..comma].Trim());
                     values.Add(val);
                 }
             }
@@ -4991,14 +5000,29 @@ public sealed class DocxExportService
         
         chart.Append(new C.AutoTitleDeleted() { Val = new DocumentFormat.OpenXml.BooleanValue(true) });
 
+        // The same categorical hues the preview uses, so a chart does not change colour between
+        // the two pipelines. Without an explicit spPr Word falls back to its own theme accents and
+        // styles a single series as if it were several.
+        string[] chartPalette = { "2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "008300", "4A3AA7", "E34948" };
+        static C.ChartShapeProperties SolidFill(string hex) =>
+            new(new A.SolidFill(new A.RgbColorModelHex { Val = hex }));
+        static C.ChartShapeProperties SolidLine(string hex) =>
+            new(new A.Outline(new A.SolidFill(new A.RgbColorModelHex { Val = hex })) { Width = 25400 });
+
         if (chartType == "line")
         {
             var lineChart = new C.LineChart(new C.Grouping() { Val = C.GroupingValues.Standard });
             var series = new C.LineChartSeries(
                 new C.Index() { Val = 0 },
                 new C.Order() { Val = 0 },
+                SolidLine(chartPalette[0]),
+                // The marker needs its own fill: left unset, Word colours each point separately
+                // and a single series reads as four.
+                new C.Marker(new C.Symbol { Val = C.MarkerStyleValues.Circle }, new C.Size { Val = 6 },
+                    SolidFill(chartPalette[0])),
                 (C.CategoryAxisData)categoryRef.CloneNode(true),
-                (C.Values)valuesRef.CloneNode(true)
+                (C.Values)valuesRef.CloneNode(true),
+                new C.Smooth { Val = false }
             );
             lineChart.Append(series);
             lineChart.Append(new C.AxisId() { Val = 10000000 });
@@ -5007,13 +5031,22 @@ public sealed class DocxExportService
         }
         else if (chartType == "pie")
         {
-            var pieChart = new C.PieChart();
+            // A pie is the one form here where colour carries identity, so each slice is coloured
+            // explicitly rather than left to Word's defaults.
+            var pieChart = new C.PieChart(new C.VaryColors { Val = true });
             var series = new C.PieChartSeries(
                 new C.Index() { Val = 0 },
-                new C.Order() { Val = 0 },
-                (C.CategoryAxisData)categoryRef.CloneNode(true),
-                (C.Values)valuesRef.CloneNode(true)
+                new C.Order() { Val = 0 }
             );
+            for (int i = 0; i < labels.Count; i++)
+            {
+                series.Append(new C.DataPoint(
+                    new C.Index { Val = (uint)i },
+                    new C.Bubble3D { Val = false },
+                    SolidFill(chartPalette[i % chartPalette.Length])));
+            }
+            series.Append((C.CategoryAxisData)categoryRef.CloneNode(true));
+            series.Append((C.Values)valuesRef.CloneNode(true));
             pieChart.Append(series);
             plotArea.Append(pieChart);
         }
@@ -5023,9 +5056,11 @@ public sealed class DocxExportService
                 new C.BarDirection() { Val = C.BarDirectionValues.Column },
                 new C.BarGrouping() { Val = C.BarGroupingValues.Clustered }
             );
+            // One series, one hue: the bars are already told apart by their category labels.
             var series = new C.BarChartSeries(
                 new C.Index() { Val = 0 },
                 new C.Order() { Val = 0 },
+                SolidFill(chartPalette[0]),
                 (C.CategoryAxisData)categoryRef.CloneNode(true),
                 (C.Values)valuesRef.CloneNode(true)
             );
@@ -5037,9 +5072,13 @@ public sealed class DocxExportService
 
         if (chartType != "pie")
         {
+            // c:delete is not optional in practice: with it absent Word treats the axis as deleted
+            // and drew the chart with no category or value labels at all. Schema order puts it
+            // immediately after c:scaling.
             plotArea.Append(new C.CategoryAxis(
                 new C.AxisId() { Val = 10000000 },
                 new C.Scaling(new C.Orientation() { Val = C.OrientationValues.MinMax }),
+                new C.Delete() { Val = false },
                 new C.AxisPosition() { Val = C.AxisPositionValues.Bottom },
                 new C.TickLabelPosition() { Val = C.TickLabelPositionValues.NextTo },
                 new C.CrossingAxis() { Val = 10000001 },
@@ -5048,6 +5087,7 @@ public sealed class DocxExportService
             plotArea.Append(new C.ValueAxis(
                 new C.AxisId() { Val = 10000001 },
                 new C.Scaling(new C.Orientation() { Val = C.OrientationValues.MinMax }),
+                new C.Delete() { Val = false },
                 new C.AxisPosition() { Val = C.AxisPositionValues.Left },
                 new C.MajorGridlines(),
                 new C.TickLabelPosition() { Val = C.TickLabelPositionValues.NextTo },
@@ -5058,6 +5098,16 @@ public sealed class DocxExportService
         }
 
         chart.Append(plotArea);
+
+        // A pie encodes identity by colour alone, so it needs a legend to be readable — the bar
+        // and line forms carry one series and name their categories on the axis instead.
+        if (chartType is "pie" or "doughnut")
+        {
+            chart.Append(new C.Legend(
+                new C.LegendPosition { Val = C.LegendPositionValues.Right },
+                new C.Overlay { Val = false }));
+        }
+        chart.Append(new C.PlotVisibleOnly { Val = true });
         chartSpace.Append(chart);
         
         chartSpace.Append(new C.ExternalData(new C.AutoUpdate() { Val = new DocumentFormat.OpenXml.BooleanValue(false) }) { Id = embedRelId });

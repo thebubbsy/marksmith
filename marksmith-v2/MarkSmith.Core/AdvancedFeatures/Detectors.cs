@@ -131,18 +131,32 @@ namespace MarkSmith.Core.AdvancedFeatures
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::chart", StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>True for a "Label,12.5" data line — the documented chart body.</summary>
+        public static bool IsLabelValueLine(string line)
+        {
+            var i = line.LastIndexOf(',');
+            return i > 0 && double.TryParse(line[(i + 1)..].Trim(),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out _);
+        }
+
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
             var inner = string.Join('\n', DetectorHelpers.GetInnerLines(rawBlock));
 
-            // Must contain either a JSON block (starts with {) or explicit spec:/data: keys
+            // Three accepted bodies: a JSON spec, explicit spec:/data: keys, or the plain
+            // "label,value" lines the wrapper catalog documents — which is also exactly what
+            // InsertSnippetBuilder.Chart writes. Only the first two were accepted, so the block
+            // the app's own Insert > Chart command produced failed validation and fell through
+            // to the raw-text path, printing "Alpha,10" into the document.
             bool hasJson = inner.TrimStart().StartsWith("{") || inner.TrimStart().StartsWith("[");
             bool hasSpec = inner.Contains("spec:", StringComparison.OrdinalIgnoreCase) ||
                            inner.Contains("data:", StringComparison.OrdinalIgnoreCase);
+            bool hasPairs = DetectorHelpers.GetInnerLines(rawBlock).Any(IsLabelValueLine);
 
-            if (!hasJson && !hasSpec)
-                errors.Add("No JSON spec or data: block found");
+            if (!hasJson && !hasSpec && !hasPairs)
+                errors.Add("No JSON spec, data: block, or label,value lines found");
 
             // Quick JSON brace balance check
             if (hasJson)

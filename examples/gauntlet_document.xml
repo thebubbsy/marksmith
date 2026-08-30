@@ -4131,8 +4131,8 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:headerReference w:type="default" r:id="R708359f0912f43a1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
-      <w:footerReference w:type="default" r:id="R7c3c1643ecdc4564" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:headerReference w:type="default" r:id="R10eedd05e01c45a9" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
+      <w:footerReference w:type="default" r:id="R51a684a24e184bba" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" />
       <w:pgSz w:w="11906" w:h="16838" />
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="576" w:footer="576" w:gutter="0" />
     </w:sectPr>
