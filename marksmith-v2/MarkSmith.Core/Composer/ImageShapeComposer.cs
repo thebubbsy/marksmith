@@ -430,12 +430,63 @@ namespace MarkSmith.Core.Composer
             double cx = x + w / 2, cy = y + h / 2;
             string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
                 s.TextColor ?? "121212", "#" + s.Fill);
-            double fontSize = Math.Clamp(Math.Min(w, h) * 0.30, 7, 96);
             string transform = s.Rot != 0 ? $" transform=\"rotate({s.Rot} {cx} {cy})\"" : "";
-            string label = s.Text!.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-            return $"<text x=\"{cx:F1}\" y=\"{cy:F1}\" text-anchor=\"middle\" dominant-baseline=\"central\" " +
-                   $"fill=\"#{guarded}\" font-family=\"Segoe UI, Arial, sans-serif\" font-size=\"{fontSize:F1}\"" +
-                   $"{transform} data-guarded=\"shape\">{label}</text>";
+
+            // Wrap and shrink to fit. The label used to be emitted as one unwrapped <text> sized
+            // only by the shape's smaller side, so anything longer than a word or two ran straight
+            // out of its box — and a long label on a short shape rendered entirely outside it.
+            // Word wraps text inside a shape; the preview has to agree or the two do not match.
+            // Explicit newlines in a label were ignored for the same reason.
+            var paragraphs = s.Text!.Replace("\r", "").Split('\n');
+            double fontSize = Math.Clamp(Math.Min(w, h) * 0.30, 7, 96);
+            List<string> lines;
+            while (true)
+            {
+                lines = WrapToWidth(paragraphs, w * 0.88, fontSize);
+                if (lines.Count * fontSize * 1.18 <= h * 0.90 || fontSize <= 7) break;
+                fontSize -= 0.5;
+            }
+
+            double lineHeight = fontSize * 1.18;
+            double top = cy - (lines.Count - 1) * lineHeight / 2;
+            var sb = new StringBuilder();
+            sb.Append($"<text x=\"{cx:F1}\" y=\"{top:F1}\" text-anchor=\"middle\" dominant-baseline=\"central\" ")
+              .Append($"fill=\"#{guarded}\" font-family=\"Segoe UI, Arial, sans-serif\" font-size=\"{fontSize:F1}\"")
+              .Append($"{transform} data-guarded=\"shape\">");
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string esc = lines[i].Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+                sb.Append($"<tspan x=\"{cx:F1}\" dy=\"{(i == 0 ? 0 : lineHeight):F1}\">{esc}</tspan>");
+            }
+            return sb.Append("</text>").ToString();
+        }
+
+        /// <summary>
+        /// Greedy word wrap against an estimated advance width. Segoe UI averages roughly 0.55em
+        /// per character across mixed-case text, which is close enough to keep a label inside its
+        /// shape without shipping a font-metrics table.
+        /// </summary>
+        private static List<string> WrapToWidth(IEnumerable<string> paragraphs, double maxWidth, double fontSize)
+        {
+            double charWidth = fontSize * 0.55;
+            int maxChars = Math.Max(4, (int)(maxWidth / Math.Max(1, charWidth)));
+            var outLines = new List<string>();
+
+            foreach (var paragraph in paragraphs)
+            {
+                var words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (words.Length == 0) { outLines.Add(""); continue; }
+
+                var current = new StringBuilder();
+                foreach (var word in words)
+                {
+                    if (current.Length == 0) current.Append(word);
+                    else if (current.Length + 1 + word.Length <= maxChars) current.Append(' ').Append(word);
+                    else { outLines.Add(current.ToString()); current.Clear().Append(word); }
+                }
+                if (current.Length > 0) outLines.Add(current.ToString());
+            }
+            return outLines;
         }
 
         private static string SvgShape(ComposedShape s)
