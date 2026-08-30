@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using MarkSmith.Core.Composer;
@@ -11,8 +12,26 @@ namespace MarkSmith.Cli
 {
     class Program
     {
+        /// <summary>The running assembly's version — the banner used to hard-code a literal.</summary>
+        private static string AppVersion
+        {
+            get
+            {
+                var asm = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(Program).Assembly;
+                var iv = asm.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+                            .InformationalVersion;
+                if (string.IsNullOrWhiteSpace(iv)) return asm.GetName().Version?.ToString(3) ?? "0.0.0";
+                var plus = iv.IndexOf('+');
+                return plus > 0 ? iv[..plus] : iv;
+            }
+        }
+
         static async Task<int> Main(string[] args)
         {
+            // Without this the checkmark and the progress bar came out as "?" boxes on a default
+            // Windows console, because stdout stayed on the OEM code page.
+            try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+
             if (args.Length == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "/?")
             {
                 PrintHelp();
@@ -27,7 +46,11 @@ namespace MarkSmith.Cli
                 {
                     string inputPattern = "./*.md";
                     string format = "docx";
-                    string outputDir = ".";
+                    // null = alongside each input file. This used to default to "." — the shell's
+                    // working directory — so "marksmith batch <some-folder>" scattered its output
+                    // wherever you happened to be standing rather than next to the documents, with
+                    // nothing in the help text to say so.
+                    string? outputDir = null;
                     int concurrency = Environment.ProcessorCount;
                     bool recursive = false;
                     bool continueOnError = false;
@@ -192,6 +215,17 @@ namespace MarkSmith.Cli
                     string markdown = await File.ReadAllTextAsync(inputPath);
                     string ext = Path.GetExtension(outputPath).ToLowerInvariant();
 
+                    // The same preparation the desktop and batch paths run before handing markdown
+                    // to an exporter. The CLI called the exporters directly and skipped it, so the
+                    // same input produced different output here than in the app: chat artifacts
+                    // survived and NormalizeLlm did nothing.
+                    var classification = AppServices.LlmSource.Classify(markdown);
+                    (markdown, _) = AppServices.LlmSource.RepairArtifacts(markdown, classification);
+                    if (settings.NormalizeLlm)
+                    {
+                        (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification);
+                    }
+
                     if (ext == ".docx" || ext == ".dotx")
                     {
                         Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
@@ -216,9 +250,31 @@ namespace MarkSmith.Cli
                         await rasterizer.RenderPngToFileAsync(markdown, outputPath, settings, theme, options);
                         Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported PNG snapshot: {outputPath}");
                     }
+                    // EPUB, PPTX and Markdown exporters have existed in Core and been reachable
+                    // from the app and from Express all along; only the CLI never wired them up,
+                    // while the README listed them as available "or the CLI".
+                    else if (ext == ".epub")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        await new EpubExportService().ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported EPUB: {outputPath}");
+                    }
+                    else if (ext == ".pptx")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        await new PptxExportService().ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported PPTX: {outputPath}");
+                    }
+                    else if (ext == ".md" || ext == ".markdown")
+                    {
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Normalizing '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
+                        await new MarkdownExportService().ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported Markdown: {outputPath}");
+                    }
                     else
                     {
-                        throw new NotSupportedException($"Unsupported output extension '{ext}'. Use .docx, .dotx, .html, or .png.");
+                        throw new NotSupportedException(
+                            $"Unsupported output extension '{ext}'. Use .docx, .dotx, .html, .epub, .pptx, .md or .png.");
                     }
                 }
 
@@ -279,7 +335,7 @@ namespace MarkSmith.Cli
             }
         }
 
-        static async Task<int> ExecuteBatchAsync(string inputPattern, string outputDir, string format, int concurrency, bool recursive = false, bool continueOnError = false)
+        static async Task<int> ExecuteBatchAsync(string inputPattern, string? outputDir, string format, int concurrency, bool recursive = false, bool continueOnError = false)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             string searchDir = Directory.Exists(inputPattern) ? inputPattern : (Path.GetDirectoryName(inputPattern) ?? ".");
@@ -316,7 +372,8 @@ namespace MarkSmith.Cli
                 return 0;
             }
 
-            Directory.CreateDirectory(outputDir);
+            // No --output: write each result beside the document it came from.
+            if (outputDir is not null) Directory.CreateDirectory(outputDir);
             Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency}, recursive={recursive}, continueOnError={continueOnError})...");
 
             int completed = 0;
@@ -333,7 +390,7 @@ namespace MarkSmith.Cli
                 await semaphore.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    string targetDir = outputDir;
+                    string targetDir = outputDir ?? (Path.GetDirectoryName(file) ?? searchDir);
                     if (recursive)
                     {
                         try
@@ -353,16 +410,43 @@ namespace MarkSmith.Cli
                     }
 
                     string outFile = Path.Combine(targetDir, Path.GetFileNameWithoutExtension(file) + "." + format);
+
+                    // Never write over the document being read. With output defaulting alongside
+                    // the input, "--format md" would otherwise replace every source file with its
+                    // own normalized output.
+                    if (string.Equals(Path.GetFullPath(outFile), Path.GetFullPath(file),
+                                      StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"[BATCH] Skipped {Path.GetFileName(file)}: output would overwrite the input. Pass --output <dir>.");
+                        Interlocked.Increment(ref completed);
+                        return;
+                    }
+
                     string md = await File.ReadAllTextAsync(file).ConfigureAwait(false);
 
-                    if (format == "docx" || format == "dotx")
+                    // Each format goes to its own exporter. Everything that was not docx used to
+                    // fall through to the HTML renderer, so "--format epub" and "--format pptx"
+                    // wrote an HTML document under an .epub/.pptx name — a file no reader opens.
+                    switch (format)
                     {
-                        await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        string html = htmlService.Render(md, settings, theme);
-                        await File.WriteAllTextAsync(outFile, html).ConfigureAwait(false);
+                        case "docx":
+                        case "dotx":
+                            await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            break;
+                        case "epub":
+                            await new EpubExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            break;
+                        case "pptx":
+                            await new PptxExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            break;
+                        case "md":
+                        case "markdown":
+                            await new MarkdownExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            break;
+                        default:
+                            await File.WriteAllTextAsync(outFile, htmlService.Render(md, settings, theme))
+                                      .ConfigureAwait(false);
+                            break;
                     }
 
                     int cur = Interlocked.Increment(ref completed);
@@ -408,13 +492,13 @@ namespace MarkSmith.Cli
 
         static void PrintHelp()
         {
-            Console.WriteLine("MarkSmith CLI v3.0.0");
+            Console.WriteLine($"MarkSmith CLI v{AppVersion}");
             Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage:");
-            Console.WriteLine("  marksmith <input.md> <output.docx|output.html|output.png> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--watch]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
-            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
+            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
             Console.WriteLine();
@@ -424,6 +508,7 @@ namespace MarkSmith.Cli
             Console.WriteLine("  -f, --continue-on-error   Keep going and skip unreadable/corrupt files without halting (aliases: --ignore-errors, -k)");
             Console.WriteLine("  --batch                   Batch process multiple markdown documents concurrently");
             Console.WriteLine("  --compact                 Compress vector shapes in markdown using dense deflate format");
+            Console.WriteLine("  --output <dir>            Batch output folder (default: alongside each input file)");
             Console.WriteLine("  --theme <name>            Apply named theme (e.g. 'GitHub Light', 'Nordic', 'Obsidian')");
             Console.WriteLine("  --width <w>               Snapshot logical width in pixels (default 1200)");
             Console.WriteLine("  --height <h>              Snapshot logical height in pixels (0 = auto height)");
