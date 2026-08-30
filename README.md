@@ -12,7 +12,7 @@ real tables. Not a screenshot. Not an HTML-in-a-Word-wrapper approximation. The 
 would have written itself.
 
 [![CI](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml/badge.svg)](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml)
-![version](https://img.shields.io/badge/version-3.0.0-2ea44f)
+![version](https://img.shields.io/badge/version-3.1.0-2ea44f)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)

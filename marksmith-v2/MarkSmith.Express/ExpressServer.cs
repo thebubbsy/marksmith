@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -19,6 +20,28 @@ public sealed class ExpressServer : IDisposable
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
+
+    /// <summary>
+    /// The running assembly's version, not a literal. The health endpoint reported a hard-coded
+    /// "2.18.0" long after the product reached 3.x, so every API client and the web UI's own
+    /// footer advertised a version that had not shipped for months.
+    /// </summary>
+    private static string AppVersion
+    {
+        get
+        {
+            var asm = System.Reflection.Assembly.GetEntryAssembly() ?? typeof(ExpressServer).Assembly;
+            var iv = asm.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+                        .InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(iv))
+            {
+                // Strip any "+<build metadata>" the SDK appends; keep a "-dev.x" prerelease tag.
+                var plus = iv.IndexOf('+');
+                return plus > 0 ? iv[..plus] : iv;
+            }
+            return asm.GetName().Version?.ToString(3) ?? "0.0.0";
+        }
+    }
 
     public int Port { get; private set; }
     public bool IsRunning => _listener?.IsListening == true;
@@ -132,7 +155,7 @@ public sealed class ExpressServer : IDisposable
                 {
                     status = "ok",
                     service = "Marksmith Express",
-                    version = "2.18.0",
+                    version = AppVersion,
                     port = Port,
                     formats = new[] { "docx", "html", "pptx", "epub" }
                 });
