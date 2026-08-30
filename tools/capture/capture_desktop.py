@@ -8,7 +8,6 @@ the README media from a real build rather than hand-cropped stills.
 """
 
 import ctypes
-import json
 import os
 import shutil
 import subprocess
@@ -20,6 +19,9 @@ import win32gui
 import win32process
 import win32ui
 from PIL import Image, ImageGrab
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import appsession  # noqa: E402  (path set up above)
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
@@ -34,8 +36,6 @@ EXE = os.path.join(
     "net8.0-windows10.0.19041.0", "win-x64", "Marksmith.exe",
 )
 OUT = os.path.join(ROOT, "docs", "media")
-SETTINGS = os.path.join(os.environ["LOCALAPPDATA"], "MarkSmith", "settings.json")
-
 # Demo documents are staged under a neutral public path, and exports point
 # there too, so no screenshot ships the capturing machine's user name.
 DEMO_DIR = os.path.join("C:\\Users", "Public", "Marksmith Demo")
@@ -65,14 +65,6 @@ def stage(doc):
     shutil.copy2(os.path.join(ROOT, doc.replace("/", os.sep)), dest)
     return dest
 
-
-def patch_settings(overrides):
-    with open(SETTINGS, "r", encoding="utf-8") as fh:
-        cfg = json.load(fh)
-    cfg.update(BASE_OVERRIDES)
-    cfg.update(overrides)
-    with open(SETTINGS, "w", encoding="utf-8") as fh:
-        json.dump(cfg, fh, indent=2)
 
 
 def find_window(pid):
@@ -197,14 +189,10 @@ def foreground(hwnd):
     return False
 
 
-def capture(name, doc, overrides, settle, scroll=0, preview_x=0.48):
+def capture(name, doc, settle, scroll=0, preview_x=0.48):
     print(f"[+] {name}: {doc}")
-    patch_settings(overrides)
 
-    # A previous capture ended with taskkill, so the crash-recovery vault would
-    # otherwise greet the next launch with a "Recover unsaved document" dialog.
-    shutil.rmtree(os.path.join(os.path.dirname(SETTINGS), "recovery_vault"), ignore_errors=True)
-
+    appsession.clear_recovery_vault()
     proc = subprocess.Popen([EXE, stage(doc)])
     hwnd = None
     for _ in range(40):
@@ -244,11 +232,9 @@ def capture(name, doc, overrides, settle, scroll=0, preview_x=0.48):
     shot.save(path)
     print(f"    [ok] {path}  {shot.size[0]}x{shot.size[1]}")
 
-    proc.terminate()
-    time.sleep(1.5)
-    subprocess.run(["taskkill", "/F", "/IM", "Marksmith.exe"],
-                   capture_output=True, check=False)
-    time.sleep(1)
+    # Scoped to the process this function launched: a whole-image kill would also
+    # take down an instance the user has open, unsaved work included.
+    appsession.shutdown(proc)
 
 
 def is_blank(img):
@@ -267,17 +253,24 @@ def main():
         sys.exit(f"Build the desktop app first — not found: {EXE}")
     os.makedirs(OUT, exist_ok=True)
 
-    backup = SETTINGS + ".capture-backup"
-    if not os.path.exists(backup):
-        shutil.copy2(SETTINGS, backup)
+    try:
+        appsession.require_app_closed()
+    except appsession.AppAlreadyRunningError as exc:
+        sys.exit(str(exc))
 
     wanted = sys.argv[1:] or list(SHOTS)
-    try:
-        for name in wanted:
-            capture(name, *SHOTS[name])
-    finally:
-        shutil.copy2(backup, SETTINGS)
-        print("[+] settings restored")
+    unknown = [n for n in wanted if n not in SHOTS]
+    if unknown:
+        sys.exit(f"unknown shot(s): {', '.join(unknown)}. Available: {', '.join(SHOTS)}")
+
+    for name in wanted:
+        doc, overrides, settle, *rest = SHOTS[name]
+        profile = {**BASE_OVERRIDES, **overrides}
+        # A fresh backup per shot, restored immediately: a single fixed backup file
+        # would go stale and later revert settings changed between runs.
+        with appsession.settings_profile(profile, from_defaults=True):
+            capture(name, doc, settle, *rest)
+    print("[+] settings restored")
 
 
 if __name__ == "__main__":

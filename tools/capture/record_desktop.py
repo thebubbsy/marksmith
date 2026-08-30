@@ -24,6 +24,9 @@ import win32process
 import win32ui
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import appsession  # noqa: E402  (path set up above)
+
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
@@ -32,10 +35,24 @@ except Exception:
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 EXE = os.path.join(ROOT, "marksmith-v2", "MarkSmith.Desktop", "bin", "x64", "Release",
                    "net8.0-windows10.0.19041.0", "win-x64", "Marksmith.exe")
-SETTINGS = os.path.join(os.environ["LOCALAPPDATA"], "MarkSmith", "settings.json")
 DEMO_DIR = r"C:\Users\Public\Marksmith Demo"
 FRAMES = os.path.join(os.environ["TEMP"], "marksmith-frames")
 API = "http://127.0.0.1:47821"
+
+# A complete profile: everything unnamed falls back to the app's defaults, so the recording
+# looks the same on any machine instead of inheriting local preferences.
+RENDER_SETTINGS = {
+    "EditorViewMode": "Split",
+    "Theme": "GitHub Light",
+    "PreviewZoom": 0.8,
+    "EditorFontSize": 14,
+    "IncludeToc": False,
+    "ShowExtensionTip": False,
+    "LookingGlassMode": False,
+    "ApiEnabled": True,
+    "ApiPort": 47821,
+    "OutputFolder": DEMO_DIR,
+}
 FPS = 6
 
 DOC = r"""# Q4 Platform Review
@@ -78,17 +95,17 @@ flowchart LR
 """
 
 
-def patch_settings():
-    with open(SETTINGS, encoding="utf-8") as fh:
-        cfg = json.load(fh)
-    cfg.update({
-        "EditorViewMode": "Split", "Theme": "GitHub Light", "PreviewZoom": 0.8,
-        "EditorFontSize": 14, "IncludeToc": False, "ShowExtensionTip": False,
-        "LookingGlassMode": False, "ApiEnabled": True, "ApiPort": 47821,
-        "OutputFolder": DEMO_DIR,
-    })
-    with open(SETTINGS, "w", encoding="utf-8") as fh:
-        json.dump(cfg, fh, indent=2)
+
+def api_ready(timeout=40):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"{API}/api/health", timeout=2) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            time.sleep(0.5)
+    return False
 
 
 def find_window(pid):
@@ -134,27 +151,16 @@ def ingest(markdown):
         return resp.status
 
 
-def wait_for_api(timeout=40):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(f"{API}/api/health", timeout=2) as r:
-                if r.status == 200:
-                    return True
-        except Exception:
-            time.sleep(0.5)
-    return False
-
 
 def main():
     out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "docs/media/desktop-demo.mp4")
     if not os.path.exists(EXE):
         sys.exit(f"Build the desktop app first — not found: {EXE}")
 
-    backup = SETTINGS + ".capture-backup"
-    if not os.path.exists(backup):
-        shutil.copy2(SETTINGS, backup)
-    patch_settings()
+    try:
+        appsession.require_app_closed()
+    except appsession.AppAlreadyRunningError as exc:
+        sys.exit(str(exc))
 
     shutil.rmtree(FRAMES, ignore_errors=True)
     os.makedirs(FRAMES, exist_ok=True)
@@ -164,7 +170,12 @@ def main():
     with open(starter, "w", encoding="utf-8") as fh:
         fh.write("# Q4 Platform Review\n")
 
-    proc = subprocess.Popen([EXE, starter])
+    with appsession.settings_profile(RENDER_SETTINGS, from_defaults=True):
+        record(starter, out)
+
+
+def record(starter, out):
+    proc = appsession.launch(EXE, [starter])
     hwnd = None
     for _ in range(60):
         time.sleep(0.5)
@@ -172,13 +183,13 @@ def main():
         if hwnd:
             break
     if not hwnd:
-        proc.terminate()
+        appsession.shutdown(proc)
         sys.exit("Marksmith window never appeared")
 
     win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
     time.sleep(8)
 
-    if not wait_for_api():
+    if not api_ready():
         print("[!] local REST API never came up; recording the idle window instead")
 
     stop = threading.Event()
@@ -213,10 +224,9 @@ def main():
     stop.set()
     thread.join(timeout=5)
 
-    proc.terminate()
-    time.sleep(1.5)
-    subprocess.run(["taskkill", "/F", "/IM", "Marksmith.exe"], capture_output=True, check=False)
-    shutil.copy2(backup, SETTINGS)
+    # Scoped to the process launched here — never a whole-image kill, which would
+    # also destroy an instance the user has open.
+    appsession.shutdown(proc)
 
     print(f"[+] {count[0]} frames captured")
     os.makedirs(os.path.dirname(out), exist_ok=True)
