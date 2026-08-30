@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
+    <ProjectReference Include="..\MarkSmith.Express\MarkSmith.Express.csproj" />
   </ItemGroup>
 
   <ItemGroup>

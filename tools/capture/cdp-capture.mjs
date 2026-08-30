@@ -88,70 +88,72 @@ await sleep(2500);
 await shoot('express-landing');
 
 // 2. Sample document loaded, ready to convert.
-await evaluate('loadSample()');
+await evaluate("document.getElementById('sampleBtn').click()");
 await sleep(1200);
 await shoot('express-loaded');
 
-// 3. Frame sequence for the animated demo: type the doc, pick a format, convert.
+// 3. Frame sequence for the animated demo. Express is a converter, not an editor, so the demo
+// walks what it actually does: load a document, set the output profile, watch the option list
+// react to the chosen format, convert.
 const frames = `${outDir}/frames`;
 mkdirSync(frames, { recursive: true });
-
-await evaluate('clearEditor()');
-await sleep(400);
-
-const doc = `# Q4 Platform Review
-
-> [!IMPORTANT]
-> Rendered natively — no Word round-trip.
-
-## Availability
-
-| Region | Uptime | Trend |
-| :--- | ---: | :--- |
-| ap-southeast-2 | 99.98% | [sparkline: 12, 20, 18, 31, 44] |
-| us-east-1 | 99.95% | [sparkline: 30, 24, 28, 22, 19] |
-
-The error budget follows $E = 1 - \\frac{S_{obs}}{S_{target}}$ across the window.
-
-\`\`\`mermaid
-flowchart LR
-  Ingest --> Normalize --> OpenXML[Native OOXML] --> Word
-\`\`\`
-`;
 
 let frame = 0;
 const capture = async () => {
   const { data } = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(`${frames}/f${String(frame++).padStart(4, '0')}.png`, Buffer.from(data, 'base64'));
 };
-
-// Type the document in chunks so the frame sequence reads as live authoring.
-const lines = doc.split('\n');
-let typed = '';
-for (const line of lines) {
-  typed += line + '\n';
+const hold = async n => { for (let i = 0; i < n; i++) await capture(); };
+const click = async sel => {
+  await evaluate(`document.querySelector(${JSON.stringify(sel)})?.click()`);
+  await sleep(220);
+};
+const openGroup = async id => {
   await evaluate(`(() => {
-    const ta = document.getElementById('editor') || document.querySelector('textarea');
-    ta.value = ${JSON.stringify(typed)};
-    ta.dispatchEvent(new Event('input', { bubbles: true }));
-    ta.scrollTop = ta.scrollHeight;
+    const d = document.querySelector('details.group[data-id="${id}"]');
+    document.querySelectorAll('details.group').forEach(x => { x.open = x === d; });
   })()`);
-  await capture();
-}
+  await sleep(260);
+};
 
-// Hold on the finished document, then walk the format tiles.
-for (let i = 0; i < 6; i++) await capture();
+await hold(10);
 
+// Set a document profile.
+await openGroup('document');
+await hold(4);
+await click('#o_includeToc');
+await hold(4);
+await click('#o_pageBorder');
+await hold(6);
+
+// Text processing.
+await openGroup('text');
+await hold(5);
+await click('#o_noEmoji');
+await hold(4);
+await evaluate(`(() => {
+  const s = document.getElementById('o_dashMode');
+  s.value = '1'; s.dispatchEvent(new Event('change', { bubbles: true }));
+})()`);
+await hold(6);
+
+// Diagrams — the Word-specific settings.
+await openGroup('diagrams');
+await hold(8);
+
+// Switching format re-evaluates which settings the chosen exporter honours.
 for (const fmt of ['html', 'pptx', 'epub', 'docx']) {
   await evaluate(`(() => {
-    const el = document.querySelector('[data-format="${fmt}"]');
-    if (el) selectFormat(el);
+    const b = [...document.querySelectorAll('.fmt')]
+      .find(x => x.querySelector('.ext').textContent === '.${fmt}');
+    if (b) b.click();
   })()`);
-  await sleep(150);
-  for (let i = 0; i < 4; i++) await capture();
+  await sleep(200);
+  await hold(7);
 }
 
-for (let i = 0; i < 8; i++) await capture();
+await openGroup('document');
+await hold(10);
 
 console.log(`[frames] ${frame} frames written to ${frames}`);
 

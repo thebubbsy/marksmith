@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -21,16 +22,6 @@ public sealed class ExpressServer : IDisposable
 
     public int Port { get; private set; }
     public bool IsRunning => _listener?.IsListening == true;
-
-    public static readonly string[] SupportedThemes = new[]
-    {
-        "Modern Clean",
-        "Academic Formal",
-        "Corporate Executive",
-        "Dark Mode",
-        "Minimalist",
-        "Engineering Spec"
-    };
 
     public void Start(int preferredPort = 5000, bool openBrowser = true)
     {
@@ -150,7 +141,42 @@ public sealed class ExpressServer : IDisposable
 
             if (method == "GET" && path == "/api/themes")
             {
-                await WriteJsonAsync(ctx, 200, SupportedThemes);
+                await WriteJsonAsync(ctx, 200, AppServices.Themes.All.Select(t => new
+                {
+                    name = t.Name,
+                    background = t.Background,
+                    text = t.Text,
+                    accent = t.Heading,
+                    border = t.Border,
+                    builtin = AppServices.Themes.IsBuiltin(t.Name),
+                }));
+                return;
+            }
+
+            if (method == "GET" && path == "/api/options")
+            {
+                // The UI builds its controls from this, so the catalogs stay a single source of
+                // truth. Hard-coding them in the page is exactly how the theme list drifted into
+                // six names the engine had never heard of.
+                await WriteJsonAsync(ctx, 200, new
+                {
+                    formats = new[]
+                    {
+                        new { id = "docx", label = "Word", ext = ".docx" },
+                        new { id = "html", label = "HTML", ext = ".html" },
+                        new { id = "pptx", label = "Slides", ext = ".pptx" },
+                        new { id = "epub", label = "eBook", ext = ".epub" },
+                    },
+                    themes = AppServices.Themes.All.Select(t => new
+                    {
+                        name = t.Name,
+                        background = t.Background,
+                        text = t.Text,
+                        accent = t.Heading,
+                        builtin = AppServices.Themes.IsBuiltin(t.Name),
+                    }),
+                    fonts = FontManagerService.Presets.Select(f => new { id = f.Id, label = f.DisplayName }),
+                });
                 return;
             }
 
@@ -178,13 +204,29 @@ public sealed class ExpressServer : IDisposable
         }
     }
 
-    private sealed record ConvertPayload(string? Markdown, string? Format, string? Theme);
+    // `Options` is the same OutputOverride the desktop API and the browser extension post, so an
+    // Express export honours the identical profile instead of a parallel, smaller contract.
+    // `Theme`/`Format` stay top-level for the documented curl one-liner and older callers.
+    private sealed record ConvertPayload(
+        string? Markdown, string? Format, string? Theme, string? FileName, OutputOverride? Options);
+
+    /// <summary>Strips any path and extension and drops characters a filename cannot carry.</summary>
+    private static string? FileNameStem(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return null;
+        var stem = Path.GetFileNameWithoutExtension(candidate.Trim());
+        foreach (var bad in Path.GetInvalidFileNameChars()) stem = stem.Replace(bad, '-');
+        stem = stem.Trim(' ', '.', '-');
+        return string.IsNullOrEmpty(stem) ? null : stem[..Math.Min(stem.Length, 80)];
+    }
 
     private async Task HandleConvertAsync(HttpListenerContext ctx)
     {
         string markdown = "";
         string format = "docx";
-        string theme = "Modern Clean";
+        string theme = "";
+        string? requestedName = null;
+        OutputOverride? options = null;
 
         string contentType = ctx.Request.ContentType ?? "";
         if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
@@ -193,8 +235,10 @@ public sealed class ExpressServer : IDisposable
             string body = await reader.ReadToEndAsync();
             var payload = JsonSerializer.Deserialize<ConvertPayload>(body, JsonOpts);
             markdown = payload?.Markdown ?? "";
-            format = payload?.Format ?? "docx";
-            theme = payload?.Theme ?? "Modern Clean";
+            format = payload?.Format ?? payload?.Options?.Format ?? "docx";
+            theme = payload?.Theme ?? "";
+            requestedName = payload?.FileName;
+            options = payload?.Options;
         }
         else
         {
@@ -214,11 +258,32 @@ public sealed class ExpressServer : IDisposable
         }
 
         format = format.ToLowerInvariant().TrimStart('.');
-        var settings = new AppSettings { Theme = theme };
+
+        // Start from stock defaults, then layer the caller's profile on top. A top-level "theme"
+        // still wins for the simple curl form, but only when the profile did not set one.
+        var settings = new AppSettings().CloneWith(options);
+        if (!string.IsNullOrWhiteSpace(theme) && options?.Theme is null) settings.Theme = theme;
+
+        // The same preparation the desktop and batch paths run before handing markdown to an
+        // exporter. Express called the exporters directly and skipped it, so identical input
+        // produced different output here — chat artifacts survived, and NormalizeLlm did nothing.
+        var classification = AppServices.LlmSource.Classify(markdown);
+        (markdown, _) = AppServices.LlmSource.RepairArtifacts(markdown, classification);
+        if (settings.NormalizeLlm)
+        {
+            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification);
+        }
 
         byte[] outputBytes;
         string mimeType;
-        string filename = $"export.{format}";
+        // Name the download after the source the caller gave us (the dropped file, or a title from
+        // the profile) rather than a flat "export" — otherwise every conversion lands in Downloads
+        // as export.docx and silently overwrites the last one.
+        string stem = FileNameStem(requestedName)
+                      ?? FileNameStem(options?.SourceTitle)
+                      ?? FileNameStem(options?.FileNameTemplate is { } t && !t.Contains('{') ? t : null)
+                      ?? "document";
+        string filename = $"{stem}.{format}";
 
         switch (format)
         {
