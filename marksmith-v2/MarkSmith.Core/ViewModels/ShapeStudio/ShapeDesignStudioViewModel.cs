@@ -487,6 +487,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AllPresets.Add(new DiagramPreset { Name = "Alternating Stepped Workflow", Category = "Process & Workflow", Icon = "🪜", Description = "Top-and-bottom alternating milestone process.", Generate = vm => vm.GenerateAlternatingProcessTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Stage-Gate Decision Process", Category = "Process & Workflow", Icon = "🚦", Description = "Phased workflow with diamond go/no-go decision gates.", Generate = vm => vm.GenerateStageGateProcessTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Linear Milestone Timeline", Category = "Process & Workflow", Icon = "📅", Description = "Chronological timeline track with date badges.", Generate = vm => vm.GenerateMilestoneTimelineTemplate() });
+        AllPresets.Add(new DiagramPreset { Name = "Incident Response Flow", Category = "Process & Workflow", Icon = "*", Description = "Detect, triage, severity branch, and post-incident review.", Generate = vm => vm.GenerateIncidentResponseTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Swimlane Workflow (3 Lanes)", Category = "Process & Workflow", Icon = "🏊", Description = "Cross-departmental multi-lane flow.", Generate = vm => vm.GenerateSwimlaneWorkflowTemplate() });
 
         // --- Cycles & Loops ---
@@ -494,6 +495,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AllPresets.Add(new DiagramPreset { Name = "Build-Measure-Learn Loop", Category = "Cycles & Loops", Icon = "🔁", Description = "Lean startup iterative validation loop.", Generate = vm => vm.GenerateBuildMeasureLearnTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Design Thinking 5-Phase", Category = "Cycles & Loops", Icon = "💡", Description = "Empathize, Define, Ideate, Prototype, Test.", Generate = vm => vm.GenerateDesignThinkingTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "DevOps Infinity Loop", Category = "Cycles & Loops", Icon = "♾️", Description = "Continuous integration and delivery lifecycle.", Generate = vm => vm.GenerateDevOpsLoopTemplate() });
+        AllPresets.Add(new DiagramPreset { Name = "OODA Decision Loop", Category = "Cycles & Loops", Icon = "*", Description = "Observe, Orient, Decide, Act as a closed decision cycle.", Generate = vm => vm.GenerateOodaLoopTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Continuous Feedback Spiral", Category = "Cycles & Loops", Icon = "🌀", Description = "Iterative concentric improvement spiral.", Generate = vm => vm.GenerateFeedbackSpiralTemplate() });
 
         // --- Matrices & Strategy ---
@@ -502,6 +504,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AllPresets.Add(new DiagramPreset { Name = "BCG Growth-Share Matrix", Category = "Matrices & Strategy", Icon = "⭐", Description = "Stars, Question Marks, Cash Cows, and Dogs.", Generate = vm => vm.GenerateBcgGrowthMatrixTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Risk Impact vs Likelihood 3x3", Category = "Matrices & Strategy", Icon = "⚠️", Description = "Heatmap grid for risk assessment.", Generate = vm => vm.GenerateRiskMatrixTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Ansoff Market Expansion", Category = "Matrices & Strategy", Icon = "📈", Description = "Market Penetration, Development, Diversification.", Generate = vm => vm.GenerateAnsoffMatrixTemplate() });
+        AllPresets.Add(new DiagramPreset { Name = "Porter Five Forces", Category = "Matrices & Strategy", Icon = "*", Description = "Rivalry at the centre with the four surrounding forces.", Generate = vm => vm.GeneratePortersFiveForcesTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "RACI Accountability Grid", Category = "Matrices & Strategy", Icon = "📋", Description = "Responsible, Accountable, Consulted, Informed.", Generate = vm => vm.GenerateRaciGridTemplate() });
 
         // --- Relationships & Venns ---
@@ -515,6 +518,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AllPresets.Add(new DiagramPreset { Name = "Quarterly Release Roadmap (Q1-Q4)", Category = "Roadmaps & Timelines", Icon = "🗺️", Description = "4-quarter product horizon roadmap.", Generate = vm => vm.GenerateQuarterlyRoadmapTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Chevron Phase Gantt", Category = "Roadmaps & Timelines", Icon = "📅", Description = "Staggered phase chevron tracks over time.", Generate = vm => vm.GenerateChevronGanttTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Alternating Timeline Events", Category = "Roadmaps & Timelines", Icon = "📍", Description = "Vertical alternating historical milestones.", Generate = vm => vm.GenerateAlternatingTimelineTemplate() });
+        AllPresets.Add(new DiagramPreset { Name = "Now / Next / Later Board", Category = "Roadmaps & Timelines", Icon = "*", Description = "Horizon roadmap without false precision on dates.", Generate = vm => vm.GenerateNowNextLaterTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Customer Journey (5 Touchpoints)", Category = "Roadmaps & Timelines", Icon = "🚶", Description = "Awareness, Consideration, Purchase, Retention, Advocacy.", Generate = vm => vm.GenerateCustomerJourneyTemplate() });
 
         // --- Architecture & Cloud ---
@@ -527,6 +531,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         // --- Funnels & Pipelines ---
         AllPresets.Add(new DiagramPreset { Name = "Marketing Acquisition Funnel", Category = "Funnels & Pipelines", Icon = "🔻", Description = "Awareness, Interest, Decision, Action stages.", Generate = vm => vm.GenerateFunnelTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Enterprise Sales Pipeline (5-Stage)", Category = "Funnels & Pipelines", Icon = "💰", Description = "Prospecting, Qualification, Proposal, Negotiation, Closed.", Generate = vm => vm.GenerateSalesPipelineTemplate() });
+        AllPresets.Add(new DiagramPreset { Name = "Recruitment Pipeline (6 Stages)", Category = "Funnels & Pipelines", Icon = "*", Description = "Applied through hired, with headcount at every stage.", Generate = vm => vm.GenerateRecruitmentPipelineTemplate() });
         AllPresets.Add(new DiagramPreset { Name = "Hourglass Growth Funnel", Category = "Funnels & Pipelines", Icon = "⏳", Description = "Acquisition funnel meeting expansion and referral.", Generate = vm => vm.GenerateHourglassFunnelTemplate() });
 
         // --- Lists & Dashboards ---
@@ -866,9 +871,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AddShapeAt("roundrect", 420, 60, 160, 90, colors[2 % colors.Length], "STEP 3 · VALIDATE\nStaging Validation &\nSecurity Audits");
         AddShapeAt("roundrect", 520, 230, 160, 90, colors[3 % colors.Length], "STEP 4 · DEPLOY\nProduction Launch &\nMonitoring");
 
-        AddShapeAt("line", 140, 155, 4, 80, "777777");
-        AddShapeAt("line", 320, 155, 4, 80, "777777");
-        AddShapeAt("line", 500, 155, 4, 80, "777777");
+        AddConnectorLine(142, 155, 142, 235, "777777", 2.0);
+        AddConnectorLine(322, 155, 322, 235, "777777", 2.0);
+        AddConnectorLine(502, 155, 502, 235, "777777", 2.0);
         StatusMessage = "✓ Generated Alternating Stepped Workflow";
     }
 
@@ -886,11 +891,111 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public void GenerateRecruitmentPipelineTemplate()
+    {
+        ClearAll();
+        var colors = GetPaletteColors();
+        // A funnel has to narrow: each stage is inset so the taper carries the meaning even
+        // before the reader gets to the counts.
+        string[] stages = { "Applied · 480", "Screened · 210", "Interviewed · 84", "Onsite · 26", "Offer · 9", "Hired · 6" };
+        for (int i = 0; i < stages.Length; i++)
+        {
+            double inset = i * 44;
+            AddShapeAt("trapezoid", 60 + inset, 40 + i * 52, 600 - inset * 2, 44,
+                colors[i % colors.Length], stages[i]);
+        }
+        StatusMessage = "✓ Generated Recruitment Pipeline";
+    }
+
+    [RelayCommand]
+    public void GenerateNowNextLaterTemplate()
+    {
+        ClearAll();
+        var colors = GetPaletteColors();
+        string[] columns = { "NOW", "NEXT", "LATER" };
+        string[][] cards =
+        {
+            new[] { "Checkout rewrite", "SSO rollout", "Latency budget" },
+            new[] { "Usage analytics", "Bulk import", "Audit log" },
+            new[] { "Mobile client", "Partner API", "Offline mode" },
+        };
+        for (int c = 0; c < columns.Length; c++)
+        {
+            double x = 50 + c * 220;
+            AddShapeAt("roundrect", x, 30, 190, 44, colors[c % colors.Length], columns[c]);
+            for (int r = 0; r < cards[c].Length; r++)
+            {
+                AddShapeAt("roundrect", x, 90 + r * 62, 190, 50, "FFFFFF", cards[c][r]);
+            }
+        }
+        StatusMessage = "✓ Generated Now / Next / Later board";
+    }
+
+    [RelayCommand]
+    public void GenerateOodaLoopTemplate()
+    {
+        ClearAll();
+        var colors = GetPaletteColors();
+        // Four nodes on a diamond, closed into a loop with real stroked connectors.
+        AddShapeAt("ellipse", 280, 30, 150, 90, colors[0 % colors.Length], "OBSERVE");
+        AddShapeAt("ellipse", 470, 170, 150, 90, colors[1 % colors.Length], "ORIENT");
+        AddShapeAt("ellipse", 280, 310, 150, 90, colors[2 % colors.Length], "DECIDE");
+        AddShapeAt("ellipse", 90, 170, 150, 90, colors[3 % colors.Length], "ACT");
+
+        AddConnectorLine(430, 90, 480, 180);
+        AddConnectorLine(545, 260, 420, 330);
+        AddConnectorLine(280, 350, 180, 260);
+        AddConnectorLine(165, 170, 285, 95);
+        StatusMessage = "✓ Generated OODA decision loop";
+    }
+
+    [RelayCommand]
+    public void GeneratePortersFiveForcesTemplate()
+    {
+        ClearAll();
+        var colors = GetPaletteColors();
+        AddShapeAt("roundrect", 265, 175, 190, 90, colors[0 % colors.Length], "COMPETITIVE RIVALRY");
+        AddShapeAt("roundrect", 265, 30, 190, 75, colors[1 % colors.Length], "New Entrants");
+        AddShapeAt("roundrect", 265, 330, 190, 75, colors[2 % colors.Length], "Substitutes");
+        AddShapeAt("roundrect", 30, 175, 190, 90, colors[3 % colors.Length], "Supplier Power");
+        AddShapeAt("roundrect", 500, 175, 190, 90, colors[4 % colors.Length], "Buyer Power");
+
+        AddConnectorLine(360, 105, 360, 175);
+        AddConnectorLine(360, 265, 360, 330);
+        AddConnectorLine(220, 220, 265, 220);
+        AddConnectorLine(455, 220, 500, 220);
+        StatusMessage = "✓ Generated Porter's Five Forces";
+    }
+
+    [RelayCommand]
+    public void GenerateIncidentResponseTemplate()
+    {
+        ClearAll();
+        var colors = GetPaletteColors();
+        AddShapeAt("roundrect", 30, 150, 140, 70, colors[0 % colors.Length], "Detect · alert fires");
+        AddShapeAt("roundrect", 200, 150, 140, 70, colors[1 % colors.Length], "Triage · severity call");
+        AddShapeAt("diamond", 370, 140, 110, 90, colors[2 % colors.Length], "SEV 1?");
+        AddShapeAt("roundrect", 520, 40, 170, 70, colors[3 % colors.Length], "Page on-call, open bridge");
+        AddShapeAt("roundrect", 520, 260, 170, 70, colors[4 % colors.Length], "Queue for next day");
+        AddShapeAt("roundrect", 200, 330, 280, 70, colors[5 % colors.Length], "Post-incident review");
+
+        AddConnectorLine(170, 185, 200, 185);
+        AddConnectorLine(340, 185, 370, 185);
+        AddConnectorLine(480, 165, 520, 90);
+        AddConnectorLine(480, 205, 520, 285);
+        AddConnectorLine(605, 110, 605, 250);
+        AddConnectorLine(520, 295, 480, 365);
+        StatusMessage = "✓ Generated Incident Response flow";
+    }
+
+    [RelayCommand]
     public void GenerateMilestoneTimelineTemplate()
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("line", 40, 180, 640, 8, "777777");
+        // A real stroked connector, not a "line" prst laid out as a box: prstGeom "line"
+        // draws corner-to-corner, so a 640x8 box came out as a skewed filled slab.
+        AddConnectorLine(40, 184, 680, 184, "777777", 3.0);
         AddShapeAt("roundrect", 50, 80, 130, 75, colors[0 % colors.Length], "Q1 2026\nKernel Overhaul");
         AddShapeAt("roundrect", 210, 210, 130, 75, colors[1 % colors.Length], "Q2 2026\nVector Studio");
         AddShapeAt("roundrect", 370, 80, 130, 75, colors[2 % colors.Length], "Q3 2026\nWord Interop");

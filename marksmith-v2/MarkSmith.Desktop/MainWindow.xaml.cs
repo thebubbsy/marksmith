@@ -294,15 +294,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (string.IsNullOrWhiteSpace(PasteTextBox?.Text))
             {
                 ExpandLeftPane();
-                if (SmartArtOfferBar is not null)
-                {
-                    SmartArtOfferBar.IsOpen = false;
-                    SmartArtOfferBar.Visibility = Visibility.Collapsed;
-                }
             }
             else
             {
-                ScheduleSmartArtOffer();
                 // RULE: the moment the editor has content — even just typing it in — the left
                 // Source/Files pane tucks away to regain that screen real estate for the
                 // preview/code (paste and file-pick already do this; typing should too). Never
@@ -311,7 +305,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         };
         UpdateLintIndicator();
-        InitSmartArtOffer();
 
         // Export-completion toast: manual exports raise ExportCompleted from the ViewModel.
         ViewModel.ExportCompleted += (kind, path) => ShowExportToast(kind, path);
@@ -4905,7 +4898,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // SmartArt Design Studio — structure → native Word SmartArt (canvas-first, no tabs)
-    private void OnOpenSmartArtDesignStudioClick(object sender, RoutedEventArgs e) => OpenSmartArtStudio();
+    private void OnOpenSmartArtDesignStudioClick(object sender, RoutedEventArgs e)
+    {
+        // Open on the document you already have, not an empty canvas. The layout suggester used to
+        // exist only to power a nagging "Can we show you this as SmartArt?" bar — it earns its keep
+        // better here, choosing a sensible starting layout for content the user opened the studio
+        // to work on. An empty editor just opens the gallery.
+        var md = PasteTextBox?.Text ?? "";
+        if (string.IsNullOrWhiteSpace(md))
+        {
+            OpenSmartArtStudio();
+            return;
+        }
+        var suggestion = Services.SmartArtPotentialDetector.Detect(md);
+        OpenSmartArtStudio(preloadMarkdown: md, layoutAlias: suggestion.LayoutAlias);
+    }
 
     private void OpenSmartArtStudio(string? preloadMarkdown = null, string? layoutAlias = null)
     {
@@ -4934,63 +4941,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // ── SmartArt offer (non-invasive): detect diagram-shaped pasted content and offer a preview.
-    private readonly Services.SmartArtOfferGate _smartArtOfferGate = new();
-    private DispatcherQueueTimer? _smartArtOfferDebounce;
-    private Services.SmartArtSuggestion _smartArtOfferTag = new(Services.SmartArtKind.None, 0, "");
-
-    private void InitSmartArtOffer()
-    {
-        _smartArtOfferDebounce = DispatcherQueue.CreateTimer();
-        _smartArtOfferDebounce.Interval = TimeSpan.FromMilliseconds(900);
-        _smartArtOfferDebounce.IsRepeating = false;
-        _smartArtOfferDebounce.Tick += (_, _) => EvaluateSmartArtOffer();
-    }
-
-    private void ScheduleSmartArtOffer()
-    {
-        if (_smartArtOfferDebounce is null) return;
-        _smartArtOfferDebounce.Stop();
-        _smartArtOfferDebounce.Start();
-    }
-
-    private void EvaluateSmartArtOffer()
-    {
-        if (SmartArtOfferBar is null || PasteTextBox is null) return;
-        var md = PasteTextBox.Text ?? "";
-        var suggestion = Services.SmartArtPotentialDetector.Detect(md);
-        if (suggestion.IsOffered && _smartArtOfferGate.ShouldOffer(md, suggestion))
-        {
-            _smartArtOfferTag = suggestion;
-            SmartArtOfferBar.Message = suggestion.Reason;
-            SmartArtOfferBar.IsOpen = true;
-            SmartArtOfferBar.Visibility = Visibility.Visible;
-        }
-        else if (string.IsNullOrWhiteSpace(md) || !suggestion.IsOffered)
-        {
-            SmartArtOfferBar.IsOpen = false;
-            SmartArtOfferBar.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void OnSmartArtOfferPreviewClick(object sender, RoutedEventArgs e)
-    {
-        var md = PasteTextBox?.Text ?? "";
-        // Re-detect at click time: the user may have edited the document since the bar appeared
-        // (a stale _smartArtOfferTag would open the studio with the wrong layout family).
-        var suggestion = Services.SmartArtPotentialDetector.Detect(md);
-        OpenSmartArtStudio(preloadMarkdown: md, layoutAlias: suggestion.LayoutAlias);
-        SmartArtOfferBar.IsOpen = false;
-        SmartArtOfferBar.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnSmartArtOfferClosed(InfoBar sender, InfoBarClosedEventArgs args)
-    {
-        // "Not now" / the close X: the offer gate already remembers this content's hash, so the
-        // offer stays quiet until the user actually changes the document.
-        _smartArtOfferTag = new Services.SmartArtSuggestion(Services.SmartArtKind.None, 0, "");
-        SmartArtOfferBar.Visibility = Visibility.Collapsed;
-    }
-
     // MLShape & SmartArt Vector Studio — free-form native DrawingML shape & diagram composing
     private void OnOpenShapeDesignStudioClick(object sender, RoutedEventArgs e)
     {

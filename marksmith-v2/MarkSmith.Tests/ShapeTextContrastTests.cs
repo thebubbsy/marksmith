@@ -75,7 +75,10 @@ public class ShapeTextContrastTests
         Assert.Contains("<text", svg);
         Assert.Contains("fill=\"#FFFFFF\"", svg);
         Assert.Contains("data-guarded=\"shape\"", svg);
-        Assert.Contains(">note</text>", svg);
+        // The label sits in a <tspan> now that SvgLabel wraps to the shape width — one line here,
+        // but a long label becomes several. What matters to this test is unchanged: the text is
+        // present, and the guarded colour is on the <text> element that carries it.
+        Assert.Contains(">note</tspan>", svg);
 
         // And it must SURVIVE the page-background guard (white page would otherwise flip it dark).
         string sanitized = SvgSanitizer.Sanitize(svg, "FFFFFF");
