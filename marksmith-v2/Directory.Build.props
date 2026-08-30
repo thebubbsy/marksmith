@@ -10,6 +10,21 @@
        RELEASE CHECKLIST step 1: after cutting vX.Y.Z, bump this to the next version so the
        dev line immediately compares newer than the freshly published stable tag. -->
   <PropertyGroup>
-    <MarksmithBaseVersion>3.0.0</MarksmithBaseVersion>
+    <!-- v3.0.0 shipped without step 1 of the checklist below being run, so this sat at 3.0.0 and
+         every dev build stamped "3.0.0-dev.x" — which SemVer ranks BELOW the published 3.0.0.
+         That is precisely the "dev looks outdated" trap this scheme exists to prevent. -->
+    <MarksmithBaseVersion>3.1.0</MarksmithBaseVersion>
+  </PropertyGroup>
+
+  <!-- Stamp every shipped project, not just the desktop app. MarkSmith.Express declared no
+       version at all, so it fell back to the SDK default and its /api/health told every client
+       it was 1.0.0 (and, before that, a hard-coded "2.18.0"). The desktop csproj keeps its own
+       <Version> because it also needs the four-part Win32 resource forms; release.yml still
+       overrides all of this with -p:Version=<tag> so shipped binaries carry clean SemVer. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'MarkSmith.Desktop'">
+    <BuildRevision Condition="'$(BuildRevision)' == ''">$([System.DateTime]::UtcNow.ToString("MddHHmm"))</BuildRevision>
+    <Version Condition="'$(Version)' == ''">$(MarksmithBaseVersion)-dev.$(BuildRevision)</Version>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(MarksmithBaseVersion).0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">$(MarksmithBaseVersion).0</FileVersion>
   </PropertyGroup>
 </Project>
