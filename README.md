@@ -173,16 +173,22 @@ the same syntax, and adding one to only half of them is a bug. Working examples 
 A zero-dependency loopback web UI and REST API over the same `MarkSmith.Core` engine. No Windows, no
 installer, no account: one binary, one port.
 
+Express is a **converter, not an editor** — drop a file, set the output profile, take the document.
+It carries the same export profile the desktop app and the browser extension use, so a theme,
+heading shift or dash rule means the same thing everywhere. Settings a given exporter does not read
+are shown disabled and labelled with the formats that do use them, so nothing in the panel is
+decorative.
+
 ```bash
 marksmith-express --port 5000
 ```
 
 <div align="center">
-  <img src="docs/media/express-loaded.png" alt="The Marksmith Express web UI with a document loaded and Word selected as the output format" width="100%" />
+  <img src="docs/media/express-loaded.png" alt="The Marksmith Express web UI: a loaded document on the left, the full output profile on the right" width="100%" />
 </div>
 
 <div align="center">
-  <img src="docs/media/express-demo.gif" alt="Composing a document in Marksmith Express and switching output formats" width="90%" />
+  <img src="docs/media/express-demo.gif" alt="Setting the output profile in Marksmith Express and switching between Word, HTML, Slides and eBook" width="90%" />
   <br />
   <em><a href="docs/media/express-demo.mp4">Full-resolution MP4</a></em>
 </div>
@@ -190,9 +196,15 @@ marksmith-express --port 5000
 ```bash
 curl -X POST http://127.0.0.1:5000/api/convert \
      -H "Content-Type: application/json" \
-     -d '{"markdown":"# Hello\n\nFrom **Marksmith Express**.","theme":"Modern Clean"}' \
+     -d '{"markdown":"# Hello\n\nFrom **Marksmith Express**.",
+          "format":"docx",
+          "options":{"theme":"GitHub Light","includeToc":true,"headingShift":1}}' \
      -o out.docx
 ```
+
+`options` takes any field of the shared output override, so the API reaches the same settings the
+UI does. `GET /api/options` returns the live theme and font catalogs plus the supported formats, so
+a client never has to hard-code them.
 
 ---
 
