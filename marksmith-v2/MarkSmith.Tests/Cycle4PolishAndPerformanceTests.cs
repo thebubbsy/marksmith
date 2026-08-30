@@ -57,8 +57,11 @@ namespace MarkSmith.Tests
             };
 
             vm.LoadDocument(doc);
-            Assert.Contains("api", vm.DistinctTags);
-            Assert.Contains("csharp", vm.DistinctTags);
+            // Tags are canonicalized to a single "#name" form on load, so a map that mixes "api"
+            // and "#api" (every hand-edited or imported one does) has one tag, not two. Filtering
+            // still accepts either spelling.
+            Assert.Contains("#api", vm.DistinctTags);
+            Assert.Contains("#csharp", vm.DistinctTags);
 
             // Filter by tag "api"
             vm.SelectedTagFilter = "api";

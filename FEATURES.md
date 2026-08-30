@@ -31,3 +31,35 @@ Marksmith v2.17 is a multi-format document engine that transforms Markdown and A
 7. **Cloud Auto-Publish:** Automatically mirrors generated exports to WebDAV endpoints or local sync folders.
 8. **OCR Table Extraction:** Local OCR engine (`OcrEngineService` over a pluggable `IOcrProvider` — Windows.Media.Ocr on desktop) parses data tables directly from embedded document images into structured Markdown tables.
 9. **Multi-Format Export Pipeline:** Coordinated export engine for PDF, DOCX, PPTX, and EPUB files.
+
+---
+
+## 🌌 Document Galaxy — filing by relationship instead of by folder
+
+A folder tree makes you answer "where does this live?" exactly once. A research PDF that fed a
+proposal, got quoted in a deck and started an argument in your notes has four right answers, so it
+gets filed under the wrong one. The Document Galaxy keeps each document in one place and lets it
+carry as many *named* relationships as it earned.
+
+- **Every file is a node.** `.md`, `.docx`, `.pdf`, `.pptx`, `.epub`, `.rtf`, `.txt` and `.html`
+  each get a card with its format badge, progress, tags, connection count and version history.
+  Double-click opens the real file in the MarkSmith editor.
+- **Import a vault.** Point it at a folder and it builds the map: `[[wikilinks]]`, relative
+  Markdown links, image embeds, YAML front matter and `#tags` all become edges, and subdirectories
+  become folder nodes so a large vault stays legible. Link strength is ranked — an edge you wrote
+  always outranks one the scanner inferred.
+- **Name the relationship.** `grew out of`, `evidence for`, `supersedes`. Solid lines are the
+  hierarchy; dashed lines are the cross-links a folder tree cannot express.
+- **Five layouts.** Horizontal tree, top-down hierarchy, radial galaxy, force-directed, and
+  Separate Constellations, which packs each connected island so they never overlap.
+- **Find things.** Search spans titles, notes, tags and file paths; tag pills filter; focus mode
+  dims everything the selected document is not connected to.
+- **Topology report.** Hubs, unconnected documents, cluster count, link density and a format
+  breakdown — a read on the shape of your library, not just its size.
+- **It leaves.** Export an editable Word DrawingML diagram with a full relationship ledger, or copy
+  the map out as a Mermaid `flowchart` / `mindmap` and paste it into any document.
+
+The map is a plain-JSON `.msmap` file under the MarkSmith config directory. It is repaired on load
+(dangling links, parent cycles, duplicate edges, invalid colours) and an unreadable file is set
+aside as `.corrupt` rather than replaced. First run shows a guided tour; saving replaces it with
+your own galaxy for good.

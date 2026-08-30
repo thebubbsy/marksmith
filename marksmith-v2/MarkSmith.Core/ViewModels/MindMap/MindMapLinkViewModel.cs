@@ -30,6 +30,34 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private bool _isSelected;
 
+        [ObservableProperty]
+        private bool _isHovered;
+
+        /// <summary>Why the edge exists. Inferred links render fainter than ones a person drew.</summary>
+        [ObservableProperty]
+        private MindMapLinkKind _kind;
+
+        [ObservableProperty]
+        private double _weight;
+
+        /// <summary>A link the auto-linker guessed rather than the user drawing it.</summary>
+        public bool IsInferred => Kind != MindMapLinkKind.Manual;
+
+        public string KindDescription => MindMapLinkKindRank.Describe(Kind);
+
+        /// <summary>What to draw beside the line: the author's own words when they gave any,
+        /// otherwise why the linker thinks these two belong together.</summary>
+        public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? KindDescription : Label!.Trim();
+
+        partial void OnKindChanged(MindMapLinkKind value)
+        {
+            OnPropertyChanged(nameof(IsInferred));
+            OnPropertyChanged(nameof(KindDescription));
+            OnPropertyChanged(nameof(DisplayLabel));
+        }
+
+        partial void OnLabelChanged(string? value) => OnPropertyChanged(nameof(DisplayLabel));
+
         public MindMapLinkViewModel(MindMapLink model)
         {
             Model = model;
@@ -38,6 +66,21 @@ namespace MarkSmith.ViewModels.MindMap
             _style = model.Style;
             _direction = model.Direction;
             _strokeThickness = model.StrokeThickness > 0 ? model.StrokeThickness : 2.0;
+            _kind = model.Kind;
+            _weight = model.Weight > 0 ? model.Weight : 1.0;
+        }
+
+        /// <summary>Flips which end the arrowhead sits on, for when a relationship was recorded
+        /// backwards.</summary>
+        public void ReverseDirection()
+        {
+            Direction = Direction switch
+            {
+                MindMapLinkDirection.SourceToTarget => MindMapLinkDirection.TargetToSource,
+                MindMapLinkDirection.TargetToSource => MindMapLinkDirection.SourceToTarget,
+                MindMapLinkDirection.Bidirectional => MindMapLinkDirection.None,
+                _ => MindMapLinkDirection.Bidirectional
+            };
         }
 
         public void SyncToModel()
@@ -47,6 +90,8 @@ namespace MarkSmith.ViewModels.MindMap
             Model.Style = Style;
             Model.Direction = Direction;
             Model.StrokeThickness = StrokeThickness;
+            Model.Kind = Kind;
+            Model.Weight = Weight;
         }
     }
 }
