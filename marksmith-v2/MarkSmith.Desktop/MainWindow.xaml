@@ -699,9 +699,15 @@
                                             </Flyout>
                                         </Button.Flyout>
                                     </Button>
-                                    <TextBlock Text="{Binding WordCountText}" VerticalAlignment="Center"
-                                               Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"
-                                               ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <ProgressBar Width="60" Maximum="100" Value="{Binding OverallBudgetProgress}"
+                                                     Visibility="{Binding HasOverallBudget, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                     ToolTipService.ToolTip="{Binding OverallBudgetTooltip}"
+                                                     VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding WordCountText}" VerticalAlignment="Center"
+                                                   Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"
+                                                   ToolTipService.ToolTip="{Binding DocumentStatsDetail}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </Grid>
