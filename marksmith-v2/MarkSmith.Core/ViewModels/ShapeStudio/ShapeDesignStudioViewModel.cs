@@ -866,9 +866,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         AddShapeAt("roundrect", 420, 60, 160, 90, colors[2 % colors.Length], "STEP 3 · VALIDATE\nStaging Validation &\nSecurity Audits");
         AddShapeAt("roundrect", 520, 230, 160, 90, colors[3 % colors.Length], "STEP 4 · DEPLOY\nProduction Launch &\nMonitoring");
 
-        AddShapeAt("line", 140, 155, 4, 80, "777777");
-        AddShapeAt("line", 320, 155, 4, 80, "777777");
-        AddShapeAt("line", 500, 155, 4, 80, "777777");
+        AddConnectorLine(142, 155, 142, 235, "777777", 2.0);
+        AddConnectorLine(322, 155, 322, 235, "777777", 2.0);
+        AddConnectorLine(502, 155, 502, 235, "777777", 2.0);
         StatusMessage = "✓ Generated Alternating Stepped Workflow";
     }
 
@@ -890,7 +890,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("line", 40, 180, 640, 8, "777777");
+        // A real stroked connector, not a "line" prst laid out as a box: prstGeom "line"
+        // draws corner-to-corner, so a 640x8 box came out as a skewed filled slab.
+        AddConnectorLine(40, 184, 680, 184, "777777", 3.0);
         AddShapeAt("roundrect", 50, 80, 130, 75, colors[0 % colors.Length], "Q1 2026\nKernel Overhaul");
         AddShapeAt("roundrect", 210, 210, 130, 75, colors[1 % colors.Length], "Q2 2026\nVector Studio");
         AddShapeAt("roundrect", 370, 80, 130, 75, colors[2 % colors.Length], "Q3 2026\nWord Interop");

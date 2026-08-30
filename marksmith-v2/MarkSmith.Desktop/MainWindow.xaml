@@ -507,18 +507,6 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Non-invasive SmartArt offer: appears only when pasted content is detected to
-                     have diagram shape (hierarchy/process), never blocks, and "Not now" (the close
-                     X) keeps it quiet for that exact content. -->
-                <InfoBar x:Name="SmartArtOfferBar" Grid.Row="1" Margin="16,4,16,0" Severity="Informational"
-                         IsClosable="True" IsOpen="False" Visibility="Collapsed"
-                         Title="Can we show you this as SmartArt?"
-                         Closed="OnSmartArtOfferClosed">
-                    <InfoBar.ActionButton>
-                        <Button x:Name="SmartArtOfferPreviewButton" Content="Preview as SmartArt" FontWeight="SemiBold"
-                                Click="OnSmartArtOfferPreviewClick" />
-                    </InfoBar.ActionButton>
-                </InfoBar>
 
                 <Grid Grid.Row="2" x:Name="LookingGlassGrid">
                         <Grid.ColumnDefinitions>
@@ -983,6 +971,7 @@
                                             <MenuFlyoutItem Text="🌌 Document Galaxy &amp; Mind Map..." Click="OnOpenMindMapGalaxyClick" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="MLShape &amp; SmartArt Vector Studio..." Click="OnOpenShapeDesignStudioClick" />
+                                            <MenuFlyoutItem Text="SmartArt Design Studio..." Click="OnOpenSmartArtDesignStudioClick" />
                                             <MenuFlyoutItem Text="Visual Diagram Studio..." Click="OnOpenMermaidStudioClick" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
