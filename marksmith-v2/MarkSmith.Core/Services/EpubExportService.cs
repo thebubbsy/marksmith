@@ -102,6 +102,40 @@ public sealed class EpubExportService
             }
         }
 
+        // Pull local images into the package. A referenced file that is not in the manifest is
+        // both a broken image in every reader and an EPUB spec violation, and every local image
+        // in a document hit exactly that: the src was written through untouched and nothing was
+        // ever embedded. Remote and data: URIs are left alone — the first is the reader's problem
+        // and the second needs no manifest entry.
+        var images = new List<(string Id, string File, string Media, byte[] Bytes)>();
+        bodyHtml = ImgSrcRe().Replace(bodyHtml, m =>
+        {
+            var src = m.Groups["src"].Value;
+            if (src.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || src.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || src.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                return m.Value;
+            }
+
+            var resolved = ResolveImagePath(src);
+            if (resolved is null) return m.Value;   // missing on disk: leave the href as authored
+
+            var media = MediaTypeFor(resolved);
+            if (media is null) return m.Value;      // not an image type EPUB 3 requires support for
+
+            var existing = images.FirstOrDefault(i => string.Equals(i.File, "images/" + Path.GetFileName(resolved), StringComparison.OrdinalIgnoreCase));
+            string file = existing.File ?? $"images/{images.Count + 1:000}{Path.GetExtension(resolved).ToLowerInvariant()}";
+            if (existing.File is null)
+            {
+                try { images.Add(($"img{images.Count + 1:000}", file, media, File.ReadAllBytes(resolved))); }
+                catch { return m.Value; }
+            }
+            else file = existing.File;
+
+            return m.Value.Replace(m.Groups["src"].Value, file);
+        });
+
         // Split into chapters on each <h1>. Content before the first heading becomes its own chapter.
         var segments = Regex.Split(bodyHtml, @"(?=<h1[ >])")
                             .Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
@@ -123,18 +157,57 @@ public sealed class EpubExportService
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType, images));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters));
         if (coverFile is not null && coverBytes is not null)
         {
             WriteEntry(zip, $"OEBPS/{coverFile}", coverBytes);
             WriteEntry(zip, "OEBPS/cover.xhtml", CoverXhtml(coverFile));
         }
+        foreach (var (_, file, _, bytes) in images)
+            WriteEntry(zip, $"OEBPS/{file}", bytes);
         foreach (var c in chapters)
             WriteEntry(zip, $"OEBPS/{c.File}", ChapterXhtml(c));
     });
 
     private sealed record Chapter(string Id, string File, string Title, string Html);
+
+    private static readonly Regex ImgSrc = new(
+        @"<img\b[^>]*?\bsrc=""(?<src>[^""]+)""", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static Regex ImgSrcRe() => ImgSrc;
+
+    /// <summary>
+    /// Locates a local image the same way the DOCX exporter does — absolute path, then relative to
+    /// the app base directory, then to the working directory — so the two exporters agree on where
+    /// a document's images live instead of each inventing a rule.
+    /// </summary>
+    private static string? ResolveImagePath(string src)
+    {
+        var raw = src.StartsWith("file:///", StringComparison.OrdinalIgnoreCase) ? src[8..] : src;
+        raw = Uri.UnescapeDataString(raw);
+        var candidates = new[]
+        {
+            raw,
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, raw.Replace('/', Path.DirectorySeparatorChar)),
+            Path.Combine(Directory.GetCurrentDirectory(), raw.Replace('/', Path.DirectorySeparatorChar)),
+        };
+        foreach (var c in candidates)
+        {
+            try { if (File.Exists(c)) return Path.GetFullPath(c); } catch { }
+        }
+        return null;
+    }
+
+    /// <summary>The EPUB 3 core image media types; anything else is left as an external reference.</summary>
+    private static string? MediaTypeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".svg" => "image/svg+xml",
+        ".webp" => "image/webp",
+        _ => null,
+    };
 
     private static void WriteEntry(ZipArchive zip, string path, string content, CompressionLevel level = CompressionLevel.Optimal)
     {
@@ -201,9 +274,14 @@ public sealed class EpubExportService
 
     private static string Opf(string title, string author, string language, string? publisher, string? identifier,
                                string? description, string? rights, List<Chapter> chapters,
-                               string? coverFile, string? coverMediaType)
+                               string? coverFile, string? coverMediaType,
+                               IReadOnlyList<(string Id, string File, string Media, byte[] Bytes)> images)
     {
         var manifest = new StringBuilder();
+        // Every embedded image needs its own manifest item, or the package fails validation even
+        // though the bytes are present.
+        foreach (var img in images)
+            manifest.Append($"    <item id=\"{img.Id}\" href=\"{img.File}\" media-type=\"{img.Media}\"/>\n");
         var spine = new StringBuilder();
         if (coverFile is not null)
         {

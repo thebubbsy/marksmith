@@ -79,9 +79,24 @@ public sealed class PptxExportService
     {
         var slides = new List<Slide>();
         Slide? cur = null;
+        bool inFence = false;
+
         foreach (var raw in markdown.Replace("\r", "").Split('\n'))
         {
             var line = raw.TrimEnd();
+
+            // Only the fence MARKERS were skipped before, so the code itself became bullets — and
+            // then had its emphasis stripped, turning "x * 2" into "x  2". Code is carried through
+            // verbatim instead.
+            if (FenceRegex.IsMatch(line)) { inFence = !inFence; continue; }
+            if (inFence)
+            {
+                if (line.Trim().Length == 0) continue;
+                cur ??= NewSlide(deckTitle, slides);
+                cur.Bullets.Add((1, line.Trim()));
+                continue;
+            }
+
             var h = HeadingRegex.Match(line);
             if (h.Success)
             {
@@ -92,13 +107,45 @@ public sealed class PptxExportService
                 continue;
             }
             if (string.IsNullOrWhiteSpace(line)) continue;
-            if (FenceRegex.IsMatch(line)) continue; // skip code fences markers
+            if (HorizontalRuleRegex.IsMatch(line)) continue;      // "---" was a literal bullet
+
+            // A pipe table dumped its raw rows, separator row and all. Cells are joined instead.
+            if (TableRowRegex.IsMatch(line))
+            {
+                if (TableSeparatorRegex.IsMatch(line)) continue;
+                var cells = line.Trim().Trim('|').Split('|')
+                    .Select(c => Plain(c.Trim()))
+                    .Where(c => c.Length > 0);
+                var joined = string.Join("  ·  ", cells);
+                if (joined.Length == 0) continue;
+                cur ??= NewSlide(deckTitle, slides);
+                cur.Bullets.Add((1, joined));
+                continue;
+            }
+
+            // Blockquote markers rendered as literal ">" characters on the slide.
+            var quoted = BlockquoteRegex.Match(line);
+            if (quoted.Success) line = quoted.Groups[1].Value;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
             var bullet = BulletRegex.Match(line);
             cur ??= NewSlide(deckTitle, slides);
             if (bullet.Success)
-                cur.Bullets.Add((Math.Min(4, bullet.Groups[1].Value.Length / 2), Plain(bullet.Groups[2].Value)));
+            {
+                var body = bullet.Groups[2].Value;
+                // "- [ ] item" printed its brackets; a slide wants the box glyph.
+                var task = TaskBoxRegex.Match(body);
+                if (task.Success)
+                {
+                    var done = task.Groups[1].Value is "x" or "X";
+                    body = (done ? "☑ " : "☐ ") + task.Groups[2].Value;
+                }
+                cur.Bullets.Add((Math.Min(4, bullet.Groups[1].Value.Length / 2), Plain(body)));
+            }
             else
+            {
                 cur.Bullets.Add((0, Plain(line)));
+            }
         }
         if (slides.Count == 0) slides.Add(new Slide(deckTitle, new()));
         return slides;
@@ -106,8 +153,37 @@ public sealed class PptxExportService
 
     private static Slide NewSlide(string title, List<Slide> slides) { var s = new Slide(title, new()); slides.Add(s); return s; }
 
-    private static string Plain(string md) =>
-        EmphasisRegex.Replace(md, "").Trim();
+    private static readonly Regex HorizontalRuleRegex = new(@"^\s*([-*_])(\s*\1){2,}\s*$", RegexOptions.Compiled);
+    private static readonly Regex TableRowRegex = new(@"^\s*\|.*\|\s*$", RegexOptions.Compiled);
+    private static readonly Regex TableSeparatorRegex = new(@"^\s*\|[\s:|-]+\|\s*$", RegexOptions.Compiled);
+    private static readonly Regex BlockquoteRegex = new(@"^\s*>\s?(.*)$", RegexOptions.Compiled);
+    private static readonly Regex TaskBoxRegex = new(@"^\[([ xX])\]\s+(.*)$", RegexOptions.Compiled);
+    private static readonly Regex FootnoteRefRegex = new(@"\[\^[^\]]+\]", RegexOptions.Compiled);
+    private static readonly Regex FootnoteDefRegex = new(@"^\s*\[\^[^\]]+\]:\s*", RegexOptions.Compiled);
+    private static readonly Regex ImageRegex = new(@"!\[([^\]]*)\]\([^)]*\)", RegexOptions.Compiled);
+    private static readonly Regex LinkRegex = new(@"\[([^\]]+)\]\([^)]*\)", RegexOptions.Compiled);
+    private static readonly Regex DisplayMathRegex = new(@"\$\$(.+?)\$\$", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex InlineMathRegex = new(@"\$([^$\n]+)\$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Reduces inline Markdown to the text a slide should show.
+    ///
+    /// This used to strip emphasis delimiters and nothing else, so a slide displayed
+    /// "[link](https://example.com)", "![Alt text](docs/images/logo.png)" and "$a^2 + b^2 = c^2$"
+    /// exactly as written — the syntax, not the content.
+    /// </summary>
+    private static string Plain(string md)
+    {
+        // A slide has no footnote apparatus: fold the definition into the text and drop the
+        // marker, rather than printing "[^1]" at the reader.
+        md = FootnoteDefRegex.Replace(md, "");
+        md = FootnoteRefRegex.Replace(md, "");
+        md = ImageRegex.Replace(md, "$1");           // keep the alt text, drop the URL
+        md = LinkRegex.Replace(md, "$1");            // keep the label, drop the target
+        md = DisplayMathRegex.Replace(md, "$1");     // a slide has no math renderer; show the body
+        md = InlineMathRegex.Replace(md, "$1");
+        return EmphasisRegex.Replace(md, "").Trim();
+    }
 
     private static string Hex(string css) => css.TrimStart('#').ToUpperInvariant().PadLeft(6, '0')[..6];
 
