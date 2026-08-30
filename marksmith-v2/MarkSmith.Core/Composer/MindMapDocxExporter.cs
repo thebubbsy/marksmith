@@ -59,8 +59,19 @@ namespace MarkSmith.Core.Composer
             body.Append(drawingP);
 
             // Document details table
-            var table = CreateDocumentInventoryTable(doc);
-            body.Append(table);
+            body.Append(CreateSectionHeading("Documents in this galaxy"));
+            body.Append(CreateDocumentInventoryTable(doc));
+
+            // Relationship ledger
+            if (doc.Links.Count > 0 || doc.Nodes.Any(n => n.ParentId != null))
+            {
+                body.Append(CreateSectionHeading("How they connect"));
+                body.Append(CreateRelationshipTable(doc));
+            }
+
+            // Word expects a paragraph after the final table; without one it silently repairs the
+            // document on open.
+            body.Append(new W.Paragraph());
 
             // Section Properties
             var sectPr = new W.SectionProperties(
@@ -136,6 +147,17 @@ namespace MarkSmith.Core.Composer
                 string lineHex = CleanHex(link.ColorHex, "FF7C4D");
                 bool isDashed = link.Style == MindMapLinkStyle.Dashed;
                 groupXml.Append(BuildConnectorShapeXml(shapeId++, (long)x1, (long)y1, (long)x2, (long)y2, lineHex, isDashed));
+
+                // The relationship label IS the content of a cross-link. Exporting the line without
+                // it produced a diagram that showed two documents were connected but never why.
+                if (!string.IsNullOrWhiteSpace(link.Label))
+                {
+                    long labelW = (long)(1.55 * EmuPerInch);
+                    long labelH = (long)(0.24 * EmuPerInch);
+                    long labelX = (long)((x1 + x2) / 2.0) - (labelW / 2);
+                    long labelY = (long)((y1 + y2) / 2.0) - (labelH / 2);
+                    groupXml.Append(BuildLinkLabelShapeXml(shapeId++, labelX, labelY, labelW, labelH, lineHex, link.Label!));
+                }
             }
 
             // 3. Draw nodes
@@ -147,7 +169,9 @@ namespace MarkSmith.Core.Composer
                 double nh = node.Height / 96.0 * EmuPerInch;
 
                 string fillHex = CleanHex(node.ColorHex, "107C41");
-                string title = (node.Title ?? "Document").Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+                // Raw text: BuildNodeShapeXml escapes it. Escaping here as well turned an "&" in a
+                // title into "&amp;amp;" in the exported document.
+                string title = node.Title ?? "Document";
                 string badge = node.FileExtension?.ToUpperInvariant().TrimStart('.') ?? node.NodeType.ToString().ToUpperInvariant();
                 string tag = node.Tags.FirstOrDefault() ?? "";
 
@@ -207,8 +231,54 @@ namespace MarkSmith.Core.Composer
             </wps:wsp>";
         }
 
+        private static string BuildLinkLabelShapeXml(uint id, long x, long y, long w, long h, string hexColor, string label)
+        {
+            return $@"<wps:wsp>
+                <wps:cNvPr id=""{id}"" name=""Link Label {id}""/>
+                <wps:cNvSpPr txBox=""1""/>
+                <wps:spPr>
+                    <a:xfrm><a:off x=""{x}"" y=""{y}""/><a:ext cx=""{w}"" cy=""{h}""/></a:xfrm>
+                    <a:prstGeom prst=""roundRect""><a:avLst><a:gd name=""adj"" fmla=""val 30000""/></a:avLst></a:prstGeom>
+                    <a:solidFill><a:srgbClr val=""FFFFFF""/></a:solidFill>
+                    <a:ln w=""9525""><a:solidFill><a:srgbClr val=""{hexColor}""/></a:solidFill></a:ln>
+                </wps:spPr>
+                <wps:txbx>
+                    <w:txbxContent>
+                        <w:p>
+                            <w:pPr><w:spacing w:after=""0""/><w:jc w:val=""center""/></w:pPr>
+                            <w:r>
+                                <w:rPr><w:i/><w:color w:val=""{hexColor}""/><w:sz w:val=""13""/></w:rPr>
+                                <w:t xml:space=""preserve"">{Esc(Truncate(label, 42))}</w:t>
+                            </w:r>
+                        </w:p>
+                    </w:txbxContent>
+                </wps:txbx>
+                <wps:bodyPr rot=""0"" wrap=""square"" lIns=""9525"" tIns=""3175"" rIns=""9525"" bIns=""3175"" anchor=""ctr"" anchorCtr=""0""><a:noAutofit/></wps:bodyPr>
+            </wps:wsp>";
+        }
+
+        private static string Truncate(string? text, int max)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            string t = text.Trim();
+            return t.Length <= max ? t : t[..(max - 1)].TrimEnd() + "\u2026";
+        }
+
         private static string BuildNodeShapeXml(uint id, long x, long y, long w, long h, string hexColor, string title, string badge, string tag)
         {
+            // badge and tag were accepted here and then never written, so the exported diagram lost
+            // the format and tag every card shows on screen.
+            string caption = string.Join("  ·  ", new[] { badge, tag }.Where(v => !string.IsNullOrWhiteSpace(v)));
+            string captionRun = caption.Length == 0
+                ? ""
+                : $@"<w:p>
+                            <w:pPr><w:spacing w:before=""20"" w:after=""0""/><w:jc w:val=""center""/></w:pPr>
+                            <w:r>
+                                <w:rPr><w:color w:val=""F1F5F9""/><w:sz w:val=""13""/></w:rPr>
+                                <w:t xml:space=""preserve"">{Esc(caption)}</w:t>
+                            </w:r>
+                        </w:p>";
+
             return $@"<wps:wsp>
                 <wps:cNvPr id=""{id}"" name=""Node {id}""/>
                 <wps:cNvSpPr/>
@@ -226,20 +296,47 @@ namespace MarkSmith.Core.Composer
                 <wps:txbx>
                     <w:txbxContent>
                         <w:p>
-                            <w:pPr><w:jc w:val=""center""/></w:pPr>
+                            <w:pPr><w:spacing w:after=""0""/><w:jc w:val=""center""/></w:pPr>
                             <w:r>
                                 <w:rPr>
                                     <w:b/>
                                     <w:color w:val=""FFFFFF""/>
                                     <w:sz w:val=""20""/>
                                 </w:rPr>
-                                <w:t>{title}</w:t>
+                                <w:t xml:space=""preserve"">{Esc(title)}</w:t>
                             </w:r>
                         </w:p>
+                        {captionRun}
                     </w:txbxContent>
                 </wps:txbx>
                 <wps:bodyPr rot=""0"" wrap=""square"" lIns=""12700"" tIns=""6350"" rIns=""12700"" bIns=""6350"" anchor=""ctr"" anchorCtr=""0""><a:noAutofit/></wps:bodyPr>
             </wps:wsp>";
+        }
+
+        /// <summary>
+        /// XML text escaping for the raw-XML shape builders. Control characters are stripped rather
+        /// than escaped: they are not legal in XML 1.0 at all, escaped or not, and a stray one from
+        /// a pasted title used to make the whole package unreadable.
+        /// </summary>
+        private static string Esc(string? text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            var sb = new StringBuilder(text.Length + 16);
+            foreach (char c in text)
+            {
+                switch (c)
+                {
+                    case '&': sb.Append("&amp;"); break;
+                    case '<': sb.Append("&lt;"); break;
+                    case '>': sb.Append("&gt;"); break;
+                    case '"': sb.Append("&quot;"); break;
+                    case '\'': sb.Append("&apos;"); break;
+                    default:
+                        if (c == '\t' || c == '\n' || c == '\r' || c >= ' ') sb.Append(c);
+                        break;
+                }
+            }
+            return sb.ToString();
         }
 
         private static W.Table CreateDocumentInventoryTable(MindMapDocument doc)
@@ -257,38 +354,126 @@ namespace MarkSmith.Core.Composer
             table.Append(tblPr);
 
             table.Append(new W.TableGrid(
-                new W.GridColumn { Width = "3600" },
-                new W.GridColumn { Width = "1600" },
-                new W.GridColumn { Width = "1600" },
-                new W.GridColumn { Width = "2200" },
-                new W.GridColumn { Width = "2200" }));
+                new W.GridColumn { Width = "3000" },
+                new W.GridColumn { Width = "1100" },
+                new W.GridColumn { Width = "3000" },
+                new W.GridColumn { Width = "1000" },
+                new W.GridColumn { Width = "2000" },
+                new W.GridColumn { Width = "1100" }));
 
             // Header Row
             var headerRow = new W.TableRow(
                 CreateTableCell("Document / Node Title", true, "1F2937", "F3F4F6"),
-                CreateTableCell("Type / Format", true, "1F2937", "F3F4F6"),
+                CreateTableCell("Format", true, "1F2937", "F3F4F6"),
+                CreateTableCell("File", true, "1F2937", "F3F4F6"),
                 CreateTableCell("Progress", true, "1F2937", "F3F4F6"),
                 CreateTableCell("Tags", true, "1F2937", "F3F4F6"),
-                CreateTableCell("Connected Cross-Links", true, "1F2937", "F3F4F6"));
+                CreateTableCell("Links", true, "1F2937", "F3F4F6"));
             table.Append(headerRow);
 
-            foreach (var node in doc.Nodes)
+            // Hubs first: in a map about how documents connect, the busiest node is the most
+            // interesting row, and alphabetical-by-nothing ordering buried it.
+            var ordered = doc.Nodes
+                .Select(n => (Node: n, Degree: doc.Links.Count(l => l.SourceNodeId == n.Id || l.TargetNodeId == n.Id)
+                                             + (n.ParentId != null ? 1 : 0) + n.ChildIds.Count))
+                .OrderByDescending(x => x.Degree)
+                .ThenBy(x => x.Node.Title, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var (node, degree) in ordered)
             {
-                int linkCount = doc.Links.Count(l => l.SourceNodeId == node.Id || l.TargetNodeId == node.Id);
-                string formatBadge = node.FileExtension?.ToUpperInvariant() ?? node.NodeType.ToString();
+                string formatBadge = string.IsNullOrWhiteSpace(node.FileExtension)
+                    ? node.NodeType.ToString()
+                    : node.FileExtension.TrimStart('.').ToUpperInvariant();
                 string tags = string.Join(" ", node.Tags);
+                string file = string.IsNullOrWhiteSpace(node.FilePath) ? "—" : node.FilePath!;
 
                 var row = new W.TableRow(
                     CreateTableCell(node.Title ?? "Untitled", false, "111827"),
                     CreateTableCell(formatBadge, false, "4B5563"),
+                    CreateTableCell(file, false, "6B7280"),
                     CreateTableCell($"{node.Progress}%", false, "059669"),
                     CreateTableCell(tags, false, "6B7280"),
-                    CreateTableCell($"{linkCount} links", false, "7C4DFF"));
+                    CreateTableCell(degree.ToString(), false, "7C4DFF"));
                 table.Append(row);
             }
 
             return table;
         }
+
+        /// <summary>
+        /// The relationship ledger: every edge in words. The vector diagram shows the shape of the
+        /// network, but only this survives being printed, pasted into an email or read aloud — and
+        /// the labels are the part of the map a folder tree cannot express.
+        /// </summary>
+        private static W.Table CreateRelationshipTable(MindMapDocument doc)
+        {
+            var byId = doc.Nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+
+            var table = new W.Table();
+            table.Append(new W.TableProperties(
+                new W.TableWidth { Width = "5000", Type = W.TableWidthUnitValues.Pct },
+                new W.TableBorders(
+                    new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = "D1D5DB" },
+                    new W.LeftBorder { Val = W.BorderValues.None },
+                    new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = "D1D5DB" },
+                    new W.RightBorder { Val = W.BorderValues.None },
+                    new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Size = 4, Color = "E5E7EB" },
+                    new W.InsideVerticalBorder { Val = W.BorderValues.None })));
+
+            table.Append(new W.TableGrid(
+                new W.GridColumn { Width = "3600" },
+                new W.GridColumn { Width = "2800" },
+                new W.GridColumn { Width = "3600" },
+                new W.GridColumn { Width = "1200" }));
+
+            table.Append(new W.TableRow(
+                CreateTableCell("From", true, "1F2937", "F3F4F6"),
+                CreateTableCell("Relationship", true, "1F2937", "F3F4F6"),
+                CreateTableCell("To", true, "1F2937", "F3F4F6"),
+                CreateTableCell("Source", true, "1F2937", "F3F4F6")));
+
+            foreach (var node in doc.Nodes)
+            {
+                if (node.ParentId == null || !byId.TryGetValue(node.ParentId, out var parent)) continue;
+                table.Append(new W.TableRow(
+                    CreateTableCell(parent.Title ?? "Untitled", false, "111827"),
+                    CreateTableCell("contains", false, "4B5563"),
+                    CreateTableCell(node.Title ?? "Untitled", false, "111827"),
+                    CreateTableCell("hierarchy", false, "9CA3AF")));
+            }
+
+            foreach (var link in doc.Links)
+            {
+                if (!byId.TryGetValue(link.SourceNodeId, out var src) || !byId.TryGetValue(link.TargetNodeId, out var tgt)) continue;
+
+                string arrow = link.Direction switch
+                {
+                    MindMapLinkDirection.Bidirectional => "↔",
+                    MindMapLinkDirection.TargetToSource => "←",
+                    MindMapLinkDirection.None => "—",
+                    _ => "→"
+                };
+                string label = string.IsNullOrWhiteSpace(link.Label)
+                    ? MindMapLinkKindRank.Describe(link.Kind)
+                    : link.Label!;
+
+                table.Append(new W.TableRow(
+                    CreateTableCell(src.Title ?? "Untitled", false, "111827"),
+                    CreateTableCell($"{arrow}  {label}", false, "7C4DFF"),
+                    CreateTableCell(tgt.Title ?? "Untitled", false, "111827"),
+                    CreateTableCell(link.Kind == MindMapLinkKind.Manual ? "authored" : "auto-detected", false, "9CA3AF")));
+            }
+
+            return table;
+        }
+
+        private static W.Paragraph CreateSectionHeading(string text) =>
+            new(new W.ParagraphProperties(
+                    new W.SpacingBetweenLines { Before = "360", After = "120" }),
+                new W.Run(
+                    new W.RunProperties(new W.Bold(), new W.Color { Val = "1F2937" }, new W.FontSize { Val = "26" }),
+                    new W.Text(text)));
 
         private static W.TableCell CreateTableCell(string text, bool bold, string colorHex, string? bgHex = null)
         {
@@ -320,13 +505,12 @@ namespace MarkSmith.Core.Composer
             return cell;
         }
 
-        private static string CleanHex(string? hex, string fallback)
-        {
-            if (string.IsNullOrWhiteSpace(hex)) return fallback;
-            string s = hex.Trim().TrimStart('#');
-            if (s.Length == 6) return s.ToUpperInvariant();
-            if (s.Length == 3) return $"{s[0]}{s[0]}{s[1]}{s[1]}{s[2]}{s[2]}".ToUpperInvariant();
-            return fallback;
-        }
+        /// <summary>
+        /// Six validated hex digits, no "#". The old version only checked the LENGTH, so a value
+        /// like "notacolor" was written straight into an a:srgbClr val attribute and produced a
+        /// package Word refuses to open — and a node's colour is user-editable text.
+        /// </summary>
+        private static string CleanHex(string? hex, string fallback) =>
+            MarkSmith.Services.MindMap.MindMapGraph.NormalizeHex(hex, "#" + fallback).TrimStart('#');
     }
 }

@@ -11,7 +11,8 @@ namespace MarkSmith.Models.MindMap
         Concept,
         Milestone,
         Note,
-        Task
+        Task,
+        Folder
     }
 
     public enum MindMapLinkStyle
@@ -28,6 +29,39 @@ namespace MarkSmith.Models.MindMap
         SourceToTarget,
         TargetToSource,
         Bidirectional
+    }
+
+    /// <summary>
+    /// Why a link exists. The map is meant to replace foldering, so an edge the author actually
+    /// wrote ([[wikilink]], a relative link) carries far more meaning than one the linker merely
+    /// inferred from two documents happening to share tags. <see cref="MindMapLinkKindRank.Of"/>
+    /// turns that into a precedence order: a stronger reason may overwrite a weaker link between
+    /// the same pair, never the other way round.
+    /// </summary>
+    public enum MindMapLinkKind
+    {
+        SharedTag = 0,
+        Folder = 1,
+        CrossReference = 2,
+        WikiLink = 3,
+        Embed = 4,
+        Manual = 5
+    }
+
+    public static class MindMapLinkKindRank
+    {
+        /// <summary>Higher wins. Manual (a human drew it) outranks everything inferred.</summary>
+        public static int Of(MindMapLinkKind kind) => (int)kind;
+
+        public static string Describe(MindMapLinkKind kind) => kind switch
+        {
+            MindMapLinkKind.WikiLink => "wikilink",
+            MindMapLinkKind.CrossReference => "cross-reference",
+            MindMapLinkKind.Embed => "embeds",
+            MindMapLinkKind.SharedTag => "shared tags",
+            MindMapLinkKind.Folder => "same folder",
+            _ => "linked"
+        };
     }
 
     public sealed class MindMapNode
@@ -52,6 +86,12 @@ namespace MarkSmith.Models.MindMap
         public string? ParentId { get; set; }
         public List<string> ChildIds { get; set; } = new();
 
+        /// <summary>Approximate word count of the linked document, for sizing and "biggest note" reporting.</summary>
+        public int WordCount { get; set; }
+
+        /// <summary>Marks the nodes of the first-run tutorial galaxy so the UI can offer to clear them.</summary>
+        public bool IsTutorial { get; set; }
+
         public MindMapNode Clone()
         {
             return new MindMapNode
@@ -70,9 +110,13 @@ namespace MarkSmith.Models.MindMap
                 Progress = Progress,
                 Tags = new List<string>(Tags),
                 MarkdownContent = MarkdownContent,
+                WordCount = WordCount,
                 CreatedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                 ModifiedDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                 IsCollapsed = false,
+                // A clone is a sibling of the original, so it keeps the parent — but the parent's
+                // ChildIds is the caller's to update, and the clone starts with no children of its
+                // own (copying ChildIds would give two nodes the same children).
                 ParentId = ParentId,
                 ChildIds = new List<string>()
             };
@@ -89,6 +133,13 @@ namespace MarkSmith.Models.MindMap
         public MindMapLinkStyle Style { get; set; } = MindMapLinkStyle.CurvedBezier;
         public MindMapLinkDirection Direction { get; set; } = MindMapLinkDirection.SourceToTarget;
         public double StrokeThickness { get; set; } = 2.0;
+
+        /// <summary>Why this edge exists. Defaults to Manual so links saved before this field
+        /// existed keep the highest precedence and are never overwritten by an inferred one.</summary>
+        public MindMapLinkKind Kind { get; set; } = MindMapLinkKind.Manual;
+
+        /// <summary>Evidence count behind an inferred link (e.g. how many tags two documents share).</summary>
+        public double Weight { get; set; } = 1.0;
     }
 
     public sealed class MindMapTheme
@@ -123,5 +174,12 @@ namespace MarkSmith.Models.MindMap
         public MindMapTheme Theme { get; set; } = new();
         public List<MindMapNode> Nodes { get; set; } = new();
         public List<MindMapLink> Links { get; set; } = new();
+
+        /// <summary>True while this is the generated first-run tour rather than the user's own map.
+        /// The studio refuses to overwrite a real saved library with the tour, and offers to clear it.</summary>
+        public bool IsTutorial { get; set; }
+
+        /// <summary>Directory this map was built from, so "rescan" knows where to look.</summary>
+        public string? SourceDirectory { get; set; }
     }
 }

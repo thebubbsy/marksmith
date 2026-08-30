@@ -1,5 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MarkSmith.Models.MindMap;
 
@@ -65,6 +68,14 @@ namespace MarkSmith.ViewModels.MindMap
         [ObservableProperty]
         private bool _isHighlighted;
 
+        /// <summary>Set while focus mode is on and this node is one hop from the selection.</summary>
+        [ObservableProperty]
+        private bool _isNeighbor;
+
+        /// <summary>How many edges touch this node. Drives the node's "hub" weighting on the canvas.</summary>
+        [ObservableProperty]
+        private int _connectionCount;
+
         public ObservableCollection<string> Tags { get; } = new();
 
         [ObservableProperty]
@@ -77,6 +88,8 @@ namespace MarkSmith.ViewModels.MindMap
         private string _latestVersionLabel = "";
 
         public bool HasVersions => VersionCount > 0;
+
+        partial void OnVersionCountChanged(int value) => OnPropertyChanged(nameof(HasVersions));
 
         public async Task RefreshVersionHistoryAsync(Services.VersionHistoryService history)
         {
@@ -102,7 +115,6 @@ namespace MarkSmith.ViewModels.MindMap
                     VersionCountText = "";
                     LatestVersionLabel = "";
                 }
-                OnPropertyChanged(nameof(HasVersions));
             }
             catch { /* best-effort history lookup */ }
         }
@@ -112,14 +124,72 @@ namespace MarkSmith.ViewModels.MindMap
 
         public bool HasFile => !string.IsNullOrEmpty(FilePath);
 
+        /// <summary>Just the file name, for the node card and the inspector — a full path is
+        /// unreadable at canvas scale.</summary>
+        public string FileName
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(FilePath)) return "";
+                // Split on BOTH separators rather than Path.GetFileName: a .msmap written on
+                // Windows carries backslash paths, and on any other OS GetFileName does not treat
+                // '\\' as a separator, so the whole path came back as the "file name".
+                int cut = FilePath!.LastIndexOfAny(new[] { '/', '\\' });
+                string name = cut >= 0 ? FilePath[(cut + 1)..] : FilePath;
+                return name.Length == 0 ? FilePath : name;
+            }
+        }
+
+        /// <summary>False when the node remembers a path that is no longer on disk — worth telling
+        /// the user about rather than silently doing nothing when they double-click it.</summary>
+        public bool IsFileMissing
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(FilePath)) return false;
+                try { return !File.Exists(FilePath) && !Directory.Exists(FilePath); }
+                catch { return false; }
+            }
+        }
+
         public bool HasProgress => Progress > 0;
         public string ProgressText => $"{Progress}%";
+        public bool HasTags => Tags.Count > 0;
+        public string TagSummary => Tags.Count == 0 ? "" : string.Join("  ", Tags.Take(3));
+        public bool IsHub => ConnectionCount >= 4;
 
         partial void OnProgressChanged(int value)
         {
             OnPropertyChanged(nameof(ProgressText));
             OnPropertyChanged(nameof(HasProgress));
         }
+
+        // FormatBadge is what the canvas draws in the corner of every card; without these it kept
+        // showing the format the node had when the window opened.
+        partial void OnFileExtensionChanged(string? value) => OnPropertyChanged(nameof(FormatBadge));
+
+        partial void OnNodeTypeChanged(MindMapNodeType value) => OnPropertyChanged(nameof(FormatBadge));
+
+        partial void OnFilePathChanged(string? value)
+        {
+            OnPropertyChanged(nameof(HasFile));
+            OnPropertyChanged(nameof(FileName));
+            OnPropertyChanged(nameof(IsFileMissing));
+
+            // Typing a path into the inspector should give the node the right badge and icon
+            // without the user also having to fill in a separate "extension" field.
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                string name = FileName;
+                int dot = name.LastIndexOf('.');
+                if (dot > 0 && dot < name.Length - 1)
+                {
+                    FileExtension = name[dot..].ToLowerInvariant();
+                }
+            }
+        }
+
+        partial void OnConnectionCountChanged(int value) => OnPropertyChanged(nameof(IsHub));
 
         public MindMapNodeViewModel(MindMapNode model)
         {
@@ -143,6 +213,11 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 foreach (var t in model.Tags) Tags.Add(t);
             }
+            Tags.CollectionChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(HasTags));
+                OnPropertyChanged(nameof(TagSummary));
+            };
         }
 
         public void SyncToModel()
