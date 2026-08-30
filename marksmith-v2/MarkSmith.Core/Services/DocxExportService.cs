@@ -2308,7 +2308,7 @@ public sealed class DocxExportService
             try
             {
                 var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : null;
-                var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(node.InnerContent);
+                var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(BulletedBody(node));
                 layoutType ??= MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
                 ast.RequestedLayout = layoutType;
 
@@ -2409,9 +2409,35 @@ public sealed class DocxExportService
     /// True SmartArt (DiagramDataPart) requires complex layout-to-data mapping that causes
     /// file corruption if not perfectly aligned, so we use a clean table fallback.
     /// </summary>
+    /// <summary>
+    /// The block body with a bullet on every entry line.
+    ///
+    /// <c>:::timeline</c> is documented as bare <c>year: label</c> lines, while
+    /// <see cref="InsertSnippetBuilder.Timeline"/> writes <c>- year: label</c>. Everything
+    /// downstream — the AST parser feeding native SmartArt, and the table fallback — only ever
+    /// looked at bulleted lines, so the documented form produced an empty diagram. Normalising
+    /// here means both forms are the same shape from this point on, rather than each consumer
+    /// growing its own rule. SmartArt itself is untouched: its indentation carries hierarchy
+    /// depth, so a missing bullet there is a real authoring error, not a second valid form.
+    /// </summary>
+    private static string BulletedBody(FeatureNode node)
+    {
+        if (node.Detector.FeatureName is not ("Timeline" or "Workflow")) return node.InnerContent;
+
+        var lines = node.InnerContent.Split('\n');
+        if (lines.Any(l => l.TrimStart().StartsWith('-') || l.TrimStart().StartsWith('*')))
+            return node.InnerContent;   // already bulleted — leave the author's indentation alone
+
+        return string.Join('\n', lines.Select(l =>
+        {
+            var text = l.Trim().TrimEnd('\r');
+            return text.Length == 0 ? l : "- " + text;
+        }));
+    }
+
     private static void RenderSmartArtFallback(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
-        var items = node.InnerContent
+        var items = BulletedBody(node)
             .Split('\n')
             .Select(l => l.Trim().TrimEnd('\r'))
             .Where(l => l.StartsWith("-") || l.StartsWith("*"))

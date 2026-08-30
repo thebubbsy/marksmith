@@ -334,21 +334,33 @@ namespace MarkSmith.Core.AdvancedFeatures
         public bool Matches(string rawBlock) =>
             rawBlock.StartsWith(":::timeline", StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>True for "2026: Milestone" or "- 2026: Milestone" — both documented forms.</summary>
+        public static bool IsTimelineEntry(string line)
+        {
+            var text = line.TrimStart().TrimStart('-', '*').Trim();
+            var colon = text.IndexOf(':');
+            return colon > 0 && text[(colon + 1)..].Trim().Length > 0;
+        }
+
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {
             var errors = new List<string>();
             var lines = DetectorHelpers.GetInnerLines(rawBlock);
 
-            // Look for date: fields
-            var dateLines = lines.Where(l => l.Contains("date:", StringComparison.OrdinalIgnoreCase)).ToList();
-            if (dateLines.Count == 0)
-                errors.Add("No date: fields found");
+            // An entry is "<when>: <what>", with or without a leading bullet — the catalog
+            // documents "2026: Milestone" and InsertSnippetBuilder.Timeline writes "- 2026:
+            // Milestone". Neither was accepted: this required every line to carry a literal
+            // "date:" key holding an ISO-8601 date, a shape nothing in the product produces. So
+            // every :::timeline block failed validation and fell through to the raw-text path.
+            var entries = lines.Where(IsTimelineEntry).ToList();
+            if (entries.Count == 0)
+                errors.Add("No '<when>: <what>' entries found");
 
-            // Validate ISO date format
-            foreach (var dl in dateLines)
+            // A line that explicitly says date: is still held to a real date, so a typo in the
+            // one form that promises a parseable date is still reported.
+            foreach (var dl in lines.Where(l => l.Contains("date:", StringComparison.OrdinalIgnoreCase)))
             {
-                var parts = dl.Split(':', 2);
-                var datePart = parts.Length > 1 ? parts[1].Trim() : "";
+                var datePart = dl[(dl.IndexOf("date:", StringComparison.OrdinalIgnoreCase) + 5)..].Trim();
                 if (!DateTime.TryParse(datePart, CultureInfo.InvariantCulture,
                         DateTimeStyles.None, out _))
                     errors.Add($"Invalid date format: '{datePart}' (expected ISO 8601)");

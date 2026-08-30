@@ -66,7 +66,10 @@ public class GauntletTests
         var path = GetGauntletPath();
         var md = File.ReadAllText(path);
         var outPath = Path.Combine(Path.GetTempPath(), $"gauntlet-inspect.docx");
-        var xmlPath = Path.Combine(Path.GetDirectoryName(path), "gauntlet_document.xml");
+        // Dump beside the .docx in temp, never into the tracked examples folder. Writing it into
+        // the repo meant every test run dirtied the working tree with freshly generated
+        // relationship ids, and the churn kept getting swept into unrelated commits.
+        var xmlPath = Path.Combine(Path.GetTempPath(), "gauntlet_document.xml");
         try
         {
             new DocxExportService().ExportAsync(md, outPath, new AppSettings()).GetAwaiter().GetResult();
