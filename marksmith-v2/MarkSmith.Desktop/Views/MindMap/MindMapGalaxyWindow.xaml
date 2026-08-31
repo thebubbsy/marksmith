@@ -156,12 +156,23 @@
 
             <!-- GALAXY CANVAS AREA -->
             <Grid Grid.Column="0" Background="#12131C" x:Name="CanvasContainer" SizeChanged="OnCanvasContainerSizeChanged">
-                <!-- Interactive pan & zoom canvas. Nodes and connectors are drawn from code-behind. -->
+                <!-- Interactive pan & zoom canvas. Nodes and connectors are built once from
+                     code-behind and then retained: the whole map lives in WorldCanvas in world
+                     coordinates, so panning and zooming move a single transform instead of
+                     rebuilding every card. -->
                 <Canvas x:Name="GalaxyCanvas" Background="Transparent"
                         PointerPressed="OnCanvasPointerPressed"
                         PointerMoved="OnCanvasPointerMoved"
                         PointerReleased="OnCanvasPointerReleased"
-                        PointerWheelChanged="OnCanvasPointerWheelChanged" />
+                        PointerWheelChanged="OnCanvasPointerWheelChanged">
+                    <Canvas x:Name="WorldCanvas">
+                        <Canvas.RenderTransform>
+                            <CompositeTransform x:Name="WorldTransform" />
+                        </Canvas.RenderTransform>
+                        <Canvas x:Name="EdgeLayer" />
+                        <Canvas x:Name="NodeLayer" />
+                    </Canvas>
+                </Canvas>
 
                 <!-- TOP OVERLAY STACK: first-run tour banner, then the tag filter pills -->
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Spacing="8">

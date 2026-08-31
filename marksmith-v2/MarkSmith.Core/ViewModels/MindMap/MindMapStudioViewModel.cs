@@ -258,6 +258,8 @@ namespace MarkSmith.ViewModels.MindMap
                 string repairs = result.Repairs.Summarize();
                 StatusMessage = $"Loaded '{Document.Title}' — {InsightsSummary}" + (repairs.Length > 0 ? $" · {repairs}" : "");
             }
+
+            await RefreshFileStatesAsync();
         }
 
         public void LoadDocument(MindMapDocument doc)
@@ -321,6 +323,19 @@ namespace MarkSmith.ViewModels.MindMap
             }
 
             foreach (var n in Nodes) n.ConnectionCount = counts[n.Id];
+        }
+
+        /// <summary>
+        /// Probes every linked file once, off the UI thread, and pushes the result onto the node
+        /// view models. Doing it here means the canvas never has to touch the disk while drawing.
+        /// </summary>
+        public async Task RefreshFileStatesAsync()
+        {
+            var nodes = Nodes.ToList();
+            await Task.Run(() =>
+            {
+                foreach (var n in nodes) n.RefreshFileState();
+            });
         }
 
         public void LoadTutorialGalaxy()
@@ -1068,8 +1083,22 @@ namespace MarkSmith.ViewModels.MindMap
             PreviewFilePath = node.FilePath ?? "Standalone project note";
             PreviewMarkdown = string.IsNullOrWhiteSpace(node.MarkdownContent)
                 ? $"# {node.Title}\n\n*No notes attached yet.*\n\nSelect this node and type into **Markdown Summary / Notes** in the inspector to give it a memory."
-                : node.MarkdownContent!;
+                : Excerpt(node.MarkdownContent!, PreviewCharacterBudget);
             IsPreviewCardVisible = true;
+        }
+
+        /// <summary>How much of a document the hover card shows. An imported node can hold 20k
+        /// characters of source, and re-laying out that much text every time the pointer crosses a
+        /// card was a visible stutter on its own.</summary>
+        private const int PreviewCharacterBudget = 1500;
+
+        private static string Excerpt(string text, int budget)
+        {
+            if (text.Length <= budget) return text;
+            // Prefer a paragraph break so the card doesn't end mid-sentence.
+            int cut = text.LastIndexOf("\n\n", budget, StringComparison.Ordinal);
+            if (cut < budget / 2) cut = budget;
+            return text[..cut].TrimEnd() + "\n\n*…open the document to read the rest.*";
         }
 
         public void HidePreviewCard()
