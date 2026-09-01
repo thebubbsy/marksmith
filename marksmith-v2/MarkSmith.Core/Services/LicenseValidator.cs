@@ -28,7 +28,32 @@ public static class LicenseValidator
         [property: JsonPropertyName("email")] string? Email,
         [property: JsonPropertyName("edition")] string? Edition,
         [property: JsonPropertyName("exp")] long? Exp,
-        [property: JsonPropertyName("iss")] string? Iss);
+        [property: JsonPropertyName("iss")] string? Iss,
+        // Serial number of this individual key. Every issued key carries one so a specific key can
+        // be revoked after a refund, a chargeback, or a public leak. Nullable only for keys issued
+        // before serials existed — those can never be revoked, which is the whole reason to stamp
+        // one on every key from the very first sale.
+        [property: JsonPropertyName("jti")] string? KeyId = null);
+
+    /// <summary>The only issuer this build trusts.</summary>
+    public const string ExpectedIssuer = "marksmith";
+
+    /// <summary>
+    /// Serial numbers that no longer entitle anyone to Pro — refunds, chargebacks and keys posted
+    /// publicly. Offline perpetual keys have no other kill switch: a revoked key stops working when
+    /// the customer takes an app update, so add the serial here and ship a release.
+    ///
+    /// Format is whatever sign-license.ps1 stamps ("MS-yyyyMMdd-xxxxxxxx"). Matching is exact and
+    /// case-insensitive.
+    /// </summary>
+    public static readonly IReadOnlySet<string> RevokedKeyIds =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // "MS-20260901-a1b2c3d4",   // example: refunded 2026-09-05
+        };
+
+    public static bool IsRevoked(string? keyId) =>
+        !string.IsNullOrWhiteSpace(keyId) && RevokedKeyIds.Contains(keyId.Trim());
 
     // Returns the verified payload, or null if the key is missing, malformed, or the signature fails.
 #if DEBUG
@@ -43,7 +68,7 @@ public static class LicenseValidator
         if (string.IsNullOrWhiteSpace(key)) return null;
 #if DEBUG
         if (string.Equals(key.Trim(), DevProKey, StringComparison.Ordinal))
-            return new Payload("dev@marksmith.local", "pro", null, "marksmith-dev");
+            return new Payload("dev@marksmith.local", "pro", null, ExpectedIssuer, "MS-DEV-LOCAL");
 #endif
         var parts = key.Trim().Split('.');
         if (parts.Length != 2) return null;
@@ -55,7 +80,23 @@ public static class LicenseValidator
             rsa.ImportFromPem(publicKeyPem ?? PublicKeyPem);
             if (!rsa.VerifyData(payloadBytes, sig, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
                 return null;
-            return JsonSerializer.Deserialize<Payload>(payloadBytes);
+
+            var payload = JsonSerializer.Deserialize<Payload>(payloadBytes);
+            if (payload is null) return null;
+
+            // A signature only proves "somebody with a private key signed this". Checking the
+            // issuer stops a key minted for a different product — or a future product of ours with
+            // its own keypair — from unlocking this one. Keys predating the field are still
+            // honoured so nothing already sold stops working.
+            if (!string.IsNullOrWhiteSpace(payload.Iss) &&
+                !string.Equals(payload.Iss.Trim(), ExpectedIssuer, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (IsRevoked(payload.KeyId)) return null;
+
+            return payload;
         }
         catch
         {

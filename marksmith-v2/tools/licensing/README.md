@@ -33,7 +33,7 @@ Paddle, Gumroad, Stripe) and email the key to the buyer.
 
 Defined in one place — `MarkSmith.Core/Models/LicenseModels.cs` (`LicenseState`):
 
-| Entitlement | Free | Trial (14 days) | Pro |
+| Entitlement | Free | Trial (3 DOCX exports) | Pro |
 | --- | --- | --- | --- |
 | PDF export, all themes, AI cleanup | ✅ | ✅ | ✅ |
 | DOCX export + editable equations | — | ✅ | ✅ |

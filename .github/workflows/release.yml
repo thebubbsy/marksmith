@@ -63,6 +63,47 @@ jobs:
           Write-Host "Publishing version $ver for tag $tag"
           dotnet publish marksmith-v2/MarkSmith.Desktop/MarkSmith.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:Platform=${{ matrix.arch }} -p:DebugType=none -p:Version=$ver -p:AssemblyVersion="$ver.0" -p:FileVersion="$ver.0"
 
+      # Code signing. Skipped entirely until the WINDOWS_CERT_PFX_BASE64 secret exists, so the
+      # release pipeline keeps working before a certificate is bought — but every download stays
+      # unsigned until then, which means Windows SmartScreen shows "Unknown publisher" and warns
+      # people off installing software they just paid for.
+      #
+      # To turn it on, add two repository secrets:
+      #   WINDOWS_CERT_PFX_BASE64  - your .pfx, base64-encoded:
+      #                              [Convert]::ToBase64String([IO.File]::ReadAllBytes('cert.pfx'))
+      #   WINDOWS_CERT_PASSWORD    - the password for that .pfx
+      - name: Sign application binaries
+        if: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+        shell: pwsh
+        env:
+          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_B64))
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found on the runner." }
+
+          $pub = "marksmith-v2/MarkSmith.Desktop/bin/${{ matrix.arch }}/Release/net8.0-windows10.0.19041.0/win-${{ matrix.arch }}/publish"
+          # Sign our own binaries only. Re-signing the bundled .NET runtime DLLs is slow, pointless
+          # (Microsoft already signed them) and would invalidate their existing signatures.
+          $targets = @(Get-ChildItem $pub -Filter 'Marksmith.exe') +
+                     @(Get-ChildItem $pub -Filter 'MarkSmith*.dll')
+          if ($targets.Count -eq 0) { throw "Nothing to sign in $pub" }
+
+          # /tr with /td is mandatory: without a countersigned timestamp every signature stops
+          # validating the day the certificate expires, including on copies already installed.
+          & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+            $($targets.FullName)
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+
+          Remove-Item $pfx -Force
+
       - name: Package portable zip
         shell: pwsh
         run: |
@@ -78,6 +119,35 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $iscc "/DArch=${{ matrix.arch }}" "packaging\installer\marksmith.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Sign installer
+        if: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+        shell: pwsh
+        env:
+          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_B64))
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found on the runner." }
+
+          # The installer is what most people actually download and double-click, so this is the
+          # signature that decides whether they see a publisher name or a scary warning.
+          # marksmith.iss writes OutputDir=..\..\dist_installer, i.e. dist_installer/ at the repo root.
+          $installer = "dist_installer/Marksmith-Setup-${{ matrix.arch }}.exe"
+          if (-not (Test-Path $installer)) { throw "Installer not found at $installer" }
+
+          & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+            $installer
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+
+          Remove-Item $pfx -Force
 
       # Delta update feed: publish the full file tree + a file-manifest.json (path -> sha256/size)
       # so the client can diff against its installed files and download ONLY the changed ones.

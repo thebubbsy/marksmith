@@ -359,27 +359,16 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
     [Fact]
     public async Task ProTier_SignedRsaKey_Converts_All_Files_Successfully()
     {
-        var curr = new DirectoryInfo(AppContext.BaseDirectory);
-        string? privateKeyPath = null;
-        while (curr != null)
-        {
-            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
-            if (File.Exists(p)) { privateKeyPath = p; break; }
-            curr = curr.Parent;
-        }
-
-        string privateKeyPem;
-        if (privateKeyPath != null)
-        {
-            privateKeyPem = File.ReadAllText(privateKeyPath);
-        }
-        else
-        {
-            var pair = GenerateRsaKeyPair();
-            privateKeyPem = pair.privateKeyPem;
-        }
-
+        // Previously this signed with a throwaway keypair and verified against the EMBEDDED
+        // PRODUCTION public key, which cannot succeed. The subject of this test is the batch
+        // pipeline honouring Pro entitlements, so install a service whose trust root is the key we
+        // actually signed with and drive the real activation path through it.
+        var (privateKeyPem, publicKeyPem) = GenerateRsaKeyPair();
         var validKey = SignLicenseKey("enterprise@marksmith.app", "pro", null, privateKeyPem);
+
+        var previousLicense = AppServices.License;
+        AppServices.License = new LicenseService(publicKeyPem);
+        AppServices.License.Load();
 
         AppServices.License.ResetToFree();
         var (ok, actMsg) = await AppServices.License.ActivateAsync(validKey);
@@ -409,6 +398,10 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
         }
         finally
         {
+            // The suite shares process-global licensing state and runs serially for that reason —
+            // leaving a swapped-in trust root behind would silently change every later test.
+            AppServices.License = previousLicense;
+            AppServices.License.ResetToFree();
             if (Directory.Exists(tempSrc)) Directory.Delete(tempSrc, true);
             if (Directory.Exists(tempOut)) Directory.Delete(tempOut, true);
         }
