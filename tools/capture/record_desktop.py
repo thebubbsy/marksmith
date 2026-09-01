@@ -42,6 +42,11 @@ API = "http://127.0.0.1:47821"
 # A complete profile: everything unnamed falls back to the app's defaults, so the recording
 # looks the same on any machine instead of inheriting local preferences.
 RENDER_SETTINGS = {
+    # These profiles are written with from_defaults=True, so any first-run flag the app
+    # gains defaults back to "not yet seen" on every run. Dismiss them explicitly or the
+    # welcome tour renders a modal over the window and every capture ships it.
+    "HasSeenWelcome": True,
+    "HasSeenCoffeeReminder": True,
     "EditorViewMode": "Split",
     "Theme": "GitHub Light",
     "PreviewZoom": 0.8,
