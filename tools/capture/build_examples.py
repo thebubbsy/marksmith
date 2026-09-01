@@ -35,6 +35,11 @@ STAGE = r"C:\Users\Public\Marksmith Examples"
 # The complete rendering profile. Everything not named here falls back to the application's own
 # defaults, so two machines produce the same bytes. Keep it explicit rather than inherited.
 RENDER_SETTINGS = {
+    # These profiles are written with from_defaults=True, so any first-run flag the app
+    # gains defaults back to "not yet seen" on every run. Dismiss them explicitly or the
+    # welcome tour renders a modal over the window and every capture ships it.
+    "HasSeenWelcome": True,
+    "HasSeenCoffeeReminder": True,
     "Theme": "GitHub Light",
     "ApiEnabled": True,
     "ApiPort": 47821,

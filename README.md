@@ -88,7 +88,28 @@ the PDF export, so what you see is what ships.
   <img src="docs/media/desktop-split.png" alt="Split view: Mermaid source on the left, the rendered architecture diagram on the right" width="100%" />
 </div>
 
-### 3. Export
+### 3. The Looking Glass
+
+The rendered page *is* the editing surface. Click anywhere on it and a portal cuts through to the
+Markdown behind that exact block; the surrounding page falls slightly out of focus so the aperture
+reads as the thing you are working in. Type inside the glass and the characters land in three places
+at once — the aperture, the rendered page behind it, and the editor in the other pane — with no
+navigation, no mode switch, and no losing your place.
+
+<div align="center">
+  <img src="docs/media/looking-glass.gif" alt="Typing through a circular portal cut into the rendered page: the text appears in the aperture, in the rendered page behind it, and in the Markdown editor pane on the left" width="100%" />
+  <br />
+  <em><a href="docs/media/looking-glass.mp4">Full-resolution MP4</a> · recorded from a Release build, document streamed over <code>POST /api/ingest</code></em>
+</div>
+
+Watch the word count under the editor tick up as the sentence is typed — that is the same document,
+updating in every pane, from one caret inside the glass.
+
+The aperture is a circle, a full-width focus band, a square, or the Marksmith logo cutout; its size,
+its own blur and the surround blur are all live dials on the portal bar (`Ctrl+Alt+X` toggles the
+surround blur without leaving the keyboard).
+
+### 4. Export
 
 **PDF**, **DOCX**, **PPTX**, **EPUB**, **HTML** or a high-DPI **PNG** snapshot — from the title bar,
 the command palette (`Ctrl+K`), a keyboard shortcut, or the CLI.
@@ -316,6 +337,7 @@ Every screenshot, GIF and video above is reproducible from a Release build:
 ```pwsh
 python tools/capture/capture_desktop.py                                   # app screenshots (PrintWindow — app window only)
 python tools/capture/record_desktop.py                                    # the demo recording, driven over /api/ingest
+python tools/capture/record_looking_glass.py                              # the portal recording (drives real clicks — needs the foreground)
 python tools/capture/capture_word.py <doc.docx> <out.png> --pages 1,2     # Word's own rendering, via COM + PyMuPDF
 node   tools/capture/render-doc.mjs <doc.html> <out.png> --from "Heading"  # preview close-ups
 node   tools/capture/cdp-capture.mjs http://127.0.0.1:5000/ docs/media     # Marksmith Express

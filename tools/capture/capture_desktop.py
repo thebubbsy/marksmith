@@ -48,6 +48,11 @@ SHOTS = {
 }
 
 BASE_OVERRIDES = {
+    # These profiles are written with from_defaults=True, so any first-run flag the app
+    # gains defaults back to "not yet seen" on every run. Dismiss them explicitly or the
+    # welcome tour renders a modal over the window and every capture ships it.
+    "HasSeenWelcome": True,
+    "HasSeenCoffeeReminder": True,
     "OutputFolder": DEMO_DIR,
     "Theme": "GitHub Light",
     "PreviewZoom": 0.8,
@@ -192,7 +197,7 @@ def foreground(hwnd):
 def capture(name, doc, settle, scroll=0, preview_x=0.48):
     print(f"[+] {name}: {doc}")
 
-    appsession.clear_recovery_vault()
+    appsession.clear_recovery_state()
     proc = subprocess.Popen([EXE, stage(doc)])
     hwnd = None
     for _ in range(40):

@@ -94,15 +94,25 @@ def settings_profile(values, *, from_defaults=False):
             os.remove(SETTINGS)
 
 
-def clear_recovery_vault():
-    """Drop crash-recovery snapshots so the next launch has no 'Recover unsaved document' modal."""
+def clear_recovery_state():
+    """Drop crash-recovery state so the next launch has no 'Recover unsaved document' modal.
+
+    Two separate mechanisms write recovery data and only one of them is the vault.
+    The modal is driven by ``autosave_recovery.md`` — the autosave mirror of an unsaved
+    paste buffer — which every API-driven run creates as a side effect of ingesting a
+    document. Clearing only ``recovery_vault/`` left that file behind, so each capture
+    run armed the modal for the *next* one and the following run filmed a dialog box
+    over the window.
+    """
     shutil.rmtree(os.path.join(CONFIG_DIR, "recovery_vault"), ignore_errors=True)
+    with contextlib.suppress(OSError):
+        os.remove(os.path.join(CONFIG_DIR, "autosave_recovery.md"))
 
 
 def launch(exe, args=(), *, api_url=None, timeout=60):
     """Start the app (refusing to run alongside an existing instance) and wait for its API."""
     require_app_closed()
-    clear_recovery_vault()
+    clear_recovery_state()
     proc = subprocess.Popen([exe, *args])
 
     if api_url:
