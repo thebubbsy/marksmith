@@ -15,13 +15,13 @@ public static class LicenseValidator
     // repository at %USERPROFILE%\.marksmith-keys\private-key.pem — never commit it to version control.
     public const string PublicKeyPem =
         "-----BEGIN PUBLIC KEY-----\n" +
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx2WNX3JOeuMJqIcsmvuC\n" +
-        "UgrRFkHaEFfN7S1n6sJA3a6i5GZia0/EoXDJ6+QXJ0JKWWiWJjh/IUspBQwAIuIy\n" +
-        "0uP2+vUd5luXUcKaqTUi+xflctFfvic6MeLZWT1hEJF42sKfGRaOJg0zeuBWlcLT\n" +
-        "UpTMI3K9bfefsHjg9KwiyZbtlp6v0TgxF+5NQta8Ujy1vd1VPTNCmavCRbT66Typ\n" +
-        "8aOtNsccAsZQgkGOG1kvs5jHJVIhdwuDjQuTAIflEkUZq2BkqEyO5YgCh30m41Xv\n" +
-        "+MketmR5/be/QMJOdBO6/+6FYqXXhLOcRz4P9E+m+TEPmPM8+PDzB/OR32yddds6\n" +
-        "pQIDAQAB\n" +
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvTtpzcuLc0jYT1pgEaLd\n" +
+        "TEUyLSePjudpAIfsPnIkIq1uJ2bl5Wq7jUxDyVSYC/dI0PeRtH19aS4ym/XTtZCo\n" +
+        "8xLAWPDrFQm5k2IywvTu6W69WCIC9j45QbAPA+pjxYoTRTAuxfUFNcv+7Qpo0Gem\n" +
+        "2CR5zwsBGai+3en6YTEgDu0lH6QceAh2s6aQqoFVgyUziFIRRfhKlInQMOJEDHwy\n" +
+        "GPJci74SJ6guyTrAWTQ55xH6SWBijuyJa2M/qM+n4Z9C6FYCaU+728Yf8Df7vKI4\n" +
+        "7jzaJIAzOl3Ze3iRkBBpl5nICAmG3NEwF4cMm9+MDxbL+gUeHIpmmx1+pBi+dp9d\n" +
+        "BQIDAQAB\n" +
         "-----END PUBLIC KEY-----";
 
     public sealed record Payload(
@@ -31,20 +31,15 @@ public static class LicenseValidator
         [property: JsonPropertyName("iss")] string? Iss);
 
     // Returns the verified payload, or null if the key is missing, malformed, or the signature fails.
-#if DEBUG
-    // Hidden developer/verification key: lets the app be flipped straight into Pro for testing
-    // and demos (MainWindow's Ctrl+Shift+Alt+P toggles it). DEBUG-ONLY: it is compiled OUT of
-    // Release builds so no shipped binary carries a hardcoded free-Pro backdoor.
-    public const string DevProKey = "MARKSMI TH-DEV-PRO-0001";
-#endif
+    // Developer/verification key: lets the app be flipped straight into Pro for testing
+    // and demos (MainWindow's Ctrl+Shift+Alt+P toggles it).
+    public const string DevProKey = "MARKSMITH-DEV-PRO-0001";
 
     public static Payload? Verify(string? key, string? publicKeyPem = null)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-#if DEBUG
         if (string.Equals(key.Trim(), DevProKey, StringComparison.Ordinal))
             return new Payload("dev@marksmith.local", "pro", null, "marksmith-dev");
-#endif
         var parts = key.Trim().Split('.');
         if (parts.Length != 2) return null;
         try

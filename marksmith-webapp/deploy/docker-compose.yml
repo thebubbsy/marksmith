@@ -1,0 +1,26 @@
+services:
+  collab:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    ports:
+      - "5210:5210"
+    environment:
+      ASPNETCORE_URLS: http://+:5210
+      ASPNETCORE_ENVIRONMENT: Production
+      # Required: a secret of at least 32 characters.
+      MARKSMITH_WEBAPP_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your environment (32+ chars)}
+      Jwt__Issuer: marksmith-webapp
+      Jwt__Audience: marksmith-webapp
+      Sessions__Root: /data/sessions
+    volumes:
+      - sessions:/data/sessions
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]  # placeholder; replace with HTTP check on /api/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  sessions:

@@ -140,7 +140,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 250,
                 Height = 64,
                 ColorHex = "#FF7C4D",
-                Icon = "🌌",
+                Icon = "\uEC07",
                 Progress = 100,
                 Tags = new() { "vault", "start-here" },
                 MarkdownContent =
@@ -162,7 +162,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 250,
                 Height = 58,
                 ColorHex = "#22D3EE",
-                Icon = "🧭",
+                Icon = "\uE82D",
                 Progress = 100,
                 Tags = new() { "start-here", "concept" },
                 MarkdownContent =
@@ -183,7 +183,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 250,
                 Height = 58,
                 ColorHex = "#34D399",
-                Icon = "✨",
+                Icon = "\uE8A5",
                 Progress = 100,
                 Tags = new() { "start-here", "concept" },
                 MarkdownContent =
@@ -204,12 +204,12 @@ namespace MarkSmith.Services.MindMap
                 Width = 250,
                 Height = 58,
                 ColorHex = "#A855F7",
-                Icon = "🔗",
+                Icon = "\uE71B",
                 Progress = 100,
                 Tags = new() { "start-here", "concept" },
                 MarkdownContent =
                     "## Name the relationship, not the folder\n\n" +
-                    "Select a node, click **🔗 Link**, pick a target and *say why*: `grew out of`, " +
+                    "Select a node, click **Link**, pick a target and *say why*: `grew out of`, " +
                     "`evidence for`, `supersedes`, `argues against`.\n\n" +
                     "Solid lines are the hierarchy. Dashed lines are cross-links that cut across it — the " +
                     "connections a folder tree simply cannot express."
@@ -217,14 +217,14 @@ namespace MarkSmith.Services.MindMap
 
             var cluster = Add(new MindMapNode
             {
-                Title = "🚀 Worked example: Q3 Launch",
+                Title = "Worked example: Q3 Launch",
                 NodeType = MindMapNodeType.Project,
                 X = -240,
                 Y = -10,
                 Width = 250,
                 Height = 62,
                 ColorHex = "#FBBF24",
-                Icon = "🚀",
+                Icon = "\uE82D",
                 Progress = 70,
                 Tags = new() { "example", "launch" },
                 MarkdownContent =
@@ -243,15 +243,15 @@ namespace MarkSmith.Services.MindMap
                 Width = 250,
                 Height = 58,
                 ColorHex = "#EC4899",
-                Icon = "📂",
+                Icon = "\uE8B7",
                 Progress = 0,
                 Tags = new() { "start-here", "next-step" },
                 MarkdownContent =
                     "## Point it at a real folder\n\n" +
-                    "**📂 Import Vault** scans a directory and builds the map for you. It reads " +
+                    "**Import Vault** scans a directory and builds the map for you. It reads " +
                     "`[[wikilinks]]`, relative Markdown links and `#tags` out of your files and draws the " +
                     "connections it finds — folders become clusters, not cages.\n\n" +
-                    "Then hit **💾 Save**: the map is yours from that point on and this tour never comes back."
+                    "Then hit **Save**: the map is yours from that point on and this tour never comes back."
             }, root);
 
             var brief = Add(new MindMapNode
@@ -264,7 +264,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 230,
                 Height = 56,
                 ColorHex = "#3B82F6",
-                Icon = "📄",
+                Icon = "\uE8A5",
                 Progress = 90,
                 WordCount = 2400,
                 Tags = new() { "example", "launch", "deliverable" },
@@ -284,7 +284,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 230,
                 Height = 56,
                 ColorHex = "#22D3EE",
-                Icon = "📑",
+                Icon = "\uEA90",
                 Progress = 100,
                 WordCount = 8800,
                 Tags = new() { "example", "research" },
@@ -304,7 +304,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 230,
                 Height = 56,
                 ColorHex = "#34D399",
-                Icon = "📝",
+                Icon = "\uE82D",
                 Progress = 60,
                 WordCount = 1300,
                 Tags = new() { "example", "launch", "notes" },
@@ -324,7 +324,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 230,
                 Height = 56,
                 ColorHex = "#EC4899",
-                Icon = "📊",
+                Icon = "\uE9D2",
                 Progress = 100,
                 WordCount = 600,
                 Tags = new() { "example", "launch" },

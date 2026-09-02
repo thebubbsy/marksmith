@@ -7,6 +7,7 @@ using PdfSharp.Pdf.IO;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using M = DocumentFormat.OpenXml.Math;
 using A = DocumentFormat.OpenXml.Drawing;
+using MarkSmith.Models;
 
 namespace MarkSmith.Services;
 
@@ -36,7 +37,14 @@ public sealed record ReverseImportResult(
     string? Warning,
     IReadOnlyList<string> ExtractedMedia);
 
-public sealed class ReverseImportService
+public sealed record DocxCommentInfo(
+    string Id,
+    string Author,
+    string? Initials,
+    DateTime? Date,
+    string Text);
+
+public sealed class ReverseImportService : IReverseImportService
 {
     private const string StaleWarning =
         "This document was modified in Word after Marksmith exported it. The recovered source may not reflect the current visible content.";
@@ -57,21 +65,34 @@ public sealed class ReverseImportService
     private int _diagramCounter;
     private Dictionary<string, string> _footnotes = new();
     private readonly HashSet<string> _usedFootnotes = new();
+    private Dictionary<string, DocxCommentInfo> _comments = new();
+    private ReverseImportOptions _options = new();
 
     // ---- public API --------------------------------------------------------------------------
 
+    /// <summary>Converts a DOCX file to Markdown with customizable reverse-import options.</summary>
+    public string ConvertDocxToMarkdown(string docxPath, ReverseImportOptions? options = null)
+    {
+        using var stream = File.OpenRead(docxPath);
+        return ConvertDocxToMarkdown(stream, options);
+    }
+
+    /// <summary>Converts a DOCX stream to Markdown with customizable reverse-import options.</summary>
+    public string ConvertDocxToMarkdown(Stream docxStream, ReverseImportOptions? options = null) =>
+        ImportCore(docxStream, mediaDir: null, pandocPath: null, options: options).Markdown;
+
     /// <summary>Full async cascade: Tier 1 (embedded) -> Tier 2 (Universal) -> Tier 3 (Pandoc).</summary>
-    public Task<ReverseImportResult> ImportFromDocxAsync(string docxPath, string? mediaDir = null) =>
+    public Task<ReverseImportResult> ImportFromDocxAsync(string docxPath, string? mediaDir = null, ReverseImportOptions? options = null) =>
         Task.Run(() =>
         {
             mediaDir ??= DefaultMediaDir(docxPath);
             using var stream = File.OpenRead(docxPath);
-            return ImportCore(stream, mediaDir, docxPath);
+            return ImportCore(stream, mediaDir, docxPath, options);
         });
 
     /// <summary>Stream overload. Pandoc fallback is unavailable without a path; Tier 1 -> Tier 2.</summary>
-    public Task<ReverseImportResult> ImportFromDocxAsync(Stream stream, string? mediaDir = null) =>
-        Task.Run(() => ImportCore(stream, mediaDir, pandocPath: null));
+    public Task<ReverseImportResult> ImportFromDocxAsync(Stream stream, string? mediaDir = null, ReverseImportOptions? options = null) =>
+        Task.Run(() => ImportCore(stream, mediaDir, pandocPath: null, options: options));
 
     /// <summary>Back-compat sync entry (used by DocxRoundTripTests): Tier 1 -> Tier 2, markdown only.</summary>
     public string ImportFromDocx(string docxPath)
@@ -283,8 +304,9 @@ public sealed class ReverseImportService
 
     // ---- cascade core ------------------------------------------------------------------------
 
-    private ReverseImportResult ImportCore(Stream stream, string? mediaDir, string? pandocPath)
+    private ReverseImportResult ImportCore(Stream stream, string? mediaDir, string? pandocPath, ReverseImportOptions? options = null)
     {
+        options ??= new ReverseImportOptions();
         using var doc = WordprocessingDocument.Open(stream, false);
 
         // Tier 1: embedded source (lossless).
@@ -302,7 +324,7 @@ public sealed class ReverseImportService
         // Tier 2: native Universal Engine.
         try
         {
-            var (md, media) = RunUniversalEngine(doc, mediaDir);
+            var (md, media) = RunUniversalEngine(doc, mediaDir, options);
             if (!string.IsNullOrWhiteSpace(md))
                 return new ReverseImportResult(md, ImportTier.UniversalEngine, false, null, media);
         }
@@ -338,7 +360,7 @@ public sealed class ReverseImportService
 
     // ---- Universal Engine --------------------------------------------------------------------
 
-    private (string Markdown, IReadOnlyList<string> Media) RunUniversalEngine(WordprocessingDocument doc, string? mediaDir)
+    private (string Markdown, IReadOnlyList<string> Media) RunUniversalEngine(WordprocessingDocument doc, string? mediaDir, ReverseImportOptions options)
     {
         var main = doc.MainDocumentPart ?? throw new InvalidDataException("Not a valid .docx (no main document part).");
         var body = main.Document?.Body ?? throw new InvalidDataException("Not a valid .docx (no body).");
@@ -350,6 +372,8 @@ public sealed class ReverseImportService
         _rasterizedPaths.Clear();
         _usedFootnotes.Clear();
         _footnotes = LoadFootnotes(doc);
+        _comments = LoadComments(doc);
+        _options = options;
         _imageMap = mediaDir is not null
             ? DocxImageExtractor.ExtractAll(main, mediaDir)
             : new Dictionary<string, DocxImageExtractor.ExtractedImage>();
@@ -544,6 +568,26 @@ public sealed class ReverseImportService
             var id = idVal.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var text = string.Concat(fn.Descendants<W.Text>().Select(t => t.Text)).Trim();
             if (text.Length > 0) map[id] = text;
+        }
+        return map;
+    }
+
+    // ---- comments ----------------------------------------------------------------------------
+
+    private static Dictionary<string, DocxCommentInfo> LoadComments(WordprocessingDocument doc)
+    {
+        var map = new Dictionary<string, DocxCommentInfo>(StringComparer.Ordinal);
+        var comments = doc.MainDocumentPart?.WordprocessingCommentsPart?.Comments;
+        if (comments is null) return map;
+        foreach (var c in comments.Elements<W.Comment>())
+        {
+            var id = c.Id?.Value ?? "";
+            if (string.IsNullOrEmpty(id)) continue;
+            var author = c.Author?.Value ?? "Reviewer";
+            var initials = c.Initials?.Value;
+            var date = c.Date?.Value;
+            var text = string.Concat(c.Descendants<W.Text>().Select(t => t.Text)).Trim();
+            map[id] = new DocxCommentInfo(id, author, initials, date, text);
         }
         return map;
     }
@@ -771,29 +815,361 @@ public sealed class ReverseImportService
 
     // ---- inline content ----------------------------------------------------------------------
 
-    private string ConvertInlines(W.Paragraph p)
+    private enum InlineNodeKind
     {
-        var sb = new StringBuilder();
+        Plain,
+        Insertion,
+        Deletion,
+        CommentRangeStart,
+        CommentRangeEnd,
+        CommentReference
+    }
+
+    private sealed class InlineSegment
+    {
+        public InlineNodeKind Kind { get; init; }
+        public string Text { get; init; } = "";
+        public string? CommentId { get; init; }
+        public bool IsHighlighted { get; init; }
+    }
+
+    private List<InlineSegment> ExtractInlineSegments(W.Paragraph p)
+    {
+        var list = new List<InlineSegment>();
         foreach (var child in p.ChildElements)
         {
             switch (child)
             {
+                case W.CommentRangeStart crs:
+                    if (!string.IsNullOrEmpty(crs.Id?.Value))
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.CommentRangeStart,
+                            CommentId = crs.Id.Value
+                        });
+                    }
+                    break;
+
+                case W.CommentRangeEnd cre:
+                    if (!string.IsNullOrEmpty(cre.Id?.Value))
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.CommentRangeEnd,
+                            CommentId = cre.Id.Value
+                        });
+                    }
+                    break;
+
+                case W.InsertedRun ins:
+                    var insText = ConvertInsertedRun(ins);
+                    if (!string.IsNullOrEmpty(insText))
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.Insertion,
+                            Text = insText
+                        });
+                    }
+                    break;
+
+                case W.DeletedRun del:
+                    var delText = ConvertDeletedRun(del);
+                    if (!string.IsNullOrEmpty(delText))
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.Deletion,
+                            Text = delText
+                        });
+                    }
+                    break;
+
                 case W.Run r:
-                    sb.Append(ConvertRun(r));
+                    var cr = r.GetFirstChild<W.CommentReference>();
+                    if (cr?.Id?.Value is { Length: > 0 } crId)
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.CommentReference,
+                            CommentId = crId
+                        });
+                    }
+
+                    var runText = ConvertRun(r);
+                    if (!string.IsNullOrEmpty(runText))
+                    {
+                        bool isHl = r.GetFirstChild<W.RunProperties>()?.GetFirstChild<W.Highlight>() is not null;
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.Plain,
+                            Text = runText,
+                            IsHighlighted = isHl
+                        });
+                    }
                     break;
+
                 case M.OfficeMath om:
-                    sb.Append('$').Append(OmmlToLatex.Convert(om)).Append('$');
+                    list.Add(new InlineSegment
+                    {
+                        Kind = InlineNodeKind.Plain,
+                        Text = "$" + OmmlToLatex.Convert(om) + "$"
+                    });
                     break;
+
                 case W.Hyperlink h:
-                    sb.Append(ConvertHyperlink(h));
+                    list.Add(new InlineSegment
+                    {
+                        Kind = InlineNodeKind.Plain,
+                        Text = ConvertHyperlink(h)
+                    });
                     break;
+
                 case W.SdtBlock sdt:
-                    sb.Append(GetSdtText(sdt));
+                    list.Add(new InlineSegment
+                    {
+                        Kind = InlineNodeKind.Plain,
+                        Text = GetSdtText(sdt)
+                    });
                     break;
-                // BookmarkStart/End, proof errors, etc. carry no visible text.
+
+                case W.SdtRun sdtRun:
+                    var sdtText = string.Concat(sdtRun.Descendants<W.Text>().Select(t => t.Text));
+                    if (!string.IsNullOrEmpty(sdtText))
+                    {
+                        list.Add(new InlineSegment
+                        {
+                            Kind = InlineNodeKind.Plain,
+                            Text = sdtText
+                        });
+                    }
+                    break;
             }
         }
+        return list;
+    }
+
+    private string ConvertInsertedRun(W.InsertedRun ins)
+    {
+        var sb = new StringBuilder();
+        foreach (var r in ins.Elements<W.Run>())
+        {
+            var text = string.Concat(r.Elements<W.Text>().Select(t => t.Text));
+            if (text.Length == 0) continue;
+
+            var rPr = r.GetFirstChild<W.RunProperties>();
+            bool bold = rPr?.GetFirstChild<W.Bold>() is not null;
+            bool italic = rPr?.GetFirstChild<W.Italic>() is not null;
+            bool isCode = rPr?.GetFirstChild<W.RunFonts>()?.Ascii?.Value == "Consolas";
+
+            var s = text;
+            if (isCode) s = "`" + s + "`";
+            else if (bold && italic) s = "***" + s + "***";
+            else if (bold) s = "**" + s + "**";
+            else if (italic) s = "*" + s + "*";
+            sb.Append(s);
+        }
         return sb.ToString();
+    }
+
+    private string ConvertDeletedRun(W.DeletedRun del)
+    {
+        var sb = new StringBuilder();
+        foreach (var r in del.Elements<W.Run>())
+        {
+            var delText = string.Concat(r.Elements<W.DeletedText>().Select(t => t.Text));
+            if (string.IsNullOrEmpty(delText))
+            {
+                delText = string.Concat(r.Elements<W.Text>().Select(t => t.Text));
+            }
+            if (delText.Length == 0) continue;
+
+            var rPr = r.GetFirstChild<W.RunProperties>();
+            bool bold = rPr?.GetFirstChild<W.Bold>() is not null;
+            bool italic = rPr?.GetFirstChild<W.Italic>() is not null;
+            bool isCode = rPr?.GetFirstChild<W.RunFonts>()?.Ascii?.Value == "Consolas";
+
+            var s = delText;
+            if (isCode) s = "`" + s + "`";
+            else if (bold && italic) s = "***" + s + "***";
+            else if (bold) s = "**" + s + "**";
+            else if (italic) s = "*" + s + "*";
+            sb.Append(s);
+        }
+        return sb.ToString();
+    }
+
+    private string ConvertInlines(W.Paragraph p)
+    {
+        var segments = ExtractInlineSegments(p);
+        if (segments.Count == 0) return "";
+
+        var sb = new StringBuilder();
+        var activeCommentRanges = new Dictionary<string, int>(StringComparer.Ordinal);
+        var handledComments = new HashSet<string>(StringComparer.Ordinal);
+
+        int i = 0;
+        while (i < segments.Count)
+        {
+            var seg = segments[i];
+
+            if (seg.Kind == InlineNodeKind.CommentRangeStart && seg.CommentId is not null)
+            {
+                activeCommentRanges[seg.CommentId] = sb.Length;
+                i++;
+                continue;
+            }
+
+            if (seg.Kind == InlineNodeKind.CommentRangeEnd && seg.CommentId is not null)
+            {
+                HandleCommentAttachment(seg.CommentId, sb, activeCommentRanges, handledComments);
+                i++;
+                continue;
+            }
+
+            if (seg.Kind == InlineNodeKind.CommentReference && seg.CommentId is not null)
+            {
+                HandleCommentAttachment(seg.CommentId, sb, activeCommentRanges, handledComments);
+                i++;
+                continue;
+            }
+
+            // Check for coalesced substitution: Deletion immediately followed by Insertion
+            if (seg.Kind == InlineNodeKind.Deletion)
+            {
+                int nextIdx = i + 1;
+                while (nextIdx < segments.Count &&
+                       (segments[nextIdx].Kind == InlineNodeKind.CommentRangeStart ||
+                        segments[nextIdx].Kind == InlineNodeKind.CommentRangeEnd ||
+                        segments[nextIdx].Kind == InlineNodeKind.CommentReference))
+                {
+                    nextIdx++;
+                }
+
+                if (_options.CoalesceSubstitutions &&
+                    _options.PreserveRevisionsAsCriticMarkup &&
+                    nextIdx < segments.Count &&
+                    segments[nextIdx].Kind == InlineNodeKind.Insertion)
+                {
+                    var delText = seg.Text;
+                    var insText = segments[nextIdx].Text;
+                    sb.Append("{~~").Append(delText).Append("~>").Append(insText).Append("~~}");
+
+                    for (int k = i + 1; k < nextIdx; k++)
+                    {
+                        var inter = segments[k];
+                        if (inter.Kind == InlineNodeKind.CommentRangeStart && inter.CommentId is not null)
+                            activeCommentRanges[inter.CommentId] = sb.Length;
+                        else if ((inter.Kind == InlineNodeKind.CommentRangeEnd || inter.Kind == InlineNodeKind.CommentReference) && inter.CommentId is not null)
+                            HandleCommentAttachment(inter.CommentId, sb, activeCommentRanges, handledComments);
+                    }
+                    i = nextIdx + 1;
+                    continue;
+                }
+                else
+                {
+                    if (_options.PreserveRevisionsAsCriticMarkup)
+                    {
+                        sb.Append("{--").Append(seg.Text).Append("--}");
+                    }
+                    i++;
+                    continue;
+                }
+            }
+
+            if (seg.Kind == InlineNodeKind.Insertion)
+            {
+                if (_options.PreserveRevisionsAsCriticMarkup)
+                {
+                    sb.Append("{++").Append(seg.Text).Append("++}");
+                }
+                else
+                {
+                    sb.Append(seg.Text);
+                }
+                i++;
+                continue;
+            }
+
+            // Plain segment
+            sb.Append(seg.Text);
+            i++;
+        }
+
+        foreach (var (cId, _) in activeCommentRanges.ToList())
+        {
+            HandleCommentAttachment(cId, sb, activeCommentRanges, handledComments);
+        }
+
+        return sb.ToString();
+    }
+
+    private void HandleCommentAttachment(
+        string commentId,
+        StringBuilder sb,
+        Dictionary<string, int> activeCommentRanges,
+        HashSet<string> handledComments)
+    {
+        if (handledComments.Contains(commentId)) return;
+        handledComments.Add(commentId);
+
+        if (!_options.PreserveCommentsAsCriticMarkup)
+        {
+            activeCommentRanges.Remove(commentId);
+            return;
+        }
+
+        if (!_comments.TryGetValue(commentId, out var commentInfo))
+        {
+            activeCommentRanges.Remove(commentId);
+            return;
+        }
+
+        if (activeCommentRanges.TryGetValue(commentId, out int startPos))
+        {
+            activeCommentRanges.Remove(commentId);
+            int len = sb.Length - startPos;
+            if (len > 0)
+            {
+                var enclosed = sb.ToString(startPos, len);
+                if (enclosed.StartsWith("==") && enclosed.EndsWith("==") && enclosed.Length >= 4)
+                {
+                    var inner = enclosed[2..^2];
+                    var formatted = "{==" + inner + "==}" + FormatCriticComment(commentInfo);
+                    sb.Remove(startPos, len);
+                    sb.Insert(startPos, formatted);
+                }
+                else
+                {
+                    var formatted = enclosed + FormatReviewerComment(commentInfo);
+                    sb.Remove(startPos, len);
+                    sb.Insert(startPos, formatted);
+                }
+                return;
+            }
+        }
+
+        sb.Append(FormatReviewerComment(commentInfo));
+    }
+
+    private static string FormatCriticComment(DocxCommentInfo c)
+    {
+        if (!string.IsNullOrWhiteSpace(c.Author) && c.Author != "Reviewer")
+        {
+            if (c.Date.HasValue)
+                return $"{{>>{c.Author} ({c.Date.Value:yyyy-MM-dd}): {c.Text}<<}}";
+            return $"{{>>{c.Author}: {c.Text}<<}}";
+        }
+        return $"{{>>{c.Text}<<}}";
+    }
+
+    private static string FormatReviewerComment(DocxCommentInfo c)
+    {
+        var author = !string.IsNullOrWhiteSpace(c.Author) ? c.Author : "Reviewer";
+        if (c.Date.HasValue)
+            return $"^[{author} ({c.Date.Value:yyyy-MM-dd}): \"{c.Text}\"]";
+        return $"^[{author}: \"{c.Text}\"]";
     }
 
     private static string GetSdtText(W.SdtBlock sdt) =>
@@ -926,7 +1302,8 @@ public sealed class ReverseImportService
             foreach (var cell in row.Elements<W.TableCell>())
             {
                 var span = cell.GetFirstChild<W.TableCellProperties>()?.GetFirstChild<W.GridSpan>()?.Val?.Value ?? 1;
-                var cellText = string.Concat(cell.Descendants<W.Text>().Select(x => x.Text)).Trim();
+                var paras = cell.Elements<W.Paragraph>().Select(ConvertInlines).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                var cellText = paras.Count > 0 ? string.Join("<br>", paras).Trim() : string.Concat(cell.Descendants<W.Text>().Select(x => x.Text)).Trim();
                 cells.Add(cellText);
                 for (int s = 1; s < span; s++) cells.Add(""); // merged cell → empty filler columns
             }

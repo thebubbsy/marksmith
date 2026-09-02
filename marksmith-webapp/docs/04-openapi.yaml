@@ -1,0 +1,248 @@
+openapi: 3.0.3
+info:
+  title: Marksmith.WebApp Server API
+  version: 0.1.0
+  description: >
+    Session lifecycle and document I/O for the Marksmith.WebApp collaboration server.
+    Real-time editing flows over the WebSocket endpoint (see docs/03-websocket-protocol.md);
+    this REST surface covers bootstrap, upload/download and a non-realtime batch fallback.
+servers:
+  - url: http://localhost:5210
+    description: local dev
+tags:
+  - name: health
+  - name: auth
+  - name: sessions
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Liveness + capacity
+      responses:
+        '200':
+          description: server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: marksmith-webapp }
+                  version: { type: string }
+                  sessions: { type: integer, description: active in-memory sessions }
+                  sessionCapacity: { type: integer, example: 20 }
+  /api/auth/token:
+    post:
+      tags: [auth]
+      summary: Issue a dev JWT (sample UI / integration tests)
+      description: >
+        Production hosts issue tokens through their own identity layer and must not expose this
+        route. Token binds userId to a documentId (tenant isolation).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, documentId]
+              properties:
+                userId: { type: string }
+                documentId: { type: string }
+      responses:
+        '200':
+          description: JWT issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  expiresInSeconds: { type: integer, example: 28800 }
+        '400':
+          description: missing userId/documentId
+  /api/sessions:
+    post:
+      tags: [sessions]
+      summary: Create or resume a session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId: { type: string, description: omit to generate, or reuse to resume }
+                docxBase64: { type: string, description: optional DOCX upload (base64); when present the session starts from it }
+      responses:
+        '200':
+          description: session view (current html + seq)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionView'
+        '400':
+          description: docxBase64 is not valid base64
+        '401':
+          description: missing/invalid token
+  /api/sessions/{sessionId}:
+    get:
+      tags: [sessions]
+      summary: Current session state (resumes a persisted session on demand)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: session view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionView'
+    delete:
+      tags: [sessions]
+      summary: Close the session (persist + unload from memory)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204': { description: closed }
+  /api/sessions/{sessionId}/batch:
+    post:
+      tags: [sessions]
+      summary: REST batch fallback (same semantics as the WebSocket batch message)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseSeq, ops]
+              properties:
+                baseSeq: { type: integer, example: 42 }
+                ops:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Operation'
+      responses:
+        '200':
+          description: sequenced entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        seq: { type: integer }
+                        op: { $ref: '#/components/schemas/Operation' }
+                        wasNoOp: { type: boolean }
+        '409':
+          description: batch rejected (atomic failure)
+  /api/sessions/{sessionId}/docx:
+    get:
+      tags: [sessions]
+      summary: Download the current DOCX
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: DOCX bytes
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema: { type: string, format: binary }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    SessionView:
+      type: object
+      properties:
+        sessionId: { type: string }
+        ownerId: { type: string }
+        seq: { type: integer, description: current tip of the operation log }
+        html: { type: string, description: full rendered document (authoritative view) }
+    Operation:
+      type: object
+      description: >
+        Discriminated by `type`; the payload fields are inlined (flat wire format). See
+        docs/02-ot-spec.md for per-type semantics.
+      required: [id, clientId, type]
+      properties:
+        id: { type: string, example: op-abc123 }
+        clientId: { type: string, example: u1 }
+        type:
+          type: string
+          enum:
+            - insertText
+            - deleteText
+            - applyFormatting
+            - insertParagraph
+            - deleteParagraph
+            - insertTable
+            - deleteTable
+            - insertTableRow
+            - deleteTableRow
+            - insertImage
+            - deleteImage
+            - insertHyperlink
+            - deleteHyperlink
+            - addComment
+            - resolveComment
+            - applyTrackChange
+            - acceptTrackChange
+            - rejectTrackChange
+        block: { type: integer }
+        offset: { type: integer }
+        length: { type: integer }
+        text: { type: string }
+        style:
+          type: string
+          enum: [Normal, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6]
+        rows: { type: integer }
+        cols: { type: integer }
+        row: { type: integer }
+        format:
+          type: object
+          properties:
+            bold: { type: boolean }
+            italic: { type: boolean }
+            underline: { type: boolean }
+            strikethrough: { type: boolean }
+            color: { type: string, example: '#FF0000' }
+        alt: { type: string }
+        dataUri: { type: string, description: base64 data: URI for insertImage }
+        url: { type: string }
+        width: { type: number }
+        height: { type: number }
+        imageId: { type: string }
+        href: { type: string }
+        commentId: { type: string }
+        author: { type: string }
+        changeId: { type: string }
+        kind:
+          type: string
+          enum: [insert, delete, format]
+        uptoSeq: { type: integer, description: undo }
+        fromSeq: { type: integer, description: redo }

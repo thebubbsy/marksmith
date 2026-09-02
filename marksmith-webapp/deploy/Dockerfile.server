@@ -1,0 +1,34 @@
+# Marksmith.WebApp collaboration server — multi-stage build.
+# Stage 1: build the .NET server. Stage 2: build the client and serve both from one image.
+# Context root is the repo root (build with: docker build -f deploy/Dockerfile.server .)
+
+# ---------- stage 1: server ----------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS server-build
+WORKDIR /src
+COPY server/Marksmith.WebApp.sln .
+COPY server/Marksmith.WebApp.Server/Marksmith.WebApp.Server.csproj server/Marksmith.WebApp.Server/
+COPY server/Marksmith.WebApp.Tests/Marksmith.WebApp.Tests.csproj server/Marksmith.WebApp.Tests/
+RUN dotnet restore server/Marksmith.WebApp.Server/Marksmith.WebApp.Server.csproj
+COPY server/Marksmith.WebApp.Server/ server/Marksmith.WebApp.Server/
+COPY server/Marksmith.WebApp.Tests/ server/Marksmith.WebApp.Tests/
+RUN dotnet publish server/Marksmith.WebApp.Server/Marksmith.WebApp.Server.csproj -c Release -o /app/server --no-restore
+
+# ---------- stage 2: client ----------
+FROM node:20-alpine AS client-build
+WORKDIR /src/client
+COPY client/package.json client/package-lock.json* ./
+RUN npm ci || npm install
+COPY client/ .
+RUN npm run build
+
+# ---------- stage 3: runtime ----------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=server-build /app/server ./
+COPY --from=client-build /src/client/dist ./client-dist
+
+ENV ASPNETCORE_URLS=http://+:5210
+ENV ASPNETCORE_ENVIRONMENT=Production
+# Sessions:Root is set by the orchestrator (volume). JWT secret must be injected.
+EXPOSE 5210
+ENTRYPOINT ["dotnet", "marksmith-webapp-server.dll"]

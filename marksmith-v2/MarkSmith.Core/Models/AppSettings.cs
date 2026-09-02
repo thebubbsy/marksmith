@@ -68,10 +68,16 @@ public sealed class AppSettings
         new TextCleanupRule { Find = "\n\n\n", Replace = "\n\n" },
     };
 
-    // Centre "Looking Glass" view: "Code" / "Split" / "Preview". Persisted so the user can hide
-    // the code section (choose Preview) and it STAYS hidden across launches instead of being
-    // forced back to the Code view every time.
+    // Centre "Looking Glass" view: "Code" / "Split" / "Preview" / "Galaxy". Persisted so the user
+    // can hide the code section (choose Preview) and it STAYS hidden across launches instead of
+    // being forced back to the Code view every time. "Galaxy" means the app opens in the Document
+    // Galaxy hub — leave the app there and that is where it comes back.
     public string EditorViewMode { get; set; } = "Code";
+
+    // The last *document* view — "Code" / "Split" / "Preview", never "Galaxy". The Galaxy takes the
+    // centre pane over, so opening a document from it needs somewhere to hand the pane back to, and
+    // that choice has to survive a restart the same way EditorViewMode does.
+    public string EditorDocumentViewMode { get; set; } = "Code";
 
     // Looking Glass portal mode (ISS-004): fuses editor + preview into one canvas. The rendered
     // preview is the default surface; clicking it opens a "portal" aperture that reveals the
@@ -342,6 +348,7 @@ public sealed class AppSettings
         PreviewZoom = other.PreviewZoom;
         EditorWordWrap = other.EditorWordWrap;
         EditorViewMode = other.EditorViewMode;
+        EditorDocumentViewMode = other.EditorDocumentViewMode;
         CustomNormalizationRules = other.CustomNormalizationRules?.ToList() ?? new();
         CustomNormalizationRulesSeeded = other.CustomNormalizationRulesSeeded;
         LookingGlassMode = other.LookingGlassMode;

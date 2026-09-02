@@ -9,5 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MarkSmith.Core\MarkSmith.Core.csproj" />
+    <ProjectReference Include="..\MarkSmith.Mcp\MarkSmith.Mcp.csproj" />
   </ItemGroup>
 </Project>

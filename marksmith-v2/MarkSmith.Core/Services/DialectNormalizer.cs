@@ -37,11 +37,12 @@ public static class DialectNormalizer
     private static readonly Regex InlineCode = new(@"(`+)[^\n]*?\1", RegexOptions.Compiled);
     private static readonly Regex HtmlTag = new(@"</?[a-zA-Z!][^>]*>|<!--.*?-->", RegexOptions.Compiled);
     private static readonly Regex DefinitionList = new(@"^(\s*):\s+(.*)$", RegexOptions.Compiled);
+    private static readonly Regex CriticHlComment = new(@"\{==(?<text>(?:(?!==\}).)+)==\}\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
     private static readonly Regex CriticSub = new(@"\{~~(?!=)((?:(?!~>|~~\}).)+)\~>~?((?:(?!~~\}).)+)\~~\}", RegexOptions.Compiled);
     private static readonly Regex CriticDel = new(@"\{(--|~~)((?:(?!--\}|~~\}).)+)\1\}", RegexOptions.Compiled);
     private static readonly Regex CriticIns = new(@"\{\+\+((?:(?!\+\+\}).)+)\+\+\}", RegexOptions.Compiled);
     private static readonly Regex CriticHl  = new(@"\{==((?:(?!==\}).)+)==\}", RegexOptions.Compiled);
-    private static readonly Regex CriticComment = new(@"\{>>((?:(?!<<\}).)*)\<<\}", RegexOptions.Compiled);
+    private static readonly Regex CriticComment = new(@"\{>>(?<comment>(?:(?!<<\}).)*)<<\}", RegexOptions.Compiled);
     private static readonly Regex ReviewerComment = new(@"\^\[(?!(?:index|\^))\s*(?<author>[^:\]\n]+?)(?:\s*\((?<date>[^\)]+)\))?:\s*(?:[""“](?<comment>(?:[^""”\\]|\\.)*?)[""”]|(?<comment>[^\]\n]+))\s*\]", RegexOptions.Compiled);
     private static readonly Regex IndexAnchor = new(@"\^\[index:\s*(?:[""“](?<entry>(?:[^""”\\]|\\.)*?)[""”]|(?<entry>[^\]\n]+))\s*\]", RegexOptions.Compiled);
     private static readonly Regex DropdownControl = new(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -192,20 +193,30 @@ public static class DialectNormalizer
                 EmojiReplacer.ReplaceShortcode(m.Groups[1].Value, m.Value));
 
             // ---- CriticMarkup / revision markers ----
-            line = ReplaceOutsideInlineCode(line, CriticSub, m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>");
-            line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[2].Value}</del>");
-            line = ReplaceOutsideInlineCode(line, CriticIns, m => $"<ins>{m.Groups[1].Value}</ins>");
-            line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>");
-            line = ReplaceOutsideInlineCode(line, CriticComment, m => "");
+            line = ReplaceOutsideInlineCode(line, CriticHlComment, m =>
+            {
+                var hlText = m.Groups["text"].Value;
+                var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
+                return $"<mark>{hlText}</mark>" + RenderCommentAnchor(author, date, comment);
+            }, protectHtml: false);
+
+            line = ReplaceOutsideInlineCode(line, CriticSub, m => $"<del>{m.Groups[1].Value}</del><ins>{m.Groups[2].Value}</ins>", protectHtml: false);
+            line = ReplaceOutsideInlineCode(line, CriticDel, m => $"<del>{m.Groups[2].Value}</del>", protectHtml: false);
+            line = ReplaceOutsideInlineCode(line, CriticIns, m => $"<ins>{m.Groups[1].Value}</ins>", protectHtml: false);
+            line = ReplaceOutsideInlineCode(line, CriticHl,  m => $"<mark>{m.Groups[1].Value}</mark>", protectHtml: false);
+            line = ReplaceOutsideInlineCode(line, CriticComment, m =>
+            {
+                var (author, date, comment) = ParseCommentMetadata(m.Groups["comment"].Value);
+                return RenderCommentAnchor(author, date, comment);
+            }, protectHtml: false);
 
             // ---- Reviewer comment annotations (^[Author: "Comment"] / ^[Author (Date): "Comment"]) ----
             line = ReplaceOutsideInlineCode(line, ReviewerComment, m =>
             {
                 var author = m.Groups["author"].Value.Trim();
                 var date = m.Groups["date"].Success ? m.Groups["date"].Value.Trim() : "";
-                var comment = m.Groups["comment"].Value.Trim();
-                var dateAttr = !string.IsNullOrWhiteSpace(date) ? $" data-date=\"{System.Net.WebUtility.HtmlEncode(date)}\"" : "";
-                return $"<span class=\"ms-comment-anchor\" data-author=\"{System.Net.WebUtility.HtmlEncode(author)}\"{dateAttr} data-comment=\"{System.Net.WebUtility.HtmlEncode(comment)}\"><sup class=\"ms-comment-badge\" title=\"{System.Net.WebUtility.HtmlEncode(author)}: {System.Net.WebUtility.HtmlEncode(comment)}\">💬 {System.Net.WebUtility.HtmlEncode(author)}</sup></span>";
+                var comment = CleanCommentText(m.Groups["comment"].Value);
+                return RenderCommentAnchor(author, date, comment);
             }, protectHtml: false);
 
             // ---- Concordance / Subject Index term anchors (^[index: "Category:Topic"]) ----
@@ -384,5 +395,48 @@ public static class DialectNormalizer
         }
 
         return sb.ToString();
+    }
+
+    private static (string Author, string Date, string Text) ParseCommentMetadata(string raw)
+    {
+        raw = raw.Trim();
+        // Format 1: @Author [Date]: Comment body
+        var m1 = Regex.Match(raw, @"^@(?<author>[^:\[\]\n]+?)\s*\[(?<date>[^\]]+)\]:\s*(?<text>[\s\S]*)$");
+        if (m1.Success)
+            return (CleanAuthor(m1.Groups["author"].Value), m1.Groups["date"].Value.Trim(), CleanCommentText(m1.Groups["text"].Value));
+
+        // Format 2: Author (Date): Comment body
+        var m2 = Regex.Match(raw, @"^(?<author>[^:()\n]+?)\s*\((?<date>[^)]+)\):\s*(?<text>[\s\S]*)$");
+        if (m2.Success)
+            return (CleanAuthor(m2.Groups["author"].Value), m2.Groups["date"].Value.Trim(), CleanCommentText(m2.Groups["text"].Value));
+
+        // Format 3: Author: Comment body (where Author has no newlines and looks like an author name)
+        var m3 = Regex.Match(raw, @"^(?<author>[a-zA-Z0-9_.\s-]{1,50}):\s*(?<text>[\s\S]*)$");
+        if (m3.Success && !m3.Groups["author"].Value.Contains('\n'))
+            return (CleanAuthor(m3.Groups["author"].Value), "", CleanCommentText(m3.Groups["text"].Value));
+
+        // Format 4: Just comment body
+        return ("Reviewer", "", CleanCommentText(raw));
+    }
+
+    private static string CleanAuthor(string author) => author.Trim().Trim('"', '\'', '@');
+
+    private static string CleanCommentText(string text)
+    {
+        text = text.Trim();
+        if (text.Length >= 2 && ((text.StartsWith('"') && text.EndsWith('"')) || (text.StartsWith('“') && text.EndsWith('”'))))
+        {
+            text = text[1..^1].Trim();
+        }
+        return text;
+    }
+
+    private static string RenderCommentAnchor(string author, string date, string text)
+    {
+        var dateAttr = !string.IsNullOrWhiteSpace(date) ? $" data-date=\"{System.Net.WebUtility.HtmlEncode(date)}\"" : "";
+        var title = !string.IsNullOrWhiteSpace(date)
+            ? $"{author} ({date}): {text}"
+            : $"{author}: {text}";
+        return $"<span class=\"ms-comment-anchor\" data-author=\"{System.Net.WebUtility.HtmlEncode(author)}\"{dateAttr} data-comment=\"{System.Net.WebUtility.HtmlEncode(text)}\"><sup class=\"ms-comment-badge\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\">💬 {System.Net.WebUtility.HtmlEncode(author)}</sup></span>";
     }
 }

@@ -234,7 +234,7 @@ namespace MarkSmith.ViewModels.MindMap
             }
             catch (Exception ex)
             {
-                StatusMessage = $"⚠ Could not open your galaxy ({ex.Message}). Showing the guided tour instead.";
+                StatusMessage = $"Could not open your galaxy ({ex.Message}). Showing the guided tour instead.";
                 LoadTutorialGalaxy();
                 return;
             }
@@ -247,11 +247,11 @@ namespace MarkSmith.ViewModels.MindMap
 
             if (result.LoadError != null)
             {
-                StatusMessage = "⚠ " + result.LoadError;
+                StatusMessage = result.LoadError;
             }
             else if (result.IsFirstRun)
             {
-                StatusMessage = "👋 Welcome — this is a guided tour. Open ① to see why this replaces folders, then import your own vault.";
+                StatusMessage = "Welcome — this is a guided tour. Open ① to see why this replaces folders, then import your own vault.";
             }
             else
             {
@@ -361,7 +361,7 @@ namespace MarkSmith.ViewModels.MindMap
                     Width = 220,
                     Height = 62,
                     ColorHex = "#FF7C4D",
-                    Icon = "🌌",
+                    Icon = "\uEC07",
                     MarkdownContent = "# My Vault\n\nImport a folder, or start adding documents."
                 };
                 Document.Nodes.Add(fresh);
@@ -392,11 +392,11 @@ namespace MarkSmith.ViewModels.MindMap
             {
                 await _storageService.SaveAsync(Document, path);
                 IsDirty = false;
-                StatusMessage = $"✓ Saved galaxy to {Path.GetFileName(path)} · {InsightsSummary}";
+                StatusMessage = $"Saved galaxy to {Path.GetFileName(path)} · {InsightsSummary}";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"⚠ Could not save to {Path.GetFileName(path)}: {ex.Message}";
+                StatusMessage = $"Could not save to {Path.GetFileName(path)}: {ex.Message}";
             }
         }
 
@@ -435,7 +435,7 @@ namespace MarkSmith.ViewModels.MindMap
             var entry = _undo.Pop();
             _redo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id));
             RestoreSnapshot(entry);
-            StatusMessage = $"↩ Undid: {entry.Label}";
+            StatusMessage = $"Undid: {entry.Label}";
         }
 
         [RelayCommand]
@@ -451,7 +451,7 @@ namespace MarkSmith.ViewModels.MindMap
             var entry = _redo.Pop();
             _undo.Push(new UndoEntry(MindMapGraph.DeepCopy(Document), entry.Label, SelectedNode?.Id));
             RestoreSnapshot(entry);
-            StatusMessage = $"↪ Redid: {entry.Label}";
+            StatusMessage = $"Redid: {entry.Label}";
         }
 
         private void RestoreSnapshot(UndoEntry entry)
@@ -594,12 +594,72 @@ namespace MarkSmith.ViewModels.MindMap
             CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Finds the node standing for <paramref name="filePath"/>, selects it and puts it under the
+        /// camera. This is the Galaxy half of the hub-and-spoke round trip: opening a document in
+        /// the editor should light its star up, not leave the map parked wherever it last was.
+        /// Returns null when no node points at that file.
+        /// </summary>
+        public MindMapNodeViewModel? RevealDocument(string? filePath)
+        {
+            var match = FindNodeForFile(filePath);
+            if (match == null) return null;
+
+            SelectedLink = null;
+            SelectedNode = match;
+            CenterOn(match);
+            return match;
+        }
+
+        /// <summary>The node whose linked file is <paramref name="filePath"/>, or null.</summary>
+        public MindMapNodeViewModel? FindNodeForFile(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return null;
+            return Nodes.FirstOrDefault(n => !string.IsNullOrWhiteSpace(n.FilePath)
+                                             && PathsEqual(n.FilePath!, filePath!));
+        }
+
+        /// <summary>
+        /// The node for <paramref name="filePath"/>, adding one when the galaxy has never seen that
+        /// file. Lets the editor push whatever is open into the map, instead of making the user go
+        /// find the same file again from inside the Galaxy.
+        /// </summary>
+        public MindMapNodeViewModel EnsureDocumentNode(string filePath, string? title = null)
+        {
+            var existing = FindNodeForFile(filePath);
+            if (existing != null) return existing;
+
+            AddRootNode(); // pushes undo, drops a node at the centre of the viewport and selects it
+            var node = SelectedNode!;
+            node.FilePath = filePath;
+            node.Title = !string.IsNullOrWhiteSpace(title)
+                ? title!
+                : Path.GetFileNameWithoutExtension(filePath);
+            node.SyncToModel();
+
+            MarkDirty($"Added '{node.Title}' to the galaxy — link it to give it meaning.");
+            CanvasRedrawRequested?.Invoke(this, EventArgs.Empty);
+            return node;
+        }
+
+        /// <summary>Compares two paths the way Windows does, tolerating a path that cannot be
+        /// canonicalised (a node can hold a path that is no longer valid).</summary>
+        private static bool PathsEqual(string a, string b)
+        {
+            static string Canonical(string p)
+            {
+                try { return Path.GetFullPath(p); }
+                catch { return p; }
+            }
+            return string.Equals(Canonical(a), Canonical(b), StringComparison.OrdinalIgnoreCase);
+        }
+
         [RelayCommand]
         public void ToggleFocusMode()
         {
             IsFocusModeEnabled = !IsFocusModeEnabled;
             StatusMessage = IsFocusModeEnabled
-                ? "🔦 Focus mode on — showing only what the selected document connects to."
+                ? "Focus mode on — showing only what the selected document connects to."
                 : "Focus mode off — showing the whole galaxy.";
         }
 
@@ -638,7 +698,7 @@ namespace MarkSmith.ViewModels.MindMap
                 Width = 190,
                 Height = 56,
                 ColorHex = NextPaletteColor(),
-                Icon = "📄",
+                Icon = "\uE8A5",
                 Progress = 0,
                 ParentId = parent.Id,
                 CreatedDate = DateTime.Now.ToString("yyyy-MM-dd"),
@@ -683,7 +743,7 @@ namespace MarkSmith.ViewModels.MindMap
                 Width = sel.Width,
                 Height = 56,
                 ColorHex = NextPaletteColor(),
-                Icon = "📄",
+                Icon = "\uE8A5",
                 Progress = 0,
                 ParentId = parent.Id,
                 CreatedDate = DateTime.Now.ToString("yyyy-MM-dd"),
@@ -714,7 +774,7 @@ namespace MarkSmith.ViewModels.MindMap
                 Width = 190,
                 Height = 56,
                 ColorHex = NextPaletteColor(),
-                Icon = "📄",
+                Icon = "\uE8A5",
                 CreatedDate = DateTime.Now.ToString("yyyy-MM-dd"),
                 ModifiedDate = DateTime.Now.ToString("yyyy-MM-dd")
             };
@@ -970,7 +1030,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
             {
-                StatusMessage = $"⚠ '{directoryPath}' is not a folder I can read.";
+                StatusMessage = $"'{directoryPath}' is not a folder I can read.";
                 return;
             }
 
@@ -982,11 +1042,11 @@ namespace MarkSmith.ViewModels.MindMap
 
                 PushUndo("Import vault");
                 LoadDocument(doc);
-                MarkDirty($"✓ Imported '{doc.Title}' — {InsightsSummary}. Press 💾 Save to keep it.");
+                MarkDirty($"Imported '{doc.Title}' — {InsightsSummary}. Press Save to keep it.");
             }
             catch (Exception ex)
             {
-                StatusMessage = $"⚠ Import failed: {ex.Message}";
+                StatusMessage = $"Import failed: {ex.Message}";
             }
         }
 
@@ -996,7 +1056,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             if (string.IsNullOrWhiteSpace(Document.SourceDirectory))
             {
-                StatusMessage = "This galaxy wasn't imported from a folder — use 📂 Import Vault first.";
+                StatusMessage = "This galaxy wasn't imported from a folder — use Import Vault first.";
                 return;
             }
             await ImportDirectoryAsync(Document.SourceDirectory);
@@ -1010,7 +1070,7 @@ namespace MarkSmith.ViewModels.MindMap
             // exporter builds the package directly, bypassing DocxExportService's chokepoint).
             if (!AppServices.License.CanExportDocx)
             {
-                StatusMessage = "⚠ DOCX export is a MarkSmith Pro feature — start the 3-export trial or upgrade in Settings.";
+                StatusMessage = "DOCX export is a MarkSmith Pro feature — start the 3-export trial or upgrade in Settings.";
                 return;
             }
             SyncAllToModel();
@@ -1020,12 +1080,12 @@ namespace MarkSmith.ViewModels.MindMap
             }
             catch (Exception ex)
             {
-                StatusMessage = $"⚠ DOCX export failed: {ex.Message}";
+                StatusMessage = $"DOCX export failed: {ex.Message}";
                 return;
             }
             if (AppServices.License.State.Edition == Models.Edition.Trial)
                 AppServices.License.ConsumeDocxExport();
-            StatusMessage = $"✓ Exported editable Word Document Galaxy to: {outputFilePath}";
+            StatusMessage = $"Exported editable Word Document Galaxy to: {outputFilePath}";
         }
 
         /// <summary>Mermaid text for pasting straight into a Markdown document — the flowchart form
@@ -1052,7 +1112,7 @@ namespace MarkSmith.ViewModels.MindMap
             }
             else if (!string.IsNullOrEmpty(target.FilePath))
             {
-                StatusMessage = $"⚠ '{target.FilePath}' is no longer on disk — the node still remembers it.";
+                StatusMessage = $"'{target.FilePath}' is no longer on disk — the node still remembers it.";
                 ShowPreviewCard(target);
             }
             else
