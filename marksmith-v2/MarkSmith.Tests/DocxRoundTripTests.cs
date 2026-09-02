@@ -129,4 +129,28 @@ public class DocxRoundTripTests
         Assert.True(m.Success, "reimported markdown has no mermaid fence:\n" + reimported);
         Assert.Equal(canonical, m.Groups["body"].Value);
     }
+
+    [Fact]
+    public async Task Generate_Massive_Showcase_Docx()
+    {
+        var mdPath = @"c:\Users\Tony\Documents\antigravity\quick-einstein\media\massive-markdown-showcase.md";
+        var docxPath = @"c:\Users\Tony\Documents\antigravity\quick-einstein\media\massive-markdown-showcase.docx";
+        if (File.Exists(mdPath))
+        {
+            var md = File.ReadAllText(mdPath);
+            await new DocxExportService().ExportAsync(md, docxPath, new AppSettings());
+        }
+    }
+
+    [Fact]
+    public async Task Generate_Gauntlet_Docx()
+    {
+        var mdPath = @"C:\Users\Tony\OneDrive\marksmith\examples\gauntlet.md";
+        var docxPath = @"C:\Users\Tony\OneDrive\marksmith\examples\gauntlet.docx";
+        if (File.Exists(mdPath))
+        {
+            var md = File.ReadAllText(mdPath);
+            await new DocxExportService().ExportAsync(md, docxPath, new AppSettings { BrandCoverPage = false });
+        }
+    }
 }
