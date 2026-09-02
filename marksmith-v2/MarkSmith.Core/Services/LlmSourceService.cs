@@ -27,6 +27,9 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"^Copy code[ \t]*$", RegexOptions.Multiline)] private static partial Regex CopyCodeButtons();
     [GeneratedRegex(@"^(ChatGPT can make mistakes\..*|Gemini can make mistakes.*|Claude can make mistakes.*)$", RegexOptions.Multiline)] private static partial Regex DisclaimerFooters();
     [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
+    [GeneratedRegex(@"\[cite:\s*[^\]]+\]")] private static partial Regex GeminiGroundingCite();
+    [GeneratedRegex(@"\b(?:Gemini\s+(?:3\.[78]|Flash\s+3\.[78]|Pro\s+3\.[78]|Deep\s+Research))\b", RegexOptions.IgnoreCase)] private static partial Regex Gemini38ModelMention();
+    [GeneratedRegex(@"</?(?:thought|thinking|think|reasoning)\b[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex FrontierReasoningTag();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();
     [GeneratedRegex(@"\$\$?.+?\$\$?", RegexOptions.Singleline)] private static partial Regex DollarMath();
     // A proper $$...$$ display-math block, used ONLY to protect already-delimited math from the
@@ -105,6 +108,10 @@ public sealed partial class LlmSourceService
         { gemini += 25; signals.Add("bold-line pseudo-headings"); }
         if (SourcesHeading().IsMatch(markdown) && NumberedSourceUrl().IsMatch(markdown))
         { gemini += 25; signals.Add("trailing Sources block"); }
+        if (GeminiGroundingCite().IsMatch(markdown)) { gemini += 35; signals.Add("Gemini search grounding [cite:...] markers"); }
+        var gemini38Match = Gemini38ModelMention().Match(markdown);
+        if (gemini38Match.Success) { gemini += 40; signals.Add($"Gemini model mention ({gemini38Match.Value})"); }
+        if (FrontierReasoningTag().IsMatch(markdown)) { gemini += 20; claude += 20; signals.Add("Frontier model reasoning token"); }
 
         if (ClaudeTagRemnants().IsMatch(markdown)) { claude += 50; signals.Add("Claude tag remnants"); }
         if (markdown.Contains("Claude can make mistakes")) { claude += 50; signals.Add("Claude footer"); }
@@ -118,11 +125,16 @@ public sealed partial class LlmSourceService
             _ => (LlmSource.Generic, 0),
         };
 
+        string? detectedModel = null;
+        if (gemini38Match.Success) detectedModel = gemini38Match.Value;
+
         return new LlmClassification
         {
             Source = source,
             Confidence = Math.Min(100, score),
             Signals = signals,
+            Model = detectedModel,
+            HasGroundingSources = SourcesHeading().IsMatch(markdown) || GeminiGroundingCite().IsMatch(markdown),
             HasMath = LatexInline().IsMatch(markdown) || LatexBlock().IsMatch(markdown) || DollarMath().IsMatch(markdown),
         };
     }
@@ -155,8 +167,10 @@ public sealed partial class LlmSourceService
 
         Apply(OaiCiteArtifacts(), "", "Removed ChatGPT citation artifacts");
         Apply(ChatGptCitations(), "", "Removed 【n†source】 pips");
+        Apply(GeminiGroundingCite(), "", "Removed Gemini search grounding citations");
         Apply(CopyCodeButtons(), "", "Removed copy-button text");
         Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
+        Apply(FrontierReasoningTag(), "", "Removed frontier reasoning tags");
 
         // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.
         Apply(LatexBlock(), "\n$$$$\n${1}\n$$$$\n", "Converted LaTeX display math to $$");

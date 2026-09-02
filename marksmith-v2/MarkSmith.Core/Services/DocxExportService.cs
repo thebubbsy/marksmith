@@ -1419,9 +1419,17 @@ public sealed class DocxExportService
         pPr.KeepLines = new W.KeepLines();
         pPr.WordWrap = new W.WordWrap { Val = false }; // Explicitly add wordWrap to ensure it's kept in order
         pPr.SpacingBetweenLines = new W.SpacingBetweenLines { Line = "240", LineRule = W.LineSpacingRuleValues.Auto, Before = "60", After = "60" };
+        var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
+        var isOutput = langToken.Equals("output", StringComparison.OrdinalIgnoreCase) ||
+                       langToken.Equals("result", StringComparison.OrdinalIgnoreCase) ||
+                       langToken.Equals("console", StringComparison.OrdinalIgnoreCase);
+
+        var leftBorderSize = isOutput ? (uint)12 : (uint)4;
+        var leftBorderColor = isOutput ? ctx.PrimaryHex : ctx.BorderHex;
+
         pPr.ParagraphBorders = new W.ParagraphBorders(
             new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
-            new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
+            new W.LeftBorder { Val = W.BorderValues.Single, Size = leftBorderSize, Space = 4, Color = leftBorderColor },
             new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
             new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex });
         pPr.Shading = new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex };
@@ -1431,7 +1439,6 @@ public sealed class DocxExportService
         // auto-detected fallback below is a highlight-only guess and is deliberately NOT persisted.
         // The MSCode_ prefix marks it as a Marksmith code-language carrier; Word ignores the
         // undefined style reference (all code formatting here is direct), so rendering is unchanged.
-        var langToken = info?.Trim().Split(' ', '\t')[0].TrimStart('.') ?? "";
         var explicitLang = SanitizeCodeLanguage(langToken);
         if (explicitLang.Length > 0 && !isDiff)
             pPr.ParagraphStyleId = new W.ParagraphStyleId { Val = "MSCode_" + explicitLang };

@@ -187,6 +187,15 @@ Every wrapper is held to a two-pipeline contract: the DOCX exporter and the HTML
 the same syntax, and adding one to only half of them is a bug. Working examples of each live in
 [`examples/`](examples/).
 
+### 🧠 Frontier Reasoning & Gemini 3.8 Intelligence
+
+Marksmith is purpose-built for next-generation reasoning and research models:
+
+- **Reasoning Chain-of-Thought Folding**: Recognizes `<thought>`, `<thinking>`, and `<think>` blocks from **Gemini 3.8 Flash & Pro**, **Claude 3.7**, and **DeepSeek-R1**, automatically folding them into native Word collapsible sections (`<w15:collapsed w:val="true"/>`) so audit trails remain intact without cluttering the document.
+- **Search Grounding & Citation Synthesis**: Detects Google Search Grounding citation chips (`[cite: ...]`, `[1]`) and converts them into **bidirectional Word hyperlinks and footnotes** (`_fnref_n` $\leftrightarrow$ `_fn_n`).
+- **Code Interpreter Output Fences**: Distinguishes between executable source code and console execution outputs (````output ````, ````result ````), applying dedicated terminal-card styling with accent left borders.
+- **Deep Research Synthesis**: Formats executive research summaries, multi-column comparison tables, and formal reference lists into publication-grade whitepapers.
+
 ---
 
 ## Marksmith Express — the cross-platform edition
