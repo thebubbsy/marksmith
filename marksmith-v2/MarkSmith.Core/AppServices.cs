@@ -13,7 +13,11 @@ public static class AppServices
     public static Services.SettingsService Settings { get; } = new();
     public static Services.ThemeCatalog Themes { get; } = new();
     public static Services.RecentFilesService RecentFiles { get; } = new();
-    public static Services.LicenseService License { get; } = new();
+    // internal set exists purely so the test suite can install a LicenseService built against a
+    // throwaway trust root and exercise the real paywall end to end. It is internal (AssemblyInfo
+    // grants only MarkSmith.Tests) so no shipped code path — Desktop, CLI or Express — can swap
+    // the licensing service out from under itself.
+    public static Services.LicenseService License { get; internal set; } = new();
 
     // Everything else is lazy: a couple of these are genuinely expensive to construct
     // (VersionHistory opens its SQLite database; MainViewModel copies the settings surface and

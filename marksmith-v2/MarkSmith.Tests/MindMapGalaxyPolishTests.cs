@@ -727,6 +727,113 @@ namespace MarkSmith.Tests
             Assert.Equal(before + 1, a.ConnectionCount);
         }
 
+        // ---- Rendering-cost regressions ----
+
+        [Fact]
+        public void MissingFileStateIsCachedRatherThanProbedOnEveryRead()
+        {
+            // This was a computed property that called File.Exists on every get, and the canvas
+            // reads it for every node on every frame. Caching is the point: the value must NOT
+            // change until something asks it to.
+            string dir = NewTempDir();
+            try
+            {
+                string path = Path.Combine(dir, "later.md");
+                var node = new MindMapNodeViewModel(new MindMapNode { Title = "N", FilePath = path });
+
+                node.RefreshFileState();
+                Assert.True(node.IsFileMissing);
+
+                File.WriteAllText(path, "# now it exists");
+                Assert.True(node.IsFileMissing); // still cached — no disk access on read
+
+                node.RefreshFileState();
+                Assert.False(node.IsFileMissing);
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Fact]
+        public void SettingAFilePathRefreshesTheMissingMarker()
+        {
+            string dir = NewTempDir();
+            try
+            {
+                string real = Path.Combine(dir, "real.md");
+                File.WriteAllText(real, "# real");
+
+                var node = new MindMapNodeViewModel(new MindMapNode { Title = "N" });
+                Assert.False(node.IsFileMissing);
+
+                node.FilePath = Path.Combine(dir, "ghost.md");
+                Assert.True(node.IsFileMissing);
+
+                node.FilePath = real;
+                Assert.False(node.IsFileMissing);
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Fact]
+        public async Task LoadingAGalaxySweepsFileStateForEveryNode()
+        {
+            string dir = NewTempDir();
+            try
+            {
+                string real = Path.Combine(dir, "here.md");
+                File.WriteAllText(real, "# here");
+
+                var vm = new MindMapStudioViewModel();
+                vm.LoadDocument(new MindMapDocument
+                {
+                    RootNodeId = "1",
+                    Nodes =
+                    {
+                        new MindMapNode { Id = "1", Title = "Present", FilePath = real },
+                        new MindMapNode { Id = "2", Title = "Gone", FilePath = Path.Combine(dir, "gone.md") },
+                        new MindMapNode { Id = "3", Title = "No file" }
+                    }
+                });
+
+                await vm.RefreshFileStatesAsync();
+
+                Assert.False(vm.Nodes.First(n => n.Id == "1").IsFileMissing);
+                Assert.True(vm.Nodes.First(n => n.Id == "2").IsFileMissing);
+                Assert.False(vm.Nodes.First(n => n.Id == "3").IsFileMissing);
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Fact]
+        public void HoverPreviewIsExcerptedRatherThanRenderingTheWholeDocument()
+        {
+            // The auto-linker stores up to 20k characters per node, and the hover card fires every
+            // time the pointer crosses a card. Throwing all of it at a TextBlock was a stutter on
+            // its own.
+            var vm = new MindMapStudioViewModel();
+            string huge = string.Join("\n\n", Enumerable.Range(0, 800).Select(i => $"Paragraph {i} with some body text."));
+            var node = new MindMapNodeViewModel(new MindMapNode { Title = "Big", MarkdownContent = huge });
+
+            vm.ShowPreviewCard(node);
+
+            Assert.True(vm.PreviewMarkdown.Length < huge.Length / 4,
+                $"preview was {vm.PreviewMarkdown.Length} chars of {huge.Length}");
+            Assert.Contains("Paragraph 0", vm.PreviewMarkdown);
+            Assert.Contains("open the document", vm.PreviewMarkdown);
+        }
+
+        [Fact]
+        public void ShortNotesArePreviewedInFull()
+        {
+            var vm = new MindMapStudioViewModel();
+            var node = new MindMapNodeViewModel(new MindMapNode { Title = "Small", MarkdownContent = "# Small\n\nAll of it." });
+
+            vm.ShowPreviewCard(node);
+
+            Assert.Equal("# Small\n\nAll of it.", vm.PreviewMarkdown);
+            Assert.DoesNotContain("open the document", vm.PreviewMarkdown);
+        }
+
         [Fact]
         public void TypingAPathIntoTheInspectorUpdatesTheFormatBadge()
         {

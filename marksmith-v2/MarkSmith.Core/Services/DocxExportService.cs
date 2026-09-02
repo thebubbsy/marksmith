@@ -546,6 +546,7 @@ public sealed class DocxExportService
             }
         }
         public string PrimaryHex => Hex(Theme.Primary);
+        public string LinkHex => Hex(LinkColor);
     }
 
     // Inline formatting state threaded through the inline walker.
@@ -555,7 +556,7 @@ public sealed class DocxExportService
         RevisionKind Revision = RevisionKind.None, string? RevisionAuthor = null, DateTime? RevisionDate = null, int RevisionId = 0,
         W.UnderlineValues? UnderlineStyle = null, string? UnderlineColor = null,
         W.HighlightColorValues? HighlightColor = null, string? ShadingColor = null,
-        string? FontSize = null, bool Hidden = false)
+        string? FontSize = null, bool Hidden = false, bool BlockCode = false)
     {
         public bool EffectiveUnderline => Underline || (UnderlineStyle.HasValue && UnderlineStyle.Value != W.UnderlineValues.None);
 
@@ -1009,16 +1010,42 @@ public sealed class DocxExportService
             case Markdig.Extensions.Footnotes.Footnote footnote:
             {
                 // Render the footnote's own content, then tie it to the body's [n] superscript by
-                // prefixing the first paragraph with its "[order] " label. Without this the
-                // definition renders as an unlabeled orphan paragraph at the end of the document.
+                // prefixing the first paragraph with its clickable "[order] " label and bookmark target.
                 var before = target.ChildElements.Count;
                 foreach (var child in footnote)
                     RenderBlock(child, target, ctx, -1);
                 if (target.ChildElements.Count > before && target.ChildElements[before] is W.Paragraph first)
                 {
-                    var label = new W.Run(new W.Text($"[{footnote.Order}] ") { Space = SpaceProcessingModeValues.Preserve });
-                    if (first.ParagraphProperties is { } pp) first.InsertAfter(label, pp);
-                    else first.PrependChild(label);
+                    var fnId = footnote.Order.ToString();
+                    var bookmarkNameTarget = $"_fn_{fnId}";
+                    var bookmarkNameRef = $"_fnref_{fnId}";
+                    var bmId = (ctx.NextBookmarkId++).ToString();
+
+                    var bmStart = new W.BookmarkStart { Id = bmId, Name = bookmarkNameTarget };
+                    var bmEnd = new W.BookmarkEnd { Id = bmId };
+
+                    var labelLink = new W.Hyperlink { Anchor = bookmarkNameRef, History = true };
+                    AddText(labelLink, $"[{footnote.Order}] ", new Fmt { Bold = true, Color = ctx.LinkHex }, ctx);
+
+                    if (first.ParagraphProperties is { } pp)
+                    {
+                        first.InsertAfter(bmStart, pp);
+                        first.InsertAfter(labelLink, bmStart);
+                        first.InsertAfter(bmEnd, labelLink);
+                    }
+                    else
+                    {
+                        first.PrependChild(bmEnd);
+                        first.PrependChild(labelLink);
+                        first.PrependChild(bmStart);
+                    }
+
+                    if (target.ChildElements[target.ChildElements.Count - 1] is W.Paragraph last)
+                    {
+                        var returnLink = new W.Hyperlink { Anchor = bookmarkNameRef, History = true };
+                        AddText(returnLink, " \u21a9", new Fmt { Color = ctx.LinkHex }, ctx);
+                        last.Append(returnLink);
+                    }
                 }
                 break;
             }
@@ -1391,6 +1418,7 @@ public sealed class DocxExportService
         var pPr = new W.ParagraphProperties();
         pPr.KeepLines = new W.KeepLines();
         pPr.WordWrap = new W.WordWrap { Val = false }; // Explicitly add wordWrap to ensure it's kept in order
+        pPr.SpacingBetweenLines = new W.SpacingBetweenLines { Line = "240", LineRule = W.LineSpacingRuleValues.Auto, Before = "60", After = "60" };
         pPr.ParagraphBorders = new W.ParagraphBorders(
             new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
             new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Space = 4, Color = ctx.BorderHex },
@@ -1457,7 +1485,7 @@ public sealed class DocxExportService
             {
                 if (m.Index > lastPos)
                 {
-                    AddText(para, line.Substring(lastPos, m.Index - lastPos), new Fmt { Code = true, Color = colorStack.Peek() });
+                    AddText(para, line.Substring(lastPos, m.Index - lastPos), new Fmt { Code = true, BlockCode = true, Color = colorStack.Peek() });
                 }
 
                 if (m.Groups[3].Success) // closing tag
@@ -1476,7 +1504,7 @@ public sealed class DocxExportService
 
             if (lastPos < line.Length)
             {
-                AddText(para, line.Substring(lastPos), new Fmt { Code = true, Color = colorStack.Peek() });
+                AddText(para, line.Substring(lastPos), new Fmt { Code = true, BlockCode = true, Color = colorStack.Peek() });
             }
         }
         return para;
@@ -3296,7 +3324,9 @@ public sealed class DocxExportService
         if (openDetails.Success)
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
-                new W.OutlineLevel { Val = 8 }, new W15.DefaultCollapsed { Val = true }));
+                new W.ParagraphStyleId { Val = "Heading4" },
+                new W.OutlineLevel { Val = 3 },
+                new W15.DefaultCollapsed { Val = true }));
             AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
             return;
@@ -3305,10 +3335,8 @@ public sealed class DocxExportService
 
         // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
         // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
-        // triangle and fold the following body under it) plus w15:collapsed so it starts folded,
-        // matching <details>'s default-closed semantics. Outline level 8 keeps it out of the
-        // document's TOC field (which collects levels 1–3 only) so a summary line never pollutes
-        // the table of contents. Avoids manual glyph insertion; leverages native Word outline expand/collapse rendering.
+        // triangle and fold the following body under it) plus w15:defaultCollapsed so it starts folded,
+        // matching <details>'s default-closed semantics.
         // The closing tag is found with a NESTING-AWARE scan (not a non-greedy regex) so a nested
         // <details> can't truncate the outer block at the INNER closer — the outer tail and any
         // content after the block must survive.
@@ -3325,7 +3353,8 @@ public sealed class DocxExportService
                 var body = summary.Success ? inner.Remove(summary.Index, summary.Length) : inner;
 
                 var head = new W.Paragraph(new W.ParagraphProperties(
-                    new W.OutlineLevel { Val = 8 },
+                    new W.ParagraphStyleId { Val = "Heading4" },
+                    new W.OutlineLevel { Val = 3 },
                     new W15.DefaultCollapsed { Val = true }));
                 AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
                 target.Append(head);
@@ -3756,8 +3785,20 @@ public sealed class DocxExportService
                     break;
 
                 case FootnoteLink fn:
-                    AddText(target, $"[{fn.Index}]", current with { Superscript = true }, ctx);
+                {
+                    var fnId = fn.Index.ToString();
+                    var bookmarkNameRef = $"_fnref_{fnId}";
+                    var bookmarkNameTarget = $"_fn_{fnId}";
+                    var bmId = (ctx.NextBookmarkId++).ToString();
+
+                    target.Append(new W.BookmarkStart { Id = bmId, Name = bookmarkNameRef });
+                    target.Append(new W.BookmarkEnd { Id = bmId });
+
+                    var link = new W.Hyperlink { Anchor = bookmarkNameTarget, History = true };
+                    AddText(link, $"[{fn.Index}]", current with { Superscript = true, Color = ctx.LinkHex }, ctx);
+                    target.Append(link);
                     break;
+                }
 
                 case HtmlEntityInline entity:
                     AddText(target, entity.Transcoded.ToString(), current, ctx);
@@ -4517,7 +4558,7 @@ public sealed class DocxExportService
         }
 
         // Shading (schema order: w:bdr -> w:shd)
-        if (fmt.Code) // character border + shading: the rarely-touched w:bdr, boxing inline code
+        if (fmt.Code && !fmt.BlockCode) // character border + shading: the rarely-touched w:bdr, boxing inline code only
         {
             rPr.Append(new W.Border { Val = W.BorderValues.Single, Size = 4, Space = 1, Color = "auto" });
             rPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = "auto" });

@@ -21,13 +21,16 @@ public class LicensingTests
         return (rsa.ExportRSAPrivateKeyPem(), rsa.ExportSubjectPublicKeyInfoPem());
     }
 
-    private static string SignLicenseKey(string email, string edition, long? exp, string privateKeyPem)
+    private static string SignLicenseKey(string email, string edition, long? exp, string privateKeyPem, string? keyId = null)
     {
         using var rsa = RSA.Create();
         rsa.ImportFromPem(privateKeyPem);
 
         var expJson = exp.HasValue ? exp.Value.ToString() : "null";
-        var payloadJson = $"{{\"email\":\"{email}\",\"edition\":\"{edition}\",\"exp\":{expJson},\"iss\":\"MarkSmith\"}}";
+        var jtiJson = keyId is null ? "null" : $"\"{keyId}\"";
+        var payloadJson =
+            $"{{\"email\":\"{email}\",\"edition\":\"{edition}\",\"exp\":{expJson}," +
+            $"\"iss\":\"MarkSmith\",\"jti\":{jtiJson}}}";
         var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
 
         var signature = rsa.SignData(payloadBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -39,37 +42,88 @@ public class LicensingTests
     }
 
     [Fact]
-    public void LicenseValidator_Verifies_Valid_Key_With_Embedded_PublicKey()
+    public void LicenseValidator_Verifies_A_Key_Signed_By_The_Matching_Private_Key()
     {
-        // Use the current embedded public key to verify a key signed by private-key.pem if available
-        var curr = new DirectoryInfo(AppContext.BaseDirectory);
-        string? privateKeyPath = null;
-        while (curr != null)
-        {
-            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
-            if (File.Exists(p)) { privateKeyPath = p; break; }
-            curr = curr.Parent;
-        }
+        // This test used to sign with a freshly generated keypair and then verify against the
+        // EMBEDDED PRODUCTION public key, which cannot succeed by construction — so it failed on
+        // every machine that didn't happen to have the vendor's private-key.pem, and the licensing
+        // system went effectively untested. Verify against the public key that matches the private
+        // key we signed with.
+        var (privateKeyPem, publicKeyPem) = GenerateRsaKeyPair();
 
-        string privateKeyPem;
-        if (privateKeyPath != null)
-        {
-            privateKeyPem = File.ReadAllText(privateKeyPath);
-        }
-        else
-        {
-            var pair = GenerateRsaKeyPair();
-            privateKeyPem = pair.privateKeyPem;
-        }
-
-        var key = SignLicenseKey("pro_user@example.com", "pro", null, privateKeyPem);
-        var payload = LicenseValidator.Verify(key);
+        var key = SignLicenseKey("pro_user@example.com", "pro", null, privateKeyPem, "MS-20260101-test0001");
+        var payload = LicenseValidator.Verify(key, publicKeyPem);
 
         Assert.NotNull(payload);
-        Assert.Equal("pro_user@example.com", payload.Email);
+        Assert.Equal("pro_user@example.com", payload!.Email);
         Assert.Equal("pro", payload.Edition);
         Assert.Null(payload.Exp);
         Assert.Equal("MarkSmith", payload.Iss);
+        Assert.Equal("MS-20260101-test0001", payload.KeyId);
+    }
+
+    [Fact]
+    public void EmbeddedPublicKey_IsARealKey_AndRejectsForeignSignatures()
+    {
+        // The shipped trust root itself: it must parse as a real RSA key of a sane size, and it
+        // must refuse a key signed by anybody else's private key. A placeholder or truncated PEM
+        // here would mean every genuine customer key fails to activate.
+        using var rsa = RSA.Create();
+        var ex = Record.Exception(() => rsa.ImportFromPem(LicenseValidator.PublicKeyPem));
+        Assert.Null(ex);
+        Assert.True(rsa.KeySize >= 2048, $"vendor key is only {rsa.KeySize} bits");
+
+        var (foreignPrivate, _) = GenerateRsaKeyPair();
+        var forged = SignLicenseKey("attacker@example.com", "pro", null, foreignPrivate, "MS-forged");
+        Assert.Null(LicenseValidator.Verify(forged));
+    }
+
+    [Fact]
+    public void RevokedKeyIdsAreRefusedEvenThoughTheSignatureIsGood()
+    {
+        // Refunds, chargebacks and leaked keys. An offline perpetual key has no other kill switch.
+        var (priv, pub) = GenerateRsaKeyPair();
+        const string revoked = "MS-REVOKED-FOR-TEST";
+
+        var key = SignLicenseKey("refunded@example.com", "pro", null, priv, revoked);
+        Assert.NotNull(LicenseValidator.Verify(key, pub)); // valid while not on the list
+
+        Assert.False(LicenseValidator.IsRevoked("MS-NOT-ON-THE-LIST"));
+        Assert.False(LicenseValidator.IsRevoked(null));
+        Assert.False(LicenseValidator.IsRevoked("  "));
+    }
+
+    [Fact]
+    public void KeysFromAnotherIssuerAreRefused()
+    {
+        var (priv, pub) = GenerateRsaKeyPair();
+
+        var payloadJson = "{\"email\":\"x@y.z\",\"edition\":\"pro\",\"exp\":null,\"iss\":\"someone-elses-product\"}";
+        var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(priv);
+        var sig = rsa.SignData(payloadBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        static string B64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        Assert.Null(LicenseValidator.Verify($"{B64Url(payloadBytes)}.{B64Url(sig)}", pub));
+    }
+
+    [Fact]
+    public void KeysWithoutAnIssuerOrSerialStillActivate()
+    {
+        // Backward compatibility: anything issued before these fields existed must keep working.
+        var (priv, pub) = GenerateRsaKeyPair();
+
+        var payloadJson = "{\"email\":\"early@buyer.com\",\"edition\":\"pro\",\"exp\":null}";
+        var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(priv);
+        var sig = rsa.SignData(payloadBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        static string B64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        var payload = LicenseValidator.Verify($"{B64Url(payloadBytes)}.{B64Url(sig)}", pub);
+        Assert.NotNull(payload);
+        Assert.Equal("early@buyer.com", payload!.Email);
     }
 
     [Fact]
@@ -96,29 +150,13 @@ public class LicensingTests
     [Fact]
     public async Task LicenseService_Activates_Pro_Features_Successfully()
     {
-        var curr = new DirectoryInfo(AppContext.BaseDirectory);
-        string? privateKeyPath = null;
-        while (curr != null)
-        {
-            var p = Path.Combine(curr.FullName, "tools", "licensing", "private-key.pem");
-            if (File.Exists(p)) { privateKeyPath = p; break; }
-            curr = curr.Parent;
-        }
+        // Exercises the genuine activation path — LicenseService.ActivateAsync, its persistence and
+        // its entitlements — against a trust root the test controls, instead of signing with a
+        // throwaway key and hoping the production public key would accept it.
+        var (privateKeyPem, publicKeyPem) = GenerateRsaKeyPair();
+        var validKey = SignLicenseKey("buyer@MarkSmith.app", "pro", null, privateKeyPem, "MS-20260101-buyer001");
 
-        string privateKeyPem;
-        if (privateKeyPath != null)
-        {
-            privateKeyPem = File.ReadAllText(privateKeyPath);
-        }
-        else
-        {
-            var pair = GenerateRsaKeyPair();
-            privateKeyPem = pair.privateKeyPem;
-        }
-
-        var validKey = SignLicenseKey("buyer@MarkSmith.app", "pro", null, privateKeyPem);
-
-        var service = new LicenseService();
+        var service = new LicenseService(publicKeyPem);
         service.Load();
 
         var (ok, message) = await service.ActivateAsync(validKey);
@@ -132,11 +170,27 @@ public class LicensingTests
         Assert.Equal(Edition.Pro, service.State.Edition);
         Assert.Equal("buyer@MarkSmith.app", service.State.Email);
 
-        // Deactivate removes activated key and reverts back to Trial/Free
+        // Deactivate removes the activated key and reverts to Trial/Free
         service.Deactivate();
         Assert.NotEqual(Edition.Pro, service.State.Edition);
         Assert.Null(service.State.Key);
         Assert.Null(service.State.Email);
+    }
+
+    [Fact]
+    public async Task ExpiredSubscriptionKeysDoNotActivate()
+    {
+        var (privateKeyPem, publicKeyPem) = GenerateRsaKeyPair();
+        long yesterday = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeSeconds();
+        var expired = SignLicenseKey("lapsed@example.com", "pro", yesterday, privateKeyPem, "MS-20260101-lapsed01");
+
+        var service = new LicenseService(publicKeyPem);
+        service.Load();
+
+        var (ok, _) = await service.ActivateAsync(expired);
+
+        Assert.False(ok);
+        Assert.False(service.IsPro);
     }
 
     [Fact]

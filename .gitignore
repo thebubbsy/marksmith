@@ -69,6 +69,10 @@ Thumbs.db
 
 # Licensing & Security — private signing keys, credentials, and certificates
 tools/licensing/private-key.pem
+# The issued-key ledger holds customer email addresses — personal data that must never reach a
+# public repository. It is also the only record of which serial belongs to which sale, so keep it
+# backed up somewhere private.
+tools/licensing/issued-keys.csv
 tools/licensing/*-key.txt
 *.pem
 *.key

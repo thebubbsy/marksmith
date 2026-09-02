@@ -369,20 +369,13 @@ public class AdversarialSecurityAndLicensingTests
             curr = curr.Parent;
         }
 
-        string privateKeyPem;
-        if (privateKeyPath != null)
-        {
-            privateKeyPem = File.ReadAllText(privateKeyPath);
-        }
-        else
-        {
-            var pair = GenerateRsaKeyPair();
-            privateKeyPem = pair.privateKeyPem;
-        }
-
+        // Previously this signed with a throwaway keypair and then verified against the EMBEDDED
+        // PRODUCTION public key, which cannot succeed — so it failed on every machine without the
+        // vendor's private-key.pem. Verify against the key we actually signed with.
+        var (privateKeyPem, publicKeyPem) = GenerateRsaKeyPair();
         var validKey = SignLicenseKey("pro_buyer@MarkSmith.app", "pro", null, privateKeyPem);
 
-        var service = new LicenseService();
+        var service = new LicenseService(publicKeyPem);
         service.Load();
 
         var (ok, msg) = await service.ActivateAsync(validKey);

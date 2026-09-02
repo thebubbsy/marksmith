@@ -40,8 +40,16 @@ public sealed class LicenseService
     public bool CanAutomate => State.CanAutomate;
     public bool ShowFooter => State.ShowFooter;
 
-    public LicenseService()
+    // The trust root this instance verifies keys against. Production passes nothing and gets the
+    // key embedded in LicenseValidator; the test suite passes a throwaway public key so it can
+    // exercise the real activation path with keys it signed itself. Without this seam the
+    // activation tests had to sign with a random keypair and verify against the production public
+    // key — which can never succeed, so they failed permanently and licensing went untested.
+    private readonly string? _publicKeyPem;
+
+    public LicenseService(string? publicKeyPem = null)
     {
+        _publicKeyPem = publicKeyPem;
         var dir = AppPaths.ConfigDir;
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "license.json");
@@ -70,7 +78,7 @@ public sealed class LicenseService
         key = (key ?? string.Empty).Trim();
         if (key.Length == 0) return (false, "Enter a license key.");
 
-        var p = LicenseValidator.Verify(key);
+        var p = LicenseValidator.Verify(key, _publicKeyPem);
         if (IsValidPro(p))
         {
             lock (_gate)
@@ -203,7 +211,7 @@ public sealed class LicenseService
     private void Recompute()
     {
         // 1) valid signed Pro key (perpetual unless it carries an expiry)
-        var p = LicenseValidator.Verify(_stored.Key);
+        var p = LicenseValidator.Verify(_stored.Key, _publicKeyPem);
         if (IsValidPro(p))
         {
             var exp = p!.Exp is long e ? DateTimeOffset.FromUnixTimeSeconds(e) : (DateTimeOffset?)null;

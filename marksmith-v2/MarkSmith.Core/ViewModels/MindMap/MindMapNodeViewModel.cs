@@ -140,15 +140,33 @@ namespace MarkSmith.ViewModels.MindMap
             }
         }
 
-        /// <summary>False when the node remembers a path that is no longer on disk — worth telling
-        /// the user about rather than silently doing nothing when they double-click it.</summary>
-        public bool IsFileMissing
+        /// <summary>True when the node remembers a path that is no longer on disk — worth telling
+        /// the user about rather than silently doing nothing when they double-click it.
+        ///
+        /// Cached, and refreshed only by <see cref="RefreshFileState"/>. This was a computed
+        /// property that touched the filesystem on every single read, and the canvas reads it for
+        /// every node on every frame: on a network share or a cloud-synced vault that is a
+        /// blocking stat per node per frame.</summary>
+        [ObservableProperty]
+        private bool _isFileMissing;
+
+        /// <summary>Re-probes the disk for this one node. Call it off the UI thread when sweeping
+        /// a whole galaxy.</summary>
+        public void RefreshFileState()
         {
-            get
+            if (string.IsNullOrWhiteSpace(FilePath))
             {
-                if (string.IsNullOrWhiteSpace(FilePath)) return false;
-                try { return !File.Exists(FilePath) && !Directory.Exists(FilePath); }
-                catch { return false; }
+                IsFileMissing = false;
+                return;
+            }
+            try
+            {
+                IsFileMissing = !File.Exists(FilePath) && !Directory.Exists(FilePath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                // An unreadable path is not the same as a missing one; don't cry wolf.
+                IsFileMissing = false;
             }
         }
 
@@ -174,7 +192,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             OnPropertyChanged(nameof(HasFile));
             OnPropertyChanged(nameof(FileName));
-            OnPropertyChanged(nameof(IsFileMissing));
+            RefreshFileState();
 
             // Typing a path into the inspector should give the node the right badge and icon
             // without the user also having to fill in a separate "extension" field.

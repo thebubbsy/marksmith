@@ -71,8 +71,32 @@ namespace MarkSmith.Views.MindMap
 
         // ---- Redraw scheduling ----
 
-        private void RequestRedraw()
+        /// <summary>
+        /// How much of the scene a redraw request actually needs to touch. The canvas used to
+        /// clear and rebuild every card, connector and flyout on every request — roughly 1,700
+        /// object allocations and a full layout pass for a 20-node map — and a request is raised
+        /// on every pointer move while panning or dragging. Scoping the work is what keeps the UI
+        /// thread free: a pan now moves one transform and allocates nothing.
+        /// </summary>
+        [Flags]
+        private enum RedrawScope
         {
+            None = 0,
+            Transform = 1,
+            Geometry = 2,
+            Appearance = 4,
+            Scene = 8,
+            All = Transform | Geometry | Appearance | Scene
+        }
+
+        private RedrawScope _pendingScope = RedrawScope.None;
+
+        private void RequestRedraw() => RequestRedraw(RedrawScope.All);
+
+        private void RequestRedraw(RedrawScope scope)
+        {
+            _pendingScope |= scope;
+
             if (_redrawQueued) return;
             _redrawQueued = true;
 
@@ -80,152 +104,511 @@ namespace MarkSmith.Views.MindMap
             if (queue == null)
             {
                 _redrawQueued = false;
-                RedrawCanvas();
+                FlushRedraw();
                 return;
             }
 
             queue.TryEnqueue(() =>
             {
                 _redrawQueued = false;
-                RedrawCanvas();
+                FlushRedraw();
             });
         }
 
-        private void OnCanvasContainerSizeChanged(object sender, SizeChangedEventArgs e) => RequestRedraw();
-
-        // ---- Canvas rendering ----
-
-        private double CanvasWidth => CanvasContainer.ActualWidth > 0 ? CanvasContainer.ActualWidth : 900;
-        private double CanvasHeight => CanvasContainer.ActualHeight > 0 ? CanvasContainer.ActualHeight : 600;
-
-        private Point ScreenPos(double worldX, double worldY)
+        private void FlushRedraw()
         {
-            double zoom = ViewModel.ZoomLevel;
-            return new Point(
-                (CanvasWidth / 2.0) + (worldX + ViewModel.ViewportOffsetX) * zoom,
-                (CanvasHeight / 2.0) + (worldY + ViewModel.ViewportOffsetY) * zoom);
+            var scope = _pendingScope;
+            _pendingScope = RedrawScope.None;
+            if (scope == RedrawScope.None) return;
+
+            if (scope.HasFlag(RedrawScope.Scene)) SyncScene();
+            if (scope.HasFlag(RedrawScope.Appearance)) UpdateAppearance();
+            if (scope.HasFlag(RedrawScope.Geometry)) UpdateGeometry();
+            if (scope.HasFlag(RedrawScope.Transform)) UpdateTransform();
+
+            if (scope.HasFlag(RedrawScope.Scene) || scope.HasFlag(RedrawScope.Geometry))
+            {
+                RedrawMinimapContent();
+            }
+            UpdateMinimapLens();
         }
 
+        /// <summary>Kept for callers that just want "something changed, redraw".</summary>
         public void RedrawCanvas()
         {
-            GalaxyCanvas.Children.Clear();
-
-            double zoom = ViewModel.ZoomLevel;
-            var byId = new Dictionary<string, MindMapNodeViewModel>(StringComparer.Ordinal);
-            foreach (var n in ViewModel.Nodes) byId[n.Id] = n;
-
-            // 1. Hierarchy connectors, drawn first so cards sit on top of their own lines.
-            foreach (var node in ViewModel.Nodes)
-            {
-                if (node.ParentId == null || !byId.TryGetValue(node.ParentId, out var parent)) continue;
-
-                var pStart = ScreenPos(parent.X + parent.Width, parent.Y + (parent.Height / 2.0));
-                var pEnd = ScreenPos(node.X, node.Y + (node.Height / 2.0));
-
-                bool faded = node.IsDimmed && parent.IsDimmed;
-                var path = CreateBezierConnector(pStart, pEnd, _palette.HierarchyLine, dashed: false,
-                    strokeThickness: 1.8 * Math.Max(zoom, 0.35), opacity: faded ? 0.18 : 0.75);
-                GalaxyCanvas.Children.Add(path);
-            }
-
-            // 2. Cross-links — the edges that carry the meaning.
-            foreach (var link in ViewModel.Links)
-            {
-                if (!byId.TryGetValue(link.SourceNodeId, out var src) || !byId.TryGetValue(link.TargetNodeId, out var tgt)) continue;
-
-                var pStart = ScreenPos(src.X + (src.Width / 2.0), src.Y + (src.Height / 2.0));
-                var pEnd = ScreenPos(tgt.X + (tgt.Width / 2.0), tgt.Y + (tgt.Height / 2.0));
-
-                bool faded = src.IsDimmed && tgt.IsDimmed;
-                bool dashed = link.Style == MindMapLinkStyle.Dashed || link.IsInferred;
-                double thickness = (link.IsSelected ? 3.6 : (link.IsInferred ? 1.6 : 2.6)) * Math.Max(zoom, 0.35);
-                var color = link.IsSelected ? ColorFromHex("#FFFFFF") : ColorFromHex(link.ColorHex);
-
-                var path = CreateBezierConnector(pStart, pEnd, color, dashed, thickness,
-                    opacity: faded ? 0.15 : (link.IsInferred ? 0.62 : 0.95));
-                GalaxyCanvas.Children.Add(path);
-
-                // A generous transparent stroke on top makes the line clickable. The old canvas set
-                // IsHitTestVisible=false on every connector, so a link could never be selected and
-                // the entire link inspector and "delete link" path were unreachable.
-                var hit = CreateBezierConnector(pStart, pEnd, Colors.Transparent, dashed: false, strokeThickness: 16);
-                hit.IsHitTestVisible = true;
-                hit.Tag = link;
-                hit.PointerPressed += OnLinkPointerPressed;
-                hit.ContextFlyout = BuildLinkContextMenu(link);
-                GalaxyCanvas.Children.Add(hit);
-
-                if (!faded && link.Direction != MindMapLinkDirection.None)
-                {
-                    AddArrowHead(pStart, pEnd, color, zoom, link.Direction);
-                }
-
-                if (!faded && zoom > 0.55 && !string.IsNullOrWhiteSpace(link.DisplayLabel))
-                {
-                    AddLinkLabel(link, pStart, pEnd, zoom);
-                }
-            }
-
-            // 3. Nodes.
-            foreach (var node in ViewModel.Nodes)
-            {
-                var p = ScreenPos(node.X, node.Y);
-                var visual = CreateNodeVisual(node, node.Width * zoom, node.Height * zoom, zoom);
-                Canvas.SetLeft(visual, p.X);
-                Canvas.SetTop(visual, p.Y);
-                GalaxyCanvas.Children.Add(visual);
-            }
-
-            RedrawMinimap();
+            _pendingScope = RedrawScope.All;
+            FlushRedraw();
         }
 
-        private void AddLinkLabel(MindMapLinkViewModel link, Point start, Point end, double zoom)
+        private void OnCanvasContainerSizeChanged(object sender, SizeChangedEventArgs e)
+            => RequestRedraw(RedrawScope.Transform);
+
+        // ---- Retained scene ----
+
+        private sealed class NodeVisual
         {
-            var labelBorder = new Border
+            public Border Root = null!;
+            public Grid Detail = null!;
+            public TextBlock Icon = null!;
+            public TextBlock Title = null!;
+            public Border BadgeHost = null!;
+            public TextBlock BadgeText = null!;
+            public StackPanel Bottom = null!;
+            public Border ProgressTrack = null!;
+            public Border ProgressFill = null!;
+            public TextBlock ProgressText = null!;
+            public TextBlock TagText = null!;
+            public TextBlock ConnectionText = null!;
+            public Border VersionHost = null!;
+            public TextBlock VersionText = null!;
+            public TextBlock MissingMark = null!;
+
+            public SolidColorBrush CardFill = null!;
+            public SolidColorBrush BorderStroke = null!;
+            public SolidColorBrush TitleInk = null!;
+            public SolidColorBrush BadgeFill = null!;
+            public SolidColorBrush BadgeInk = null!;
+            public SolidColorBrush MutedInk = null!;
+            public SolidColorBrush ConnectionInk = null!;
+        }
+
+        private sealed class EdgeVisual
+        {
+            public Microsoft.UI.Xaml.Shapes.Path Line = null!;
+            public PathFigure Figure = null!;
+            public BezierSegment Segment = null!;
+            public SolidColorBrush Stroke = null!;
+
+            public Microsoft.UI.Xaml.Shapes.Path? Hit;
+            public PathFigure? HitFigure;
+            public BezierSegment? HitSegment;
+
+            public Polygon? ArrowForward;
+            public Polygon? ArrowBackward;
+            public SolidColorBrush? ArrowFill;
+
+            public Border? Label;
+            public TextBlock? LabelText;
+            /// <summary>Cached so a drag repositions the pill without re-measuring text.</summary>
+            public Size LabelSize;
+
+            /// <summary>Dash state currently applied, so the collection is only rebuilt when it
+            /// genuinely flips rather than on every appearance pass.</summary>
+            public bool Dashed;
+
+            public MindMapLinkViewModel? Link;   // null for hierarchy edges
+            public string SourceId = "";
+            public string TargetId = "";
+            public bool FromNodeEdge;            // hierarchy edges leave the parent's right edge
+        }
+
+        private readonly Dictionary<string, NodeVisual> _nodeVisuals = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, EdgeVisual> _edgeVisuals = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, MindMapNodeViewModel> _nodeIndex = new(StringComparer.Ordinal);
+
+        private const double WorldHitStrokeScreenWidth = 18.0;
+        private const double DetailLodZoom = 0.4;
+        private const double LabelLodZoom = 0.55;
+
+        private static string HierarchyKey(string childId) => "h:" + childId;
+
+        /// <summary>
+        /// Reconciles the retained visuals with the view model's collections. Only genuinely new
+        /// or removed nodes and links cost anything; a redraw of an unchanged scene allocates
+        /// nothing at all.
+        /// </summary>
+        private void SyncScene()
+        {
+            _nodeIndex.Clear();
+            foreach (var n in ViewModel.Nodes) _nodeIndex[n.Id] = n;
+
+            // Nodes
+            foreach (var id in _nodeVisuals.Keys.Where(k => !_nodeIndex.ContainsKey(k)).ToList())
+            {
+                NodeLayer.Children.Remove(_nodeVisuals[id].Root);
+                _nodeVisuals.Remove(id);
+            }
+            foreach (var node in ViewModel.Nodes)
+            {
+                if (_nodeVisuals.ContainsKey(node.Id)) continue;
+                var visual = BuildNodeVisual(node);
+                _nodeVisuals[node.Id] = visual;
+                NodeLayer.Children.Add(visual.Root);
+            }
+
+            // Edges: hierarchy first, then cross-links.
+            var wanted = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var node in ViewModel.Nodes)
+            {
+                if (node.ParentId != null && _nodeIndex.ContainsKey(node.ParentId))
+                {
+                    wanted.Add(HierarchyKey(node.Id));
+                }
+            }
+            foreach (var link in ViewModel.Links)
+            {
+                if (_nodeIndex.ContainsKey(link.SourceNodeId) && _nodeIndex.ContainsKey(link.TargetNodeId))
+                {
+                    wanted.Add(link.Id);
+                }
+            }
+
+            foreach (var key in _edgeVisuals.Keys.Where(k => !wanted.Contains(k)).ToList())
+            {
+                RemoveEdgeVisual(_edgeVisuals[key]);
+                _edgeVisuals.Remove(key);
+            }
+
+            foreach (var node in ViewModel.Nodes)
+            {
+                if (node.ParentId == null || !_nodeIndex.ContainsKey(node.ParentId)) continue;
+                string key = HierarchyKey(node.Id);
+                if (_edgeVisuals.TryGetValue(key, out var existing))
+                {
+                    existing.SourceId = node.ParentId;
+                    existing.TargetId = node.Id;
+                    continue;
+                }
+                _edgeVisuals[key] = BuildHierarchyEdge(node.ParentId, node.Id);
+            }
+
+            foreach (var link in ViewModel.Links)
+            {
+                if (!_nodeIndex.ContainsKey(link.SourceNodeId) || !_nodeIndex.ContainsKey(link.TargetNodeId)) continue;
+                if (_edgeVisuals.TryGetValue(link.Id, out var existing))
+                {
+                    existing.Link = link;
+                    existing.SourceId = link.SourceNodeId;
+                    existing.TargetId = link.TargetNodeId;
+                    continue;
+                }
+                _edgeVisuals[link.Id] = BuildLinkEdge(link);
+            }
+        }
+
+        private void RemoveEdgeVisual(EdgeVisual e)
+        {
+            EdgeLayer.Children.Remove(e.Line);
+            if (e.Hit != null) EdgeLayer.Children.Remove(e.Hit);
+            if (e.ArrowForward != null) EdgeLayer.Children.Remove(e.ArrowForward);
+            if (e.ArrowBackward != null) EdgeLayer.Children.Remove(e.ArrowBackward);
+            if (e.Label != null) EdgeLayer.Children.Remove(e.Label);
+        }
+
+        // ---- Building (runs once per node/link, not once per frame) ----
+
+        private NodeVisual BuildNodeVisual(MindMapNodeViewModel node)
+        {
+            var v = new NodeVisual
+            {
+                CardFill = new SolidColorBrush(_palette.CardBackground),
+                BorderStroke = new SolidColorBrush(ColorFromHex(node.ColorHex)),
+                TitleInk = new SolidColorBrush(_palette.Text),
+                BadgeFill = new SolidColorBrush(ColorFromHex(node.ColorHex)),
+                BadgeInk = new SolidColorBrush(Colors.White),
+                MutedInk = new SolidColorBrush(_palette.Muted),
+                ConnectionInk = new SolidColorBrush(_palette.Muted)
+            };
+
+            v.Root = new Border
+            {
+                Background = v.CardFill,
+                BorderBrush = v.BorderStroke,
+                BorderThickness = new Thickness(1.4),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(8, 5, 8, 5),
+                Tag = node
+            };
+
+            v.Detail = new Grid();
+            v.Detail.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            v.Detail.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var topPanel = new Grid();
+            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            v.Icon = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(v.Icon, 0);
+            topPanel.Children.Add(v.Icon);
+
+            v.Title = new TextBlock
+            {
+                FontSize = 11.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = v.TitleInk,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(v.Title, 1);
+            topPanel.Children.Add(v.Title);
+
+            v.BadgeText = new TextBlock { FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = v.BadgeInk };
+            v.BadgeHost = new Border
+            {
+                Background = v.BadgeFill,
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(4, 1, 4, 1),
+                Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = v.BadgeText
+            };
+            Grid.SetColumn(v.BadgeHost, 2);
+            topPanel.Children.Add(v.BadgeHost);
+
+            Grid.SetRow(topPanel, 0);
+            v.Detail.Children.Add(topPanel);
+
+            v.Bottom = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Margin = new Thickness(0, 3, 0, 0),
+                VerticalAlignment = VerticalAlignment.Bottom
+            };
+
+            v.ProgressFill = new Border
+            {
+                Height = 4,
+                CornerRadius = new CornerRadius(2),
+                Background = new SolidColorBrush(ColorFromHex("#34D399")),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            v.ProgressTrack = new Border
+            {
+                Width = 46,
+                Height = 4,
+                CornerRadius = new CornerRadius(2),
+                Background = new SolidColorBrush(ColorFromHex("#33FFFFFF")),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = v.ProgressFill
+            };
+            v.Bottom.Children.Add(v.ProgressTrack);
+
+            v.ProgressText = new TextBlock
+            {
+                FontSize = 9,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(ColorFromHex("#34D399")),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            v.Bottom.Children.Add(v.ProgressText);
+
+            v.TagText = new TextBlock { FontSize = 9, Foreground = v.MutedInk, VerticalAlignment = VerticalAlignment.Center };
+            v.Bottom.Children.Add(v.TagText);
+
+            v.ConnectionText = new TextBlock { FontSize = 9, Foreground = v.ConnectionInk, VerticalAlignment = VerticalAlignment.Center };
+            v.Bottom.Children.Add(v.ConnectionText);
+
+            v.VersionText = new TextBlock
+            {
+                FontSize = 8.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ColorFromHex("#38BDF8"))
+            };
+            v.VersionHost = new Border
+            {
+                Background = new SolidColorBrush(ColorFromHex("#1C2D42")),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 1, 4, 1),
+                Child = v.VersionText
+            };
+            v.Bottom.Children.Add(v.VersionHost);
+
+            v.MissingMark = new TextBlock
+            {
+                Text = "⚠",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(ColorFromHex("#E11D48")),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            v.Bottom.Children.Add(v.MissingMark);
+
+            Grid.SetRow(v.Bottom, 1);
+            v.Detail.Children.Add(v.Bottom);
+
+            v.Root.Child = v.Detail;
+
+            // Built once, for the life of the visual. This used to be reconstructed — flyout,
+            // menu items and their closures — for every node on every frame.
+            v.Root.ContextFlyout = BuildNodeContextMenu(node);
+            AttachNodeInteractions(v.Root, node);
+
+            return v;
+        }
+
+        private EdgeVisual BuildHierarchyEdge(string parentId, string childId)
+        {
+            var e = new EdgeVisual
+            {
+                SourceId = parentId,
+                TargetId = childId,
+                FromNodeEdge = true,
+                Stroke = new SolidColorBrush(ColorFromHex(_palette.HierarchyLine))
+            };
+            (e.Line, e.Figure, e.Segment) = BuildBezierPath(e.Stroke, 1.8, dashed: false);
+            e.Line.Opacity = 0.75;
+            EdgeLayer.Children.Add(e.Line);
+            return e;
+        }
+
+        private EdgeVisual BuildLinkEdge(MindMapLinkViewModel link)
+        {
+            var e = new EdgeVisual
+            {
+                Link = link,
+                SourceId = link.SourceNodeId,
+                TargetId = link.TargetNodeId,
+                FromNodeEdge = false,
+                Stroke = new SolidColorBrush(ColorFromHex(link.ColorHex))
+            };
+
+            (e.Line, e.Figure, e.Segment) = BuildBezierPath(e.Stroke, 2.6, dashed: true);
+            e.Dashed = true;
+            EdgeLayer.Children.Add(e.Line);
+
+            // A generous transparent stroke makes the line clickable.
+            var (hit, hitFigure, hitSegment) = BuildBezierPath(new SolidColorBrush(Colors.Transparent), WorldHitStrokeScreenWidth, dashed: false);
+            hit.IsHitTestVisible = true;
+            hit.Tag = link;
+            hit.PointerPressed += OnLinkPointerPressed;
+            hit.ContextFlyout = BuildLinkContextMenu(link);
+            e.Hit = hit;
+            e.HitFigure = hitFigure;
+            e.HitSegment = hitSegment;
+            EdgeLayer.Children.Add(hit);
+
+            e.ArrowFill = new SolidColorBrush(ColorFromHex(link.ColorHex));
+            e.ArrowForward = new Polygon { Fill = e.ArrowFill, IsHitTestVisible = false };
+            e.ArrowForward.Points.Add(new Point());
+            e.ArrowForward.Points.Add(new Point());
+            e.ArrowForward.Points.Add(new Point());
+            EdgeLayer.Children.Add(e.ArrowForward);
+
+            e.ArrowBackward = new Polygon { Fill = e.ArrowFill, IsHitTestVisible = false };
+            e.ArrowBackward.Points.Add(new Point());
+            e.ArrowBackward.Points.Add(new Point());
+            e.ArrowBackward.Points.Add(new Point());
+            EdgeLayer.Children.Add(e.ArrowBackward);
+
+            e.LabelText = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(_palette.Text) };
+            e.Label = new Border
             {
                 Background = new SolidColorBrush(_palette.CardBackground),
                 BorderBrush = new SolidColorBrush(ColorFromHex(link.ColorHex)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(6 * zoom, 2 * zoom, 6 * zoom, 2 * zoom),
-                Opacity = link.IsInferred ? 0.8 : 1.0,
+                Padding = new Thickness(6, 2, 6, 2),
                 IsHitTestVisible = false,
-                Child = new TextBlock
-                {
-                    Text = link.DisplayLabel,
-                    FontSize = Math.Max(8, 10 * zoom),
-                    FontStyle = link.IsInferred ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal,
-                    Foreground = new SolidColorBrush(_palette.Text)
-                }
+                Child = e.LabelText
             };
+            EdgeLayer.Children.Add(e.Label);
 
-            // Measure so the pill is genuinely centred on the line. The old code subtracted a fixed
-            // 30/10, which left every label visibly off-centre and overlapping the connector.
-            labelBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double w = labelBorder.DesiredSize.Width;
-            double h = labelBorder.DesiredSize.Height;
-
-            Canvas.SetLeft(labelBorder, ((start.X + end.X) / 2.0) - (w / 2.0));
-            Canvas.SetTop(labelBorder, ((start.Y + end.Y) / 2.0) - (h / 2.0));
-            GalaxyCanvas.Children.Add(labelBorder);
+            return e;
         }
 
-        /// <summary>Direction is part of the model and was never drawn — an arrowless line cannot
-        /// tell you whether the research fed the proposal or the other way round.</summary>
-        private void AddArrowHead(Point start, Point end, Color color, double zoom, MindMapLinkDirection direction)
+        private static (Microsoft.UI.Xaml.Shapes.Path Path, PathFigure Figure, BezierSegment Segment) BuildBezierPath(
+            Brush stroke, double thickness, bool dashed)
         {
-            if (direction == MindMapLinkDirection.SourceToTarget || direction == MindMapLinkDirection.Bidirectional)
+            var segment = new BezierSegment();
+            var figure = new PathFigure { IsClosed = false };
+            figure.Segments.Add(segment);
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+
+            var path = new Microsoft.UI.Xaml.Shapes.Path
             {
-                GalaxyCanvas.Children.Add(BuildArrow(start, end, color, zoom));
+                Data = geometry,
+                Stroke = stroke,
+                StrokeThickness = thickness,
+                StrokeLineJoin = PenLineJoin.Round,
+                IsHitTestVisible = false
+            };
+            if (dashed)
+            {
+                path.StrokeDashCap = PenLineCap.Round;
+                path.StrokeDashArray = new DoubleCollection { 3, 2.5 };
             }
-            if (direction == MindMapLinkDirection.TargetToSource || direction == MindMapLinkDirection.Bidirectional)
+            return (path, figure, segment);
+        }
+
+        // ---- Per-frame updates (no allocation) ----
+
+        /// <summary>Positions in world space. Called while dragging a node; the transform handles
+        /// pan and zoom, so nothing here depends on the camera.</summary>
+        private void UpdateGeometry()
+        {
+            foreach (var (id, v) in _nodeVisuals)
             {
-                GalaxyCanvas.Children.Add(BuildArrow(end, start, color, zoom));
+                if (!_nodeIndex.TryGetValue(id, out var node)) continue;
+                v.Root.Width = Math.Max(24, node.Width);
+                v.Root.Height = Math.Max(18, node.Height);
+                Canvas.SetLeft(v.Root, node.X);
+                Canvas.SetTop(v.Root, node.Y);
+            }
+
+            foreach (var e in _edgeVisuals.Values)
+            {
+                if (!_nodeIndex.TryGetValue(e.SourceId, out var src) || !_nodeIndex.TryGetValue(e.TargetId, out var tgt)) continue;
+
+                Point start, end;
+                if (e.FromNodeEdge)
+                {
+                    start = new Point(src.X + src.Width, src.Y + (src.Height / 2.0));
+                    end = new Point(tgt.X, tgt.Y + (tgt.Height / 2.0));
+                }
+                else
+                {
+                    start = new Point(src.X + (src.Width / 2.0), src.Y + (src.Height / 2.0));
+                    end = new Point(tgt.X + (tgt.Width / 2.0), tgt.Y + (tgt.Height / 2.0));
+                }
+
+                double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
+                var c1 = new Point(start.X + ctrl, start.Y);
+                var c2 = new Point(end.X - ctrl, end.Y);
+
+                e.Figure.StartPoint = start;
+                e.Segment.Point1 = c1;
+                e.Segment.Point2 = c2;
+                e.Segment.Point3 = end;
+
+                if (e.HitFigure != null && e.HitSegment != null)
+                {
+                    e.HitFigure.StartPoint = start;
+                    e.HitSegment.Point1 = c1;
+                    e.HitSegment.Point2 = c2;
+                    e.HitSegment.Point3 = end;
+                }
+
+                if (e.Link != null)
+                {
+                    var dir = e.Link.Direction;
+                    SetArrow(e.ArrowForward, start, end, dir is MindMapLinkDirection.SourceToTarget or MindMapLinkDirection.Bidirectional);
+                    SetArrow(e.ArrowBackward, end, start, dir is MindMapLinkDirection.TargetToSource or MindMapLinkDirection.Bidirectional);
+
+                    if (e.Label != null)
+                    {
+                        // Uses the size measured when the text last changed: measuring all of them
+                        // on every frame of a drag is exactly the kind of work this rewrite removes.
+                        Canvas.SetLeft(e.Label, ((start.X + end.X) / 2.0) - (e.LabelSize.Width / 2.0));
+                        Canvas.SetTop(e.Label, ((start.Y + end.Y) / 2.0) - (e.LabelSize.Height / 2.0));
+                    }
+                }
             }
         }
 
-        private static Polygon BuildArrow(Point from, Point to, Color color, double zoom)
+        private static void SetArrow(Polygon? arrow, Point from, Point to, bool visible)
         {
+            if (arrow == null) return;
+            if (!visible)
+            {
+                arrow.Visibility = Visibility.Collapsed;
+                return;
+            }
+            arrow.Visibility = Visibility.Visible;
+
             double dx = to.X - from.X;
             double dy = to.Y - from.Y;
             double len = Math.Sqrt(dx * dx + dy * dy);
@@ -234,254 +617,186 @@ namespace MarkSmith.Views.MindMap
             dy /= len;
 
             // Back the head off the card edge so it points at the node rather than sitting under it.
-            double inset = 26 * Math.Max(zoom, 0.4);
+            const double inset = 26;
+            const double size = 9;
             var tip = new Point(to.X - dx * inset, to.Y - dy * inset);
-            double size = Math.Max(5, 9 * zoom);
 
-            var left = new Point(tip.X - dx * size - dy * (size * 0.5), tip.Y - dy * size + dx * (size * 0.5));
-            var right = new Point(tip.X - dx * size + dy * (size * 0.5), tip.Y - dy * size - dx * (size * 0.5));
-
-            var arrow = new Polygon
-            {
-                Fill = new SolidColorBrush(color),
-                IsHitTestVisible = false
-            };
-            arrow.Points.Add(tip);
-            arrow.Points.Add(left);
-            arrow.Points.Add(right);
-            return arrow;
+            arrow.Points[0] = tip;
+            arrow.Points[1] = new Point(tip.X - dx * size - dy * (size * 0.5), tip.Y - dy * size + dx * (size * 0.5));
+            arrow.Points[2] = new Point(tip.X - dx * size + dy * (size * 0.5), tip.Y - dy * size - dx * (size * 0.5));
         }
 
-        private Microsoft.UI.Xaml.Shapes.Path CreateBezierConnector(Point start, Point end, string hexColor, bool dashed, double strokeThickness = 2.0, double opacity = 1.0)
-            => CreateBezierConnector(start, end, ColorFromHex(hexColor), dashed, strokeThickness, opacity);
-
-        private Microsoft.UI.Xaml.Shapes.Path CreateBezierConnector(Point start, Point end, Color color, bool dashed, double strokeThickness = 2.0, double opacity = 1.0)
+        /// <summary>Colours, text and emphasis. Runs on selection and filter changes, not on pan.</summary>
+        private void UpdateAppearance()
         {
-            double dx = Math.Abs(end.X - start.X);
-            double ctrlOffset = Math.Max(dx * 0.5, 40);
-
-            var p1 = new Point(start.X + ctrlOffset, start.Y);
-            var p2 = new Point(end.X - ctrlOffset, end.Y);
-
-            var figure = new PathFigure { StartPoint = start, IsClosed = false };
-            figure.Segments.Add(new BezierSegment { Point1 = p1, Point2 = p2, Point3 = end });
-
-            var geom = new PathGeometry();
-            geom.Figures.Add(figure);
-
-            var path = new Microsoft.UI.Xaml.Shapes.Path
+            foreach (var (id, v) in _nodeVisuals)
             {
-                Data = geom,
-                Stroke = new SolidColorBrush(color),
-                StrokeThickness = strokeThickness,
-                StrokeLineJoin = PenLineJoin.Round,
-                Opacity = opacity,
-                IsHitTestVisible = false
-            };
+                if (!_nodeIndex.TryGetValue(id, out var node)) continue;
 
-            if (dashed)
-            {
-                path.StrokeDashArray = new DoubleCollection { 3, 2.5 };
-                path.StrokeDashCap = PenLineCap.Round;
-            }
+                var accent = ColorFromHex(node.ColorHex);
 
-            return path;
-        }
+                Color borderColor;
+                double borderThickness;
+                if (node.IsSelected) { borderColor = Colors.White; borderThickness = 2.6; }
+                else if (node.IsHighlighted) { borderColor = ColorFromHex("#22D3EE"); borderThickness = 2.4; }
+                else if (node.IsNeighbor) { borderColor = accent; borderThickness = 2.2; }
+                else { borderColor = accent; borderThickness = node.IsHub ? 2.2 : 1.4; }
 
-        private FrameworkElement CreateNodeVisual(MindMapNodeViewModel node, double width, double height, double zoom)
-        {
-            bool isSelected = node.IsSelected;
-            var accent = ColorFromHex(node.ColorHex);
+                v.CardFill.Color = _palette.CardBackground;
+                v.BorderStroke.Color = borderColor;
+                v.Root.BorderThickness = new Thickness(borderThickness);
+                v.Root.Opacity = node.IsDimmed ? 0.22 : 1.0;
 
-            Color borderColor;
-            double borderThickness;
-            if (isSelected) { borderColor = Colors.White; borderThickness = 2.6; }
-            else if (node.IsHighlighted) { borderColor = ColorFromHex("#22D3EE"); borderThickness = 2.4; }
-            else if (node.IsNeighbor) { borderColor = accent; borderThickness = 2.2; }
-            else { borderColor = accent; borderThickness = node.IsHub ? 2.2 : 1.4; }
+                v.TitleInk.Color = _palette.Text;
+                v.MutedInk.Color = _palette.Muted;
+                v.BadgeFill.Color = accent;
+                v.BadgeInk.Color = ReadableOn(accent);
 
-            var border = new Border
-            {
-                Width = Math.Max(24, width),
-                Height = Math.Max(18, height),
-                Background = new SolidColorBrush(_palette.CardBackground),
-                BorderBrush = new SolidColorBrush(borderColor),
-                BorderThickness = new Thickness(borderThickness),
-                Opacity = node.IsDimmed ? 0.22 : 1.0,
-                CornerRadius = new CornerRadius(Math.Max(3, 9 * zoom)),
-                Padding = new Thickness(8 * zoom, 5 * zoom, 8 * zoom, 5 * zoom),
-                Tag = node
-            };
+                v.Icon.Text = node.Icon ?? "📄";
+                v.Title.Text = node.Title;
+                v.BadgeText.Text = node.FormatBadge;
 
-            // Below this scale the card is a few pixels tall and text only turns it into mush; the
-            // coloured chip alone still reads as a star in the constellation.
-            if (zoom < 0.42)
-            {
-                border.Background = new SolidColorBrush(accent);
-                AttachNodeInteractions(border, node);
-                return border;
-            }
-
-            var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            // Top row: icon + title + format badge
-            var topPanel = new Grid();
-            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var iconText = new TextBlock
-            {
-                Text = node.Icon ?? "📄",
-                FontSize = 13 * zoom,
-                Margin = new Thickness(0, 0, 5 * zoom, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(iconText, 0);
-            topPanel.Children.Add(iconText);
-
-            var titleText = new TextBlock
-            {
-                Text = node.Title,
-                FontSize = 11.5 * zoom,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(_palette.Text),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(titleText, 1);
-            topPanel.Children.Add(titleText);
-
-            var badgeBorder = new Border
-            {
-                Background = new SolidColorBrush(accent),
-                CornerRadius = new CornerRadius(4 * zoom),
-                Padding = new Thickness(4 * zoom, 1 * zoom, 4 * zoom, 1 * zoom),
-                Margin = new Thickness(4 * zoom, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
+                bool hasProgress = node.Progress > 0;
+                v.ProgressTrack.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
+                v.ProgressText.Visibility = hasProgress ? Visibility.Visible : Visibility.Collapsed;
+                if (hasProgress)
                 {
-                    Text = node.FormatBadge,
-                    FontSize = 9 * zoom,
-                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                    Foreground = new SolidColorBrush(ReadableOn(accent))
+                    v.ProgressFill.Width = Math.Max(1, v.ProgressTrack.Width * (node.Progress / 100.0));
+                    v.ProgressText.Text = node.ProgressText;
                 }
-            };
-            Grid.SetColumn(badgeBorder, 2);
-            topPanel.Children.Add(badgeBorder);
 
-            Grid.SetRow(topPanel, 0);
-            grid.Children.Add(topPanel);
+                bool hasTag = node.Tags.Count > 0;
+                v.TagText.Visibility = hasTag ? Visibility.Visible : Visibility.Collapsed;
+                if (hasTag) v.TagText.Text = node.Tags[0];
 
-            var bottomPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6 * zoom,
-                Margin = new Thickness(0, 3 * zoom, 0, 0),
-                VerticalAlignment = VerticalAlignment.Bottom
-            };
-
-            if (node.Progress > 0)
-            {
-                // A number alone made progress invisible at a glance; a real bar reads across a
-                // whole map without being focused on.
-                var track = new Border
+                bool hasConnections = node.ConnectionCount > 0;
+                v.ConnectionText.Visibility = hasConnections ? Visibility.Visible : Visibility.Collapsed;
+                if (hasConnections)
                 {
-                    Width = Math.Max(18, 46 * zoom),
-                    Height = Math.Max(3, 4 * zoom),
-                    CornerRadius = new CornerRadius(2 * zoom),
-                    Background = new SolidColorBrush(ColorFromHex("#33FFFFFF")),
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                var fill = new Border
-                {
-                    Width = Math.Max(1, track.Width * (node.Progress / 100.0)),
-                    Height = track.Height,
-                    CornerRadius = track.CornerRadius,
-                    Background = new SolidColorBrush(ColorFromHex("#34D399")),
-                    HorizontalAlignment = HorizontalAlignment.Left
-                };
-                track.Child = fill;
-                bottomPanel.Children.Add(track);
+                    v.ConnectionText.Text = node.IsHub ? $"🔗 {node.ConnectionCount} hub" : $"🔗 {node.ConnectionCount}";
+                    v.ConnectionText.FontWeight = node.IsHub ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+                    v.ConnectionInk.Color = node.IsHub ? ColorFromHex("#FBBF24") : _palette.Muted;
+                }
 
-                bottomPanel.Children.Add(new TextBlock
-                {
-                    Text = node.ProgressText,
-                    FontSize = 9 * zoom,
-                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                    Foreground = new SolidColorBrush(ColorFromHex("#34D399")),
-                    VerticalAlignment = VerticalAlignment.Center
-                });
+                v.VersionHost.Visibility = node.HasVersions ? Visibility.Visible : Visibility.Collapsed;
+                if (node.HasVersions) v.VersionText.Text = $"⏱️ {node.VersionCount}";
+
+                v.MissingMark.Visibility = node.IsFileMissing ? Visibility.Visible : Visibility.Collapsed;
+
+                v.Bottom.Visibility = (hasProgress || hasTag || hasConnections || node.HasVersions || node.IsFileMissing)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
 
-            if (node.Tags.Count > 0)
+            foreach (var e in _edgeVisuals.Values)
             {
-                bottomPanel.Children.Add(new TextBlock
-                {
-                    Text = node.Tags[0],
-                    FontSize = 9 * zoom,
-                    Foreground = new SolidColorBrush(_palette.Muted),
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-            }
+                bool faded = _nodeIndex.TryGetValue(e.SourceId, out var s) && _nodeIndex.TryGetValue(e.TargetId, out var t)
+                             && s.IsDimmed && t.IsDimmed;
 
-            if (node.ConnectionCount > 0)
-            {
-                bottomPanel.Children.Add(new TextBlock
+                if (e.Link == null)
                 {
-                    Text = node.IsHub ? $"🔗 {node.ConnectionCount} hub" : $"🔗 {node.ConnectionCount}",
-                    FontSize = 9 * zoom,
-                    FontWeight = node.IsHub ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal,
-                    Foreground = new SolidColorBrush(node.IsHub ? ColorFromHex("#FBBF24") : _palette.Muted),
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-            }
+                    e.Stroke.Color = ColorFromHex(_palette.HierarchyLine);
+                    e.Line.Opacity = faded ? 0.18 : 0.75;
+                    continue;
+                }
 
-            if (node.HasVersions)
-            {
-                bottomPanel.Children.Add(new Border
+                var link = e.Link;
+                e.Stroke.Color = link.IsSelected ? Colors.White : ColorFromHex(link.ColorHex);
+                e.Line.StrokeThickness = link.IsSelected ? 3.6 : (link.IsInferred ? 1.6 : 2.6);
+                e.Line.Opacity = faded ? 0.15 : (link.IsInferred ? 0.62 : 0.95);
+                bool wantDashed = link.Style == MindMapLinkStyle.Dashed || link.IsInferred;
+                if (wantDashed != e.Dashed)
                 {
-                    Background = new SolidColorBrush(ColorFromHex("#1C2D42")),
-                    CornerRadius = new CornerRadius(3 * zoom),
-                    Padding = new Thickness(4 * zoom, 1 * zoom, 4 * zoom, 1 * zoom),
-                    Child = new TextBlock
+                    e.Dashed = wantDashed;
+                    // An empty collection is a solid stroke; assigning null would be a nullable
+                    // warning for no benefit.
+                    e.Line.StrokeDashArray = wantDashed ? new DoubleCollection { 3, 2.5 } : new DoubleCollection();
+                }
+
+                if (e.ArrowFill != null) e.ArrowFill.Color = e.Stroke.Color;
+
+                if (e.Label != null && e.LabelText != null)
+                {
+                    string text = link.DisplayLabel;
+                    bool textChanged = e.LabelText.Text != text;
+                    e.LabelText.Text = text;
+                    e.LabelText.FontStyle = link.IsInferred ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal;
+                    ((SolidColorBrush)e.LabelText.Foreground).Color = _palette.Text;
+                    ((SolidColorBrush)e.Label.Background).Color = _palette.CardBackground;
+                    ((SolidColorBrush)e.Label.BorderBrush).Color = ColorFromHex(link.ColorHex);
+                    e.Label.Opacity = link.IsInferred ? 0.8 : 1.0;
+
+                    if (textChanged || e.LabelSize.Width <= 0)
                     {
-                        Text = $"⏱️ {node.VersionCount}",
-                        FontSize = 8.5 * zoom,
-                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                        Foreground = new SolidColorBrush(ColorFromHex("#38BDF8"))
+                        e.Label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        e.LabelSize = e.Label.DesiredSize;
                     }
-                });
+                }
+
+                bool hide = faded;
+                e.Line.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
+                if (e.Hit != null) e.Hit.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            if (node.IsFileMissing)
-            {
-                bottomPanel.Children.Add(new TextBlock
-                {
-                    Text = "⚠",
-                    FontSize = 10 * zoom,
-                    Foreground = new SolidColorBrush(ColorFromHex("#E11D48")),
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-            }
-
-            if (bottomPanel.Children.Count > 0)
-            {
-                Grid.SetRow(bottomPanel, 1);
-                grid.Children.Add(bottomPanel);
-            }
-
-            border.Child = grid;
-            AttachNodeInteractions(border, node);
-            return border;
+            ApplyLevelOfDetail();
         }
+
+        /// <summary>
+        /// The camera. Panning and zooming are one transform write — this is the whole reason the
+        /// scene is retained rather than rebuilt.
+        /// </summary>
+        private void UpdateTransform()
+        {
+            double zoom = ViewModel.ZoomLevel;
+            WorldTransform.ScaleX = zoom;
+            WorldTransform.ScaleY = zoom;
+            WorldTransform.TranslateX = (CanvasWidth / 2.0) + (ViewModel.ViewportOffsetX * zoom);
+            WorldTransform.TranslateY = (CanvasHeight / 2.0) + (ViewModel.ViewportOffsetY * zoom);
+
+            ApplyLevelOfDetail();
+        }
+
+        /// <summary>
+        /// Keeps the click target for a connector a constant size on screen, and drops text when it
+        /// would be too small to read anyway.
+        /// </summary>
+        private void ApplyLevelOfDetail()
+        {
+            double zoom = Math.Max(ViewModel.ZoomLevel, 0.01);
+            var detailVisibility = zoom < DetailLodZoom ? Visibility.Collapsed : Visibility.Visible;
+            var labelVisibility = zoom < LabelLodZoom ? Visibility.Collapsed : Visibility.Visible;
+
+            foreach (var (id, v) in _nodeVisuals)
+            {
+                if (v.Detail.Visibility != detailVisibility) v.Detail.Visibility = detailVisibility;
+
+                // Far out, a card is a few pixels tall; the accent chip alone still reads as a star.
+                if (detailVisibility == Visibility.Collapsed)
+                {
+                    if (_nodeIndex.TryGetValue(id, out var node)) v.CardFill.Color = ColorFromHex(node.ColorHex);
+                }
+                else
+                {
+                    v.CardFill.Color = _palette.CardBackground;
+                }
+            }
+
+            foreach (var e in _edgeVisuals.Values)
+            {
+                if (e.Hit != null) e.Hit.StrokeThickness = WorldHitStrokeScreenWidth / zoom;
+                if (e.Label != null)
+                {
+                    var want = e.Line.Visibility == Visibility.Collapsed ? Visibility.Collapsed : labelVisibility;
+                    if (e.Label.Visibility != want) e.Label.Visibility = want;
+                }
+            }
+        }
+
+        private double CanvasWidth => CanvasContainer.ActualWidth > 0 ? CanvasContainer.ActualWidth : 900;
+        private double CanvasHeight => CanvasContainer.ActualHeight > 0 ? CanvasContainer.ActualHeight : 600;
 
         private void AttachNodeInteractions(Border border, MindMapNodeViewModel node)
         {
-            border.ContextFlyout = BuildNodeContextMenu(node);
-
             border.PointerPressed += (s, e) =>
             {
                 e.Handled = true;
@@ -494,11 +809,10 @@ namespace MarkSmith.Views.MindMap
                 _dragStartNodePoint = new Point(node.X, node.Y);
                 _dragStartPointerPoint = e.GetCurrentPoint(GalaxyCanvas).Position;
 
-                // Capture on the canvas, not the card. The card is destroyed and rebuilt on the
-                // very next redraw, which silently dropped the capture and made a drag stop the
-                // moment the pointer left the original card bounds.
+                // Capture on the canvas, not the card, so a drag survives the pointer leaving the
+                // card's bounds.
                 GalaxyCanvas.CapturePointer(e.Pointer);
-                RequestRedraw();
+                RequestRedraw(RedrawScope.Appearance);
             };
 
             border.DoubleTapped += (s, e) =>
@@ -519,9 +833,7 @@ namespace MarkSmith.Views.MindMap
             border.PointerExited += (s, e) =>
             {
                 node.IsHovered = false;
-                // The preview used to appear on hover and then never go away, so it sat over the
-                // canvas covering the very nodes you were trying to reach. It now follows the
-                // pointer off the card unless the node is the current selection.
+                // The preview follows the pointer off the card unless the node is the selection.
                 if (ViewModel.SelectedNode != node && ViewModel.PreviewTitle == node.Title)
                 {
                     ViewModel.HidePreviewCard();
@@ -614,7 +926,7 @@ namespace MarkSmith.Views.MindMap
                 e.Handled = true;
                 GalaxyCanvas.Focus(FocusState.Programmatic);
                 ViewModel.SelectedLink = link;
-                RequestRedraw();
+                RequestRedraw(RedrawScope.Appearance);
             }
         }
 
@@ -662,7 +974,7 @@ namespace MarkSmith.Views.MindMap
             _isPanning = true;
             _lastPanPoint = e.GetCurrentPoint(GalaxyCanvas).Position;
             GalaxyCanvas.CapturePointer(e.Pointer);
-            RequestRedraw();
+            RequestRedraw(RedrawScope.Appearance);
         }
 
         private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -684,7 +996,7 @@ namespace MarkSmith.Views.MindMap
 
                 _draggedNode.X = _dragStartNodePoint.X + dx;
                 _draggedNode.Y = _dragStartNodePoint.Y + dy;
-                RequestRedraw();
+                RequestRedraw(RedrawScope.Geometry);
             }
             else if (_isPanning)
             {
@@ -693,7 +1005,7 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.ViewportOffsetX += dx;
                 ViewModel.ViewportOffsetY += dy;
                 _lastPanPoint = cur;
-                RequestRedraw();
+                RequestRedraw(RedrawScope.Transform);
             }
         }
 
@@ -739,7 +1051,7 @@ namespace MarkSmith.Views.MindMap
             ViewModel.ZoomLevel = newZoom;
             ViewModel.ViewportOffsetX = ((screenPoint.X - CanvasWidth / 2.0) / newZoom) - worldX;
             ViewModel.ViewportOffsetY = ((screenPoint.Y - CanvasHeight / 2.0) / newZoom) - worldY;
-            RequestRedraw();
+            RequestRedraw(RedrawScope.Transform);
         }
 
         // ---- Keyboard ----
@@ -842,7 +1154,7 @@ namespace MarkSmith.Views.MindMap
                 ViewModel.ZoomLevel = 1.0;
                 ViewModel.ViewportOffsetX = 0;
                 ViewModel.ViewportOffsetY = 0;
-                RequestRedraw();
+                RequestRedraw(RedrawScope.Transform);
                 return;
             }
 
@@ -860,7 +1172,7 @@ namespace MarkSmith.Views.MindMap
             ViewModel.ZoomLevel = zoom;
             ViewModel.ViewportOffsetX = -(minX + maxX) / 2.0;
             ViewModel.ViewportOffsetY = -(minY + maxY) / 2.0;
-            RequestRedraw();
+            RequestRedraw(RedrawScope.Transform);
         }
 
         private void OnLayoutTreeClick(object sender, RoutedEventArgs e) => ApplyLayoutAndFit("tree");
@@ -1305,10 +1617,17 @@ namespace MarkSmith.Views.MindMap
         private bool _isMinimapDragging;
         private double _minimapMinX, _minimapMinY, _minimapScale = 1.0;
 
-        private void RedrawMinimap()
+        private Microsoft.UI.Xaml.Shapes.Rectangle? _minimapLens;
+
+        /// <summary>
+        /// Rebuilds the radar's dots and edges. Only called when the scene or a position actually
+        /// changed — panning just moves the lens, which is one property write.
+        /// </summary>
+        private void RedrawMinimapContent()
         {
             if (MinimapCanvas == null) return;
             MinimapCanvas.Children.Clear();
+            _minimapLens = null;
 
             if (ViewModel.Nodes.Count == 0) return;
 
@@ -1317,7 +1636,7 @@ namespace MarkSmith.Views.MindMap
             double minY = ViewModel.Nodes.Min(n => n.Y);
             double maxY = ViewModel.Nodes.Max(n => n.Y + n.Height);
 
-            double padding = 250;
+            const double padding = 250;
             minX -= padding; maxX += padding;
             minY -= padding; maxY += padding;
 
@@ -1332,21 +1651,19 @@ namespace MarkSmith.Views.MindMap
             _minimapMinY = minY;
             _minimapScale = scale;
 
-            var byId = new Dictionary<string, MindMapNodeViewModel>(StringComparer.Ordinal);
-            foreach (var n in ViewModel.Nodes) byId[n.Id] = n;
-
             // Edges first: without them the radar is a field of unrelated dots and tells you
             // nothing about where the clusters are.
+            var edgeStroke = new SolidColorBrush(ColorFromHex("#3A3A55"));
             foreach (var link in ViewModel.Links)
             {
-                if (!byId.TryGetValue(link.SourceNodeId, out var s) || !byId.TryGetValue(link.TargetNodeId, out var t)) continue;
+                if (!_nodeIndex.TryGetValue(link.SourceNodeId, out var s1) || !_nodeIndex.TryGetValue(link.TargetNodeId, out var t1)) continue;
                 MinimapCanvas.Children.Add(new Line
                 {
-                    X1 = (s.X + s.Width / 2.0 - minX) * scale,
-                    Y1 = (s.Y + s.Height / 2.0 - minY) * scale,
-                    X2 = (t.X + t.Width / 2.0 - minX) * scale,
-                    Y2 = (t.Y + t.Height / 2.0 - minY) * scale,
-                    Stroke = new SolidColorBrush(ColorFromHex("#3A3A55")),
+                    X1 = (s1.X + s1.Width / 2.0 - minX) * scale,
+                    Y1 = (s1.Y + s1.Height / 2.0 - minY) * scale,
+                    X2 = (t1.X + t1.Width / 2.0 - minX) * scale,
+                    Y2 = (t1.Y + t1.Height / 2.0 - minY) * scale,
+                    Stroke = edgeStroke,
                     StrokeThickness = 0.6,
                     IsHitTestVisible = false
                 });
@@ -1370,15 +1687,8 @@ namespace MarkSmith.Views.MindMap
                 MinimapCanvas.Children.Add(dot);
             }
 
-            // Viewport camera lens
-            double zoom = ViewModel.ZoomLevel;
-            double viewWorldLeft = -ViewModel.ViewportOffsetX - (CanvasWidth / 2.0 / zoom);
-            double viewWorldTop = -ViewModel.ViewportOffsetY - (CanvasHeight / 2.0 / zoom);
-
-            var lens = new Microsoft.UI.Xaml.Shapes.Rectangle
+            _minimapLens = new Microsoft.UI.Xaml.Shapes.Rectangle
             {
-                Width = Math.Max(6, (CanvasWidth / zoom) * scale),
-                Height = Math.Max(4, (CanvasHeight / zoom) * scale),
                 Stroke = new SolidColorBrush(ColorFromHex("#7C4DFF")),
                 StrokeThickness = 1.5,
                 Fill = new SolidColorBrush(Color.FromArgb(40, 124, 77, 255)),
@@ -1386,9 +1696,23 @@ namespace MarkSmith.Views.MindMap
                 RadiusY = 2,
                 IsHitTestVisible = false
             };
-            Canvas.SetLeft(lens, (viewWorldLeft - minX) * scale);
-            Canvas.SetTop(lens, (viewWorldTop - minY) * scale);
-            MinimapCanvas.Children.Add(lens);
+            MinimapCanvas.Children.Add(_minimapLens);
+            UpdateMinimapLens();
+        }
+
+        /// <summary>Moves the viewport rectangle on the radar. This is all a pan needs to touch.</summary>
+        private void UpdateMinimapLens()
+        {
+            if (_minimapLens == null || _minimapScale <= 0) return;
+
+            double zoom = Math.Max(ViewModel.ZoomLevel, 0.0001);
+            double viewWorldLeft = -ViewModel.ViewportOffsetX - (CanvasWidth / 2.0 / zoom);
+            double viewWorldTop = -ViewModel.ViewportOffsetY - (CanvasHeight / 2.0 / zoom);
+
+            _minimapLens.Width = Math.Max(6, (CanvasWidth / zoom) * _minimapScale);
+            _minimapLens.Height = Math.Max(4, (CanvasHeight / zoom) * _minimapScale);
+            Canvas.SetLeft(_minimapLens, (viewWorldLeft - _minimapMinX) * _minimapScale);
+            Canvas.SetTop(_minimapLens, (viewWorldTop - _minimapMinY) * _minimapScale);
         }
 
         private void OnMinimapPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -1417,7 +1741,7 @@ namespace MarkSmith.Views.MindMap
             if (_minimapScale <= 0) return;
             ViewModel.ViewportOffsetX = -(_minimapMinX + (pt.X / _minimapScale));
             ViewModel.ViewportOffsetY = -(_minimapMinY + (pt.Y / _minimapScale));
-            RequestRedraw();
+            RequestRedraw(RedrawScope.Transform);
         }
 
         #endregion
