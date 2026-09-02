@@ -10,14 +10,35 @@
 
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync, mkdtempSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+// Browser discovery. CHROME_PATH wins so a CI runner or container can point at
+// whatever it has; otherwise try the usual per-platform locations. This used to be
+// two hardcoded Windows paths, which meant the README media could only ever be
+// regenerated on a Windows box even though the render itself is just headless
+// Chrome over CDP and works anywhere.
 const CHROME = [
+  process.env.CHROME_PATH,
+  // Linux / containers (including the Playwright browser bundle).
+  '/opt/pw-browsers/chromium',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome',
+  // macOS
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  // Windows
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-].find(existsSync);
+].find(p => p && existsSync(p));
+
+if (!CHROME) {
+  console.error('No Chrome/Chromium found. Set CHROME_PATH to a browser binary.');
+  process.exit(1);
+}
 
 const ASSETS = resolve('marksmith-v2/MarkSmith.Desktop/Assets/web');
 const args = process.argv.slice(2);
@@ -60,7 +81,10 @@ await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${DEV}`, '--disable-gpu',
   '--hide-scrollbars', '--no-first-run', '--force-color-profile=srgb',
-  `--user-data-dir=${process.env.TEMP}/marksmith-render-profile`,
+  `--user-data-dir=${mkdtempSync(join(tmpdir(), 'marksmith-render-'))}`,
+  // Containers usually run as root without a user namespace, where the sandbox
+  // cannot start; the page we load is our own local file either way.
+  ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
   'about:blank',
 ], { stdio: 'ignore' });
 

@@ -343,6 +343,17 @@ node   tools/capture/render-doc.mjs <doc.html> <out.png> --from "Heading"  # pre
 node   tools/capture/cdp-capture.mjs http://127.0.0.1:5000/ docs/media     # Marksmith Express
 ```
 
+**Run these on Windows.** `capture_desktop.py` and `record_desktop.py` drive the WinUI app through
+`win32gui`, and `capture_word.py` drives Microsoft Word itself over COM — there is no substitute for
+either, which is the point: the images are Word's own layout and the app's own window, not a
+re-implementation.
+
+`render-doc.mjs` will run anywhere with a Chromium (set `CHROME_PATH` to override discovery), but the
+HTML asks for **Segoe UI** and **Cascadia Code**. Off Windows those silently fall back to whatever
+the host has, so the prose renders in the wrong typeface while the maths stays correct (KaTeX ships
+its own fonts). A capture made that way is a real render but not what a customer sees — regenerate
+the committed media on Windows.
+
 ---
 
 ## Pricing
