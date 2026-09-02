@@ -76,7 +76,7 @@ namespace MarkSmith.Models.MindMap
         public double Width { get; set; } = 180;
         public double Height { get; set; } = 56;
         public string ColorHex { get; set; } = "#FF7C4D";
-        public string? Icon { get; set; } = "📄";
+        public string? Icon { get; set; } = "\uE8A5";
         public int Progress { get; set; } = 0; // 0..100
         public List<string> Tags { get; set; } = new();
         public string? MarkdownContent { get; set; }

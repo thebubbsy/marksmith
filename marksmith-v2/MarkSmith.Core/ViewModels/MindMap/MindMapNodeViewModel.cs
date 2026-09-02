@@ -106,7 +106,7 @@ namespace MarkSmith.ViewModels.MindMap
                 VersionCount = versions.Count;
                 if (versions.Count > 0)
                 {
-                    VersionCountText = $"⏱️ {versions.Count} {(versions.Count == 1 ? "version" : "versions")}";
+                    VersionCountText = $"{versions.Count} {(versions.Count == 1 ? "version" : "versions")}";
                     var latest = versions[0];
                     LatestVersionLabel = latest.CreatedAt.LocalDateTime.ToString("d MMM · HH:mm");
                 }
@@ -221,7 +221,7 @@ namespace MarkSmith.ViewModels.MindMap
             _width = model.Width > 0 ? model.Width : 180;
             _height = model.Height > 0 ? model.Height : 56;
             _colorHex = model.ColorHex ?? "#FF7C4D";
-            _icon = model.Icon ?? "📄";
+            _icon = model.Icon ?? "\uE8A5";
             _progress = model.Progress;
             _markdownContent = model.MarkdownContent;
             _isCollapsed = model.IsCollapsed;

@@ -282,18 +282,23 @@ Preset Highlights & Shading:
     }
 
     [Fact]
-    public void CriticMarkup_Comments_Are_Stripped()
+    public void CriticMarkup_Comments_Are_Exported_As_Word_Comments_And_Not_In_Body_Prose()
     {
         var input = "Text before {>>this is a comment<<} text after.";
         var normalized = DialectNormalizer.Apply(input);
-        Assert.DoesNotContain("this is a comment", normalized);
+        Assert.Contains("data-comment=\"this is a comment\"", normalized);
 
         using var doc = OpenGeneratedDoc(input, out var path);
         try
         {
             var body = doc.MainDocumentPart!.Document.Body!;
             var text = body.InnerText;
+            // Native Word comment text is stored in comments.xml, not leaked in document body prose
             Assert.DoesNotContain("this is a comment", text);
+
+            var commentsPart = doc.MainDocumentPart!.WordprocessingCommentsPart;
+            Assert.NotNull(commentsPart);
+            Assert.Contains(commentsPart.Comments.Descendants<W.Text>(), t => t.Text == "this is a comment");
         }
         finally
         {

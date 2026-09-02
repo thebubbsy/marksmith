@@ -180,20 +180,18 @@ public sealed class DocxExportService
             package.PackageProperties.Modified = DateTime.UtcNow;
 
             var main = package.AddMainDocumentPart();
-            var body = new W.Body();
-            // w:background must precede w:body; displayBackgroundShape in settings makes Word honor it.
-            main.Document = new W.Document(
-                new W.DocumentBackground { Color = Hex(theme.Background) }, body);
-            
-            main.Document.AddNamespaceDeclaration("w14", "http://schemas.microsoft.com/office/word/2010/wordml");
-            main.Document.AddNamespaceDeclaration("w15", "http://schemas.microsoft.com/office/word/2012/wordml");
-            main.Document.MCAttributes = new DocumentFormat.OpenXml.MarkupCompatibilityAttributes { Ignorable = "w14 w15" };
+
+            ReferenceDocumentMerger.MergedReferenceResult? refMerge = null;
+            if (ReferenceDocumentMerger.IsValidReferenceDocument(settings.BrandTemplatePath))
+            {
+                refMerge = ReferenceDocumentMerger.MergeReference(main, settings.BrandTemplatePath, theme, settings);
+            }
 
             var ctx = new Ctx
             {
                 Settings = settings,
                 MainPart = main,
-                Numbering = AddNumbering(main),
+                Numbering = main.NumberingDefinitionsPart?.Numbering ?? AddNumbering(main),
                 Theme = theme,
                 Alerts = isDark ? AlertStylesDark : AlertStyles,
                 LinkColor = isDark ? "6CB6FF" : "0563C1",
@@ -203,10 +201,16 @@ public sealed class DocxExportService
                 MermaidGeometry = mermaidGeometry,
                 MermaidExactLayout = mermaidGeometry is not null, // geometry is only harvested when exact chosen
                 MermaidGenericGeometry = mermaidGenericGeometry,
-                BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily) ? null : settings.BrandFontFamily.Trim(),
+                BrandFont = string.IsNullOrWhiteSpace(settings.BrandFontFamily)
+                    ? (refMerge?.ExtractedBrandFont ?? null)
+                    : settings.BrandFontFamily.Trim(),
                 OversizedDiagramMode = 4, // forced: Aggressive Shrink (one page) always — product mandate, never Ask
                 SmartConnectors = settings.SmartConnectors,
                 AdvancedFeatures = featureDict,
+                NextNumId = refMerge?.NextNumId ?? 2,
+                BulletNumId = refMerge?.BulletNumId ?? 1,
+                BulletAbstractNumId = refMerge?.BulletAbstractNumId ?? 0,
+                OrderedAbstractNumId = refMerge?.OrderedAbstractNumId ?? 1,
             };
 
             foreach (var (_, featNode) in featureDict)
@@ -219,7 +223,11 @@ public sealed class DocxExportService
                     ctx.CoverPage = ExtractCoverPage(featNode);
             }
 
-            AddStyles(main, ctx);
+            if (refMerge is null || !refMerge.Applied || main.StyleDefinitionsPart is null)
+            {
+                AddStyles(main, ctx);
+            }
+
             CollectAnchors(doc, ctx);
 
             var imageUrls = doc.Descendants<LinkInline>().Where(l => l.IsImage)
@@ -230,30 +238,90 @@ public sealed class DocxExportService
                 ctx.ImageCache[url] = FetchImageBytes(url);
             });
 
-            if (settings.BrandCoverPage) AppendCoverPage(body, ctx, settings, title);
-            if (settings.IncludeToc) AppendTocField(body, ctx);
+            // True O(1) Memory SAX Streaming Architecture via OpenXmlWriter
+            using (var writer = OpenXmlWriter.Create(main))
+            {
+                var rootAttributes = new List<OpenXmlAttribute>
+                {
+                    new("mc", "Ignorable", "http://schemas.openxmlformats.org/markup-compatibility/2006", "w14 w15")
+                };
 
-            foreach (var block in doc)
-                RenderBlock(block, body, ctx, listLevel: -1);
+                var rootNamespaces = new List<KeyValuePair<string, string>>
+                {
+                    new("w", "http://schemas.openxmlformats.org/wordprocessingml/2006/main"),
+                    new("r", "http://schemas.openxmlformats.org/officeDocument/2006/relationships"),
+                    new("m", "http://schemas.openxmlformats.org/officeDocument/2006/math"),
+                    new("w14", "http://schemas.microsoft.com/office/word/2010/wordml"),
+                    new("w15", "http://schemas.microsoft.com/office/word/2012/wordml"),
+                    new("a", "http://schemas.openxmlformats.org/drawingml/2006/main"),
+                    new("wp", "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"),
+                    new("pic", "http://schemas.openxmlformats.org/drawingml/2006/picture"),
+                    new("c", "http://schemas.openxmlformats.org/drawingml/2006/chart"),
+                    new("dgm", "http://schemas.openxmlformats.org/drawingml/2006/diagram"),
+                    new("wpg", "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"),
+                    new("wps", "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"),
+                    new("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")
+                };
 
-            if (cleanupNotes is { Count: > 0 }) AddCleanupComment(main, body, cleanupNotes);
+                writer.WriteStartElement(new W.Document(), rootAttributes, rootNamespaces);
+                writer.WriteElement(new W.DocumentBackground { Color = Hex(theme.Background) });
+                writer.WriteStartElement(new W.Body());
 
-            // Written after rendering: an oversized ShapeForge diagram flips the doc to Web Layout,
-            // where a wider-than-page drawing scrolls instead of clipping (the user's own idea).
-            // Pagination governs (user decision): a DOCX export is ALWAYS Print Layout so Word shows
-            // real page breaks, and the paged preview stays truthful about where they land. Web
-            // layout (UnlimitedHeight / dark-theme web mode) only applies to non-DOCX outputs.
-            // PageBorder also forces Print Layout (Word doesn't render pgBorders in Web Layout).
+                if (settings.BrandCoverPage)
+                {
+                    var coverContainer = new W.Body();
+                    AppendCoverPage(coverContainer, ctx, settings, title);
+                    foreach (var el in coverContainer.ChildElements)
+                        writer.WriteElement(el);
+                }
+
+                if (settings.IncludeToc)
+                {
+                    var tocContainer = new W.Body();
+                    AppendTocField(tocContainer, ctx);
+                    foreach (var el in tocContainer.ChildElements)
+                        writer.WriteElement(el);
+                }
+
+                bool firstParagraphFound = false;
+                foreach (var block in doc)
+                {
+                    var blockContainer = new W.Body();
+                    RenderBlock(block, blockContainer, ctx, listLevel: -1);
+
+                    if (!firstParagraphFound && cleanupNotes is { Count: > 0 })
+                    {
+                        var firstPara = blockContainer.Descendants<W.Paragraph>().FirstOrDefault();
+                        if (firstPara is not null)
+                        {
+                            AddCleanupComment(main, firstPara, cleanupNotes);
+                            firstParagraphFound = true;
+                        }
+                    }
+
+                    foreach (var el in blockContainer.ChildElements)
+                    {
+                        writer.WriteElement(el);
+                    }
+                }
+
+                // Final section properties
+                var sectPr = BuildSectionProperties(main, ctx, settings, title, refMerge);
+                writer.WriteElement(sectPr);
+
+                writer.WriteEndElement(); // </w:body>
+                writer.WriteEndElement(); // </w:document>
+            }
+
+            // Auxiliary parts & settings
             var wantWeb = ctx.ForceWebLayout || (settings.TargetFormat != "docx"
                           && (!settings.PageBorder && settings.UnlimitedHeight
                               || !ThemeDefinition.IsLight(ctx.Theme.Background)));
             AddSettings(main, ctx, updateFieldsOnOpen: settings.IncludeToc || ctx.HasIndex || ctx.HasFormulas, trackChanges: settings.TrackChanges || ctx.HasRevisions,
                 webLayout: wantWeb);
 
-            body.Append(BuildSectionProperties(main, ctx, settings, title));
             // Tier 1 enabler: tuck the original source away so this file reopens byte-for-byte.
             MarksmithSourceStore.Embed(main, originalSource, settings);
-            main.Document.Save();
         });
 
         // The trial cap is enforced HERE — the one chokepoint every DOCX export passes through
@@ -265,7 +333,7 @@ public sealed class DocxExportService
 
     // A genuine Word comment (review pane, margin bubble) anchored on the first paragraph.
     // Generates an audit trail of structural transformations performed by the normalization pipeline.
-    private static void AddCleanupComment(MainDocumentPart main, W.Body body, IReadOnlyList<string> notes)
+    private static void AddCleanupComment(MainDocumentPart main, W.Paragraph first, IReadOnlyList<string> notes)
     {
         var part = main.WordprocessingCommentsPart ?? main.AddNewPart<WordprocessingCommentsPart>();
         part.Comments ??= new W.Comments();
@@ -278,13 +346,12 @@ public sealed class DocxExportService
         part.Comments.Append(comment);
         part.Comments.Save();
 
-        var first = body.Elements<W.Paragraph>().FirstOrDefault();
-        if (first is null) { first = new W.Paragraph(); body.PrependChild(first); }
         int at = first.Elements<W.ParagraphProperties>().Any() ? 1 : 0;
         first.InsertAt(new W.CommentRangeStart { Id = "1" }, at);
         first.Append(new W.CommentRangeEnd { Id = "1" });
         first.Append(new W.Run(new W.CommentReference { Id = "1" }));
     }
+
 
     // Append mode: add the content as a dated section to an existing running document instead of
     // creating a new file — a growing compendium of your AI work. Creates the file fresh if missing.
@@ -407,13 +474,16 @@ public sealed class DocxExportService
     private sealed class Ctx
     {
         public required MainDocumentPart MainPart { get; init; }
-        public required W.Numbering Numbering { get; init; }
+        public required W.Numbering Numbering { get; set; }
         public required AppSettings Settings { get; init; }
         public required ThemeDefinition Theme { get; init; }
         public required Dictionary<string, (string Color, string Icon)> Alerts { get; init; }
         public required string LinkColor { get; init; }
         public required bool NoEmoji { get; init; }
-        public int NextNumId = 2; // numId 1 is the shared bullet instance
+        public int NextNumId { get; set; } = 2; // numId 1 is the shared bullet instance
+        public int BulletNumId { get; set; } = 1;
+        public int BulletAbstractNumId { get; set; } = 0;
+        public int OrderedAbstractNumId { get; set; } = 1;
         public int NextBookmarkId = 1;
         public uint NextDrawingId = 1000; // docPr ids for drawings (mermaid shapes / snapshots)
         public int NextRevisionId = 1;    // sequential revision id for OpenXML track changes
@@ -2669,7 +2739,7 @@ public sealed class DocxExportService
         // restarts per list (same behavior as HTML <ol>).
         var numId = list.IsOrdered
             ? NewOrderedInstance(ctx, int.TryParse(list.OrderedStart, out var s) ? s : 1, level)
-            : 1;
+            : ctx.BulletNumId;
 
         foreach (var itemBlock in list)
         {
@@ -2715,11 +2785,12 @@ public sealed class DocxExportService
     {
         var id = ctx.NextNumId++;
         ctx.Numbering.Append(new W.NumberingInstance(
-            new W.AbstractNumId { Val = 1 },
+            new W.AbstractNumId { Val = ctx.OrderedAbstractNumId },
             new W.LevelOverride(new W.StartOverrideNumberingValue { Val = start }) { LevelIndex = level })
         { NumberID = id });
         return id;
     }
+
 
     // GitHub alert -> single-cell 100%-width table: colored left border + theme secondary fill,
     // bold colored "{icon} {KIND}" title line. Mirrors the HTML tables the Python app fed pandoc.
@@ -4365,7 +4436,7 @@ public sealed class DocxExportService
         return sb.ToString().Trim();
     }
 
-    private static readonly Regex EmojiRegex = new Regex(@"([\u203C-\u3299]|[\uD83C-\uD83E][\uDC00-\uDFFF])", RegexOptions.Compiled);
+    private static readonly Regex EmojiRegex = new Regex(@"([\uD83C-\uD83E][\uDC00-\uDFFF]|[\u2600-\u27BF])", RegexOptions.Compiled);
 
     private static int _globalRevisionId = 0;
 
@@ -4693,9 +4764,110 @@ public sealed class DocxExportService
     }
 
     private static W.SectionProperties BuildSectionProperties(
-        MainDocumentPart main, Ctx ctx, AppSettings settings, string title)
+        MainDocumentPart main, Ctx ctx, AppSettings settings, string title, ReferenceDocumentMerger.MergedReferenceResult? refMerge = null)
     {
+        static W.Run FooterRun(string text) => new(
+            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
+            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
+        static W.SimpleField Field(string instruction) => new(new W.Run(
+            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
+            new W.Text("1")))
+        { Instruction = instruction };
+        W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
+            new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
+
+        if (refMerge is { Applied: true, InheritedSectionProperties: { } inheritedSp })
+        {
+            var targetSp = (W.SectionProperties)inheritedSp.CloneNode(true);
+
+            // Watermark injection
+            if (ctx.Watermark is { } wm)
+            {
+                var firstHdrRef = targetSp.Elements<W.HeaderReference>().FirstOrDefault();
+                if (firstHdrRef?.Id?.Value is { Length: > 0 } hId && main.GetPartById(hId) is HeaderPart hp)
+                {
+                    hp.Header ??= new W.Header();
+                    hp.Header.Append(BuildWatermarkParagraph(wm));
+                }
+            }
+
+            if (!targetSp.Elements<W.HeaderReference>().Any())
+            {
+                var headerPart = main.AddNewPart<HeaderPart>();
+                headerPart.Header = new W.Header(new W.Paragraph(
+                    new W.ParagraphProperties(
+                        new W.ParagraphBorders(new W.BottomBorder
+                        {
+                            Val = W.BorderValues.Single, Size = 6, Space = 3, Color = ctx.BorderHex
+                        }),
+                        new W.SpacingBetweenLines { After = "0" },
+                        new W.Justification { Val = W.JustificationValues.Right }),
+                    new W.Run(
+                        new W.RunProperties(
+                            new W.SmallCaps(),
+                            new W.Color { Val = ctx.HeadingHex },
+                            new W.Spacing { Val = 30 },
+                            new W.FontSize { Val = "18" }),
+                        new W.Text(title) { Space = SpaceProcessingModeValues.Preserve })));
+
+                if (ctx.Watermark is { } wm2)
+                {
+                    headerPart.Header.Append(BuildWatermarkParagraph(wm2));
+                }
+                targetSp.PrependChild(new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) });
+            }
+
+            if (!targetSp.Elements<W.FooterReference>().Any())
+            {
+                var footerPart = main.AddNewPart<FooterPart>();
+                footerPart.Footer = new W.Footer(new W.Paragraph(
+                    new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { After = "0" },
+                        new W.Justification { Val = W.JustificationValues.Center }),
+                    FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES ")));
+
+                if (settings.ShowAttribution && Themes.IsBuiltin(settings.Theme))
+                {
+                    footerPart.Footer = new W.Footer(new W.Paragraph(
+                        new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { After = "0" },
+                            new W.Justification { Val = W.JustificationValues.Center }),
+                        FooterRun("Page "), Field(" PAGE "), FooterRun(" of "), Field(" NUMPAGES "),
+                        FooterRun("  \u00b7  MarkSmith")));
+                }
+                targetSp.Append(new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) });
+            }
+
+            if (settings.PageBorder && !targetSp.Elements<W.PageBorders>().Any())
+            {
+                targetSp.Append(new W.PageBorders(
+                    PageBorder<W.TopBorder>(), PageBorder<W.LeftBorder>(),
+                    PageBorder<W.BottomBorder>(), PageBorder<W.RightBorder>())
+                {
+                    OffsetFrom = W.PageBorderOffsetValues.Page,
+                    Display = W.PageBorderDisplayValues.AllPages,
+                });
+            }
+
+            if (ctx.LineNumbers is { } lineNum && !targetSp.Elements<W.LineNumberType>().Any())
+            {
+                targetSp.Append(new W.LineNumberType
+                {
+                    CountBy = (Int16Value)(short)lineNum.CountBy,
+                    Restart = lineNum.Restart == "per-page" || lineNum.Restart == "newpage"
+                        ? W.LineNumberRestartValues.NewPage
+                        : W.LineNumberRestartValues.Continuous,
+                    Distance = lineNum.Distance.ToString(),
+                    Start = (Int16Value)(short)lineNum.Start
+                });
+            }
+
+            return targetSp;
+        }
+
+
         var layout = settings.BrandLayout;
+
 
         // ---- header: the template's own running header when the house style provides one ----
         W.HeaderReference headerRef;
@@ -4735,14 +4907,6 @@ public sealed class DocxExportService
             }
             headerRef = new W.HeaderReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(headerPart) };
         }
-
-        static W.Run FooterRun(string text) => new(
-            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
-            new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
-        static W.SimpleField Field(string instruction) => new(new W.Run(
-            new W.RunProperties(new W.Color { Val = "808080" }, new W.FontSize { Val = "16" }),
-            new W.Text("1")))
-        { Instruction = instruction };
 
         // ---- footer: the template's own footer, else generated "Page X of Y" (+ optional stamp) ----
         W.FooterReference footerRef;
@@ -4809,10 +4973,8 @@ public sealed class DocxExportService
         pageMargin.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "gutter",
             "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "0"));
 
-        W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
-            new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
-
         var sp = new W.SectionProperties(headerRef, footerRef, pageSize, pageMargin);
+
 
         // The full page frame is opt-in (default off) — a converted document should read like a clean
         // document, not a framed certificate. When enabled it's drawn in the theme border color.

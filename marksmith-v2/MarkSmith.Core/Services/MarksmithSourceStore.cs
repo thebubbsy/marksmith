@@ -123,7 +123,7 @@ public static class MarksmithSourceStore
         return null;
     }
 
-    private static bool IsSourcePart(CustomXmlPart part)
+    public static bool IsSourcePart(CustomXmlPart part)
     {
         try
         {

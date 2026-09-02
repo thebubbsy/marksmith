@@ -96,7 +96,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 240,
                 Height = 62,
                 ColorHex = "#FF7C4D",
-                Icon = "🌌",
+                Icon = "\uEC07",
                 Progress = 100,
                 Tags = new() { "#vault", "#root" }
             };
@@ -256,7 +256,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 200,
                 Height = 54,
                 ColorHex = palette[(key.GetHashCode() & 0x7FFFFFFF) % palette.Length],
-                Icon = "🗂️",
+                Icon = "\uE8B7",
                 ParentId = parent.Id,
                 Tags = new List<string> { "#folder" }
             };
@@ -637,14 +637,14 @@ namespace MarkSmith.Services.MindMap
 
         private static string IconFor(string ext) => ext switch
         {
-            ".md" or ".markdown" or ".mdx" => "📝",
-            ".docx" or ".rtf" => "📄",
-            ".pdf" => "📑",
-            ".pptx" => "📊",
-            ".epub" => "📚",
-            ".html" or ".htm" => "🌐",
-            ".txt" => "🗒️",
-            _ => "📄"
+            ".md" or ".markdown" or ".mdx" => "\uE82D",
+            ".docx" or ".rtf" => "\uE8A5",
+            ".pdf" => "\uEA90",
+            ".pptx" => "\uE9D2",
+            ".epub" => "\uE82D",
+            ".html" or ".htm" => "\uE774",
+            ".txt" => "\uE8A5",
+            _ => "\uE8A5"
         };
     }
 }

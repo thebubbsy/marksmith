@@ -142,5 +142,6 @@ public interface IWebRenderHost
 public interface IUiPrompts
 {
     // Ask the user to resolve an ambiguous construct in the markdown.
-    Task<MarkSmith.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(MarkSmith.Models.AmbiguityCase ambiguity);
+    Task<global::MarkSmith.Models.RenderOption?> ShowAmbiguityResolverDialogAsync(global::MarkSmith.Models.AmbiguityCase ambiguity);
 }
+

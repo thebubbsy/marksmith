@@ -1,0 +1,741 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MarkSmith WebApp - Design System & Modern Looking Glass Theme
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ms-bg-app: #0f1117;
+  --ms-bg-card: #181b24;
+  --ms-bg-surface: #1e222d;
+  --ms-bg-surface-hover: #272d3b;
+  --ms-bg-surface-active: #32394a;
+  
+  --ms-page-bg: #ffffff;
+  --ms-page-text: #1a1a1e;
+  --ms-page-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  
+  --ms-border: #2b313f;
+  --ms-border-subtle: #202531;
+  --ms-border-focus: #38ef7d;
+  
+  --ms-text-primary: #f0f3f8;
+  --ms-text-secondary: #9aa5b8;
+  --ms-text-muted: #626d82;
+  
+  --ms-accent: #11998e;
+  --ms-accent-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  --ms-accent-hover: #15b5a8;
+  --ms-accent-text: #ffffff;
+  
+  --ms-danger: #ef4444;
+  --ms-warning: #f59e0b;
+  --ms-success: #10b981;
+  --ms-info: #3b82f6;
+
+  --ms-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ms-font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --ms-font-serif: "Merriweather", "Georgia", serif;
+  
+  --ms-radius-sm: 4px;
+  --ms-radius-md: 8px;
+  --ms-radius-lg: 12px;
+  --ms-radius-full: 9999px;
+  
+  --ms-header-height: 48px;
+  --ms-ribbon-height: 44px;
+  --ms-statusbar-height: 28px;
+}
+
+[data-theme="light"] {
+  --ms-bg-app: #f3f4f8;
+  --ms-bg-card: #ffffff;
+  --ms-bg-surface: #eaecef;
+  --ms-bg-surface-hover: #dde0e6;
+  --ms-bg-surface-active: #cfd4dc;
+  
+  --ms-page-bg: #ffffff;
+  --ms-page-text: #1a1a1e;
+  --ms-page-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  
+  --ms-border: #d2d6dc;
+  --ms-border-subtle: #e5e7eb;
+  
+  --ms-text-primary: #111827;
+  --ms-text-secondary: #4b5563;
+  --ms-text-muted: #8492a6;
+  
+  --ms-accent: #0f766e;
+  --ms-accent-gradient: linear-gradient(135deg, #0f766e 0%, #10b981 100%);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--ms-font-sans);
+  background-color: var(--ms-bg-app);
+  color: var(--ms-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Main Marksmith App Shell Layout
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ms-app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--ms-bg-app);
+}
+
+/* Header / TitleBar */
+.ms-titlebar {
+  height: var(--ms-header-height);
+  background-color: var(--ms-bg-card);
+  border-bottom: 1px solid var(--ms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  user-select: none;
+  z-index: 50;
+}
+
+.ms-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ms-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--ms-text-primary);
+}
+
+.ms-brand-tagline {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ms-text-muted);
+  border-left: 1px solid var(--ms-border);
+  padding-left: 10px;
+  margin-left: 4px;
+}
+
+.ms-doc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--ms-bg-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-full);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ms-text-secondary);
+}
+
+.ms-titlebar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Buttons */
+.ms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--ms-radius-md);
+  border: 1px solid var(--ms-border);
+  background-color: var(--ms-bg-surface);
+  color: var(--ms-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ms-btn:hover {
+  background-color: var(--ms-bg-surface-hover);
+  border-color: var(--ms-border-focus);
+}
+
+.ms-btn:active {
+  background-color: var(--ms-bg-surface-active);
+}
+
+.ms-btn-primary {
+  background: var(--ms-accent-gradient);
+  color: var(--ms-accent-text);
+  border: none;
+  font-weight: 600;
+}
+
+.ms-btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 8px rgba(17, 153, 142, 0.35);
+}
+
+.ms-btn-icon {
+  width: 32px;
+  padding: 0;
+}
+
+.ms-btn-sm {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   3-Pane Looking Glass Workspace
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ms-workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Left Pane: Source */
+.ms-pane-left {
+  width: 280px;
+  min-width: 240px;
+  background-color: var(--ms-bg-card);
+  border-right: 1px solid var(--ms-border);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+}
+
+.ms-pane-left.collapsed {
+  width: 48px;
+  min-width: 48px;
+}
+
+.ms-pane-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ms-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-accent-gradient);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ms-step-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ms-text-primary);
+}
+
+.ms-step-caption {
+  font-size: 11px;
+  color: var(--ms-text-muted);
+}
+
+.ms-pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Ingest / Source Card */
+.ms-source-card {
+  background-color: var(--ms-bg-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-md);
+  padding: 12px;
+}
+
+.ms-source-card h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ms-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.ms-chat-ingest-box {
+  width: 100%;
+  height: 90px;
+  background-color: var(--ms-bg-app);
+  border: 1px dashed var(--ms-border);
+  border-radius: var(--ms-radius-sm);
+  padding: 8px;
+  color: var(--ms-text-primary);
+  font-family: var(--ms-font-sans);
+  font-size: 12px;
+  resize: none;
+  outline: none;
+}
+
+.ms-chat-ingest-box:focus {
+  border-color: var(--ms-border-focus);
+}
+
+/* Center Pane: Looking Glass (Editor) */
+.ms-pane-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--ms-bg-app);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Ribbon / Toolbar */
+.ms-ribbon {
+  min-height: var(--ms-ribbon-height);
+  background-color: var(--ms-bg-card);
+  border-bottom: 1px solid var(--ms-border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 6px;
+  overflow-x: auto;
+  user-select: none;
+  z-index: 30;
+}
+
+.ms-ribbon-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.ms-ribbon-sep {
+  width: 1px;
+  height: 20px;
+  background-color: var(--ms-border);
+  margin: 0 4px;
+}
+
+.ms-ribbon-btn {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--ms-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ms-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.ms-ribbon-btn:hover {
+  background-color: var(--ms-bg-surface-hover);
+  border-color: var(--ms-border);
+}
+
+.ms-ribbon-btn.active {
+  background-color: var(--ms-bg-surface-active);
+  border-color: var(--ms-accent);
+  color: var(--ms-accent);
+}
+
+.ms-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  background-color: var(--ms-bg-card);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ms-dropdown-item {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--ms-text-primary);
+  border-radius: var(--ms-radius-sm);
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ms-dropdown-item:hover {
+  background-color: var(--ms-bg-surface-hover);
+}
+
+/* Page Viewport & Canvas (Simulated DOCX Page) */
+.ms-page-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 32px 16px;
+  display: flex;
+  justify-content: center;
+  background-color: var(--ms-bg-app);
+}
+
+.ms-page-canvas {
+  width: 816px; /* standard 8.5in at 96 DPI */
+  min-height: 1056px; /* standard 11in A4/Letter */
+  background-color: var(--ms-page-bg);
+  color: var(--ms-page-text);
+  box-shadow: var(--ms-page-shadow);
+  border-radius: 2px;
+  padding: 72px 80px; /* standard 1in margins */
+  position: relative;
+  outline: none;
+  font-family: var(--ms-font-sans);
+  line-height: 1.65;
+  font-size: 15px;
+  word-break: break-word;
+  transition: width 0.2s ease;
+}
+
+.ms-page-canvas:focus {
+  box-shadow: var(--ms-page-shadow), 0 0 0 2px var(--ms-accent);
+}
+
+/* Document Typography Styling */
+.ms-page-canvas h1,
+.ms-page-canvas h2,
+.ms-page-canvas h3,
+.ms-page-canvas h4,
+.ms-page-canvas h5,
+.ms-page-canvas h6 {
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.4em;
+  margin-bottom: 0.5em;
+  color: #111827;
+}
+
+.ms-page-canvas h1 { font-size: 2.1em; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; }
+.ms-page-canvas h2 { font-size: 1.6em; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.2em; }
+.ms-page-canvas h3 { font-size: 1.3em; }
+.ms-page-canvas h4 { font-size: 1.1em; }
+.ms-page-canvas h5 { font-size: 1.0em; }
+.ms-page-canvas h6 { font-size: 0.9em; color: #6b7280; }
+
+.ms-page-canvas p {
+  margin-bottom: 0.85em;
+}
+
+.ms-page-canvas table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.2em 0;
+  font-size: 14px;
+}
+
+.ms-page-canvas th,
+.ms-page-canvas td {
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.ms-page-canvas th {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+.ms-page-canvas a {
+  color: #0284c7;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ms-page-canvas mark[data-ms-comment] {
+  background-color: rgba(254, 240, 138, 0.7);
+  border-bottom: 2px solid #eab308;
+  padding: 2px 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ms-page-canvas ins[data-ms-change] {
+  background-color: rgba(187, 247, 208, 0.6);
+  border-bottom: 2px solid #22c55e;
+  text-decoration: none;
+  padding: 1px 0;
+}
+
+.ms-page-canvas del[data-ms-change] {
+  background-color: rgba(254, 202, 202, 0.6);
+  color: #991b1b;
+  text-decoration: line-through;
+  padding: 1px 0;
+}
+
+/* Callout Boxes */
+.ms-callout {
+  padding: 12px 16px;
+  border-radius: var(--ms-radius-sm);
+  margin: 1em 0;
+  border-left: 4px solid var(--ms-accent);
+  background-color: #f8fafc;
+}
+
+.ms-callout-note { border-left-color: #3b82f6; background-color: #eff6ff; }
+.ms-callout-tip { border-left-color: #10b981; background-color: #ecfdf5; }
+.ms-callout-warning { border-left-color: #f59e0b; background-color: #fffbeb; }
+
+/* Right Pane: Style & Export */
+.ms-pane-right {
+  width: 320px;
+  min-width: 260px;
+  background-color: var(--ms-bg-card);
+  border-left: 1px solid var(--ms-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.ms-tabs-bar {
+  display: flex;
+  border-bottom: 1px solid var(--ms-border);
+  background-color: var(--ms-bg-surface);
+}
+
+.ms-tab-btn {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ms-text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ms-tab-btn.active {
+  color: var(--ms-text-primary);
+  border-bottom-color: var(--ms-accent);
+  background-color: var(--ms-bg-card);
+}
+
+/* Theme Swatches */
+.ms-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ms-theme-card {
+  padding: 10px;
+  border-radius: var(--ms-radius-md);
+  border: 1px solid var(--ms-border);
+  background-color: var(--ms-bg-surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.ms-theme-card:hover {
+  border-color: var(--ms-border-focus);
+  background-color: var(--ms-bg-surface-hover);
+}
+
+.ms-theme-card.active {
+  border-color: var(--ms-accent);
+  box-shadow: 0 0 0 2px rgba(17, 153, 142, 0.3);
+}
+
+.ms-theme-preview-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.ms-theme-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--ms-radius-full);
+}
+
+/* Document Outline / Table of Contents */
+.ms-outline-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ms-outline-item {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: var(--ms-radius-sm);
+  color: var(--ms-text-secondary);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ms-outline-item:hover {
+  background-color: var(--ms-bg-surface-hover);
+  color: var(--ms-text-primary);
+}
+
+.ms-outline-item.h1 { font-weight: 600; padding-left: 8px; }
+.ms-outline-item.h2 { padding-left: 20px; font-size: 12px; }
+.ms-outline-item.h3 { padding-left: 32px; font-size: 11px; opacity: 0.85; }
+
+/* Status Bar */
+.ms-statusbar {
+  height: var(--ms-statusbar-height);
+  background-color: var(--ms-bg-card);
+  border-top: 1px solid var(--ms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-size: 11px;
+  color: var(--ms-text-muted);
+  user-select: none;
+  z-index: 50;
+}
+
+.ms-statusbar-left,
+.ms-statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ms-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ms-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--ms-radius-full);
+  background-color: var(--ms-success);
+}
+
+.ms-status-dot.syncing {
+  background-color: var(--ms-warning);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+/* Modals */
+.ms-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ms-modal {
+  width: 460px;
+  max-width: 90vw;
+  background-color: var(--ms-bg-card);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-lg);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: modalEnter 0.15s ease-out;
+}
+
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ms-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ms-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ms-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ms-modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--ms-border);
+  background-color: var(--ms-bg-surface);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

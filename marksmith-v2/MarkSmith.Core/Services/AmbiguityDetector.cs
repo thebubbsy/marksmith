@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
-using MarkSmith.Models;
+using global::MarkSmith.Models;
 
 public static class AmbiguityDetector
 {

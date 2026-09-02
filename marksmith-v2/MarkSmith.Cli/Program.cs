@@ -42,6 +42,11 @@ namespace MarkSmith.Cli
 
             try
             {
+                if (cmd == "mcp" || cmd == "--mcp")
+                {
+                    return await Commands.McpCommand.RunAsync(args.Skip(1).ToArray());
+                }
+
                 if (cmd == "batch" || args[0] == "--batch")
                 {
                     string inputPattern = "./*.md";
@@ -497,6 +502,7 @@ namespace MarkSmith.Cli
             Console.WriteLine();
             Console.WriteLine("Usage:");
             Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith mcp [--transport <stdio|sse>] [--port <port>]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
             Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");

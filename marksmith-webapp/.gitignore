@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node / client
+node_modules/
+client/dist/
+
+# Session snapshots (runtime data)
+sessions/
+
+# IDE
+.vs/
+.vscode/
+*.suo
