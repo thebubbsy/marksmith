@@ -2225,7 +2225,7 @@ public sealed partial class MarkdownHtmlService
             if (ShellCache.Count > 12) ShellCache.Clear();
             ShellCache[shellKey] = shell;
         }
-        return shell.Head + attribution + toc + body + footer + shell.Tail;
+        return shell.Head + statsPill + attribution + toc + body + footer + shell.Tail;
     }
 
     // Preview shell cache (perf audit #18): the ~50 KB JS/CSS shell depends only on theme,
@@ -2424,11 +2424,13 @@ public sealed partial class MarkdownHtmlService
 
         var attribution = BuildAttribution(settings, classification, theme);
         var toc = settings.IncludeToc ? BuildToc(body, theme) : "";
+        var stats = DocumentStatsService.Analyze(markdown);
+        var statsPill = settings.ShowWordCount && stats.Words > 0 ? $"<div class=\"stats-pill\"><svg style=\"width:12px;height:12px;vertical-align:-1px;margin-right:4px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>{stats.SummaryText}</div>" : "";
         var footer = AppServices.License.ShowFooter
             ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
             : "";
 
-        return attribution + toc + body + footer;
+        return attribution + toc + body + footer + statsPill;
     }
 
     private static readonly Regex MermaidFenceRe =
