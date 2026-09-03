@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using MarkSmith.Mcp.Prompts;
+using MarkSmith.Mcp.Resources;
 using MarkSmith.Mcp.Tools;
 
 namespace MarkSmith.Mcp.Server;
@@ -11,8 +13,13 @@ namespace MarkSmith.Mcp.Server;
 public sealed class JsonRpcDispatcher
 {
     private readonly Dictionary<string, IMcpTool> _tools = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IMcpPrompt> _prompts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IMcpResource> _resources = new(StringComparer.OrdinalIgnoreCase);
 
-    public JsonRpcDispatcher(IEnumerable<IMcpTool>? tools = null)
+    public JsonRpcDispatcher(
+        IEnumerable<IMcpTool>? tools = null,
+        IEnumerable<IMcpPrompt>? prompts = null,
+        IEnumerable<IMcpResource>? resources = null)
     {
         if (tools != null)
         {
@@ -21,14 +28,29 @@ public sealed class JsonRpcDispatcher
                 _tools[tool.Name] = tool;
             }
         }
+        if (prompts != null)
+        {
+            foreach (var prompt in prompts)
+            {
+                _prompts[prompt.Name] = prompt;
+            }
+        }
+        if (resources != null)
+        {
+            foreach (var resource in resources)
+            {
+                _resources[resource.Uri] = resource;
+            }
+        }
     }
 
-    public void RegisterTool(IMcpTool tool)
-    {
-        _tools[tool.Name] = tool;
-    }
+    public void RegisterTool(IMcpTool tool) => _tools[tool.Name] = tool;
+    public void RegisterPrompt(IMcpPrompt prompt) => _prompts[prompt.Name] = prompt;
+    public void RegisterResource(IMcpResource resource) => _resources[resource.Uri] = resource;
 
     public IReadOnlyCollection<IMcpTool> Tools => _tools.Values;
+    public IReadOnlyCollection<IMcpPrompt> Prompts => _prompts.Values;
+    public IReadOnlyCollection<IMcpResource> Resources => _resources.Values;
 
     public async Task<string?> DispatchAsync(string rawJson, CancellationToken ct = default)
     {
@@ -50,12 +72,6 @@ public sealed class JsonRpcDispatcher
             if (root.ValueKind != JsonValueKind.Object)
             {
                 return SerializeError(null, -32600, "Invalid Request: Expected JSON object.");
-            }
-
-            // Check if JSON-RPC 2.0
-            if (!root.TryGetProperty("jsonrpc", out var rpcProp) || rpcProp.GetString() != "2.0")
-            {
-                // Accept requests without explicit 2.0 if id and method exist, but respond with 2.0
             }
 
             JsonElement? id = null;
@@ -116,12 +132,14 @@ public sealed class JsonRpcDispatcher
                             protocolVersion = "2024-11-05",
                             capabilities = new
                             {
-                                tools = new { listChanged = false }
+                                tools = new { listChanged = false },
+                                prompts = new { listChanged = false },
+                                resources = new { subscribe = false, listChanged = false }
                             },
                             serverInfo = new
                             {
                                 name = "marksmith-mcp",
-                                version = "3.0.0"
+                                version = "3.8.0"
                             }
                         }
                     };
@@ -196,6 +214,109 @@ public sealed class JsonRpcDispatcher
                         jsonrpc = "2.0",
                         id = GetIdValue(id.Value),
                         result = toolResult
+                    };
+                }
+
+            case "prompts/list":
+                {
+                    if (id == null) return null;
+                    var promptList = _prompts.Values.Select(p => new
+                    {
+                        name = p.Name,
+                        description = p.Description,
+                        arguments = p.Arguments
+                    }).ToList();
+
+                    return new
+                    {
+                        jsonrpc = "2.0",
+                        id = GetIdValue(id.Value),
+                        result = new
+                        {
+                            prompts = promptList
+                        }
+                    };
+                }
+
+            case "prompts/get":
+                {
+                    if (id == null) return null;
+
+                    if (@params.ValueKind != JsonValueKind.Object ||
+                        !@params.TryGetProperty("name", out var promptNameProp) ||
+                        promptNameProp.ValueKind != JsonValueKind.String)
+                    {
+                        return BuildErrorObj(id.Value, -32602, "Invalid params: 'name' is required for prompts/get.");
+                    }
+
+                    string promptName = promptNameProp.GetString() ?? "";
+                    if (!_prompts.TryGetValue(promptName, out var prompt))
+                    {
+                        return BuildErrorObj(id.Value, -32601, $"Prompt not found: '{promptName}'");
+                    }
+
+                    JsonElement args = default;
+                    if (@params.TryGetProperty("arguments", out var argsProp))
+                    {
+                        args = argsProp;
+                    }
+
+                    var promptResult = await prompt.GetAsync(args, ct);
+
+                    return new
+                    {
+                        jsonrpc = "2.0",
+                        id = GetIdValue(id.Value),
+                        result = promptResult
+                    };
+                }
+
+            case "resources/list":
+                {
+                    if (id == null) return null;
+                    var resourceList = _resources.Values.Select(r => new
+                    {
+                        uri = r.Uri,
+                        name = r.Name,
+                        description = r.Description,
+                        mimeType = r.MimeType
+                    }).ToList();
+
+                    return new
+                    {
+                        jsonrpc = "2.0",
+                        id = GetIdValue(id.Value),
+                        result = new
+                        {
+                            resources = resourceList
+                        }
+                    };
+                }
+
+            case "resources/read":
+                {
+                    if (id == null) return null;
+
+                    if (@params.ValueKind != JsonValueKind.Object ||
+                        !@params.TryGetProperty("uri", out var uriProp) ||
+                        uriProp.ValueKind != JsonValueKind.String)
+                    {
+                        return BuildErrorObj(id.Value, -32602, "Invalid params: 'uri' is required for resources/read.");
+                    }
+
+                    string uri = uriProp.GetString() ?? "";
+                    if (!_resources.TryGetValue(uri, out var resource))
+                    {
+                        return BuildErrorObj(id.Value, -32601, $"Resource not found: '{uri}'");
+                    }
+
+                    var resourceResult = await resource.ReadAsync(ct);
+
+                    return new
+                    {
+                        jsonrpc = "2.0",
+                        id = GetIdValue(id.Value),
+                        result = resourceResult
                     };
                 }
 

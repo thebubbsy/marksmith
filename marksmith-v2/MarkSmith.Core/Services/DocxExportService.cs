@@ -52,9 +52,9 @@ namespace MarkSmith.Services;
 // path used. Mermaid flowcharts render as NATIVE Word shape groups (boxes/diamonds/connectors) via
 // MermaidDocxRenderer — editable in Word, no browser needed; unsupported diagram types keep the
 // code-block fallback.
-public sealed class DocxExportService
+public sealed partial class DocxExportService
 {
-    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+    internal static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
         .UseAlertBlocks()
@@ -64,7 +64,7 @@ public sealed class DocxExportService
 
     // See MarkdownHtmlService.PipelineNoEmoji — same rationale: no-emoji mode must not let
     // shortcode conversion reintroduce emoji after EmojiStripper already ran.
-    private static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
+    internal static readonly MarkdownPipeline PipelineNoEmoji = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         .UseYamlFrontMatter()
         .UseAlertBlocks()
@@ -74,10 +74,10 @@ public sealed class DocxExportService
 
     // Shared AppServices.Themes singleton instead of a private instance — keeps a single catalog
     // (and its cached All snapshot) across every exporter rather than 3 divergent copies.
-    private static ThemeCatalog Themes => AppServices.Themes;
+    internal static ThemeCatalog Themes => AppServices.Themes;
 
     // Same alert accent colors as MarkdownHtmlService / the Python app's DOCX alert rendering.
-    private static readonly Dictionary<string, (string Color, string Icon)> AlertStyles =
+    internal static readonly Dictionary<string, (string Color, string Icon)> AlertStyles =
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["note"] = ("#0969da", "ℹ️"),
@@ -87,7 +87,7 @@ public sealed class DocxExportService
             ["caution"] = ("#cf222e", "🛑"),
         };
 
-    private static readonly Dictionary<string, (string Color, string Icon)> AlertStylesDark =
+    internal static readonly Dictionary<string, (string Color, string Icon)> AlertStylesDark =
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["note"] = ("#58a6ff", "ℹ️"),
@@ -109,6 +109,66 @@ public sealed class DocxExportService
         int? oversizedDiagramModeOverride = null) =>
         ExportAndChargeTrialAsync(markdown, docxPath, settings, mermaidImages, cleanupNotes,
             mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride);
+
+    public async Task ExportAsync(string markdown, Stream outputStream, AppSettings settings,
+        IReadOnlyList<byte[]?>? mermaidImages = null, IReadOnlyList<string>? cleanupNotes = null,
+        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeometry = null,
+        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGenericGeometry = null,
+        int? oversizedDiagramModeOverride = null)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"mk-stream-export-{Guid.NewGuid():N}.docx");
+        try
+        {
+            await ExportAsync(markdown, tempPath, settings, mermaidImages, cleanupNotes, mermaidGeometry, mermaidGenericGeometry, oversizedDiagramModeOverride);
+            using var fs = File.OpenRead(tempPath);
+            await fs.CopyToAsync(outputStream);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// Streamingly export an asynchronous token stream (e.g. from Gemini 3.8) to an output stream in DOCX format.
+    /// Utilizes a multi-threaded SAX Producer-Consumer Channel architecture.
+    /// </summary>
+    public Task ExportStreamAsync(
+        IAsyncEnumerable<string> tokenStream,
+        Stream outputStream,
+        AppSettings settings,
+        CancellationToken ct = default) =>
+        new StreamingDocxExportService().ExportStreamAsync(tokenStream, outputStream, settings, ct);
+
+    /// <summary>
+    /// Streamingly export an asynchronous token stream (e.g. from Gemini 3.8) to a target DOCX file path.
+    /// </summary>
+    public Task ExportStreamAsync(
+        IAsyncEnumerable<string> tokenStream,
+        string docxPath,
+        AppSettings settings,
+        CancellationToken ct = default) =>
+        new StreamingDocxExportService().ExportStreamAsync(tokenStream, docxPath, settings, ct);
+
+    /// <summary>
+    /// Streamingly export an input stream of markdown to an output stream in DOCX format.
+    /// </summary>
+    public Task ExportStreamAsync(
+        Stream inputStream,
+        Stream outputStream,
+        AppSettings settings,
+        CancellationToken ct = default) =>
+        new StreamingDocxExportService().ExportStreamAsync(inputStream, outputStream, settings, ct);
+
+    /// <summary>
+    /// Streamingly export an input stream of markdown to a target DOCX file path.
+    /// </summary>
+    public Task ExportStreamAsync(
+        Stream inputStream,
+        string docxPath,
+        AppSettings settings,
+        CancellationToken ct = default) =>
+        new StreamingDocxExportService().ExportStreamAsync(inputStream, docxPath, settings, ct);
 
     // EVERY DOCX export in the app funnels through ExportAsync (single-document, batch convert,
     // folder watch, the local API, export-all). The trial cap is therefore enforced HERE — the one
@@ -471,7 +531,7 @@ public sealed class DocxExportService
         main.Document.Save();
     });
 
-    private sealed class Ctx
+    internal sealed class Ctx
     {
         public required MainDocumentPart MainPart { get; init; }
         public required W.Numbering Numbering { get; set; }
@@ -480,7 +540,7 @@ public sealed class DocxExportService
         public required Dictionary<string, (string Color, string Icon)> Alerts { get; init; }
         public required string LinkColor { get; init; }
         public required bool NoEmoji { get; init; }
-        public int NextNumId { get; set; } = 2; // numId 1 is the shared bullet instance
+        public int NextNumId = 2; // numId 1 is the shared bullet instance
         public int BulletNumId { get; set; } = 1;
         public int BulletAbstractNumId { get; set; } = 0;
         public int OrderedAbstractNumId { get; set; } = 1;
@@ -498,7 +558,7 @@ public sealed class DocxExportService
         public IReadOnlyList<Mermaid.GenericDiagram?>? MermaidGenericGeometry; // generic per-fence geometry (any type)
         public int MermaidSeen;           // index of the next mermaid fence encountered
         public bool DropCapPending = true;
-        public readonly Dictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
+        public readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Anchors = new(); // markdig heading id -> bookmark name
         public int OversizedDiagramMode;   // 0=Ask,1=Exact,2=Reflow,3=MultiPageVertical,4=AggressiveShrink,5=CompressGaps,6=CompressNodes,7=CompressBoth
         public bool SmartConnectors = true;
         
@@ -511,8 +571,37 @@ public sealed class DocxExportService
         public bool HasIndex;
         public bool HasFormulas;
 
+        public ThreadSafePartRegistry? PartRegistry { get; init; }
+
         public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
         public System.Collections.Concurrent.ConcurrentDictionary<string, byte[]?> ImageCache { get; } = new();
+
+        public string AddHyperlink(string url)
+        {
+            if (PartRegistry != null)
+            {
+                var relId = PartRegistry.ReserveRelationshipId();
+                PartRegistry.Stage(new StagedPart { RelId = relId, Type = StagedPartType.Hyperlink, UriOrPath = url });
+                return relId;
+            }
+            return MainPart.AddHyperlinkRelationship(new Uri(url, UriKind.RelativeOrAbsolute), true).Id;
+        }
+
+        public string AddImage(byte[] imageBytes, string contentType = "image/png")
+        {
+            if (PartRegistry != null)
+            {
+                var relId = PartRegistry.ReserveRelationshipId();
+                PartRegistry.Stage(new StagedPart { RelId = relId, Type = StagedPartType.Image, Data = imageBytes, ContentType = contentType });
+                return relId;
+            }
+            var isSvg = contentType == "image/svg+xml";
+            var isJpeg = contentType.Contains("jpeg", StringComparison.OrdinalIgnoreCase) || contentType.Contains("jpg", StringComparison.OrdinalIgnoreCase);
+            var part = MainPart.AddImagePart(isSvg ? ImagePartType.Svg : (isJpeg ? ImagePartType.Jpeg : ImagePartType.Png));
+            using (var s = part.GetStream(FileMode.Create, FileAccess.Write))
+                s.Write(imageBytes, 0, imageBytes.Length);
+            return MainPart.GetIdOfPart(part);
+        }
 
         // ShapeForge diagrams are rebuilt as native Word shapes that must stay readable on the
         // PRINTED page no matter how dark the document theme is. A dark theme's Code/Secondary
@@ -565,9 +654,9 @@ public sealed class DocxExportService
         public W.HighlightColorValues? EffectiveHighlightColor => HighlightColor ?? (Highlight ? W.HighlightColorValues.Yellow : null);
     }
 
-    private sealed record WatermarkInfo(string Text, string Color, double Opacity, bool Diagonal);
-    private sealed record LineNumbersInfo(int CountBy, string Restart, int Distance, int Start);
-    private sealed record CoverPageInfo(
+    internal sealed record WatermarkInfo(string Text, string Color, double Opacity, bool Diagonal);
+    internal sealed record LineNumbersInfo(int CountBy, string Restart, int Distance, int Start);
+    internal sealed record CoverPageInfo(
         string Title,
         string? Subtitle,
         string? Author,
@@ -577,7 +666,7 @@ public sealed class DocxExportService
         string? Abstract,
         string Theme);
 
-    private static WatermarkInfo ExtractWatermark(FeatureNode node)
+    internal static WatermarkInfo ExtractWatermark(FeatureNode node)
     {
         string text = "CONFIDENTIAL";
         if (node.Attributes.TryGetValue("text", out var t) && !string.IsNullOrWhiteSpace(t))
@@ -607,7 +696,7 @@ public sealed class DocxExportService
         return new WatermarkInfo(text, color, opacity, diagonal);
     }
 
-    private static LineNumbersInfo ExtractLineNumbers(FeatureNode node)
+    internal static LineNumbersInfo ExtractLineNumbers(FeatureNode node)
     {
         int countBy = 5;
         if (node.Attributes.TryGetValue("count-by", out var cStr) ||
@@ -633,7 +722,7 @@ public sealed class DocxExportService
         return new LineNumbersInfo(countBy, restart, distance, start);
     }
 
-    private static CoverPageInfo ExtractCoverPage(FeatureNode node)
+    internal static CoverPageInfo ExtractCoverPage(FeatureNode node)
     {
         var dict = new Dictionary<string, string>(node.Attributes, StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(node.InnerContent))
@@ -673,7 +762,7 @@ public sealed class DocxExportService
         return new CoverPageInfo(title, subtitle, author, org, date, version, abstractText, theme);
     }
 
-    private static string Hex(string cssColor) => cssColor.TrimStart('#').ToUpperInvariant();
+    internal static string Hex(string cssColor) => cssColor.TrimStart('#').ToUpperInvariant();
 
     // Parse "#RRGGBB"/"RRGGBB" into RGB; returns false on any malformed input so callers can fall back.
     private static bool TryParseHexRgb(string hex, out int r, out int g, out int b)
@@ -701,7 +790,7 @@ public sealed class DocxExportService
         return $"{Mix(br, or):X2}{Mix(bg, og):X2}{Mix(bb, ob):X2}";
     }
 
-    private static string? FirstHeadingText(MarkdownDocument doc)
+    internal static string? FirstHeadingText(MarkdownDocument doc)
     {
         foreach (var h in doc.Descendants<HeadingBlock>())
             if (h.Inline is not null)
@@ -732,7 +821,7 @@ public sealed class DocxExportService
 
     // ---------------------------------------------------------------- blocks
 
-    private static void RenderBlock(Block block, OpenXmlCompositeElement target, Ctx ctx, int listLevel)
+    internal static void RenderBlock(Block block, OpenXmlCompositeElement target, Ctx ctx, int listLevel)
     {
         // The very first body paragraph gets a dropped capital — once any other body-level content
         // has rendered, the window closes.
@@ -1024,19 +1113,21 @@ public sealed class DocxExportService
                     var bmStart = new W.BookmarkStart { Id = bmId, Name = bookmarkNameTarget };
                     var bmEnd = new W.BookmarkEnd { Id = bmId };
 
-                    var labelLink = new W.Hyperlink { Anchor = bookmarkNameRef, History = true };
-                    AddText(labelLink, $"[{footnote.Order}] ", new Fmt { Bold = true, Color = ctx.LinkHex }, ctx);
+                    var labelRun = new W.Run();
+                    var rPr = BuildRunProperties(new Fmt { Bold = true, Color = ctx.TextHex });
+                    if (rPr != null && rPr.HasChildren) labelRun.Append(rPr);
+                    labelRun.Append(new W.Text($"[{footnote.Order}] ") { Space = SpaceProcessingModeValues.Preserve });
 
                     if (first.ParagraphProperties is { } pp)
                     {
                         first.InsertAfter(bmStart, pp);
-                        first.InsertAfter(labelLink, bmStart);
-                        first.InsertAfter(bmEnd, labelLink);
+                        first.InsertAfter(labelRun, bmStart);
+                        first.InsertAfter(bmEnd, labelRun);
                     }
                     else
                     {
                         first.PrependChild(bmEnd);
-                        first.PrependChild(labelLink);
+                        first.PrependChild(labelRun);
                         first.PrependChild(bmStart);
                     }
 
@@ -1130,7 +1221,7 @@ public sealed class DocxExportService
 
     // Branding kit: a title cover page — optional logo, the document title in display size, a date
     // line — followed by a page break, so the content proper starts on page 2.
-    private static void AppendCoverPage(W.Body body, Ctx ctx, AppSettings settings, string title)
+    internal static void AppendCoverPage(W.Body body, Ctx ctx, AppSettings settings, string title)
     {
         // breathing room from the top of the page
         body.Append(new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { Before = "2400", After = "0" })));
@@ -2031,10 +2122,19 @@ public sealed class DocxExportService
     /// </summary>
     private static void RenderColumns(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
     {
-        // Parse column count from attributes (default 2)
-        int count = 2;
+        // Split node.InnerContent by === line separators
+        var segments = Regex.Split(node.InnerContent ?? string.Empty, @"(?:\r?\n|^)[ \t]*===+[ \t]*(?:\r?\n|$)")
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+
+        if (segments.Count == 0 && !string.IsNullOrWhiteSpace(node.InnerContent))
+            segments.Add(node.InnerContent);
+
+        // Parse column count from attributes (default 2 or infer from segments)
+        int count = segments.Count > 1 ? segments.Count : 2;
         if (node.Attributes.TryGetValue("count", out var countStr) && int.TryParse(countStr, out var parsed))
-            count = Math.Clamp(parsed, 2, 6);
+            count = parsed;
+        count = Math.Clamp(count, 2, 6);
 
         // --- Opening continuous section break with column definition ---
         var openSect = new W.Paragraph(new W.ParagraphProperties(
@@ -2043,12 +2143,20 @@ public sealed class DocxExportService
                 new W.Columns { ColumnCount = (Int16Value)(short)count, EqualWidth = true, Space = "720" })));
         target.Append(openSect);
 
-        // --- Render the inner markdown content as standard paragraphs ---
-        // We re-parse the inner content through Markdig and render it inline.
-        var innerDoc = Markdig.Markdown.Parse(node.InnerContent,
-            ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
-        foreach (var block in innerDoc)
-            RenderBlock(block, target, ctx, listLevel: -1);
+        // --- Render each column's markdown content, emitting column breaks between them ---
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (i > 0)
+            {
+                var colBreak = new W.Paragraph(new W.Run(new W.Break { Type = W.BreakValues.Column }));
+                target.Append(colBreak);
+            }
+
+            var innerDoc = Markdig.Markdown.Parse(segments[i].Trim(),
+                ctx.NoEmoji ? PipelineNoEmoji : Pipeline);
+            foreach (var block in innerDoc)
+                RenderBlock(block, target, ctx, listLevel: -1);
+        }
 
         // --- Closing continuous section break that resets to single column ---
         var closeSect = new W.Paragraph(new W.ParagraphProperties(
@@ -2164,23 +2272,23 @@ public sealed class DocxExportService
             var bookmarkName = bookmarkNames[i];
             var bmId = (ctx.NextBookmarkId++).ToString();
 
-            var heading = new W.Paragraph(
-                new W.ParagraphProperties(
-                    new W.ParagraphStyleId { Val = "Heading3" },
-                    new W.ParagraphBorders(
-                        new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 2, Color = isActive ? ctx.PrimaryHex : ctx.BorderHex }
-                    ),
-                    new W.Shading
-                    {
-                        Val = W.ShadingPatternValues.Clear,
-                        Color = "auto",
-                        Fill = isActive ? ctx.BackgroundHex : ctx.SecondaryHex
-                    },
-                    new W.SpacingBetweenLines { Before = "160", After = "80" },
-                    new W.OutlineLevel { Val = 8 },
-                    new W15.DefaultCollapsed { Val = !isActive }
-                )
+            var tabPPr = new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = "Heading3" },
+                new W.ParagraphBorders(
+                    new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Space = 2, Color = isActive ? ctx.PrimaryHex : ctx.BorderHex }
+                ),
+                new W.Shading
+                {
+                    Val = W.ShadingPatternValues.Clear,
+                    Color = "auto",
+                    Fill = isActive ? ctx.BackgroundHex : ctx.SecondaryHex
+                },
+                new W.SpacingBetweenLines { Before = "160", After = "80" },
+                new W.OutlineLevel { Val = 8 },
+                new W15.DefaultCollapsed { Val = !isActive }
             );
+
+            var heading = new W.Paragraph(tabPPr);
 
             heading.Append(new W.BookmarkStart { Name = bookmarkName, Id = bmId });
             AddText(heading, tabTitle, new Fmt { Bold = isActive });
@@ -2877,9 +2985,11 @@ public sealed class DocxExportService
     private static readonly Regex PageBreakDivRe = new(@"^<div[^>]*page-break-after[^>]*>\s*(</div>)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex LabeledDivRe = new("^<div class=\"(code-title|tab-label)\">(.*?)</div>$", RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex HrRe = new(@"<hr\s*/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex TableOpenTagRe = new(@"<table\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TableRe = new(@"<table\b.*?</table>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex OpenDetailsRe = new(@"^<details\b[^>]*>\s*<summary\b[^>]*>(.*?)</summary>\s*$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex DetailsCloseRe = new(@"^</details>$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DetailsBareOpenRe = new(@"^\s*<details\b[^>]*>\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DetailsCloseRe = new(@"^\s*</details>\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex DetailsOpenTagRe = new(@"<details\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex SummaryRe = new(@"<summary\b[^>]*>(.*?)</summary>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex AltSizeHintRe = new(@"\|(\d{2,4})$", RegexOptions.Compiled);
@@ -3311,32 +3421,58 @@ public sealed class DocxExportService
             return;
         }
 
-        // <table> → a real Word table (the biggest data-loss fix: whole tables used to disappear).
-        var table = TableRe.Match(raw);
-        if (table.Success) { RenderHtmlTable(table.Value, target, ctx); return; }
+        // <table> → a real Word table supporting colspan, rowspan, nested tables, and inlines.
+        var openTable = TableOpenTagRe.Match(raw);
+        if (openTable.Success)
+        {
+            var bodyStart = openTable.Index + openTable.Length;
+            var closeAt = FindBalancedTableClose(raw, bodyStart);
+            if (closeAt >= 0)
+            {
+                var fullTableHtml = raw.Substring(openTable.Index, (closeAt + "</table>".Length) - openTable.Index);
+                RenderHtmlTable(fullTableHtml, target, ctx);
+                var remainder = raw[(closeAt + "</table>".Length)..].Trim();
+                if (remainder.Length > 0) RenderHtmlBlock(remainder, target, ctx);
+                return;
+            }
+            else
+            {
+                RenderHtmlTable(raw, target, ctx);
+                return;
+            }
+        }
 
-        // Foldable-callout <details> whose body was split into following markdown blocks (blank
-        // lines between <summary> and the body — see AdmonitionNormalizer). The opener arrives as a
-        // block with no closing tag; render its summary as a Word-native collapsible heading
-        // (outlineLvl 4 + collapsed) so the body blocks that follow fold under it, matching the
-        // preview's collapsed-<details>. The bare </details> closer that arrives later is dropped.
+        // Foldable-callout or standalone <details><summary>
         var openDetails = OpenDetailsRe.Match(raw);
         if (openDetails.Success)
         {
             var head = new W.Paragraph(new W.ParagraphProperties(
                 new W.ParagraphStyleId { Val = "Heading4" },
-                new W.OutlineLevel { Val = 3 },
+                new W.OutlineLevel { Val = 8 },
                 new W15.DefaultCollapsed { Val = true }));
             AddText(head, StripHtmlToText(openDetails.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
             target.Append(head);
             return;
         }
+
+        var summaryOnly = SummaryRe.Match(raw);
+        if (summaryOnly.Success && !raw.Contains("</details>", StringComparison.OrdinalIgnoreCase))
+        {
+            var head = new W.Paragraph(new W.ParagraphProperties(
+                new W.ParagraphStyleId { Val = "Heading4" },
+                new W.OutlineLevel { Val = 8 },
+                new W15.DefaultCollapsed { Val = true }));
+            AddText(head, StripHtmlToText(summaryOnly.Groups[1].Value), new Fmt { Bold = true, Color = ctx.TextHex });
+            target.Append(head);
+            return;
+        }
+
+        if (DetailsBareOpenRe.IsMatch(raw)) return;
         if (DetailsCloseRe.IsMatch(raw)) return;
 
         // <details><summary>…</summary>…</details> → a GENUINELY collapsible section: the summary
-        // paragraph carries an outline level (which is all Word needs to draw its native ▸ collapse
-        // triangle and fold the following body under it) plus w15:defaultCollapsed so it starts folded,
-        // matching <details>'s default-closed semantics.
+        // paragraph carries an outline level (8 for toggle folding without polluting TOC) plus
+        // w15:defaultCollapsed so it starts folded, matching <details>'s default-closed semantics.
         // The closing tag is found with a NESTING-AWARE scan (not a non-greedy regex) so a nested
         // <details> can't truncate the outer block at the INNER closer — the outer tail and any
         // content after the block must survive.
@@ -3354,17 +3490,17 @@ public sealed class DocxExportService
 
                 var head = new W.Paragraph(new W.ParagraphProperties(
                     new W.ParagraphStyleId { Val = "Heading4" },
-                    new W.OutlineLevel { Val = 3 },
+                    new W.OutlineLevel { Val = 8 },
                     new W15.DefaultCollapsed { Val = true }));
                 AddText(head, summaryText, new Fmt { Bold = true, Color = ctx.TextHex });
                 target.Append(head);
 
                 var remainder = raw[(closeAt + "</details>".Length)..].Trim();
 
-                var nestedTable = TableRe.Match(body);
+                var nestedTable = TableOpenTagRe.Match(body);
                 if (nestedTable.Success)
                 {
-                    RenderHtmlTable(nestedTable.Value, target, ctx);
+                    RenderHtmlTable(body, target, ctx);
                     if (remainder.Length > 0) RenderHtmlBlock(remainder, target, ctx);
                     return;
                 }
@@ -3405,21 +3541,29 @@ public sealed class DocxExportService
         return -1;
     }
 
+    private static int FindBalancedTableClose(string raw, int bodyStart)
+    {
+        int depth = 1, i = bodyStart;
+        while (i < raw.Length)
+        {
+            var open = raw.IndexOf("<table", i, StringComparison.OrdinalIgnoreCase);
+            var close = raw.IndexOf("</table>", i, StringComparison.OrdinalIgnoreCase);
+            if (close < 0) return -1;
+            if (open >= 0 && open < close) { depth++; i = open + "<table".Length; }
+            else { depth--; if (depth == 0) return close; i = close + "</table>".Length; }
+        }
+        return -1;
+    }
+
     private static void RenderHtmlTable(string html, OpenXmlCompositeElement target, Ctx ctx)
     {
-        var grid = new List<(string Text, bool Header)[]>();
-        int maxCols = 0;
-        foreach (Match r in HtmlTableRow.Matches(html))
-        {
-            var cells = HtmlTableCell.Matches(r.Groups[1].Value)
-                .Select(c => (StripHtmlToText(c.Groups[2].Value), c.Groups[1].Value.Equals("th", StringComparison.OrdinalIgnoreCase)))
-                .ToArray();
-            if (cells.Length == 0) continue;
-            maxCols = Math.Max(maxCols, cells.Length);
-            grid.Add(cells);
-        }
-        if (grid.Count == 0 || maxCols == 0) return;
+        var tableNode = HtmlTableParser.Parse(html);
+        if (tableNode == null || tableNode.Rows.Count == 0 || tableNode.MaxColumns == 0) return;
+        RenderHtmlTableNode(tableNode, target, ctx);
+    }
 
+    private static void RenderHtmlTableNode(HtmlTableNode tableNode, OpenXmlCompositeElement target, Ctx ctx)
+    {
         W.BorderType Border<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex };
 
@@ -3429,31 +3573,154 @@ public sealed class DocxExportService
                 new W.TableBorders(
                     Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
                     Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>())),
-            new W.TableGrid(Enumerable.Range(0, maxCols).Select(_ => (OpenXmlElement)new W.GridColumn())));
+            new W.TableGrid(Enumerable.Range(0, tableNode.MaxColumns).Select(_ => (OpenXmlElement)new W.GridColumn())));
 
-        foreach (var row in grid)
+        foreach (var row in tableNode.Rows)
         {
-            bool headerRow = row.Length > 0 && row.All(c => c.Header);
-            var wRow = new W.TableRow(headerRow
+            var wRow = new W.TableRow(row.IsHeader
                 ? new W.TableRowProperties(new W.CantSplit(), new W.TableHeader())
                 : new W.TableRowProperties(new W.CantSplit()));
 
-            for (int c = 0; c < maxCols; c++)
+            foreach (var cell in row.Cells)
             {
-                var (text, isHeaderCell) = c < row.Length ? row[c] : ("", false);
-                bool shaded = headerRow || isHeaderCell;
                 var wCell = new W.TableCell();
-                if (shaded)
-                    wCell.Append(new W.TableCellProperties(new W.Shading
-                    { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex }));
-                var p = new W.Paragraph();
-                AddText(p, text, new Fmt { Bold = shaded });
-                wCell.Append(p);
+                var tcPr = new W.TableCellProperties();
+
+                if (cell.ColSpan > 1)
+                {
+                    tcPr.Append(new W.GridSpan { Val = cell.ColSpan });
+                }
+
+                if (cell.IsRowSpanContinuation)
+                {
+                    tcPr.Append(new W.VerticalMerge());
+                    if (row.IsHeader || cell.IsHeader)
+                        tcPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex });
+                    wCell.Append(tcPr);
+                    wCell.Append(new W.Paragraph());
+                    wRow.Append(wCell);
+                    continue;
+                }
+
+                if (cell.RowSpan > 1)
+                {
+                    tcPr.Append(new W.VerticalMerge { Val = W.MergedCellValues.Restart });
+                }
+
+                if (row.IsHeader || cell.IsHeader)
+                {
+                    tcPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex });
+                }
+
+                wCell.Append(tcPr);
+                RenderHtmlTableCellContent(cell, wCell, row.IsHeader || cell.IsHeader, ctx);
                 wRow.Append(wCell);
             }
+
             wTable.Append(wRow);
         }
+
         target.Append(wTable);
+    }
+
+    private static void RenderHtmlTableCellContent(HtmlTableCellNode cell, W.TableCell wCell, bool isHeader, Ctx ctx)
+    {
+        bool hasBlock = false;
+        foreach (var block in cell.Blocks)
+        {
+            if (block is HtmlParagraphBlock pBlock)
+            {
+                var p = new W.Paragraph();
+                if (!string.IsNullOrEmpty(cell.Align))
+                {
+                    var jcVal = cell.Align.ToLowerInvariant() switch
+                    {
+                        "center" => W.JustificationValues.Center,
+                        "right" => W.JustificationValues.Right,
+                        _ => W.JustificationValues.Left
+                    };
+                    p.Append(new W.ParagraphProperties(new W.Justification { Val = jcVal }));
+                }
+
+                foreach (var inline in pBlock.Inlines)
+                {
+                    RenderHtmlTableInline(inline, p, isHeader, ctx);
+                }
+
+                wCell.Append(p);
+                hasBlock = true;
+            }
+            else if (block is HtmlNestedTableBlock nestedBlock)
+            {
+                RenderHtmlTableNode(nestedBlock.Table, wCell, ctx);
+                hasBlock = true;
+            }
+        }
+
+        if (!hasBlock || !(wCell.LastChild is W.Paragraph))
+        {
+            wCell.Append(new W.Paragraph());
+        }
+    }
+
+    private static void RenderHtmlTableInline(HtmlInlineNode inline, W.Paragraph p, bool isHeader, Ctx ctx)
+    {
+        if (inline is HtmlTextInline textInline)
+        {
+            var run = new W.Run();
+            var rPr = new W.RunProperties();
+            if (textInline.Bold || isHeader) rPr.Append(new W.Bold());
+            if (textInline.Italic) rPr.Append(new W.Italic());
+            if (textInline.Code)
+            {
+                rPr.Append(new W.RunFonts { Ascii = "Consolas", HighAnsi = "Consolas" });
+            }
+            rPr.Append(new W.Color { Val = ctx.TextHex });
+            if (textInline.Code)
+            {
+                rPr.Append(new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex });
+            }
+            run.Append(rPr);
+            run.Append(new W.Text(textInline.Text) { Space = SpaceProcessingModeValues.Preserve });
+            p.Append(run);
+        }
+        else if (inline is HtmlLinkInline linkInline)
+        {
+            if (Uri.TryCreate(linkInline.Href, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto))
+            {
+                var relId = ctx.MainPart.AddHyperlinkRelationship(uri, true).Id;
+                var link = new W.Hyperlink { Id = relId };
+                var run = new W.Run();
+                var rPr = new W.RunProperties();
+                if (linkInline.Bold || isHeader) rPr.Append(new W.Bold());
+                if (linkInline.Italic) rPr.Append(new W.Italic());
+                rPr.Append(new W.Color { Val = ctx.LinkHex });
+                rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
+                run.Append(rPr);
+                run.Append(new W.Text(linkInline.Text) { Space = SpaceProcessingModeValues.Preserve });
+                link.Append(run);
+                p.Append(link);
+            }
+            else
+            {
+                var link = new W.Hyperlink { Anchor = linkInline.Href.TrimStart('#'), History = true };
+                var run = new W.Run();
+                var rPr = new W.RunProperties();
+                if (linkInline.Bold || isHeader) rPr.Append(new W.Bold());
+                if (linkInline.Italic) rPr.Append(new W.Italic());
+                rPr.Append(new W.Color { Val = ctx.LinkHex });
+                rPr.Append(new W.Underline { Val = W.UnderlineValues.Single });
+                run.Append(rPr);
+                run.Append(new W.Text(linkInline.Text) { Space = SpaceProcessingModeValues.Preserve });
+                link.Append(run);
+                p.Append(link);
+            }
+        }
+        else if (inline is HtmlBreakInline)
+        {
+            p.Append(new W.Run(new W.Break()));
+        }
     }
 
     private static void RenderTable(MdTable table, OpenXmlCompositeElement target, Ctx ctx)
@@ -3641,7 +3908,7 @@ public sealed class DocxExportService
     // Real TOC field over Heading1-N with hyperlinks (\h) — combined with w:updateFields, Word
     // rebuilds it (page numbers and all) the moment the document opens. The upper bound adapts to
     // HeadingShift so shifted headings still appear (e.g. shift +3 pushes H1→H4, so range becomes 1-6).
-    private static void AppendTocField(W.Body body, Ctx ctx)
+    internal static void AppendTocField(W.Body body, Ctx ctx)
     {
         var heading = new W.Paragraph();
         AddText(heading, "Contents", new Fmt { Bold = true, Color = ctx.HeadingHex });
@@ -4339,9 +4606,9 @@ public sealed class DocxExportService
         if (string.IsNullOrWhiteSpace(url) || url.StartsWith('#')) return null;
         try
         {
-            return ctx.MainPart.AddHyperlinkRelationship(new Uri(url, UriKind.Absolute), true).Id;
+            return ctx.AddHyperlink(url);
         }
-        catch (UriFormatException)
+        catch (Exception)
         {
             return null;
         }
@@ -4613,7 +4880,7 @@ public sealed class DocxExportService
         };
     }
 
-    private static void AddStyles(MainDocumentPart main, Ctx ctx)
+    internal static void AddStyles(MainDocumentPart main, Ctx ctx)
     {
         var part = main.AddNewPart<StyleDefinitionsPart>();
         var styles = new W.Styles();
@@ -4724,7 +4991,7 @@ public sealed class DocxExportService
         part.Styles = styles;
     }
 
-    private static void AddSettings(MainDocumentPart main, Ctx ctx, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
+    internal static void AddSettings(MainDocumentPart main, Ctx ctx, bool updateFieldsOnOpen, bool webLayout, bool trackChanges)
     {
         var part = main.AddNewPart<DocumentSettingsPart>();
         var settings = new W.Settings();
@@ -4763,7 +5030,7 @@ public sealed class DocxExportService
         part.Settings = settings;
     }
 
-    private static W.SectionProperties BuildSectionProperties(
+    internal static W.SectionProperties BuildSectionProperties(
         MainDocumentPart main, Ctx ctx, AppSettings settings, string title, ReferenceDocumentMerger.MergedReferenceResult? refMerge = null)
     {
         static W.Run FooterRun(string text) => new(
@@ -5342,11 +5609,12 @@ public sealed class DocxExportService
         chartSpace.Append(new C.ExternalData(new C.AutoUpdate() { Val = new DocumentFormat.OpenXml.BooleanValue(false) }) { Id = embedRelId });
         chartPart.ChartSpace = chartSpace;
 
+        var drawingId = (uint)ctx.NextDrawingId++;
         var drawing = new W.Drawing(
             new DW.Inline(
                 new DW.Extent() { Cx = 5486400, Cy = 3200400 },
                 new DW.EffectExtent() { LeftEdge = 0, TopEdge = 0, RightEdge = 0, BottomEdge = 0 },
-                new DW.DocProperties() { Id = 1, Name = "Chart 1" },
+                new DW.DocProperties() { Id = drawingId, Name = $"Chart {drawingId}" },
                 new DW.NonVisualGraphicFrameDrawingProperties(
                     new A.GraphicFrameLocks() { NoChangeAspect = true }
                 ),
@@ -5587,7 +5855,7 @@ public sealed class DocxExportService
         }
     }
 
-    private static W.Numbering AddNumbering(MainDocumentPart main)
+    internal static W.Numbering AddNumbering(MainDocumentPart main)
     {
         var part = main.AddNewPart<NumberingDefinitionsPart>();
 

@@ -1,0 +1,13 @@
+{
+  "name": "marksmith-local",
+  "owner": {
+    "name": "AI Bot"
+  },
+  "plugins": [
+    {
+      "name": "marksmith-mcp",
+      "source": "./marksmith-plugin",
+      "description": "MarkSmith MCP server (render/patch/diff/validate Markdown & DOCX) as a Claude Code plugin"
+    }
+  ]
+}

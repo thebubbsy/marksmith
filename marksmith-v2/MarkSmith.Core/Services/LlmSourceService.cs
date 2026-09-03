@@ -26,7 +26,7 @@ public sealed partial class LlmSourceService
     // code fences before this runs, so the fence isn't visible to a lookahead.)
     [GeneratedRegex(@"^Copy code[ \t]*$", RegexOptions.Multiline)] private static partial Regex CopyCodeButtons();
     [GeneratedRegex(@"^(ChatGPT can make mistakes\..*|Gemini can make mistakes.*|Claude can make mistakes.*)$", RegexOptions.Multiline)] private static partial Regex DisclaimerFooters();
-    [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
+    [GeneratedRegex(@"</?(thought|thinking|reasoning|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex TagRemnants();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();
     [GeneratedRegex(@"\$\$?.+?\$\$?", RegexOptions.Singleline)] private static partial Regex DollarMath();
     // A proper $$...$$ display-math block, used ONLY to protect already-delimited math from the
@@ -82,7 +82,7 @@ public sealed partial class LlmSourceService
     public static LlmSource? ParseSourceId(string? id) => id?.Trim().ToLowerInvariant() switch
     {
         "chatgpt" or "openai" => LlmSource.ChatGpt,
-        "gemini" or "bard" => LlmSource.Gemini,
+        "gemini" or "bard" or "gemini-3.8" or "gemini-3-8" or "gemini38" or "gemini_3_8" or "gemini-pro" or "gemini-flash" or "gemini-exp" => LlmSource.Gemini,
         "claude" or "anthropic" => LlmSource.Claude,
         "copilot" => LlmSource.Copilot,
         _ => null,
@@ -101,12 +101,14 @@ public sealed partial class LlmSourceService
         if (CopyCodeButtons().IsMatch(markdown)) { chatgpt += 15; gemini += 10; signals.Add("Copy-code button text"); }
 
         if (markdown.Contains("Gemini can make mistakes")) { gemini += 50; signals.Add("Gemini footer"); }
+        if (markdown.Contains("<thought>") || markdown.Contains("</thought>")) { gemini += 45; signals.Add("Gemini reasoning <thought> tokens"); }
+        if (markdown.Contains("Gemini 3.8") || markdown.Contains("gemini-3.8")) { gemini += 40; signals.Add("Gemini 3.8 identifier"); }
         if (BoldPseudoHeading().Matches(markdown).Count >= 2 && !markdown.Contains("\n# ") && !markdown.Contains("\n## "))
         { gemini += 25; signals.Add("bold-line pseudo-headings"); }
         if (SourcesHeading().IsMatch(markdown) && NumberedSourceUrl().IsMatch(markdown))
         { gemini += 25; signals.Add("trailing Sources block"); }
 
-        if (ClaudeTagRemnants().IsMatch(markdown)) { claude += 50; signals.Add("Claude tag remnants"); }
+        if (TagRemnants().IsMatch(markdown)) { claude += 30; gemini += 20; signals.Add("AI tag remnants"); }
         if (markdown.Contains("Claude can make mistakes")) { claude += 50; signals.Add("Claude footer"); }
         if (TrailingOffer().IsMatch(markdown)) { claude += 15; signals.Add("trailing offer"); }
 
@@ -156,7 +158,7 @@ public sealed partial class LlmSourceService
         Apply(OaiCiteArtifacts(), "", "Removed ChatGPT citation artifacts");
         Apply(ChatGptCitations(), "", "Removed 【n†source】 pips");
         Apply(CopyCodeButtons(), "", "Removed copy-button text");
-        Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
+        Apply(TagRemnants(), "", "Removed internal tag remnants");
 
         // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.
         Apply(LatexBlock(), "\n$$$$\n${1}\n$$$$\n", "Converted LaTeX display math to $$");

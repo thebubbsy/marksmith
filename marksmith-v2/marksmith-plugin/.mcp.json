@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "marksmith": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/../MarkSmith.Mcp/MarkSmith.Mcp.csproj",
+        "-c",
+        "Release",
+        "--",
+        "--transport",
+        "stdio"
+      ],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}/.."
+    }
+  }
+}

@@ -29,6 +29,7 @@ public sealed class RenderMarkdownTool : IMcpTool
             include_toc = new { type = "boolean", description = "Insert auto-updating Word Table of Contents field." },
             track_changes = new { type = "boolean", description = "Enable Track Changes mode in document settings." },
             author_name = new { type = "string", description = "Author name for document properties and revision tracking." },
+            stream_mode = new { type = "boolean", description = "Enable high-throughput multi-threaded SAX streaming pipeline for large token streams." },
             return_base64 = new { type = "boolean", description = "If true, returns docx binary encoded as base64 string in JSON output." }
         },
         additionalProperties = false
@@ -99,8 +100,18 @@ public sealed class RenderMarkdownTool : IMcpTool
                 settings.AuthorName = authorProp.GetString() ?? "";
             }
 
+            bool streamMode = arguments.TryGetProperty("stream_mode", out var streamProp) && streamProp.ValueKind == JsonValueKind.True;
+
             var exportService = new DocxExportService();
-            await exportService.ExportAsync(markdown, outputPath, settings);
+            if (streamMode)
+            {
+                using var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(markdown));
+                await exportService.ExportStreamAsync(ms, outputPath, settings, ct);
+            }
+            else
+            {
+                await exportService.ExportAsync(markdown, outputPath, settings);
+            }
 
             var fileInfo = new FileInfo(outputPath);
             bool returnBase64 = arguments.TryGetProperty("return_base64", out var b64Prop) && b64Prop.GetBoolean();

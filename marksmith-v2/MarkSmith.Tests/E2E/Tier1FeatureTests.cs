@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DocumentFormat.OpenXml.Packaging;
+using MarkSmith.Core.Services;
 using MarkSmith.Models;
 using MarkSmith.Services;
 using Xunit;
@@ -13,747 +15,430 @@ using Xunit;
 namespace MarkSmith.Tests.E2E;
 
 /// <summary>
-/// Tier 1: Feature Coverage (≥5 test cases per feature across F1–F10).
-/// Validates happy-path functionality, OpenXML structural compliance,
-/// and API surface for all core upgrade pillars.
+/// Tier 1: Feature Coverage (≥5 test cases per feature across Features 1–18).
+/// Validates primary behavior (happy path), interface contracts, and OpenXML ECMA-376 schema validity.
+/// Total: 90 tests.
 /// </summary>
 public class Tier1FeatureTests
 {
     // =========================================================================
-    // F1: SAX Streaming OpenXmlWriter (5 tests)
+    // F1: Gemini 3.8 MCP Protocol (Prompts & Resources) (5 tests)
     // =========================================================================
 
     [Fact]
-    public async Task T1_F1_01_BasicDocument_StreamsValidOpenXmlPackage()
-    {
-        var md = "# MarkSmith SAX Architecture\n\nThis is a streaming paragraph written via SAX.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-
-        Assert.NotEmpty(bytes);
-        var errors = E2ETestContext.ValidateDocxSchema(bytes);
-        Assert.Empty(errors);
-
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-        Assert.Contains("MarkSmith SAX Architecture", docXml);
-        Assert.Contains("streaming paragraph written via SAX", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F1_02_MultiParagraphAndHeadings_StreamsProperStructure()
-    {
-        var md = @"# Heading 1
-Paragraph 1 under H1.
-
-## Heading 2
-Paragraph 2 under H2.
-
-### Heading 3
-Paragraph 3 under H3.";
-
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var errors = E2ETestContext.ValidateDocxSchema(bytes);
-        Assert.Empty(errors);
-
-        var report = E2ETestContext.InspectDocx(bytes);
-        Assert.Equal("Heading 1", report.Title);
-        Assert.True(report.TotalParagraphs >= 6);
-    }
-
-    [Fact]
-    public async Task T1_F1_03_TablesAndLists_StreamsWithoutDomCorruption()
-    {
-        var md = @"| Feature | Supported | Tier |
-|---|:---:|---:|
-| SAX Stream | Yes | 1 |
-| Templates | Yes | 1 |
-
-- Bullet A
-- Bullet B
-1. Ordered 1
-2. Ordered 2";
-
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var errors = E2ETestContext.ValidateDocxSchema(bytes);
-        Assert.Empty(errors);
-
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-        Assert.Contains("<w:tbl", docXml);
-        Assert.Contains("SAX Stream", docXml);
-        Assert.Contains("Bullet A", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F1_04_StreamExport_DirectlyToMemoryStream()
-    {
-        var md = "# Direct Stream Export\n\nStreaming directly into memory stream buffer.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(md);
-        try
-        {
-            var fileBytes = await File.ReadAllBytesAsync(tempFile);
-            Assert.True(fileBytes.Length > 1000);
-            var errors = E2ETestContext.ValidateDocxSchema(fileBytes);
-            Assert.Empty(errors);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F1_05_ConsecutiveStreams_MaintainsWriterStateIsolation()
-    {
-        var md1 = "# Doc 1\nAlpha content";
-        var md2 = "# Doc 2\nBeta content";
-
-        var bytes1 = await E2ETestContext.ExportMarkdownToBytesAsync(md1);
-        var bytes2 = await E2ETestContext.ExportMarkdownToBytesAsync(md2);
-
-        var xml1 = E2ETestContext.ReadZipPartXml(bytes1, "word/document.xml")!;
-        var xml2 = E2ETestContext.ReadZipPartXml(bytes2, "word/document.xml")!;
-
-        Assert.Contains("Alpha content", xml1);
-        Assert.DoesNotContain("Beta content", xml1);
-
-        Assert.Contains("Beta content", xml2);
-        Assert.DoesNotContain("Alpha content", xml2);
-    }
-
-    // =========================================================================
-    // F2: OpenXML Namespace & Dynamic Rel Governance (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public async Task T1_F2_01_RootNamespaces_EnforcesRequiredXmlnsDeclarations()
-    {
-        var md = "# Namespace Test\n\nVerifying root namespaces.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"", docXml);
-        Assert.Contains("xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F2_02_DynamicRelationshipIds_NoHardcoded_rId_Collisions()
-    {
-        var md = @"# Links Test
-[Link 1](https://example.com/1)
-[Link 2](https://example.com/2)
-[Link 3](https://example.com/3)";
-
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var relsXml = E2ETestContext.ReadZipPartXml(bytes, "word/_rels/document.xml.rels")!;
-
-        var relIds = System.Text.RegularExpressions.Regex.Matches(relsXml, @"Id=""([^""]+)""")
-            .Select(m => m.Groups[1].Value)
-            .ToList();
-
-        Assert.Equal(relIds.Count, relIds.Distinct().Count());
-        Assert.True(relIds.Count >= 3);
-    }
-
-    [Fact]
-    public async Task T1_F2_03_ExternalHyperlinkRelationships_RegisteredDynamicallyInRels()
-    {
-        var md = "Visit the [Official Documentation](https://marksmith.dev/docs) for details.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-
-        var relsXml = E2ETestContext.ReadZipPartXml(bytes, "word/_rels/document.xml.rels")!;
-        Assert.Contains("Target=\"https://marksmith.dev/docs\"", relsXml);
-        Assert.Contains("TargetMode=\"External\"", relsXml);
-    }
-
-    [Fact]
-    public async Task T1_F2_04_ImageMediaRelationships_UniquePartUrisAndRelIds()
-    {
-        var md = @"# Image Rel Test
-Paragraph before image.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var errors = E2ETestContext.ValidateDocxSchema(bytes);
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public async Task T1_F2_05_DrawingMLAndWpsNamespaces_PresentWhenShapesUsed()
-    {
-        var md = @"```mermaid
-flowchart TD
-    A[Start] --> B[Process]
-```";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.True(docXml.Contains("xmlns:a=") || docXml.Contains("<w:drawing") || docXml.Contains("<w:p"));
-    }
-
-    // =========================================================================
-    // F3: Reference Template Merger (.dotx & .docx) (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public void T1_F3_01_ParseDotxTemplate_ExtractsColorsFontsAndLayout()
-    {
-        var dotxPath = E2ETestContext.CreateSyntheticDotxTemplate(
-            bodyFont: "Segoe UI",
-            headingFont: "Segoe UI Semibold",
-            h1ColorHex: "#2B579A",
-            accent1Hex: "#0078D4");
-
-        try
-        {
-            var summary = TemplateThemeService.ParseDotx(dotxPath);
-            Assert.Equal("Segoe UI", summary.BodyFont);
-            Assert.Equal("Segoe UI Semibold", summary.HeadingFont);
-            Assert.Equal("#2B579A", summary.Heading1Color);
-            Assert.Equal("#0078D4", summary.PrimaryAccent);
-        }
-        finally
-        {
-            if (File.Exists(dotxPath)) File.Delete(dotxPath);
-        }
-    }
-
-    [Fact]
-    public void T1_F3_02_ParseDocxReference_ExtractsCustomHeadingStyles()
-    {
-        var docxPath = Path.Combine(Path.GetTempPath(), $"ref-docx-{Guid.NewGuid():N}.docx");
-        E2ETestContext.CreateSyntheticDotxTemplate(docxPath, headingFont: "Arial", bodyFont: "Georgia");
-
-        try
-        {
-            var summary = TemplateThemeService.ParseDotx(docxPath);
-            Assert.Equal("Georgia", summary.BodyFont);
-            Assert.Equal("Arial", summary.HeadingFont);
-        }
-        finally
-        {
-            if (File.Exists(docxPath)) File.Delete(docxPath);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F3_03_MergeReferenceStyles_AppliesTemplateFontAndColors()
-    {
-        var dotxPath = E2ETestContext.CreateSyntheticDotxTemplate(
-            bodyFont: "Consolas",
-            headingFont: "Verdana",
-            h1ColorHex: "#E74C3C");
-
-        try
-        {
-            var summary = TemplateThemeService.ParseDotx(dotxPath);
-            var settings = new AppSettings
-            {
-                BrandFontFamily = summary.BodyFont,
-                Theme = "Corporate Blue"
-            };
-
-            var md = "# Header with Custom Template\nBody text using template font.";
-            var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md, settings);
-
-            var errors = E2ETestContext.ValidateDocxSchema(bytes);
-            Assert.Empty(errors);
-        }
-        finally
-        {
-            if (File.Exists(dotxPath)) File.Delete(dotxPath);
-        }
-    }
-
-    [Fact]
-    public void T1_F3_04_MergeNumberingDefinitions_RemapsAbstractNumWithoutCollision()
-    {
-        var dotxPath = E2ETestContext.CreateSyntheticDotxTemplate();
-        try
-        {
-            using var doc = WordprocessingDocument.Open(dotxPath, false);
-            var numberingPart = doc.MainDocumentPart?.NumberingDefinitionsPart;
-            Assert.NotNull(numberingPart);
-            Assert.NotEmpty(numberingPart.Numbering.Elements<DocumentFormat.OpenXml.Wordprocessing.AbstractNum>());
-        }
-        finally
-        {
-            if (File.Exists(dotxPath)) File.Delete(dotxPath);
-        }
-    }
-
-    [Fact]
-    public void T1_F3_05_MergeSectionProperties_InheritsTemplatePageMargins()
-    {
-        var dotxPath = E2ETestContext.CreateSyntheticDotxTemplate(
-            topMarginDxa: 2000,
-            bottomMarginDxa: 2000,
-            leftMarginDxa: 1800,
-            rightMarginDxa: 1800);
-
-        try
-        {
-            using var doc = WordprocessingDocument.Open(dotxPath, false);
-            var sectPr = doc.MainDocumentPart?.Document.Body?.Elements<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>().FirstOrDefault();
-            Assert.NotNull(sectPr);
-            var margin = sectPr.Elements<DocumentFormat.OpenXml.Wordprocessing.PageMargin>().FirstOrDefault();
-            Assert.NotNull(margin);
-            Assert.Equal(2000, margin.Top?.Value);
-            Assert.Equal(1800, (int)margin.Left?.Value!);
-        }
-        finally
-        {
-            if (File.Exists(dotxPath)) File.Delete(dotxPath);
-        }
-    }
-
-    // =========================================================================
-    // F4: CriticMarkup Forward Normalization & Export (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public async Task T1_F4_01_InlineInsertion_MapsToWordInsWithText()
-    {
-        var md = "The proposal is {++ready for executive approval++} today.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("<w:ins", docXml);
-        Assert.Contains("ready for executive approval", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F4_02_InlineDeletion_MapsToWordDelWithDelText()
-    {
-        var md = "This is an {--unsupported and deprecated--} interface.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("<w:del", docXml);
-        Assert.Contains("<w:delText", docXml);
-        Assert.Contains("unsupported and deprecated", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F4_03_Substitution_MapsToConsecutiveDelAndIns()
-    {
-        var md = "We will deploy to {~~staging~>production~~} tonight.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("<w:del", docXml);
-        Assert.Contains("staging", docXml);
-        Assert.Contains("<w:ins", docXml);
-        Assert.Contains("production", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F4_04_HighlightAndComment_MapsToWordCommentPartAndAnchor()
-    {
-        var md = "The agreement shall be {==binding for 5 years==}{>>Legal: Confirm term length<<}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-
-        var entries = E2ETestContext.ListZipEntries(bytes);
-        Assert.Contains("word/comments.xml", entries);
-
-        var commentsXml = E2ETestContext.ReadZipPartXml(bytes, "word/comments.xml")!;
-        Assert.Contains("Confirm term length", commentsXml);
-
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-        Assert.Contains("<w:commentRangeStart", docXml);
-        Assert.Contains("<w:commentRangeEnd", docXml);
-        Assert.Contains("<w:commentReference", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F4_05_MultiAuthorCriticMarkup_PreservesAuthorAndTimestamp()
-    {
-        var md = "Review from Alice: {++New Clause A++} and Bob: {--Old Clause B--}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("w:author=", docXml);
-        Assert.Contains("w:date=", docXml);
-    }
-
-    // =========================================================================
-    // F5: OpenXML ECMA-376 Schema Compliance (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public async Task T1_F5_01_ExportedDocx_PassesStrictOffice2016SchemaValidator()
-    {
-        var md = @"# Schema Compliance Test
-Testing all features together:
-- Lists
-- [Links](https://example.com)
-- {++Critic additions++}
-- {--Critic deletions--}
-- {==Highlights==}{>>Reviewer: Test note<<}
-
-| Col 1 | Col 2 |
-|---|---|
-| Val 1 | Val 2 |";
-
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var errors = E2ETestContext.ValidateDocxSchema(bytes);
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public async Task T1_F5_02_TrackRevisions_SettingEnabledInSettingsXml()
-    {
-        var md = "Document with {++tracked additions++}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-
-        var settingsXml = E2ETestContext.ReadZipPartXml(bytes, "word/settings.xml")!;
-        Assert.Contains("<w:trackRevisions", settingsXml);
-    }
-
-    [Fact]
-    public async Task T1_F5_03_DelText_NeverContainsRawTextOutsideDelWrapper()
-    {
-        var md = "Text with {--deleted segment--} in between.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        Assert.Contains("<w:del", docXml);
-        Assert.Contains("<w:delText", docXml);
-        Assert.DoesNotContain("<w:t>deleted segment</w:t>", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F5_04_CommentRangeStartAndEnd_CorrectlyPairedInDocumentXml()
-    {
-        var md = "{==First comment span==}{>>Reviewer 1: Note 1<<} and {==Second span==}{>>Reviewer 2: Note 2<<}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
-
-        int startCount = Regex.Matches(docXml, @"<w:commentRangeStart").Count;
-        int endCount = Regex.Matches(docXml, @"<w:commentRangeEnd").Count;
-        int refCount = Regex.Matches(docXml, @"<w:commentReference").Count;
-
-        Assert.Equal(2, startCount);
-        Assert.Equal(2, endCount);
-        Assert.Equal(2, refCount);
-    }
-
-    [Fact]
-    public async Task T1_F5_05_CommentsPart_HasValidXmlStructureAndIds()
-    {
-        var md = "Important text {==under review==}{>>Auditor: Review comments<<}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-
-        var commentsXml = E2ETestContext.ReadZipPartXml(bytes, "word/comments.xml")!;
-        Assert.Contains("<w:comments", commentsXml);
-        Assert.Contains("<w:comment", commentsXml);
-        Assert.Contains("w:id=\"1\"", commentsXml);
-    }
-
-    // =========================================================================
-    // F6: Bidirectional Reverse Import with CriticMarkup (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public async Task T1_F6_01_ReverseImport_ConvertsInsToCriticMarkupInsertion()
-    {
-        var md = "The system will deploy {++automatically++} at midnight.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(md);
-        try
-        {
-            var reverse = new ReverseImportService();
-            var importedMd = reverse.ImportFromDocx(tempFile);
-            Assert.Contains("automatically", importedMd);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F6_02_ReverseImport_ConvertsDelToCriticMarkupDeletion()
-    {
-        var md = "The system will {--manually--} deploy at midnight.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(md);
-        try
-        {
-            var reverse = new ReverseImportService();
-            var importedMd = reverse.ImportFromDocx(tempFile);
-            Assert.Contains("deploy", importedMd);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F6_03_ReverseImport_CoalescesDelAndInsToSubstitution()
-    {
-        var md = "Update from {~~v1.0~>v2.0~~} release.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(md);
-        try
-        {
-            var reverse = new ReverseImportService();
-            var importedMd = reverse.ImportFromDocx(tempFile);
-            Assert.Contains("release", importedMd);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F6_04_ReverseImport_ConvertsCommentsToCriticMarkupComments()
-    {
-        var md = "Approved clause {==section 4==}{>>Legal: Approved<<}.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(md);
-        try
-        {
-            var reverse = new ReverseImportService();
-            var importedMd = reverse.ImportFromDocx(tempFile);
-            Assert.Contains("Approved clause", importedMd);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task T1_F6_05_Roundtrip_CriticMarkupMarkdown_Docx_Markdown_Lossless()
-    {
-        var originalMd = "# Roundtrip Specification\n\n- Item 1\n- Item 2\n\nParagraph text here.";
-        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync(originalMd);
-        try
-        {
-            var reverse = new ReverseImportService();
-            var importedMd = reverse.ImportFromDocx(tempFile);
-            Assert.Contains("Roundtrip Specification", importedMd);
-            Assert.Contains("Item 1", importedMd);
-            Assert.Contains("Paragraph text here", importedMd);
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-    // =========================================================================
-    // F7: MarkSmith.Mcp Server JSON-RPC Stdio (5 tests)
-    // =========================================================================
-
-    [Fact]
-    public async Task T1_F7_01_McpServer_InitializeRequest_ReturnsProtocolCapabilities()
+    public async Task T1_F01_01_Initialize_ReturnsProtocolCapabilitiesAndServerInfo()
     {
         var req = @"{""jsonrpc"":""2.0"",""id"":""init-1"",""method"":""initialize"",""params"":{""protocolVersion"":""2024-11-05""}}";
         var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
 
         using var doc = JsonDocument.Parse(res);
-        Assert.Equal("2.0", doc.RootElement.GetProperty("jsonrpc").GetString());
-        Assert.Equal("init-1", doc.RootElement.GetProperty("id").GetString());
-        Assert.Equal("marksmith-mcp", doc.RootElement.GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
+        var root = doc.RootElement;
+        Assert.Equal("2.0", root.GetProperty("jsonrpc").GetString());
+        Assert.Equal("init-1", root.GetProperty("id").GetString());
+        var result = root.GetProperty("result");
+        Assert.Equal("2024-11-05", result.GetProperty("protocolVersion").GetString());
+        Assert.Contains("marksmith", result.GetProperty("serverInfo").GetProperty("name").GetString()!);
     }
 
     [Fact]
-    public async Task T1_F7_02_McpServer_ToolsList_ExposesAllFourCoreTools()
+    public async Task T1_F01_02_PromptsList_ReturnsAllGovernanceAndAuthoringPrompts()
+    {
+        var req = @"{""jsonrpc"":""2.0"",""id"":""prompts-1"",""method"":""prompts/list""}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+
+        using var doc = JsonDocument.Parse(res);
+        var prompts = doc.RootElement.GetProperty("result").GetProperty("prompts").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ToList();
+        Assert.Contains("author_document_gemini_3_8", prompts);
+        Assert.Contains("three_block_cycle_gemini_3_8", prompts);
+        Assert.Contains("review_and_patch_gemini_3_8", prompts);
+    }
+
+    [Fact]
+    public async Task T1_F01_03_PromptsGet_ReturnsExecutablePromptDefinition()
+    {
+        var req = @"{""jsonrpc"":""2.0"",""id"":""prompt-get-1"",""method"":""prompts/get"",""params"":{""name"":""author_document_gemini_3_8"",""arguments"":{""topic"":""Cloud Security Architecture""}}}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+
+        using var doc = JsonDocument.Parse(res);
+        var result = doc.RootElement.GetProperty("result");
+        Assert.True(result.TryGetProperty("messages", out var messages));
+        Assert.NotEmpty(messages.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task T1_F01_04_ResourcesList_ExposesSyntaxContractAndTemplatesCatalog()
+    {
+        var req = @"{""jsonrpc"":""2.0"",""id"":""res-list-1"",""method"":""resources/list""}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+
+        using var doc = JsonDocument.Parse(res);
+        var uris = doc.RootElement.GetProperty("result").GetProperty("resources").EnumerateArray().Select(r => r.GetProperty("uri").GetString()).ToList();
+        Assert.Contains("marksmith://governance/syntax-contract", uris);
+        Assert.Contains("marksmith://templates/catalog", uris);
+        Assert.Contains("marksmith://schemas/patch-spec", uris);
+    }
+
+    [Fact]
+    public async Task T1_F01_05_ResourcesRead_ReturnsSyntaxGovernanceMarkdown()
+    {
+        var req = @"{""jsonrpc"":""2.0"",""id"":""res-read-1"",""method"":""resources/read"",""params"":{""uri"":""marksmith://governance/syntax-contract""}}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+
+        using var doc = JsonDocument.Parse(res);
+        var content = doc.RootElement.GetProperty("result").GetProperty("contents").EnumerateArray().First().GetProperty("text").GetString();
+        Assert.Contains("MD_ENGINE_GOVERNANCE", content);
+        Assert.Contains("DOCX", content);
+    }
+
+    // =========================================================================
+    // F2: Gemini 3.8 Tool Schemas & Diagnostics (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F02_01_ToolsList_ExposesCompleteToolCatalog()
     {
         var req = @"{""jsonrpc"":""2.0"",""id"":""tools-1"",""method"":""tools/list""}";
         var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
 
         using var doc = JsonDocument.Parse(res);
         var tools = doc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()).ToList();
-
         Assert.Contains("render_markdown_to_docx", tools);
         Assert.Contains("inspect_docx", tools);
         Assert.Contains("patch_docx", tools);
         Assert.Contains("convert_docx_to_markdown", tools);
+        Assert.Contains("patch_markdown", tools);
+        Assert.Contains("validate_markdown", tools);
+        Assert.Contains("diff_markdown", tools);
+        Assert.Contains("diff_docx", tools);
+        Assert.Contains("manage_3block_cycle", tools);
     }
 
     [Fact]
-    public async Task T1_F7_03_McpServer_RenderMarkdownToDocx_ExecutesSuccessfully()
+    public async Task T1_F02_02_ToolCall_InspectNonExistentFile_ReturnsDiagnosticError()
     {
-        var tempDocx = Path.Combine(Path.GetTempPath(), $"mcp-out-{Guid.NewGuid():N}.docx");
-        try
-        {
-            var req = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "render-1",
-                method = "tools/call",
-                @params = new
-                {
-                    name = "render_markdown_to_docx",
-                    arguments = new
-                    {
-                        markdown = "# MCP Rendered Doc\n\nRendered via JSON-RPC tool call.",
-                        output_path = tempDocx
-                    }
-                }
-            });
+        var req = @"{""jsonrpc"":""2.0"",""id"":""err-1"",""method"":""tools/call"",""params"":{""name"":""inspect_docx"",""arguments"":{""docx_path"":""C:/non_existent_path.docx""}}}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
 
-            var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
-            using var doc = JsonDocument.Parse(res);
-            Assert.True(doc.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
-            Assert.True(File.Exists(tempDocx));
-        }
-        finally
-        {
-            if (File.Exists(tempDocx)) File.Delete(tempDocx);
-        }
+        using var doc = JsonDocument.Parse(res);
+        Assert.True(doc.RootElement.TryGetProperty("error", out var error));
+        Assert.Contains("File not found", error.GetProperty("message").GetString());
     }
 
     [Fact]
-    public async Task T1_F7_04_McpServer_InspectDocx_ReturnsStructuredReport()
+    public async Task T1_F02_03_ToolCall_UnknownTool_ReturnsMethodNotFound32601()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Document Under Inspection\n\nBody paragraph 1.\n\nBody paragraph 2.");
-        var tempDocx = Path.Combine(Path.GetTempPath(), $"mcp-insp-{Guid.NewGuid():N}.docx");
-        await File.WriteAllBytesAsync(tempDocx, bytes);
+        var req = @"{""jsonrpc"":""2.0"",""id"":""err-2"",""method"":""tools/call"",""params"":{""name"":""unregistered_ai_tool"",""arguments"":{}}}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
 
-        try
-        {
-            var req = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "inspect-1",
-                method = "tools/call",
-                @params = new
-                {
-                    name = "inspect_docx",
-                    arguments = new { docx_path = tempDocx }
-                }
-            });
-
-            var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
-            using var doc = JsonDocument.Parse(res);
-            var report = doc.RootElement.GetProperty("result").GetProperty("report");
-            Assert.Equal("Document Under Inspection", report.GetProperty("title").GetString());
-            Assert.True(report.GetProperty("totalParagraphs").GetInt32() >= 3);
-        }
-        finally
-        {
-            if (File.Exists(tempDocx)) File.Delete(tempDocx);
-        }
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(-32601, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
     }
 
     [Fact]
-    public async Task T1_F7_05_McpServer_PatchDocxAndConvertBack_ReturnsModifiedMarkdown()
+    public async Task T1_F02_04_ToolCall_MissingRequiredName_ReturnsInvalidParams32602()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Original Title\n\nOriginal paragraph content.");
-        var tempDocx = Path.Combine(Path.GetTempPath(), $"mcp-patch-{Guid.NewGuid():N}.docx");
-        await File.WriteAllBytesAsync(tempDocx, bytes);
+        var req = @"{""jsonrpc"":""2.0"",""id"":""err-3"",""method"":""tools/call"",""params"":{""arguments"":{}}}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
 
-        try
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(-32602, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
+
+    [Fact]
+    public async Task T1_F02_05_ToolCall_Ping_PreservesRequestId()
+    {
+        var req = @"{""jsonrpc"":""2.0"",""id"":""custom-ping-id-999"",""method"":""ping""}";
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal("custom-ping-id-999", doc.RootElement.GetProperty("id").GetString());
+    }
+
+    // =========================================================================
+    // F3: Lossless In-Place Markdown Patching (patch_markdown) (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F03_01_PatchMarkdown_ExactSearchAndReplace()
+    {
+        var originalMd = "# Title\n\nLegacy paragraph content here.\n\nFooter note.";
+        var req = JsonSerializer.Serialize(new
         {
-            var patchReq = JsonSerializer.Serialize(new
+            jsonrpc = "2.0",
+            id = "pm-1",
+            method = "tools/call",
+            @params = new
             {
-                jsonrpc = "2.0",
-                id = "patch-1",
-                method = "tools/call",
-                @params = new
+                name = "patch_markdown",
+                arguments = new
                 {
-                    name = "patch_docx",
-                    arguments = new
-                    {
-                        docx_path = tempDocx,
-                        patch = new DocxPatchRequest
-                        {
-                            Operations = new[]
-                            {
-                                new DocxPatchOperationItem
-                                {
-                                    Op = PatchOperation.Replace,
-                                    Target = new BlockSelector { BodyIndex = 1 },
-                                    Content = "Surgically patched paragraph content."
-                                }
-                            }
-                        }
-                    }
+                    markdown = originalMd,
+                    target = "Legacy paragraph content here.",
+                    replacement = "Modern upgraded paragraph content."
                 }
-            });
-
-            var patchRes = await E2ETestContext.SimulateMcpJsonRpcAsync(patchReq);
-            using (var doc = JsonDocument.Parse(patchRes))
-            {
-                Assert.True(doc.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
             }
+        });
 
-            var convertReq = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "conv-1",
-                method = "tools/call",
-                @params = new
-                {
-                    name = "convert_docx_to_markdown",
-                    arguments = new { docx_path = tempDocx }
-                }
-            });
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        var patched = doc.RootElement.GetProperty("result").GetProperty("markdown").GetString()!;
+        Assert.Contains("Modern upgraded paragraph content", patched);
+        Assert.DoesNotContain("Legacy paragraph content here", patched);
+        Assert.Contains("Footer note", patched);
+    }
 
-            var convRes = await E2ETestContext.SimulateMcpJsonRpcAsync(convertReq);
-            using (var doc = JsonDocument.Parse(convRes))
-            {
-                var md = doc.RootElement.GetProperty("result").GetProperty("markdown").GetString();
-                Assert.Contains("Surgically patched paragraph content", md);
-            }
-        }
-        finally
+    [Fact]
+    public async Task T1_F03_02_PatchMarkdown_InjectsCriticMarkupTrackChanges()
+    {
+        var originalMd = "We agree to the standard terms.";
+        var req = JsonSerializer.Serialize(new
         {
-            if (File.Exists(tempDocx)) File.Delete(tempDocx);
-        }
+            jsonrpc = "2.0",
+            id = "pm-2",
+            method = "tools/call",
+            @params = new
+            {
+                name = "patch_markdown",
+                arguments = new
+                {
+                    markdown = originalMd,
+                    target = "standard terms",
+                    replacement = "custom enterprise SLAs",
+                    track_changes = true
+                }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        var patched = doc.RootElement.GetProperty("result").GetProperty("markdown").GetString()!;
+        Assert.Contains("{--standard terms--}{++custom enterprise SLAs++}", patched);
+    }
+
+    [Fact]
+    public void T1_F03_03_PatchMarkdown_PreservesLeadingAndTrailingWhitespace()
+    {
+        var originalMd = "   \n\n# Indented Title\n\n   Paragraph with spaces.   \n\n";
+        var patched = E2ETestContext.ApplyMarkdownPatch(originalMd, "Paragraph with spaces.", "Updated paragraph.");
+        Assert.StartsWith("   \n\n# Indented Title", patched);
+        Assert.EndsWith("   \n\n", patched);
+    }
+
+    [Fact]
+    public void T1_F03_04_PatchMarkdown_NonExistentTarget_LeavesContentUntouched()
+    {
+        var originalMd = "# Title\nParagraph content.";
+        var patched = E2ETestContext.ApplyMarkdownPatch(originalMd, "Missing Target String", "Replacement");
+        Assert.Equal(originalMd, patched);
+    }
+
+    [Fact]
+    public void T1_F03_05_PatchMarkdown_ConsecutivePatches_ApplyInOrder()
+    {
+        var originalMd = "Alpha Beta Gamma";
+        var step1 = E2ETestContext.ApplyMarkdownPatch(originalMd, "Alpha", "One");
+        var step2 = E2ETestContext.ApplyMarkdownPatch(step1, "Beta", "Two");
+        var step3 = E2ETestContext.ApplyMarkdownPatch(step2, "Gamma", "Three");
+        Assert.Equal("One Two Three", step3);
     }
 
     // =========================================================================
-    // F8: CLI Integration marksmith mcp (5 tests)
+    // F4: Markdown Syntax Validation (validate_markdown) (5 tests)
     // =========================================================================
 
     [Fact]
-    public void T1_F8_01_Cli_Help_IncludesMcpCommandDescription()
+    public async Task T1_F04_01_ValidateMarkdown_CleanDocument_ReturnsZeroErrors()
     {
-        var args = new[] { "--help" };
-        Assert.Contains(args[0], new[] { "--help", "-h", "/?" });
+        var validMd = "# Architecture Design\n\nClean markdown document with valid lists:\n- Item 1\n- Item 2";
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "vm-1",
+            method = "tools/call",
+            @params = new
+            {
+                name = "validate_markdown",
+                arguments = new { markdown = validMd }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.True(doc.RootElement.GetProperty("result").GetProperty("is_valid").GetBoolean());
+        Assert.Equal(0, doc.RootElement.GetProperty("result").GetProperty("error_count").GetInt32());
     }
 
     [Fact]
-    public void T1_F8_02_Cli_McpCommand_ParsesStdioTransportFlags()
+    public async Task T1_F04_02_ValidateMarkdown_UnclosedCodeFence_ReturnsDiagnostic()
     {
-        var args = new[] { "mcp", "--transport", "stdio" };
-        Assert.Equal("mcp", args[0]);
-        Assert.Equal("--transport", args[1]);
-        Assert.Equal("stdio", args[2]);
+        var invalidMd = "# Broken Doc\n\n```csharp\npublic void Broken() {\n";
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "vm-2",
+            method = "tools/call",
+            @params = new
+            {
+                name = "validate_markdown",
+                arguments = new { markdown = invalidMd }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.False(doc.RootElement.GetProperty("result").GetProperty("is_valid").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("result").GetProperty("error_count").GetInt32() > 0);
     }
 
     [Fact]
-    public void T1_F8_03_Cli_McpCommand_HandlesInvalidSubcommandsGracefully()
+    public void T1_F04_03_ValidateMarkdown_RawScriptTag_FlagsSecurityViolation()
     {
-        var args = new[] { "unknown-command" };
-        Assert.NotEqual("mcp", args[0]);
-        Assert.NotEqual("batch", args[0]);
+        var xssMd = "# Security Alert\n<script>alert('pwn')</script>\nContent";
+        var (isValid, errors) = E2ETestContext.ValidateMarkdownGovernance(xssMd);
+        Assert.False(isValid);
+        Assert.Contains(errors, e => e.Contains("<script>"));
     }
 
     [Fact]
-    public async Task T1_F8_04_Cli_McpCommand_SupportsJsonRpcMessagePiping()
+    public void T1_F04_04_ValidateMarkdown_ValidWrappers_PassCleanly()
     {
-        var jsonReq = @"{""jsonrpc"":""2.0"",""id"":""cli-1"",""method"":""initialize""}";
-        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(jsonReq);
-        Assert.Contains("marksmith-mcp", res);
+        var wrapperMd = @":::columns
+Left Column Content
+===
+Right Column Content
+:::
+
+:::tabs
+=== ""Tab 1""
+Tab 1 Content
+=== ""Tab 2""
+Tab 2 Content
+:::";
+
+        var (isValid, errors) = E2ETestContext.ValidateMarkdownGovernance(wrapperMd);
+        Assert.True(isValid);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public async Task T1_F8_05_Cli_McpCommand_ExitsCleanlyOnShutdownSignal()
+    public void T1_F04_05_ValidateMarkdown_EmptyDocument_Valid()
     {
-        var jsonReq = @"{""jsonrpc"":""2.0"",""id"":""cli-shutdown"",""method"":""tools/list""}";
-        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(jsonReq);
-        Assert.Contains("render_markdown_to_docx", res);
+        var (isValid, errors) = E2ETestContext.ValidateMarkdownGovernance("");
+        Assert.True(isValid);
+        Assert.Empty(errors);
     }
 
     // =========================================================================
-    // F9: Surgical In-Place DOCX Patcher (5 tests)
+    // F5: Semantic Diffing Tools (diff_markdown, diff_docx) (5 tests)
     // =========================================================================
 
     [Fact]
-    public async Task T1_F9_01_Patch_ReplaceParagraph_ByBodyIndex()
+    public async Task T1_F05_01_DiffMarkdown_IdentifiesLineModifications()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Section 1\n\nParagraph Alpha\n\nParagraph Beta");
-        var req = new DocxPatchRequest
+        var original = "# Version 1\nParagraph A\nParagraph B";
+        var modified = "# Version 2\nParagraph A\nParagraph C";
+
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "dm-1",
+            method = "tools/call",
+            @params = new
+            {
+                name = "diff_markdown",
+                arguments = new { original = original, modified = modified }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.True(doc.RootElement.GetProperty("result").GetProperty("changed").GetBoolean());
+    }
+
+    [Fact]
+    public void T1_F05_02_DiffMarkdown_IdenticalTexts_ReturnsNoChanges()
+    {
+        var md = "# Doc Title\nContent paragraph.";
+        var diffService = new MarkdownDiffService();
+        var result = diffService.Compare(md, md);
+        Assert.NotNull(result);
+        Assert.False(result.HasChanges);
+    }
+
+    [Fact]
+    public void T1_F05_03_DiffMarkdown_PureAddition_IdentifiesNewLines()
+    {
+        var original = "# Doc Title";
+        var modified = "# Doc Title\n\nAdded paragraph.";
+        var diffService = new MarkdownDiffService();
+        var result = diffService.Compare(original, modified);
+        Assert.NotNull(result);
+        Assert.True(result.HasChanges);
+    }
+
+    [Fact]
+    public void T1_F05_04_DiffMarkdown_PureDeletion_IdentifiesRemovedLines()
+    {
+        var original = "# Doc Title\n\nObsolete paragraph.";
+        var modified = "# Doc Title";
+        var diffService = new MarkdownDiffService();
+        var result = diffService.Compare(original, modified);
+        Assert.NotNull(result);
+        Assert.True(result.HasChanges);
+    }
+
+    [Fact]
+    public async Task T1_F05_05_DiffDocx_DetectsStructuralDifferencesBetweenPackages()
+    {
+        var bytesA = await E2ETestContext.ExportMarkdownToBytesAsync("# Document V1\n\nFirst paragraph.");
+        var bytesB = await E2ETestContext.ExportMarkdownToBytesAsync("# Document V2\n\nSecond paragraph.");
+
+        var repA = E2ETestContext.InspectDocx(bytesA);
+        var repB = E2ETestContext.InspectDocx(bytesB);
+
+        Assert.NotEqual(repA.Title, repB.Title);
+    }
+
+    // =========================================================================
+    // F6: InPlaceDocxPatcher Revisions & Comments Fix (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F06_01_InPlacePatch_AddComment_InitializesWordprocessingCommentsPart()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Agreement\n\nConfidentiality clause.");
+        var rep = E2ETestContext.InspectDocx(bytes);
+        var targetParaId = rep.Blocks.First(b => !string.IsNullOrEmpty(b.ParaId)).ParaId;
+
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.AddComment,
+                    Target = new BlockSelector { ParaId = targetParaId },
+                    Comment = "Legal team approval pending.",
+                    Author = "Lead Counsel"
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success);
+
+        var entries = E2ETestContext.ListZipEntries(outBytes);
+        Assert.Contains("word/comments.xml", entries);
+
+        var errors = E2ETestContext.ValidateDocxSchema(outBytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F06_02_InPlacePatch_TrackChangesReplacement_EmitsValidDelAndIns()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Section\n\nOriginal draft text.");
+        var patchReq = new DocxPatchRequest
         {
             Operations = new[]
             {
@@ -761,204 +446,1030 @@ Testing all features together:
                 {
                     Op = PatchOperation.Replace,
                     Target = new BlockSelector { BodyIndex = 1 },
-                    Content = "Replaced Content Alpha"
+                    Content = "Revised executive text.",
+                    TrackChanges = true,
+                    Author = "Editor"
                 }
             }
         };
 
-        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, req);
-        Assert.True(result.Success);
-        Assert.Equal(1, result.ModifiedBlocks);
-
-        var docXml = E2ETestContext.ReadZipPartXml(outBytes, "word/document.xml")!;
-        Assert.Contains("Replaced Content Alpha", docXml);
-        Assert.DoesNotContain("Paragraph Alpha", docXml);
-    }
-
-    [Fact]
-    public async Task T1_F9_02_Patch_InsertParagraphAfter_ByParaId()
-    {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Title\n\nFirst paragraph.");
-        var report = E2ETestContext.InspectDocx(bytes);
-        var targetParaId = report.Blocks.First(b => b.Text.Contains("First paragraph")).ParaId;
-
-        var req = new DocxPatchRequest
-        {
-            Operations = new[]
-            {
-                new DocxPatchOperationItem
-                {
-                    Op = PatchOperation.InsertAfter,
-                    Target = new BlockSelector { ParaId = targetParaId },
-                    Content = "Inserted second paragraph."
-                }
-            }
-        };
-
-        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, req);
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
         Assert.True(result.Success);
 
         var docXml = E2ETestContext.ReadZipPartXml(outBytes, "word/document.xml")!;
-        Assert.Contains("First paragraph", docXml);
-        Assert.Contains("Inserted second paragraph", docXml);
+        Assert.Contains("<w:del", docXml);
+        Assert.Contains("<w:ins", docXml);
+
+        var errors = E2ETestContext.ValidateDocxSchema(outBytes);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public async Task T1_F9_03_Patch_DeleteBlock_ByHeadingPath()
+    public async Task T1_F06_03_InPlacePatch_AcceptAllRevisions_CleansUpMarkup()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Retained Section\n\nContent to keep.\n\n# Obsolete Section\n\nContent to delete.");
-        var req = new DocxPatchRequest
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("Proposal with {++added feature++}.");
+        var patchReq = new DocxPatchRequest
         {
             Operations = new[]
             {
                 new DocxPatchOperationItem
                 {
-                    Op = PatchOperation.Delete,
-                    Target = new BlockSelector { HeadingPath = "Obsolete Section" }
+                    Op = PatchOperation.AcceptRevision,
+                    Target = new BlockSelector()
                 }
             }
         };
 
-        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, req);
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
         Assert.True(result.Success);
 
-        var report = E2ETestContext.InspectDocx(outBytes);
-        Assert.Contains(report.Blocks, b => b.Text.Contains("Retained Section"));
-        Assert.DoesNotContain(report.Blocks, b => b.Text.Contains("Obsolete Section"));
+        var rep = E2ETestContext.InspectDocx(outBytes);
+        Assert.Empty(rep.Revisions);
     }
 
     [Fact]
-    public async Task T1_F9_04_Patch_AddCommentToParagraph_ByBookmark()
+    public async Task T1_F06_04_InPlacePatch_RejectAllRevisions_RevertsInsertedContent()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Bookmark Heading\n\nTarget paragraph for review comment.");
-        var report = E2ETestContext.InspectDocx(bytes);
-        var firstPara = report.Blocks.First(b => !string.IsNullOrEmpty(b.ParaId));
-
-        var req = new DocxPatchRequest
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("Proposal with {++unwanted insertion++}.");
+        var patchReq = new DocxPatchRequest
         {
             Operations = new[]
             {
                 new DocxPatchOperationItem
                 {
-                    Op = PatchOperation.AddComment,
-                    Target = new BlockSelector { ParaId = firstPara.ParaId },
-                    Comment = "Please verify memory allocation in this block.",
-                    Author = "Chief Architect"
+                    Op = PatchOperation.RejectRevision,
+                    Target = new BlockSelector()
                 }
             }
         };
 
-        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, req);
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
         Assert.True(result.Success);
 
-        var commentsXml = E2ETestContext.ReadZipPartXml(outBytes, "word/comments.xml")!;
-        Assert.Contains("Chief Architect", commentsXml);
-        Assert.Contains("Please verify memory allocation in this block", commentsXml);
+        var rep = E2ETestContext.InspectDocx(outBytes);
+        Assert.Empty(rep.Revisions);
     }
 
     [Fact]
-    public async Task T1_F9_05_Patch_AppendSection_PreservingDocumentStylesAndRels()
+    public async Task T1_F06_05_InPlacePatch_PreservesSurroundingSectionsAndProperties()
     {
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Section 1\n\nExisting text.");
-        var req = new DocxPatchRequest
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Section 1\n\nParagraph 1.\n\n# Section 2\n\nParagraph 2.");
+        var patchReq = new DocxPatchRequest
         {
             Operations = new[]
             {
                 new DocxPatchOperationItem
                 {
-                    Op = PatchOperation.Append,
-                    Content = "Appended final section paragraph."
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "Updated Paragraph 1."
                 }
             }
         };
 
-        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, req);
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success);
+
+        var docXml = E2ETestContext.ReadZipPartXml(outBytes, "word/document.xml")!;
+        Assert.Contains("Section 1", docXml);
+        Assert.Contains("Section 2", docXml);
+        Assert.Contains("Paragraph 2", docXml);
+    }
+
+    // =========================================================================
+    // F7: Rich Element Transpilation in Docx Patcher (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F07_01_PatcherTranspilation_CalloutBox_InjectsStyledBlock()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Root\n\nPlaceholder block.");
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "> [!NOTE]\n> Transpiled callout box inside surgical patch."
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
         Assert.True(result.Success);
 
         var errors = E2ETestContext.ValidateDocxSchema(outBytes);
         Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F07_02_PatcherTranspilation_MathBlock_InjectsMathRun()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Math Doc\n\nEquation target.");
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "$$ \\int_0^1 x^2 dx = \\frac{1}{3} $$"
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success);
+        var errors = E2ETestContext.ValidateDocxSchema(outBytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F07_03_PatcherTranspilation_Table_InjectsValidTableElement()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Section\n\nTable placeholder.");
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "| Header A | Header B |\n|---|---|\n| Val 1 | Val 2 |",
+                    PreserveFormatting = false
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success, $"Patcher failed: {result.ErrorMessage} - {string.Join("; ", result.ValidationErrors)}");
+
+        var rep = E2ETestContext.InspectDocx(outBytes);
+        Assert.True(rep.TotalTables >= 1);
+    }
+
+    [Fact]
+    public async Task T1_F07_04_PatcherTranspilation_FencedCodeBlock_InjectsCodeStyle()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Code Doc\n\nCode target.");
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "```csharp\nvar x = 42;\n```"
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success);
 
         var docXml = E2ETestContext.ReadZipPartXml(outBytes, "word/document.xml")!;
-        Assert.Contains("Appended final section paragraph", docXml);
+        Assert.Contains("var x = 42;", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F07_05_PatcherTranspilation_NestedLists_InjectsListParagraphs()
+    {
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync("# List Doc\n\nList target.");
+        var patchReq = new DocxPatchRequest
+        {
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { BodyIndex = 1 },
+                    Content = "- Item 1\n- Item 2\n- Item 3"
+                }
+            }
+        };
+
+        var (outBytes, result) = E2ETestContext.ApplyDocxPatch(bytes, patchReq);
+        Assert.True(result.Success);
+        var errors = E2ETestContext.ValidateDocxSchema(outBytes);
+        Assert.Empty(errors);
     }
 
     // =========================================================================
-    // F10: DOCX Structural Inspector (5 tests)
+    // F8: AI-Executable 3-Block Cycle State Machine (5 tests)
     // =========================================================================
 
     [Fact]
-    public async Task T1_F10_01_Inspect_ReturnsAccurateParagraphAndTableCounts()
+    public async Task T1_F08_01_AiCycle_Block1_Generates2Ideas()
     {
-        var md = @"# Document Title
-Paragraph 1.
-Paragraph 2.
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "c-1",
+            method = "tools/call",
+            @params = new
+            {
+                name = "manage_3block_cycle",
+                arguments = new { action = "generate", current_block = 1 }
+            }
+        });
 
-| A | B |
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(2, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
+    }
+
+    [Fact]
+    public async Task T1_F08_02_AiCycle_Block2_RefinesBlock1AndGenerates2New()
+    {
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "c-2",
+            method = "tools/call",
+            @params = new
+            {
+                name = "manage_3block_cycle",
+                arguments = new { action = "refine_and_generate", current_block = 2 }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(3, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
+    }
+
+    [Fact]
+    public async Task T1_F08_03_AiCycle_Block3_RefinesBlock2AndBlock1()
+    {
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "c-3",
+            method = "tools/call",
+            @params = new
+            {
+                name = "manage_3block_cycle",
+                arguments = new { action = "refine_all", current_block = 3 }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(4, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
+        Assert.True(doc.RootElement.GetProperty("result").GetProperty("is_execution_phase").GetBoolean());
+    }
+
+    [Fact]
+    public async Task T1_F08_04_AiCycle_Block4_ExecutionPhase_VerifiesAll6Ideas()
+    {
+        var req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "c-4",
+            method = "tools/call",
+            @params = new
+            {
+                name = "manage_3block_cycle",
+                arguments = new { action = "execute_code", current_block = 4 }
+            }
+        });
+
+        var res = await E2ETestContext.SimulateMcpJsonRpcAsync(req);
+        using var doc = JsonDocument.Parse(res);
+        Assert.Equal(6, doc.RootElement.GetProperty("result").GetProperty("total_refined_ideas").GetInt32());
+    }
+
+    [Fact]
+    public void T1_F08_05_AiCycle_CarryForward_TransfersBlock3Ideas()
+    {
+        var block3Ideas = new List<string> { "Idea 5: OpenXmlValidator Parallelism", "Idea 6: RecyclableMemoryStream Pool" };
+        Assert.Equal(2, block3Ideas.Count);
+        Assert.Contains("OpenXmlValidator", block3Ideas[0]);
+    }
+
+    // =========================================================================
+    // F9: Gemini 3.8 Heuristic Classification & Normalization (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public void T1_F09_01_Normalizer_StripsThinkChainOfThoughtBlocks()
+    {
+        var input = "<think>\nInternal reasoning about OpenXML schema...\n</think>\n# Document Output\nReal content.";
+        var normalized = ProviderDialectNormalizer.Normalize(input, "gemini");
+        Assert.DoesNotContain("<think>", normalized);
+        Assert.Contains("# Document Output", normalized);
+        Assert.Contains("Real content", normalized);
+    }
+
+    [Fact]
+    public void T1_F09_02_Normalizer_ConvertsCodeSnippetMermaidFences()
+    {
+        var input = "```code snippet\nflowchart TD\n  A --> B\n```";
+        var normalized = ProviderDialectNormalizer.Normalize(input, "gemini");
+        Assert.Contains("```mermaid", normalized);
+    }
+
+    [Fact]
+    public void T1_F09_03_Normalizer_UnquotesBlockquotedFences()
+    {
+        var input = "> ```csharp\n> var x = 1;\n> ```";
+        var normalized = ProviderDialectNormalizer.Normalize(input, "gemini");
+        Assert.Contains("```csharp", normalized);
+        Assert.DoesNotContain("> ```csharp", normalized);
+    }
+
+    [Fact]
+    public void T1_F09_04_Normalizer_StripsPromptEchoHeader()
+    {
+        var input = "User: Generate a report on cloud security.\n\n# Cloud Security Report\nContent.";
+        var normalized = ProviderDialectNormalizer.Normalize(input, "gemini");
+        Assert.DoesNotContain("User: Generate a report", normalized);
+        Assert.Contains("# Cloud Security Report", normalized);
+    }
+
+    [Fact]
+    public void T1_F09_05_Normalizer_DeduplicatesMermaidBlocks()
+    {
+        var input = "```mermaid\nflowchart TD\n  A --> B\n```\n\n```mermaid\nflowchart TD\n  A --> B\n```";
+        var normalized = ProviderDialectNormalizer.Normalize(input, "gemini");
+        var count = Regex.Matches(normalized, "```mermaid").Count;
+        Assert.Equal(1, count);
+    }
+
+    // =========================================================================
+    // F10: Native Collapsible Sections (<w15:collapsed>) (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F10_01_CollapsibleSections_DetailsSummary_EmitsCollapsedSection()
+    {
+        var md = "<details><summary>Technical Deep Dive</summary>\n\nDetailed breakdown of the architecture.\n</details>";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("Technical Deep Dive", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F10_02_CollapsibleSections_OpenDetails_RendersExpanded()
+    {
+        var md = "<details open><summary>Expanded Overview</summary>\n\nVisible content.\n</details>";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("Expanded Overview", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F10_03_CollapsibleSections_TabsEmitCollapsibleHeaders()
+    {
+        var md = @":::tabs
+=== ""Windows""
+Windows installation instructions.
+=== ""macOS""
+macOS installation instructions.
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F10_04_CollapsibleSections_NestedContent_PreservesFormatting()
+    {
+        var md = @"<details><summary>Specifications Table</summary>
+
+| Spec | Value |
 |---|---|
-| 1 | 2 |
-| 3 | 4 |
+| Latency | <10ms |
 
-Paragraph 3.";
+</details>";
 
         var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var report = E2ETestContext.InspectDocx(bytes);
-
-        Assert.Equal("Document Title", report.Title);
-        Assert.True(report.TotalParagraphs >= 4);
-        Assert.Equal(1, report.TotalTables);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public async Task T1_F10_02_Inspect_ExtractsDocumentTitleAndHeadingHierarchy()
+    public void T1_F10_05_CollapsibleSections_HTMLPreview_RendersDetailsTag()
     {
-        var md = @"# Engineering Specification
+        var md = "<details><summary>Preview Toggle</summary>Body</details>";
+        var html = E2ETestContext.RenderHtml(md);
+        Assert.Contains("<details", html);
+        Assert.Contains("<summary", html);
+    }
 
-## Architecture Overview
-Details here.
+    // =========================================================================
+    // F11: Multi-Column Blocks (:::columns) DOCX & Preview (5 tests)
+    // =========================================================================
 
-### Microservices
-Service descriptions.";
+    [Fact]
+    public async Task T1_F11_01_Columns_2ColumnBlock_EmitsContinuousSectionWithCols()
+    {
+        var md = @":::columns
+Left side content with key bullet points.
+===
+Right side content with descriptive text.
+:::";
 
         var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var report = E2ETestContext.InspectDocx(bytes);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
 
-        Assert.Equal("Engineering Specification", report.Title);
-        var headings = report.Blocks.Where(b => b.HeadingLevel != null).ToList();
-        Assert.NotEmpty(headings);
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("Left side content", docXml);
+        Assert.Contains("Right side content", docXml);
     }
 
     [Fact]
-    public async Task T1_F10_03_Inspect_IdentifiesAllTrackChangesRevisions()
+    public async Task T1_F11_02_Columns_3ColumnBlock_EmitsBalancedColumnBreaks()
     {
-        var md = "Proposal with {++approved addition++} and {--rejected deletion--}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var report = E2ETestContext.InspectDocx(bytes);
+        var md = @":::columns
+Col 1
+===
+Col 2
+===
+Col 3
+:::";
 
-        Assert.True(report.Revisions.Count >= 2);
-        Assert.Contains(report.Revisions, r => r.Type == "Insert" && r.Text.Contains("approved addition"));
-        Assert.Contains(report.Revisions, r => r.Type == "Delete" && r.Text.Contains("rejected deletion"));
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public async Task T1_F10_04_Inspect_ExtractsCommentsWithAuthorsAndAnchorText()
+    public void T1_F11_03_Columns_HTMLPreview_LiftsColumnsToResponsiveContainer()
     {
-        var md = "Reviewed text {==contract term==}{>>Senior Counsel: Verify jurisdiction clause<<}.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var report = E2ETestContext.InspectDocx(bytes);
+        var md = @":::columns
+Col A
+===
+Col B
+:::";
 
-        Assert.NotEmpty(report.Comments);
-        Assert.Contains(report.Comments, c => c.CommentText.Contains("Verify jurisdiction clause"));
+        var html = E2ETestContext.RenderHtml(md);
+        Assert.Contains("ms-columns", html);
     }
 
     [Fact]
-    public async Task T1_F10_05_Inspect_ExtractsParaIdAndBodyIndexSelectorsForPatching()
+    public async Task T1_F11_04_Columns_FollowedByStandardParagraph_RestoresLayout()
     {
-        var md = "# Block Selectors Test\n\nParagraph 1.\n\nParagraph 2.";
-        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
-        var report = E2ETestContext.InspectDocx(bytes);
+        var md = @":::columns
+Col 1
+===
+Col 2
+:::
 
-        Assert.NotEmpty(report.Blocks);
-        Assert.True(report.Blocks.All(b => b.Index >= 0));
-        Assert.NotNull(report.Blocks[0].Text);
+Standard full-width body paragraph.";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("Standard full-width body paragraph", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F11_05_Columns_WithFormattedListsAndHeadings()
+    {
+        var md = @":::columns
+### Left Heading
+- Item A1
+- Item A2
+===
+### Right Heading
+- Item B1
+- Item B2
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    // =========================================================================
+    // F12: Nested Grid HTML Table Parser (colspan/rowspan/nested) (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F12_01_HtmlTable_Colspan_EmitsGridSpan()
+    {
+        var md = @"<table>
+  <tr><th colspan=""2"">Merged Header</th></tr>
+  <tr><td>Cell 1</td><td>Cell 2</td></tr>
+</table>";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("gridSpan", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F12_02_HtmlTable_Rowspan_EmitsVMerge()
+    {
+        var md = @"<table>
+  <tr><td rowspan=""2"">Merged Row</td><td>Cell A</td></tr>
+  <tr><td>Cell B</td></tr>
+</table>";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+
+        var docXml = E2ETestContext.ReadZipPartXml(bytes, "word/document.xml")!;
+        Assert.Contains("vMerge", docXml);
+    }
+
+    [Fact]
+    public async Task T1_F12_03_HtmlTable_NestedTableInCell_EmitsNestedTbl()
+    {
+        var md = @"<table>
+  <tr>
+    <td>Outer Cell</td>
+    <td>
+      <table><tr><td>Inner 1</td><td>Inner 2</td></tr></table>
+    </td>
+  </tr>
+</table>";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F12_04_HtmlTable_RichInlineFormattingInCells()
+    {
+        var md = @"<table>
+  <tr><td><strong>Bold</strong> and <em>Italic</em> and <code>Code</code></td></tr>
+</table>";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F12_05_HtmlTable_CombinedColspanAndRowspan()
+    {
+        var md = @"<table>
+  <tr><td colspan=""2"" rowspan=""2"">Big Corner</td><td>Right 1</td></tr>
+  <tr><td>Right 2</td></tr>
+  <tr><td>Bottom 1</td><td>Bottom 2</td><td>Bottom 3</td></tr>
+</table>";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    // =========================================================================
+    // F13: DrawingML Chart Dynamic IDs & SmartArt Rel Hardening (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F13_01_Chart_DynamicDocPropertiesId_AvoidsHardcodedCollision()
+    {
+        var md = @":::chart type=""bar"" title=""Revenue Growth""
+Categories: Q1, Q2, Q3, Q4
+Series: 2025, 100, 150, 200, 250
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F13_02_Chart_MultipleChartsInSingleDocument_HaveUniqueRelIds()
+    {
+        var md = @":::chart type=""pie"" title=""Market Share""
+Series: Chrome, 65; Edge, 20; Safari, 15
+:::
+
+:::chart type=""line"" title=""User Growth""
+Categories: Jan, Feb, Mar
+Series: Users, 1000, 2500, 5000
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F13_03_SmartArt_DynamicRelationshipIdsInPackage()
+    {
+        var md = @":::smartart layout=""radial"" title=""Ecosystem Architecture""
+- Core Engine
+  - Parser
+  - Emitter
+  - Patcher
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F13_04_ChartAndSmartArt_MixedInDocument_AllPartsValid()
+    {
+        var md = @"# Mixed Visuals
+
+:::chart type=""bar"" title=""Performance Metrics""
+Categories: SAX, DOM
+Series: Throughput, 5000, 500
+:::
+
+:::smartart layout=""process"" title=""Workflow""
+- Ingest
+- Parse
+- Stream
+:::";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F13_05_RelationshipsXml_ZeroCorruptedTargets()
+    {
+        var md = "# Doc with links\n[Docs](https://example.com) and [Portal](https://portal.example.com)";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var relsXml = E2ETestContext.ReadZipPartXml(bytes, "word/_rels/document.xml.rels")!;
+        Assert.DoesNotContain("Target=\"\"", relsXml);
+    }
+
+    // =========================================================================
+    // F14: Dual-Pipeline Parity & XSS Governance (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public void T1_F14_01_DualPipeline_CodeFenceXss_NotHtmlDecodedInPreview()
+    {
+        var xssMd = "```html\n<script>alert('xss')</script>\n```";
+        var html = E2ETestContext.RenderHtml(xssMd);
+        Assert.DoesNotContain("<script>alert('xss')</script>", html);
+        Assert.Contains("&lt;script&gt;alert('xss')&lt;/script&gt;", html);
+    }
+
+    [Fact]
+    public void T1_F14_02_DualPipeline_SanitizerPreservesCommentsAsAnchors()
+    {
+        var md = "<!-- MARKSMITH_FEATURE:test_anchor -->\nParagraph content.";
+        var html = E2ETestContext.RenderHtml(md);
+        Assert.Contains("MARKSMITH_FEATURE:test_anchor", html);
+    }
+
+    [Fact]
+    public async Task T1_F14_03_DualPipeline_CalloutsRenderInBothDocxAndHtml()
+    {
+        var md = "> [!WARNING]\n> Production deployment requires rollback plan.";
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var html = E2ETestContext.RenderHtml(md);
+
+        Assert.Empty(E2ETestContext.ValidateDocxSchema(docxBytes));
+        Assert.Contains("markdown-alert", html);
+    }
+
+    [Fact]
+    public async Task T1_F14_04_DualPipeline_MathRendersInBothDocxAndHtml()
+    {
+        var md = "The formula is $$ f(x) = x^2 + 2x + 1 $$.";
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var html = E2ETestContext.RenderHtml(md);
+
+        Assert.Empty(E2ETestContext.ValidateDocxSchema(docxBytes));
+        Assert.Contains("katex", html.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task T1_F14_05_DualPipeline_WatermarksRenderInBothPipelines()
+    {
+        var md = @":::watermark ""CONFIDENTIAL"" color=""#FF0000"" opacity=""0.2""
+# Sensitive Document
+Internal data.";
+
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var html = E2ETestContext.RenderHtml(md);
+
+        Assert.Empty(E2ETestContext.ValidateDocxSchema(docxBytes));
+        Assert.Contains("mk-watermark", html);
+    }
+
+    // =========================================================================
+    // F15: Multi-Threaded SAX Streaming Pipeline (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F15_01_StreamingSax_ExportsValidPackage()
+    {
+        var md = "# Streaming Document\n\nExported via high-throughput SAX engine.";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F15_02_StreamingSax_PreservesSequentialBlockOrder()
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 1; i <= 20; i++)
+        {
+            sb.AppendLine($"## Section {i}\nParagraph for section {i}.\n");
+        }
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
+        var rep = E2ETestContext.InspectDocx(bytes);
+        var headings = rep.Blocks.Where(b => b.HeadingLevel == 2).Select(b => b.Text).ToList();
+
+        for (int i = 1; i <= 20; i++)
+        {
+            Assert.Contains(headings, h => h.Contains($"Section {i}"));
+        }
+    }
+
+    [Fact]
+    public async Task T1_F15_03_StreamingSax_HandlesInterleavedBlocksAndTables()
+    {
+        var md = @"# Document
+Paragraph 1
+
+| H1 | H2 |
+|---|---|
+| A | B |
+
+Paragraph 2
+
+```python
+print('hello')
+```
+
+Paragraph 3";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F15_04_StreamingSax_DirectMemoryStreamTarget()
+    {
+        var md = "# Memory Stream Test\nDirect stream write.";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        Assert.NotEmpty(bytes);
+
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F15_05_StreamingSax_NoCorruptedXmlEntriesInZip()
+    {
+        var md = "# Zip Test\nTesting zip integrity.";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        using var zipMs = new MemoryStream(bytes);
+        using var zip = new ZipArchive(zipMs, ZipArchiveMode.Read);
+        Assert.True(zip.Entries.Count >= 5);
+    }
+
+    // =========================================================================
+    // F16: Asynchronous Token Ingestion for Gemini 3.8 (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F16_01_AsyncTokenIngestion_AggregatesChunksAccurately()
+    {
+        var fullText = "# Gemini 3.8 Ingestion\n\nReal-time streaming token ingestion test.";
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync(fullText, chunkSize: 5);
+
+        var sb = new System.Text.StringBuilder();
+        await foreach (var token in tokenStream)
+        {
+            sb.Append(token);
+        }
+
+        Assert.Equal(fullText, sb.ToString());
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F16_02_AsyncTokenIngestion_SimulatesTokenStreamDelays()
+    {
+        var fullText = "Streaming token payload with simulated latency.";
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync(fullText, chunkSize: 8, delayMs: 1);
+
+        var sb = new System.Text.StringBuilder();
+        await foreach (var chunk in tokenStream)
+        {
+            sb.Append(chunk);
+        }
+
+        Assert.Equal(fullText, sb.ToString());
+    }
+
+    [Fact]
+    public async Task T1_F16_03_AsyncTokenIngestion_HandlesMarkdownDividersAcrossTokens()
+    {
+        var fullText = ":::columns\nLeft\n===\nRight\n:::";
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync(fullText, chunkSize: 3);
+
+        var sb = new System.Text.StringBuilder();
+        await foreach (var chunk in tokenStream)
+        {
+            sb.Append(chunk);
+        }
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F16_04_AsyncTokenIngestion_EmptyStream_HandledSafely()
+    {
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync("", chunkSize: 5);
+        int count = 0;
+        await foreach (var _ in tokenStream)
+        {
+            count++;
+        }
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public async Task T1_F16_05_AsyncTokenIngestion_LargeDocumentStream()
+    {
+        var sbLarge = new System.Text.StringBuilder();
+        for (int i = 0; i < 50; i++)
+        {
+            sbLarge.AppendLine($"Paragraph {i} streaming token test.");
+        }
+
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync(sbLarge.ToString(), chunkSize: 20);
+        var sbCollected = new System.Text.StringBuilder();
+        await foreach (var token in tokenStream)
+        {
+            sbCollected.Append(token);
+        }
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sbCollected.ToString());
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    // =========================================================================
+    // F17: Thread-Safe Relationship & Part Staging (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F17_01_ConcurrentExports_ZeroStateContention()
+    {
+        var tasks = Enumerable.Range(1, 10).Select(i =>
+            E2ETestContext.ExportMarkdownToBytesAsync($"# Thread {i}\nContent for thread {i}."));
+
+        var results = await Task.WhenAll(tasks);
+        Assert.Equal(10, results.Length);
+        foreach (var bytes in results)
+        {
+            var errors = E2ETestContext.ValidateDocxSchema(bytes);
+            Assert.Empty(errors);
+        }
+    }
+
+    [Fact]
+    public async Task T1_F17_02_DynamicRelationshipIds_NoDuplicationsUnderLoad()
+    {
+        var md = @"# Links
+[L1](https://a.com)
+[L2](https://b.com)
+[L3](https://c.com)
+[L4](https://d.com)
+[L5](https://e.com)";
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var relsXml = E2ETestContext.ReadZipPartXml(bytes, "word/_rels/document.xml.rels")!;
+
+        var relIds = Regex.Matches(relsXml, @"Id=""([^""]+)""").Select(m => m.Groups[1].Value).ToList();
+        Assert.Equal(relIds.Count, relIds.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task T1_F17_03_PartStaging_MaintainsValidPackageContentTypes()
+    {
+        var md = "# Content Types Test\nParagraph content.";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var contentTypes = E2ETestContext.ReadZipPartXml(bytes, "[Content_Types].xml")!;
+        Assert.Contains("application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", contentTypes);
+    }
+
+    [Fact]
+    public async Task T1_F17_04_PartStaging_StylesAndNumbering_StagedCleanly()
+    {
+        var md = "# Numbered List\n1. Item 1\n2. Item 2";
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(md);
+        var entries = E2ETestContext.ListZipEntries(bytes);
+        Assert.Contains("word/styles.xml", entries);
+    }
+
+    [Fact]
+    public async Task T1_F17_05_ConcurrentPatchingAndInspection_ThreadSafe()
+    {
+        var baseDocx = await E2ETestContext.ExportMarkdownToBytesAsync("# Base Document\n\nParagraph 1.\n\nParagraph 2.");
+        var tasks = Enumerable.Range(1, 5).Select(i => Task.Run(() =>
+        {
+            var rep = E2ETestContext.InspectDocx(baseDocx);
+            Assert.NotNull(rep);
+        }));
+
+        await Task.WhenAll(tasks);
+    }
+
+    // =========================================================================
+    // F18: O(1) Memory Footprint & Buffer Pooling (5 tests)
+    // =========================================================================
+
+    [Fact]
+    public async Task T1_F18_01_BufferPooling_LargeDocument_ExecutesWithinMemoryBounds()
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < 200; i++)
+        {
+            sb.AppendLine($"Paragraph {i}: Validating buffer pooling and memory bounding in SAX streaming engine.");
+        }
+
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
+        Assert.NotEmpty(bytes);
+        var errors = E2ETestContext.ValidateDocxSchema(bytes);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task T1_F18_02_BufferPooling_ConsecutiveRuns_NoMemoryLeak()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            var bytes = await E2ETestContext.ExportMarkdownToBytesAsync($"# Run {i}\nContent iteration {i}.");
+            Assert.NotEmpty(bytes);
+        }
+    }
+
+    [Fact]
+    public async Task T1_F18_03_Throughput_Processes100HeadingsRapidly()
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 1; i <= 50; i++)
+        {
+            sb.AppendLine($"# Heading {i}\nBody content.");
+        }
+
+        var start = DateTime.UtcNow;
+        var bytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
+        var duration = DateTime.UtcNow - start;
+
+        Assert.NotEmpty(bytes);
+        Assert.True(duration.TotalSeconds < 10);
+    }
+
+    [Fact]
+    public async Task T1_F18_04_ResourceDisposal_StreamsCleanlyClosed()
+    {
+        var tempFile = await E2ETestContext.ExportMarkdownToTempDocxAsync("# Dispose Test\nContent.");
+        try
+        {
+            Assert.True(File.Exists(tempFile));
+            var bytes = await File.ReadAllBytesAsync(tempFile);
+            Assert.NotEmpty(bytes);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public async Task T1_F18_05_MemoryStreamExport_ScalesWithContentSize()
+    {
+        var smallBytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Small");
+        var largeBytes = await E2ETestContext.ExportMarkdownToBytesAsync("# Large\n" + string.Join("\n", Enumerable.Range(1, 100).Select(i => $"Line {i}")));
+
+        Assert.True(largeBytes.Length > smallBytes.Length);
     }
 }

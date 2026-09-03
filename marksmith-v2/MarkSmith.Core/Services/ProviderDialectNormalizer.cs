@@ -11,11 +11,9 @@ namespace MarkSmith.Services;
 // pattern is absent, so this is safe to run on any ingested text.
 public static class ProviderDialectNormalizer
 {
-    // DeepSeek R1 exposes its chain-of-thought in <think>...</think> blocks (sometimes left
-    // unclosed at the end of the stream). The reasoning is scaffolding, never part of the
-    // answer — and the marker is unmistakable, so this runs content-detected for EVERY
-    // provider id (including unknown/null), not just "deepseek".
-    private static readonly Regex ThinkBlock = new(@"<think>[\s\S]*?(</think>|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // Reasoning chain-of-thought blocks: DeepSeek (<think>), Gemini (<thought>), and Claude (<reasoning>).
+    // These reasoning scaffolds are stripped for all providers.
+    private static readonly Regex ThinkBlock = new(@"<(?:think|thought|reasoning)>[\s\S]*?(</(?:think|thought|reasoning)>|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Gemini's code-block wrapper often labels Mermaid diagrams as "code snippet" or "code"
     // instead of "mermaid". Matches fences starting with "code snippet", "code", "text", or bare fences
@@ -60,7 +58,7 @@ public static class ProviderDialectNormalizer
             "claude" or "anthropic" => NormalizeClaudeQuirks(markdown),
             "deepseek" => NormalizeDeepSeekQuirks(markdown),
             "perplexity" => NormalizePerplexityQuirks(markdown),
-            "gemini" or "bard" => NormalizeGeminiQuirks(markdown),
+            "gemini" or "bard" or "gemini-3.8" or "gemini-3-8" or "gemini38" or "gemini_3_8" or "gemini-pro" or "gemini-flash" or "gemini-exp" => NormalizeGeminiQuirks(markdown),
             _ => markdown
         };
     }

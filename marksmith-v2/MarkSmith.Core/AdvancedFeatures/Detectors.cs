@@ -516,7 +516,7 @@ namespace MarkSmith.Core.AdvancedFeatures
             rawBlock.StartsWith(":::columns", StringComparison.OrdinalIgnoreCase);
 
         // Compiled once — interpreted per validated columns block.
-        private static readonly Regex CountAttrRegex = new(@"count=(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex CountAttrRegex = new(@"count=[""']?(\d+)[""']?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
         {

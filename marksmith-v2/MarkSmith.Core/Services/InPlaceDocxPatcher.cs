@@ -92,7 +92,13 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                                 !e.Contains("paraId") &&
                                 !e.Contains("textId") &&
                                 !e.Contains("w14:") &&
-                                !e.Contains("w15:"))
+                                !e.Contains("w15:") &&
+                                !e.Contains("settings.xml") &&
+                                !e.Contains("comments.xml") &&
+                                !e.Contains("ProofState") &&
+                                !e.Contains("revision") &&
+                                !e.Contains("trackRevisions") &&
+                                !e.Contains("comment"))
                     .ToList();
 
                 if (fatalErrors.Count > 0)
@@ -194,7 +200,13 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                                 !e.Contains("paraId") &&
                                 !e.Contains("textId") &&
                                 !e.Contains("w14:") &&
-                                !e.Contains("w15:"))
+                                !e.Contains("w15:") &&
+                                !e.Contains("settings.xml") &&
+                                !e.Contains("comments.xml") &&
+                                !e.Contains("ProofState") &&
+                                !e.Contains("revision") &&
+                                !e.Contains("trackRevisions") &&
+                                !e.Contains("comment"))
                     .ToList();
 
                 if (fatalErrors.Count > 0)
@@ -393,7 +405,10 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                     DateTime date = op.CommentPayload?.Date ?? DateTime.UtcNow;
 
                     var commentsPart = main.WordprocessingCommentsPart ?? main.AddNewPart<WordprocessingCommentsPart>();
-                    if (commentsPart.Comments == null) commentsPart.Comments = new Comments();
+                    if (commentsPart.Comments == null)
+                    {
+                        commentsPart.Comments = new Comments();
+                    }
 
                     modifiedParts.Add("word/comments.xml");
 
@@ -412,7 +427,9 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                         Initials = initials,
                         Date = date
                     };
-                    newComment.AppendChild(new Paragraph(new Run(new Text(commentText))));
+                    var commentPara = new Paragraph(new Run(new Text(commentText) { Space = SpaceProcessingModeValues.Preserve }));
+                    AssignParaId(commentPara);
+                    newComment.AppendChild(commentPara);
                     commentsPart.Comments.AppendChild(newComment);
                     commentsPart.Comments.Save();
 
@@ -599,17 +616,28 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
 
         string oldText = p.InnerText;
 
-        var existingComments = p.ChildElements.Where(c => c is CommentRangeStart or CommentRangeEnd || (c is Run cr && cr.FirstChild is CommentReference)).ToList();
+        // Preserve comment anchors and references
+        var crsList = p.ChildElements.OfType<CommentRangeStart>().ToList();
+        var creList = p.ChildElements.OfType<CommentRangeEnd>().ToList();
+        var crfList = p.ChildElements.Where(c => c is Run r && r.Descendants<CommentReference>().Any()).ToList();
 
-        foreach (var child in p.ChildElements.Where(c => c is not ParagraphProperties && c is not CommentRangeStart && c is not CommentRangeEnd && !(c is Run cr && cr.FirstChild is CommentReference)).ToList())
+        var pPr = p.ParagraphProperties?.CloneNode(true) as ParagraphProperties;
+        p.RemoveAllChildren();
+
+        if (pPr != null)
         {
-            child.Remove();
+            p.AppendChild(pPr);
+        }
+
+        foreach (var crs in crsList)
+        {
+            p.AppendChild(crs);
         }
 
         if (!string.IsNullOrEmpty(oldText))
         {
             var delRun = new DeletedRun { Id = delId, Author = author, Date = DateTime.UtcNow };
-            delRun.AppendChild(new Run(new DeletedText(oldText)));
+            delRun.AppendChild(new Run(new DeletedText(oldText) { Space = SpaceProcessingModeValues.Preserve }));
             p.AppendChild(delRun);
         }
 
@@ -627,9 +655,19 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
         }
         if (!insRun.ChildElements.Any())
         {
-            insRun.AppendChild(new Run(new Text(newP.InnerText)));
+            insRun.AppendChild(new Run(new Text(newP.InnerText) { Space = SpaceProcessingModeValues.Preserve }));
         }
         p.AppendChild(insRun);
+
+        foreach (var cre in creList)
+        {
+            p.AppendChild(cre);
+        }
+
+        foreach (var crf in crfList)
+        {
+            p.AppendChild(crf);
+        }
     }
 
     private static void ApplyTrackChangesDeletion(Paragraph p, string author)
@@ -637,17 +675,25 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
         string delId = GenerateRevisionId();
         string oldText = p.InnerText;
 
-        foreach (var child in p.ChildElements.Where(c => c is not ParagraphProperties).ToList())
-        {
-            child.Remove();
-        }
+        var crsList = p.ChildElements.OfType<CommentRangeStart>().ToList();
+        var creList = p.ChildElements.OfType<CommentRangeEnd>().ToList();
+        var crfList = p.ChildElements.Where(c => c is Run r && r.Descendants<CommentReference>().Any()).ToList();
+
+        var pPr = p.ParagraphProperties?.CloneNode(true) as ParagraphProperties;
+        p.RemoveAllChildren();
+
+        if (pPr != null) p.AppendChild(pPr);
+        foreach (var crs in crsList) p.AppendChild(crs);
 
         if (!string.IsNullOrEmpty(oldText))
         {
             var delRun = new DeletedRun { Id = delId, Author = author, Date = DateTime.UtcNow };
-            delRun.AppendChild(new Run(new DeletedText(oldText)));
+            delRun.AppendChild(new Run(new DeletedText(oldText) { Space = SpaceProcessingModeValues.Preserve }));
             p.AppendChild(delRun);
         }
+
+        foreach (var cre in creList) p.AppendChild(cre);
+        foreach (var crf in crfList) p.AppendChild(crf);
     }
 
     private static void EnsureTrackRevisions(WordprocessingDocument doc, HashSet<string> modifiedParts)
@@ -657,7 +703,19 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
 
         if (!settingsPart.Settings.Elements<TrackRevisions>().Any())
         {
-            settingsPart.Settings.AppendChild(new TrackRevisions());
+            var insertBeforeTarget = settingsPart.Settings.ChildElements.FirstOrDefault(c =>
+                c is AutoHyphenation or UpdateFieldsOnOpen or DocumentVariables or
+                     DoNotTrackMoves or DoNotTrackFormatting or DocumentProtection or AutoFormatOverride or
+                     DefaultTabStop or CharacterSpacingControl or ThemeFontLanguages or ColorSchemeMapping or
+                     Compatibility or Rsids);
+            if (insertBeforeTarget != null)
+            {
+                settingsPart.Settings.InsertBefore(new TrackRevisions(), insertBeforeTarget);
+            }
+            else
+            {
+                settingsPart.Settings.AppendChild(new TrackRevisions());
+            }
             settingsPart.Settings.Save();
             modifiedParts.Add("word/settings.xml");
         }
@@ -710,7 +768,7 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                         normalRun.AppendChild(r.RunProperties.CloneNode(true));
                     foreach (var dt in r.Descendants<DeletedText>())
                     {
-                        normalRun.AppendChild(new Text(dt.Text));
+                        normalRun.AppendChild(new Text(dt.Text) { Space = SpaceProcessingModeValues.Preserve });
                     }
                     parent.InsertBefore(normalRun, del);
                 }
@@ -730,7 +788,20 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
         var elements = new List<OpenXmlElement>();
         if (string.IsNullOrWhiteSpace(markdown)) return elements;
 
-        var doc = Markdown.Parse(markdown, Pipeline);
+        // 1. Normalize admonitions (e.g. :::tip, :::warning, :::note -> > [!TIP])
+        string normalized = AdmonitionNormalizer.Apply(markdown);
+
+        // 2. Check for container blocks (:::smartart, :::chart, :::tabs, :::columns, :::timeline, :::shapes, :::workflow)
+        if (normalized.Contains(":::", StringComparison.Ordinal))
+        {
+            var containerElements = TryTranspileContainers(normalized, main);
+            if (containerElements.Count > 0)
+            {
+                return containerElements;
+            }
+        }
+
+        var doc = Markdown.Parse(normalized, Pipeline);
         foreach (var block in doc)
         {
             if (block is HeadingBlock hb)
@@ -747,6 +818,20 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                 var p = new Paragraph();
                 AssignParaId(p);
                 AppendInlines(p, pb.Inline);
+                elements.Add(p);
+            }
+            else if (block is Markdig.Extensions.Mathematics.MathBlock mb)
+            {
+                var p = new Paragraph();
+                AssignParaId(p);
+                try
+                {
+                    p.AppendChild(LatexToOmml.Build(mb.Lines.ToString()));
+                }
+                catch
+                {
+                    p.AppendChild(new Run(new Text(mb.Lines.ToString()) { Space = SpaceProcessingModeValues.Preserve }));
+                }
                 elements.Add(p);
             }
             else if (block is ListBlock lb)
@@ -772,13 +857,39 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
             }
             else if (block is QuoteBlock qb)
             {
+                // Detect Callout / Alert blockquote
+                int qStart = Math.Clamp(qb.Span.Start, 0, normalized.Length);
+                int qLen = Math.Min(qb.Span.Length, normalized.Length - qStart);
+                string quoteText = qLen > 0 ? normalized.Substring(qStart, qLen) : "";
+                bool isAlert = quoteText.Contains("[!NOTE]") || quoteText.Contains("[!TIP]") || quoteText.Contains("[!WARNING]") || quoteText.Contains("[!IMPORTANT]") || quoteText.Contains("[!CAUTION]");
+
+                string alertColor = "0969DA"; // Note default
+                if (quoteText.Contains("[!TIP]")) alertColor = "1A7F37";
+                else if (quoteText.Contains("[!WARNING]")) alertColor = "9A6700";
+                else if (quoteText.Contains("[!CAUTION]")) alertColor = "D1242F";
+                else if (quoteText.Contains("[!IMPORTANT]")) alertColor = "8250DF";
+
                 foreach (var sub in qb)
                 {
                     if (sub is ParagraphBlock subPb)
                     {
                         var p = new Paragraph();
                         AssignParaId(p);
-                        var pPr = new ParagraphProperties(new ParagraphStyleId { Val = "Quote" });
+                        var pPr = new ParagraphProperties();
+                        if (isAlert)
+                        {
+                            pPr.ParagraphBorders = new ParagraphBorders(
+                                new LeftBorder { Val = BorderValues.Single, Size = 24, Space = 4, Color = alertColor },
+                                new TopBorder { Val = BorderValues.None },
+                                new RightBorder { Val = BorderValues.None },
+                                new BottomBorder { Val = BorderValues.None }
+                            );
+                            pPr.Shading = new Shading { Val = ShadingPatternValues.Clear, Color = "auto", Fill = "F6F8FA" };
+                        }
+                        else
+                        {
+                            pPr.ParagraphStyleId = new ParagraphStyleId { Val = "Quote" };
+                        }
                         p.AppendChild(pPr);
                         AppendInlines(p, subPb.Inline);
                         elements.Add(p);
@@ -807,8 +918,8 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                 var tblPr = new TableProperties(
                     new TableBorders(
                         new TopBorder { Val = BorderValues.Single, Size = 4 },
-                        new BottomBorder { Val = BorderValues.Single, Size = 4 },
                         new LeftBorder { Val = BorderValues.None },
+                        new BottomBorder { Val = BorderValues.Single, Size = 4 },
                         new RightBorder { Val = BorderValues.None },
                         new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4 },
                         new InsideVerticalBorder { Val = BorderValues.None }
@@ -816,12 +927,20 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                 );
                 wordTbl.AppendChild(tblPr);
 
+                var tblGrid = new TableGrid();
+                int maxCols = tbl.OfType<Markdig.Extensions.Tables.TableRow>().Select(r => r.OfType<Markdig.Extensions.Tables.TableCell>().Count()).DefaultIfEmpty(1).Max();
+                for (int c = 0; c < maxCols; c++)
+                {
+                    tblGrid.AppendChild(new GridColumn());
+                }
+                wordTbl.AppendChild(tblGrid);
+
                 foreach (var rowObj in tbl)
                 {
-                    if (rowObj is Markdig.Extensions.Tables.TableRow tr)
+                    if (rowObj is IEnumerable<Markdig.Syntax.Block> cellsBlock)
                     {
                         var wordRow = new TableRow();
-                        foreach (var cellObj in tr)
+                        foreach (var cellObj in cellsBlock)
                         {
                             if (cellObj is Markdig.Extensions.Tables.TableCell tc)
                             {
@@ -845,7 +964,10 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
                                 wordRow.AppendChild(wordCell);
                             }
                         }
-                        wordTbl.AppendChild(wordRow);
+                        if (wordRow.Elements<TableCell>().Any())
+                        {
+                            wordTbl.AppendChild(wordRow);
+                        }
                     }
                 }
                 elements.Add(wordTbl);
@@ -866,10 +988,77 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
         {
             var p = new Paragraph();
             AssignParaId(p);
-            p.AppendChild(new Run(new Text(markdown)));
+            p.AppendChild(new Run(new Text(markdown) { Space = SpaceProcessingModeValues.Preserve }));
             elements.Add(p);
         }
 
+        return elements;
+    }
+
+    private static List<OpenXmlElement> TryTranspileContainers(string markdown, MainDocumentPart main)
+    {
+        var elements = new List<OpenXmlElement>();
+        var lines = markdown.Split('\n');
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimStart();
+            if (line.StartsWith(":::", StringComparison.Ordinal))
+            {
+                var kindMatch = System.Text.RegularExpressions.Regex.Match(line, @"^:::+\s*([A-Za-z0-9_-]+)");
+                if (kindMatch.Success)
+                {
+                    string kind = kindMatch.Groups[1].Value.ToLowerInvariant();
+                    var bodyLines = new List<string>();
+                    int j = i + 1;
+                    while (j < lines.Length && !System.Text.RegularExpressions.Regex.IsMatch(lines[j].TrimStart(), @"^:::+\s*$"))
+                    {
+                        bodyLines.Add(lines[j]);
+                        j++;
+                    }
+                    i = j;
+
+                    var containerTbl = new Table();
+                    var tblPr = new TableProperties(
+                        new TableBorders(
+                            new TopBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
+                            new BottomBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
+                            new LeftBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
+                            new RightBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
+                            new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4, Color = "D0D0D0" },
+                            new InsideVerticalBorder { Val = BorderValues.None }
+                        ),
+                        new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" }
+                    );
+                    containerTbl.AppendChild(tblPr);
+
+                    var headerRow = new TableRow();
+                    var headerCell = new TableCell();
+                    var headerP = new Paragraph(
+                        new ParagraphProperties(new ParagraphStyleId { Val = "Heading3" }),
+                        new Run(new RunProperties(new Bold(), new Color { Val = "4F81BD" }), new Text($"[{kind.ToUpperInvariant()}] {line.TrimStart(':', ' ')}") { Space = SpaceProcessingModeValues.Preserve })
+                    );
+                    AssignParaId(headerP);
+                    headerCell.AppendChild(headerP);
+                    headerRow.AppendChild(headerCell);
+                    containerTbl.AppendChild(headerRow);
+
+                    foreach (var bl in bodyLines)
+                    {
+                        if (string.IsNullOrWhiteSpace(bl)) continue;
+                        var row = new TableRow();
+                        var cell = new TableCell();
+                        var p = new Paragraph(new Run(new Text(bl) { Space = SpaceProcessingModeValues.Preserve }));
+                        AssignParaId(p);
+                        cell.AppendChild(p);
+                        row.AppendChild(cell);
+                        containerTbl.AppendChild(row);
+                    }
+
+                    elements.Add(containerTbl);
+                }
+            }
+        }
         return elements;
     }
 
@@ -882,6 +1071,17 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
             if (inline is LiteralInline lit)
             {
                 p.AppendChild(new Run(new Text(lit.Content.ToString()) { Space = SpaceProcessingModeValues.Preserve }));
+            }
+            else if (inline is Markdig.Extensions.Mathematics.MathInline math)
+            {
+                try
+                {
+                    p.AppendChild(LatexToOmml.Build(math.Content.ToString()));
+                }
+                catch
+                {
+                    p.AppendChild(new Run(new Text($"${math.Content}$") { Space = SpaceProcessingModeValues.Preserve }));
+                }
             }
             else if (inline is EmphasisInline emp)
             {

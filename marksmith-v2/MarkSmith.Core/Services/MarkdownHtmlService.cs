@@ -67,6 +67,9 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::parallel(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex ParallelBlockRe();
 
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::columns(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline)]
+    private static partial Regex ColumnsBlockRe();
+
     // The delimiter row under a pipe-table header: | :--- | ---: | etc.
     [GeneratedRegex(@"^\s{0,3}\|?(?:\s*:?-{1,}:?\s*\|)+\s*:?-{0,}:?\s*\|?\s*$")]
     private static partial Regex TableDelimiterRowRe();
@@ -208,6 +211,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
 
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+        markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
@@ -364,6 +368,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
+        body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
@@ -2307,6 +2312,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftIndexBlocks(markdown, smartArtFences, out var indexBlocks);
 
         // Milestone 3 (R7, R10): Parallel Columns & Table Formulas
+        markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
@@ -2351,6 +2357,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
+        body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
@@ -3584,6 +3591,52 @@ public sealed partial class MarkdownHtmlService
         });
 
         parallelHtmlBlocks = blocks;
+        return markdown;
+    }
+
+    private static string LiftColumnsBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> columnsHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        markdown = ColumnsBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+
+            var attrs = m.Groups["attrs"].Value;
+            var inner = m.Groups["body"].Value;
+
+            var segments = Regex.Split(inner, @"(?:\r?\n|^)[ \t]*===+[ \t]*(?:\r?\n|$)")
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+
+            if (segments.Count == 0 && !string.IsNullOrWhiteSpace(inner))
+                segments.Add(inner);
+
+            int count = segments.Count > 1 ? segments.Count : 2;
+            var countMatch = Regex.Match(attrs, @"count\s*=\s*[""']?(\d+)[""']?", RegexOptions.IgnoreCase);
+            if (countMatch.Success && int.TryParse(countMatch.Groups[1].Value, out var parsed))
+            {
+                count = parsed;
+            }
+            count = Math.Clamp(count, 2, 6);
+
+            var sb = new StringBuilder();
+            sb.Append($"<div class=\"ms-columns\" style=\"display: grid; grid-template-columns: repeat({count}, 1fr); gap: 1.5rem;\">\n");
+            for (int i = 0; i < segments.Count; i++)
+            {
+                var colMd = DialectNormalizer.Apply(segments[i].Trim());
+                var colHtml = HtmlSanitizer.Apply(Markdown.ToHtml(colMd, Pipeline).Trim());
+                sb.Append($"  <div class=\"ms-column\">\n{colHtml}\n  </div>\n");
+            }
+            sb.Append("</div>\n");
+
+            blocks.Add(sb.ToString());
+            return $"\n\n<!--COLUMNS:{blocks.Count - 1}-->\n\n";
+        });
+
+        columnsHtmlBlocks = blocks;
         return markdown;
     }
 }

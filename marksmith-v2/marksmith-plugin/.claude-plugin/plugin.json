@@ -1,0 +1,10 @@
+{
+  "name": "marksmith-mcp",
+  "displayName": "MarkSmith MCP",
+  "description": "Exposes the MarkSmith Markdown/DOCX engine as MCP tools: render, patch, diff, validate Markdown and DOCX, plus the AI 3-block authoring cycle.",
+  "version": "0.1.0",
+  "author": {
+    "name": "AI Bot"
+  },
+  "keywords": ["markdown", "docx", "mcp", "marksmith"]
+}
