@@ -65,7 +65,7 @@ public sealed partial class LlmSourceService
 
     // Classification signals (Classify) — source-generated rather than inline Regex.IsMatch so the
     // hot "which AI did this come from" path doesn't re-parse its patterns on every call.
-    [GeneratedRegex(@"^\s*Sources\s*$", RegexOptions.Multiline)] private static partial Regex SourcesHeading();
+    [GeneratedRegex(@"^(?:#{1,4}\s*)?Sources\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase)] private static partial Regex SourcesHeading();
     [GeneratedRegex(@"^\d+\.\s+\S+\.(com|org|net|io|dev)", RegexOptions.Multiline)] private static partial Regex NumberedSourceUrl();
     [GeneratedRegex(@"^Would you like me to", RegexOptions.Multiline)] private static partial Regex TrailingOffer();
     // Repair passes (RepairArtifacts / RecoverMatrixEnvironments) — same source-gen rationale.
@@ -247,6 +247,9 @@ public sealed partial class LlmSourceService
         // Gemini loves "**Heading:**" lines instead of real headings — promote them so the
         // document gets a navigable structure (and the TOC has something to index).
         Apply(BoldPseudoHeading(), "### $1", "Promoted bold pseudo-headings");
+
+        // Normalize trailing Sources block into a formal References heading
+        Apply(SourcesHeading(), "## References", "Formatted Sources into References heading");
 
         Apply(ExcessBlankLines(), "\n\n", "Collapsed excess blank lines");
 

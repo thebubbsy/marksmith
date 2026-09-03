@@ -2815,17 +2815,17 @@ public sealed class DocxExportService
             new W.TableCellWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
             new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = panelFill },
             new W.TableCellMargin(
-                new W.TopMargin { Width = "100", Type = W.TableWidthUnitValues.Dxa },
-                new W.LeftMargin { Width = "160", Type = W.TableWidthUnitValues.Dxa },
-                new W.BottomMargin { Width = "100", Type = W.TableWidthUnitValues.Dxa },
-                new W.RightMargin { Width = "160", Type = W.TableWidthUnitValues.Dxa })));
+                new W.TopMargin { Width = "160", Type = W.TableWidthUnitValues.Dxa },
+                new W.LeftMargin { Width = "240", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "160", Type = W.TableWidthUnitValues.Dxa },
+                new W.RightMargin { Width = "240", Type = W.TableWidthUnitValues.Dxa })));
 
         var title = new W.Paragraph();
         var textGlyph = kind.ToLowerInvariant() switch
         {
-            "note" => "ℹ️", "tip" => "💡", "important" => "📌", "warning" => "⚠️", "caution" => "🛑", _ => "ℹ️",
+            "note" => "[i]", "tip" => "[*]", "important" => "[!]", "warning" => "[!]", "caution" => "[x]", _ => "[i]",
         };
-        var titleText = $"{(ctx.NoEmoji ? textGlyph : icon)} {kind.ToUpperInvariant()}";
+        var titleText = ctx.NoEmoji ? $"{textGlyph} {kind.ToUpperInvariant()}" : $"{icon} {kind.ToUpperInvariant()}";
         var titleColor = ContrastGuard.EnsureLegibleText(accentHex, panelFill);
         AddText(title, titleText, new Fmt { Bold = true, Color = titleColor });
         cell.Append(title);
@@ -3430,12 +3430,19 @@ public sealed class DocxExportService
         W.BorderType Border<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex };
 
+        var tblPr = new W.TableProperties(
+            new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+            new W.TableBorders(
+                Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
+                Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>()),
+            new W.TableCellMarginDefault(
+                new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                new W.LeftMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+                new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa }));
+
         var wTable = new W.Table(
-            new W.TableProperties(
-                new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
-                new W.TableBorders(
-                    Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
-                    Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>())),
+            tblPr,
             new W.TableGrid(Enumerable.Range(0, maxCols).Select(_ => (OpenXmlElement)new W.GridColumn())));
 
         foreach (var row in grid)
@@ -3473,6 +3480,11 @@ public sealed class DocxExportService
         tblPr.TableBorders = new W.TableBorders(
             Border<W.TopBorder>(), Border<W.LeftBorder>(), Border<W.BottomBorder>(),
             Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
+        tblPr.TableCellMarginDefault = new W.TableCellMarginDefault(
+            new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+            new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+            new W.LeftMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+            new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa });
 
         var wTable = new W.Table(
             tblPr,
