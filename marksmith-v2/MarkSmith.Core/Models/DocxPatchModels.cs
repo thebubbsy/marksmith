@@ -34,6 +34,30 @@ public sealed record BlockSelector
     public string? BookmarkName { get; init; }
     public string? CommentId { get; init; }
     public TableCellSelector? TableCell { get; init; }
+
+    [JsonPropertyName("index")]
+    public int? Index { get => BodyIndex; init => BodyIndex ??= value; }
+
+    [JsonPropertyName("body_index")]
+    public int? BodyIndexSnake { get => BodyIndex; init => BodyIndex ??= value; }
+
+    [JsonPropertyName("para_id")]
+    public string? ParaIdSnake { get => ParaId; init => ParaId ??= value; }
+
+    [JsonPropertyName("heading_path")]
+    public string? HeadingPathSnake { get => HeadingPath; init => HeadingPath ??= value; }
+
+    [JsonPropertyName("bookmark")]
+    public string? BookmarkSnake { get => BookmarkName; init => BookmarkName ??= value; }
+
+    [JsonPropertyName("bookmark_name")]
+    public string? BookmarkNameSnake { get => BookmarkName; init => BookmarkName ??= value; }
+
+    [JsonPropertyName("comment_id")]
+    public string? CommentIdSnake { get => CommentId; init => CommentId ??= value; }
+
+    [JsonPropertyName("table_cell")]
+    public TableCellSelector? TableCellSnake { get => TableCell; init => TableCell ??= value; }
 }
 
 public sealed record CommentPayload
@@ -54,6 +78,12 @@ public sealed record DocxPatchOperationItem
     public string? Comment { get; init; }
     public CommentPayload? CommentPayload { get; init; }
     public bool PreserveFormatting { get; init; } = true;
+
+    [JsonPropertyName("operation")]
+    public PatchOperation Operation { get => Op; init => Op = value; }
+
+    [JsonPropertyName("markdown")]
+    public string? Markdown { get => Content; init => Content ??= value; }
 }
 
 public sealed record DocxPatchRequest

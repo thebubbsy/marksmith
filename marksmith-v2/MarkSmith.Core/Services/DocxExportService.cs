@@ -2679,8 +2679,8 @@ public sealed partial class DocxExportService
             ),
             new W.TableCellMarginDefault(
                 new W.TopMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
-                new W.BottomMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
                 new W.TableCellLeftMargin { Width = 120, Type = W.TableWidthValues.Dxa },
+                new W.BottomMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
                 new W.TableCellRightMargin { Width = 120, Type = W.TableWidthValues.Dxa }));
         table.AppendChild(tblPr);
 
@@ -3581,8 +3581,8 @@ public sealed partial class DocxExportService
                 Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>()),
             new W.TableCellMarginDefault(
                 new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
-                new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
                 new W.LeftMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
                 new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa }));
 
         var wTable = new W.Table(
@@ -3749,8 +3749,8 @@ public sealed partial class DocxExportService
             Border<W.RightBorder>(), Border<W.InsideHorizontalBorder>(), Border<W.InsideVerticalBorder>());
         tblPr.TableCellMarginDefault = new W.TableCellMarginDefault(
             new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
-            new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
             new W.LeftMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+            new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
             new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa });
 
         var wTable = new W.Table(

@@ -543,14 +543,36 @@ public static class E2ETestContext
                             return JsonSerializer.Serialize(new { jsonrpc = "2.0", id = id, error = new { code = -32602, message = $"File not found: {docxPath}" } });
                         }
                         var patchJson = arguments.TryGetProperty("patch", out var pj) ? pj.GetRawText() : arguments.GetRawText();
-                        var patchOpts = new JsonSerializerOptions
+                        DocxPatchRequest? patchReq = null;
+                        try
                         {
-                            PropertyNameCaseInsensitive = true,
-                            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-                        };
-                        patchOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-                        patchOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-                        var patchReq = JsonSerializer.Deserialize<DocxPatchRequest>(patchJson, patchOpts);
+                            var pasOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            pasOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+                            pasOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+                            patchReq = JsonSerializer.Deserialize<DocxPatchRequest>(patchJson, pasOpts);
+                        }
+                        catch { }
+
+                        bool hasValidTarget = patchReq != null &&
+                            ((patchReq.Operations != null && patchReq.Operations.Count > 0 && (patchReq.Operations[0].Target.BodyIndex.HasValue || !string.IsNullOrEmpty(patchReq.Operations[0].Target.ParaId))) ||
+                             (patchReq.Target != null && (patchReq.Target.BodyIndex.HasValue || !string.IsNullOrEmpty(patchReq.Target.ParaId))));
+
+                        if (!hasValidTarget)
+                        {
+                            var patchOpts = new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true,
+                                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                            };
+                            patchOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+                            patchOpts.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+                            try
+                            {
+                                var fallbackReq = JsonSerializer.Deserialize<DocxPatchRequest>(patchJson, patchOpts);
+                                if (fallbackReq != null) patchReq = fallbackReq;
+                            }
+                            catch { }
+                        }
                         var bytes = await File.ReadAllBytesAsync(docxPath);
                         var (outBytes, patchResult) = ApplyDocxPatch(bytes, patchReq!);
                         await File.WriteAllBytesAsync(docxPath, outBytes);

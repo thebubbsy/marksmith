@@ -48,7 +48,7 @@ public static class ProviderDialectNormalizer
     // is eligible — the same label mid-document is legitimate content (dialogue, docs).
     private static readonly Regex PromptEchoHeader = new(@"\A\s*(?:>\s*)?(?:\*\*)?(?:user|human|prompt)(?:\*\*)?\s*:[^\n]*\n?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public static string Normalize(string markdown, string? providerId, bool foldReasoning = true)
+    public static string Normalize(string markdown, string? providerId, bool foldReasoning = false)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return markdown;
 

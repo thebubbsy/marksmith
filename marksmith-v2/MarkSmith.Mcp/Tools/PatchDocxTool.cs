@@ -175,6 +175,8 @@ public sealed class PatchDocxTool : IMcpTool
             int? index = null;
             if (targetProp.TryGetProperty("index", out var idx) && idx.TryGetInt32(out int iVal)) index = iVal;
             if (!index.HasValue && targetProp.TryGetProperty("body_index", out var bIdx) && bIdx.TryGetInt32(out int bVal)) index = bVal;
+            if (!index.HasValue && targetProp.TryGetProperty("BodyIndex", out var bIdx2) && bIdx2.TryGetInt32(out int bVal2)) index = bVal2;
+            if (!index.HasValue && targetProp.TryGetProperty("bodyIndex", out var bIdx3) && bIdx3.TryGetInt32(out int bVal3)) index = bVal3;
 
             string? headingPath = targetProp.TryGetProperty("heading_path", out var hp) ? hp.GetString() : null;
             if (string.IsNullOrEmpty(headingPath) && targetProp.TryGetProperty("headingPath", out var hp2)) headingPath = hp2.GetString();
