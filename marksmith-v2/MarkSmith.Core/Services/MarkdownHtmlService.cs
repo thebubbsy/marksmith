@@ -64,6 +64,9 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::chart(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline)]
     private static partial Regex ChartBlockRe();
 
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::(?:metrics|kpi)(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex MetricsBlockRe();
+
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::parallel(?:\s+[^\r\n]*)?\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex ParallelBlockRe();
 
@@ -214,6 +217,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
+        markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
@@ -371,6 +375,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
+        body = ReplaceCommentPlaceholders(body, "METRICS", metricsBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
         var extraHead = BuildExtraHead(body, theme);
@@ -2315,6 +2320,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
+        markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
 
@@ -2360,6 +2366,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
+        body = ReplaceCommentPlaceholders(body, "METRICS", metricsBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
         body = MermaidFenceHtmlRe().Replace(body,
@@ -3637,6 +3644,71 @@ public sealed partial class MarkdownHtmlService
         });
 
         columnsHtmlBlocks = blocks;
+        return markdown;
+    }
+
+    private static string LiftMetricsBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, ThemeDefinition theme, out List<string> metricsHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        markdown = MetricsBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+            {
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            }
+
+            var attrs = m.Groups["attrs"].Value;
+            var body = m.Groups["body"].Value;
+            int cols = 3;
+            var colsMatch = Regex.Match(attrs, @"cols=(\d+)", RegexOptions.IgnoreCase);
+            if (colsMatch.Success) cols = Math.Clamp(int.Parse(colsMatch.Groups[1].Value), 1, 6);
+
+            var items = body.Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => l.StartsWith("-") || l.StartsWith("*"))
+                .Select(l => l.TrimStart('-', '*', ' ').Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+
+            if (items.Count == 0) return "";
+            if (!colsMatch.Success && (items.Count == 2 || items.Count == 4))
+                cols = items.Count == 2 ? 2 : 4;
+
+            var sb = new StringBuilder();
+            sb.Append($"<div class=\"metrics-grid\" style=\"display:grid;grid-template-columns:repeat({cols}, 1fr);gap:1rem;margin:1.5rem 0;\">\n");
+            foreach (var item in items)
+            {
+                string val = item;
+                string lbl = "";
+                var boldMatch = Regex.Match(item, @"^\*\*(.*?)\*\*\s*(.*)$");
+                if (boldMatch.Success)
+                {
+                    val = boldMatch.Groups[1].Value;
+                    lbl = boldMatch.Groups[2].Value;
+                }
+                else
+                {
+                    var dashParts = item.Split(new[] { " - ", ": " }, 2, StringSplitOptions.None);
+                    if (dashParts.Length == 2)
+                    {
+                        val = dashParts[0].Trim();
+                        lbl = dashParts[1].Trim();
+                    }
+                }
+
+                sb.Append("  <div class=\"metric-card\" style=\"background:rgba(125,125,125,0.06);border:1px solid rgba(125,125,125,0.18);border-radius:8px;padding:1.2rem;display:flex;flex-direction:column;gap:0.3rem;\">\n");
+                sb.Append($"    <div class=\"metric-value\" style=\"font-size:1.75rem;font-weight:700;color:{theme.Primary};line-height:1.2;\">{System.Net.WebUtility.HtmlEncode(val)}</div>\n");
+                if (!string.IsNullOrWhiteSpace(lbl))
+                    sb.Append($"    <div class=\"metric-label\" style=\"font-size:0.875rem;color:{theme.Line};\">{System.Net.WebUtility.HtmlEncode(lbl)}</div>\n");
+                sb.Append("  </div>\n");
+            }
+            sb.Append("</div>\n");
+
+            blocks.Add(sb.ToString());
+            return $"\n\n<!--METRICS:{blocks.Count - 1}-->\n\n";
+        });
+
+        metricsHtmlBlocks = blocks;
         return markdown;
     }
 }

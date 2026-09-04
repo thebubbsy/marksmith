@@ -543,6 +543,31 @@ namespace MarkSmith.Core.AdvancedFeatures
     }
 
     // ───────────────────────────────────────────────────────────────────
+    // Metrics / KPI Cards — validates :::metrics or :::kpi container blocks.
+    // ───────────────────────────────────────────────────────────────────
+    public class MetricsDetector : IFeatureDetector
+    {
+        public string FeatureName => "Metrics";
+        public double Threshold => 0.6;
+
+        public bool Matches(string rawBlock) =>
+            rawBlock.StartsWith(":::metrics", StringComparison.OrdinalIgnoreCase) ||
+            rawBlock.StartsWith(":::kpi", StringComparison.OrdinalIgnoreCase);
+
+        public (bool IsValid, double Confidence, string[] Errors) Validate(string rawBlock)
+        {
+            var errors = new List<string>();
+            var lines = DetectorHelpers.GetInnerLines(rawBlock);
+            var itemLines = lines.Where(l => l.TrimStart().StartsWith("-") || l.TrimStart().StartsWith("*")).ToList();
+            if (itemLines.Count == 0)
+                errors.Add("No metric items found inside :::metrics block. Use bullet points: - **Value** Label");
+
+            double conf = errors.Count == 0 ? 0.95 : 0.3;
+            return (errors.Count == 0, conf, errors.ToArray());
+        }
+    }
+
+    // ───────────────────────────────────────────────────────────────────
     // 11. References — validates @id citation entries.
     // ───────────────────────────────────────────────────────────────────
     public class ReferencesDetector : IFeatureDetector

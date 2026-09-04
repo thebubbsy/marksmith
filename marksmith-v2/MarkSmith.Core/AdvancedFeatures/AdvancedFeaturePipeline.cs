@@ -59,6 +59,7 @@ namespace MarkSmith.Core.AdvancedFeatures
                 new CanvasDetector(),
                 new ParallelDetector(),
                 new ColumnsDetector(),
+                new MetricsDetector(),
                 new ReferencesDetector()
             };
         }

@@ -636,6 +636,7 @@ public sealed partial class DocxExportService
         }
         public string PrimaryHex => Hex(Theme.Primary);
         public string LinkHex => Hex(LinkColor);
+        public string MutedHex => Hex(Theme.Line);
     }
 
     // Inline formatting state threaded through the inline walker.
@@ -1643,6 +1644,9 @@ public sealed partial class DocxExportService
             case "Columns":
                 RenderColumns(node, target, ctx);
                 break;
+            case "Metrics":
+                RenderMetrics(node, target, ctx);
+                break;
             case "Tabs":
                 RenderTabs(node, target, ctx);
                 break;
@@ -2171,6 +2175,131 @@ public sealed partial class DocxExportService
                 new W.SectionType { Val = W.SectionMarkValues.Continuous },
                 new W.Columns { ColumnCount = (Int16Value)(short)1, EqualWidth = true })));
         target.Append(closeSect);
+    }
+
+    /// <summary>
+    /// Renders :::metrics or :::kpi cards as an executive KPI metric dashboard.
+    /// Each bullet point (- **$4.2M** ARR) is rendered into a shaded card cell with a giant bold metric and subtitle label.
+    /// </summary>
+    private static void RenderMetrics(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
+    {
+        var rawLines = node.InnerContent.Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.StartsWith("-") || l.StartsWith("*"))
+            .Select(l => l.TrimStart('-', '*', ' ').Trim())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        if (rawLines.Count == 0) return;
+
+        int cols = 3;
+        if (node.Attributes.TryGetValue("cols", out var colsStr) && int.TryParse(colsStr, out var parsedCols))
+            cols = Math.Clamp(parsedCols, 1, 6);
+        else if (rawLines.Count == 2 || rawLines.Count == 4)
+            cols = rawLines.Count == 2 ? 2 : 4;
+
+        int printableWidth = 9360;
+        int colWidthDxa = printableWidth / cols;
+
+        var tblPr = new W.TableProperties(
+            new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
+            new W.TableBorders(
+                new W.TopBorder { Val = W.BorderValues.None },
+                new W.LeftBorder { Val = W.BorderValues.None },
+                new W.BottomBorder { Val = W.BorderValues.None },
+                new W.RightBorder { Val = W.BorderValues.None },
+                new W.InsideHorizontalBorder { Val = W.BorderValues.None },
+                new W.InsideVerticalBorder { Val = W.BorderValues.None }),
+            new W.TableCellMarginDefault(
+                new W.TopMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                new W.LeftMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
+                new W.RightMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa }));
+
+        var wTable = new W.Table(tblPr);
+        var grid = new W.TableGrid(Enumerable.Range(0, cols).Select(_ => (OpenXmlElement)new W.GridColumn { Width = colWidthDxa.ToString() }));
+        wTable.Append(grid);
+
+        var cardFill = BlendHex(ctx.Theme.Background, ctx.PrimaryHex, 0.08);
+
+        for (int i = 0; i < rawLines.Count; i += cols)
+        {
+            var row = new W.TableRow(new W.TableRowProperties(new W.CantSplit()));
+            for (int c = 0; c < cols; c++)
+            {
+                int itemIdx = i + c;
+                var cell = new W.TableCell();
+                if (itemIdx < rawLines.Count)
+                {
+                    var item = rawLines[itemIdx];
+                    string valueText = item;
+                    string labelText = "";
+                    var boldMatch = Regex.Match(item, @"^\*\*(.*?)\*\*\s*(.*)$");
+                    if (boldMatch.Success)
+                    {
+                        valueText = boldMatch.Groups[1].Value.Trim();
+                        labelText = boldMatch.Groups[2].Value.Trim();
+                    }
+                    else
+                    {
+                        var dashParts = item.Split(new[] { " - ", ": " }, 2, StringSplitOptions.None);
+                        if (dashParts.Length == 2)
+                        {
+                            valueText = dashParts[0].Trim();
+                            labelText = dashParts[1].Trim();
+                        }
+                    }
+
+                    var cellPr = new W.TableCellProperties(
+                        new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidthDxa.ToString() },
+                        new W.Shading { Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = cardFill },
+                        new W.TableCellBorders(
+                            new W.TopBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex },
+                            new W.LeftBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex },
+                            new W.BottomBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex },
+                            new W.RightBorder { Val = W.BorderValues.Single, Size = 6, Color = ctx.BorderHex }),
+                        new W.TableCellMargin(
+                            new W.TopMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+                            new W.LeftMargin { Width = "200", Type = W.TableWidthUnitValues.Dxa },
+                            new W.BottomMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa },
+                            new W.RightMargin { Width = "200", Type = W.TableWidthUnitValues.Dxa }));
+                    cell.Append(cellPr);
+
+                    // Large Stat Metric (24pt)
+                    var pVal = new W.Paragraph(new W.ParagraphProperties(
+                        new W.SpacingBetweenLines { Before = "0", After = "40", Line = "240", LineRule = W.LineSpacingRuleValues.Auto }));
+                    var valColor = ContrastGuard.EnsureLegibleText(ctx.PrimaryHex, cardFill);
+                    AddText(pVal, valueText, new Fmt { Bold = true, FontSize = "48", Color = valColor }, ctx);
+                    cell.Append(pVal);
+
+                    // Subtitle / Description Label (9.5pt)
+                    if (!string.IsNullOrWhiteSpace(labelText))
+                    {
+                        var pLbl = new W.Paragraph(new W.ParagraphProperties(
+                            new W.SpacingBetweenLines { Before = "0", After = "0", Line = "220", LineRule = W.LineSpacingRuleValues.Auto }));
+                        var lblColor = ContrastGuard.EnsureLegibleText(ctx.MutedHex, cardFill);
+                        AddText(pLbl, labelText, new Fmt { FontSize = "19", Color = lblColor }, ctx);
+                        cell.Append(pLbl);
+                    }
+                    else
+                    {
+                        cell.Append(new W.Paragraph());
+                    }
+                }
+                else
+                {
+                    // Empty cell in partial last row
+                    cell.Append(new W.TableCellProperties(
+                        new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidthDxa.ToString() }));
+                    cell.Append(new W.Paragraph());
+                }
+                row.Append(cell);
+            }
+            wTable.Append(row);
+        }
+
+        target.Append(wTable);
+        target.Append(new W.Paragraph(new W.ParagraphProperties(new W.SpacingBetweenLines { After = "160" })));
     }
 
     /// <summary>
@@ -3585,9 +3714,56 @@ public sealed partial class DocxExportService
                 new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
                 new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa }));
 
+        int maxCols = tableNode.MaxColumns;
+        int htmlPrintableWidth = 9360;
+        var htmlMaxColLens = new int[maxCols];
+        for (int c = 0; c < maxCols; c++) htmlMaxColLens[c] = 6;
+
+        foreach (var row in tableNode.Rows)
+        {
+            int colIdx = 0;
+            foreach (var cell in row.Cells)
+            {
+                if (colIdx >= maxCols) break;
+                if (!cell.IsRowSpanContinuation && cell.ColSpan == 1)
+                {
+                    int len = 0;
+                    foreach (var blk in cell.Blocks)
+                    {
+                        if (blk is HtmlParagraphBlock pb)
+                        {
+                            foreach (var inl in pb.Inlines)
+                            {
+                                if (inl is HtmlTextInline ti && !string.IsNullOrEmpty(ti.Text))
+                                    len += ti.Text.Length;
+                            }
+                        }
+                    }
+                    if (len > 0)
+                        htmlMaxColLens[colIdx] = Math.Max(htmlMaxColLens[colIdx], Math.Min(len, 60));
+                }
+                colIdx += Math.Max(1, cell.ColSpan);
+            }
+        }
+
+        int htmlTotalWeights = htmlMaxColLens.Sum();
+        var htmlColWidths = new int[maxCols];
+        int htmlAllocated = 0;
+        for (int c = 0; c < maxCols; c++)
+        {
+            if (c == maxCols - 1)
+                htmlColWidths[c] = Math.Max(1000, htmlPrintableWidth - htmlAllocated);
+            else
+            {
+                int w = (int)((double)htmlMaxColLens[c] / (htmlTotalWeights > 0 ? htmlTotalWeights : 1) * htmlPrintableWidth);
+                htmlColWidths[c] = Math.Max(1000, w);
+                htmlAllocated += htmlColWidths[c];
+            }
+        }
+
         var wTable = new W.Table(
             tblPr,
-            new W.TableGrid(Enumerable.Range(0, tableNode.MaxColumns).Select(_ => (OpenXmlElement)new W.GridColumn())));
+            new W.TableGrid(htmlColWidths.Select(w => (OpenXmlElement)new W.GridColumn { Width = w.ToString() })));
 
         foreach (var row in tableNode.Rows)
         {
@@ -3595,10 +3771,18 @@ public sealed partial class DocxExportService
                 ? new W.TableRowProperties(new W.CantSplit(), new W.TableHeader())
                 : new W.TableRowProperties(new W.CantSplit()));
 
+            int colIdx = 0;
             foreach (var cell in row.Cells)
             {
                 var wCell = new W.TableCell();
-                var tcPr = new W.TableCellProperties();
+                int span = Math.Max(1, cell.ColSpan);
+                int cellWidth = 0;
+                for (int sc = 0; sc < span && (colIdx + sc) < maxCols; sc++)
+                    cellWidth += htmlColWidths[colIdx + sc];
+                if (cellWidth <= 0) cellWidth = htmlColWidths[Math.Min(colIdx, maxCols - 1)];
+
+                var tcPr = new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = cellWidth.ToString() });
 
                 if (cell.ColSpan > 1)
                 {
@@ -3613,6 +3797,7 @@ public sealed partial class DocxExportService
                     wCell.Append(tcPr);
                     wCell.Append(new W.Paragraph());
                     wRow.Append(wCell);
+                    colIdx += span;
                     continue;
                 }
 
@@ -3629,6 +3814,7 @@ public sealed partial class DocxExportService
                 wCell.Append(tcPr);
                 RenderHtmlTableCellContent(cell, wCell, row.IsHeader || cell.IsHeader, ctx);
                 wRow.Append(wCell);
+                colIdx += span;
             }
 
             wTable.Append(wRow);
@@ -3753,10 +3939,6 @@ public sealed partial class DocxExportService
             new W.BottomMargin { Width = "120", Type = W.TableWidthUnitValues.Dxa },
             new W.RightMargin { Width = "180", Type = W.TableWidthUnitValues.Dxa });
 
-        var wTable = new W.Table(
-            tblPr,
-            new W.TableGrid(table.ColumnDefinitions.Select(_ => (OpenXmlElement)new W.GridColumn())));
-
         var rowList = table.OfType<MdTableRow>().ToList();
         int rowCount = rowList.Count;
         int colCount = table.ColumnDefinitions.Count;
@@ -3794,6 +3976,38 @@ public sealed partial class DocxExportService
             }
         }
 
+        // Intelligent Proportional Column Width Solver
+        int printableWidthDxa = 9360;
+        var maxColLens = new int[colCount];
+        for (int c = 0; c < colCount; c++) maxColLens[c] = 6;
+        for (int r = 0; r < rowCount; r++)
+        {
+            for (int c = 0; c < colCount; c++)
+            {
+                var txt = cellTexts[r, c];
+                if (!string.IsNullOrEmpty(txt))
+                    maxColLens[c] = Math.Max(maxColLens[c], Math.Min(txt.Length, 60));
+            }
+        }
+        int totalWeights = maxColLens.Sum();
+        var colWidths = new int[colCount];
+        int allocatedWidth = 0;
+        for (int c = 0; c < colCount; c++)
+        {
+            if (c == colCount - 1)
+                colWidths[c] = Math.Max(1000, printableWidthDxa - allocatedWidth);
+            else
+            {
+                int w = (int)((double)maxColLens[c] / (totalWeights > 0 ? totalWeights : 1) * printableWidthDxa);
+                colWidths[c] = Math.Max(1000, w);
+                allocatedWidth += colWidths[c];
+            }
+        }
+
+        var wTable = new W.Table(
+            tblPr,
+            new W.TableGrid(colWidths.Select(cw => (OpenXmlElement)new W.GridColumn { Width = cw.ToString() })));
+
         var dataRowIndex = 0;
         for (int rIdx = 0; rIdx < rowList.Count; rIdx++)
         {
@@ -3811,19 +4025,22 @@ public sealed partial class DocxExportService
                 banded = ++dataRowIndex % 2 == 0;
             }
 
-            for (var c = 0; c < row.Count; c++)
+            for (var c = 0; c < row.Count && c < colCount; c++)
             {
                 var wCell = new W.TableCell();
+                var tcPr = new W.TableCellProperties(
+                    new W.TableCellWidth { Type = W.TableWidthUnitValues.Dxa, Width = colWidths[c].ToString() });
                 if (row.IsHeader)
-                    wCell.Append(new W.TableCellProperties(new W.Shading
+                    tcPr.Append(new W.Shading
                     {
                         Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.CodeHex
-                    }));
+                    });
                 else if (banded)
-                    wCell.Append(new W.TableCellProperties(new W.Shading
+                    tcPr.Append(new W.Shading
                     {
                         Val = W.ShadingPatternValues.Clear, Color = "auto", Fill = ctx.SecondaryHex
-                    }));
+                    });
+                wCell.Append(tcPr);
 
                 if (row[c] is MdTableCell mdCell)
                 {
