@@ -155,7 +155,18 @@
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
                         ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio">
-                    <TextBlock Text="Diagram Studio 🎨" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE943;" FontSize="12" />
+                        <TextBlock Text="Diagram Studio" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="SuiteHubButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
+                        Click="OnSuiteHubClick"
+                        ToolTipService.ToolTip="MarkSmith Platform Suite &amp; Integrations Hub">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Text="Suite Hub" FontSize="12" FontWeight="SemiBold" />
+                    </StackPanel>
                 </Button>
                 <Button Height="30" Width="34" Padding="0" Background="Transparent" BorderThickness="0"
                         Click="OnSettingsClick"
@@ -968,7 +979,9 @@
                                         </MenuFlyoutSubItem>
                                         <MenuFlyoutSubItem Text="Diagram &amp; Galaxy">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutSubItem.Icon>
-                                            <MenuFlyoutItem Text="🌌 Document Galaxy &amp; Mind Map..." Click="OnOpenMindMapGalaxyClick" />
+                                            <MenuFlyoutItem Text="Document Galaxy &amp; Knowledge Graph..." Click="OnOpenMindMapGalaxyClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="MLShape &amp; SmartArt Vector Studio..." Click="OnOpenShapeDesignStudioClick" />
                                             <MenuFlyoutItem Text="SmartArt Design Studio..." Click="OnOpenSmartArtDesignStudioClick" />
@@ -978,8 +991,8 @@
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutItem Text="🌌 Document Galaxy..." Click="OnOpenMindMapGalaxyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE728;" /></MenuFlyoutItem.Icon>
+                                        <MenuFlyoutItem Text="Document Galaxy &amp; Knowledge Graph..." Click="OnOpenMindMapGalaxyClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE946;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>

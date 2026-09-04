@@ -138,7 +138,7 @@ namespace MarkSmith.Services.MindMap
                 }
 
                 if (string.IsNullOrWhiteSpace(link.Id)) link.Id = Guid.NewGuid().ToString("N");
-                link.ColorHex = NormalizeHex(link.ColorHex, "#7C4DFF");
+                link.ColorHex = NormalizeHex(link.ColorHex, "#5B50E6");
                 link.StrokeThickness = ClampOrDefault(link.StrokeThickness, 0.5, 12, 2.0);
                 link.Weight = double.IsFinite(link.Weight) && link.Weight > 0 ? link.Weight : 1.0;
 

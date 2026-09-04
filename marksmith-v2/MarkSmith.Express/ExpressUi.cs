@@ -22,26 +22,26 @@ public static class ExpressUi
   :root {
     color-scheme: light dark;
     --bg:#f6f7f9; --panel:#fff; --sunk:#f1f3f7; --border:#e3e6ec; --border-strong:#d2d7e0;
-    --text:#14161c; --muted:#666d7d; --accent:#3459e6; --accent-soft:#eaeeff; --on-accent:#fff;
+    --text:#14161c; --muted:#666d7d; --accent:#5B50E6; --accent-soft:#eef0fd; --on-accent:#fff;
     --danger:#c3372f; --ok:#12855a; --radius:10px;
     --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --mono:ui-monospace,"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;
   }
   html:not([data-theme="light"]) {
     --bg:#0b0d12; --panel:#12151c; --sunk:#171b23; --border:#232936; --border-strong:#2f3746;
-    --text:#e7eaf1; --muted:#98a1b2; --accent:#6d90ff; --accent-soft:#1a2340; --on-accent:#0b0d12;
+    --text:#e7eaf1; --muted:#98a1b2; --accent:#756BF2; --accent-soft:#1a1c30; --on-accent:#0b0d12;
     --danger:#f2726a; --ok:#43c58d;
   }
   @media (prefers-color-scheme: light) {
     html:not([data-theme="dark"]) {
       --bg:#f6f7f9; --panel:#fff; --sunk:#f1f3f7; --border:#e3e6ec; --border-strong:#d2d7e0;
-      --text:#14161c; --muted:#666d7d; --accent:#3459e6; --accent-soft:#eaeeff; --on-accent:#fff;
+      --text:#14161c; --muted:#666d7d; --accent:#5B50E6; --accent-soft:#eef0fd; --on-accent:#fff;
       --danger:#c3372f; --ok:#12855a;
     }
   }
   html[data-theme="light"] {
     --bg:#f6f7f9; --panel:#fff; --sunk:#f1f3f7; --border:#e3e6ec; --border-strong:#d2d7e0;
-    --text:#14161c; --muted:#666d7d; --accent:#3459e6; --accent-soft:#eaeeff; --on-accent:#fff;
+    --text:#14161c; --muted:#666d7d; --accent:#5B50E6; --accent-soft:#eef0fd; --on-accent:#fff;
     --danger:#c3372f; --ok:#12855a;
   }
   * { box-sizing:border-box; margin:0; padding:0; }

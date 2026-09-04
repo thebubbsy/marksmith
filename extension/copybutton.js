@@ -94,9 +94,9 @@
             border: 1px solid transparent; background: #262738; color: #f0f0fa; cursor: pointer;
             font-weight: 500; font-size: 11.5px; transition: background .12s, border-color .12s;
         }
-        .mk-sel-btn:hover { background: #35374e; border-color: #7c4dff; }
-        .mk-sel-btn.mk-primary { background: #7c4dff; color: #fff; }
-        .mk-sel-btn.mk-primary:hover { background: #8f66ff; }
+        .mk-sel-btn:hover { background: #35374e; border-color: #5B50E6; }
+        .mk-sel-btn.mk-primary { background: #5B50E6; color: #fff; }
+        .mk-sel-btn.mk-primary:hover { background: #756BF2; }
     `;
     document.documentElement.appendChild(style);
 
@@ -520,13 +520,13 @@
         if (!lensModal) {
             lensModal = document.createElement("div");
             lensModal.id = "mk-lens-preview-modal";
-            lensModal.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,640px);max-height:80vh;background:#181824;color:#f0f0ff;border:1px solid #7c4dff;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:999999;display:flex;flex-direction:column;font-family:monospace;padding:16px;";
+            lensModal.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,640px);max-height:80vh;background:#181824;color:#f0f0ff;border:1px solid #5B50E6;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.5);z-index:999999;display:flex;flex-direction:column;font-family:monospace;padding:16px;";
             document.documentElement.appendChild(lensModal);
         }
 
         lensModal.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid #333;padding-bottom:6px;">
-                <span style="font-weight:bold;color:#a855f7;">🔍 Markdown Lens Inspector (${md.length} chars)</span>
+                <span style="font-weight:bold;color:#756BF2;">Markdown Lens Inspector (${md.length} chars)</span>
                 <button type="button" id="mk-lens-close" style="background:#28283c;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;">✕</button>
             </div>
             <pre style="overflow:auto;flex:1;background:#0d0d15;padding:12px;border-radius:6px;margin:0;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">${md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>

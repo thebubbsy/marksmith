@@ -845,11 +845,11 @@ namespace MarkSmith.Views.MindMap
         {
             var flyout = new MenuFlyout();
 
-            var openItem = new MenuFlyoutItem { Text = "📂 Open document" };
+            var openItem = new MenuFlyoutItem { Text = "Open Document", Icon = new FontIcon { Glyph = "\uE8A7" } };
             openItem.Click += (s, e) => ViewModel.OpenLinkedDocument(node);
             flyout.Items.Add(openItem);
 
-            var linkItem = new MenuFlyoutItem { Text = "🔗 Link to another document…" };
+            var linkItem = new MenuFlyoutItem { Text = "Link to Another Document…", Icon = new FontIcon { Glyph = "\uE71B" } };
             linkItem.Click += async (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -857,11 +857,11 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(linkItem);
 
-            var moveItem = new MenuFlyoutItem { Text = "🔀 Move under…" };
+            var moveItem = new MenuFlyoutItem { Text = "Move Under Parent…", Icon = new FontIcon { Glyph = "\uE8DE" } };
             moveItem.Click += async (s, e) => await ShowReparentDialogAsync(node);
             flyout.Items.Add(moveItem);
 
-            var focusItem = new MenuFlyoutItem { Text = "🔦 Focus on this constellation" };
+            var focusItem = new MenuFlyoutItem { Text = "Focus on Constellation", Icon = new FontIcon { Glyph = "\uEA80" } };
             focusItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -870,7 +870,7 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(focusItem);
 
-            var duplicateItem = new MenuFlyoutItem { Text = "⧉ Duplicate node" };
+            var duplicateItem = new MenuFlyoutItem { Text = "Duplicate Node", Icon = new FontIcon { Glyph = "\uE8C8" } };
             duplicateItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;
@@ -878,15 +878,13 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(duplicateItem);
 
-            var histItem = new MenuFlyoutItem { Text = "⏱️ Time machine & history" };
+            var histItem = new MenuFlyoutItem { Text = "Version History & Time Machine", Icon = new FontIcon { Glyph = "\uE823" } };
             histItem.Click += (s, e) => OpenVersionHistoryForNode(node);
             flyout.Items.Add(histItem);
 
             flyout.Items.Add(new MenuFlyoutSeparator());
 
-            var deleteItem = new MenuFlyoutItem { Text = "🗑️ Delete node" };
-            // Deleting whichever node happened to be selected rather than the one right-clicked was
-            // a genuine data-loss hazard.
+            var deleteItem = new MenuFlyoutItem { Text = "Delete Node", Icon = new FontIcon { Glyph = "\uE74D" } };
             deleteItem.Click += (s, e) => ViewModel.DeleteNode(node);
             flyout.Items.Add(deleteItem);
 
@@ -897,7 +895,7 @@ namespace MarkSmith.Views.MindMap
         {
             var flyout = new MenuFlyout();
 
-            var reverseItem = new MenuFlyoutItem { Text = "⇄ Change direction" };
+            var reverseItem = new MenuFlyoutItem { Text = "Reverse Direction", Icon = new FontIcon { Glyph = "\uE8AB" } };
             reverseItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
@@ -908,7 +906,7 @@ namespace MarkSmith.Views.MindMap
             };
             flyout.Items.Add(reverseItem);
 
-            var deleteItem = new MenuFlyoutItem { Text = "🗑️ Delete relationship" };
+            var deleteItem = new MenuFlyoutItem { Text = "Delete Relationship", Icon = new FontIcon { Glyph = "\uE74D" } };
             deleteItem.Click += (s, e) =>
             {
                 ViewModel.SelectedLink = link;
@@ -1143,9 +1141,8 @@ namespace MarkSmith.Views.MindMap
         private void OnFitToWindowClick(object sender, RoutedEventArgs e) => FitToWindow();
 
         /// <summary>
-        /// Actually fits the galaxy to the window. The button used to reset zoom to 100% and the
-        /// pan to the origin, which is not the same thing at all — on any imported vault it left
-        /// most of the map off-screen and looked like the button had done nothing.
+        /// Actually fits the galaxy to the window. Uses safe view insets so nodes have ample breathing room
+        /// and never clip into window borders, behind the top pills/tour banner, or into the bottom legend/minimap.
         /// </summary>
         private void FitToWindow()
         {
@@ -1163,15 +1160,31 @@ namespace MarkSmith.Views.MindMap
             double minY = ViewModel.Nodes.Min(n => n.Y);
             double maxY = ViewModel.Nodes.Max(n => n.Y + n.Height);
 
-            const double margin = 80;
-            double worldW = Math.Max(1, maxX - minX) + margin * 2;
-            double worldH = Math.Max(1, maxY - minY) + margin * 2;
+            // Generous safe insets accounting for top title/tag banner, bottom legend, and minimap HUD
+            const double safeInsetTop = 90.0;
+            const double safeInsetBottom = 80.0;
+            const double safeInsetLeft = 60.0;
+            const double safeInsetRight = 60.0;
 
-            double zoom = Math.Clamp(Math.Min(CanvasWidth / worldW, CanvasHeight / worldH), 0.15, 2.0);
+            double availW = Math.Max(200.0, CanvasWidth - (safeInsetLeft + safeInsetRight));
+            double availH = Math.Max(200.0, CanvasHeight - (safeInsetTop + safeInsetBottom));
+
+            const double padding = 80.0;
+            double worldW = Math.Max(1.0, maxX - minX) + padding * 2.0;
+            double worldH = Math.Max(1.0, maxY - minY) + padding * 2.0;
+
+            double zoom = Math.Clamp(Math.Min(availW / worldW, availH / worldH), 0.15, 1.8);
 
             ViewModel.ZoomLevel = zoom;
-            ViewModel.ViewportOffsetX = -(minX + maxX) / 2.0;
-            ViewModel.ViewportOffsetY = -(minY + maxY) / 2.0;
+
+            double targetCenterScreenX = safeInsetLeft + (availW / 2.0);
+            double targetCenterScreenY = safeInsetTop + (availH / 2.0);
+
+            double worldCenterX = (minX + maxX) / 2.0;
+            double worldCenterY = (minY + maxY) / 2.0;
+
+            ViewModel.ViewportOffsetX = -worldCenterX + ((targetCenterScreenX - CanvasWidth / 2.0) / zoom);
+            ViewModel.ViewportOffsetY = -worldCenterY + ((targetCenterScreenY - CanvasHeight / 2.0) / zoom);
             RequestRedraw(RedrawScope.Transform);
         }
 
