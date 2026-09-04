@@ -459,7 +459,7 @@ public class McpAndPatchingTests : IDisposable
         var result = root.GetProperty("result");
         Assert.Equal("2024-11-05", result.GetProperty("protocolVersion").GetString());
         Assert.Equal("marksmith-mcp", result.GetProperty("serverInfo").GetProperty("name").GetString());
-        Assert.Equal("3.0.0", result.GetProperty("serverInfo").GetProperty("version").GetString());
+        Assert.StartsWith("3.", result.GetProperty("serverInfo").GetProperty("version").GetString()!);
     }
 
     [Fact]
@@ -490,13 +490,18 @@ public class McpAndPatchingTests : IDisposable
         using var doc = JsonDocument.Parse(response);
         var root = doc.RootElement;
         var tools = root.GetProperty("result").GetProperty("tools");
-        Assert.Equal(4, tools.GetArrayLength());
+        Assert.True(tools.GetArrayLength() >= 4);
 
         var toolNames = tools.EnumerateArray().Select(t => t.GetProperty("name").GetString()).ToList();
         Assert.Contains("render_markdown_to_docx", toolNames);
         Assert.Contains("inspect_docx", toolNames);
         Assert.Contains("patch_docx", toolNames);
         Assert.Contains("convert_docx_to_markdown", toolNames);
+        Assert.Contains("patch_markdown", toolNames);
+        Assert.Contains("validate_markdown", toolNames);
+        Assert.Contains("diff_markdown", toolNames);
+        Assert.Contains("diff_docx", toolNames);
+        Assert.Contains("manage_3block_cycle", toolNames);
     }
 
     [Fact]

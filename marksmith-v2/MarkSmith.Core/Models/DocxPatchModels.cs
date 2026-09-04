@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace MarkSmith.Models;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PatchOperation
 {
     Replace,

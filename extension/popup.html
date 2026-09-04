@@ -6,7 +6,7 @@
 <style>
     :root {
         --bg: #12131b; --card: #1c1c28; --line: #2a2a3a; --text: #e8e8f0;
-        --dim: #9a9ab0; --accent: #7c4dff; --accent-hi: #8f66ff; --ok: #3fb950;
+        --dim: #9a9ab0; --accent: #5B50E6; --accent-hi: #756BF2; --ok: #3fb950;
         --warn: #d29922; --err: #f85149;
     }
     * { box-sizing: border-box; }
@@ -102,7 +102,7 @@
 
     /* ── footer ─────────────────────────────────────────── */
     footer { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
-    footer a { color: #9a86ff; text-decoration: none; font-size: 11.5px; }
+    footer a { color: #756BF2; text-decoration: none; font-size: 11.5px; }
     footer a:hover { text-decoration: underline; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line);
                border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
@@ -162,7 +162,7 @@
 
     <!-- Copy markdown -->
     <button class="btn ghost" id="copyBtn" disabled>&#10697; Copy as Markdown</button>
-    <button class="btn ghost" id="batchTabsBtn" style="margin-top:6px" title="Ingest all open AI chat tabs into a multi-chapter Marksmith document">🌌 Ingest All AI Tabs</button>
+    <button class="btn ghost" id="batchTabsBtn" style="margin-top:6px" title="Ingest all open AI chat tabs into a multi-chapter Marksmith document">&#8862; Ingest All AI Tabs</button>
 
     <!-- Capture preview -->
     <div class="card hidden" id="previewCard">
@@ -198,6 +198,7 @@
 
     <footer>
         <a href="#" id="openOptions">&#9881; Options</a>
+        <a href="http://127.0.0.1:47821" target="_blank" title="Open MarkSmith Suite Hub" id="openHub">&#9673; Suite Hub</a>
         <span class="help" id="verTxt"></span>
     </footer>
 </div>

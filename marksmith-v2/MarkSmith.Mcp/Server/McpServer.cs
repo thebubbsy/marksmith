@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using MarkSmith.Mcp.Prompts;
+using MarkSmith.Mcp.Resources;
 using MarkSmith.Mcp.Tools;
 
 namespace MarkSmith.Mcp.Server;
@@ -19,10 +21,28 @@ public sealed class McpServer
     public static JsonRpcDispatcher CreateDefaultDispatcher()
     {
         var dispatcher = new JsonRpcDispatcher();
+
+        // 9 Tools
         dispatcher.RegisterTool(new RenderMarkdownTool());
         dispatcher.RegisterTool(new InspectDocxTool());
         dispatcher.RegisterTool(new PatchDocxTool());
         dispatcher.RegisterTool(new ConvertDocxTool());
+        dispatcher.RegisterTool(new PatchMarkdownTool());
+        dispatcher.RegisterTool(new ValidateMarkdownTool());
+        dispatcher.RegisterTool(new DiffMarkdownTool());
+        dispatcher.RegisterTool(new DiffDocxTool());
+        dispatcher.RegisterTool(new Manage3BlockCycleTool());
+
+        // 3 Prompts
+        dispatcher.RegisterPrompt(new AuthorDocumentGemini38Prompt());
+        dispatcher.RegisterPrompt(new ThreeBlockCycleGemini38Prompt());
+        dispatcher.RegisterPrompt(new ReviewAndPatchGemini38Prompt());
+
+        // 3 Resources
+        dispatcher.RegisterResource(new SyntaxContractResource());
+        dispatcher.RegisterResource(new TemplatesCatalogResource());
+        dispatcher.RegisterResource(new PatchSpecResource());
+
         return dispatcher;
     }
 

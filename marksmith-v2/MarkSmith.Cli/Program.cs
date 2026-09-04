@@ -42,8 +42,17 @@ namespace MarkSmith.Cli
 
             try
             {
+                if (cmd == "suite" || cmd == "doctor" || cmd == "status")
+                {
+                    return await Commands.SuiteCommand.RunAsync(args.Skip(1).ToArray());
+                }
+
                 if (cmd == "mcp" || cmd == "--mcp")
                 {
+                    if (args.Length > 1 && (args[1].Equals("setup", StringComparison.OrdinalIgnoreCase) || args[1].Equals("--setup", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return await Commands.SuiteCommand.RunMcpSetupAsync(args.Skip(2).ToArray());
+                    }
                     return await Commands.McpCommand.RunAsync(args.Skip(1).ToArray());
                 }
 
@@ -502,7 +511,9 @@ namespace MarkSmith.Cli
             Console.WriteLine();
             Console.WriteLine("Usage:");
             Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith suite (or doctor / status)");
             Console.WriteLine("  marksmith mcp [--transport <stdio|sse>] [--port <port>]");
+            Console.WriteLine("  marksmith mcp setup [--write-claude]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
             Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");

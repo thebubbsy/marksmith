@@ -346,7 +346,7 @@ namespace MarkSmith.Services.MindMap
                          .Take(options.MaxSharedTagLinks))
             {
                 TryClaim(doc, claimed, a, b, MindMapLinkKind.SharedTag,
-                    $"shared {string.Join(", ", shared.Take(3))}", "#7C4DFF",
+                    $"shared {string.Join(", ", shared.Take(3))}", "#5B50E6",
                     MindMapLinkStyle.SynapseGlow, MindMapLinkDirection.Bidirectional, shared.Count);
             }
         }

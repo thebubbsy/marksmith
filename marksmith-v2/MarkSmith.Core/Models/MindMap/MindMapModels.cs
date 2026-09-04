@@ -129,7 +129,7 @@ namespace MarkSmith.Models.MindMap
         public string SourceNodeId { get; set; } = string.Empty;
         public string TargetNodeId { get; set; } = string.Empty;
         public string? Label { get; set; } // e.g. "spawned during", "depends on", "reference"
-        public string ColorHex { get; set; } = "#7C4DFF";
+        public string ColorHex { get; set; } = "#5B50E6";
         public MindMapLinkStyle Style { get; set; } = MindMapLinkStyle.CurvedBezier;
         public MindMapLinkDirection Direction { get; set; } = MindMapLinkDirection.SourceToTarget;
         public double StrokeThickness { get; set; } = 2.0;

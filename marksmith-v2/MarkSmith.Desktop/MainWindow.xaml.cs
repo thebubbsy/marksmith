@@ -1178,6 +1178,39 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await dialog.ShowAsync();
     }
 
+    private async void OnSuiteHubClick(object sender, RoutedEventArgs e)
+    {
+        var suiteHubView = new Views.SuiteHubView();
+        ContentDialog? dialog = null;
+
+        suiteHubView.OpenMermaidStudioRequested += () =>
+        {
+            dialog?.Hide();
+            OnOpenMermaidStudioClick(this, new RoutedEventArgs());
+        };
+
+        suiteHubView.OpenShapeStudioRequested += () =>
+        {
+            dialog?.Hide();
+            OnOpenShapeDesignStudioClick(this, new RoutedEventArgs());
+        };
+
+        suiteHubView.OpenGalaxyRequested += () =>
+        {
+            dialog?.Hide();
+            OnOpenMindMapGalaxyClick(this, new RoutedEventArgs());
+        };
+
+        dialog = new ContentDialog
+        {
+            Title = "MarkSmith Platform Suite & Integrations",
+            Content = suiteHubView,
+            CloseButtonText = "Done",
+            XamlRoot = Content.XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
     // ---- Automation (clipboard watcher / folder watcher / REST API) ----
 
     private void ApplyAutomationSettings()
@@ -2779,6 +2812,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Export PPTX", "Action", () => ViewModel.ConvertToPptxAsync()),
             new("Export all formats", "Action", () => ViewModel.ExportAllAsync()),
             new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Platform Suite & Integrations Hub", "Suite", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Document Galaxy Mind Map", "Galaxy", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Diagram Studio", "Action", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Vector Shape Studio", "Action", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),

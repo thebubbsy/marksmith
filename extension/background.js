@@ -611,12 +611,12 @@ async function detectAndQueryImagePref() {
             #mk-imgpref-root h3{margin:0 0 4px;font-size:17px;font-weight:700;}
             #mk-imgpref-root .mk-sub{margin:0 0 16px;font-size:13px;color:#9a9ab0;line-height:1.5;}
             #mk-imgpref-root .mk-opt{display:block;border:1px solid #2a2a3a;border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,background .15s;}
-            #mk-imgpref-root .mk-opt:hover{border-color:#7c4dff;background:rgba(124,77,255,.09);}
+            #mk-imgpref-root .mk-opt:hover{border-color:#5B50E6;background:rgba(91,80,230,.09);}
             #mk-imgpref-root .mk-opt b{display:block;font-size:14px;margin-bottom:4px;}
             #mk-imgpref-root .mk-opt .mk-rec{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#3fb950;background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.35);border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:1px;}
             #mk-imgpref-root .mk-opt .mk-desc{display:block;font-size:12.5px;color:#9a9ab0;line-height:1.5;}
             #mk-imgpref-root .mk-remember{display:flex;align-items:center;gap:8px;font-size:13px;color:#c8c8d8;margin:14px 0 2px;cursor:pointer;user-select:none;}
-            #mk-imgpref-root .mk-remember input{accent-color:#7c4dff;width:15px;height:15px;cursor:pointer;}
+            #mk-imgpref-root .mk-remember input{accent-color:#5B50E6;width:15px;height:15px;cursor:pointer;}
             #mk-imgpref-root .mk-actions{display:flex;justify-content:flex-end;margin-top:12px;}
             #mk-imgpref-root .mk-skip{background:none;border:none;color:#9a9ab0;font-size:13px;cursor:pointer;padding:4px 6px;margin-right:auto;}
             #mk-imgpref-root .mk-skip:hover{color:#e8e8f0;}

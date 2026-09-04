@@ -62,7 +62,7 @@ namespace MarkSmith.ViewModels.MindMap
         {
             Model = model;
             _label = model.Label;
-            _colorHex = model.ColorHex ?? "#7C4DFF";
+            _colorHex = model.ColorHex ?? "#5B50E6";
             _style = model.Style;
             _direction = model.Direction;
             _strokeThickness = model.StrokeThickness > 0 ? model.StrokeThickness : 2.0;

@@ -1,0 +1,249 @@
+<UserControl
+    x:Class="MarkSmith.Views.SuiteHubView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="620" MinWidth="680">
+        <StackPanel Spacing="16" Margin="4,8,16,12">
+
+            <!-- Suite Platform Header -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="12" Padding="18,14">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="44" Height="44" CornerRadius="10"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE946;" FontSize="22" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="MarkSmith Platform Suite" FontSize="16" FontWeight="SemiBold" />
+                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock x:Name="VersionText" Text="v3.0.0 · x64" FontSize="10.5" Opacity="0.8" />
+                            </Border>
+                            <Border x:Name="LicenseBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock x:Name="LicenseText" Text="Pro Entitled" FontSize="10.5" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="Unified ecosystem for authoring, compiling, AI tool-calling, and document visualization."
+                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Click="OnOpenConfigFolderClick" VerticalAlignment="Center" Padding="10,6"
+                            ToolTipService.ToolTip="Open the shared configuration directory">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8B7;" FontSize="12" />
+                            <TextBlock Text="Config Folder" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- 2-Column Grid of Suite Components -->
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- CARD 1: Core Desktop Engine -->
+                <Border Grid.Row="0" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE7F4;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="Desktop Engine" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock Text="Active" FontSize="10" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Native WinUI 3 editor, Looking Glass live preview, SAX streaming OpenXML O(1) compiler, OMML math, and CriticMarkup."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE943;" FontSize="11" />
+                                    <TextBlock Text="Diagram Studio" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnOpenShapeStudioClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8DA;" FontSize="11" />
+                                    <TextBlock Text="Vector Shapes" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CARD 2: AI & MCP Server -->
+                <Border Grid.Row="0" Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE945;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="AI &amp; MCP Server" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock Text="Gemini 3.8 / Claude" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="marksmith-mcp stdio server exposing 10 document tools, 3-block cycle governance, and lossless OpenXML patching."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnCopyClaudeConfigClick" Style="{StaticResource AccentButtonStyle}" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                                    <TextBlock Text="Copy MCP Config" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnCopyMcpPathClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE756;" FontSize="11" />
+                                    <TextBlock Text="Copy Server Path" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CARD 3: Browser Companion Extension -->
+                <Border Grid.Row="1" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE774;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="Browser Companion" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock x:Name="ApiStatusText" Text="REST API Listening" FontSize="10" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Chrome &amp; Edge extension for 1-click capture from ChatGPT, Claude, Gemini, and Copilot straight into MarkSmith."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE71B;" FontSize="11" />
+                                    <TextBlock Text="Copy API URL" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE897;" FontSize="11" />
+                                    <TextBlock Text="Extension Guide" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CARD 4: Command Line Interface -->
+                <Border Grid.Row="1" Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE756;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="CLI Toolchain" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock Text="CLI Installed" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Single-binary headless compiler, batch file watcher, high-res image snapshot rasterizer (render-image), and vector tracer."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnCopyCliCommandClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE756;" FontSize="11" />
+                                    <TextBlock Text="Copy CLI Syntax" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnCopyCliPathClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                                    <TextBlock Text="Copy Path" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CARD 5: Express Web Companion -->
+                <Border Grid.Row="2" Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE71A;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="Express Web Companion" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock Text="Port 5000" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Zero-dependency loopback web interface and conversion service for local network and lightweight browser workflows."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnLaunchExpressClick" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE774;" FontSize="11" />
+                                    <TextBlock Text="Open in Browser" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CARD 6: Document Galaxy -->
+                <Border Grid.Row="2" Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="14">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE946;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="Document Galaxy" FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock Text="Visual Graph" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Interconnected document vault library with radial, tree, and force layouts, relationship inference, and time machine history."
+                                   FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Click="OnOpenGalaxyClick" Style="{StaticResource AccentButtonStyle}" Padding="8,4" FontSize="11">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE946;" FontSize="11" />
+                                    <TextBlock Text="Launch Galaxy" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Status Banner Toast / Feedback -->
+            <TextBlock x:Name="NotificationText" Text="" FontSize="11.5"
+                       Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

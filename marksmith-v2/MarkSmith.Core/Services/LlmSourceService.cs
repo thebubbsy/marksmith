@@ -85,7 +85,7 @@ public sealed partial class LlmSourceService
     public static LlmSource? ParseSourceId(string? id) => id?.Trim().ToLowerInvariant() switch
     {
         "chatgpt" or "openai" => LlmSource.ChatGpt,
-        "gemini" or "bard" => LlmSource.Gemini,
+        "gemini" or "bard" or "gemini-3.8" or "gemini-3-8" or "gemini38" or "gemini_3_8" or "gemini-pro" or "gemini-flash" or "gemini-exp" => LlmSource.Gemini,
         "claude" or "anthropic" => LlmSource.Claude,
         "copilot" => LlmSource.Copilot,
         _ => null,
@@ -104,6 +104,8 @@ public sealed partial class LlmSourceService
         if (CopyCodeButtons().IsMatch(markdown)) { chatgpt += 15; gemini += 10; signals.Add("Copy-code button text"); }
 
         if (markdown.Contains("Gemini can make mistakes")) { gemini += 50; signals.Add("Gemini footer"); }
+        if (markdown.Contains("<thought>") || markdown.Contains("</thought>")) { gemini += 45; signals.Add("Gemini reasoning <thought> tokens"); }
+        if (markdown.Contains("Gemini 3.8") || markdown.Contains("gemini-3.8")) { gemini += 40; signals.Add("Gemini 3.8 identifier"); }
         if (BoldPseudoHeading().Matches(markdown).Count >= 2 && !markdown.Contains("\n# ") && !markdown.Contains("\n## "))
         { gemini += 25; signals.Add("bold-line pseudo-headings"); }
         if (SourcesHeading().IsMatch(markdown) && NumberedSourceUrl().IsMatch(markdown))
@@ -113,7 +115,7 @@ public sealed partial class LlmSourceService
         if (gemini38Match.Success) { gemini += 40; signals.Add($"Gemini model mention ({gemini38Match.Value})"); }
         if (FrontierReasoningTag().IsMatch(markdown)) { gemini += 20; claude += 20; signals.Add("Frontier model reasoning token"); }
 
-        if (ClaudeTagRemnants().IsMatch(markdown)) { claude += 50; signals.Add("Claude tag remnants"); }
+        if (ClaudeTagRemnants().IsMatch(markdown)) { claude += 30; gemini += 20; signals.Add("AI tag remnants"); }
         if (markdown.Contains("Claude can make mistakes")) { claude += 50; signals.Add("Claude footer"); }
         if (TrailingOffer().IsMatch(markdown)) { claude += 15; signals.Add("trailing offer"); }
 

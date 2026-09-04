@@ -30,6 +30,8 @@ namespace MarkSmith.Core.Services
 
     public class MarkdownDiffService
     {
+        public MarkdownDiffResult Diff(string oldText, string newText) => Compare(oldText, newText);
+
         public MarkdownDiffResult Compare(string oldText, string newText)
         {
             var result = new MarkdownDiffResult();

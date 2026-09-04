@@ -108,7 +108,7 @@ public static class ProviderDialectNormalizer
             "claude" or "anthropic" => NormalizeClaudeQuirks(markdown),
             "deepseek" => NormalizeDeepSeekQuirks(markdown),
             "perplexity" => NormalizePerplexityQuirks(markdown),
-            "gemini" or "bard" => NormalizeGeminiQuirks(markdown),
+            "gemini" or "bard" or "gemini-3.8" or "gemini-3-8" or "gemini38" or "gemini_3_8" or "gemini-pro" or "gemini-flash" or "gemini-exp" => NormalizeGeminiQuirks(markdown),
             _ => markdown
         };
     }

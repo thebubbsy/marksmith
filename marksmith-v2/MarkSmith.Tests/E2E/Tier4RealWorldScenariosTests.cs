@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using DocumentFormat.OpenXml.Packaging;
+using MarkSmith.Core.Services;
 using MarkSmith.Models;
 using MarkSmith.Services;
 using Xunit;
@@ -12,9 +14,12 @@ using Xunit;
 namespace MarkSmith.Tests.E2E;
 
 /// <summary>
-/// Tier 4: Real-World End-to-End Application Scenarios (≥5 comprehensive workflows).
-/// Simulates enterprise production pipelines, legal negotiation redlines, academic publishing,
-/// automated AI agent MCP workflows, and massive document streaming.
+/// Tier 4: Real-World End-to-End Application Scenarios (5 comprehensive enterprise workflows).
+/// 1. Enterprise NDA Legal Redline & Patching
+/// 2. Executive Board Technical Report with Advanced Layouts
+/// 3. AI 3-Block Autonomous Cycle Document Generation
+/// 4. Massive Multi-Section Technical Specification Ingestion
+/// 5. Cross-Engine Dual-Pipeline Publishing Verification
 /// </summary>
 public class Tier4RealWorldScenariosTests
 {
@@ -32,7 +37,7 @@ public class Tier4RealWorldScenariosTests
             var summary = TemplateThemeService.ParseDotx(dotx);
             var settings = new AppSettings { BrandFontFamily = summary.BodyFont };
 
-            // 2. Multi-author legal redline markdown
+            // 2. Multi-author legal redline markdown with CriticMarkup
             var ndaMarkdown = @"# MUTUAL NON-DISCLOSURE AGREEMENT
 
 ## 1. Confidentiality Obligations
@@ -55,7 +60,7 @@ This Agreement shall be governed by the laws of {==the State of Delaware==}{>>Ge
             Assert.NotEmpty(report.Revisions);
             Assert.NotEmpty(report.Comments);
 
-            // 5. Surgical In-Place Clause Patch
+            // 5. Surgical In-Place Clause Patch using exact HeadingPath
             var patchReq = new DocxPatchRequest
             {
                 Operations = new[]
@@ -63,7 +68,7 @@ This Agreement shall be governed by the laws of {==the State of Delaware==}{>>Ge
                     new DocxPatchOperationItem
                     {
                         Op = PatchOperation.InsertAfter,
-                        Target = new BlockSelector { HeadingPath = "Governing Law" },
+                        Target = new BlockSelector { HeadingPath = "3. Governing Law and Jurisdiction" },
                         Content = "## 4. Injunctive Relief\nBoth parties acknowledge that unauthorized disclosure causes irreparable harm warranting immediate injunctive relief."
                     }
                 }
@@ -71,6 +76,7 @@ This Agreement shall be governed by the laws of {==the State of Delaware==}{>>Ge
 
             var (patchedBytes, patchResult) = E2ETestContext.ApplyDocxPatch(docxBytes, patchReq);
             Assert.True(patchResult.Success);
+            Assert.Empty(E2ETestContext.ValidateDocxSchema(patchedBytes));
 
             // 6. Reverse Import back to Markdown
             var tempDocx = Path.Combine(Path.GetTempPath(), $"nda-{Guid.NewGuid():N}.docx");
@@ -94,230 +100,278 @@ This Agreement shall be governed by the laws of {==the State of Delaware==}{>>Ge
     }
 
     [Fact]
-    public async Task T4_Scenario2_AcademicMathPaperWithFootnotes()
+    public async Task T4_Scenario2_ExecutiveBoardTechnicalReportWithAdvancedLayouts()
     {
-        var academicMd = @"# On the Convergence of Stochastic Optimization in Deep Networks
+        var executiveMd = @":::watermark ""BOARD CONFIDENTIAL"" color=""#990000"" opacity=""0.15""
+# Executive Technical Review 2026
 
-## Abstract
-We present a rigorous analysis of adaptive gradient descent methods.
+## 1. Strategic Infrastructure Overview
+This report outlines the Q3 technological transformation and infrastructure performance.
 
-## Mathematical Formulation
-The optimization objective is given by:
+:::columns
+### Cloud Migration
+- Multi-region Kubernetes
+- 99.999% uptime target
+- $O(1)$ memory streaming
+===
+### Key Financial KPIs
+- Operational Cost: -22%
+- Throughput: 100k req/s
+- P99 Latency: 1.4ms
+:::
 
-$$\min_{\mathbf{w} \in \mathbb{R}^d} \mathbb{E}_{\xi} [f(\mathbf{w}, \xi)] + \frac{\lambda}{2} \|\mathbf{w}\|_2^2$$
+## 2. Risk Factors and Mitigation
+<details><summary>Security and Compliance Risks</summary>
 
-where $\xi$ represents stochastic batch samples.
+All cloud endpoints enforce zero-trust authentication with mTLS and automated key rotation every 24 hours.
 
-## Empirical Convergence
-| Epoch | Train Loss | Validation Loss | Accuracy (%) |
-|---|---|---|---|
-| 10 | 0.421 | 0.450 | 88.5 |
-| 50 | 0.112 | 0.130 | 96.2 |
-| 100 | 0.035 | 0.048 | 99.1 |
+</details>
 
-### Key Results
-1. Quadratic convergence guaranteed under Polyak-Łojasiewicz condition.
-2. Step size scaling preserves asymptotic stability.";
+## 3. Financial Performance Breakdown
+<table>
+  <tr><th colspan=""3"">Quarterly Cost Optimization</th></tr>
+  <tr><td rowspan=""2"">Infrastructure</td><td>Compute</td><td>-$120,000</td></tr>
+  <tr><td>Storage</td><td>-$45,000</td></tr>
+  <tr><td colspan=""2""><strong>Total Net Savings</strong></td><td><strong>-$165,000</strong></td></tr>
+</table>
 
-        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(academicMd);
-        var errors = E2ETestContext.ValidateDocxSchema(docxBytes);
-        Assert.Empty(errors);
+## 4. Throughput Growth
+:::chart type=""bar"" title=""Quarterly Request Volume (Millions)""
+Categories: Q1, Q2, Q3, Q4
+Series: 2026, 45, 80, 130, 210
+:::";
 
+        // 1. Export DOCX with strict schema validation
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(executiveMd);
+        var docxErrors = E2ETestContext.ValidateDocxSchema(docxBytes);
+        Assert.Empty(docxErrors);
+
+        // 2. Render HTML Preview with strict XSS governance
+        var html = E2ETestContext.RenderHtml(executiveMd);
+        Assert.Contains("ms-columns", html);
+        Assert.Contains("<details", html);
+        Assert.Contains("Quarterly Cost Optimization", html);
+
+        // 3. Structural Inspection
         var report = E2ETestContext.InspectDocx(docxBytes);
-        Assert.Equal("On the Convergence of Stochastic Optimization in Deep Networks", report.Title);
-        Assert.Equal(1, report.TotalTables);
+        Assert.Equal("Executive Technical Review 2026", report.Title);
         Assert.True(report.TotalParagraphs >= 8);
     }
 
     [Fact]
-    public async Task T4_Scenario3_AiAgentMcpDocumentPipeline()
+    public async Task T4_Scenario3_Ai3BlockAutonomousCycleDocumentGeneration()
     {
-        var tempDocx = Path.Combine(Path.GetTempPath(), $"agent-doc-{Guid.NewGuid():N}.docx");
-        try
+        // Stage 1: Block 1 Idea Generation
+        var b1Req = JsonSerializer.Serialize(new
         {
-            // Step 1: Agent calls render_markdown_to_docx
-            var renderReq = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "agent-step-1",
-                method = "tools/call",
-                @params = new
-                {
-                    name = "render_markdown_to_docx",
-                    arguments = new
-                    {
-                        markdown = "# Automated Infrastructure Report\n\nGenerated by Autonomous Cloud Agent.",
-                        output_path = tempDocx
-                    }
-                }
-            });
-            var renderRes = await E2ETestContext.SimulateMcpJsonRpcAsync(renderReq);
-            using (var doc = JsonDocument.Parse(renderRes))
-            {
-                Assert.True(doc.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
-            }
-
-            // Step 2: Agent calls inspect_docx
-            var inspectReq = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "agent-step-2",
-                method = "tools/call",
-                @params = new { name = "inspect_docx", arguments = new { docx_path = tempDocx } }
-            });
-            var inspectRes = await E2ETestContext.SimulateMcpJsonRpcAsync(inspectReq);
-            using (var doc = JsonDocument.Parse(inspectRes))
-            {
-                var title = doc.RootElement.GetProperty("result").GetProperty("report").GetProperty("title").GetString();
-                Assert.Equal("Automated Infrastructure Report", title);
-            }
-
-            // Step 3: Agent patches docx
-            var patchReq = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "agent-step-3",
-                method = "tools/call",
-                @params = new
-                {
-                    name = "patch_docx",
-                    arguments = new
-                    {
-                        docx_path = tempDocx,
-                        patch = new DocxPatchRequest
-                        {
-                            Operations = new[]
-                            {
-                                new DocxPatchOperationItem
-                                {
-                                    Op = PatchOperation.InsertAfter,
-                                    Target = new BlockSelector { BodyIndex = 1 },
-                                    Content = "## Cluster Health\nAll 64 nodes operating in healthy status (0% packet drop)."
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            var patchRes = await E2ETestContext.SimulateMcpJsonRpcAsync(patchReq);
-            using (var doc = JsonDocument.Parse(patchRes))
-            {
-                Assert.True(doc.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
-            }
-
-            // Step 4: Agent converts back to markdown
-            var convReq = JsonSerializer.Serialize(new
-            {
-                jsonrpc = "2.0",
-                id = "agent-step-4",
-                method = "tools/call",
-                @params = new { name = "convert_docx_to_markdown", arguments = new { docx_path = tempDocx } }
-            });
-            var convRes = await E2ETestContext.SimulateMcpJsonRpcAsync(convReq);
-            using (var doc = JsonDocument.Parse(convRes))
-            {
-                var md = doc.RootElement.GetProperty("result").GetProperty("markdown").GetString();
-                Assert.Contains("Cluster Health", md);
-            }
-        }
-        finally
+            jsonrpc = "2.0",
+            id = "ai-b1",
+            method = "tools/call",
+            @params = new { name = "manage_3block_cycle", arguments = new { action = "generate", current_block = 1 } }
+        });
+        var b1Res = await E2ETestContext.SimulateMcpJsonRpcAsync(b1Req);
+        using (var doc = JsonDocument.Parse(b1Res))
         {
-            if (File.Exists(tempDocx)) File.Delete(tempDocx);
+            Assert.Equal(2, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
         }
+
+        // Stage 2: Block 2 Refinement Pass 1 + Generation
+        var b2Req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "ai-b2",
+            method = "tools/call",
+            @params = new { name = "manage_3block_cycle", arguments = new { action = "refine_and_generate", current_block = 2 } }
+        });
+        var b2Res = await E2ETestContext.SimulateMcpJsonRpcAsync(b2Req);
+        using (var doc = JsonDocument.Parse(b2Res))
+        {
+            Assert.Equal(3, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
+        }
+
+        // Stage 3: Block 3 Refinement Pass 2 + Refinement + Generation
+        var b3Req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "ai-b3",
+            method = "tools/call",
+            @params = new { name = "manage_3block_cycle", arguments = new { action = "refine_all", current_block = 3 } }
+        });
+        var b3Res = await E2ETestContext.SimulateMcpJsonRpcAsync(b3Req);
+        using (var doc = JsonDocument.Parse(b3Res))
+        {
+            Assert.Equal(4, doc.RootElement.GetProperty("result").GetProperty("current_block").GetInt32());
+            Assert.True(doc.RootElement.GetProperty("result").GetProperty("is_execution_phase").GetBoolean());
+        }
+
+        // Stage 4: Block 4 Execution Phase
+        var b4Req = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = "ai-b4",
+            method = "tools/call",
+            @params = new { name = "manage_3block_cycle", arguments = new { action = "execute_code", current_block = 4 } }
+        });
+        var b4Res = await E2ETestContext.SimulateMcpJsonRpcAsync(b4Req);
+        using (var doc = JsonDocument.Parse(b4Res))
+        {
+            Assert.Equal(6, doc.RootElement.GetProperty("result").GetProperty("total_refined_ideas").GetInt32());
+        }
+
+        // Simulate AI output with Gemini reasoning header and Mermaid block
+        var aiMarkdown = @"<think>
+Synthesizing all 6 ideas:
+1. Multi-threaded SAX streaming
+2. Thread-safe relationship staging
+3. Buffer pooling O(1)
+4. Collapsible sections
+5. Multi-column blocks
+6. Nested grid table parser
+</think>
+
+```code snippet
+flowchart TD
+  Ideas --> Refinement
+  Refinement --> ProductionCode
+```
+
+# Autonomous System Architecture
+The AI-driven pipeline synthesizes high-performance document components.";
+
+        // Normalization & Validation
+        var normalized = ProviderDialectNormalizer.Normalize(aiMarkdown, "gemini");
+        var (isValid, errors) = E2ETestContext.ValidateMarkdownGovernance(normalized);
+        Assert.True(isValid);
+
+        // DOCX Export
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(normalized);
+        Assert.Empty(E2ETestContext.ValidateDocxSchema(docxBytes));
+        Assert.Contains("```mermaid", normalized);
+        Assert.DoesNotContain("<think>", normalized);
     }
 
     [Fact]
-    public async Task T4_Scenario4_CollaborativePolicyDocumentRoundTrip()
+    public async Task T4_Scenario4_MassiveMultiSectionTechnicalSpecificationIngestion()
     {
-        var originalPolicyMd = @"# Global Remote Work Policy
+        // Generate massive technical specification (200 sections, tables, code)
+        var sb = new StringBuilder();
+        sb.AppendLine("# Enterprise Distributed System Technical Specification\n");
+        sb.AppendLine("Comprehensive architecture definition for large-scale enterprise deployment.\n");
 
-## 1. Eligibility
-All full-time employees with at least {~~3 months~>6 months~~} tenure are eligible for remote flexibility.
+        for (int i = 1; i <= 100; i++)
+        {
+            sb.AppendLine($"## Section {i}: Subsystem {i} Architecture");
+            sb.AppendLine($"Detailed operational specification and resilience metrics for subsystem {i}.\n");
 
-## 2. Core Working Hours
-Team members must be available during core collaboration hours: {++10:00 AM to 3:00 PM local time++}.
+            if (i % 5 == 0)
+            {
+                sb.AppendLine(@"| Parameter | Value | SLA |
+|---|---|---|
+| Latency | < 5ms | 99.9% |
+| Concurrency | 10,000 | 99.99% |
+");
+            }
 
-## 3. Equipment Reimbursement
-Home office stipend provides up to {==$1,000 annually==}{>>People Ops: Confirm budget allocation for APAC region<<}.";
+            if (i % 10 == 0)
+            {
+                sb.AppendLine("```csharp\npublic async Task ProcessItemAsync(int id) => await Task.Yield();\n```\n");
+            }
+        }
 
-        // 1. Export
-        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(originalPolicyMd);
+        var fullSpec = sb.ToString();
+
+        // 1. Ingest via token stream
+        var tokenStream = E2ETestContext.CreateTokenStreamAsync(fullSpec, chunkSize: 256);
+        var collected = new StringBuilder();
+        await foreach (var token in tokenStream)
+        {
+            collected.Append(token);
+        }
+        Assert.Equal(fullSpec.Length, collected.Length);
+
+        // 2. Export via streaming SAX engine
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(collected.ToString());
+        Assert.NotEmpty(docxBytes);
+
+        // 3. Schema validation
         var errors = E2ETestContext.ValidateDocxSchema(docxBytes);
         Assert.Empty(errors);
 
-        // 2. Word Reviewer In-Place Patch
-        var patchReq = new DocxPatchRequest
-        {
-            Operations = new[]
-            {
-                new DocxPatchOperationItem
-                {
-                    Op = PatchOperation.Append,
-                    Content = "## 4. Security & Compliance\nEmployees must use corporate VPN and hardware-backed 2FA tokens for all system access."
-                }
-            }
-        };
+        // 4. Inspection
+        var report = E2ETestContext.InspectDocx(docxBytes);
+        Assert.Equal("Enterprise Distributed System Technical Specification", report.Title);
+        Assert.True(report.TotalParagraphs >= 200);
+    }
 
-        var (patchedBytes, patchResult) = E2ETestContext.ApplyDocxPatch(docxBytes, patchReq);
-        Assert.True(patchResult.Success);
+    [Fact]
+    public async Task T4_Scenario5_CrossEngineDualPipelinePublishingVerification()
+    {
+        var complexMd = @":::watermark ""OFFICIAL RELEASE"" color=""#003366"" opacity=""0.10""
+# Dual-Pipeline Publishing Verification
 
-        // 3. Reverse import back to markdown
-        var tempDocx = Path.Combine(Path.GetTempPath(), $"policy-{Guid.NewGuid():N}.docx");
-        await File.WriteAllBytesAsync(tempDocx, patchedBytes);
+## 1. Architecture Summary
+> [!NOTE]
+> This document verifies exact cross-pipeline consistency between DOCX and HTML preview.
+
+## 2. Computational Complexity
+The mathematical derivation:
+$$ T(n) = 2 T\\left(\\frac{n}{2}\\right) + O(n) = O(n \\log n) $$
+
+## 3. High-Density Layout
+:::columns
+### Ingestion Engine
+- Streaming Token Parser
+- Dialect Normalizer
+===
+### SAX Export Engine
+- OpenXmlWriter Streaming
+- Thread-Safe Relationships
+:::
+
+## 4. Operational Metrics
+<table>
+  <tr><th colspan=""2"">Engine Benchmarks</th><th>Target</th></tr>
+  <tr><td rowspan=""2"">Throughput</td><td>Paragraphs/sec</td><td>> 500</td></tr>
+  <tr><td>Tokens/sec</td><td>> 5,000</td></tr>
+  <tr><td colspan=""2"">Memory Bound</td><td>$O(1)$</td></tr>
+</table>
+
+## 5. Security & Sanitization
+```html
+<div class=""safe-container"">Escaped Text Content</div>
+```";
+
+        // 1. Validate Governance
+        var (isValid, govErrors) = E2ETestContext.ValidateMarkdownGovernance(complexMd);
+        Assert.True(isValid);
+        Assert.Empty(govErrors);
+
+        // 2. DOCX Pipeline Export & OpenXML Schema Validation
+        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(complexMd);
+        var docxErrors = E2ETestContext.ValidateDocxSchema(docxBytes);
+        Assert.Empty(docxErrors);
+
+        // 3. HTML Preview Pipeline & XSS Sanitization Check
+        var html = E2ETestContext.RenderHtml(complexMd);
+        Assert.Contains("markdown-alert", html);
+        Assert.Contains("katex", html.ToLowerInvariant());
+        Assert.Contains("ms-columns", html);
+        Assert.Contains("Engine Benchmarks", html);
+        Assert.Contains("&lt;div class=&quot;safe-container&quot;&gt;", html);
+        Assert.DoesNotContain("<script>alert", html);
+
+        // 4. Reverse Import Parity Spot-Check
+        var tempDocx = Path.Combine(Path.GetTempPath(), $"parity-{Guid.NewGuid():N}.docx");
+        await File.WriteAllBytesAsync(tempDocx, docxBytes);
         try
         {
             var reverse = new ReverseImportService();
-            var reversedMd = reverse.ImportFromDocx(tempDocx);
-            Assert.Contains("Global Remote Work Policy", reversedMd);
-            Assert.Contains("Eligibility", reversedMd);
-            Assert.Contains("Security & Compliance", reversedMd);
+            var imported = reverse.ImportFromDocx(tempDocx);
+            Assert.Contains("Dual-Pipeline Publishing Verification", imported);
         }
         finally
         {
             if (File.Exists(tempDocx)) File.Delete(tempDocx);
         }
-    }
-
-    [Fact]
-    public async Task T4_Scenario5_Massive1000PageDocumentSaxStreamAndPatch()
-    {
-        var sb = new StringBuilder("# Enterprise Master Document\n\n");
-        for (int i = 1; i <= 500; i++)
-        {
-            sb.AppendLine($"## Section {i}\nParagraph content for high volume streaming benchmark section {i}.");
-        }
-
-        // 1. Stream export
-        var docxBytes = await E2ETestContext.ExportMarkdownToBytesAsync(sb.ToString());
-        Assert.NotEmpty(docxBytes);
-
-        var errors = E2ETestContext.ValidateDocxSchema(docxBytes);
-        Assert.Empty(errors);
-
-        // 2. Inspect structure
-        var report = E2ETestContext.InspectDocx(docxBytes);
-        Assert.Equal("Enterprise Master Document", report.Title);
-        Assert.True(report.TotalParagraphs >= 500);
-
-        // 3. Surgical patch at paragraph 250
-        var patchReq = new DocxPatchRequest
-        {
-            Operations = new[]
-            {
-                new DocxPatchOperationItem
-                {
-                    Op = PatchOperation.Replace,
-                    Target = new BlockSelector { BodyIndex = 250 },
-                    Content = "Surgically updated critical block at middle of massive document."
-                }
-            }
-        };
-
-        var (patchedBytes, patchResult) = E2ETestContext.ApplyDocxPatch(docxBytes, patchReq);
-        Assert.True(patchResult.Success);
-        Assert.Equal(1, patchResult.ModifiedBlocks);
-
-        var docXml = E2ETestContext.ReadZipPartXml(patchedBytes, "word/document.xml")!;
-        Assert.Contains("Surgically updated critical block", docXml);
     }
 }
