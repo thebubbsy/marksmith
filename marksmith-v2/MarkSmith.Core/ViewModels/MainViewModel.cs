@@ -366,6 +366,10 @@ private readonly MarkdownExportService _mdExport = new();
     [NotifyPropertyChangedFor(nameof(WordCountText))]
     [NotifyPropertyChangedFor(nameof(DocumentStats))]
     [NotifyPropertyChangedFor(nameof(DocumentStatsDetail))]
+    [NotifyPropertyChangedFor(nameof(DocumentWordBudget))]
+    [NotifyPropertyChangedFor(nameof(HasOverallBudget))]
+    [NotifyPropertyChangedFor(nameof(OverallBudgetProgress))]
+    [NotifyPropertyChangedFor(nameof(OverallBudgetTooltip))]
     [NotifyPropertyChangedFor(nameof(CurrentMarkdown))]
     private string _pastedMarkdown = string.Empty;
 
@@ -481,6 +485,26 @@ private readonly MarkdownExportService _mdExport = new();
             return _cachedStats;
         }
     }
+
+    private Services.DocumentWordBudgetReport _cachedBudget = new();
+    private string? _cachedBudgetSource;
+    public Services.DocumentWordBudgetReport DocumentWordBudget
+    {
+        get
+        {
+            var src = PastedMarkdown;
+            if (!ReferenceEquals(src, _cachedBudgetSource))
+            {
+                _cachedBudget = Services.DocumentWordBudgetService.Analyze(src);
+                _cachedBudgetSource = src;
+            }
+            return _cachedBudget;
+        }
+    }
+
+    public bool HasOverallBudget => DocumentWordBudget.OverallBudgetWords.HasValue;
+    public double OverallBudgetProgress => DocumentWordBudget.OverallProgressPercentage;
+    public string OverallBudgetTooltip => HasOverallBudget ? (DocumentWordBudget.IsOverallOverBudget ? $"{DocumentWordBudget.TotalActualWords - DocumentWordBudget.OverallBudgetWords} words over budget" : $"{DocumentWordBudget.OverallRemainingWords} words remaining to reach {DocumentWordBudget.OverallBudgetWords} word budget") : string.Empty;
 
     partial void OnPastedMarkdownChanged(string value)
     {
