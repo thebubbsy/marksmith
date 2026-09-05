@@ -33,8 +33,11 @@
                                 <TextBlock x:Name="LicenseText" Text="Pro Entitled" FontSize="10.5" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
                             </Border>
                         </StackPanel>
+                        <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
+                             Config Folder button, so the space it gets depends on the dialog width. -->
                         <TextBlock Text="Unified ecosystem for authoring, compiling, AI tool-calling, and document visualization."
-                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
                     </StackPanel>
 
                     <Button Grid.Column="2" Click="OnOpenConfigFolderClick" VerticalAlignment="Center" Padding="10,6"
