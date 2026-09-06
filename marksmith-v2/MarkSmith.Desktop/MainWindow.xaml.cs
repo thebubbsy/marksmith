@@ -1208,6 +1208,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseButtonText = "Done",
             XamlRoot = Content.XamlRoot,
         };
+        // SuiteHubView asks for MinWidth 680, but ContentDialog's default ContentDialogMaxWidth is
+        // ~548 — so the dialog clipped its own content: the right-hand column of cards lost the end
+        // of every description and, worse, its buttons (Copy MCP Config, Copy CLI Syntax, Launch
+        // Galaxy) were cut off the edge and unreachable. Same trap the welcome tour hit above.
+        // 680 content + the dialog's ~48 of horizontal padding needs ~730, so give it headroom.
+        dialog.Resources["ContentDialogMaxWidth"] = 820.0;
+        dialog.Resources["ContentDialogMinWidth"] = 740.0;
+        dialog.Resources["ContentDialogMaxHeight"] = 900.0;
         await dialog.ShowAsync();
     }
 
