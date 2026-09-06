@@ -1,0 +1,15 @@
+<<<<<<< SEARCH
+        var stats = DocumentStatsService.Analyze(markdown);
+        var statsPill = settings.ShowWordCount && stats.Words > 0 ? $"<div class=\"stats-pill\"><svg style=\"width:12px;height:12px;vertical-align:-1px;margin-right:4px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>{stats.SummaryText}</div>" : "";
+        // Free tier stamps a subtle footer on every export/preview; Pro removes it.
+        var footer = AppServices.License.ShowFooter
+            ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
+            : "";
+=======
+        var stats = DocumentStatsService.Analyze(markdown);
+        var statsPill = settings.ShowWordCount && stats.Words > 0 ? $"<div class=\"stats-pill\"><svg style=\"width:12px;height:12px;vertical-align:-1px;margin-right:4px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>{stats.SummaryText}</div>" : "";
+        // Free tier stamps a subtle footer on every export/preview; Pro removes it.
+        var footer = AppServices.License.ShowFooter
+            ? "<div class=\"mark-footer\">Made with <a href=\"https://github.com/thebubbsy/marksmith\">Marksmith</a> — turn AI chats into polished documents</div>"
+            : "";
+>>>>>>> REPLACE
