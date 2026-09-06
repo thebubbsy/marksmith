@@ -24,7 +24,7 @@ analytics.
 Marksmith works fully offline. It makes network requests only in these cases:
 
 - **Rendering assets:** diagram (Mermaid) and math (KaTeX) and syntax-highlighting libraries
-  may be loaded from a public CDN to render a preview. No document content is sent; only the
+  are bundled locally to render a preview. No document content is sent; only the
   libraries are fetched.
 - **Update check:** if you press "Check for updates," Marksmith queries the public GitHub
   Releases API for the latest version number. No personal data is sent.
