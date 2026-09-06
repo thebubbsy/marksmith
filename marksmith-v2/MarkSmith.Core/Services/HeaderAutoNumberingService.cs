@@ -21,6 +21,7 @@ public static class HeaderAutoNumberingService
     private static readonly Regex HeadingRegex = new(@"^(#{1,6})\s+(.+)$", RegexOptions.Compiled);
     private static readonly Regex NoNumberRegex = new(@"<!--\s*(?:nonumber|unnumbered)\s*-->", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ExistingNumberRegex = new(@"^\d+(?:\.\d+)*\.?\s+", RegexOptions.Compiled);
+    private static readonly Regex FenceRegex = new(@"^\s*(```+|~~~+)", RegexOptions.Compiled);
 
     /// <summary>
     /// Traverses Markdown headings and computes hierarchical section numbers.
@@ -34,10 +35,34 @@ public static class HeaderAutoNumberingService
         var lines = markdown.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
         int[] counters = new int[7]; // levels 1 to 6
 
+        bool inFence = false;
+        char fenceChar = '\0';
+        int fenceLength = 0;
+
         for (int i = 0; i < lines.Length; i++)
         {
             int lineNum = i + 1;
             string line = lines[i];
+
+            var fenceMatch = FenceRegex.Match(line);
+            if (fenceMatch.Success)
+            {
+                string marker = fenceMatch.Groups[1].Value;
+                if (!inFence)
+                {
+                    inFence = true;
+                    fenceChar = marker[0];
+                    fenceLength = marker.Length;
+                }
+                else if (marker[0] == fenceChar && marker.Length >= fenceLength)
+                {
+                    inFence = false;
+                }
+                continue;
+            }
+
+            // '#' lines inside a fenced code block (e.g. a shell comment) are not headings.
+            if (inFence) continue;
 
             var match = HeadingRegex.Match(line);
             if (!match.Success) continue;
