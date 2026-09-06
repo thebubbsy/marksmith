@@ -49,6 +49,7 @@ namespace MarkSmith.Core.Services
             // 2. Extract inline references in order of appearance
             var referencedKeys = new List<string>();
             var keyToIndexMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var occurrenceCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             string processedBody = ReferencePattern.Replace(content, m =>
             {
@@ -65,7 +66,18 @@ namespace MarkSmith.Core.Services
                 }
 
                 int index = keyToIndexMap[key];
-                return $"<sup class=\"footnote-ref\"><a href=\"#fn-{key}\" id=\"fnref-{key}\">[{index}]</a></sup>";
+
+                // The same key can be referenced more than once (e.g. citing the same
+                // source twice). Give repeat occurrences a disambiguated id so we never
+                // emit two elements sharing the same id="fnref-{key}" — the first
+                // occurrence keeps the plain id so the footnote's single backref still
+                // targets it, matching common Markdown-footnote conventions.
+                occurrenceCounts.TryGetValue(key, out int occurrence);
+                occurrence++;
+                occurrenceCounts[key] = occurrence;
+                string refId = occurrence == 1 ? $"fnref-{key}" : $"fnref-{key}-{occurrence}";
+
+                return $"<sup class=\"footnote-ref\"><a href=\"#fn-{key}\" id=\"{refId}\">[{index}]</a></sup>";
             });
 
             if (referencedKeys.Count == 0)
