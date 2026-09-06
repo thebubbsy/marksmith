@@ -28,7 +28,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <SettingsIcon size={18} />
             <h3 className="ms-modal-title">Session Settings</h3>
           </div>
-          <button className="ms-btn ms-btn-icon ms-btn-sm" onClick={onClose}>
+          <button className="ms-btn ms-btn-icon ms-btn-sm" onClick={onClose} aria-label="Close">
             <CloseIcon size={14} />
           </button>
         </div>
