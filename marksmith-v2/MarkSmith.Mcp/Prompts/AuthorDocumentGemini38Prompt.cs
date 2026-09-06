@@ -40,14 +40,23 @@ public sealed class AuthorDocumentGemini38Prompt : IMcpPrompt
         sb.AppendLine("3. **Callouts / Alerts**: Use GitHub alert syntax: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`.");
         sb.AppendLine("4. **Tables**: Use standard GFM tables with consistent column delimiters `|---|---|`.");
 
+        sb.AppendLine("5. **Document Layout & Typography Directives** (use native MarkSmith containers):");
+        sb.AppendLine("   - Executive Cover Page: `:::cover-page theme=\"modern\"` followed by metadata lines (`title: ...`, `subtitle: ...`, `author: ...`, `date: ...`) and closed with `:::`.");
+        sb.AppendLine("   - Document Watermark: `:::watermark \"CONFIDENTIAL\"` or `:::watermark \"DRAFT\" opacity=\"0.2\"`.");
+        sb.AppendLine("   - Editorial Drop Cap: `:::dropcap` followed by paragraph text and closed with `:::`.");
+        sb.AppendLine("   - Legal / Academic Line Numbering: `:::line-numbers` to enable continuous line numbering.");
+        sb.AppendLine("   - Concordance / Subject Index: Place `:::index count=2` for the back-of-book index, and tag inline terms using `^[index: \"Keyword\"]`.");
+        sb.AppendLine("   - Synchronized Parallel / Bilingual Columns: `:::parallel \"Col 1\" | \"Col 2\"` separated by `===` and closed with `:::`.");
+
         if (includeVisuals)
         {
-            sb.AppendLine("5. **Rich Visual Containers**: Use native MarkSmith container blocks with closing `:::`:");
+            sb.AppendLine("6. **Rich Visual & Analytical Containers**: Use native MarkSmith container blocks with closing `:::`:");
+            sb.AppendLine("   - Executive KPIs & Metrics: `:::metrics` with list items like `- **99.9%** Availability`.");
             sb.AppendLine("   - Process / Hierarchy: `:::smartart` or `:::workflow`");
-            sb.AppendLine("   - Charts / Metrics: `:::chart`");
+            sb.AppendLine("   - Charts / Plots: `:::chart type=\"bar\"` with `Label,Value` rows");
             sb.AppendLine("   - Multi-tab Views: `:::tabs` with `=== \"Tab Title\"`");
             sb.AppendLine("   - Multi-column Layouts: `:::columns` with `===` separators");
-            sb.AppendLine("   - Milestones: `:::timeline`");
+            sb.AppendLine("   - Milestones: `:::timeline` with `YYYY: Event` lines");
         }
 
         sb.AppendLine();

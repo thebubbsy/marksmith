@@ -45,8 +45,13 @@ public sealed class DiffDocxTool : IMcpTool
             var oldRep = _inspector.Inspect(oldPath, options);
             var newRep = _inspector.Inspect(newPath, options);
 
-            var oldParaMap = oldRep.Blocks.Where(b => !string.IsNullOrEmpty(b.ParaId)).ToDictionary(b => b.ParaId!, b => b);
-            var newParaMap = newRep.Blocks.Where(b => !string.IsNullOrEmpty(b.ParaId)).ToDictionary(b => b.ParaId!, b => b);
+            var oldParaMap = new Dictionary<string, BlockSummary>();
+            foreach (var b in oldRep.Blocks.Where(b => !string.IsNullOrEmpty(b.ParaId)))
+                oldParaMap.TryAdd(b.ParaId!, b);
+
+            var newParaMap = new Dictionary<string, BlockSummary>();
+            foreach (var b in newRep.Blocks.Where(b => !string.IsNullOrEmpty(b.ParaId)))
+                newParaMap.TryAdd(b.ParaId!, b);
 
             var addedBlocks = new List<object>();
             var removedBlocks = new List<object>();

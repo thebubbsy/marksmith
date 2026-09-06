@@ -43,6 +43,10 @@ public sealed class ValidateMarkdownTool : IMcpTool
             {
                 markdown = mProp.GetString() ?? "";
             }
+            else if (arguments.TryGetProperty("content", out var cProp) && cProp.ValueKind == JsonValueKind.String)
+            {
+                markdown = cProp.GetString() ?? "";
+            }
             else if (arguments.TryGetProperty("input_path", out var pProp) && pProp.ValueKind == JsonValueKind.String)
             {
                 string path = pProp.GetString() ?? "";

@@ -29,6 +29,7 @@ public sealed partial class LlmSourceService
     [GeneratedRegex(@"</?(thinking|artifact|search_reminders|automated_reminder_from_anthropic)[^>]*>")] private static partial Regex ClaudeTagRemnants();
     [GeneratedRegex(@"\[cite:\s*[^\]]+\]")] private static partial Regex GeminiGroundingCite();
     [GeneratedRegex(@"\b(?:Gemini\s+(?:3\.[78]|Flash\s+3\.[78]|Pro\s+3\.[78]|Deep\s+Research))\b", RegexOptions.IgnoreCase)] private static partial Regex Gemini38ModelMention();
+    [GeneratedRegex(@"<(?:thought|thinking|think|reasoning)\b[^>]*>[\s\S]*?(?:</(?:thought|thinking|think|reasoning)>|$)", RegexOptions.IgnoreCase)] private static partial Regex FrontierReasoningBlock();
     [GeneratedRegex(@"</?(?:thought|thinking|think|reasoning)\b[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex FrontierReasoningTag();
     [GeneratedRegex(@"\n{3,}")] private static partial Regex ExcessBlankLines();
     [GeneratedRegex(@"\$\$?.+?\$\$?", RegexOptions.Singleline)] private static partial Regex DollarMath();
@@ -172,6 +173,7 @@ public sealed partial class LlmSourceService
         Apply(GeminiGroundingCite(), "", "Removed Gemini search grounding citations");
         Apply(CopyCodeButtons(), "", "Removed copy-button text");
         Apply(ClaudeTagRemnants(), "", "Removed internal tag remnants");
+        Apply(FrontierReasoningBlock(), "", "Removed frontier reasoning blocks");
         Apply(FrontierReasoningTag(), "", "Removed frontier reasoning tags");
 
         // ChatGPT emits \( \) / \[ \]; Markdig's math extension wants $ / $$.

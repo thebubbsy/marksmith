@@ -127,6 +127,25 @@ public sealed partial class SuiteHubView : UserControl
         CopyToClipboard(json, "Copied MCP configuration JSON to clipboard! Paste into claude_desktop_config.json.");
     }
 
+    private void OnCopyGeminiConfigClick(object sender, RoutedEventArgs e)
+    {
+        var exePath = GetMcpServerPath();
+        var configObj = new
+        {
+            mcpServers = new
+            {
+                marksmith = new
+                {
+                    command = exePath,
+                    args = Array.Empty<string>()
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(configObj, new JsonSerializerOptions { WriteIndented = true });
+        CopyToClipboard(json, "Copied MCP configuration JSON to clipboard! Paste into Gemini / Antigravity / Cursor mcp config.");
+    }
+
     private void OnCopyMcpPathClick(object sender, RoutedEventArgs e)
     {
         var exePath = GetMcpServerPath();
@@ -170,10 +189,37 @@ public sealed partial class SuiteHubView : UserControl
         CopyToClipboard(cliPath, "Copied MarkSmith CLI path to clipboard.");
     }
 
-    private void OnLaunchExpressClick(object sender, RoutedEventArgs e)
+    private async void OnLaunchExpressClick(object sender, RoutedEventArgs e)
     {
         try
         {
+            var appDir = AppContext.BaseDirectory;
+            var expressExe = Path.Combine(appDir, "marksmith-express.exe");
+            if (!File.Exists(expressExe))
+            {
+                expressExe = Path.GetFullPath(Path.Combine(appDir, "..", "..", "..", "..", "MarkSmith.Express", "bin", "Debug", "net8.0", "marksmith-express.exe"));
+            }
+
+            bool isResponding = false;
+            try
+            {
+                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMilliseconds(400) };
+                var res = await client.GetAsync("http://localhost:5000/api/health");
+                if (res.IsSuccessStatusCode) isResponding = true;
+            }
+            catch { }
+
+            if (!isResponding && File.Exists(expressExe))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = expressExe,
+                    UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+                await System.Threading.Tasks.Task.Delay(600);
+            }
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = "http://localhost:5000",
