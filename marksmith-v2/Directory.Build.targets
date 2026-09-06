@@ -1,0 +1,33 @@
+<Project>
+  <!-- DEV_TOOLS: the single compile-time answer to "is this a development build?"
+
+       It exists because two different definitions of "dev build" used to disagree, and the
+       Settings > About screen said one thing while the status bar said the opposite:
+
+         * About / the updater ask UpdateService.IsDevelopmentBuild, which looks for the
+           "-dev.<utc>" prerelease suffix on the stamped version. Every LOCAL build carries it,
+           in Debug and Release alike.
+         * The hidden Pro dev toggle (Ctrl+Shift+Alt+P) asked `#if DEBUG` instead — a compile
+           symbol that a local RELEASE build does not define.
+
+       So a local Release build reported "Development build (3.1.0-dev.9060827)" in About while
+       refusing the dev toggle with "Pro dev mode isn't available in release builds." Both were
+       right by their own rule; the rules were just different.
+
+       This targets file makes the version suffix the only rule. It is imported AFTER each
+       project file, so $(Version) is already stamped by the time the condition is evaluated
+       (Directory.Build.props runs BEFORE the csproj and would still see it empty).
+
+       The security property is unchanged from `#if DEBUG`: the dev key is still removed at
+       COMPILE TIME from anything shipped. release.yml publishes with -p:Version=<tag>, which
+       wipes the -dev suffix, so DEV_TOOLS is never defined for a released binary and the
+       backdoor is not merely inert there — it is absent.
+
+       Note that build-all.ps1 / publish-all.ps1 do NOT pass -p:Version, so installers built
+       locally by those scripts are -dev builds and DO carry the toggle. That is intended: a
+       locally built installer is a development build, and About labels it as one. Anything
+       intended for a customer must go through release.yml. -->
+  <PropertyGroup>
+    <DefineConstants Condition="'$(Version)' != '' and $(Version.Contains('-dev'))">$(DefineConstants);DEV_TOOLS</DefineConstants>
+  </PropertyGroup>
+</Project>
