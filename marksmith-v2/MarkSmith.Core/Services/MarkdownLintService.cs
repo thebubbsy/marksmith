@@ -18,7 +18,8 @@ public static class MarkdownLintService
         if (string.IsNullOrWhiteSpace(markdown)) return issues;
 
         var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-        string? fence = null;   // the marker (``` or ~~~) that opened the current code block, or null
+        var fenceChar = '\0';   // '`' or '~' — the character that opened the current code block
+        var fenceLen = 0;       // length of the opening run, e.g. 4 for "````" — 0 means not in a fence
         int blankRun = 0;       // consecutive blank lines seen so far
 
         for (var i = 0; i < lines.Length; i++)
@@ -27,18 +28,27 @@ public static class MarkdownLintService
             var trimmed = line.TrimStart();
             var lineNo = i + 1;
 
-            // Track fenced code blocks so style rules don't fire inside code.
-            if (fence is not null)
+            // Track fenced code blocks so style rules don't fire inside code. Per CommonMark, a
+            // closing fence must use the same character and be at least as long as the opener —
+            // a shorter or differently-charactered run (e.g. a nested ``` example shown inside an
+            // outer ```` fence) is just literal content, not a close.
+            if (fenceLen > 0)
             {
-                if (trimmed.StartsWith(fence, StringComparison.Ordinal)) fence = null;
+                if (IsClosingFence(trimmed, fenceChar, fenceLen)) fenceLen = 0;
                 continue; // inside a code block — skip all checks
             }
 
-            if (trimmed.StartsWith("```", StringComparison.Ordinal) ||
-                trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            if (trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~'))
             {
-                fence = trimmed.StartsWith("```", StringComparison.Ordinal) ? "```" : "~~~";
-                continue;
+                var ch = trimmed[0];
+                var runLen = 0;
+                while (runLen < trimmed.Length && trimmed[runLen] == ch) runLen++;
+                if (runLen >= 3)
+                {
+                    fenceChar = ch;
+                    fenceLen = runLen;
+                    continue;
+                }
             }
 
             // Trailing whitespace (only when the line has real content — a blank line is handled below).
@@ -79,9 +89,27 @@ public static class MarkdownLintService
         }
 
         // A fence that never closed means everything after it renders as code.
-        if (fence is not null)
+        if (fenceLen > 0)
             issues.Add(new LintIssue(lines.Length, "Unclosed code fence"));
 
         return issues;
+    }
+
+    /// <summary>
+    /// True when <paramref name="trimmed"/> is a valid closing fence for an opener that used
+    /// <paramref name="fenceChar"/> repeated <paramref name="fenceLen"/> times: a run of at least
+    /// that many copies of the same character, followed by nothing but whitespace (CommonMark
+    /// forbids an info string on a closing fence).
+    /// </summary>
+    private static bool IsClosingFence(string trimmed, char fenceChar, int fenceLen)
+    {
+        var runLen = 0;
+        while (runLen < trimmed.Length && trimmed[runLen] == fenceChar) runLen++;
+        if (runLen < fenceLen) return false;
+
+        for (var j = runLen; j < trimmed.Length; j++)
+            if (!char.IsWhiteSpace(trimmed[j])) return false;
+
+        return true;
     }
 }
