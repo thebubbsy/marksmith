@@ -45,7 +45,9 @@ public class MarkdownValidationService
         "datagrid", "embed", "note", "tip", "warning", "caution", "important", "info",
         "abstract", "summary", "tldr", "question", "help", "faq", "quote", "cite",
         "example", "seealso", "hint", "success", "check", "done", "danger", "error",
-        "bug", "failure", "fail", "missing", "deprecated", "toggle", "parallel"
+        "bug", "failure", "fail", "missing", "deprecated", "toggle", "parallel",
+        "metrics", "kpi", "watermark", "line-numbers", "cover-page", "dropcap", "index",
+        "thought", "reasoning", "thinking", "think"
     };
 
     private static readonly Regex ContainerOpener = new(@"^\s*:::+\s*([A-Za-z0-9_-]+)", RegexOptions.Compiled);
@@ -212,12 +214,33 @@ public class MarkdownValidationService
     {
         bool inDisplayMath = false;
         int displayMathStart = 0;
+        bool inCodeFence = false;
+        string? currentFence = null;
 
         for (int i = 0; i < lines.Length; i++)
         {
             int lineNum = i + 1;
             string line = lines[i];
             string trimmed = line.Trim();
+
+            // Track code fence
+            if (trimmed.StartsWith("```", StringComparison.Ordinal) || trimmed.StartsWith("~~~", StringComparison.Ordinal))
+            {
+                string fenceMarker = trimmed.Substring(0, 3);
+                if (!inCodeFence)
+                {
+                    inCodeFence = true;
+                    currentFence = fenceMarker;
+                }
+                else if (currentFence != null && trimmed.StartsWith(currentFence, StringComparison.Ordinal))
+                {
+                    inCodeFence = false;
+                    currentFence = null;
+                }
+                continue;
+            }
+
+            if (inCodeFence) continue;
 
             // Display math $$ toggle
             if (trimmed == "$$")
@@ -234,20 +257,23 @@ public class MarkdownValidationService
                 continue;
             }
 
+            // Strip inline code spans `...` before checking dollar signs
+            string lineWithoutCode = Regex.Replace(line, @"`[^`\n]+`", "");
+
             if (!inDisplayMath)
             {
                 // Check LaTeX inline delimiters \( and \) or $ ... $
                 int dollarCount = 0;
                 bool escaped = false;
-                for (int c = 0; c < line.Length; c++)
+                for (int c = 0; c < lineWithoutCode.Length; c++)
                 {
-                    if (line[c] == '\\') { escaped = !escaped; continue; }
-                    if (line[c] == '$' && !escaped) dollarCount++;
+                    if (lineWithoutCode[c] == '\\') { escaped = !escaped; continue; }
+                    if (lineWithoutCode[c] == '$' && !escaped) dollarCount++;
                     escaped = false;
                 }
 
                 // Odd number of non-escaped $ in a single line (unless part of $$...$$)
-                if (dollarCount % 2 != 0 && !line.Contains("$$"))
+                if (dollarCount % 2 != 0 && !lineWithoutCode.Contains("$$"))
                 {
                     report.Issues.Add(new ValidationIssue
                     {
@@ -262,16 +288,16 @@ public class MarkdownValidationService
                 }
             }
 
-            // Check LaTeX brace balancing inside math lines
-            if (inDisplayMath || (line.Contains('$') && !line.StartsWith("```")))
+            // Check LaTeX brace balancing inside math lines (display math or lines with $ math that contain LaTeX commands)
+            if (inDisplayMath || (lineWithoutCode.Contains('$') && Regex.IsMatch(lineWithoutCode, @"\\[a-zA-Z]+")))
             {
                 int openBraces = 0;
                 int closeBraces = 0;
-                for (int c = 0; c < line.Length; c++)
+                for (int c = 0; c < lineWithoutCode.Length; c++)
                 {
-                    if (c > 0 && line[c - 1] == '\\') continue;
-                    if (line[c] == '{') openBraces++;
-                    if (line[c] == '}') closeBraces++;
+                    if (c > 0 && lineWithoutCode[c - 1] == '\\') continue;
+                    if (lineWithoutCode[c] == '{') openBraces++;
+                    if (lineWithoutCode[c] == '}') closeBraces++;
                 }
 
                 if (openBraces != closeBraces)

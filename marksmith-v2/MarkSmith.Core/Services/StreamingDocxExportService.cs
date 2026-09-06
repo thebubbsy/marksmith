@@ -384,6 +384,20 @@ public sealed class StreamingDocxExportService
     }
 
     /// <summary>
+    /// Streamingly export a markdown string to a target DOCX file path using the streaming SAX pipeline.
+    /// </summary>
+    public async Task ExportAsync(
+        string markdown,
+        string docxPath,
+        AppSettings settings,
+        CancellationToken ct = default)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(markdown);
+        using var ms = new MemoryStream(bytes);
+        await ExportStreamAsync(ms, docxPath, settings, ct);
+    }
+
+    /// <summary>
     /// Streamingly export an asynchronous token stream (e.g. from Gemini 3.8) to an output stream in DOCX format.
     /// </summary>
     public async Task ExportStreamAsync(
@@ -519,7 +533,7 @@ public sealed class StreamingDocxExportService
                 : settings.BrandFontFamily.Trim(),
             OversizedDiagramMode = 4,
             SmartConnectors = settings.SmartConnectors,
-            AdvancedFeatures = new Dictionary<string, FeatureNode>(),
+            AdvancedFeatures = new System.Collections.Concurrent.ConcurrentDictionary<string, FeatureNode>(),
             PartRegistry = partRegistry,
             NextNumId = refMerge?.NextNumId ?? 2,
             BulletNumId = refMerge?.BulletNumId ?? 1,

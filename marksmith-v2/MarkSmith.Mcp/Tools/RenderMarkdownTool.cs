@@ -44,6 +44,10 @@ public sealed class RenderMarkdownTool : IMcpTool
             {
                 markdown = mdProp.GetString() ?? "";
             }
+            else if (arguments.TryGetProperty("content", out var cProp) && cProp.ValueKind == JsonValueKind.String)
+            {
+                markdown = cProp.GetString() ?? "";
+            }
             else if (arguments.TryGetProperty("input_path", out var inPathProp) && inPathProp.ValueKind == JsonValueKind.String)
             {
                 string inPath = inPathProp.GetString() ?? "";

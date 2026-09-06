@@ -81,6 +81,7 @@ public sealed class HtmlRenderer
             // after the anchored content (v1: one mark per comment range).
         }
 
+        int openMarks = commentRanges.Count;
         foreach (var child in p.ChildElements)
         {
             switch (child)
@@ -91,11 +92,21 @@ public sealed class HtmlRenderer
                 case InsertedRun ins: sb.Append(RenderTrackChange(ins)); break;
                 case DeletedRun del: sb.Append(RenderTrackChange(del)); break;
                 case CommentRangeStart: break;
-                case CommentRangeEnd: sb.Append("</mark>"); break;
+                case CommentRangeEnd:
+                    if (openMarks > 0)
+                    {
+                        sb.Append("</mark>");
+                        openMarks--;
+                    }
+                    break;
             }
         }
 
-        if (commentRanges.Count > 0) sb.Append("</mark>");
+        while (openMarks > 0)
+        {
+            sb.Append("</mark>");
+            openMarks--;
+        }
         sb.Append($"</{tag}>");
         return sb.ToString();
     }

@@ -164,8 +164,8 @@ public sealed class LicenseService
     // entirely, returning to Free. A real activated Pro key is never touched.
     public (bool pro, string message) ToggleDevPro()
     {
-#if !DEBUG
-        // The dev-key backdoor is compiled out of Release builds (see LicenseValidator), so this
+#if !DEV_TOOLS
+        // The dev-key backdoor is compiled out of SHIPPED builds (see LicenseValidator), so this
         // command is a harmless no-op in anything we ship.
         return (State.Edition == Edition.Pro, "Pro dev mode isn't available in release builds.");
 #else

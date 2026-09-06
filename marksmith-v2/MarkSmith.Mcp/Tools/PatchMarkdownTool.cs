@@ -125,6 +125,8 @@ public sealed class PatchMarkdownTool : IMcpTool
 
             if (arguments.TryGetProperty("content", out var cProp) && cProp.ValueKind == JsonValueKind.String)
                 req.Content = cProp.GetString();
+            else if (arguments.TryGetProperty("markdown", out var mProp) && mProp.ValueKind == JsonValueKind.String)
+                req.Content = mProp.GetString();
 
             if (arguments.TryGetProperty("input_path", out var inProp) && inProp.ValueKind == JsonValueKind.String)
                 req.InputPath = inProp.GetString();
@@ -206,7 +208,8 @@ public sealed class PatchMarkdownTool : IMcpTool
                 modifiedBlocks = result.ModifiedBlocks,
                 appliedOperations = result.AppliedOperations,
                 outputPath = req.OutputPath,
-                contentLength = result.NewMarkdown?.Length ?? 0
+                contentLength = result.NewMarkdown?.Length ?? 0,
+                content = result.NewMarkdown
             }));
         }
         catch (Exception ex)

@@ -56,7 +56,7 @@ public static class LicenseValidator
         !string.IsNullOrWhiteSpace(keyId) && RevokedKeyIds.Contains(keyId.Trim());
 
     // Returns the verified payload, or null if the key is missing, malformed, or the signature fails.
-#if DEBUG
+#if DEV_TOOLS
     // Hidden developer/verification key: lets the app be flipped straight into Pro for testing
     // and demos (MainWindow's Ctrl+Shift+Alt+P toggles it). DEBUG-ONLY: it is compiled OUT of
     // Release builds so no shipped binary carries a hardcoded free-Pro backdoor.
@@ -66,7 +66,7 @@ public static class LicenseValidator
     public static Payload? Verify(string? key, string? publicKeyPem = null)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-#if DEBUG
+#if DEV_TOOLS
         if (string.Equals(key.Trim(), DevProKey, StringComparison.Ordinal))
             return new Payload("dev@marksmith.local", "pro", null, ExpectedIssuer, "MS-DEV-LOCAL");
 #endif

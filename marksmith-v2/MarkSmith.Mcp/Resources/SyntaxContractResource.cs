@@ -37,12 +37,20 @@ public sealed class SyntaxContractResource : IMcpResource
             "../docs/MD_ENGINE_GOVERNANCE.md",
             "../../docs/MD_ENGINE_GOVERNANCE.md",
             "../../../docs/MD_ENGINE_GOVERNANCE.md",
-            @"C:\Users\Tony\.gemini\antigravity\scratch\marksmith\docs\MD_ENGINE_GOVERNANCE.md"
+            Path.Combine(AppContext.BaseDirectory, "docs", "MD_ENGINE_GOVERNANCE.md"),
+            Path.Combine(AppContext.BaseDirectory, "..", "docs", "MD_ENGINE_GOVERNANCE.md"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "docs", "MD_ENGINE_GOVERNANCE.md"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "docs", "MD_ENGINE_GOVERNANCE.md"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "docs", "MD_ENGINE_GOVERNANCE.md")
         };
 
         foreach (var p in candidatePaths)
         {
-            if (File.Exists(p)) return Path.GetFullPath(p);
+            try
+            {
+                if (File.Exists(p)) return Path.GetFullPath(p);
+            }
+            catch { }
         }
         return null;
     }

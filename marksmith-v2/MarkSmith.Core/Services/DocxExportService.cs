@@ -573,7 +573,7 @@ public sealed partial class DocxExportService
 
         public ThreadSafePartRegistry? PartRegistry { get; init; }
 
-        public required Dictionary<string, FeatureNode> AdvancedFeatures { get; init; }
+        public required IDictionary<string, FeatureNode> AdvancedFeatures { get; init; }
         public System.Collections.Concurrent.ConcurrentDictionary<string, byte[]?> ImageCache { get; } = new();
 
         public string AddHyperlink(string url)
@@ -3027,12 +3027,15 @@ public sealed partial class DocxExportService
 
     private static int NewOrderedInstance(Ctx ctx, int start, int level)
     {
-        var id = ctx.NextNumId++;
-        ctx.Numbering.Append(new W.NumberingInstance(
-            new W.AbstractNumId { Val = ctx.OrderedAbstractNumId },
-            new W.LevelOverride(new W.StartOverrideNumberingValue { Val = start }) { LevelIndex = level })
-        { NumberID = id });
-        return id;
+        lock (ctx.Numbering)
+        {
+            var id = ctx.NextNumId++;
+            ctx.Numbering.Append(new W.NumberingInstance(
+                new W.AbstractNumId { Val = ctx.OrderedAbstractNumId },
+                new W.LevelOverride(new W.StartOverrideNumberingValue { Val = start }) { LevelIndex = level })
+            { NumberID = id });
+            return id;
+        }
     }
 
 

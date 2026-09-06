@@ -119,6 +119,34 @@ public static class InsertSnippetBuilder
         return sb.Append(":::\n").ToString();
     }
 
+    /// <summary>:::metrics executive KPI dashboard block from "value: label" items.</summary>
+    public static string Metrics(IEnumerable<string>? items = null)
+    {
+        var list = Clean(items).ToList();
+        if (list.Count == 0)
+        {
+            list.AddRange(new[] { "99.9%: System Uptime", "< 150ms: P99 Latency", "12.4M: Requests / Day" });
+        }
+        var sb = new StringBuilder("\n:::metrics\n");
+        foreach (var item in list)
+        {
+            var trimmed = item.Trim();
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal)) trimmed = trimmed[2..].Trim();
+            var colonIdx = trimmed.IndexOf(':');
+            if (colonIdx > 0)
+            {
+                var val = trimmed[..colonIdx].Trim().Trim('*');
+                var lbl = trimmed[(colonIdx + 1)..].Trim();
+                sb.Append($"- **{val}** {lbl}\n");
+            }
+            else
+            {
+                sb.Append($"- {trimmed}\n");
+            }
+        }
+        return sb.Append(":::\n").ToString();
+    }
+
     /// <summary>:::canvas SVG scaffold scaled to the requested size.</summary>
     public static string Canvas(int width, int height)
     {

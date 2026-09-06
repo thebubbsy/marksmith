@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using MarkSmith.Core.Composer;
+using MarkSmith.Core.Services;
 using MarkSmith.Models;
 using MarkSmith.Services;
 
@@ -39,6 +40,7 @@ namespace MarkSmith.Cli
             }
 
             string cmd = args[0].ToLowerInvariant();
+            bool useStream = args.Contains("--stream");
 
             try
             {
@@ -54,6 +56,38 @@ namespace MarkSmith.Cli
                         return await Commands.SuiteCommand.RunMcpSetupAsync(args.Skip(2).ToArray());
                     }
                     return await Commands.McpCommand.RunAsync(args.Skip(1).ToArray());
+                }
+
+                if (cmd == "validate")
+                {
+                    if (args.Length < 2)
+                    {
+                        Console.Error.WriteLine("Error: Please specify a markdown file to validate. Usage: marksmith validate <file.md>");
+                        return 1;
+                    }
+                    string inputMd = args[1];
+                    if (!File.Exists(inputMd))
+                    {
+                        Console.Error.WriteLine($"Error: Input file '{inputMd}' does not exist.");
+                        return 1;
+                    }
+                    string content = await File.ReadAllTextAsync(inputMd);
+                    var validator = new MarkdownValidationService();
+                    var result = validator.Validate(content);
+                    if (result.IsValid)
+                    {
+                        Console.WriteLine($"✓ Valid canonical Markdown: {inputMd}");
+                        return 0;
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Validation issues found in '{inputMd}':");
+                        foreach (var err in result.Issues)
+                        {
+                            Console.Error.WriteLine($"  [{err.Severity}] Line {err.LineNumber}: {err.Message} ({err.RuleId})");
+                        }
+                        return result.ErrorsCount > 0 ? 1 : 0;
+                    }
                 }
 
                 if (cmd == "batch" || args[0] == "--batch")
@@ -82,11 +116,12 @@ namespace MarkSmith.Cli
                         else if (args[i] == "--concurrency" && i + 1 < args.Length && int.TryParse(args[i + 1], out int c)) concurrency = c;
                         else if (args[i] == "-r" || args[i] == "--recursive" || args[i] == "/r" || args[i] == "/s") recursive = true;
                         else if (args[i] == "-f" || args[i] == "--force" || args[i] == "--continue-on-error" || args[i] == "--ignore-errors" || args[i] == "-k" || args[i] == "--keep-going") continueOnError = true;
+                        else if (args[i] == "--stream") { } // handled by useStream
                         else if (!args[i].StartsWith("-", StringComparison.Ordinal) && inputPattern == "./*.md") inputPattern = args[i];
                     }
 
                     if ((format == "docx" || format == "dotx") && !EnsureDocxEntitlement()) return 1;
-                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency, recursive, continueOnError);
+                    return await ExecuteBatchAsync(inputPattern, outputDir, format, concurrency, recursive, continueOnError, useStream);
                 }
 
                 if (cmd == "compose" && args.Length >= 3)
@@ -193,7 +228,7 @@ namespace MarkSmith.Cli
                 }
 
                 bool watchMode = args.Contains("--watch") || args.Contains("-w");
-                var remainingArgs = args.Where(a => a != "--watch" && a != "-w").ToArray();
+                var remainingArgs = args.Where(a => a != "--watch" && a != "-w" && a != "--stream").ToArray();
 
                 if (remainingArgs.Length < 2)
                 {
@@ -242,9 +277,17 @@ namespace MarkSmith.Cli
 
                     if (ext == ".docx" || ext == ".dotx")
                     {
-                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'...");
-                        var docxService = new DocxExportService();
-                        await docxService.ExportAsync(markdown, outputPath, settings);
+                        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Compiling '{Path.GetFileName(inputPath)}' -> '{Path.GetFileName(outputPath)}'{(useStream ? " (streaming SAX)" : "")}...");
+                        if (useStream)
+                        {
+                            var streamingService = new StreamingDocxExportService();
+                            await streamingService.ExportAsync(markdown, outputPath, settings);
+                        }
+                        else
+                        {
+                            var docxService = new DocxExportService();
+                            await docxService.ExportAsync(markdown, outputPath, settings);
+                        }
                         Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported native DOCX: {outputPath}");
                     }
                     else if (ext == ".html" || ext == ".htm")
@@ -349,7 +392,7 @@ namespace MarkSmith.Cli
             }
         }
 
-        static async Task<int> ExecuteBatchAsync(string inputPattern, string? outputDir, string format, int concurrency, bool recursive = false, bool continueOnError = false)
+        static async Task<int> ExecuteBatchAsync(string inputPattern, string? outputDir, string format, int concurrency, bool recursive = false, bool continueOnError = false, bool useStream = false)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             string searchDir = Directory.Exists(inputPattern) ? inputPattern : (Path.GetDirectoryName(inputPattern) ?? ".");
@@ -388,7 +431,7 @@ namespace MarkSmith.Cli
 
             // No --output: write each result beside the document it came from.
             if (outputDir is not null) Directory.CreateDirectory(outputDir);
-            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency}, recursive={recursive}, continueOnError={continueOnError})...");
+            Console.WriteLine($"[BATCH] Converting {files.Length} file(s) to .{format} (concurrency={concurrency}, recursive={recursive}, continueOnError={continueOnError}, stream={useStream})...");
 
             int completed = 0;
             int errors = 0;
@@ -445,7 +488,14 @@ namespace MarkSmith.Cli
                     {
                         case "docx":
                         case "dotx":
-                            await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            if (useStream)
+                            {
+                                await new StreamingDocxExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await docxService.ExportAsync(md, outFile, settings).ConfigureAwait(false);
+                            }
                             break;
                         case "epub":
                             await new EpubExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
@@ -510,16 +560,18 @@ namespace MarkSmith.Cli
             Console.WriteLine("Universal Markdown, DrawingML Vector Shapes & SmartArt Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage:");
-            Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--watch]");
+            Console.WriteLine("  marksmith validate <input.md>");
+            Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--stream] [--watch]");
             Console.WriteLine("  marksmith suite (or doctor / status)");
             Console.WriteLine("  marksmith mcp [--transport <stdio|sse>] [--port <port>]");
             Console.WriteLine("  marksmith mcp setup [--write-claude]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
-            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
+            Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--stream] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
             Console.WriteLine("  marksmith compose <image.png> <output.md|output.docx> [--grid <n>] [--compact]");
             Console.WriteLine("  marksmith trace <image.png> <output.md|output.docx> [--rows <n>] [--mode <mode>] [--compact]");
             Console.WriteLine();
             Console.WriteLine("Flags:");
+            Console.WriteLine("  --stream                  Use streaming SAX OpenXmlWriter for low-memory O(1) DOCX generation");
             Console.WriteLine("  -w, --watch               Watch the input file for changes and recompile automatically");
             Console.WriteLine("  -r, --recursive           Recursively process subdirectories in batch conversion");
             Console.WriteLine("  -f, --continue-on-error   Keep going and skip unreadable/corrupt files without halting (aliases: --ignore-errors, -k)");
