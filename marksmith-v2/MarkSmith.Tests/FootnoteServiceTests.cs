@@ -54,5 +54,24 @@ namespace MarkSmith.Core.Tests
 
             Assert.Equal(md, result);
         }
+
+        [Fact]
+        public void FootnoteReferencedTwice_ProducesUniqueRefIds()
+        {
+            string md = "First mention[^src]. Second mention[^src] of the same source.\n\n[^src]: Same source cited twice.";
+            string result = _service.ProcessFootnotes(md);
+
+            Assert.Contains("id=\"fnref-src\"", result);
+            Assert.Contains("id=\"fnref-src-2\"", result);
+
+            var matches = System.Text.RegularExpressions.Regex.Matches(result, "id=\"(fnref-src[^\"]*)\"");
+            Assert.Equal(2, matches.Count);
+            Assert.NotEqual(matches[0].Groups[1].Value, matches[1].Groups[1].Value);
+
+            // Still only one footnote definition/list item for the single key.
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(result, "footnote-item").Count);
+            // The backref still targets the first occurrence.
+            Assert.Contains("<a href=\"#fnref-src\" class=\"footnote-backref\"", result);
+        }
     }
 }
