@@ -300,12 +300,16 @@ namespace MarkSmith.Services
             if (!int.TryParse(rowDigits, out int rNum)) return false;
             row = rNum - 1; // 1-based to 0-based
 
+            // Base-26 bijective conversion (A=1 .. Z=26, AA=27 ...), then shift to 0-based.
+            // Using (ch - 'A') without the +1 offset collapses every "AA"-style multi-letter
+            // column onto its first letter (AA, AB, ... all mapped to the same index as A),
+            // so spreadsheet-style ranges like =SUM(AA1:AA10) silently pointed at column A.
             int cNum = 0;
             foreach (char ch in colLetters)
             {
-                cNum = cNum * 26 + (ch - 'A');
+                cNum = cNum * 26 + (ch - 'A' + 1);
             }
-            col = cNum;
+            col = cNum - 1;
             return row >= 0 && col >= 0;
         }
 
