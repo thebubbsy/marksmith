@@ -264,6 +264,11 @@
             border-color: var(--accent-hi);
         }
 
+        .switch input:focus-visible + .slider {
+            outline: 2px solid var(--line-focus);
+            outline-offset: 2px;
+        }
+
         .switch input:checked + .slider::before {
             transform: translateX(20px);
         }
@@ -302,6 +307,12 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+        }
+
+        button:focus-visible,
+        a:focus-visible {
+            outline: 2px solid var(--line-focus);
+            outline-offset: 2px;
         }
 
         button:hover {
