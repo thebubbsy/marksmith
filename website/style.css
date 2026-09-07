@@ -1909,4 +1909,68 @@ footer {
   text-decoration: underline;
 }
 
+/* --- High-Fidelity Mathematical Typesetting (KaTeX) --- */
+.studio-math-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1.35rem 0;
+  padding: 1.25rem 1.75rem;
+  background: rgba(14, 165, 233, 0.04);
+  border: 1px solid rgba(14, 165, 233, 0.16);
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+  color: #f8fafc;
+}
+
+.studio-math-display .katex-display {
+  margin: 0 !important;
+  text-align: center;
+}
+
+.studio-math-display .katex {
+  font-size: 1.28em;
+  color: #f8fafc;
+}
+
+.studio-math-inline {
+  display: inline;
+  padding: 0 0.15rem;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.studio-math-inline .katex {
+  font-size: 1.1em;
+  color: #e0f2fe;
+}
+
+/* KaTeX Global Font & Rendering Polish */
+.katex {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.katex .katex-html {
+  white-space: nowrap;
+}
+
+.katex-display .katex-html {
+  white-space: normal;
+}
+
+.katex-error {
+  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+}
+
+
 

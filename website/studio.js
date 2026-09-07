@@ -185,7 +185,27 @@ ChatGPT can make mistakes. Check important info.`
               .replace(/'/g, '&#039;');
   }
 
-  // Fast Markdown AST Parser & Renderer
+  // KaTeX Math Transpiler Helper
+  function renderKaTeX(tex, isDisplay) {
+    if (window.katex && typeof window.katex.renderToString === 'function') {
+      try {
+        return window.katex.renderToString(tex, {
+          displayMode: isDisplay,
+          throwOnError: false,
+          output: 'htmlAndMathml'
+        });
+      } catch (err) {
+        console.warn('KaTeX renderToString error:', err);
+        return `<span class="katex-error" title="${escapeHtml(err.message)}">${escapeHtml(tex)}</span>`;
+      }
+    }
+    const escaped = escapeHtml(tex);
+    return isDisplay
+      ? `<div class="studio-math-display"><span class="katex-fallback">$$${escaped}$$</span></div>`
+      : `<span class="studio-math-inline"><span class="katex-fallback">$${escaped}$</span></span>`;
+  }
+
+  // Fast Markdown AST Parser & Renderer with First-Class KaTeX
   function renderMarkdown(md) {
     if (!md || !md.trim()) {
       return '<p style="color: #64748b; font-style: italic;">No content. Enter Markdown in the editor...</p>';
@@ -193,7 +213,7 @@ ChatGPT can make mistakes. Check important info.`
 
     let html = md;
 
-    // 1. Extract code blocks & Mermaid diagrams
+    // 1. Extract code blocks & Mermaid diagrams FIRST
     const codeBlocks = [];
     html = html.replace(/```(mermaid|[\w-]+)?\r?\n([\s\S]*?)```/g, (match, lang, code) => {
       const id = 'CODE_BLOCK_' + codeBlocks.length;
@@ -205,7 +225,41 @@ ChatGPT can make mistakes. Check important info.`
       return `\n\n<!--${id}-->\n\n`;
     });
 
-    // 2. GitHub Callout Alerts: > [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION]
+    // 2. Protect literal escaped dollar signs (\$50)
+    html = html.replace(/\\(\$)/g, '<!--ESCAPED_DOLLAR-->');
+
+    // 3. Extract Display Math: $$ ... $$ and \[ ... \]
+    const displayMathBlocks = [];
+    html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, tex) => {
+      const id = 'MATH_DISP_' + displayMathBlocks.length;
+      displayMathBlocks.push({ id, tex: tex.trim() });
+      return `\n\n<!--${id}-->\n\n`;
+    });
+    html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, tex) => {
+      const id = 'MATH_DISP_' + displayMathBlocks.length;
+      displayMathBlocks.push({ id, tex: tex.trim() });
+      return `\n\n<!--${id}-->\n\n`;
+    });
+
+    // 4. Extract Inline Math: \( ... \) and $ ... $
+    const inlineMathBlocks = [];
+    html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, tex) => {
+      if (!tex.trim()) return match;
+      const id = 'MATH_INLINE_' + inlineMathBlocks.length;
+      inlineMathBlocks.push({ id, tex: tex.trim() });
+      return `<!--${id}-->`;
+    });
+    html = html.replace(/\$([^\$\n\r]+?)\$/g, (match, tex) => {
+      if (!tex.trim()) return match;
+      const id = 'MATH_INLINE_' + inlineMathBlocks.length;
+      inlineMathBlocks.push({ id, tex: tex.trim() });
+      return `<!--${id}-->`;
+    });
+
+    // Restore literal dollar signs
+    html = html.replace(/<!--ESCAPED_DOLLAR-->/g, '$');
+
+    // 5. GitHub Callout Alerts: > [!NOTE], > [!TIP], > [!IMPORTANT], > [!WARNING], > [!CAUTION]
     html = html.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\r?\n((?:>.*\r?\n?)*)/gim, (match, type, content) => {
       const cleanContent = content.replace(/^>\s?/gm, '').trim();
       const badgeType = type.toUpperCase();
@@ -223,7 +277,7 @@ ChatGPT can make mistakes. Check important info.`
       </div>\n\n`;
     });
 
-    // 3. Tables
+    // 6. Tables
     html = html.replace(/^\|(.+)\|\r?\n\|([-: |]+)\|\r?\n((?:\|.*\|\r?\n?)*)/gm, (match, header, divider, body) => {
       const headers = header.split('|').map(h => h.trim()).filter(Boolean);
       const rows = body.trim().split('\n').map(r => r.split('|').map(c => c.trim()).filter(Boolean));
@@ -243,26 +297,38 @@ ChatGPT can make mistakes. Check important info.`
       return tableHtml;
     });
 
-    // 4. Headings
+    // 7. Headings
     html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
     html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
     html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
 
-    // 5. Bold, Italics, Code
+    // 8. Bold, Italics, Code
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-    // 6. Paragraphs
+    // 9. Paragraphs
     const paragraphs = html.split(/\n{2,}/);
     html = paragraphs.map(p => {
       p = p.trim();
       if (!p) return '';
-      if (p.startsWith('<h') || p.startsWith('<div') || p.startsWith('<!--CODE_BLOCK')) return p;
+      if (p.startsWith('<h') || p.startsWith('<div') || p.startsWith('<!--CODE_BLOCK') || p.startsWith('<!--MATH_DISP')) return p;
       return `<p>${p.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
 
-    // 7. Restore Code Blocks & Diagrams
+    // 10. Restore Display Math (Rendered directly with KaTeX display mode)
+    displayMathBlocks.forEach(m => {
+      const rendered = renderKaTeX(m.tex, true);
+      html = html.replace(`<!--${m.id}-->`, `<div class="studio-math-display">${rendered}</div>`);
+    });
+
+    // 11. Restore Inline Math (Rendered directly with KaTeX inline mode)
+    inlineMathBlocks.forEach(m => {
+      const rendered = renderKaTeX(m.tex, false);
+      html = html.replace(`<!--${m.id}-->`, `<span class="studio-math-inline">${rendered}</span>`);
+    });
+
+    // 12. Restore Code Blocks & Diagrams
     codeBlocks.forEach(b => {
       if (b.type === 'mermaid') {
         html = html.replace(`<!--${b.id}-->`, `<div class="mermaid-diagram-container"><pre class="mermaid">${b.content}</pre></div>`);
@@ -285,25 +351,8 @@ ChatGPT can make mistakes. Check important info.`
       aiCleanBanner.style.display = (hasAiMarkers || currentScenarioKey === 'aiclean') ? 'flex' : 'none';
     }
 
-    // Render HTML
+    // Render HTML with embedded KaTeX equations
     renderedHtml.innerHTML = renderMarkdown(text);
-
-    // KaTeX Math Rendering
-    if (window.renderMathInElement) {
-      try {
-        window.renderMathInElement(renderedHtml, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\[', right: '\\]', display: true },
-            { left: '\\(', right: '\\)', display: false }
-          ],
-          throwOnError: false
-        });
-      } catch (err) {
-        console.warn('KaTeX rendering notice:', err);
-      }
-    }
 
     // Mermaid Diagram Rendering
     if (window.mermaid) {
@@ -470,6 +519,17 @@ ChatGPT can make mistakes. Check important info.`
         }, 1500);
       });
     });
+  }
+
+  // If KaTeX finishes loading asynchronously from CDN, refresh preview once ready
+  if (!window.katex) {
+    const checkKatex = setInterval(() => {
+      if (window.katex) {
+        clearInterval(checkKatex);
+        updatePreview();
+      }
+    }, 50);
+    setTimeout(() => clearInterval(checkKatex), 3000);
   }
 
   // Initial Load with 'math' scenario
