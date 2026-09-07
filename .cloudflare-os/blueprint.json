@@ -1,0 +1,33 @@
+{
+  "$schema": "https://os.cloudflare.app/schemas/gadget-blueprint.v1.json",
+  "blueprintId": "blueprint.marksmith.docs",
+  "title": "MarkSmith Professional OOXML & Markdown Studio",
+  "description": "Enterprise Markdown-to-DOCX/PDF generation engine with native OpenXML SmartArt, math typography, and live collaboration.",
+  "output": {
+    "id": "document",
+    "noun": "Document",
+    "plural": "Documents",
+    "icon": "fileText"
+  },
+  "bindings": {
+    "MARKSMITH_MCP": {
+      "type": "mcp",
+      "server": "marksmith-mcp",
+      "transport": "stdio",
+      "command": "dotnet",
+      "args": ["run", "--project", "marksmith-v2/MarkSmith.Mcp/MarkSmith.Mcp.csproj", "--", "--transport", "stdio"],
+      "allowedTools": [
+        "convert_markdown_to_docx",
+        "convert_markdown_to_pdf",
+        "extract_document_structure",
+        "validate_openxml_compliance",
+        "preview_markdown_html"
+      ]
+    },
+    "STORAGE": {
+      "type": "kv",
+      "description": "Persistent document and artifact storage"
+    }
+  },
+  "version": "1.0.0"
+}
