@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarkSmith — The Markdown-to-Office Compiler That Never Corrupts</title>
+    <meta name="description" content="MarkSmith is an enterprise offline compiler that translates Markdown ASTs into native ECMA-376 OpenXML (Word/PowerPoint) with zero Microsoft Word or COM dependency.">
+    <meta name="keywords" content="MarkSmith, Markdown to Word, OpenXML, ECMA-376, ShapeForge, DrawingML, OMML, SmartArt, Pandoc alternative, WinUI 3, C#">
+    <meta name="author" content="Matthew Bubb">
+
+    <!-- Open Graph / Social Meta -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://onyachamp.com/marksmith.html">
+    <meta property="og:title" content="MarkSmith — Enterprise Markdown-to-Office Compiler">
+    <meta property="og:description" content="Offline compiler generating pure ECMA-376 OpenXML with ShapeForge vector diagrams, native OMML math, and zero file corruption.">
+    <meta property="og:image" content="https://avatars.githubusercontent.com/u/49204026?v=4">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@TheBubbsy">
+    <meta name="twitter:title" content="MarkSmith — Enterprise Markdown-to-Office Compiler">
+    <meta name="twitter:description" content="Offline compiler generating pure ECMA-376 OpenXML with ShapeForge vector diagrams, native OMML math, and zero file corruption.">
+    <meta name="twitter:image" content="https://avatars.githubusercontent.com/u/49204026?v=4">
+
+    <link rel="canonical" href="https://onyachamp.com/marksmith.html">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <header class="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-brand">
+                <div class="brand-icon">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <span class="brand-title">MarkSmith</span>
+            </a>
+
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="index.html"><i class="fas fa-arrow-left"></i> Portfolio Home</a></li>
+                    <li><a href="#app-showcase">See It Run</a></li>
+                    <li><a href="#live-studio"><i class="fas fa-bolt"></i> Live Test Drive</a></li>
+                    <li><a href="#features">Architecture</a></li>
+                    <li><a href="#comparison">Benchmark</a></li>
+                    <li><a href="#licensing">Editions &amp; Pricing</a></li>
+                </ul>
+            </nav>
+
+            <div class="nav-cta">
+                <a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+                <a href="#licensing" class="btn btn-pro btn-sm">
+                    <i class="fas fa-key"></i> Get Pro License
+                </a>
+            </div>
+
+            <button class="mobile-menu-btn" aria-label="Toggle navigation menu">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Product Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-pill">
+                <i class="fas fa-bolt"></i> Native WinUI 3 Desktop Studio • Pure ECMA-376 Engine
+            </div>
+            
+            <h1>
+                The Markdown-to-Office Compiler <br>
+                <span class="gradient-text">That Never Corrupts.</span>
+            </h1>
+
+            <p class="lead">
+                Compile Markdown ASTs directly into compliant Office Open XML (DOCX, PPTX, PDF) with <strong>zero Microsoft Word installation</strong>, zero COM dependencies, and mathematical schema guarantees. Featuring <strong>ShapeForge™</strong> native vector diagrams, native <strong>OMML</strong> equations, and reverse-engineered <strong>SmartArt</strong>.
+            </p>
+
+            <div class="hero-actions">
+                <a href="#licensing" class="btn btn-pro btn-lg">
+                    <i class="fas fa-key"></i> Get MarkSmith Pro
+                </a>
+                <a href="#live-studio" class="btn btn-primary btn-lg" style="background: linear-gradient(135deg, #0ea5e9, #6366f1); border: none;">
+                    <i class="fas fa-terminal"></i> Try Live in Browser
+                </a>
+                <a href="#app-showcase" class="btn btn-primary btn-lg">
+                    <i class="fas fa-circle-play"></i> Watch It Run
+                </a>
+                <a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg">
+                    <i class="fab fa-github"></i> Star on GitHub
+                </a>
+            </div>
+
+            <div class="hero-stats">
+                <div class="stat-item stat-item-word">
+                    <div class="stat-icon-badge icon-word">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">100% Native</div>
+                        <div class="stat-label">ECMA-376 OpenXML (No COM/Interop)</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-intune">
+                    <div class="stat-icon-badge icon-intune">
+                        <i class="fa-solid fa-bolt-lightning"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">Pure .NET Engine</div>
+                        <div class="stat-label">High-Speed In-Memory AST Compiler</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-autopilot">
+                    <div class="stat-icon-badge icon-autopilot">
+                        <i class="fa-solid fa-diagram-project"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">ShapeForge™</div>
+                        <div class="stat-label">Mermaid to Native Editable Word Shapes</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-powershell">
+                    <div class="stat-icon-badge icon-powershell">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">WCAG 2.1 AA</div>
+                        <div class="stat-label">Algorithmic ContrastGuard Legibility</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Real Desktop App Showcase: recorded video + captured screenshots -->
+    <section id="app-showcase" class="section-flagship" style="padding-top: 1rem;">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-cyan"><i class="fas fa-circle-play"></i> RECORDED FROM A RELEASE BUILD</span>
+                <h2>This is the app. Actually running.</h2>
+                <p>No mockup, no animation &mdash; captured off the real MarkSmith window in split view. The document streams in over the local <code>POST /api/ingest</code> endpoint, the same channel the browser extension uses. Then the <strong>Looking&nbsp;Glass</strong> opens, and a sentence typed through the aperture lands in all three places at once: the glass, the rendered page behind it, and the Markdown editor in the other pane.</p>
+            </div>
+
+            <!-- Hero: the real recording -->
+            <figure class="app-video">
+                <div class="app-video-frame">
+                    <div class="app-video-chrome">
+                        <span class="chrome-dot"></span>
+                        <span class="chrome-dot"></span>
+                        <span class="chrome-dot"></span>
+                        <span class="chrome-label">Marksmith &mdash; Q4 Platform Review.md &mdash; Looking Glass</span>
+                    </div>
+                    <video
+                        id="app-demo-video"
+                        poster="media/looking-glass.png"
+                        preload="metadata"
+                        playsinline
+                        muted
+                        loop
+                        autoplay
+                        controls>
+                        <source src="media/looking-glass.mp4" type="video/mp4">
+                        <img src="media/looking-glass.png" alt="MarkSmith in split view: a circular portal cut through the rendered page reveals the Markdown source, which also appears in the editor pane on the left">
+                    </video>
+                </div>
+                <figcaption>
+                    The document arrives section by section and the preview re-renders live &mdash; equations to native OMML, Mermaid to vector shapes. Then a portal is cut through the rendered page, and a sentence is typed straight into the source behind it: watch the word count on the editor pane tick up as the characters land. One edit, three surfaces, no mode switch.
+                </figcaption>
+                <div class="video-download-bar">
+                    <a href="media/massive-markdown-showcase.docx" download="Massive-Markdown-Showcase.docx" class="btn btn-primary btn-md">
+                        <i class="fa-solid fa-file-word"></i> Download Massive Showcase (.docx)
+                    </a>
+                    <a href="media/massive-markdown-showcase.md" download="Massive-Markdown-Showcase.md" class="btn btn-secondary btn-md">
+                        <i class="fa-regular fa-file-code"></i> View Raw Source (.md)
+                    </a>
+                    <a href="media/looking-glass.mp4" target="_blank" rel="noopener" class="btn btn-secondary btn-md">
+                        <i class="fa-solid fa-circle-play"></i> Watch 1080p MP4
+                    </a>
+                </div>
+            </figure>
+
+            <!-- Real screenshots -->
+            <h3 class="gallery-heading">Screenshots, straight off the window</h3>
+            <p class="gallery-sub">Every image below is a <code>PrintWindow</code> capture of the running Release build &mdash; nothing composited, nothing hand-drawn. Click any shot to enlarge or download the real generated DOCX files to test in Word.</p>
+
+            <div class="shot-grid">
+                <figure class="shot" data-full="media/desktop-split.png">
+                    <img src="media/desktop-split.png" alt="Split view: Markdown source on the left, the rendered document preview on the right" loading="lazy">
+                    <figcaption>
+                        <strong>Split view</strong>
+                        <span>Source and the Looking&nbsp;Glass preview side by side, rendering exactly what Word will produce.</span>
+                        <a href="media/product-spec.docx" download class="shot-download-link"><i class="fa-solid fa-download"></i> Download sample DOCX</a>
+                    </figcaption>
+                </figure>
+
+                <figure class="shot" data-full="media/desktop-editor.png">
+                    <img src="media/desktop-editor.png" alt="MarkSmith identifying a pasted ChatGPT export and reporting the fixes it will apply" loading="lazy">
+                    <figcaption>
+                        <strong>It knows what pasted that</strong>
+                        <span>Drop in a raw ChatGPT export and the status bar names the source with a confidence score and a fix count &mdash; citation pips like <code>[12&dagger;source]</code>, stray <code>:contentReference</code> markers and <code>\( \)</code> math delimiters, all cleaned on the way to Word.</span>
+                        <a href="media/chatgpt-export.docx" download class="shot-download-link"><i class="fa-solid fa-download"></i> Download chatgpt-export.docx</a>
+                    </figcaption>
+                </figure>
+
+                <figure class="shot" data-full="media/desktop-math.png">
+                    <img src="media/desktop-math.png" alt="LaTeX matrices, integrals and chemistry equations rendered in the MarkSmith preview" loading="lazy">
+                    <figcaption>
+                        <strong>Math that survives the trip</strong>
+                        <span>Matrices, integrals and mhchem compiled to native OMML &mdash; editable in Word's equation editor, not pasted images.</span>
+                        <a href="media/math-cheatsheet.docx" download class="shot-download-link"><i class="fa-solid fa-download"></i> Download math-cheatsheet.docx</a>
+                    </figcaption>
+                </figure>
+
+                <figure class="shot" data-full="media/word-product-spec.png">
+                    <img src="media/word-product-spec.png" alt="A Mermaid architecture diagram compiled into native editable Word shapes" loading="lazy">
+                    <figcaption>
+                        <strong>ShapeForge&trade; output in Word</strong>
+                        <span>A Mermaid diagram compiled to real DrawingML shapes. Select a node in Word and drag it &mdash; it is a shape, not a PNG.</span>
+                        <a href="media/product-spec.docx" download class="shot-download-link"><i class="fa-solid fa-download"></i> Download product-spec.docx</a>
+                    </figcaption>
+                </figure>
+
+                <figure class="shot" data-full="media/word-gauntlet.png">
+                    <img src="media/word-gauntlet.png" alt="A MarkSmith-generated DOCX open in Microsoft Word with equations, code and a complex table" loading="lazy">
+                    <figcaption>
+                        <strong>The gauntlet document, in Word</strong>
+                        <span>Native equations, syntax-highlighted code and a nested table, opened in Word with zero repair prompts.</span>
+                        <a href="media/product-spec.docx" download class="shot-download-link"><i class="fa-solid fa-download"></i> Download gauntlet DOCX</a>
+                    </figcaption>
+                </figure>
+
+                <figure class="shot" data-full="media/express-loaded.png">
+                    <img src="media/express-loaded.png" alt="The MarkSmith Express web UI with a loaded document and the output profile panel" loading="lazy">
+                    <figcaption>
+                        <strong>MarkSmith Express</strong>
+                        <span>The same engine behind a local web UI &mdash; switch the output profile between Word, HTML, slides and eBook.</span>
+                    </figcaption>
+                </figure>
+            </div>
+        </div>
+
+        <!-- Lightbox -->
+        <div id="shot-lightbox" class="shot-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged screenshot" hidden>
+            <button class="lightbox-close" type="button" aria-label="Close">&times;</button>
+            <img id="lightbox-img" src="" alt="">
+        </div>
+    </section>
+
+    <!-- Full Desktop Studio Web Edition (1:1 WinUI 3 Desktop Parity) -->
+    <section id="live-studio" class="section-flagship" style="padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+        <div class="container-fluid" style="max-width: 1540px; margin: 0 auto; padding: 0 1rem;">
+            <div class="section-header">
+                <span class="badge badge-cyan"><i class="fas fa-desktop"></i> FULL DESKTOP STUDIO &mdash; WEB EDITION</span>
+                <h2>The Complete MarkSmith Studio. Actually Running In Your Browser.</h2>
+                <p>Not a stripped-down demo. Every dial, slider, toolbar cluster, expander, and export profile from the Windows 11 WinUI 3 desktop studio &mdash; running live.</p>
+            </div>
+
+            <!-- Full Desktop Window Chrome Frame -->
+            <div class="desktop-window-app" id="desktop-window-root">
+                <!-- 1. WinUI 3 Custom App Title Bar -->
+                <div class="winui-titlebar">
+                    <div class="titlebar-left">
+                        <div class="app-icon-squircle">M</div>
+                        <span class="app-title-text">Marksmith</span>
+                        <span class="app-tag-pill">v3.1.0</span>
+                        <span class="app-status-pill"><span class="pulse-dot"></span> Looking Glass Active</span>
+                    </div>
+
+                    <div class="titlebar-center">
+                        <span class="titlebar-doc-name" id="current-doc-title">Quantum-Mechanics-OMML.md &mdash; Marksmith Studio</span>
+                    </div>
+
+                    <div class="titlebar-right">
+                        <span class="api-pill-badge" title="Local Loopback REST API Daemon"><i class="fas fa-plug"></i> 127.0.0.1:47821</span>
+                        <button type="button" class="btn-dev-pro" id="btn-toggle-pro" title="Toggle Pro Developer Mode"><i class="fas fa-key"></i> DEV PRO: ON</button>
+                        <div class="window-caption-buttons">
+                            <button type="button" class="caption-btn" title="Minimize">&#9472;</button>
+                            <button type="button" class="caption-btn" title="Maximize">&#9633;</button>
+                            <button type="button" class="caption-btn close-btn" title="Close">&#10005;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Notification InfoBar Banner -->
+                <div class="winui-infobar" id="license-banner">
+                    <div class="infobar-icon"><i class="fas fa-crown"></i></div>
+                    <div class="infobar-message">
+                        <strong>PRO EDITION ACTIVE:</strong> Native OMML equations, ShapeForge&trade; DrawingML vector shapes, and reverse-engineered SmartArt enabled. Zero external dependencies.
+                    </div>
+                    <div class="infobar-action">
+                        <button type="button" class="btn-infobar" id="btn-open-shortcuts"><i class="fas fa-keyboard"></i> Shortcuts (F1)</button>
+                    </div>
+                </div>
+
+                <!-- 3. The 3-Step Studio Workstation Layout -->
+                <div class="studio-workstation-grid">
+                    
+                    <!-- ==========================================
+                         STEP 1: SOURCE DRAWER (Left Column)
+                         ========================================== -->
+                    <aside class="workstation-column step-1-source">
+                        <div class="step-card-header">
+                            <div class="step-badge">1</div>
+                            <div class="step-titles">
+                                <h3>Source</h3>
+                                <p>Pick a file or paste Markdown</p>
+                            </div>
+                        </div>
+
+                        <!-- Selector Bar (File vs Code mode) -->
+                        <div class="winui-selector-bar">
+                            <button type="button" class="selector-tab active" id="tab-file-mode" data-mode="file">
+                                <i class="fas fa-file-lines"></i> File
+                            </button>
+                            <button type="button" class="selector-tab" id="tab-code-mode" data-mode="code">
+                                <i class="fas fa-code"></i> Text / Code
+                            </button>
+                        </div>
+
+                        <!-- File Ingest Panel -->
+                        <div class="step-panel-body" id="source-file-panel">
+                            <!-- Drop Zone -->
+                            <div class="winui-dropzone" id="desktop-dropzone">
+                                <i class="fas fa-cloud-arrow-up drop-icon"></i>
+                                <strong>Drop a .md file here</strong>
+                                <span class="drop-or">or</span>
+                                <label for="native-file-picker" class="btn-browse-file">Browse files</label>
+                                <input type="file" id="native-file-picker" accept=".md,.markdown,.txt" style="display: none;">
+                            </div>
+
+                            <!-- Selected File Row -->
+                            <div class="form-field-group">
+                                <label class="field-label">Selected file</label>
+                                <div class="input-with-actions">
+                                    <input type="text" id="selected-file-path" class="winui-input" readonly value="C:\Docs\Quantum-Mechanics.md">
+                                    <button type="button" class="btn-icon-square" id="btn-pin-file" title="Pin file to top"><i class="fas fa-thumbtack"></i></button>
+                                    <button type="button" class="btn-icon-square" id="btn-file-history" title="File version history"><i class="fas fa-clock-rotate-left"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Recent Files Combobox -->
+                            <div class="form-field-group">
+                                <div class="field-header-row">
+                                    <label class="field-label">Recent &amp; found .md files</label>
+                                    <button type="button" class="btn-link-action" id="btn-rescan-files"><i class="fas fa-arrows-rotate"></i> Rescan</button>
+                                </div>
+                                <select id="recent-files-select" class="winui-select">
+                                    <option value="math">Quantum-Mechanics-OMML.md (Equations &amp; Matrices)</option>
+                                    <option value="diagram">Enterprise-System-Architecture.md (Mermaid ShapeForge)</option>
+                                    <option value="report">Executive-Audit-Gauntlet.md (Tables &amp; Callouts)</option>
+                                    <option value="smartart">Workflow-Pipeline-SmartArt.md (Process Hierarchy)</option>
+                                </select>
+                            </div>
+
+                            <!-- Automation Expander (Collapsible) -->
+                            <details class="winui-expander" open>
+                                <summary class="expander-summary">
+                                    <span><i class="fas fa-robot"></i> Automation &amp; Daemon</span>
+                                    <i class="fas fa-chevron-right expander-arrow"></i>
+                                </summary>
+                                <div class="expander-content">
+                                    <div class="toggle-row">
+                                        <div class="toggle-labels">
+                                            <strong>Auto-ingest AI clipboard</strong>
+                                            <span>Pasted ChatGPT/Claude chats clean automatically</span>
+                                        </div>
+                                        <label class="winui-switch">
+                                            <input type="checkbox" id="toggle-clipboard-ingest" checked>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-row">
+                                        <div class="toggle-labels">
+                                            <strong>Auto-generate PDF on ingest</strong>
+                                            <span>Export to vector PDF on message receipt</span>
+                                        </div>
+                                        <label class="winui-switch">
+                                            <input type="checkbox" id="toggle-pdf-ingest">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="api-port-card">
+                                        <div class="api-port-info">
+                                            <strong>Local REST API Daemon</strong>
+                                            <code>POST http://127.0.0.1:47821/api/convert</code>
+                                        </div>
+                                        <button type="button" class="btn-copy-url" id="btn-copy-api-url" title="Copy endpoint URL"><i class="fas fa-copy"></i> Copy</button>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </aside>
+
+                    <!-- ==========================================
+                         STEP 2: EDITOR & LOOKING GLASS (Center Column)
+                         ========================================== -->
+                    <main class="workstation-column step-2-stage">
+                        <!-- Looking Glass Portal Dials Row (Full Desktop Controls) -->
+                        <div class="looking-glass-dials-bar">
+                            <div class="dial-group">
+                                <span class="dial-icon" title="Looking Glass Studio"><i class="fas fa-circle-dot"></i></span>
+                                <label for="portal-shape-select" class="dial-label">Shape:</label>
+                                <select id="portal-shape-select" class="winui-select-sm">
+                                    <option value="circle">Circle Spotlight</option>
+                                    <option value="focus">Focus Band</option>
+                                    <option value="square">Square</option>
+                                    <option value="logo">Marksmith Logo</option>
+                                </select>
+                            </div>
+
+                            <div class="dial-group">
+                                <label for="portal-reveal-slider" class="dial-label">Size:</label>
+                                <input type="range" id="portal-reveal-slider" min="10" max="100" value="50" class="winui-slider-sm">
+                                <span class="slider-val" id="portal-reveal-val">50%</span>
+                            </div>
+
+                            <div class="dial-separator"></div>
+
+                            <!-- Glass Blur Toggle & Slider -->
+                            <div class="dial-group">
+                                <button type="button" class="btn-toggle-dial" id="toggle-glass-blur" data-active="false">
+                                    <i class="fas fa-wand-magic-sparkles"></i> Glass Blur
+                                </button>
+                                <input type="range" id="glass-blur-slider" min="0" max="25" value="0" class="winui-slider-sm">
+                                <span class="slider-val" id="glass-blur-val">0px</span>
+                            </div>
+
+                            <div class="dial-separator"></div>
+
+                            <!-- Surround Blur Toggle & Slider -->
+                            <div class="dial-group">
+                                <button type="button" class="btn-toggle-dial" id="toggle-surround-blur" data-active="false">
+                                    <i class="fas fa-eye-slash"></i> Surround Blur
+                                </button>
+                                <input type="range" id="surround-blur-slider" min="0" max="25" value="0" class="winui-slider-sm">
+                                <span class="slider-val" id="surround-blur-val">0px</span>
+                            </div>
+                        </div>
+
+                        <!-- Editing Toolbar Clusters -->
+                        <div class="editing-toolbar-row">
+                            <div class="toolbar-cluster-group">
+                                <button type="button" class="btn-cluster-icon" id="btn-quick-copy-html" title="Copy rendered HTML to clipboard"><i class="fas fa-clipboard-check"></i></button>
+                                <button type="button" class="btn-cluster-icon" id="btn-quick-print" title="Print document (Ctrl+P)"><i class="fas fa-print"></i></button>
+
+                                <div class="cluster-divider"></div>
+
+                                <!-- Text Style Dropdown -->
+                                <div class="dropdown-cluster">
+                                    <button type="button" class="btn-cluster-dropdown" id="btn-cluster-style">
+                                        <i class="fas fa-bold"></i> Text Style <i class="fas fa-chevron-down caret"></i>
+                                    </button>
+                                    <div class="cluster-menu" id="menu-cluster-style">
+                                        <button type="button" class="cluster-item" data-action="bold"><i class="fas fa-bold"></i> Bold (Ctrl+B)</button>
+                                        <button type="button" class="cluster-item" data-action="italic"><i class="fas fa-italic"></i> Italic (Ctrl+I)</button>
+                                        <button type="button" class="cluster-item" data-action="strike"><i class="fas fa-strikethrough"></i> Strikethrough</button>
+                                        <div class="menu-divider"></div>
+                                        <button type="button" class="cluster-item" data-action="h1">Heading 1 (#)</button>
+                                        <button type="button" class="cluster-item" data-action="h2">Heading 2 (##)</button>
+                                        <button type="button" class="cluster-item" data-action="h3">Heading 3 (###)</button>
+                                        <button type="button" class="cluster-item" data-action="h4">Heading 4 (####)</button>
+                                    </div>
+                                </div>
+
+                                <!-- Lists Dropdown -->
+                                <div class="dropdown-cluster">
+                                    <button type="button" class="btn-cluster-dropdown" id="btn-cluster-lists">
+                                        <i class="fas fa-list-ul"></i> Lists <i class="fas fa-chevron-down caret"></i>
+                                    </button>
+                                    <div class="cluster-menu" id="menu-cluster-lists">
+                                        <button type="button" class="cluster-item" data-action="bullet"><i class="fas fa-list-ul"></i> Bullet List (-)</button>
+                                        <button type="button" class="cluster-item" data-action="number"><i class="fas fa-list-ol"></i> Numbered List (1.)</button>
+                                        <button type="button" class="cluster-item" data-action="task"><i class="fas fa-check-square"></i> Task List (- [ ])</button>
+                                        <div class="menu-divider"></div>
+                                        <button type="button" class="cluster-item" data-action="quote"><i class="fas fa-quote-left"></i> Blockquote (&gt;)</button>
+                                    </div>
+                                </div>
+
+                                <!-- Insert Dropdown -->
+                                <div class="dropdown-cluster">
+                                    <button type="button" class="btn-cluster-dropdown" id="btn-cluster-insert">
+                                        <i class="fas fa-plus"></i> + Insert <i class="fas fa-chevron-down caret"></i>
+                                    </button>
+                                    <div class="cluster-menu" id="menu-cluster-insert">
+                                        <button type="button" class="cluster-item" data-action="link"><i class="fas fa-link"></i> Hyperlink (Ctrl+K)</button>
+                                        <button type="button" class="cluster-item" data-action="image"><i class="fas fa-image"></i> Image (![])</button>
+                                        <button type="button" class="cluster-item" data-action="table"><i class="fas fa-table"></i> Markdown Table</button>
+                                        <button type="button" class="cluster-item" data-action="codeblock"><i class="fas fa-code"></i> Code Block (```)</button>
+                                        <div class="menu-divider"></div>
+                                        <span class="cluster-header">MarkSmith Native Wrappers</span>
+                                        <button type="button" class="cluster-item" data-action="wrap-smartart"><i class="fas fa-sitemap"></i> :::smartart (Workflow)</button>
+                                        <button type="button" class="cluster-item" data-action="wrap-tabs"><i class="fas fa-folder-tree"></i> :::tabs (Tab Containers)</button>
+                                        <button type="button" class="cluster-item" data-action="wrap-chart"><i class="fas fa-chart-pie"></i> :::chart (DrawingML Chart)</button>
+                                        <button type="button" class="cluster-item" data-action="wrap-columns"><i class="fas fa-table-columns"></i> :::columns (Multi-Column)</button>
+                                        <button type="button" class="cluster-item" data-action="wrap-timeline"><i class="fas fa-timeline"></i> :::timeline (Milestones)</button>
+                                    </div>
+                                </div>
+
+                                <button type="button" class="btn-cluster-icon" id="btn-toggle-find" title="Find &amp; Replace (Ctrl+F / Ctrl+H)"><i class="fas fa-magnifying-glass"></i></button>
+                            </div>
+
+                            <div class="toolbar-cluster-right">
+                                <div class="font-zoom-strip">
+                                    <button type="button" class="btn-strip" id="btn-font-smaller" title="Decrease editor font">A−</button>
+                                    <button type="button" class="btn-strip" id="btn-font-larger" title="Increase editor font">A+</button>
+                                    <span class="zoom-text" id="zoom-indicator">100%</span>
+                                </div>
+
+                                <!-- Document Outline Flyout Button -->
+                                <button type="button" class="btn-cluster-icon" id="btn-outline-flyout" title="Document Outline (H1-H6)"><i class="fas fa-list-check"></i></button>
+
+                                <!-- More Menu Dropdown (...) -->
+                                <div class="dropdown-cluster">
+                                    <button type="button" class="btn-cluster-icon" id="btn-more-menu" title="More options"><i class="fas fa-ellipsis"></i></button>
+                                    <div class="cluster-menu right-aligned" id="menu-more">
+                                        <button type="button" class="cluster-item" id="menu-action-history"><i class="fas fa-clock-rotate-left"></i> Export History</button>
+                                        <div class="menu-divider"></div>
+                                        <button type="button" class="cluster-item" id="menu-action-tour"><i class="fas fa-compass"></i> Take a Quick Tour</button>
+                                        <button type="button" class="cluster-item" id="menu-action-shortcuts"><i class="fas fa-keyboard"></i> Keyboard Shortcuts (F1)</button>
+                                        <button type="button" class="cluster-item" id="menu-action-settings"><i class="fas fa-gear"></i> Settings (Ctrl+,)</button>
+                                        <div class="menu-divider"></div>
+                                        <button type="button" class="cluster-item" id="menu-action-coffee"><i class="fas fa-mug-hot"></i> ☕ Buy Me a Coffee</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inline Find & Replace Bar (Collapsible) -->
+                        <div class="winui-find-bar" id="find-replace-bar" hidden>
+                            <div class="find-inputs-group">
+                                <input type="text" id="find-input" placeholder="Find in document..." class="find-input">
+                                <input type="text" id="replace-input" placeholder="Replace with..." class="find-input">
+                            </div>
+                            <div class="find-actions-group">
+                                <span class="find-count" id="find-match-count">0 matches</span>
+                                <button type="button" class="btn-find-icon" id="btn-find-prev" title="Previous match"><i class="fas fa-chevron-up"></i></button>
+                                <button type="button" class="btn-find-icon" id="btn-find-next" title="Next match"><i class="fas fa-chevron-down"></i></button>
+                                <button type="button" class="btn-find-text" id="btn-replace-one">Replace</button>
+                                <button type="button" class="btn-find-text" id="btn-replace-all">Replace All</button>
+                                <button type="button" class="btn-find-icon" id="btn-close-find" title="Close"><i class="fas fa-xmark"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Split Editor & Preview Surface with Draggable Aperture -->
+                        <div class="desktop-split-surface" id="split-surface-container">
+                            <!-- Left: Editor Pane -->
+                            <div class="desktop-surface-pane editor-side" id="pane-editor-side">
+                                <div class="pane-gutter" id="editor-gutter">1</div>
+                                <textarea id="main-desktop-editor" class="desktop-textarea" spellcheck="false" placeholder="Type Markdown here..."></textarea>
+                            </div>
+
+                            <!-- Splitter Divider (Draggable) -->
+                            <div class="desktop-splitter-bar" id="desktop-splitter">
+                                <div class="splitter-handle"></div>
+                            </div>
+
+                            <!-- Right: Live Rendered Preview Pane -->
+                            <div class="desktop-surface-pane preview-side" id="pane-preview-side">
+                                <div class="preview-scroll-viewport" id="desktop-preview-viewport">
+                                    <div class="document-page-sheet" id="document-render-sheet">
+                                        <!-- Real Markdown rendered to HTML/KaTeX/Mermaid -->
+                                        <div id="desktop-rendered-content" class="rendered-markdown-root"></div>
+                                    </div>
+
+                                    <!-- Interactive Looking Glass Aperture Lens -->
+                                    <div id="desktop-looking-glass-portal" class="looking-glass-portal-aperture" style="display: none;">
+                                        <div class="portal-aperture-chrome">
+                                            <span><i class="fas fa-crosshairs"></i> Looking Glass &mdash; Aperture</span>
+                                            <span class="portal-drag-hint">Drag over preview</span>
+                                        </div>
+                                        <pre id="portal-raw-source-stream" class="portal-raw-stream"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- ==========================================
+                         STEP 3: STYLE & EXPORT (Right Column)
+                         ========================================== -->
+                    <aside class="workstation-column step-3-export">
+                        <div class="step-card-header">
+                            <div class="step-badge">3</div>
+                            <div class="step-titles">
+                                <h3>Style &amp; Export</h3>
+                                <p>Finish the document</p>
+                            </div>
+                        </div>
+
+                        <div class="step-panel-body">
+                            <!-- Presets Selector -->
+                            <div class="form-field-group">
+                                <div class="field-header-row">
+                                    <label class="field-label">Document Preset</label>
+                                    <div class="field-actions">
+                                        <button type="button" class="btn-icon-tiny" id="btn-save-preset" title="Save current preset"><i class="fas fa-floppy-disk"></i></button>
+                                        <button type="button" class="btn-icon-tiny" id="btn-delete-preset" title="Delete preset"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <select id="doc-presets-select" class="winui-select">
+                                    <option value="modern" selected>Clean Modern (Inter &bull; Indigo)</option>
+                                    <option value="academic">Academic Paper (Georgia &bull; Formal)</option>
+                                    <option value="executive">Midnight Executive (Dark &bull; Purple)</option>
+                                    <option value="dracula">Dracula Studio (High Contrast Dark)</option>
+                                    <option value="nord">Nord Frost (Subtle Arctic Slate)</option>
+                                    <option value="solarized">Solarized Light (Parchment Paper)</option>
+                                </select>
+                            </div>
+
+                            <!-- Appearance Expander -->
+                            <details class="winui-expander" open>
+                                <summary class="expander-summary">
+                                    <span><i class="fas fa-palette"></i> Appearance &amp; Typography</span>
+                                    <i class="fas fa-chevron-right expander-arrow"></i>
+                                </summary>
+                                <div class="expander-content">
+                                    <!-- Swatch Tiles -->
+                                    <label class="field-label-sm">Theme Swatches</label>
+                                    <div class="theme-swatches-grid">
+                                        <button type="button" class="theme-swatch active" data-theme="dark" title="Dark Slate" style="--swatch-bg: #0f172a; --swatch-accent: #38bdf8;"></button>
+                                        <button type="button" class="theme-swatch" data-theme="midnight" title="Midnight Executive" style="--swatch-bg: #1e1b4b; --swatch-accent: #a855f7;"></button>
+                                        <button type="button" class="theme-swatch" data-theme="dracula" title="Dracula" style="--swatch-bg: #282a36; --swatch-accent: #ff79c6;"></button>
+                                        <button type="button" class="theme-swatch" data-theme="nord" title="Nord" style="--swatch-bg: #2e3440; --swatch-accent: #88c0d0;"></button>
+                                        <button type="button" class="theme-swatch" data-theme="light" title="Modern Light" style="--swatch-bg: #f8fafc; --swatch-accent: #0284c7;"></button>
+                                        <button type="button" class="theme-swatch" data-theme="parchment" title="Solarized Light" style="--swatch-bg: #fdf6e3; --swatch-accent: #b58900;"></button>
+                                    </div>
+
+                                    <div class="form-field-group-sm">
+                                        <label class="field-label-sm">Font Pairing</label>
+                                        <select id="font-pairing-select" class="winui-select-sm">
+                                            <option value="inter">Inter &bull; JetBrains Mono</option>
+                                            <option value="segoe">Segoe UI &bull; Cascadia Code</option>
+                                            <option value="georgia">Georgia &bull; Fira Code</option>
+                                            <option value="merriweather">Merriweather &bull; Source Code</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-field-group-sm">
+                                        <label class="field-label-sm">Accent Color</label>
+                                        <input type="color" id="accent-color-picker" value="#0ea5e9" class="winui-color-picker">
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Page Setup Expander -->
+                            <details class="winui-expander">
+                                <summary class="expander-summary">
+                                    <span><i class="fas fa-file-invoice"></i> Page Setup &amp; Layout</span>
+                                    <i class="fas fa-chevron-right expander-arrow"></i>
+                                </summary>
+                                <div class="expander-content">
+                                    <div class="form-field-group-sm">
+                                        <label class="field-label-sm">Paper Size</label>
+                                        <select id="paper-size-select" class="winui-select-sm">
+                                            <option value="a4" selected>A4 (210 &times; 297 mm)</option>
+                                            <option value="letter">US Letter (8.5 &times; 11 in)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-field-group-sm">
+                                        <label class="field-label-sm">Margins</label>
+                                        <select id="margins-select" class="winui-select-sm">
+                                            <option value="standard" selected>Standard (1.0 in)</option>
+                                            <option value="narrow">Narrow (0.5 in)</option>
+                                            <option value="wide">Wide (1.5 in)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="toggle-row-sm">
+                                        <span>Page Border Frame</span>
+                                        <label class="winui-switch-sm">
+                                            <input type="checkbox" id="toggle-page-borders">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-row-sm">
+                                        <span>Drop Cap on 1st Paragraph</span>
+                                        <label class="winui-switch-sm">
+                                            <input type="checkbox" id="toggle-drop-cap" checked>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-row-sm">
+                                        <span>Auto-Hyphenation</span>
+                                        <label class="winui-switch-sm">
+                                            <input type="checkbox" id="toggle-hyphenation" checked>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Multi-Format Export Cards -->
+                            <div class="export-formats-section">
+                                <label class="field-label">Export Profile</label>
+                                <div class="export-format-cards">
+                                    <div class="format-card-btn active" data-format="docx" id="card-fmt-docx">
+                                        <div class="fmt-icon word"><i class="fa-solid fa-file-word"></i></div>
+                                        <div class="fmt-info">
+                                            <strong>Word (.docx)</strong>
+                                            <span>Native OMML &bull; Vector Shapes</span>
+                                        </div>
+                                        <div class="fmt-radio"><i class="fas fa-circle-check"></i></div>
+                                    </div>
+
+                                    <div class="format-card-btn" data-format="pdf" id="card-fmt-pdf">
+                                        <div class="fmt-icon pdf"><i class="fa-solid fa-file-pdf"></i></div>
+                                        <div class="fmt-info">
+                                            <strong>Vector PDF</strong>
+                                            <span>Print Pixel-Perfect Layout</span>
+                                        </div>
+                                        <div class="fmt-radio"><i class="far fa-circle"></i></div>
+                                    </div>
+
+                                    <div class="format-card-btn" data-format="pptx" id="card-fmt-pptx">
+                                        <div class="fmt-icon pptx"><i class="fa-solid fa-file-powerpoint"></i></div>
+                                        <div class="fmt-info">
+                                            <strong>PowerPoint (.pptx)</strong>
+                                            <span>Header-Driven Slide Deck</span>
+                                        </div>
+                                        <div class="fmt-radio"><i class="far fa-circle"></i></div>
+                                    </div>
+
+                                    <div class="format-card-btn" data-format="epub" id="card-fmt-epub">
+                                        <div class="fmt-icon epub"><i class="fa-solid fa-book"></i></div>
+                                        <div class="fmt-info">
+                                            <strong>eBook (.epub)</strong>
+                                            <span>Reflowable Responsive E-Reader</span>
+                                        </div>
+                                        <div class="fmt-radio"><i class="far fa-circle"></i></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Big Accent Primary Action Button -->
+                            <div class="primary-export-action-block">
+                                <button type="button" class="btn-compile-export-primary" id="btn-primary-desktop-export">
+                                    <i class="fa-solid fa-bolt-lightning"></i>
+                                    <span id="primary-export-btn-label">Compile &amp; Export Word (.docx)</span>
+                                </button>
+                                <div class="export-sub-status" id="desktop-export-substatus">
+                                    <span class="status-dot green"></span> Ephemeral In-Memory Compiler &bull; Zero Storage
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+
+                <!-- 4. WinUI 3 Persistent Bottom Status Bar -->
+                <footer class="winui-statusbar">
+                    <div class="statusbar-left">
+                        <span class="status-item"><i class="fas fa-shield-halved" style="color: #38bdf8;"></i> Pure ECMA-376 Engine v3.1.0</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item" id="statusbar-engine-msg">Ready &bull; Zero COM Interop</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item"><i class="fas fa-network-wired" style="color: #34d399;"></i> Port 47821 Listening</span>
+                    </div>
+
+                    <div class="statusbar-right">
+                        <span class="status-item" id="statusbar-cursor-pos">Ln 1, Col 1</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item" id="statusbar-words">1,248 words</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item" id="statusbar-read-time">4 min read</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item">UTF-8</span>
+                        <span class="status-separator">|</span>
+                        <span class="status-item badge-dlp"><i class="fas fa-lock"></i> 100% Offline DLP</span>
+                    </div>
+                </footer>
+            </div>
+
+            <!-- MODAL: Document Outline Flyout (TOC) -->
+            <div class="desktop-flyout-modal" id="modal-outline" hidden>
+                <div class="flyout-header">
+                    <h4><i class="fas fa-list-ol"></i> Document Outline</h4>
+                    <button type="button" class="btn-close-flyout" data-close="modal-outline">&times;</button>
+                </div>
+                <div class="flyout-body">
+                    <ul class="toc-tree-list" id="toc-tree-items">
+                        <!-- Populated dynamically from H1-H6 -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- MODAL: Keyboard Shortcuts (F1) -->
+            <div class="desktop-dialog-overlay" id="dialog-shortcuts" hidden>
+                <div class="winui-dialog-card">
+                    <div class="dialog-header">
+                        <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts Cheatsheet</h3>
+                        <button type="button" class="dialog-close-btn" data-close="dialog-shortcuts">&times;</button>
+                    </div>
+                    <div class="dialog-body">
+                        <table class="shortcuts-table">
+                            <thead><tr><th>Action</th><th>Shortcut</th></tr></thead>
+                            <tbody>
+                                <tr><td>Instant Export to DOCX</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></td></tr>
+                                <tr><td>Instant Export to PDF</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></td></tr>
+                                <tr><td>Instant Export to PPTX</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd></td></tr>
+                                <tr><td>Find in Source</td><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td></tr>
+                                <tr><td>Replace in Source</td><td><kbd>Ctrl</kbd> + <kbd>H</kbd></td></tr>
+                                <tr><td>Toggle Portal Focus Blur</td><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>X</kbd></td></tr>
+                                <tr><td>Command Palette</td><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td></tr>
+                                <tr><td>Print Document</td><td><kbd>Ctrl</kbd> + <kbd>P</kbd></td></tr>
+                                <tr><td>Focus Fullscreen Mode</td><td><kbd>F11</kbd></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: Settings Dialog (Ctrl+,) -->
+            <div class="desktop-dialog-overlay" id="dialog-settings" hidden>
+                <div class="winui-dialog-card">
+                    <div class="dialog-header">
+                        <h3><i class="fas fa-gear"></i> MarkSmith Studio Settings</h3>
+                        <button type="button" class="dialog-close-btn" data-close="dialog-settings">&times;</button>
+                    </div>
+                    <div class="dialog-body">
+                        <div class="settings-nav-tabs">
+                            <button class="tab-item active" data-tab="general">General</button>
+                            <button class="tab-item" data-tab="rendering">Rendering</button>
+                            <button class="tab-item" data-tab="dlp">Enterprise DLP</button>
+                        </div>
+                        <div class="settings-content-pane">
+                            <div class="settings-section active" id="tab-general">
+                                <div class="toggle-row">
+                                    <div><strong>Hardware Acceleration (WebView2)</strong><span>Enable GPU composition for live preview</span></div>
+                                    <input type="checkbox" checked>
+                                </div>
+                                <div class="toggle-row">
+                                    <div><strong>Auto-save snapshots</strong><span>Save recovery snapshots every 30 seconds</span></div>
+                                    <input type="checkbox" checked>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: Export History Flyout -->
+            <div class="desktop-dialog-overlay" id="dialog-history" hidden>
+                <div class="winui-dialog-card">
+                    <div class="dialog-header">
+                        <h3><i class="fas fa-clock-rotate-left"></i> Export History</h3>
+                        <button type="button" class="dialog-close-btn" data-close="dialog-history">&times;</button>
+                    </div>
+                    <div class="dialog-body">
+                        <div class="history-list" id="history-items-container">
+                            <div class="history-entry">
+                                <div><strong>Quantum-Mechanics-OMML.docx</strong><span>2 mins ago &bull; 6.8 KB &bull; Native Equations</span></div>
+                                <a href="media/product-spec.docx" download class="btn-history-download"><i class="fas fa-download"></i></a>
+                            </div>
+                            <div class="history-entry">
+                                <div><strong>Enterprise-System-Architecture.docx</strong><span>14 mins ago &bull; 14.2 KB &bull; ShapeForge Shapes</span></div>
+                                <a href="media/product-spec.docx" download class="btn-history-download"><i class="fas fa-download"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 6 Core Architectural Capabilities -->
+    <section id="features" class="section-flagship" style="padding-top: 0;">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-purple"><i class="fas fa-microchip"></i> ARCHITECTURAL ADVANTAGES</span>
+                <h2>Engineered for Zero Corruption &amp; Maximum Fidelity</h2>
+                <p>Word's rendering engine is notoriously fragile. MarkSmith was built from the ground up to strictly obey the ECMA-376 OpenXML schema.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-cyan">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h4>Zero-Corruption Guarantee</h4>
+                    <p>Enforces all required root namespaces (<code>w:</code>, <code>a:</code>, <code>wp:</code>, <code>m:</code>, <code>wpg:</code>, <code>wps:</code>), dynamic relationship management (<code>rId</code>), and $O(1)$ SAX streaming via <code>OpenXmlWriter</code>.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-purple">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h4>ShapeForge™ Diagram Engine</h4>
+                    <p>Translates Mermaid flowcharts, mindmaps, gitgraphs, Gantt charts, quadrant charts, and timelines into native Word vector shapes (<code>&lt;wpg:wgp&gt;</code>). Fully editable inside Microsoft Word.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-cyan">
+                        <i class="fas fa-circle-half-stroke"></i>
+                    </div>
+                    <h4>Looking Glass Portal</h4>
+                    <p>Stop toggling between source and preview. The rendered page <em>is</em> the editing surface: click anywhere and a portal cuts through to the live Markdown behind that exact block, with the rest of the page blurred out of focus. Circle, focus band, square or logo-shaped aperture; edits inside the glass go straight back into the document. <a href="#app-showcase">See it in the clip above &uarr;</a></p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-blue">
+                        <i class="fas fa-square-root-variable"></i>
+                    </div>
+                    <h4>Native OMML Equations</h4>
+                    <p>Translates complex LaTeX math expressions directly into native Microsoft Office Math elements (<code>&lt;m:oMath&gt;</code>) with literal whitespace preservation and high typographical precision.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-emerald">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h4>Reverse-Engineered SmartArt</h4>
+                    <p>Parses Office OpenXML <code>.glox</code> layout definitions and compiles JSON nodes into standard Word diagram data parts for executive process flows and hierarchy trees.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-amber">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <h4>Corporate Template Injection</h4>
+                    <p>Injects compiled Markdown runs into existing corporate <code>.dotx</code> / <code>.docx</code> templates, automatically inheriting branded fonts, heading styles, headers, and footers.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-pink">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <h4>WCAG 2.1 ContrastGuard</h4>
+                    <p>Calculates relative luminance and mathematical contrast ratios in real time, automatically preventing illegible text against dark or light shading (AA 4.5:1 standard).</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-purple">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h4>Gemini 3.8 &amp; Frontier Reasoning Dialect</h4>
+                    <p>Native parsing for frontier reasoning models: automatically folds <code>&lt;thought&gt;</code> chains into native Word collapsible sections, synthesizes Google Search Grounding citations into bidirectional footnotes, and styles code execution console outputs.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper icon-blue">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h4>Executive KPI Cards &amp; Proportional Tables</h4>
+                    <p>Compiles <code>:::metrics</code> blocks into multi-column executive card grids with 24pt bold metrics, rounded shaded panels, and muted subtitles. Calculates dynamic proportional column widths across <code>w:gridCol</code> and <code>w:tcW</code> for rock-solid, zero-clipping table typography.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Capability Audit / Benchmark Section -->
+    <section id="comparison" class="comparison-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-cyan"><i class="fas fa-scale-balanced"></i> CAPABILITY AUDIT &middot; SEPTEMBER 2026</span>
+                <h2>What Actually Separates These DOCX Engines</h2>
+                <p>A side-by-side technical evaluation of five DOCX engines across document generation, shape compilation, OMML math, and template fidelity.</p>
+            </div>
+
+            <!-- Comparison Table -->
+            <div class="table-wrapper">
+                <table class="comparison-table audit-table">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 190px;">Capability</th>
+                            <th class="highlight" style="min-width: 210px;">MarkSmith</th>
+                            <th style="min-width: 210px;">SuperDoc</th>
+                            <th style="min-width: 190px;">Pandoc</th>
+                            <th style="min-width: 160px;">HTML&ndash;to&ndash;DOCX</th>
+                            <th style="min-width: 170px;">Word Interop</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Row 1: Fundamental nature -->
+                        <tr>
+                            <td><strong>What it fundamentally is</strong></td>
+                            <td class="highlight">
+                                <strong>Markdown &rarr; DOCX generator.</strong>
+                                <span class="cell-subtext">Authors new documents from text.</span>
+                            </td>
+                            <td>
+                                <strong>DOCX editor &amp; SDK.</strong>
+                                <span class="cell-subtext">Round-trips documents that already exist.</span>
+                            </td>
+                            <td>
+                                <strong>Universal document converter.</strong>
+                                <span class="cell-subtext">Multi-format conversion engine.</span>
+                            </td>
+                            <td>
+                                <strong>HTML serialiser.</strong>
+                                <span class="cell-subtext">Converts web markup to document runs.</span>
+                            </td>
+                            <td>
+                                <strong>Word Application automation.</strong>
+                                <span class="cell-subtext">Drives Microsoft Word via COM.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 2: Microsoft Word required -->
+                        <tr>
+                            <td><strong>Microsoft Word required</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Fully offline, standalone compiler.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Browser, Node, Python, CLI, MCP.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Standalone binary.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Library-level parser.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Yes</strong>
+                                <span class="cell-subtext">Licence and runtime on every machine.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 3: Diagrams generated from source text -->
+                        <tr>
+                            <td><strong>Diagrams from source text</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>Native vector</strong>
+                                <span class="cell-subtext">Editable DrawingML shapes, not pictures.</span>
+                            </td>
+                            <td>
+                                <span class="cell-dash-dot">&mdash;</span> <strong>Out of scope</strong>
+                                <span class="cell-subtext">Renders existing charts/shapes; no authoring.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Rasterised</strong>
+                                <span class="cell-subtext">Filter output lands as PNG images.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>OLE objects</strong>
+                                <span class="cell-subtext">Clunky embedded binary objects.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 4: Math as native Office OMML -->
+                        <tr>
+                            <td><strong>Math as native Office OMML</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>Authors OMML</strong>
+                                <span class="cell-subtext"><code>LatexToOmml.cs</code> &mdash; LaTeX in, <code>&lt;m:oMath&gt;</code> out.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Reads OMML</strong>
+                                <span class="cell-subtext">OMML&rarr;MathML converter for display.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>Authors OMML</strong>
+                                <span class="cell-subtext">Via <code>texmath</code>. Genuine parity here.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Raw text</strong>
+                                <span class="cell-subtext">Unformatted text.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Partial</strong>
+                                <span class="cell-subtext">Limited automation hooks.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 5: Corporate template inheritance -->
+                        <tr>
+                            <td><strong>Corporate template inheritance</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>.dotx, full</strong>
+                                <span class="cell-subtext">Styles and headers inherited.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Field population</strong>
+                                <span class="cell-subtext">Template fields, filling &amp; locking.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>.docx reference</strong>
+                                <span class="cell-subtext">Carries styles, margins, headers, footers.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Strips styles</strong>
+                                <span class="cell-subtext">Overwrites styles with raw HTML.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Manual macro glue</strong>
+                                <span class="cell-subtext">Requires VBA macro glue.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 6: SmartArt and .glox parsing -->
+                        <tr>
+                            <td><strong>SmartArt &amp; .glox parsing</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>GLOX solver</strong>
+                                <span class="cell-subtext">Built in &mdash; <code>GloxBuilder</code>, <code>OpenXmlDiagramGenerator</code>.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">No GLOX authoring path.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 7: Memory model, 1000+ pages -->
+                        <tr>
+                            <td><strong>Memory model, 1000+ pages</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>In-memory DOM</strong>
+                                <span class="cell-subtext">High-speed AST tree in memory.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Bounded windows</strong>
+                                <span class="cell-subtext">Claims progressive reads without browser DOM.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>In-memory AST</strong>
+                                <span class="cell-subtext">In-memory AST tree representation.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>OOM at scale</strong>
+                                <span class="cell-subtext">Crashes on high-volume runs.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Memory leaks</strong>
+                                <span class="cell-subtext">COM handles leak under load.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 8: WCAG contrast enforced on output -->
+                        <tr>
+                            <td><strong>WCAG contrast on output</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>AA 4.5:1</strong>
+                                <span class="cell-subtext">ContrastGuard, in the compose path.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Not on output</strong>
+                                <span class="cell-subtext">Accessibility guide covers docs site, not DOCX.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">No contrast validation.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">None.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">None.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 9: Edit an existing DOCX -->
+                        <tr>
+                            <td><strong>Edit an existing DOCX</strong></td>
+                            <td class="highlight">
+                                <span class="cell-absent-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Generator, not an editor.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>Core capability</strong>
+                                <span class="cell-subtext">Writes back to OOXML with no HTML round-trip.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>Convert only</strong>
+                                <span class="cell-subtext">Lossy conversion only.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>No</strong>
+                                <span class="cell-subtext">Creation only.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>Yes</strong>
+                                <span class="cell-subtext">Full document manipulation.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 10: Track changes, comments, revisions -->
+                        <tr>
+                            <td><strong>Track changes &amp; revisions</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>Native OpenXML</strong>
+                                <span class="cell-subtext">CriticMarkup to &lt;w:ins&gt;, &lt;w:del&gt; &amp; word/comments.xml.</span>
+                            </td>
+                            <td>
+                                <span class="cell-check-dot">&bull;</span> <strong>Full</strong>
+                                <span class="cell-subtext">Suggestions, comments, Yjs collaboration.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Not supported.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Via Word</strong>
+                                <span class="cell-subtext">Native Word revisions model.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 11: Frontier AI & Reasoning Dialect -->
+                        <tr>
+                            <td><strong>Frontier AI Dialect (Gemini 3.8 / Claude 3.7 / R1)</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>Native Word Folds</strong>
+                                <span class="cell-subtext">Word-native collapsible &lt;w15:collapsed&gt; thought folding, search grounding footnotes &amp; execution cards.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Raw markup leak or unparsed XML tags.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Stripped or unparsed HTML tags in DOCX.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Drops or malforms AST elements.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">No AI dialect or reasoning awareness.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 12: Executive KPI Cards & Proportional Tables -->
+                        <tr>
+                            <td><strong>Executive KPI Cards &amp; Proportional Tables</strong></td>
+                            <td class="highlight">
+                                <span class="cell-check-dot">&bull;</span> <strong>Native OpenXML Grid</strong>
+                                <span class="cell-subtext">Native <code>:::metrics</code> 24pt executive dashboard cards &amp; mathematical proportional column widths.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">Manual tables only; no metrics cards.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Auto-Fit Heuristics</strong>
+                                <span class="cell-subtext">No metric cards; cell widths rely on Word layout engine.</span>
+                            </td>
+                            <td>
+                                <span class="cell-absent-dot">&bull;</span> <strong>None</strong>
+                                <span class="cell-subtext">No metric cards; rough CSS table translation.</span>
+                            </td>
+                            <td>
+                                <span class="cell-partial-dot">&bull;</span> <strong>Programmatic Only</strong>
+                                <span class="cell-subtext">No markdown syntax; requires manual cell coding.</span>
+                            </td>
+                        </tr>
+
+                        <!-- Row 13: Licence -->
+                        <tr>
+                            <td><strong>Licensing model</strong></td>
+                            <td class="highlight">
+                                <strong>Proprietary.</strong>
+                                <span class="cell-subtext">Commercial license.</span>
+                            </td>
+                            <td>
+                                <strong>AGPLv3 / Commercial</strong>
+                                <span class="cell-subtext">Dual-licensed SDK.</span>
+                            </td>
+                            <td>
+                                <strong>GPLv2+</strong>
+                                <span class="cell-subtext">Open-source binary.</span>
+                            </td>
+                            <td>
+                                <strong>Varies by tool</strong>
+                                <span class="cell-subtext">MIT / Apache variants.</span>
+                            </td>
+                            <td>
+                                <strong>Commercial, per seat</strong>
+                                <span class="cell-subtext">Microsoft Office license.</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Audit Legend -->
+            <div class="audit-legend">
+                <div class="legend-item"><span class="cell-check-dot">&bull;</span> Native / verified</div>
+                <div class="legend-item"><span class="cell-partial-dot">&bull;</span> Partial or different mechanism</div>
+                <div class="legend-item"><span class="cell-absent-dot">&bull;</span> Absent</div>
+                <div class="legend-item"><span class="cell-dash-dot">&mdash;</span> Outside the product&rsquo;s category</div>
+            </div>
+
+            <!-- Deep-Dive Breakdown Analysis Cards -->
+            <div class="audit-notes-grid">
+                <div class="audit-note-card">
+                    <h4>SuperDoc is not a converter, and that cuts both ways</h4>
+                    <p>It is a DOCX editor and agent SDK &mdash; the file already exists, and a person or an agent changes it. Six of the original eight rows were chosen where a generator naturally wins, so the table flatters MarkSmith by measuring SuperDoc at something it never set out to do. Saying that plainly is what makes the rows that do matter believable.</p>
+                </div>
+
+                <div class="audit-note-card highlight-card">
+                    <h4>Where MarkSmith genuinely leads</h4>
+                    <p>Generating diagrams, SmartArt and math from plain source text, with contrast enforced on the way out. SuperDoc has no authoring path for any of it.</p>
+                </div>
+
+                <div class="audit-note-card">
+                    <h4>Where SuperDoc genuinely leads</h4>
+                    <p>Round-trip editing, track changes, comments and real-time collaboration &mdash; plus a Python SDK and an MCP server. MarkSmith has none of these.</p>
+                </div>
+
+                <div class="audit-note-card">
+                    <h4>Memory &amp; Local Performance</h4>
+                    <p>MarkSmith compiles directly in-memory via .NET 8, eliminating COM overhead and generating full multi-page OpenXML documents in milliseconds.</p>
+                </div>
+
+                <div class="audit-note-card full-width">
+                    <h4>How each capability was evaluated</h4>
+                    <p>MarkSmith capabilities were verified against the production <code>MarkSmith.Core</code> engine: ContrastGuard, GloxBuilder, LatexToOmml and the <code>.dotx</code> template path all run natively in .NET 8. SuperDoc capabilities derive from its technical documentation and repository specifications. Pandoc capabilities derive from its official manual and the <code>texmath</code> docx writer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Licensing & Editions -->
+    <section id="licensing" class="pricing-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge badge-purple"><i class="fas fa-tag"></i> LICENSING &amp; EDITIONS</span>
+                <h2>Choose Your MarkSmith Edition</h2>
+                <p>From local open-source testing to enterprise-grade document compilation and hands-free CI/CD automation.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- Free Community Edition -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <div class="pricing-tier">Community Edition</div>
+                        <div class="pricing-price">$0 <span>/ forever</span></div>
+                        <div class="pricing-desc">Ideal for individual developers, CLI hobbyists, and standard PDF generation.</div>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> PDF Document Export</li>
+                        <li><i class="fas fa-check"></i> All Standard Highlighting Themes</li>
+                        <li><i class="fas fa-check"></i> AI Text Cleanup &amp; Formatter</li>
+                        <li><i class="fas fa-check"></i> Basic CLI Compiler</li>
+                        <li class="disabled"><i class="fas fa-times"></i> Native DOCX &amp; PPTX Export</li>
+                        <li class="disabled"><i class="fas fa-times"></i> ShapeForge™ Word Vector Shapes</li>
+                        <li class="disabled"><i class="fas fa-times"></i> Hands-Free Watch Folder Automation</li>
+                        <li class="disabled"><i class="fas fa-times"></i> Unbranded Clean Footers</li>
+                    </ul>
+
+                    <a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+                        <i class="fab fa-github"></i> Download Free on GitHub
+                    </a>
+                </div>
+
+                <!-- Pro Commercial Edition -->
+                <div class="pricing-card featured">
+                    <div class="pricing-badge">PRO EDITION</div>
+                    <div class="pricing-header">
+                        <div class="pricing-tier">MarkSmith Pro</div>
+                        <div class="pricing-price">Perpetual <span>/ license</span></div>
+                        <div class="pricing-desc">Full commercial edition for power users, enterprises, and engineering teams. Includes a 14-day full Pro trial.</div>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> <strong>Native DOCX &amp; PPTX Compilation</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>ShapeForge™ Editable Word Shapes</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>Native OMML Editable Mathematical Formulas</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>Hands-Free Clipboard &amp; Watch Folder Daemon</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>Corporate <code>.dotx</code> Template Injection</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>Zero-Branding Clean White-Label Output</strong></li>
+                        <li><i class="fas fa-check"></i> <strong>Offline RSA Cryptographic License Activation</strong></li>
+                    </ul>
+
+                    <a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer" class="btn btn-pro">
+                        <i class="fas fa-key"></i> Get Pro License / Early Access
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Call to Action -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-box">
+                <span class="badge badge-cyan" style="margin-bottom: 1rem;"><i class="fas fa-download"></i> GET STARTED TODAY</span>
+                <h2>Transform Your Markdown Documents Today</h2>
+                <p>Download the open-source CLI or explore the full-featured WinUI 3 desktop application.</p>
+
+                <div class="social-links">
+                    <a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg">
+                        <i class="fab fa-github"></i> View MarkSmith on GitHub
+                    </a>
+                    <a href="index.html" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-arrow-left"></i> Return to OnyaChamp Portfolio
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <strong>MarkSmith</strong> — Created by Matthew Bubb (OnyaChamp).
+                </div>
+
+                <ul class="footer-nav">
+                    <li><a href="index.html">Portfolio Home</a></li>
+                    <li><a href="#app-showcase">See It Run</a></li>
+                    <li><a href="#features">Architecture</a></li>
+                    <li><a href="#comparison">Comparison</a></li>
+                    <li><a href="#licensing">Editions</a></li>
+                    <li><a href="https://github.com/thebubbsy/marksmith" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+                </ul>
+
+                <div class="footer-copy">
+                    &copy; 2026 MarkSmith / Matthew Bubb. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.8.0/dist/mermaid.min.js"></script>
+    <script src="app.js"></script>
+    <script src="studio.js"></script>
+</body>
+</html>
