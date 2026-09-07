@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: marksmith-api
+    runtime: docker
+    dockerfilePath: ./marksmith-v2/MarkSmith.CloudApi/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+    healthCheckPath: /health
