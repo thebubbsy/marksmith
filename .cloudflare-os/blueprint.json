@@ -1,33 +1,26 @@
 {
-  "$schema": "https://os.cloudflare.app/schemas/gadget-blueprint.v1.json",
   "blueprintId": "blueprint.marksmith.docs",
-  "title": "MarkSmith Professional OOXML & Markdown Studio",
-  "description": "Enterprise Markdown-to-DOCX/PDF generation engine with native OpenXML SmartArt, math typography, and live collaboration.",
+  "title": "MarkSmith Document Studio",
+  "description": "Enterprise Markdown-to-DOCX/PDF compiler with native OpenXML typography, SmartArt, and live coauthoring.",
   "output": {
     "id": "document",
     "noun": "Document",
     "plural": "Documents",
     "icon": "fileText"
   },
+  "author": {
+    "type": "user",
+    "name": "Tony",
+    "id": "tony@local"
+  },
+  "revision": 1,
+  "created": "2026-09-07T14:57:17.685Z",
+  "version": 1,
+  "lastUpdated": "2026-09-07T14:57:17.685Z",
   "bindings": {
     "MARKSMITH_MCP": {
       "type": "mcp",
-      "server": "marksmith-mcp",
-      "transport": "stdio",
-      "command": "dotnet",
-      "args": ["run", "--project", "marksmith-v2/MarkSmith.Mcp/MarkSmith.Mcp.csproj", "--", "--transport", "stdio"],
-      "allowedTools": [
-        "convert_markdown_to_docx",
-        "convert_markdown_to_pdf",
-        "extract_document_structure",
-        "validate_openxml_compliance",
-        "preview_markdown_html"
-      ]
-    },
-    "STORAGE": {
-      "type": "kv",
-      "description": "Persistent document and artifact storage"
+      "server": "marksmith-mcp"
     }
-  },
-  "version": "1.0.0"
+  }
 }
