@@ -150,6 +150,7 @@ public sealed partial class LlmSourceService
     // export, and each is a no-op when its pattern doesn't match, so this is safe to run on any text.
     public (string Cleaned, List<string> Fixes) RepairArtifacts(string markdown, LlmClassification classification)
     {
+        markdown = TextNormalizer.Newlines(markdown);
         var fixes = new List<string>();
 
         // Pull fenced code blocks out to placeholders before running any repair, so nothing here
