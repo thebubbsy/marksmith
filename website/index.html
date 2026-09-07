@@ -3,217 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marksmith — Turn AI Chats into Native Word, PDF, PPTX & EPUB</title>
-    <meta name="description" content="100% offline document engine. Turn ChatGPT, Gemini & Claude responses into native editable Word math, PowerPoint slides, PDFs & EPUB eBooks.">
+    <title>OnYaChamp | Matthew Bubb — Systems Architecture, Compilers &amp; Enterprise Infrastructure</title>
+    <meta name="description" content="Matthew Bubb (OnYaChamp) — High-throughput compiler pipelines, enterprise Microsoft Intune / Windows Autopilot infrastructure, and developer productivity tools built in C#/.NET and PowerShell 7+.">
+    <meta name="keywords" content="Matthew Bubb, OnYaChamp, MarkSmith, Microsoft Intune, Windows Autopilot, OpenXML, ECMA-376, PowerShell 7, C# .NET, Systems Architecture">
+    <meta name="author" content="Matthew Bubb">
+
+    <!-- Open Graph / Social Meta -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://onyachamp.com/">
+    <meta property="og:title" content="OnYaChamp | Matthew Bubb — Systems Architecture &amp; Compilers">
+    <meta property="og:description" content="I'm Matthew Bubb (yeah nah, good 'OnYaChamp'ion). I design high-throughput compiler pipelines, enterprise Microsoft Intune / Windows Autopilot infrastructure, and developer productivity tools built in C#/.NET and PowerShell 7+.">
+    <meta property="og:image" content="https://avatars.githubusercontent.com/u/49204026?v=4">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@TheBubbsy">
+    <meta name="twitter:title" content="OnYaChamp | Matthew Bubb">
+    <meta name="twitter:description" content="High-throughput compiler pipelines, enterprise Microsoft Intune / Windows Autopilot infrastructure, and developer productivity tools built in C#/.NET and PowerShell 7+.">
+    <meta name="twitter:image" content="https://avatars.githubusercontent.com/u/49204026?v=4">
+
+    <link rel="canonical" href="https://onyachamp.com/">
+
+    <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="website_style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Unified Design System -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Background Glow Effects -->
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
 
     <!-- Navigation Bar -->
-    <nav class="navbar" id="main-nav">
-        <div class="nav-container">
-            <a href="#" class="brand-logo" id="nav-logo">
-                <div class="logo-icon">M</div>
-                <span class="brand-name">Marksmith<span class="badge-v2">v2</span></span>
+    <header class="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-brand">
+                <div class="brand-icon">
+                    <i class="fas fa-terminal"></i>
+                </div>
+                <span class="brand-title">OnYaChamp</span>
             </a>
-            <div class="nav-links">
-                <a href="#features" class="nav-item" id="nav-link-features">Features</a>
-                <a href="#formats" class="nav-item" id="nav-link-formats">Formats</a>
-                <a href="#diagram-studio" class="nav-item" id="nav-link-studio">Diagram Studio</a>
-                <a href="#governance" class="nav-item" id="nav-link-gov">Enterprise DLP</a>
-                <a href="#download" class="btn-primary btn-nav" id="nav-btn-download">Download Free</a>
-            </div>
-        </div>
-    </nav>
 
-    <!-- Hero Section -->
-    <header class="hero-section" id="hero-header">
-        <div class="hero-content">
-            <div class="hero-badge" id="hero-privacy-badge">
-                <span class="pulse-dot"></span> 100% Local &amp; Offline • Zero Cloud Exposure
-            </div>
-            <h1 class="hero-title" id="hero-main-heading">
-                Turn Raw AI Chats Into <br>
-                <span class="gradient-text">Native Word, PDF &amp; Presentations</span>
-            </h1>
-            <p class="hero-subtitle" id="hero-subtext">
-                Stop wrestling with broken brackets and static code blocks. Marksmith turns LaTeX math into 
-                <strong>native editable Word equations (OMML)</strong> and rebuilds Mermaid diagrams as <strong>vector shapes</strong>.
-            </p>
-            <div class="hero-cta-group" id="hero-cta-container">
-                <a href="#download" class="btn-primary btn-large" id="hero-btn-primary">
-                    <svg class="icon-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                    Download for Windows 11
-                </a>
-                <a href="#video-demo" class="btn-secondary btn-large" id="hero-btn-video">
-                    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    Watch 2-Min Demo
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="#about" class="active">About</a></li>
+                    <li><a href="#pillars">Engineering Pillars</a></li>
+                    <li><a href="marksmith.html"><i class="fas fa-layer-group"></i> MarkSmith</a></li>
+                    <li><a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer"><i class="fab fa-github"></i> GitHub</a></li>
+                </ul>
+            </nav>
+
+            <div class="nav-cta">
+                <a href="marksmith.html" class="btn btn-primary btn-sm">
+                    <i class="fas fa-bolt"></i> MarkSmith v2
                 </a>
             </div>
-            <div class="hero-stats" id="hero-stats-row">
-                <div class="stat-item"><span class="stat-num">0 ms</span> Cloud Latency</div>
-                <div class="stat-divider"></div>
-                <div class="stat-item"><span class="stat-num">4+</span> Export Formats</div>
-                <div class="stat-divider"></div>
-                <div class="stat-item"><span class="stat-num">100%</span> Private DLP</div>
-            </div>
-        </div>
 
-        <!-- Interactive Demo Mockup -->
-        <div class="hero-mockup-container" id="hero-app-preview">
-            <div class="window-frame">
-                <div class="window-header">
-                    <div class="window-controls">
-                        <span class="control-dot red"></span>
-                        <span class="control-dot yellow"></span>
-                        <span class="control-dot green"></span>
-                    </div>
-                    <div class="window-title">Marksmith v2 — [Looking Glass Active]</div>
-                    <div class="window-actions">
-                        <span class="pill-tag">Local REST API: 47821</span>
-                    </div>
-                </div>
-                <div class="window-body">
-                    <div class="editor-pane">
-                        <div class="pane-header">Source Markdown (ChatGPT Ingest)</div>
-                        <pre class="code-preview"><code><span class="code-keyword"># Matrix Equation</span>
-$$ \begin{bmatrix} a &amp; b \\ c &amp; d \end{bmatrix} $$
-
-<span class="code-keyword">```mermaid</span>
-flowchart LR
-    A[Raw AI Prompt] --&gt; B{Marksmith}
-    B --&gt;|Native OMML| C[Editable Word .docx]
-<span class="code-keyword">```</span></code></pre>
-                    </div>
-                    <div class="looking-glass-divider"></div>
-                    <div class="preview-pane">
-                        <div class="pane-header">Rendered Output (Native Word OMML &amp; Shapes)</div>
-                        <div class="rendered-math">
-                            <math display="block">
-                                <mrow>
-                                    <mo>[</mo>
-                                    <mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>
-                                    <mo>]</mo>
-                                </mrow>
-                            </math>
-                        </div>
-                        <div class="rendered-diagram-badge">
-                            ✨ Vector Grouped Shapes (Drag &amp; Edit)
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <button class="mobile-menu-btn" aria-label="Toggle navigation menu">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
     </header>
 
-    <!-- Key Features Grid -->
-    <section class="features-section" id="features">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-tag">ENGINEERING ADVANTAGE</span>
-                <h2 class="section-title">Built for Professionals Who Demanded Better</h2>
-                <p class="section-desc">No generic Markdown renderers. Marksmith parses AST trees directly into native Microsoft Office XML objects.</p>
+    <!-- Hero Section -->
+    <section id="about" class="portfolio-hero">
+        <div class="container">
+            <div class="portfolio-badge">
+                <span>🇦🇺</span> Good on ya, champion! • Systems Architecture &amp; Tooling
             </div>
 
-            <div class="grid-3-col">
-                <div class="feature-card" id="feature-card-math">
-                    <div class="card-icon icon-math">∑</div>
-                    <h3>Native Word OMML Math</h3>
-                    <p>Converts LaTeX and KaTeX formulas into native, fully editable Word equations. Edit numbers directly inside matrices in Microsoft Word.</p>
-                </div>
-                <div class="feature-card" id="feature-card-mermaid">
-                    <div class="card-icon icon-diagram">🎨</div>
-                    <h3>Visual Mermaid Studio</h3>
-                    <p>Full visual drag-and-drop designer. Instantly toggle diagram orientation (Left-to-Right `LR` / Top-to-Bottom `TD`) with smart orthogonal routing.</p>
-                </div>
-                <div class="feature-card" id="feature-card-browser">
-                    <div class="card-icon icon-ext">🌐</div>
-                    <h3>1-Click Extension Ingest</h3>
-                    <p>Browser extension for ChatGPT, Gemini, Claude &amp; Copilot. Click "Send to Marksmith" or enable auto-send on conversation end.</p>
-                </div>
-                <div class="feature-card" id="feature-card-watch">
-                    <div class="card-icon icon-folder">📁</div>
-                    <h3>Watch Folder Daemon</h3>
-                    <p>Background folder watcher auto-compiles `.md` files dropped from Obsidian or Notion straight to PDF or Word presentations.</p>
-                </div>
-                <div class="feature-card" id="feature-card-dlp">
-                    <div class="card-icon icon-shield">🛡️</div>
-                    <h3>Enterprise DLP &amp; Governance</h3>
-                    <p>Client-side credential scanner masks API keys and secrets before export. Aggregates local usage metrics with zero cloud transmission.</p>
-                </div>
-                <div class="feature-card" id="feature-card-offline">
-                    <div class="card-icon icon-lock">🔒</div>
-                    <h3>100% Offline &amp; Air-Gapped</h3>
-                    <p>Runs strictly on localhost (`127.0.0.1`). Your trade secrets, financial models, and code stay completely on your machine.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+            <h1>
+                Matthew Bubb <br>
+                <span class="gradient-text">Systems Architecture &amp; Compilers</span>
+            </h1>
 
-    <!-- Multi-Format Showcase -->
-    <section class="formats-section" id="formats">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-tag">MULTI-FORMAT EXPORT</span>
-                <h2 class="section-title">One Markdown Document. Any Office Output.</h2>
-            </div>
-            <div class="format-chips-grid">
-                <div class="format-card" id="fmt-card-docx">
-                    <div class="format-badge badge-docx">DOCX</div>
-                    <h4>Microsoft Word</h4>
-                    <p>Native OMML math, editable grouped vector shapes, custom callout boxes, and custom typography templates.</p>
-                </div>
-                <div class="format-card" id="fmt-card-pdf">
-                    <div class="format-badge badge-pdf">PDF</div>
-                    <h4>Vector PDF</h4>
-                    <p>Pixel-perfect print layouts, embedded web fonts, KaTeX math typesetting, and selectable code blocks.</p>
-                </div>
-                <div class="format-card" id="fmt-card-pptx">
-                    <div class="format-badge badge-pptx">PPTX</div>
-                    <h4>PowerPoint Decks</h4>
-                    <p>Header-driven slide generation (`# Slide`). Automatically converts Markdown bullet points into structured slide shapes.</p>
-                </div>
-                <div class="format-card" id="fmt-card-epub">
-                    <div class="format-badge badge-epub">EPUB</div>
-                    <h4>eBook Publishing</h4>
-                    <p>Reflowable eBook packages complete with cover metadata, table of contents, and responsive ebook typography.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+            <p class="portfolio-bio-lead">
+                I'm Matthew Bubb (yeah nah, good 'OnYaChamp'ion). I design high-throughput compiler pipelines, enterprise Microsoft Intune / Windows Autopilot infrastructure, and developer productivity tools built in C#/.NET and PowerShell 7+.
+            </p>
 
-    <!-- Download & CTA Section -->
-    <section class="cta-section" id="download">
-        <div class="cta-card" id="cta-main-card">
-            <h2>Ready to Upgrade Your AI Workflow?</h2>
-            <p>Download Marksmith v2 for Windows 11. Self-contained, portable, zero installation required.</p>
-            <div class="cta-actions">
-                <a href="#" class="btn-primary btn-large" id="cta-btn-download">
-                    Download Marksmith v2 (.exe)
+            <div class="hero-actions">
+                <a href="marksmith.html" class="btn btn-primary btn-lg">
+                    <i class="fas fa-layer-group"></i> Explore MarkSmith Flagship
+                </a>
+                <a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg">
+                    <i class="fab fa-github"></i> GitHub Profile (@thebubbsy)
+                </a>
+                <a href="#pillars" class="btn btn-secondary btn-lg">
+                    <i class="fas fa-arrow-down"></i> Architecture &amp; Pillars
                 </a>
             </div>
-            <div class="cta-meta">
-                <span>Windows 11 / 10 (x64)</span> • <span>Self-Contained 181 MB</span> • <span>SHA-256 Verified</span>
+
+            <!-- Ecosystem Badges -->
+            <div class="hero-stats">
+                <div class="stat-item stat-item-word">
+                    <div class="stat-icon-badge icon-word">
+                        <i class="fa-solid fa-file-word"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">ECMA-376</div>
+                        <div class="stat-label">In-Memory OpenXML Compilers</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-intune">
+                    <div class="stat-icon-badge icon-intune">
+                        <i class="fa-solid fa-cloud"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">Intune Cloud</div>
+                        <div class="stat-label">Zero-Touch Device Management</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-autopilot">
+                    <div class="stat-icon-badge icon-autopilot">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">Autopilot</div>
+                        <div class="stat-label">Enterprise Windows Provisioning</div>
+                    </div>
+                </div>
+                <div class="stat-item stat-item-powershell">
+                    <div class="stat-icon-badge icon-powershell">
+                        <i class="fa-solid fa-terminal"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">PowerShell 7+</div>
+                        <div class="stat-label">High-Speed Parallel Automation</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Engineering Pillars & Projects -->
+    <section id="pillars" style="padding: 4rem 0 5rem;">
+        <div class="container">
+            <div class="section-header" style="text-align: center; margin-bottom: 2.5rem;">
+                <span class="badge badge-cyan" style="margin-bottom: 0.8rem;"><i class="fas fa-cubes"></i> CORE DISCIPLINES</span>
+                <h2>Engineering Pillars &amp; Software Platforms</h2>
+                <p style="color: var(--text-secondary); max-width: 680px; margin: 0.5rem auto 0; font-size: 1.05rem;">
+                    Mission-critical systems engineered for zero failure, mathematical schema conformance, and enterprise automation.
+                </p>
+            </div>
+
+            <div class="portfolio-grid">
+                <!-- Project 1: MarkSmith -->
+                <div class="project-card featured">
+                    <div>
+                        <div class="project-header">
+                            <div class="project-icon-box icon-word">
+                                <i class="fas fa-layer-group"></i>
+                            </div>
+                            <span class="badge badge-purple"><i class="fas fa-star"></i> FLAGSHIP ENGINE</span>
+                        </div>
+                        <h3>MarkSmith — Native OpenXML Compiler</h3>
+                        <p>
+                            High-throughput ECMA-376 compiler backend transforming Markdown ASTs into native Microsoft Word (.docx), PowerPoint (.pptx), and PDF documents with zero Word/COM dependencies. Features ShapeForge™ for converting Mermaid diagrams to editable vector shapes, native OMML mathematics, and reverse-engineered SmartArt.
+                        </p>
+                    </div>
+                    <div class="project-footer">
+                        <div class="creator-tags">
+                            <span class="pill-tag"><i class="fas fa-code"></i> C# / .NET 8</span>
+                            <span class="pill-tag"><i class="fas fa-cube"></i> OpenXML SAX</span>
+                            <span class="pill-tag"><i class="fas fa-desktop"></i> WinUI 3</span>
+                        </div>
+                        <a href="marksmith.html" class="btn btn-primary btn-sm">
+                            Launch Showcase <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Project 2: Intune & Autopilot -->
+                <div class="project-card">
+                    <div>
+                        <div class="project-header">
+                            <div class="project-icon-box icon-intune">
+                                <i class="fas fa-network-wired"></i>
+                            </div>
+                            <span class="badge badge-cyan"><i class="fas fa-shield-halved"></i> ENTERPRISE INFRASTRUCTURE</span>
+                        </div>
+                        <h3>Microsoft Intune &amp; Windows Autopilot</h3>
+                        <p>
+                            Production-grade zero-touch deployment pipelines for large-scale enterprise fleets. Architecture covers Azure AD / Entra ID hybrid joining, dynamic group ring assignments, automated Win32 package remediation, CIS/NIST security baselines, and BitLocker cryptographic escrow automation.
+                        </p>
+                    </div>
+                    <div class="project-footer">
+                        <div class="creator-tags">
+                            <span class="pill-tag"><i class="fab fa-microsoft"></i> Intune Cloud</span>
+                            <span class="pill-tag"><i class="fas fa-shield"></i> Entra ID</span>
+                            <span class="pill-tag"><i class="fas fa-laptop-code"></i> Autopilot</span>
+                        </div>
+                        <a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                            View Repositories <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Project 3: PowerShell 7+ Tooling -->
+                <div class="project-card">
+                    <div>
+                        <div class="project-header">
+                            <div class="project-icon-box icon-powershell">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <span class="badge badge-emerald"><i class="fas fa-terminal"></i> AUTOMATION SUITE</span>
+                        </div>
+                        <h3>Developer Productivity &amp; PowerShell 7+</h3>
+                        <p>
+                            High-concurrency automation modules, dual-destination PowerShell Gallery workflows, and multi-tenant management engines. Built with strict Pester regression suites, pipeline caching optimizations, and secure credential handling.
+                        </p>
+                    </div>
+                    <div class="project-footer">
+                        <div class="creator-tags">
+                            <span class="pill-tag"><i class="fas fa-terminal"></i> PowerShell 7+</span>
+                            <span class="pill-tag"><i class="fas fa-vial"></i> Pester TDD</span>
+                            <span class="pill-tag"><i class="fas fa-box"></i> PSGallery</span>
+                        </div>
+                        <a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                            Inspect Modules <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Project 4: Tactical Hubs & OSINT -->
+                <div class="project-card">
+                    <div>
+                        <div class="project-header">
+                            <div class="project-icon-box icon-autopilot">
+                                <i class="fas fa-crosshairs"></i>
+                            </div>
+                            <span class="badge badge-purple"><i class="fas fa-radar"></i> TACTICAL HUB</span>
+                        </div>
+                        <h3>Bubbsy Start Page &amp; Cloudflare OS</h3>
+                        <p>
+                            Tactical OSINT command hub and local-first reconnaissance portal hosting 2,000+ curated intelligence tools, Australian data registries, and threat recon modules. Designed for sub-millisecond execution and seamless Cloudflare edge deployment.
+                        </p>
+                    </div>
+                    <div class="project-footer">
+                        <div class="creator-tags">
+                            <span class="pill-tag"><i class="fas fa-bolt"></i> Cloudflare Edge</span>
+                            <span class="pill-tag"><i class="fas fa-shield-virus"></i> OSINT Recon</span>
+                            <span class="pill-tag"><i class="fas fa-gauge-high"></i> Sub-ms UI</span>
+                        </div>
+                        <a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                            GitHub Source <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technical Disciplines / Skill Strip -->
+    <section style="padding: 3rem 0 5rem; border-top: 1px solid var(--border-subtle);">
+        <div class="container">
+            <div class="section-header" style="text-align: center; margin-bottom: 2rem;">
+                <span class="badge badge-purple" style="margin-bottom: 0.6rem;"><i class="fas fa-microchip"></i> STACK &amp; SPECIALIZATIONS</span>
+                <h2>Technologies &amp; Architecture Specialties</h2>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.85rem; max-width: 900px; margin: 0 auto;">
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-code"></i> C# / .NET 8</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-file-code"></i> ECMA-376 OpenXML (SAX Streaming)</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fab fa-microsoft"></i> Microsoft Intune / Endpoint Manager</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-robot"></i> Windows Autopilot Provisioning</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-terminal"></i> PowerShell 7+ &amp; Script Module Authoring</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-key"></i> Microsoft Entra ID / Conditional Access</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-desktop"></i> WinUI 3 / Windows App SDK</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fab fa-docker"></i> Docker &amp; Containerized Compilers</span>
+                <span class="pill-tag" style="font-size: 0.95rem; padding: 0.5rem 1.1rem;"><i class="fas fa-universal-access"></i> WCAG 2.1 AA Algorithmic Contrast</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Call to Action -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-box">
+                <span class="badge badge-cyan" style="margin-bottom: 1rem;"><i class="fas fa-handshake"></i> CONNECT &amp; COLLABORATE</span>
+                <h2>Let's Build Systems That Never Corrupt.</h2>
+                <p>Explore the MarkSmith compiler documentation, test-drive the live engine, or view open-source repositories on GitHub.</p>
+
+                <div class="social-links">
+                    <a href="marksmith.html" class="btn btn-primary btn-lg">
+                        <i class="fas fa-layer-group"></i> Explore MarkSmith Flagship
+                    </a>
+                    <a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg">
+                        <i class="fab fa-github"></i> Follow on GitHub (@thebubbsy)
+                    </a>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer class="footer-bar">
-        <div class="footer-container">
-            <div class="footer-brand">Marksmith v2 Engine • 100% Local &amp; Private</div>
-            <div class="footer-links">
-                <a href="https://github.com" target="_blank">GitHub Repository</a>
-                <a href="#features">Documentation</a>
-                <a href="#governance">Privacy Policy</a>
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <strong>OnYaChamp</strong> — Matthew Bubb (yeah nah, good 'OnYaChamp'ion).
+                </div>
+
+                <ul class="footer-nav">
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#pillars">Pillars</a></li>
+                    <li><a href="marksmith.html">MarkSmith Engine</a></li>
+                    <li><a href="https://github.com/thebubbsy" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+                </ul>
+
+                <div class="footer-copy">
+                    &copy; 2026 Matthew Bubb (OnYaChamp). All rights reserved.
+                </div>
             </div>
         </div>
     </footer>
+
 </body>
 </html>

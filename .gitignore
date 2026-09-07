@@ -126,3 +126,6 @@ marketing/
 extension-governance/
 
 private-key.pem
+
+.git.broken/
+*.tsbuildinfo
