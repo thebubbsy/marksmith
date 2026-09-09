@@ -78,15 +78,15 @@ export function MarksmithEditor(props: MarksmithEditorProps) {
   };
 
   /** Extracts document statistics, headings, comments, and track changes from the HTML */
-  const extractDocumentMetadata = useCallback((h: string) => {
+  const extractDocumentMetadataReal = useCallback((h: string) => {
     const tmp = document.createElement("div");
     tmp.innerHTML = h;
 
     // Text & Stats
     const text = tmp.textContent || "";
     setCharCount(text.length);
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    setWordCount(words.length);
+    const words = text.match(/\S+/g);
+    setWordCount(words ? words.length : 0);
 
     // Headings for TOC
     const headingEls = Array.from(tmp.querySelectorAll("h1, h2, h3, h4, h5, h6"));
@@ -124,6 +124,17 @@ export function MarksmithEditor(props: MarksmithEditorProps) {
     }));
     setChanges(chlist);
   }, []);
+
+  const metadataTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const extractDocumentMetadata = useCallback((h: string) => {
+    if (metadataTimer.current) {
+      clearTimeout(metadataTimer.current);
+    }
+    metadataTimer.current = setTimeout(() => {
+      extractDocumentMetadataReal(h);
+      metadataTimer.current = null;
+    }, 500);
+  }, [extractDocumentMetadataReal]);
 
   // ---- boot: REST token + session, then WebSocket ----
   useEffect(() => {
