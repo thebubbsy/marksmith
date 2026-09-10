@@ -18,6 +18,12 @@ would have written itself.
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)
 ![license](https://img.shields.io/badge/license-Proprietary-black)
 
+<p>
+  <a href="https://onyachamp.com/marksmith.html"><strong>🌐 Live Web Edition &amp; Interactive Showcase</strong></a> &middot;
+  <a href="https://onyachamp.com"><strong>🇦🇺 OnYaChamp Portfolio</strong></a> &middot;
+  <a href="https://github.com/thebubbsy/marksmith/releases/latest"><strong>⬇️ Download Windows App</strong></a>
+</p>
+
 </div>
 
 ---
@@ -410,3 +416,15 @@ Marksmith is commercial software. The source is public for transparency, not for
 redistribution, modification and reverse engineering are not permitted except as allowed by law. Use
 is governed by the [End-User License Agreement](LICENSE); third-party components are listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+## Author & Ecosystem
+
+Crafted with care by **Matthew Bubb** (yeah nah, good 'OnYaChamp'ion) — Systems Architect & Compiler Engineer.
+
+- 🇦🇺 **Portfolio & Central Hub:** [OnYaChamp.com](https://onyachamp.com)
+- 🌐 **Interactive Web Edition & Cloud Compiler:** [OnYaChamp MarkSmith Showcase](https://onyachamp.com/marksmith.html)
+- 🛡️ **Zero-Cloud Sovereign MDM:** [LocalPilot Fleet](https://github.com/thebubbsy/LocalPilotFleet)
+- 💻 **GitHub:** [@thebubbsy](https://github.com/thebubbsy)
+
