@@ -13,8 +13,8 @@
       title: 'LaTeX & OMML Math',
       badge: '<i class="fas fa-circle-check"></i> ISO/IEC 29500-1 Verified',
       desc: 'Compiles LaTeX directly into Microsoft Word native OMML equations. Every symbol, matrix, and integral is editable in Word with built-in Equation Tools.',
-      downloadFile: 'media/math-cheatsheet.docx',
-      downloadName: 'Math-Cheatsheet.docx',
+      downloadFile: 'media/quantum-mechanics.docx',
+      downloadName: 'quantum-mechanics.docx',
       markdown: `# Quantum Mechanics & Linear Transformations
 
 The transformation operator $\\mathbf{M}$ acts upon the state vector $|\\psi\\rangle$ in Hilbert space:
@@ -46,8 +46,8 @@ $$
       title: 'Mermaid & ShapeForge',
       badge: '<i class="fas fa-circle-check"></i> ECMA-376 DrawingML Verified',
       desc: 'Translates Mermaid code fences into native grouped vector DrawingML shapes. Ungroup and style individual shapes directly inside Word.',
-      downloadFile: 'media/product-spec.docx',
-      downloadName: 'Product-Spec.docx',
+      downloadFile: 'media/enterprise-architecture.docx',
+      downloadName: 'enterprise-architecture.docx',
       markdown: `# Enterprise Distributed Architecture
 
 The MarkSmith compiler transforms Markdown ASTs into native Office OpenXML packages with zero COM dependency:
@@ -118,8 +118,8 @@ ChatGPT can make mistakes. Check important info.`
       title: 'Tables & Callouts',
       badge: '<i class="fas fa-circle-check"></i> Strict Schema Compliant',
       desc: 'Compiles complex Markdown tables into strict ISO/IEC 29500-1 table structures with borders, zebra striping, and cell padding.',
-      downloadFile: 'media/massive-markdown-showcase.docx',
-      downloadName: 'Massive-Markdown-Showcase.docx',
+      downloadFile: 'media/compliance-audit.docx',
+      downloadName: 'compliance-audit.docx',
       markdown: `# Platform Performance & Compliance Audit
 
 | Feature Area | Legacy Markdown Converters | MarkSmith Studio | Schema Compliance |
