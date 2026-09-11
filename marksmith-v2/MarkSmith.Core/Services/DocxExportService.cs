@@ -2801,10 +2801,11 @@ public sealed partial class DocxExportService
             new W.TableWidth { Type = W.TableWidthUnitValues.Pct, Width = "5000" },
             new W.TableBorders(
                 new W.TopBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
-                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
                 new W.LeftBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
+                new W.BottomBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
                 new W.RightBorder { Val = W.BorderValues.Single, Size = 4, Color = ctx.BorderHex },
-                new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Size = 2, Color = ctx.SecondaryHex }
+                new W.InsideHorizontalBorder { Val = W.BorderValues.Single, Size = 2, Color = ctx.SecondaryHex },
+                new W.InsideVerticalBorder { Val = W.BorderValues.Single, Size = 2, Color = ctx.SecondaryHex }
             ),
             new W.TableCellMarginDefault(
                 new W.TopMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
@@ -2812,6 +2813,9 @@ public sealed partial class DocxExportService
                 new W.BottomMargin { Width = "80", Type = W.TableWidthUnitValues.Dxa },
                 new W.TableCellRightMargin { Width = 120, Type = W.TableWidthValues.Dxa }));
         table.AppendChild(tblPr);
+        // CT_Tbl requires tblGrid immediately after tblPr, before any rows — without it Word
+        // flags the document as needing repair. Two columns: the number/icon cell and content cell.
+        table.AppendChild(new W.TableGrid(new W.GridColumn(), new W.GridColumn()));
 
         for (int i = 0; i < items.Count; i++)
         {
