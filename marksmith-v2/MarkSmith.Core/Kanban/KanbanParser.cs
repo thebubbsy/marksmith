@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using MarkSmith.Core.AdvancedFeatures;
 
 namespace MarkSmith.Core.Kanban;
 
@@ -15,6 +14,14 @@ public static class KanbanParser
     private static readonly Regex BulletRegex = new(@"^\s*(?:[-*+]\s+|\d+[\.\)]\s+)(.*)$", RegexOptions.Compiled);
     private static readonly Regex CheckboxRegex = new(@"^\[([ xX])\]\s*(.*)$", RegexOptions.Compiled);
     private static readonly Regex TagRegex = new(@"(?<=^|\s)#([a-zA-Z0-9_\-]+)\b", RegexOptions.Compiled);
+
+    // Matches KanbanNormalizer's own opener/closer regexes, which (like other ::: containers)
+    // allow 3-OR-MORE colons so a kanban block can be fenced with extra colons when nested inside
+    // another ::: container. Kept in sync with that flexibility here; a plain "StartsWith(3
+    // colons)" check would silently fail to strip a "::::kanban" / "::::" pair, leaking the raw
+    // closing marker into the last card's text and skipping the opener's attributes entirely.
+    private static readonly Regex OpenerRegex = new(@"^\s*:::+\s*kanban\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex CloserRegex = new(@"^:::+$", RegexOptions.Compiled);
 
     /// <summary>
     /// Parses a raw :::kanban block string or block inner content into a KanbanBlock AST.
@@ -35,7 +42,7 @@ public static class KanbanParser
         }
 
         List<string> lines;
-        if (rawText.TrimStart().StartsWith(":::kanban", StringComparison.OrdinalIgnoreCase))
+        if (OpenerRegex.IsMatch(rawText.TrimStart()))
         {
             var allLines = rawText.Split('\n');
             var firstLine = allLines[0].TrimEnd('\r');
@@ -52,7 +59,7 @@ public static class KanbanParser
                 }
             }
 
-            lines = DetectorHelpers.GetInnerLines(rawText);
+            lines = GetInnerLines(rawText);
         }
         else
         {
@@ -74,7 +81,7 @@ public static class KanbanParser
             var trimmed = line.Trim();
 
             // Skip empty lines or closing ::: marker
-            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == ":::")
+            if (string.IsNullOrWhiteSpace(trimmed) || CloserRegex.IsMatch(trimmed))
                 continue;
 
             // Level 1 Node: Column header (# Title or ## Title)
@@ -129,6 +136,25 @@ public static class KanbanParser
         }
 
         return block;
+    }
+
+    // Local equivalent of DetectorHelpers.GetInnerLines that recognizes a 3-OR-MORE colon closer
+    // (":::+" — matching OpenerRegex above) instead of only the exact 3-colon "::: ". Everything
+    // else mirrors that helper's behavior: the opener line (index 0) is always skipped, and a
+    // closer on the last line, or on the second-to-last line followed by a single trailing blank
+    // line, is dropped rather than treated as card content.
+    private static List<string> GetInnerLines(string rawText)
+    {
+        var lines = rawText.TrimStart('\r', '\n').Split('\n');
+        var result = new List<string>();
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimEnd('\r');
+            if (i == lines.Length - 1 && CloserRegex.IsMatch(trimmed.Trim())) break;
+            if (i == lines.Length - 2 && CloserRegex.IsMatch(trimmed.Trim()) && string.IsNullOrWhiteSpace(lines[^1])) break;
+            result.Add(trimmed);
+        }
+        return result;
     }
 
     private static KanbanCard ParseCard(string cardBody, string rawLine, int index)
