@@ -110,7 +110,7 @@ public static class AiAgentFolderPresets
                 Path.Combine(userProfile, ".gemini", "antigravity", "scratch")),
 
             new("Ollama Local Models", "Ollama export directory",
-                Path.Combine(documents, "Ollama", "Outputs")),
+                Path.Combine(documents, "Ollama")),
 
             new("Claude Desktop", "Claude Desktop app exported conversations",
                 Path.Combine(appData, "Claude", "Exports")),
