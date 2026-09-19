@@ -86,6 +86,8 @@ public const string StoreUrl = "https://your-store.lemonsqueezy.com/buy/your-rea
 
 > **Note**: `LicenseService.IsStoreConfigured` checks that the string does not contain `YOUR-STORE` or `YOUR-PRODUCT-ID`. Once updated, the "Buy Pro" button in the app will launch your real checkout page.
 
+> The constant is now `DefaultStoreUrl`, and `MARKSMITH_STORE_URL` overrides it at runtime (see Step 8). The app opens `LicenseService.CheckoutUrl(email)`, which prefills the buyer's email when it knows it — Lemon Squeezy sends the licence key to whatever address goes through checkout, so a typo there is unrecoverable without a refund.
+
 ---
 
 ## Step 7: (Optional) Set Up Webhook for Automated License Key Generation / Delivery
@@ -106,19 +108,52 @@ If you choose to issue **Offline Signed Keys** via RSA signature instead:
 
 ---
 
-## Step 8: Enable Online Activation in `LemonSqueezyClient.cs`
+## Step 8: Enable Online Activation
 
-If using Lemon Squeezy's License API for online activation and machine deactivation:
+**If Step 4 enabled license keys on the product, this step is not optional.** Lemon Squeezy issues
+plain UUID keys. They carry no signature, so they can never pass the offline check in
+`LicenseValidator` — with online activation off, a paying customer pastes the key from their receipt
+and is told it isn't valid.
 
-1. Open `MarkSmith.Core/Services/LemonSqueezyClient.cs`.
-2. Change `Enabled` to `true`:
-   ```csharp
-   public static bool Enabled { get; set; } = true;
-   ```
-3. When `LemonSqueezyClient.Enabled` is `true`:
-   - `LemonSqueezyClient.ActivateAsync(key)` validates against `https://api.lemonsqueezy.com/v1/licenses/activate`.
-   - `LemonSqueezyClient.DeactivateAsync(key, instanceId)` validates against `https://api.lemonsqueezy.com/v1/licenses/deactivate`.
-   - The app persists the machine `InstanceId` and allows deactivation / migration to new machines within the 3-machine limit.
+Turn it on with an environment variable, no rebuild required:
+
+```text
+MARKSMITH_LS_ACTIVATION=1
+```
+
+Or change the default in `MarkSmith.Core/Services/LemonSqueezyClient.cs` if you'd rather bake it in.
+
+With it on:
+
+- **Activate** — `POST /v1/licenses/activate` claims a seat and returns an instance id, which is
+  stored so the app doesn't reactivate on every launch.
+- **Reinstall recovery** — if activation comes back at the machine limit (a reinstall loses the
+  local instance id while Lemon Squeezy still holds the seat), the app falls back to
+  `POST /v1/licenses/validate`, and honours the key if it's genuinely good. Without this, the third
+  reinstall locks a customer out of software they paid for.
+- **Re-validation** — `POST /v1/licenses/validate` runs in the background at most every 3 days
+  (`LicenseService.RevalidateEveryDays`). This is what makes a refund or chargeback actually revoke
+  Pro; activation alone happened once and can never notice.
+- **Offline grace** — an unreachable server is never treated as a refusal. Pro keeps working for 30
+  days (`LicenseService.OfflineGraceDays`) since the last successful check, then lapses. One
+  successful check restores it.
+- **Deactivate** — `POST /v1/licenses/deactivate` hands the seat back so the customer can move
+  machines. The Settings button calls `LicenseService.DeactivateAsync()`, which releases the seat;
+  the older sync `Deactivate()` only forgets the key locally and leaks the activation.
+- **Expiry and status** — `expired` and `disabled` keys stop unlocking Pro.
+
+None of these three endpoints take an API key. That is deliberate — a desktop binary can't keep a
+secret. **Never put a Lemon Squeezy API key in the app.**
+
+### Test mode without shipping a build
+
+Lemon Squeezy's test checkout is a different URL. Point at it with an environment variable rather
+than editing `StoreUrl` and rebuilding — that round trip is how a test link ends up in a production
+release:
+
+```text
+MARKSMITH_STORE_URL=https://your-store.lemonsqueezy.com/buy/test-product-id
+```
 
 ---
 

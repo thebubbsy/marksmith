@@ -72,16 +72,21 @@ public sealed partial class SettingsView : UserControl
             LicenseStatus.Visibility = Visibility.Visible;
             return;
         }
-        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.CheckoutUrl(App.License.State.Email))); }
         catch { /* no browser / bad uri — ignore */ }
     }
 
-    private void OnDeactivateLicense(object sender, RoutedEventArgs e)
+    private async void OnDeactivateLicense(object sender, RoutedEventArgs e)
     {
-        App.License.Deactivate();
-        LicenseStatus.Text = "License removed from this device.";
+        // DeactivateAsync (not Deactivate) so the Lemon Squeezy activation seat is handed back.
+        // Forgetting the key locally while the seat stays claimed is how a customer with a
+        // 3-machine key runs out of machines they never used.
+        DeactivateButton.IsEnabled = false;
+        var (_, message) = await App.License.DeactivateAsync();
+        LicenseStatus.Text = message;
         LicenseStatus.Visibility = Visibility.Visible;
         RefreshLicenseUi();
+        DeactivateButton.IsEnabled = true;
     }
 
     // Keep the License page live whenever the state changes (trial started/consumed, key

@@ -38,6 +38,16 @@ public sealed class StoredLicense
     public string? Key { get; set; }
     public string? Email { get; set; }
     public string? InstanceId { get; set; }          // Lemon Squeezy activation instance, if used
+
+    // ---- Lemon Squeezy online activation state ----
+    // Only populated on the online path. A Lemon Squeezy key is an opaque UUID that carries no
+    // claims of its own, so everything we know about it came from their API and has to be written
+    // down here — otherwise the app has no way to expire it, notice a refund, or explain itself
+    // while offline.
+    public string? LicenseStatus { get; set; }            // active | inactive | expired | disabled
+    public DateTimeOffset? LicenseExpiresUtc { get; set; } // null = perpetual
+    public DateTimeOffset? LastValidatedUtc { get; set; }  // drives the re-check cadence and the offline grace window
+
     // The trial: FULL Pro with a 3-DOCX-export cap. > 0 = trial active with that many exports
     // left (starts at 3, never auto-starts — the user triggers it). After the 3rd successful DOCX
     // export the user drops back to Free and the paywall returns.

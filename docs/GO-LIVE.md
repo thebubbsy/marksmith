@@ -47,9 +47,15 @@ burden for a solo seller shipping to the EU/UK.
 
 - [ ] Merchant account created and verified (bank + tax details — only you can do this)
 - [ ] Product created, price set (README currently advertises **A$39 one-time**)
-- [ ] `LicenseService.StoreUrl` updated to the real buy URL
-- [ ] Post-purchase automation: webhook → `sign-license.ps1` → email the key to the buyer
-      (until this exists you are issuing keys by hand, which is fine for the first few sales)
+- [ ] License keys enabled on the product, activation limit set (`packaging/lemonsqueezy-setup.md` step 4)
+- [ ] `LicenseService.DefaultStoreUrl` updated to the real buy URL — **this is the last thing
+      standing between the app and a working Buy button**
+- [ ] `MARKSMITH_LS_ACTIVATION=1` so Lemon Squeezy keys actually activate (see below)
+
+Post-purchase automation is no longer a prerequisite: with license keys enabled on the product,
+Lemon Squeezy generates the key and emails it to the buyer itself, and the app now activates that
+key against their API. The webhook → `sign-license.ps1` → email route remains available if you'd
+rather issue your own signed keys, but you no longer need it to make the first sale.
 
 ### 3. Buy a code-signing certificate — **you**
 
@@ -148,10 +154,29 @@ Buy your own product with a real card, on a clean Windows VM:
 
 Worth deciding consciously rather than discovering later:
 
+These apply to the **offline signed-key** model. The Lemon Squeezy online path (below) closes all
+three, at the cost of needing the network.
+
 - **Revocation needs an app update to take effect.** A refunded customer keeps Pro until they
   update. That is inherent to offline keys; the alternative is an activation server you don't have.
 - **No device or seat limit.** One key works on unlimited machines. Fine for a one-person licence
-  sold on trust; if you later want seat limits you need the online activation path
-  (`LemonSqueezyClient`, currently `Enabled = false`).
+  sold on trust.
 - **No automatic key re-delivery.** If a customer loses their key, you look it up in the ledger and
   resend by hand.
+
+## The online path (Lemon Squeezy keys)
+
+Switched on with `MARKSMITH_LS_ACTIVATION=1`. Lemon Squeezy generates and emails the key on
+purchase, so there is no backend and nothing to run per sale. In exchange:
+
+- Refunds and chargebacks **do** revoke Pro, via a background re-check every 3 days — no app update
+  needed.
+- Seat limits work, and deactivating in Settings hands the seat back.
+- A reinstall that hits the activation limit recovers on its own rather than needing a support email.
+- Activation and re-validation need the network. An unreachable server never revokes anything: Pro
+  keeps working for 30 days since the last successful check.
+
+What you are accepting instead: a customer who is permanently offline loses Pro after 30 days, and
+the app depends on Lemon Squeezy's API being up at activation time. Note also that Lemon Squeezy is
+mid-migration into Stripe Managed Payments — no sunset date announced, but worth watching, and a
+reason to keep the offline signed-key path working rather than deleting it.

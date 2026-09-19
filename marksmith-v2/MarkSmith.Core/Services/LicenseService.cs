@@ -11,13 +11,37 @@ public sealed class LicenseService
 {
     // Your Lemon Squeezy checkout link (the "Buy" button opens this). Replace with your product's
     // buy URL from Lemon Squeezy → Product → Share. See packaging/lemonsqueezy-setup.md.
-    public const string StoreUrl = "https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID";
+    //
+    // THIS IS THE ONE VALUE THAT HAS TO BE FILLED IN BEFORE ANYONE CAN PAY. While it still says
+    // YOUR-STORE the Buy buttons are inert by design (IsStoreConfigured below).
+    public const string DefaultStoreUrl = "https://YOUR-STORE.lemonsqueezy.com/buy/YOUR-PRODUCT-ID";
+
+    // MARKSMITH_STORE_URL overrides the baked-in link at runtime. That exists for the test-mode
+    // rehearsal in the go-live checklist: Lemon Squeezy's test checkout is a different URL, and
+    // rebuilding and reshipping the app just to point at it (and again to point back) is how a
+    // test link ends up in a production build.
+    public static string StoreUrl =>
+        Environment.GetEnvironmentVariable("MARKSMITH_STORE_URL") is { Length: > 0 } u ? u.Trim() : DefaultStoreUrl;
 
     // Go-live guard: until StoreUrl carries a real checkout link the UI's "Buy" buttons show a
     // "store not configured" status instead of launching the placeholder URL.
     public static bool IsStoreConfigured =>
         !StoreUrl.Contains("YOUR-STORE", StringComparison.OrdinalIgnoreCase)
         && !StoreUrl.Contains("YOUR-PRODUCT-ID", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The checkout link to actually open, with the buyer's email prefilled when we know it.
+    /// Lemon Squeezy emails the license key to whatever address goes through checkout, so a typo
+    /// there sends someone else's key into the void and lands us a support ticket we cannot
+    /// resolve without a refund.
+    /// </summary>
+    public static string CheckoutUrl(string? email = null)
+    {
+        var url = StoreUrl;
+        if (string.IsNullOrWhiteSpace(email)) return url;
+        var sep = url.Contains('?') ? '&' : '?';
+        return $"{url}{sep}checkout[email]={Uri.EscapeDataString(email.Trim())}";
+    }
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
@@ -94,17 +118,45 @@ public sealed class LicenseService
 
         if (LemonSqueezyClient.Enabled)
         {
-            var r = await LemonSqueezyClient.ActivateAsync(key);
-            if (r.ok)
+            var r = await LemonSqueezyClient.ActivateDetailedAsync(key);
+            if (r.Ok)
             {
                 lock (_gate)
                 {
-                    _stored.Key = key; _stored.Email = r.email; _stored.InstanceId = r.instanceId;
+                    _stored.Key = key; _stored.Email = r.Email; _stored.InstanceId = r.InstanceId;
+                    _stored.LicenseStatus = r.Status;
+                    _stored.LicenseExpiresUtc = r.ExpiresUtc;
+                    _stored.LastValidatedUtc = DateTimeOffset.UtcNow;
                     WriteStored(); Recompute();
                 }
                 return (true, "Activated — thank you! MarkSmith Pro is unlocked.");
             }
-            return (false, r.message);
+
+            // "You have already activated this machine" is not a failure from the customer's point
+            // of view — they own the key and they are sitting at a machine it covers. Reinstalling
+            // (or clearing the config folder) loses our instance id while Lemon Squeezy still holds
+            // the seat, so a plain activate comes back at the limit. Ask LS whether the key itself
+            // is good and, if it is, honour it rather than making a paying customer email support.
+            if (r.Reachable)
+            {
+                var v = await LemonSqueezyClient.ValidateAsync(key);
+                if (v.Ok)
+                {
+                    lock (_gate)
+                    {
+                        _stored.Key = key; _stored.Email = v.Email ?? r.Email; _stored.InstanceId = null;
+                        _stored.LicenseStatus = v.Status;
+                        _stored.LicenseExpiresUtc = v.ExpiresUtc;
+                        _stored.LastValidatedUtc = DateTimeOffset.UtcNow;
+                        WriteStored(); Recompute();
+                    }
+                    return (true, "Activated — thank you! MarkSmith Pro is unlocked.");
+                }
+            }
+
+            return (false, r.Reachable
+                ? r.Message
+                : "Couldn't reach the licensing server to check that key. Check your connection and try again.");
         }
 
         return (false, "That license key isn't valid.");
@@ -114,10 +166,129 @@ public sealed class LicenseService
     {
         lock (_gate)
         {
-            _stored.Key = null; _stored.Email = null; _stored.InstanceId = null;
+            ClearKeyState();
             WriteStored();
             Recompute();
         }
+    }
+
+    /// <summary>
+    /// Remove the license from this device AND release its Lemon Squeezy activation seat.
+    /// </summary>
+    /// <remarks>
+    /// The sync <see cref="Deactivate"/> only forgets the key locally. On the online path that
+    /// leaks a seat every time: with an activation limit of 3, a customer who reinstalls three
+    /// times is locked out of the product they bought and has to email us to get it back. Anything
+    /// user-facing should call this instead.
+    ///
+    /// If Lemon Squeezy cannot be reached we still remove the license locally — the user asked to
+    /// deactivate, and refusing to do so because a server is down is worse than a stranded seat —
+    /// but we say so, because the seat is still held at their end.
+    /// </remarks>
+    public async Task<(bool ok, string message)> DeactivateAsync()
+    {
+        string? key, instanceId;
+        lock (_gate) { key = _stored.Key; instanceId = _stored.InstanceId; }
+
+        var released = false;
+        string? problem = null;
+
+        if (LemonSqueezyClient.Enabled
+            && !string.IsNullOrWhiteSpace(key)
+            && !string.IsNullOrWhiteSpace(instanceId))
+        {
+            var r = await LemonSqueezyClient.DeactivateDetailedAsync(key!, instanceId!);
+            released = r.Ok;
+            if (!r.Ok) problem = r.Message;
+        }
+
+        lock (_gate)
+        {
+            ClearKeyState();
+            WriteStored();
+            Recompute();
+        }
+
+        if (problem is null)
+            return (true, "License removed from this device.");
+
+        return (true, released
+            ? "License removed from this device."
+            : $"License removed from this device, but the activation may still be held: {problem}");
+    }
+
+    /// <summary>
+    /// Re-check an online license against Lemon Squeezy. Safe to call on startup and periodically.
+    /// </summary>
+    /// <remarks>
+    /// Activation is a one-off event; entitlement is not. Between the two sit refunds, chargebacks
+    /// and disabled orders, none of which the app can notice on its own — without this, a refunded
+    /// customer keeps Pro permanently.
+    ///
+    /// The two failure modes pull in opposite directions and both have to be handled, or the
+    /// feature does more harm than good:
+    ///   * Check too eagerly and a customer with no internet loses the product they paid for.
+    ///   * Never re-check and a refund never takes effect.
+    /// So: re-check at most every <see cref="RevalidateEveryDays"/> days, and only downgrade on an
+    /// answer we actually received. An unreachable server is not a "no" — it buys the customer the
+    /// full <see cref="OfflineGraceDays"/> window before Pro lapses, which is the difference
+    /// between a plane trip and a permanent lockout.
+    /// </remarks>
+    public const int RevalidateEveryDays = 3;
+    public const int OfflineGraceDays = 30;
+
+    public async Task<bool> RevalidateAsync(bool force = false)
+    {
+        string? key, instanceId;
+        DateTimeOffset? last;
+        lock (_gate)
+        {
+            if (!LemonSqueezyClient.Enabled) return State.IsPro;
+            key = _stored.Key;
+            instanceId = _stored.InstanceId;
+            last = _stored.LastValidatedUtc;
+            // Nothing activated online, or an offline signed key (which needs no server at all).
+            if (string.IsNullOrWhiteSpace(key) || last is null) return State.IsPro;
+        }
+
+        if (!force && last is { } l && DateTimeOffset.UtcNow - l < TimeSpan.FromDays(RevalidateEveryDays))
+            return State.IsPro;
+
+        var r = await LemonSqueezyClient.ValidateAsync(key!, instanceId);
+
+        if (!r.Reachable)
+        {
+            // Could not ask, so nothing is written: LastValidatedUtc deliberately stays where it
+            // was. Recompute enforces the grace window off that timestamp, so Pro keeps working
+            // now and lapses on its own if the check never succeeds again — and one successful
+            // check at any point restores it.
+            return State.IsPro;
+        }
+
+        lock (_gate)
+        {
+            _stored.LicenseStatus = r.Status ?? (r.Ok ? "active" : "disabled");
+            _stored.LicenseExpiresUtc = r.ExpiresUtc;
+            if (r.Ok)
+            {
+                _stored.LastValidatedUtc = DateTimeOffset.UtcNow;
+                if (!string.IsNullOrWhiteSpace(r.Email)) _stored.Email = r.Email;
+            }
+            WriteStored();
+            Recompute();
+        }
+        return State.IsPro;
+    }
+
+    // Clears every field that makes up "this device holds a license", leaving trial state alone.
+    private void ClearKeyState()
+    {
+        _stored.Key = null;
+        _stored.Email = null;
+        _stored.InstanceId = null;
+        _stored.LicenseStatus = null;
+        _stored.LicenseExpiresUtc = null;
+        _stored.LastValidatedUtc = null;
     }
 
     // Start the trial: FULL Pro for everything, exactly 3 DOCX exports, then Free. Only available
@@ -230,21 +401,46 @@ public sealed class LicenseService
             return;
         }
 
-        // 1b) previously activated online via Lemon Squeezy (an LS key is not a signed token, so it
-        //     won't pass the offline check above — trust the stored activation instance instead).
+        // 1b) previously activated online via Lemon Squeezy. An LS key is an opaque UUID, not a
+        //     signed token, so it can never pass the offline check above — what we trust instead is
+        //     the record of a successful activation. That record is only good while Lemon Squeezy
+        //     still says it is: a key that has expired or been disabled (refund, chargeback) stops
+        //     unlocking Pro here, and RevalidateAsync is what keeps the record honest.
+        // (An InstanceId with no LastValidatedUtc is an activation written by a build that predates
+        // these fields — still honoured, so an update never silently un-Pros someone.)
         if (LemonSqueezyClient.Enabled
             && !string.IsNullOrWhiteSpace(_stored.Key)
-            && !string.IsNullOrWhiteSpace(_stored.InstanceId))
+            && (_stored.LastValidatedUtc is not null || !string.IsNullOrWhiteSpace(_stored.InstanceId)))
         {
-            State = new LicenseState
+            var expired = _stored.LicenseExpiresUtc is { } exp2 && exp2 <= DateTimeOffset.UtcNow;
+            var dead = _stored.LicenseStatus is { } st
+                       && (st.Equals("expired", StringComparison.OrdinalIgnoreCase)
+                           || st.Equals("disabled", StringComparison.OrdinalIgnoreCase));
+
+            // The offline grace window, enforced in one place so it actually ends. RevalidateAsync
+            // refreshes LastValidatedUtc on every successful check; if checks have been failing for
+            // longer than the window (machine permanently offline, or someone blocking the API to
+            // dodge a revocation) the activation stops counting. Legacy records with no timestamp
+            // are exempt — they were written before the field existed and have nothing to be stale
+            // against.
+            var stale = _stored.LastValidatedUtc is { } lv
+                        && DateTimeOffset.UtcNow - lv > TimeSpan.FromDays(OfflineGraceDays);
+
+            if (!expired && !dead && !stale)
             {
-                Edition = Edition.Pro,
-                Key = _stored.Key,
-                Email = _stored.Email,
-                Status = "MarkSmith Pro — activated",
-            };
-            Changed?.Invoke();
-            return;
+                State = new LicenseState
+                {
+                    Edition = Edition.Pro,
+                    Key = _stored.Key,
+                    Email = _stored.Email,
+                    ExpiresUtc = _stored.LicenseExpiresUtc,
+                    Status = _stored.LicenseExpiresUtc is { } e2
+                        ? $"MarkSmith Pro — active until {e2:d MMM yyyy}"
+                        : "MarkSmith Pro — activated",
+                };
+                Changed?.Invoke();
+                return;
+            }
         }
 
         // 2) the user-started 3-export trial — full Pro, so the state carries the export cap too

@@ -787,7 +787,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
             return;
         }
-        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.CheckoutUrl(App.License.State.Email))); }
         catch { /* no browser / bad uri */ }
     }
 
@@ -1459,7 +1459,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (Services.LicenseService.IsStoreConfigured)
         {
-            try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.StoreUrl)); }
+            try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.CheckoutUrl(App.License.State.Email))); }
             catch { /* no browser / bad uri — ignore */ }
         }
         else

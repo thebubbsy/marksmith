@@ -64,6 +64,13 @@ public partial class App : Application
 
             License.Load(); // resolve Free / Trial / Pro before any UI reads entitlements
 
+            // Re-check an online (Lemon Squeezy) license in the background. Deliberately not
+            // awaited: entitlements are already resolved from disk above, so this only ever
+            // corrects them, and blocking a cold start on a network round trip would make every
+            // launch as slow as the worst connection. Self-throttling (see RevalidateEveryDays)
+            // and silent on failure — an unreachable server must never stop the app opening.
+            _ = Task.Run(async () => { try { await License.RevalidateAsync(); } catch { } });
+
             // Toast notifications for background auto-conversions; button args open the PDF or its folder.
             Microsoft.Windows.AppNotifications.AppNotificationManager.Default.NotificationInvoked += (_, e) =>
             {
