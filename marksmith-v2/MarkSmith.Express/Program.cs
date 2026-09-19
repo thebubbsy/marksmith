@@ -21,6 +21,14 @@ for (int i = 0; i < args.Length; i++)
             break;
         case "--help" or "-h":
             Console.WriteLine("Usage: marksmith-express [--port <n>] [--no-browser]");
+            Console.WriteLine();
+            Console.WriteLine("Options:");
+            Console.WriteLine("  --port, -p <n>    Port for loopback server (default: 5000)");
+            Console.WriteLine("  --no-browser      Do not automatically open web UI in browser");
+            Console.WriteLine("  --help, -h        Show this help message");
+            Console.WriteLine();
+            Console.WriteLine("Supported formats: docx, html, pptx, epub.");
+            Console.WriteLine("Note: PDF export requires the Desktop app (WebView2 Chromium engine).");
             return 0;
     }
 }

@@ -215,6 +215,8 @@ heading shift or dash rule means the same thing everywhere. Settings a given exp
 are shown disabled and labelled with the formats that do use them, so nothing in the panel is
 decorative.
 
+> **Note:** Express supports Word (.docx), HTML (.html), Slides (.pptx), and eBook (.epub). PDF export requires the Desktop app (WebView2 Chromium engine).
+
 ```bash
 marksmith-express --port 5000
 ```

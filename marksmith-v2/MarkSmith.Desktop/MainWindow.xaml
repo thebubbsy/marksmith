@@ -49,6 +49,7 @@
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
             <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
+            <conv:OversizedDiagramModeConverter x:Key="OversizedDiagramModeConverter" />
         </Grid.Resources>
 
         <Grid.RowDefinitions>
@@ -1172,7 +1173,7 @@
                                         ToolTipService.ToolTip="Save current settings as a preset">
                                     <FontIcon Glyph="&#xE74E;" FontSize="14" />
                                 </Button>
-                                <Button Grid.Column="4" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
+                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
                                         ToolTipService.ToolTip="Delete the selected preset">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                 </Button>
@@ -1279,20 +1280,9 @@
                             </ComboBox>
                             <TextBlock Text="Fallback arrowhead style for connectors that don't specify one in the diagram source."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ComboBox Header="Large diagrams (won't fit a page)" HorizontalAlignment="Stretch" IsEnabled="False"
-                                      SelectedIndex="{Binding OversizedDiagramMode, Mode=TwoWay}"
-                                      ToolTipService.ToolTip="Forced to Aggressive Shrink (mode 4) — product default; the export path always squeezes large diagrams onto one page.">
-                                <x:String>Ask me each time</x:String>
-                                <x:String>Keep Original Size (Web Layout)</x:String>
-                                <x:String>Gentle Shrink (Max 75%, Web Layout if needed)</x:String>
-                                <x:String>Slice Vertically (Multiple pages)</x:String>
-                                <x:String>Aggressive Shrink (Force to 1 page)</x:String>
-                                <x:String>Compress Gaps (ShapeForge native shapes)</x:String>
-                                <x:String>Compress Nodes (ShapeForge native shapes)</x:String>
-                                <x:String>Compress Both (ShapeForge native shapes)</x:String>
-                            </ComboBox>
-                            <TextBlock Text="Large diagrams are always squeezed onto one printed page (Aggressive Shrink — forced product default). The other strategies are listed for reference only; the export path always uses mode 4."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <CheckBox Content="Auto-fit oversized diagrams to page width"
+                                      IsChecked="{Binding OversizedDiagramMode, Mode=TwoWay, Converter={StaticResource OversizedDiagramModeConverter}}"
+                                      ToolTipService.ToolTip="Automatically scale oversized diagrams to fit within page margins on export" />
 
                                     </StackPanel>
                                 </Expander>

@@ -12,6 +12,8 @@ public sealed class LicenseState
     public DateTimeOffset? ExpiresUtc { get; init; }
     public string? Status { get; init; }
     public int TrialExportsRemaining { get; init; }
+    public bool TrialUsed { get; init; }
+    public bool CanStartTrial => Edition == Edition.Free && !TrialUsed && TrialExportsRemaining == 0;
 
     // Pro = an activated key. A TRIAL is the FULL Pro experience — every feature unlocked, no
     // paywall, no footer — capped at exactly 3 DOCX exports; after the 3rd the user drops back to

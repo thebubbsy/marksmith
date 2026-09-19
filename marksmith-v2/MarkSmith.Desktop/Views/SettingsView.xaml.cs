@@ -39,7 +39,7 @@ public sealed partial class SettingsView : UserControl
         DeactivateButton.Visibility = ed == Models.Edition.Pro ? Visibility.Visible : Visibility.Collapsed;
         // "Start trial" is offered to Free users; StartTrial() itself refuses (with the reason) if
         // the 3-export trial is already active or spent.
-        StartTrialButton.Visibility = ed == Models.Edition.Free ? Visibility.Visible : Visibility.Collapsed;
+        StartTrialButton.Visibility = App.License.CanStartTrial ? Visibility.Visible : Visibility.Collapsed;
         // Always surface the resolved state (Free / Trial — N exports remaining / Pro).
         LicenseStatus.Text = App.License.State.Status ?? "Free";
         LicenseStatus.Visibility = Visibility.Visible;

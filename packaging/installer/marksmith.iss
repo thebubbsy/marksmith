@@ -21,7 +21,7 @@
 ; AppVersion is DERIVED from the published exe's FileVersion (e.g. "3.0.0.0" -> "3.0.0"), so
 ; the installer/uninstall registry always matches the shipped binary and the updater's stamp.
 ; A hardcoded #define used to drift behind every release (it said 2.13.0 while shipping 3.0.0).
-; Override when needed:  iscc /DAppVersion=2.18.0
+; Override when needed:  iscc /DAppVersion=3.1.0
 #ifndef AppVersion
   #define SrcExe AddBackslash(PublishDir) + AppExe
   #if FileExists(SrcExe)
@@ -29,7 +29,7 @@
     #define AppVersion (Copy(RawVer, Len(RawVer) - 1, 2) == ".0" ? Copy(RawVer, 1, Len(RawVer) - 2) : RawVer)
   #else
     ; No publish output yet (e.g. script lint) — fallback only; ISCC on a real build reads the exe.
-    #define AppVersion "3.0.0"
+    #define AppVersion "3.1.0"
   #endif
 #endif
 

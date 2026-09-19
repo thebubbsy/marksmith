@@ -18,7 +18,6 @@ class Program
         catch { }
 
         string transport = "stdio";
-        int port = 3000;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -26,18 +25,12 @@ class Program
             {
                 transport = args[++i].ToLowerInvariant();
             }
-            else if (args[i] == "--port" && i + 1 < args.Length && int.TryParse(args[i + 1], out int p))
-            {
-                port = p;
-                i++;
-            }
             else if (args[i] == "--help" || args[i] == "-h")
             {
                 Console.Error.WriteLine("MarkSmith MCP Server (Model Context Protocol 2024-11-05)");
                 Console.Error.WriteLine("Usage: marksmith-mcp [options]");
                 Console.Error.WriteLine("Options:");
-                Console.Error.WriteLine("  --transport <stdio|sse>   Transport protocol (default: stdio)");
-                Console.Error.WriteLine("  --port <port>             Port for SSE transport (default: 3000)");
+                Console.Error.WriteLine("  --transport <stdio>       Transport protocol (default: stdio)");
                 Console.Error.WriteLine("  --help, -h                Show this help message");
                 return 0;
             }

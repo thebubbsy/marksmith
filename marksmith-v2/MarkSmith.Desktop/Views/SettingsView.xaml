@@ -421,7 +421,7 @@
             <ScrollViewer>
                 <StackPanel Spacing="12" MaxWidth="560" HorizontalAlignment="Left" Padding="0,16,0,24">
                     <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                               Text="Export straight to Google Docs — sign in with your Google account and we create a real doc in your Drive with native headings, tables and images." />
+                               Text="Export straight to Google Docs — sign in with your Google account and we create a real doc in your Drive with native headings, tables and images. Requires custom Google Cloud OAuth Client ID &amp; Secret configured in Advanced Settings before signing in." />
                     <InfoBar x:Name="GoogleStatusBar" IsOpen="True" Severity="Informational"
                              Message="{Binding GoogleAuthStatus}" IsClosable="False" />
                     <Border Style="{StaticResource PipelineCardStyle}">
@@ -431,7 +431,7 @@
                                 <Button Content="Sign out" Command="{Binding SignOutGoogleCommand}" />
                             </StackPanel>
                             <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.75"
-                                       Text="Sign-in opens a code in your browser — approve it and you're connected. Marksmith only ever creates documents and the images inside them; nothing else in your Drive is touched." />
+                                       Text="Requires custom Google Cloud OAuth Client ID &amp; Secret configured in Advanced Settings before signing in. Sign-in opens a code in your browser — approve it and you're connected. Marksmith only ever creates documents and the images inside them; nothing else in your Drive is touched." />
                         </StackPanel>
                     </Border>
                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

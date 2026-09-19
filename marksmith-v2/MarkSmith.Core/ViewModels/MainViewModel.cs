@@ -1489,6 +1489,25 @@ private readonly MarkdownExportService _mdExport = new();
         });
     }
 
+    // HTML is a free (ungated) format — renders the markdown through the full HTML pipeline and saves to disk.
+    public async Task ConvertToHtmlAsync()
+    {
+        var (markdown, sourceLabel) = ResolveSource();
+        if (markdown is null) return;
+
+        await RunConversionAsync("HTML", async ct =>
+        {
+            var outPath = ResolveOutputPath(sourceLabel, ".html");
+            var html = BuildPreviewHtml(markdown, interactive: false);
+            await File.WriteAllTextAsync(outPath, html, ct);
+            LastOutputPath = outPath;
+            if (!UsePasteSource) TrackRecent(InputFilePath);
+            RecordExport("HTML", outPath, markdown);
+            RaiseExportCompleted("HTML", outPath);
+            StatusText = $"HTML export done: {outPath}";
+        });
+    }
+
     // Google Docs export: connect + export. Gated like DOCX (Pro/trial); needs the user's own
     // Google Cloud OAuth client (Settings → Google) and a completed device sign-in.
     public event Action<string>? GoogleDocCreated;

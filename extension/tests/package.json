@@ -3,6 +3,9 @@
     "private": true,
     "version": "1.0.0",
     "description": "DOM fixture tests for extension/selectors.js drift detection",
+    "scripts": {
+        "test": "node selector-drift.test.js && node adversarial-extension.test.js"
+    },
     "dependencies": {
         "jsdom": "^24.0.0"
     }

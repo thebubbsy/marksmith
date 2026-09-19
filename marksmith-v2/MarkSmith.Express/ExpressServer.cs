@@ -365,8 +365,12 @@ public sealed class ExpressServer : IDisposable
                 mimeType = "application/epub+zip";
                 break;
 
+            case "pdf":
+                await WriteJsonAsync(ctx, 400, new { error = "PDF export requires the Desktop app (WebView2 Chromium engine). In Express REST API, use docx, html, pptx, or epub." });
+                return;
+
             default:
-                await WriteJsonAsync(ctx, 400, new { error = $"Unsupported format '{format}'. Use docx, html, pptx, or epub." });
+                await WriteJsonAsync(ctx, 400, new { error = $"Unsupported format '{format}'. Use docx, html, pptx, or epub. (Note: PDF export requires the Desktop app WebView2 Chromium engine)." });
                 return;
         }
 

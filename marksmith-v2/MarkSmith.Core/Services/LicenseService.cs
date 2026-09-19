@@ -39,6 +39,7 @@ public sealed class LicenseService
     public bool CanExportPptx => State.CanExportPptx;
     public bool CanAutomate => State.CanAutomate;
     public bool ShowFooter => State.ShowFooter;
+    public bool CanStartTrial => State.CanStartTrial;
 
     // The trust root this instance verifies keys against. Production passes nothing and gets the
     // key embedded in LicenseValidator; the test suite passes a throwaway public key so it can
@@ -266,6 +267,7 @@ public sealed class LicenseService
         State = new LicenseState
         {
             Edition = Edition.Free,
+            TrialUsed = _stored.TrialUsed,
             Status = _stored.TrialUsed
                 ? "Free — trial used (DOCX export requires Pro)"
                 : "Free",

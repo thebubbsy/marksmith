@@ -30,24 +30,24 @@ const CHAT_URLS = [
 
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
-        id: "mdpdfm-selection",
+        id: "marksmith-selection",
         title: "Send selection to MarkSmith",
         contexts: ["selection"],
     });
     chrome.contextMenus.create({
-        id: "mdpdfm-conversation",
+        id: "marksmith-conversation",
         title: "Send full conversation to Marksmith",
         contexts: ["page"],
         documentUrlPatterns: CHAT_URLS,
     });
     chrome.contextMenus.create({
-        id: "mdpdfm-dl-pdf",
+        id: "marksmith-dl-pdf",
         title: "Download latest reply as PDF",
         contexts: ["page"],
         documentUrlPatterns: CHAT_URLS,
     });
     chrome.contextMenus.create({
-        id: "mdpdfm-dl-docx",
+        id: "marksmith-dl-docx",
         title: "Download latest reply as DOCX",
         contexts: ["page"],
         documentUrlPatterns: CHAT_URLS,
@@ -180,13 +180,13 @@ function scheduleResultCollection(port, jobId, tabId) {
 
 // ── context-menu clicks ─────────────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "mdpdfm-selection") {
+    if (info.menuItemId === "marksmith-selection") {
         grabAndSend(tab, "selection", { selectionText: info.selectionText, notify: true });
-    } else if (info.menuItemId === "mdpdfm-conversation") {
+    } else if (info.menuItemId === "marksmith-conversation") {
         grabAndSend(tab, "all", { notify: true });
-    } else if (info.menuItemId === "mdpdfm-dl-pdf") {
+    } else if (info.menuItemId === "marksmith-dl-pdf") {
         downloadFromTab(tab, "latest", "pdf", { notify: true });
-    } else if (info.menuItemId === "mdpdfm-dl-docx") {
+    } else if (info.menuItemId === "marksmith-dl-docx") {
         downloadFromTab(tab, "latest", "docx", { notify: true });
     }
 });
@@ -518,7 +518,19 @@ async function convertAndDownload(markdown, format, meta) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markdown, output: ovr }),
     });
-    if (!resp.ok) throw new Error(`Marksmith returned HTTP ${resp.status}. Is the Local REST API on?`);
+    if (!resp.ok) {
+        if (resp.status === 402) {
+            let msg = "MarkSmith Pro Required: DOCX export is a Pro feature. Start your trial or upgrade in MarkSmith.";
+            try {
+                const errData = await resp.json();
+                if (errData && (errData.message || errData.error)) {
+                    msg = `MarkSmith Pro Required: ${errData.message || errData.error}`;
+                }
+            } catch {}
+            throw new Error(msg);
+        }
+        throw new Error(`Marksmith returned HTTP ${resp.status}. Is the Local REST API on?`);
+    }
 
     const buf = await resp.arrayBuffer();
     if (!buf.byteLength) throw new Error("Marksmith returned an empty file.");

@@ -328,10 +328,14 @@ namespace MarkSmith.Cli
                         await new MarkdownExportService().ExportAsync(markdown, outputPath, settings);
                         Console.WriteLine($"✓ [{DateTime.Now:HH:mm:ss}] Exported Markdown: {outputPath}");
                     }
+                    else if (ext == ".pdf")
+                    {
+                        throw new NotSupportedException("PDF export requires the Desktop app (WebView2 Chromium engine). In CLI, use .docx, .dotx, .html, .epub, .pptx, .md, or .png.");
+                    }
                     else
                     {
                         throw new NotSupportedException(
-                            $"Unsupported output extension '{ext}'. Use .docx, .dotx, .html, .epub, .pptx, .md or .png.");
+                            $"Unsupported output extension '{ext}'. Use .docx, .dotx, .html, .epub, .pptx, .md or .png. (Note: PDF export requires the Desktop app WebView2 Chromium engine).");
                     }
                 }
 
@@ -450,19 +454,20 @@ namespace MarkSmith.Cli
                     string targetDir = outputDir ?? (Path.GetDirectoryName(file) ?? searchDir);
                     if (recursive)
                     {
+                        string baseDir = outputDir ?? searchDir;
                         try
                         {
                             string relPath = Path.GetRelativePath(searchDir, file);
                             string relDir = Path.GetDirectoryName(relPath) ?? "";
                             if (!string.IsNullOrEmpty(relDir))
                             {
-                                targetDir = Path.Combine(outputDir, relDir);
+                                targetDir = Path.Combine(baseDir, relDir);
                                 Directory.CreateDirectory(targetDir);
                             }
                         }
                         catch
                         {
-                            targetDir = outputDir;
+                            targetDir = baseDir;
                         }
                     }
 
@@ -507,6 +512,8 @@ namespace MarkSmith.Cli
                         case "markdown":
                             await new MarkdownExportService().ExportAsync(md, outFile, settings).ConfigureAwait(false);
                             break;
+                        case "pdf":
+                            throw new NotSupportedException("PDF batch export requires the Desktop app (WebView2 Chromium engine). Use docx, html, epub, pptx, or md.");
                         default:
                             await File.WriteAllTextAsync(outFile, htmlService.Render(md, settings, theme))
                                       .ConfigureAwait(false);
@@ -563,7 +570,7 @@ namespace MarkSmith.Cli
             Console.WriteLine("  marksmith validate <input.md>");
             Console.WriteLine("  marksmith <input.md> <output.docx|.dotx|.html|.epub|.pptx|.md|.png> [--theme <name>] [--stream] [--watch]");
             Console.WriteLine("  marksmith suite (or doctor / status)");
-            Console.WriteLine("  marksmith mcp [--transport <stdio|sse>] [--port <port>]");
+            Console.WriteLine("  marksmith mcp [--transport <stdio>]");
             Console.WriteLine("  marksmith mcp setup [--write-claude]");
             Console.WriteLine("  marksmith render-image <input.md> <output.png> [--width <w>] [--height <h>] [--scale <s>] [--theme <theme>]");
             Console.WriteLine("  marksmith batch <folder|glob> [--output <dir>] [--format <docx|html|epub|pptx|md>] [--stream] [--concurrency <n>] [-r|--recursive] [-f|--continue-on-error]");
@@ -582,6 +589,8 @@ namespace MarkSmith.Cli
             Console.WriteLine("  --width <w>               Snapshot logical width in pixels (default 1200)");
             Console.WriteLine("  --height <h>              Snapshot logical height in pixels (0 = auto height)");
             Console.WriteLine("  --scale <s>               High-DPI device scale multiplier (default 2.0)");
+            Console.WriteLine();
+            Console.WriteLine("  Note: PDF export requires the Desktop app (WebView2 Chromium engine).");
             Console.WriteLine();
             Console.WriteLine("Trace Modes: CrossHatch, TopographicWaves, Calligraphic, Engraved, Edges, Scanlines, Silhouette");
         }

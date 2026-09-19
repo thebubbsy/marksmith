@@ -1,4 +1,4 @@
-# Marksmith - All-in-One Build Script (x64 & x86)
+# Marksmith - All-in-One Build Script (x64 & arm64)
 # Stops running instances and compiles debug/release binaries for both architectures.
 
 $ErrorActionPreference = "Stop"
@@ -14,8 +14,8 @@ Write-Host "[2/3] Building Marksmith Desktop (x64 Release)..." -ForegroundColor 
 dotnet build "$ProjectFile" -c Release /p:Platform=x64 --nologo
 if ($LASTEXITCODE -ne 0) { throw "x64 build failed with exit code $LASTEXITCODE" }
 
-Write-Host "[3/3] Building Marksmith Desktop (x86 Release)..." -ForegroundColor Green
-dotnet build "$ProjectFile" -c Release /p:Platform=x86 --nologo
-if ($LASTEXITCODE -ne 0) { throw "x86 build failed with exit code $LASTEXITCODE" }
+Write-Host "[3/3] Building Marksmith Desktop (arm64 Release)..." -ForegroundColor Green
+dotnet build "$ProjectFile" -c Release /p:Platform=arm64 --nologo
+if ($LASTEXITCODE -ne 0) { throw "arm64 build failed with exit code $LASTEXITCODE" }
 
-Write-Host "`n✅ All-in-One Build Complete! (x64 & x86)" -ForegroundColor Cyan
+Write-Host "`n✅ All-in-One Build Complete! (x64 & arm64)" -ForegroundColor Cyan

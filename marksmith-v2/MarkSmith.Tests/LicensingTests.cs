@@ -709,4 +709,36 @@ public class FeatureClassifierTests
         foreach (FeatureId id in Enum.GetValues<FeatureId>())
             Assert.False(string.IsNullOrWhiteSpace(FeatureClassifier.DisplayName(id)));
     }
+
+    [Fact]
+    public void CanStartTrial_Lifecycle_AccuratelyReflectsEligibility()
+    {
+        var service = new LicenseService();
+        service.Load();
+        service.ResetToFree();
+
+        // 1. Fresh Free user is eligible
+        Assert.True(service.CanStartTrial);
+        Assert.True(service.State.CanStartTrial);
+
+        // 2. Starting trial -> active trial is NOT eligible to start again
+        var (ok, _) = service.StartTrial();
+        Assert.True(ok);
+        Assert.False(service.CanStartTrial);
+        Assert.False(service.State.CanStartTrial);
+
+        // 3. Consume all 3 exports -> trial expires, TrialUsed becomes true -> NOT eligible
+        service.ConsumeDocxExport();
+        service.ConsumeDocxExport();
+        service.ConsumeDocxExport();
+        Assert.Equal(Edition.Free, service.State.Edition);
+        Assert.True(service.State.TrialUsed);
+        Assert.False(service.CanStartTrial);
+        Assert.False(service.State.CanStartTrial);
+
+        // 4. Resetting to free restores eligibility
+        service.ResetToFree();
+        Assert.True(service.CanStartTrial);
+        Assert.True(service.State.CanStartTrial);
+    }
 }

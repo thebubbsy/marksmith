@@ -747,12 +747,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             LicenseBanner.Severity = InfoBarSeverity.Warning;
             LicenseBanner.Title = "MarkSmith Free";
-            LicenseBanner.Message = "DOCX/PPTX export and automation are Pro features. Start your 3-export trial or upgrade.";
+            LicenseBanner.Message = App.License.CanStartTrial
+                ? "DOCX/PPTX export and automation are Pro features. Start your 3-export trial or upgrade."
+                : "DOCX/PPTX export and automation are Pro features. Upgrade to Pro to unlock.";
             if (LicenseActionButton is not null)
             {
-                LicenseActionButton.Content = "Start 3-export trial";
                 LicenseActionButton.Click -= OnStartTrialClick;
-                LicenseActionButton.Click += OnStartTrialClick;
+                LicenseActionButton.Click -= OnUpgradeClick;
+                if (App.License.CanStartTrial)
+                {
+                    LicenseActionButton.Content = "Start 3-export trial";
+                    LicenseActionButton.Click += OnStartTrialClick;
+                }
+                else
+                {
+                    LicenseActionButton.Content = "Upgrade to Pro";
+                    LicenseActionButton.Click += OnUpgradeClick;
+                }
                 LicenseActionButton.Visibility = Visibility.Visible;
             }
         }
@@ -1405,17 +1416,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async Task<bool> ShowProGateAsync(Models.FeatureId feature)
     {
         var name = Models.FeatureClassifier.DisplayName(feature);
-        var trialUnlocks = feature == Models.FeatureId.DocxExport; // the trial is a single DOCX export
+        var trialUnlocks = feature == Models.FeatureId.DocxExport && App.License.CanStartTrial;
         var dialog = new ContentDialog
         {
             Title = name + " is a MarkSmith Pro feature",
             Content = trialUnlocks
-                ? "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
+                ? "Your free plan covers Markdown, PDF and HTML exports. " + name +
                   " is a Pro feature — start your 3-export trial to try it, or upgrade to unlock it permanently."
-                : "Your free plan covers Markdown, PDF, HTML and Markdown exports. " + name +
+                : "Your free plan covers Markdown, PDF and HTML exports. " + name +
                   " is a Pro feature — upgrade to unlock it.",
             PrimaryButtonText = trialUnlocks ? "Start 3-export trial" : "Upgrade to Pro",
-            SecondaryButtonText = "Upgrade to Pro",
+            SecondaryButtonText = trialUnlocks ? "Upgrade to Pro" : string.Empty,
             CloseButtonText = "Not now",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = RootGrid.XamlRoot,
@@ -2818,6 +2829,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Generate PDF", "Action", () => ViewModel.ConvertToPdfAsync()),
             new("Export DOCX", "Action", () => ViewModel.ConvertToDocxAsync()),
             new("Export PPTX", "Action", () => ViewModel.ConvertToPptxAsync()),
+            new("Export EPUB", "Action", () => ViewModel.ConvertToEpubAsync()),
+            new("Export HTML", "Action", () => ViewModel.ConvertToHtmlAsync()),
             new("Export all formats", "Action", () => ViewModel.ExportAllAsync()),
             new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Platform Suite & Integrations Hub", "Suite", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),

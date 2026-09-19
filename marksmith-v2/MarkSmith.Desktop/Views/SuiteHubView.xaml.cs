@@ -28,7 +28,8 @@ public sealed partial class SuiteHubView : UserControl
         {
             var asm = Assembly.GetExecutingAssembly();
             var ver = asm.GetName().Version?.ToString(3) ?? "3.0.0";
-            VersionText.Text = $"v{ver} · x64 · .NET 8";
+            var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+            VersionText.Text = $"v{ver} · {arch} · .NET 8";
 
             AppServices.License.Load();
             if (AppServices.License.CanExportDocx)
