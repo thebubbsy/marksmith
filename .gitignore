@@ -129,3 +129,5 @@ private-key.pem
 
 .git.broken/
 *.tsbuildinfo
+.env
+*.env.local
