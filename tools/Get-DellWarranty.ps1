@@ -48,27 +48,44 @@ try {
 function Import-EnvConfigFile {
     param([string]$Path)
     if (-not $Path) {
-        $candidates = @(
-            (Join-Path $PSScriptRoot '.env'),
-            '.\.env',
-            (Join-Path ([Environment]::GetFolderPath('UserProfile')) '.env')
-        )
+        $candidates = [System.Collections.Generic.List[string]]::new()
+        if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+            $candidates.Add((Join-Path -Path $PSScriptRoot -ChildPath '.env'))
+        }
+        try {
+            $cur = (Get-Location -ErrorAction SilentlyContinue).Path
+            if (-not [string]::IsNullOrWhiteSpace($cur)) {
+                $candidates.Add((Join-Path -Path $cur -ChildPath '.env'))
+            }
+        } catch { }
+        $userProfile = [Environment]::GetFolderPath('UserProfile')
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $candidates.Add((Join-Path -Path $userProfile -ChildPath '.env'))
+        }
         foreach ($c in $candidates) {
-            if (Test-Path $c) {
-                $Path = $c
-                break
+            if (-not [string]::IsNullOrWhiteSpace($c)) {
+                try {
+                    if (Test-Path -LiteralPath $c -ErrorAction SilentlyContinue) {
+                        $Path = $c
+                        break
+                    }
+                } catch { }
             }
         }
     }
-    if ($Path -and (Test-Path $Path)) {
-        Get-Content $Path | Where-Object { $_ -match '^\s*[^#=]+\s*=' } | ForEach-Object {
-            $key, $val = $_ -split '=', 2
-            $k = $key.Trim()
-            $v = $val.Trim().Trim('"').Trim("'")
-            if (-not [string]::IsNullOrWhiteSpace($k)) {
-                [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+    if ($Path) {
+        try {
+            if (Test-Path -LiteralPath $Path -ErrorAction SilentlyContinue) {
+                Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue | Where-Object { $_ -match '^\s*[^#=]+\s*=' } | ForEach-Object {
+                    $key, $val = $_ -split '=', 2
+                    $k = $key.Trim()
+                    $v = $val.Trim().Trim('"').Trim("'")
+                    if (-not [string]::IsNullOrWhiteSpace($k)) {
+                        [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+                    }
+                }
             }
-        }
+        } catch { }
     }
 }
 
@@ -266,7 +283,7 @@ switch ($OutputFormat) {
     }
     'Markdown' {
         $md = @"
-# 🏷️ Dell Asset Warranty & Hardware Refresh Assessment: $($warrantySummary.ServiceTag)
+# Dell Asset Warranty & Hardware Refresh Assessment: $($warrantySummary.ServiceTag)
 
 > **Model:** $($warrantySummary.SystemModel)  
 > **Service Tag:** ``$($warrantySummary.ServiceTag)``  
@@ -277,25 +294,25 @@ switch ($OutputFormat) {
 
 ---
 
-## ⚡ Hardware Refresh Determination
+## Hardware Refresh Determination
 $($warrantySummary.RefreshRecommendation)
 
 ---
 
-## 📋 Entitlements & Service Contracts Breakdown
+## Entitlements & Service Contracts Breakdown
 | Service Level Description | Type | Start Date | End Date | Status |
 | :--- | :--- | :--- | :--- | :--- |
 $($warrantySummary.Entitlements | ForEach-Object { "| $($_.ServiceLevelDescription) | $($_.EntitlementType) | $($_.StartDate) | $($_.EndDate) | $($_.Status) |" } | Out-String).TrimEnd()
 
 ---
-*Generated autonomously via Dell Technologies Enterprise Warranty API (v5)*
+*Generated via Dell Technologies Enterprise Warranty API (v5)*
 "@
         return $md
     }
     'Table' {
-        Write-Host "`n==========================================================================" -ForegroundColor Cyan
-        Write-Host " 🏷️ DELL ASSET WARRANTY & REFRESH ASSESSMENT: $($warrantySummary.ServiceTag)" -ForegroundColor Cyan
-        Write-Host "==========================================================================" -ForegroundColor Cyan
+        Write-Host "`n==========================================================================" -ForegroundColor Gray
+        Write-Host " DELL ASSET WARRANTY & REFRESH ASSESSMENT: $($warrantySummary.ServiceTag)" -ForegroundColor White
+        Write-Host "==========================================================================" -ForegroundColor Gray
         Write-Host " Machine Model         : " -NoNewline; Write-Host $warrantySummary.SystemModel -ForegroundColor White
         Write-Host " Product Line          : " -NoNewline; Write-Host $warrantySummary.ProductLineDescription -ForegroundColor White
         Write-Host " Factory Ship Date     : " -NoNewline; Write-Host "$($warrantySummary.ShipDate) ($($warrantySummary.DeviceAgeYears) years old)" -ForegroundColor White
@@ -309,15 +326,15 @@ $($warrantySummary.Entitlements | ForEach-Object { "| $($_.ServiceLevelDescripti
             Write-Host $warrantySummary.WarrantyStatus -ForegroundColor Red
         }
         Write-Host "--------------------------------------------------------------------------" -ForegroundColor DarkGray
-        Write-Host " 🎯 REFRESH VERDICT    : " -NoNewline
+        Write-Host " REFRESH VERDICT       : " -NoNewline
         if ($warrantySummary.IsUnderWarranty) {
             Write-Host $warrantySummary.RefreshVerdict -ForegroundColor Green
         } else {
             Write-Host $warrantySummary.RefreshVerdict -ForegroundColor Red
         }
-        Write-Host " ℹ️ Details            : $($warrantySummary.RefreshRecommendation)" -ForegroundColor Gray
+        Write-Host " Details               : $($warrantySummary.RefreshRecommendation)" -ForegroundColor Gray
         Write-Host "--------------------------------------------------------------------------" -ForegroundColor DarkGray
-        Write-Host " 📋 Contract Entitlements ($($warrantySummary.Entitlements.Count) Total):" -ForegroundColor Cyan
+        Write-Host " Contract Entitlements ($($warrantySummary.Entitlements.Count) Total):" -ForegroundColor White
         $warrantySummary.Entitlements | Format-Table ServiceLevelDescription, EntitlementType, StartDate, EndDate, Status -AutoSize
         return $warrantySummary
     }
