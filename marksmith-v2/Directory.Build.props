@@ -13,7 +13,7 @@
     <!-- v3.0.0 shipped without step 1 of the checklist below being run, so this sat at 3.0.0 and
          every dev build stamped "3.0.0-dev.x" — which SemVer ranks BELOW the published 3.0.0.
          That is precisely the "dev looks outdated" trap this scheme exists to prevent. -->
-    <MarksmithBaseVersion>3.1.1</MarksmithBaseVersion>
+    <MarksmithBaseVersion>3.2.0</MarksmithBaseVersion>
   </PropertyGroup>
 
   <!-- Stamp every shipped project, not just the desktop app. MarkSmith.Express declared no

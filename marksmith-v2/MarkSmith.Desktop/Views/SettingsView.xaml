@@ -548,7 +548,7 @@
                         <HyperlinkButton Content="License agreement (EULA)" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/LICENSE" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                         <HyperlinkButton Content="Third-party notices" NavigateUri="https://github.com/thebubbsy/MarkSmith/blob/main/THIRD-PARTY-NOTICES.md" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                         <!-- ISS-008: tip jar for the project. -->
-                        <HyperlinkButton Content="☕ Buy Me a Coffee — support development" NavigateUri="https://buymeacoffee.com/marksmith" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                        <HyperlinkButton Content="☕ Buy Me a Coffee — support development" ToolTipService.ToolTip="Matthew Bubb is software for nerds" NavigateUri="https://buymeacoffee.com/mbubbtechz" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                     </StackPanel>
                 </Border>
 

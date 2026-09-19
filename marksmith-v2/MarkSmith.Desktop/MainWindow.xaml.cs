@@ -1404,7 +1404,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // ISS-008: open the tip jar — a no-strings donation page for the project.
     private async void OnBuyCoffeeClick(object sender, RoutedEventArgs e)
     {
-        var coffeeUrl = new Uri("https://buymeacoffee.com/marksmith");
+        var coffeeUrl = new Uri("https://buymeacoffee.com/mbubbtechz");
         await Windows.System.Launcher.LaunchUriAsync(coffeeUrl);
     }
 

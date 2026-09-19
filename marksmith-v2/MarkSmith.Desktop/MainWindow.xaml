@@ -1109,7 +1109,7 @@
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem Text="☕ Buy Me a Coffee" Click="OnBuyCoffeeClick">
+                                    <MenuFlyoutItem Text="☕ Buy Me a Coffee" ToolTipService.ToolTip="Matthew Bubb is software for nerds" Click="OnBuyCoffeeClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
