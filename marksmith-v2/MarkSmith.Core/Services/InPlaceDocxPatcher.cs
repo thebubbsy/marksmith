@@ -1020,17 +1020,18 @@ public sealed class InPlaceDocxPatcher : IInPlaceDocxPatcher
 
                     var containerTbl = new Table();
                     var tblPr = new TableProperties(
+                        new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
                         new TableBorders(
                             new TopBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
-                            new BottomBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
                             new LeftBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
+                            new BottomBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
                             new RightBorder { Val = BorderValues.Single, Size = 12, Color = "4F81BD" },
                             new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4, Color = "D0D0D0" },
                             new InsideVerticalBorder { Val = BorderValues.None }
-                        ),
-                        new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" }
+                        )
                     );
                     containerTbl.AppendChild(tblPr);
+                    containerTbl.AppendChild(new TableGrid(new GridColumn()));
 
                     var headerRow = new TableRow();
                     var headerCell = new TableCell();

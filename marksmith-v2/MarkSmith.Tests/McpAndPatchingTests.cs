@@ -202,6 +202,53 @@ public class McpAndPatchingTests : IDisposable
     }
 
     [Fact]
+    public void InPlaceDocxPatcher_ReplaceWithContainerBlock_ProducesSchemaValidTable()
+    {
+        string md = "# Header\n\nOriginal paragraph text that will be replaced.\n\nFinal paragraph.";
+        string docxPath = CreateSampleDocx("patch_container.docx", md);
+
+        var inspector = new DocxInspector();
+        var report = inspector.Inspect(docxPath);
+        var targetBlock = report.Blocks.First(b => b.Text.Contains("Original paragraph text"));
+
+        var patcher = new InPlaceDocxPatcher();
+        var result = patcher.ApplyPatch(docxPath, new DocxPatchRequest
+        {
+            DocxPath = docxPath,
+            Operations = new[]
+            {
+                new DocxPatchOperationItem
+                {
+                    Op = PatchOperation.Replace,
+                    Target = new BlockSelector { ParaId = targetBlock.ParaId },
+                    Content = ":::chart\nRevenue: 100\nCost: 50\n:::"
+                }
+            }
+        });
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(1, result.OperationsApplied);
+
+        // The generic container transpiler (TryTranspileContainers) renders unrecognized
+        // ::: blocks as a plain table. It must emit a schema-valid CT_Tbl: TableGrid present,
+        // and TableBorders children in the CT_TblBorders sequence (top, left, bottom, right, insideH, insideV).
+        using var doc = WordprocessingDocument.Open(docxPath, false);
+        var table = doc.MainDocumentPart!.Document.Body!.Descendants<Table>()
+            .First(t => t.Descendants<Text>().Any(t2 => t2.Text.Contains("Revenue: 100")));
+        Assert.NotNull(table.GetFirstChild<TableGrid>());
+
+        var borders = table.GetFirstChild<TableProperties>()!.GetFirstChild<TableBorders>()!;
+        var borderOrder = borders.ChildElements.Select(e => e.GetType().Name).ToList();
+        Assert.Equal(
+            new[] { "TopBorder", "LeftBorder", "BottomBorder", "RightBorder", "InsideHorizontalBorder", "InsideVerticalBorder" },
+            borderOrder);
+
+        var validator = new OpenXmlValidator(FileFormatVersions.Office2016);
+        var errors = validator.Validate(doc).Where(e => !e.Description.Contains("attribute is not declared")).ToList();
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void InPlaceDocxPatcher_InsertBeforeAndInsertAfter()
     {
         string md = "# Anchor\n\nMiddle Target Paragraph.\n\nEnd Paragraph.";
