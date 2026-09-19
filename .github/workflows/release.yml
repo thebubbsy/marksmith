@@ -47,6 +47,9 @@ jobs:
         # and similar Copilot+ PCs). Each leg publishes, zips, builds its own installer, and
         # uploads its own assets, so a release ends up with both architectures.
         arch: [x64, arm64]
+    env:
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -73,11 +76,11 @@ jobs:
       #                              [Convert]::ToBase64String([IO.File]::ReadAllBytes('cert.pfx'))
       #   WINDOWS_CERT_PASSWORD    - the password for that .pfx
       - name: Sign application binaries
-        if: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
         shell: pwsh
         env:
-          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          CERT_B64: ${{ env.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ env.WINDOWS_CERT_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Stop'
           $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
@@ -121,11 +124,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
       - name: Sign installer
-        if: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
         shell: pwsh
         env:
-          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          CERT_B64: ${{ env.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ env.WINDOWS_CERT_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Stop'
           $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'

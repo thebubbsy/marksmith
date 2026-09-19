@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>marksmith</id>
-    <version>3.1.0</version>
+    <version>3.1.1</version>
     <packageSourceUrl>https://github.com/thebubbsy/marksmith/tree/main/packaging/chocolatey</packageSourceUrl>
     <owners>thebubbsy</owners>
     <title>Marksmith</title>
