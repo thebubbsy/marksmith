@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <!-- Linux native bindings for SkiaSharp so diagram rasterization works in Linux Docker containers -->
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
   </ItemGroup>
 
 </Project>
