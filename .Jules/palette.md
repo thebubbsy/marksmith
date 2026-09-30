@@ -1,0 +1,3 @@
+## 2024-08-15 - Add Tooltips to Mermaid Canvas Quick-Add Buttons
+**Learning:** Found an accessibility issue pattern in WinUI3: icon-only buttons (`<Button>` containing only `<TextBlock Text="▲"/>`) lack context for screen readers and mouse hover users. WinUI3 provides `ToolTipService.ToolTip` which acts as both an accessible name and a hover tooltip.
+**Action:** Always check icon-only `<Button>` elements in XAML views for the presence of `ToolTipService.ToolTip` or `AutomationProperties.Name` and add them to provide clear context.
