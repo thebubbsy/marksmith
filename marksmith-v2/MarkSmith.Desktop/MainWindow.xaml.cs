@@ -197,6 +197,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         RootGrid.DataContext = ViewModel;
         ViewModel.Host = new BackgroundExportHostImpl(this);
 
+        // App-wide hover/press "lift" animation for every button already declared in XAML —
+        // see Services/HoverPolish.cs. Flyout and ContentDialog content isn't in the tree yet
+        // at this point, so those get polished individually where they're opened.
+        Services.HoverPolish.Apply(RootGrid);
+
         // Style-panel expanders auto-scroll their newly-revealed fields into view. Wired in
         // code-behind because the XAML Expanded="…" attribute crashes XamlCompiler (it exits 1 with
         // no output.json), whereas subscribing here is equivalent and build-safe. Note the control

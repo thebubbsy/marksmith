@@ -87,7 +87,8 @@
                                   IsHitTestVisible="True"
                                   Background="Transparent"
                                   PointerEntered="OnNodePointerEntered"
-                                  PointerExited="OnNodePointerExited">
+                                  PointerExited="OnNodePointerExited"
+                                  Loaded="OnNodeTemplateLoaded">
                                 <Grid.RenderTransform>
                                     <TranslateTransform X="{Binding X}" Y="{Binding Y}" />
                                 </Grid.RenderTransform>

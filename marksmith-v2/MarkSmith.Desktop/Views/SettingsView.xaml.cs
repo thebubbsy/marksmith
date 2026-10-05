@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
 using MarkSmith.Plugins;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views;
 
@@ -24,6 +25,7 @@ public sealed partial class SettingsView : UserControl
         BuildPluginCards();
         App.License.Changed += OnLicenseChanged;
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
+        HoverPolish.Apply(this);
     }
 
     private void OnGoogleSecretChanged(object sender, RoutedEventArgs e)

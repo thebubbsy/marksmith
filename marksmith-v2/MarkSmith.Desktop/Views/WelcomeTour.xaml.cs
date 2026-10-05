@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views;
 
@@ -24,6 +25,7 @@ public sealed partial class WelcomeTour : UserControl
         InitializeComponent();
         _pages = new[] { Page0, Page1, Page2, Page3, Page4, Page5, Page6 };
         Show(0);
+        HoverPolish.Apply(this);
     }
 
     private int Last => _pages.Length - 1;

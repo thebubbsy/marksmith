@@ -8,6 +8,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views;
 
@@ -27,6 +28,7 @@ public sealed partial class ImageInsertControl : UserControl
     {
         InitializeComponent();
         _restBorderBrush = DropZone.BorderBrush;
+        HoverPolish.Apply(this);
     }
 
     // ---- drag & drop ---------------------------------------------------------------------------

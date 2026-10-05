@@ -30,6 +30,7 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
             this.Activated += OnWindowActivated;
+            HoverPolish.Apply(this.RootGrid);
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)

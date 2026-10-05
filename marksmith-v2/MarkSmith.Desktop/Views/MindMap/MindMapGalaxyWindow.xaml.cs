@@ -14,6 +14,7 @@ using Windows.Foundation;
 using Windows.Storage.Pickers;
 using Windows.UI;
 using MarkSmith.Models.MindMap;
+using MarkSmith.Services;
 using MarkSmith.Services.MindMap;
 using MarkSmith.ViewModels.MindMap;
 
@@ -54,6 +55,7 @@ namespace MarkSmith.Views.MindMap
 
             this.Activated += OnWindowActivated;
             this.RootGrid.KeyDown += OnRootKeyDown;
+            HoverPolish.Apply(this.RootGrid);
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Foundation;
+using MarkSmith.Services;
 using MarkSmith.ViewModels.ShapeStudio;
 
 namespace MarkSmith.Views.ShapeStudio
@@ -24,6 +25,7 @@ namespace MarkSmith.Views.ShapeStudio
             this.RootGrid.DataContext = ViewModel;
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
+            HoverPolish.Apply(this.RootGrid);
         }
 
         private async void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

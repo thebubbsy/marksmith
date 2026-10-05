@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using MarkSmith.Services;
 using MarkSmith.ViewModels.Mermaid;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
@@ -74,6 +75,11 @@ public sealed partial class MermaidCanvasControl : UserControl
         NodesItemsControl.DoubleTapped += OnNodesItemsControlDoubleTapped;
 
         CanvasScrollViewer.ViewChanged += OnCanvasViewChanged;
+
+        // Only the static toolbar chrome (zoom in/out/fit) is covered here — the per-node quick-add
+        // buttons live in NodesItemsControl's DataTemplate and are polished individually as each
+        // node is realized (see OnNodeTemplateLoaded).
+        HoverPolish.Apply(this);
     }
 
     #region Zoom Controls
@@ -435,6 +441,11 @@ public sealed partial class MermaidCanvasControl : UserControl
         if (sender is FrameworkElement { DataContext: DiagramNodeViewModel node })
             node.IsHovered = false;
     }
+
+    // Each node is its own DataTemplate instance realized on demand, so the app-wide hover-lift
+    // pass at construction time never sees the quick-add direction buttons inside it. Loaded
+    // fires once per realized node, so wire them up here instead.
+    private void OnNodeTemplateLoaded(object sender, RoutedEventArgs e) => HoverPolish.Apply((DependencyObject)sender);
 
     // ---- Double-click empty canvas → drop a fresh node straight into inline edit --------------
     private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

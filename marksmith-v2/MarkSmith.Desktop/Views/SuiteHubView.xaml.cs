@@ -20,6 +20,7 @@ public sealed partial class SuiteHubView : UserControl
     {
         InitializeComponent();
         PopulateMetadata();
+        HoverPolish.Apply(this);
     }
 
     private void PopulateMetadata()

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
+using MarkSmith.Services;
 
 namespace MarkSmith.Controls
 {
@@ -27,6 +28,7 @@ namespace MarkSmith.Controls
         {
             this.InitializeComponent();
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
+            HoverPolish.Apply(this);
         }
 
         private async void OnGetExtensionClick(object sender, RoutedEventArgs e)

@@ -79,6 +79,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
 
         // Lazily spin up the rendered-preview WebView2 the first time its tab is selected.
         LeftPanePivot.SelectionChanged += OnLeftPaneSelectionChanged;
+
+        HoverPolish.Apply(this);
     }
 
     // Seeds the Code pane once the ViewModel is available (DataContext is assigned after the

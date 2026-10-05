@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views.Mermaid;
 
@@ -10,6 +11,7 @@ public sealed partial class NodePaletteControl : UserControl
     public NodePaletteControl()
     {
         InitializeComponent();
+        HoverPolish.Apply(this);
     }
 
     private void OnCategoryPillClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)

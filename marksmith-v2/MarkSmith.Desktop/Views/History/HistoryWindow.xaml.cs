@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using MarkSmith.Services;
 using MarkSmith.ViewModels;
 using MarkSmith.ViewModels.History;
 using Microsoft.UI.Xaml;
@@ -32,6 +33,7 @@ public sealed partial class HistoryWindow : Window
         _ = _vm.LoadCommand.ExecuteAsync(null);
 
         RootGrid.KeyDown += OnRootKeyDown;
+        HoverPolish.Apply(RootGrid);
     }
 
     private async Task InitializeWebViewAsync()
