@@ -86,3 +86,79 @@ Reviewed: no prior `PLANNING.md` existed — this is the first run.
 5. (Unrelated to this routine, left here only as a reminder — see memory
    `marksmith-examples-need-regen`): once PRs #85 and #86 are both merged, regenerate
    `examples/*.docx`/`*.pdf` once from a branch containing both fixes.
+
+### 2026-10-06 (scheduled routine run #2)
+
+Reviewed: the 2026-10-06 run #1 entry above — picked up its priority-ordered list and worked
+items 1 and 3.
+
+**Shipped** (commit follows this entry):
+- `Services/HoverPolish.cs`: added `ShowPolishedAsync(this ContentDialog)` — an extension method
+  that hooks the dialog's `Opened` event to run `Apply` over the whole dialog (so its
+  Primary/Secondary/Close buttons, plus any custom buttons placed in `Content`, get the same
+  hover lift) before calling the real `ShowAsync()`. Also added `AttachOnOpen(Flyout)` for plain
+  (non-`MenuFlyout`) flyouts, for future use — see "Known gaps" below for why it isn't wired up
+  everywhere yet.
+- Replaced all 22 `dialog.ShowAsync()`/`dlg.ShowAsync()` call sites across `MainWindow.xaml.cs`,
+  `Views/History/HistoryWindow.xaml.cs`, `Views/SettingsView.xaml.cs`,
+  `Views/MindMap/MindMapGalaxyWindow.xaml.cs`, and `Views/Mermaid/MermaidDiagramStudioWindow.cs`
+  with `MarkSmith.Services.HoverPolish.ShowPolishedAsync(...)`. This closes known gap #1 from the
+  prior entry for `ContentDialog` specifically — every confirmation dialog, plugin install/remove
+  flow, and "create new X" prompt in the app now has motion feedback on its buttons, not just a
+  color tint.
+- Tooltip sweep (priority 3): wrote a small one-off PowerShell heuristic (icon-only button body —
+  `FontIcon`/`SymbolIcon` with no sibling `TextBlock`/`Content` text — and no
+  `ToolTipService.ToolTip` anywhere in its own tag) across every `.xaml` file, covering `Button`,
+  `ToggleButton`, `RepeatButton`, and `HyperlinkButton`. Found exactly one real gap:
+  `Views/MindMap/MindMapGalaxyWindow.xaml`'s node-preview-card close button (✕ glyph, no label)
+  was missing a tooltip — added `ToolTipService.ToolTip="Close preview"`, matching the app's
+  existing "Close (Escape)" wording convention from `MainWindow.xaml`. Everything else the
+  heuristic flagged turned out to be a labelled button (icon + text) that the earlier regex
+  mis-matched — the app's tooltip coverage was already solid, consistent with the prior entry's
+  note that this was "already close."
+
+**Verified:**
+- `dotnet build` (Debug/x64): 0 warnings, 0 errors, both before and after the tooltip fix.
+- Smoke-launched `Marksmith.exe` twice (once per build): started cleanly, no crash, ran ~6s,
+  closed via `taskkill` both times.
+- Still could not visually confirm the dialog hover motion or the new tooltip in this session —
+  same constraint as run #1, no native Windows UI automation/screenshot tool available to this
+  autonomous run. **Please eyeball a couple of `ContentDialog`s (e.g. "New Document", the plugin
+  install/remove confirmation, the history/galaxy rename prompts) next time you have the app
+  open** to confirm their buttons lift correctly and nothing looks stretched/clipped by the scale
+  transform at dialog width.
+
+**Known gaps — deliberately not fixed this run:**
+1. Plain `Flyout` content (as opposed to `MenuFlyout`, which intentionally keeps its stock
+   highlight) still isn't wired to `HoverPolish` even though `AttachOnOpen(Flyout)` now exists.
+   Audited every non-menu `Flyout` in the app: the lint/outline/history flyouts in
+   `MainWindow.xaml` only contain `ListView`s (no buttons to polish), and the two node
+   fill/stroke-color flyouts in `MermaidDiagramStudioControl.xaml` host a `ColorPicker`, which
+   already has its own rich built-in interaction model — layering a scale lift onto its internal
+   "more colors" toggle felt like a real risk of visual conflict for low reward, so left alone.
+   If a *future* flyout gets added with plain buttons in its content, call
+   `HoverPolish.AttachOnOpen(thatFlyout)` once (e.g. in the view's constructor).
+2. `MenuFlyoutItem` (the item type inside every `MenuFlyout` in the app — the ⋯ menu, "Copy MCP
+   Config", align/distribute, etc.) is explicitly *not* given the scale lift: it's not a
+   `ButtonBase`, and a per-row scale animation inside a dropdown list would look broken next to
+   WinUI's standard full-row highlight. This is a deliberate exclusion, not a gap.
+3. Items 2 and 4 from the prior entry's priority list (per-studio empty-state pass; Suite
+   Hub/Settings typography rhythm) weren't touched this run — still open, see below.
+
+**Next up, in priority order, for whoever/whatever picks this routine up next:**
+1. Pass over `MindMapGalaxyWindow`, `ShapeDesignStudioWindow`, `SmartArtDesignStudioWindow`
+   individually: confirm each has a deliberate, polished empty/first-run state (not just a blank
+   canvas) and that their own toolbars got the hover lift (carried over from run #1, still open).
+2. Typography/spacing consistency sweep across the 6 Suite Hub cards and the Settings plugin
+   cards — they're already close, just verify padding/line-height rhythm matches exactly (carried
+   over from run #1, still open).
+3. Next time the app is open in a GUI session (this routine only has non-interactive/headless
+   runs so far): visually confirm (a) the original button hover/press lift from run #1 feels
+   right — tune `HoverScale`/`PressScale`/`AnimationDuration` in `HoverPolish.cs` if not, and (b)
+   this run's `ContentDialog` lift doesn't look odd on any dialog, especially ones with a
+   `PrimaryButtonStyle="{StaticResource AccentButtonStyle}"` override.
+4. Focus-visual consistency and keyboard navigation highlighting — still untouched by either run
+   so far; both runs have been motion/mouse-only.
+5. (Unrelated to this routine, left here only as a reminder — see memory
+   `marksmith-examples-need-regen`): once PRs #85 and #86 are both merged, regenerate
+   `examples/*.docx`/`*.pdf` once from a branch containing both fixes.

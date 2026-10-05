@@ -1349,7 +1349,7 @@ namespace MarkSmith.Views.MindMap
                 Content = panel
             };
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary && combo.SelectedItem is MindMapNodeViewModel target)
+            if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && combo.SelectedItem is MindMapNodeViewModel target)
             {
                 ViewModel.ConnectNodes(source.Id, target.Id, labelBox.Text);
                 RequestRedraw();
@@ -1379,7 +1379,7 @@ namespace MarkSmith.Views.MindMap
                 Content = combo
             };
 
-            var result = await dialog.ShowAsync();
+            var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
             if (result == ContentDialogResult.Primary && combo.SelectedItem is MindMapNodeViewModel parent)
             {
                 ViewModel.ReparentNode(node.Id, parent.Id);
@@ -1412,7 +1412,7 @@ namespace MarkSmith.Views.MindMap
                 Content = box
             };
 
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) != ContentDialogResult.Primary) return;
 
             ViewModel.PushUndo("Edit tags");
             var parsed = MindMapGraph.NormalizeTags(
@@ -1521,7 +1521,7 @@ namespace MarkSmith.Views.MindMap
                 }
             };
 
-            await dialog.ShowAsync();
+            await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         }
 
         // ---- Inspector & filters ----

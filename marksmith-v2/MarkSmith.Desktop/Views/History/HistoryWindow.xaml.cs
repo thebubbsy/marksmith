@@ -125,7 +125,7 @@ public sealed partial class HistoryWindow : Window
             DefaultButton = ContentDialogButton.Primary
         };
 
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary)
         {
             var label = string.IsNullOrWhiteSpace(input.Text) ? "Manual Checkpoint" : input.Text.Trim();
             await _vm.TakeSnapshotCommand.ExecuteAsync(label);

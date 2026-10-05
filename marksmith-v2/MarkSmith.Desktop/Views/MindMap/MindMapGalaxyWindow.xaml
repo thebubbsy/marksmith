@@ -333,7 +333,8 @@
                                 <FontIcon Glyph="&#xE8A5;" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
                                 <TextBlock Text="{Binding PreviewTitle}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="300" />
                             </StackPanel>
-                            <Button Click="OnClosePreviewCardClick" HorizontalAlignment="Right" Padding="4,2" Background="Transparent" BorderThickness="0">
+                            <Button Click="OnClosePreviewCardClick" HorizontalAlignment="Right" Padding="4,2" Background="Transparent" BorderThickness="0"
+                                    ToolTipService.ToolTip="Close preview">
                                 <FontIcon Glyph="&#xE711;" FontSize="10" Opacity="0.7" />
                             </Button>
                         </Grid>

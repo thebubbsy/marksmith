@@ -347,7 +347,7 @@ public sealed partial class SettingsView : UserControl
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot,
             };
-            await dlg.ShowAsync();
+            await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dlg);
         }
     }
 }

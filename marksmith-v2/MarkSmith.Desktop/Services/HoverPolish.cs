@@ -1,4 +1,6 @@
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -25,6 +27,34 @@ internal static class HoverPolish
 
     /// <summary>Opt a control out by setting <c>Tag="NoHoverPolish"</c> in XAML.</summary>
     private const string OptOutTag = "NoHoverPolish";
+
+    /// <summary>
+    /// Shows a <see cref="ContentDialog"/> with its Primary/Secondary/Close buttons (and any custom
+    /// buttons in its Content) getting the same hover lift as the rest of the app. The dialog's
+    /// button row only joins the visual tree once the dialog opens, so this hooks <c>Opened</c>
+    /// rather than applying immediately. Use in place of <c>dialog.ShowAsync()</c>.
+    /// </summary>
+    public static IAsyncOperation<ContentDialogResult> ShowPolishedAsync(this ContentDialog dialog)
+    {
+        dialog.Opened += (sender, _) => Apply((DependencyObject)sender);
+        return dialog.ShowAsync();
+    }
+
+    /// <summary>
+    /// Wires a <see cref="Flyout"/> (not <see cref="MenuFlyout"/> — its items intentionally keep
+    /// their stock list-style highlight rather than a scale lift) so any real buttons inside its
+    /// content get polished the first time it opens. Call once, e.g. from a view's constructor.
+    /// </summary>
+    public static void AttachOnOpen(Flyout flyout)
+    {
+        flyout.Opened += (_, _) =>
+        {
+            if (flyout.Content is DependencyObject content)
+            {
+                Apply(content);
+            }
+        };
+    }
 
     public static void Apply(DependencyObject root)
     {

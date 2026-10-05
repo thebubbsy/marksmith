@@ -487,7 +487,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Primary
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         if (result == ContentDialogResult.Primary)
         {
             await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.BetaExpirationGuard.FeedbackUrl));
@@ -847,7 +847,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
         {
             ViewModel.SavePreset(box.Text);
             ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
@@ -956,7 +956,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Primary,
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
 
         if (result == ContentDialogResult.Secondary && editingCustom)
         {
@@ -1010,7 +1010,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             dialog.Resources["ContentDialogMinWidth"] = 560.0;
             dialog.Resources["ContentDialogMaxHeight"] = 940.0;
             tour.Completed += (_, _) => dialog.Hide();
-            await dialog.ShowAsync();
+            await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         }
         catch (Exception ex)
         {
@@ -1191,7 +1191,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseButtonText = "Close",
             XamlRoot = Content.XamlRoot,
         };
-        await dialog.ShowAsync();
+        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
 
     private async void OnSuiteHubClick(object sender, RoutedEventArgs e)
@@ -1232,7 +1232,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         dialog.Resources["ContentDialogMaxWidth"] = 820.0;
         dialog.Resources["ContentDialogMinWidth"] = 740.0;
         dialog.Resources["ContentDialogMaxHeight"] = 900.0;
-        await dialog.ShowAsync();
+        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
 
     // ---- Automation (clipboard watcher / folder watcher / REST API) ----
@@ -1436,7 +1436,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = RootGrid.XamlRoot,
         };
-        var result = await dialog.ShowAsync();
+        var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         if (result == ContentDialogResult.Primary)
         {
             if (trialUnlocks)
@@ -1591,7 +1591,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return (null, false);
+        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) != ContentDialogResult.Primary) return (null, false);
         var fmt = combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
         return (fmt, recurse.IsChecked == true);
     }
@@ -2001,7 +2001,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Primary,
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         if (result != ContentDialogResult.Primary) return 1; // default to exact on cancel
 
         int mode = 1;
@@ -2820,7 +2820,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
         };
-        await dialog.ShowAsync();
+        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
 
     // ---- Command palette (Ctrl+K): fuzzy search across actions, themes, and recent files ----
@@ -2938,7 +2938,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         Refresh();
         search.Focus(FocusState.Programmatic);
 
-        await dialog.ShowAsync();
+        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
 
         if (chosen is not null) await chosen.Run();
     }
@@ -2974,7 +2974,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             XamlRoot = RootGrid.XamlRoot
         };
 
-        await dialog.ShowAsync();
+        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         
         _exitRequested = true;
         Close();
@@ -4271,7 +4271,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = RootGrid.XamlRoot,
             };
-            var result = await dialog.ShowAsync();
+            var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
             if (result == ContentDialogResult.Primary)
             {
                 ViewModel.BreakUndoBurst(); // restoring the draft must undo as its own step
@@ -4615,7 +4615,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 dialog.DefaultButton = ContentDialogButton.Primary;
             }
             configure?.Invoke(dialog);
-            return await dialog.ShowAsync();
+            return await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         }
         catch (Exception ex)
         {
@@ -4833,7 +4833,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                         DefaultButton = ContentDialogButton.Primary,
                         XamlRoot = Content.XamlRoot,
                     };
-                    if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+                    if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dlg) != ContentDialogResult.Primary) return;
                     model = sheets[combo.SelectedIndex].Model;
                 }
             }

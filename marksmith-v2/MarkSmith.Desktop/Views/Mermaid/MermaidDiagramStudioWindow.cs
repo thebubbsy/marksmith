@@ -80,7 +80,7 @@ public sealed class MermaidDiagramStudioWindow : Window
                 XamlRoot = _studioControl.XamlRoot,
             };
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary)
             {
                 _allowClose = true;
                 Close();
