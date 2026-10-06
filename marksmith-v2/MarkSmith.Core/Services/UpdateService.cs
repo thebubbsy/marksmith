@@ -174,10 +174,16 @@ public sealed class UpdateService
         return new(true, false, tag, url, downloadUrl, $"You're up to date (v{currentVersion}).");
     }
 
+    /// <summary>Why the last DownloadAndInstallAsync returned false, in words for the update
+    /// banner (it used to say only "failed or was cancelled" whatever happened). Null after a
+    /// success.</summary>
+    public string? LastFailureReason { get; private set; }
+
     // Downloads the installer asset silently and executes it with zero UI prompts (/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-).
     public async Task<bool> DownloadAndInstallAsync(string downloadUrl, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(downloadUrl)) return false;
+        LastFailureReason = null;
+        if (string.IsNullOrWhiteSpace(downloadUrl)) return Fail("There's no installer attached to this release.");
 
         try
         {
@@ -225,14 +231,23 @@ public sealed class UpdateService
 
                 // A dropped connection can end the stream early without an exception; never run
                 // a half-downloaded installer.
-                if (totalBytes > 0 && totalRead != totalBytes) return false;
+                if (totalBytes > 0 && totalRead != totalBytes) return Fail("The download was interrupted before it finished. Try again.");
             }
 
             // Only ever launch something that is actually a Windows executable. Previously any
             // bytes that arrived were ShellExecuted — a captive-portal HTML page, a truncated
             // file, or (in the test suite) random bytes, which showed up as bursts of "cannot run
             // on 64-bit Windows" errors in the event log.
-            if (!LooksLikeWindowsExecutable(setupPath)) return false;
+            if (!LooksLikeWindowsExecutable(setupPath))
+                return Fail("The download wasn't a Windows installer (a network sign-in page may have replaced it). Try again.");
+
+            // ...and only one this copy of MarkSmith can vouch for: a tampered signature is always
+            // refused, and a signed install never runs an unsigned or differently-signed one.
+            if (!InstallerTrust.IsTrusted(setupPath, Environment.ProcessPath))
+            {
+                TryDelete(setupPath);
+                return Fail("The downloaded installer's signature doesn't match this copy of MarkSmith, so it wasn't run. Download the update from the releases page instead.");
+            }
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
@@ -245,14 +260,29 @@ public sealed class UpdateService
             if (proc != null)
             {
                 await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-                return proc.ExitCode == 0;
+                return proc.ExitCode == 0 || Fail($"The installer stopped before finishing (exit code {proc.ExitCode}).");
             }
-            return false;
+            return Fail("Windows didn't start the installer.");
         }
-        catch
+        catch (OperationCanceledException)
         {
-            return false;
+            return Fail("The update was cancelled.");
         }
+        catch (Exception ex)
+        {
+            return Fail($"The update couldn't be downloaded: {ex.Message}");
+        }
+    }
+
+    private bool Fail(string reason)
+    {
+        LastFailureReason = reason;
+        return false;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch { }
     }
 
     /// <summary>True when the file carries a DOS "MZ" header whose e_lfanew points at a "PE\0\0"

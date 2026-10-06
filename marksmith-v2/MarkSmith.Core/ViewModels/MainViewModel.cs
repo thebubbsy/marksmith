@@ -903,7 +903,7 @@ private readonly MarkdownExportService _mdExport = new();
             }
             else
             {
-                UpdateStatusText = "Update installation failed or was cancelled.";
+                UpdateStatusText = AppServices.Updates.LastFailureReason ?? "The update didn't install.";
             }
         }
         catch (Exception ex)
