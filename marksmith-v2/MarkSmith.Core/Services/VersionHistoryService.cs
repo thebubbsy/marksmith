@@ -91,7 +91,8 @@ public sealed class VersionHistoryService
             }
             else
             {
-                added = content.Split('\n').Length;
+                // Bare-\r breaks count too: that is how the WinUI editor stores text.
+                added = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
             }
 
             versions ??= new List<VersionEntry>();
@@ -329,7 +330,19 @@ public sealed class VersionHistoryService
     {
         if (filePath.StartsWith("scratch://", StringComparison.OrdinalIgnoreCase))
             return "Scratch Workspace";
-        try { return Path.GetFileName(filePath); }
+        // Keys are lower-cased for matching, so "Quarterly Report.md" was listed as
+        // "quarterly report.md". Ask the file system for the real spelling while the file exists.
+        try
+        {
+            var name = Path.GetFileName(filePath);
+            var dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+            {
+                var onDisk = Directory.EnumerateFiles(dir, name).FirstOrDefault();
+                if (onDisk is not null) return Path.GetFileName(onDisk);
+            }
+            return name;
+        }
         catch { return filePath; }
     }
 
@@ -396,9 +409,15 @@ public sealed class VersionHistoryService
                         canonical[normKey] = list;
                     }
 
+                    // The same-text-within-2s check only folds together the copies of one capture
+                    // stored under two spellings of the path. Applied within a single key it threw
+                    // away real versions: open a file, edit, undo, export, and the export erased the
+                    // "opened" version because both held the same text.
+                    var fromEarlierKeys = list.Count;
                     foreach (var v in kvp.Value)
                     {
-                        if (!list.Any(existing => existing.Id == v.Id || (existing.Hash == v.Hash && Math.Abs((existing.CreatedAt - v.CreatedAt).TotalSeconds) < 2)))
+                        if (!list.Any(existing => existing.Id == v.Id) &&
+                            !list.Take(fromEarlierKeys).Any(existing => existing.Hash == v.Hash && Math.Abs((existing.CreatedAt - v.CreatedAt).TotalSeconds) < 2))
                         {
                             list.Add(v with { FilePath = normKey });
                         }

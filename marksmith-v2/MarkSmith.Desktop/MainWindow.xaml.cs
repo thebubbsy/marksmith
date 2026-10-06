@@ -607,9 +607,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
-    private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e) =>
+    private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e)
+    {
+        // An empty ListView opened as a bare title with a blank box under it.
+        var empty = ViewModel.History.Count == 0;
+        HistoryEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        HistoryList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
         DispatcherQueue.TryEnqueue(() =>
             Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(MoreMenuButton));
+    }
 
     // WebSocket streaming for the local REST API (opt-in via Settings > Local REST API > Enable
     // WebSocket streaming, OFF by default). While connected, clients receive live status/busy
@@ -2407,7 +2413,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Serve the bundled web assets (mermaid, KaTeX, highlight.js) from a real https origin so
     // NavigateToString pages can load them — no CDN, works offline. Referenced as
     // https://{Services.WebAssets.Host}/mermaid.min.js etc.
-    private static void MapAssetHost(Microsoft.Web.WebView2.Core.CoreWebView2 core)
+    internal static void MapAssetHost(Microsoft.Web.WebView2.Core.CoreWebView2 core)
     {
         var dir = Path.Combine(AppContext.BaseDirectory, "Assets", "web");
         if (!Directory.Exists(dir)) return;

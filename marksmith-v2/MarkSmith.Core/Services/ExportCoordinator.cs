@@ -92,6 +92,7 @@ public sealed class ExportCoordinator
 
             var produced = new List<string>();
             var pending = new List<string>();
+            var failures = new List<string>();
             var formats = ParseFormats(output?.Format, settings.TargetFormat);
 
             IReadOnlyList<byte[]?>? mermaidImgs = null;
@@ -114,6 +115,8 @@ public sealed class ExportCoordinator
                 var outPath = $"{stem}.{fmt}";
                 try
                 {
+                    if (!(fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath)))
+                        ExportFailureMessage.ThrowIfLocked(outPath);
                     switch (fmt)
                     {
                         case "pdf":
@@ -147,15 +150,29 @@ public sealed class ExportCoordinator
                 {
                     pending.Add(fmt.ToUpperInvariant());
                 }
+                catch (Exception ex)
+                {
+                    // One format failing (the PDF open in Acrobat, say) used to abort the whole run
+                    // and leave a raw exception message. Keep going and report each reason plainly.
+                    failures.Add(ExportFailureMessage.Describe(fmt.ToUpperInvariant(), ex, outPath));
+                }
             }
 
             if (produced.Count > 0)
             {
                 vm.LastOutputPath = produced[^1];
-                vm.StatusText = $"Auto-generated: {string.Join(", ", produced.Select(Path.GetFileName))}"
-                    + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "");
-                vm.StatusSeverity = StatusSeverity.Success;
+                var names = string.Join(", ", produced.Select(Path.GetFileName));
+                var message = $"Auto-generated {names} · in {Path.GetDirectoryName(produced[^1])}"
+                    + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "")
+                    + (failures.Count > 0 ? " · " + string.Join(" · ", failures) : "");
+                vm.AnnounceExport(message, produced[^1]);
+                vm.StatusSeverity = failures.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
                 showToast?.Invoke(produced[^1]);
+            }
+            else if (failures.Count > 0)
+            {
+                vm.StatusText = "Auto-generate: " + string.Join(" · ", failures);
+                vm.StatusSeverity = StatusSeverity.Error;
             }
             else if (pending.Count > 0)
             {
@@ -207,7 +224,7 @@ public sealed class ExportCoordinator
         }
         catch (Exception ex)
         {
-            vm.StatusText = $"Auto-generate failed: {ex.Message}";
+            vm.StatusText = "Auto-generate: " + ExportFailureMessage.Describe("Auto", ex, null);
             vm.StatusSeverity = StatusSeverity.Error;
         }
         finally
@@ -240,6 +257,8 @@ public sealed class ExportCoordinator
 
         using var offscreenScope = beginOffscreen?.Invoke();
 
+        var attemptedFormat = "Auto";
+        string? attemptedPath = null;
         try
         {
             await _convertLock.WaitAsync();
@@ -253,6 +272,7 @@ public sealed class ExportCoordinator
                 // Respect the user's target format instead of hardcoding PDF.
                 var fmt = (settings.TargetFormat ?? "pdf").ToLowerInvariant();
                 string outPath;
+                attemptedFormat = fmt.ToUpperInvariant();
 
                 if (fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
                 {
@@ -262,18 +282,22 @@ public sealed class ExportCoordinator
                 else if (fmt == "docx")
                 {
                     outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".docx");
+                    attemptedPath = outPath;
+                    ExportFailureMessage.ThrowIfLocked(outPath);
                     await _docxExport.ExportAsync(md, outPath, settings, null, null, null, null);
                 }
                 else
                 {
                     var html = vm.BuildPreviewHtml(md);
                     outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
+                    attemptedPath = outPath;
+                    ExportFailureMessage.ThrowIfLocked(outPath);
                     await _pdfExport.ExportAsync(host, html, outPath, settings, md);
                 }
 
                 vm.LastOutputPath = outPath;
                 vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                vm.StatusText = $"Auto-converted: {outPath}";
+                vm.AnnounceExport($"Auto-converted {Path.GetFileName(path)} to {Path.GetFileName(outPath)} · in {Path.GetDirectoryName(outPath)}", outPath);
                 vm.StatusSeverity = StatusSeverity.Success;
                 showToast?.Invoke(outPath);
             }
@@ -288,7 +312,7 @@ public sealed class ExportCoordinator
         }
         catch (Exception ex)
         {
-            vm.StatusText = $"Auto-convert failed for {Path.GetFileName(path)}: {ex.Message}";
+            vm.StatusText = $"Watch folder ({Path.GetFileName(path)}): " + ExportFailureMessage.Describe(attemptedFormat, ex, attemptedPath);
             vm.StatusSeverity = StatusSeverity.Error;
         }
     }

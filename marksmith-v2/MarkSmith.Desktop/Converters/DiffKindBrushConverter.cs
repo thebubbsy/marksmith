@@ -13,12 +13,15 @@ public sealed class DiffKindBrushConverter : IValueConverter
     public object Convert(object value, System.Type targetType, object parameter, string language)
         => value switch
         {
-            LineDiff.Kind.Removed => Themed("SystemFillColorCriticalBrush", 0.35),
-            LineDiff.Kind.Added => Themed("SystemFillColorSuccessBrush", 0.30),
+            // The *Background* brushes are the tints Fluent designs for text to sit on. The plain
+            // SystemFillColorCritical/Success brushes are solid foreground colours: in the dark
+            // theme they painted removed lines bright pink under white text.
+            LineDiff.Kind.Removed => Themed("SystemFillColorCriticalBackgroundBrush"),
+            LineDiff.Kind.Added => Themed("SystemFillColorSuccessBackgroundBrush"),
             _ => new SolidColorBrush(Microsoft.UI.Colors.Transparent),
         };
 
-    private static Brush Themed(string key, double opacity)
+    private static Brush Themed(string key)
     {
         if (Application.Current.Resources.TryGetValue(key, out var b) && b is Brush brush)
             return brush;

@@ -542,7 +542,7 @@ private readonly MarkdownExportService _mdExport = new();
         if (!_settingExportStatus) StatusOutputPath = null;
     }
 
-    private void AnnounceExport(string message, string? outputPath)
+    internal void AnnounceExport(string message, string? outputPath)
     {
         _settingExportStatus = true;
         try
@@ -734,6 +734,13 @@ private readonly MarkdownExportService _mdExport = new();
         {
             var content = await AppServices.VersionHistory.GetContentAsync(id);
             if (content is null) return false;
+            // Keep the text being replaced: undo only lasts for this session, history doesn't.
+            if (!string.IsNullOrWhiteSpace(PastedMarkdown) && PastedMarkdown != content)
+            {
+                var key = !string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md";
+                try { await AppServices.VersionHistory.CaptureAsync(key, PastedMarkdown, "snapshot", "Before restore"); }
+                catch { /* best effort, never block the restore */ }
+            }
             _editorUndo.BreakBurst(); // a version restore must undo as its own step
             PastedMarkdown = content;
             OnPropertyChanged(nameof(CurrentMarkdown));

@@ -270,9 +270,9 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0" Header="Selected file" Text="{Binding InputFilePath, Mode=TwoWay}"
                                          PlaceholderText="No file selected" IsSpellCheckEnabled="False" />
-                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick"
-                                        IsEnabled="{Binding HasInputFile}" Padding="10,4"
-                                        ToolTipService.ToolTip="Version history for this file — scroll back through every iteration (Time Machine style)">
+                                <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnOpenHistoryClick" Padding="10,4"
+                                        AutomationProperties.Name="Version history"
+                                        ToolTipService.ToolTip="Version history: every saved version of this file (and of unsaved text), with what changed in each">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE823;" FontSize="14" />
                                         <TextBlock Text="History" FontSize="13" />
@@ -1121,7 +1121,10 @@
                             <FontIcon Glyph="&#xE712;" FontSize="14" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="Bottom">
-                                    <MenuFlyoutItem Text="Export history" Click="OnExportHistoryMenuClick">
+                                    <MenuFlyoutItem Text="Version history…" Click="OnOpenHistoryClick">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Recent exports" Click="OnExportHistoryMenuClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE81C;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
@@ -1135,7 +1138,7 @@
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                     <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem Text="☕ Buy Me a Coffee" ToolTipService.ToolTip="Matthew Bubb is software for nerds" Click="OnBuyCoffeeClick">
+                                    <MenuFlyoutItem Text="Buy me a coffee" ToolTipService.ToolTip="Support MarkSmith's development (opens buymeacoffee.com in your browser)" Click="OnBuyCoffeeClick">
                                         <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE76E;" /></MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
                                 </MenuFlyout>
@@ -1147,7 +1150,9 @@
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="Export history" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="0" Text="Recent exports" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="HistoryEmptyText" Grid.Row="1" TextWrapping="Wrap" Opacity="0.7" FontSize="12" Margin="0,4,0,8"
+                                                   Text="Nothing exported yet. Files you export appear here; click one to open it." />
                                         <ListView x:Name="HistoryList" Grid.Row="1" MaxHeight="420"
                                                   SelectionMode="None" IsItemClickEnabled="True"
                                                   ItemClick="OnHistoryItemClick">

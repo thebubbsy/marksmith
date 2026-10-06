@@ -147,8 +147,9 @@ public static class LineDiff
         return rows;
     }
 
-    public sealed record UnifiedRow(Kind Kind, int? OldNumber, int? NewNumber, string Text, string Prefix)
+    public sealed record UnifiedRow(Kind Kind, int? OldNumber, int? NewNumber, string Text, string Prefix, bool IsGap = false)
     {
+        public bool IsLine => !IsGap;
         public string OldNumberLabel => OldNumber?.ToString() ?? "";
         public string NewNumberLabel => NewNumber?.ToString() ?? "";
         public bool IsRemoved => Kind == Kind.Removed;
@@ -172,6 +173,50 @@ public static class LineDiff
         }
         return list;
     }
+
+    /// <summary>One display row of a collapsed diff: a real line, or (Line == null) a run of
+    /// HiddenCount unchanged lines folded away between two changes.</summary>
+    public sealed record Segment(Line? Line, int HiddenCount);
+
+    /// <summary>Folds long runs of unchanged lines down to <paramref name="context"/> lines either
+    /// side of each change, so a one-word edit in a 2,000-line document reads as a few rows instead
+    /// of the whole file. A run of a single hidden line is shown rather than folded (the fold row
+    /// would take the same space). Returns no segments at all when nothing changed.</summary>
+    public static List<Segment> Collapse(IReadOnlyList<Line> lines, int context = 3)
+    {
+        var result = new List<Segment>();
+        var keep = new bool[lines.Count];
+        bool anyChange = false;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (lines[i].Kind == Kind.Same) continue;
+            anyChange = true;
+            for (int k = Math.Max(0, i - context); k <= Math.Min(lines.Count - 1, i + context); k++)
+                keep[k] = true;
+        }
+        if (!anyChange) return result;
+
+        int idx = 0;
+        while (idx < lines.Count)
+        {
+            if (keep[idx]) { result.Add(new Segment(lines[idx], 0)); idx++; continue; }
+            int start = idx;
+            while (idx < lines.Count && !keep[idx]) idx++;
+            int run = idx - start;
+            if (run == 1) result.Add(new Segment(lines[start], 0));
+            else result.Add(new Segment(null, run));
+        }
+        return result;
+    }
+
+    /// <summary>Every line of <paramref name="text"/> as Added: the "diff" of a first version.
+    /// Diff("", text) would also emit the empty text's one blank line as Removed.</summary>
+    public static List<Line> AllAdded(string text) =>
+        SplitLines(text).Select((line, i) => new Line(Kind.Added, null, i + 1, line)).ToList();
+
+    /// <summary>"1 unchanged line" / "42 unchanged lines" for a folded run.</summary>
+    public static string HiddenLabel(int count) =>
+        count == 1 ? "1 unchanged line" : $"{count:N0} unchanged lines";
 
     public sealed record DiffHunk(int OldStart, int OldCount, int NewStart, int NewCount, List<Line> Lines)
     {

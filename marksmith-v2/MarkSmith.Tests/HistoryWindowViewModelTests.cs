@@ -94,9 +94,9 @@ public class HistoryWindowViewModelTests : IDisposable
         // Select the OLDEST version (last item of the first band).
         var oldest = vm.Bands[0].Items.Last();
         vm.SelectVersionCommand.Execute(oldest);
-        // Wait for THAT version's diff (the header flips to 'first version' when it completes) —
+        // Wait for THAT version's diff (the title flips to 'First version' when it completes) —
         // the initial auto-selected newest version's stats already contain 'added'.
-        await WaitForAsync(() => vm.DiffHeader.Contains("first version"));
+        await WaitForAsync(() => vm.DiffTitle.StartsWith("First version"));
         Assert.Contains("added", vm.DiffStats);
     }
 
