@@ -865,3 +865,62 @@ keyboard accelerators). They use the same `EditorText()` path as the verified op
    by hand once the desktop is unlocked; Diagram Studio canvas fill and connector inspector.
 4. Insert dialogs by keyboard (Tab order, Enter = Insert) once the desktop is unlocked.
 5. Carried over: Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 04:40–05:05 AEST (scheduled routine run #15)
+
+Disk was fine this time (37 GB free). The PC locked partway through the run, so live checks used
+UIA (PrintWindow screenshots come back **black** while locked). Visual review used headless-Edge
+renders of real documents through `MarkdownHtmlService.Render` (a scratch console app).
+
+Took run #14's "Next up" #2, the **bare-`\r` audit of every other text-entry surface**, plus #3,
+the SmartArt document preview on dark themes.
+
+**Shipped (073e25f):**
+- **Diagram Studio corrupted multi-line labels.** The inspector Label box and the canvas inline
+  editor are TextBoxes (bare `\r`), but `MermaidCodeGenerator` only turned `\n` into `<br/>`. A
+  two-line label wrote a raw break into the Mermaid source and split the node statement. Every
+  label the generator emits now goes through `ToBreakTags` (node, edge, participant alias,
+  message, note, state label) or `OneLine` (titles, subgraph/section/task names, class/ER/
+  transition text, mindmap nodes). The canvas maps `<br/>` back to a real line break for edges,
+  sequence and state diagrams, not only flowchart nodes (`FromBreakTags`). Node auto-sizing and
+  the SVG exporter count `\r` lines (`MermaidCodeGenerator.Lines`).
+- **Shape Studio ran two-line labels together.** The `:::shapes` codec *stripped* `\r`
+  ("Line one⏎Line two" saved as "Line oneLine two"), and so did the preview SVG. The DOCX writer
+  put raw breaks inside `<w:t>`, which Word ignores; it now writes `<w:br/>`. The decode order is
+  fixed so a literal `&#10;` typed into a label survives (`ShapeMarkdownCodec.NormalizeLineBreaks`).
+- **Preview and export disagreed on `:::smartart process`.** The preview regex only knew
+  `type="…"`, so a bare layout word left the block as a **plain bullet list** in the preview while
+  Word drew a diagram. Both ignored the word itself. The new `Glox/SmartArtBlockHeader.Layout` is
+  shared by the preview (both regex sites) and `DocxExportService.RenderNativeSmartArt`: `type=`
+  wins, then a known bare family or layout word, then the content suggester. Case is preserved for
+  the DOCX URN lookup.
+- SmartArt wrap breaks compound words at their own hyphen ("Self-" / "actualisation") before
+  inventing one (run #12's backlog item 5).
+- Tests: `BareCarriageReturnLabelTests` (12) and `SmartArtBlockHeaderTests` (15).
+
+**Checked and fine:** Mermaid/Markdown parsers, `MarkdownAstParser` (SmartArt Studio's markdown
+tab) and `EditorFoldingService` all split on `\r\n|\r|\n` already. Mind Map notes are display-only.
+The House-style JSON box is fine, since `\r` is JSON whitespace. Insert dialogs set
+DefaultButton=Primary, Cancel and focus-first-field in code; **typing Enter/Tab has not been
+driven live** (locked). Dark-theme SmartArt (GitHub Dark, Dracula) reads well after the
+invert + hue-rotate: bright fills, dark labels, legible venn.
+
+**Verified:** Desktop 0 warnings / 0 errors (scratch OutDir), smoke-launched via UIA. Suite
+3248 passed / 1 skipped / 17 failed = the 15 known scratch-OutDir path tests + the user's 2
+`HouseLayoutTests`. Their WIP (`HouseLayout`, `DocxExportService`, `TemplateThemeService`,
+`HouseLayoutTests`) is **still uncommitted**. My `DocxExportService` hunk was staged on its own with
+`git apply --cached`, so none of their lines went into the commit.
+
+**Not verified live:** typing a two-line label in Diagram Studio. Selecting a node needs a real
+click, and that's impossible while locked. The exact VM path the bindings use is unit-tested.
+
+**Next up:**
+1. With an unlocked desktop: type a multi-line label in Diagram Studio (inspector + double-click
+   inline editor) and in Shape Studio, then Insert into the document and export DOCX. Do the Insert
+   dialogs by keyboard (Tab order, Enter = Insert, Esc).
+2. Shape Studio by hand (drag-to-draw, group drag, Ctrl+click, nudge, fill flyout, Export dialog).
+   Carried over since run #12.
+3. SmartArt click-to-zoom in the document preview with the variable-height SVG (not checked).
+   Cycles of 7+ items still draw small circles with cut labels.
+4. Diagram Studio canvas default fill vs the Preview tab; connector inspector by eye.
+5. Carried over: Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.
