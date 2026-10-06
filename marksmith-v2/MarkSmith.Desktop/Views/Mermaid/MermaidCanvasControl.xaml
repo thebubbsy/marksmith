@@ -13,6 +13,7 @@
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter" />
         <conv:ShapeToVisibilityConverter x:Key="ShapeVisConverter" />
         <conv:ShapeFallbackVisibilityConverter x:Key="ShapeFallbackVisConverter" />
+        <conv:MermaidNodeCornerConverter x:Key="NodeCornerConverter" />
     </UserControl.Resources>
 
     <Grid x:Name="CanvasRootGrid" Background="#1E1E2E">
@@ -127,10 +128,10 @@
                                     <Border Background="{Binding FillColor}"
                                             BorderBrush="{Binding StrokeColor}"
                                             BorderThickness="{Binding StrokeWidth}"
-                                            CornerRadius="10"
+                                            CornerRadius="{Binding BoxCornerRadius, Converter={StaticResource NodeCornerConverter}}"
                                             Padding="10"
                                             Translation="0,0,12"
-                                            Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,Rhombus,RhombusDiamond,Choice,Hexagon,Actor,CylindricalDatabase'}">
+                                            Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,RootNode,Rhombus,RhombusDiamond,Choice,ChoiceState,Milestone,Hexagon,Actor,CylindricalDatabase'}">
                                         <Border.Shadow>
                                             <ThemeShadow />
                                         </Border.Shadow>
@@ -144,8 +145,17 @@
                                                    TextWrapping="Wrap" />
                                     </Border>
 
+                                    <!-- Subroutine: the inner side bars Mermaid draws for [[ ]] -->
+                                    <Grid IsHitTestVisible="False"
+                                          Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Subroutine'}">
+                                        <Border Width="{Binding StrokeWidth}" Background="{Binding StrokeColor}"
+                                                HorizontalAlignment="Left" Margin="9,0,0,0" />
+                                        <Border Width="{Binding StrokeWidth}" Background="{Binding StrokeColor}"
+                                                HorizontalAlignment="Right" Margin="0,0,9,0" />
+                                    </Grid>
+
                                     <!-- Circular Shape -->
-                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Circle'}">
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Circle,RootNode'}">
                                         <Ellipse Fill="{Binding FillColor}"
                                                  Stroke="{Binding StrokeColor}"
                                                  StrokeThickness="{Binding StrokeWidth}" />
@@ -160,7 +170,7 @@
                                     </Grid>
 
                                     <!-- Rhombus / Diamond / Choice Shape -->
-                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Rhombus,RhombusDiamond,Choice'}">
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Rhombus,RhombusDiamond,Choice,ChoiceState,Milestone'}">
                                         <Polygon Fill="{Binding FillColor}"
                                                  Stroke="{Binding StrokeColor}"
                                                  StrokeThickness="{Binding StrokeWidth}"
@@ -205,17 +215,25 @@
                                                    Margin="0,5,0,0" />
                                     </StackPanel>
 
-                                    <!-- Cylindrical Database Shape -->
-                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='CylindricalDatabase'}">
-                                        <FontIcon Glyph="&#xEE94;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                    <!-- Cylindrical Database Shape: fills the node like every other shape
+                                         (it was a 40 px icon with the label underneath, so resizing the
+                                         node did nothing and the label sat outside it). -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='CylindricalDatabase'}">
+                                        <Path Fill="{Binding FillColor}"
+                                              Stroke="{Binding StrokeColor}"
+                                              StrokeThickness="{Binding StrokeWidth}"
+                                              Stretch="Fill"
+                                              Data="M0,12 A50,12 0 0 1 100,12 V88 A50,12 0 0 1 0,88 Z M0,12 A50,12 0 0 0 100,12" />
                                         <TextBlock Text="{Binding LabelText}"
-                                                   Foreground="#EDF2F4"
+                                                   Foreground="{Binding LabelColor}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
+                                                   Margin="8,14,8,4"
                                                    HorizontalAlignment="Center"
-                                                   Margin="0,5,0,0" />
-                                    </StackPanel>
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
                                 </Grid>
 
                                 <!-- Anchor Handles Overlay (Top, Right, Bottom, Left) — revealed on
@@ -314,21 +332,49 @@
 
                 <!-- Layer 5: Floating Inline TextBox Editor -->
                 <Canvas x:Name="InPlaceEditorCanvas" Visibility="Collapsed" Canvas.ZIndex="100">
+                    <!-- Solid in every state: the default focused brushes are translucent, so the
+                         node's own label showed through behind the text being edited. Same font
+                         and centring as the node label, so editing doesn't jump the text around. -->
                     <TextBox x:Name="InlineEditTextBox"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
-                             FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                             TextAlignment="Center"
+                             VerticalContentAlignment="Center"
+                             FontWeight="SemiBold"
                              FontSize="13"
                              Background="#2B2D42"
                              Foreground="#EDF2F4"
                              BorderBrush="#4CC9F0"
                              BorderThickness="2"
+                             CornerRadius="6"
                              LostFocus="OnInlineEditLostFocus"
-                             KeyDown="OnInlineEditKeyDown" />
+                             PreviewKeyDown="OnInlineEditKeyDown"
+                             ToolTipService.ToolTip="Enter to save · Shift+Enter for a new line · Esc to cancel">
+                        <TextBox.Resources>
+                            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#2B2D42" />
+                            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#2B2D42" />
+                            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#EDF2F4" />
+                            <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#EDF2F4" />
+                            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#4CC9F0" />
+                            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#4CC9F0" />
+                            <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#4CC9F0" />
+                        </TextBox.Resources>
+                    </TextBox>
                 </Canvas>
 
             </Grid>
         </ScrollViewer>
+
+        <!-- Empty-canvas hint: a blank dark slab gave no clue where to start. Click-through, and
+             hidden as soon as the first node exists (EmptyCanvasHint in code-behind). -->
+        <StackPanel x:Name="EmptyCanvasHint" IsHitTestVisible="False" Spacing="8" MaxWidth="340"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+            <FontIcon Glyph="&#xE9F9;" FontSize="34" Foreground="#4CC9F0" Opacity="0.85" />
+            <TextBlock Text="Start your diagram" FontSize="16" FontWeight="SemiBold" Foreground="#EDF2F4"
+                       HorizontalAlignment="Center" />
+            <TextBlock Foreground="#8D99AE" FontSize="12.5" TextAlignment="Center" TextWrapping="Wrap"
+                       Text="Click or drag a shape from the palette, double-click here to drop a node, or pick a starting point from Templates." />
+        </StackPanel>
 
         <!-- Zoom Controls Overlay -->
         <Border HorizontalAlignment="Right" 

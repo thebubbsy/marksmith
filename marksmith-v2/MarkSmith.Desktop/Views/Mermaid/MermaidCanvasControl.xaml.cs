@@ -80,7 +80,41 @@ public sealed partial class MermaidCanvasControl : UserControl
         // buttons live in NodesItemsControl's DataTemplate and are polished individually as each
         // node is realized (see OnNodeTemplateLoaded).
         HoverPolish.Track(this);
+
+        DataContextChanged += (_, _) => WatchNodesForEmptyHint();
     }
+
+    // ---- Empty-canvas hint: shown while the diagram has no nodes ----------------------------
+    private MermaidStudioViewModel? _hintVm;
+    private System.Collections.Specialized.INotifyCollectionChanged? _hintNodes;
+
+    private void WatchNodesForEmptyHint()
+    {
+        if (_hintVm != null) _hintVm.PropertyChanged -= OnHintVmPropertyChanged;
+        _hintVm = ViewModel;
+        if (_hintVm != null) _hintVm.PropertyChanged += OnHintVmPropertyChanged;
+        WatchNodeCollection();
+    }
+
+    private void OnHintVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // Loading a template or a diagram from the document can swap the whole collection.
+        if (e.PropertyName == nameof(MermaidStudioViewModel.Nodes)) WatchNodeCollection();
+    }
+
+    private void WatchNodeCollection()
+    {
+        if (_hintNodes != null) _hintNodes.CollectionChanged -= OnHintNodesChanged;
+        _hintNodes = _hintVm?.Nodes;
+        if (_hintNodes != null) _hintNodes.CollectionChanged += OnHintNodesChanged;
+        UpdateEmptyCanvasHint();
+    }
+
+    private void OnHintNodesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+        UpdateEmptyCanvasHint();
+
+    private void UpdateEmptyCanvasHint() =>
+        EmptyCanvasHint.Visibility = _hintVm is { Nodes.Count: 0 } ? Visibility.Visible : Visibility.Collapsed;
 
     #region Zoom Controls
 
@@ -850,11 +884,17 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingNode = node;
         _editingConnector = null;
 
-        Canvas.SetLeft(InPlaceEditorCanvas, node.X);
-        Canvas.SetTop(InPlaceEditorCanvas, node.Y);
+        // Position the TextBox, not its host: InPlaceEditorCanvas sits in a Grid, where
+        // Canvas.Left/Top do nothing, so the editor always opened at the canvas's top-left corner
+        // instead of over the node being renamed. Centred on the node when it's the wider one.
         InlineEditTextBox.Width = Math.Max(node.Width, 140);
         InlineEditTextBox.Height = Math.Max(node.Height, 60);
+        Canvas.SetLeft(InlineEditTextBox, node.X + (node.Width - InlineEditTextBox.Width) / 2);
+        Canvas.SetTop(InlineEditTextBox, node.Y + (node.Height - InlineEditTextBox.Height) / 2);
         InlineEditTextBox.Text = node.LabelText;
+        // A multi-line TextBox ignores VerticalContentAlignment; pad the label down to the middle.
+        var lineCount = Math.Max(1, (node.LabelText ?? "").Split('\r', '\n').Count(l => l.Length > 0));
+        InlineEditTextBox.Padding = new Thickness(8, Math.Max(4, (InlineEditTextBox.Height - lineCount * 19) / 2 - 2), 8, 4);
 
         InPlaceEditorCanvas.Visibility = Visibility.Visible;
         InlineEditTextBox.Focus(FocusState.Programmatic);
@@ -866,20 +906,26 @@ public sealed partial class MermaidCanvasControl : UserControl
         _editingConnector = conn;
         _editingNode = null;
 
-        Canvas.SetLeft(InPlaceEditorCanvas, conn.MidpointX - 40);
-        Canvas.SetTop(InPlaceEditorCanvas, conn.MidpointY - 15);
         InlineEditTextBox.Width = 120;
         InlineEditTextBox.Height = 35;
+        Canvas.SetLeft(InlineEditTextBox, conn.MidpointX - 60);
+        Canvas.SetTop(InlineEditTextBox, conn.MidpointY - 17);
         InlineEditTextBox.Text = conn.Label ?? string.Empty;
+        InlineEditTextBox.Padding = new Thickness(6, 6, 6, 4);
 
         InPlaceEditorCanvas.Visibility = Visibility.Visible;
         InlineEditTextBox.Focus(FocusState.Programmatic);
         InlineEditTextBox.SelectAll();
     }
 
+    // PreviewKeyDown, not KeyDown: with AcceptsReturn the TextBox consumes Enter itself, so a
+    // KeyDown handler never saw it — Enter added a line and the only way to commit was clicking
+    // away. Enter commits; Shift+Enter still adds a line for a multi-line label.
     private void OnInlineEditKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (e.Key == Windows.System.VirtualKey.Enter && !shift)
         {
             CommitInPlaceEdit();
             e.Handled = true;

@@ -24,6 +24,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     private string _category = "Flowchart";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BoxCornerRadius))]
     private string _shape = "Rectangle";
 
     [ObservableProperty]
@@ -68,7 +69,20 @@ public partial class DiagramNodeViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AnchorTopRight))]
     [NotifyPropertyChangedFor(nameof(AnchorBottomLeft))]
     [NotifyPropertyChangedFor(nameof(AnchorBottomRight))]
+    [NotifyPropertyChangedFor(nameof(BoxCornerRadius))]
     private double _height = 60;
+
+    /// <summary>
+    /// Corner radius of the canvas box for box-shaped nodes, so each reads as what it will render
+    /// as: square Rectangle/Subroutine, rounded Rounded Rectangle, a true pill for Stadium (half the
+    /// height — a fixed large radius clamps on both axes and turns the box into an ellipse).
+    /// </summary>
+    public double BoxCornerRadius => Shape switch
+    {
+        "RoundedRectangle" or "NormalState" or "BranchNode" => 10,
+        "Stadium" or "TaskBar" => Math.Max(0, Height / 2),
+        _ => 2,
+    };
 
     [ObservableProperty]
     private int _zIndex = 10;
