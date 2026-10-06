@@ -755,3 +755,52 @@ is still running — left alone because it's unclear which config dir it uses.
    Insert-menu dialogs (Table, Image, Canvas, Wave Function Collapse).
 5. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
    obstacle-aware routing, intro-video decision (run #9), memory `marksmith-examples-need-regen`.
+
+### 2026-10-07 02:00–03:10 AEST (scheduled routine run #12)
+
+Took run #11's "Next up" #1 (**SmartArt preview fidelity**). The PC was locked again (LogonUI), so
+review was by headless-Edge screenshots of a contact sheet (a scratch console app renders every
+family + stress cases to HTML; `msedge --headless=new --screenshot` works while locked, the
+built-in browser pane does not) plus PrintWindow screenshots of the Studio driven over UIA.
+
+**Shipped (cd96236, pushed to main):**
+- **`HtmlPreviewRenderer` rewritten.** 25 drawing families (`SmartArtPreviewFamily`) chosen per
+  layout from an explicit URN-tail table + keyword/category fallback: org tree (Office-style
+  *hanging* leaves once > 6 leaves would sit side by side), horizontal tree, architecture/table
+  blocks, hierarchy list, block / horizontal / vertical lists, process, chevrons, vertical,
+  bending, steps up/down, timeline, cycle (arc arrows), radial, matrix (titled when one root),
+  pyramid / funnel, venn, linear venn, target, balance, equation, picture cards. Top-level items
+  are shapes and sub-items their bullets (Word's data model); pyramid still flattens (tested).
+  Text wraps and shrinks, preferring a size that keeps words whole; every shape has a `<title>`
+  tooltip with its full text and a hover lift; empty outline shows a hint; coordinates are
+  culture-invariant (they used `{double}` interpolation); height follows content.
+- **Export bug:** `SmartArtLayoutCatalog.TryResolve("process2")` returned the first URN that merely
+  *ended* with it (bProcess2/lProcess2) — wrong layout in preview **and DOCX**. Exact tail first now.
+- **Studio:** gallery categories come from the preview family (Picture Grid was "Matrix", P List 1
+  was "List"); the preview frames the drawing's own bounds (min 560×340, so a lone box doesn't
+  balloon); an InfoBar explains when a one-root outline makes a list/process layout draw a single
+  shape ("Promote (‹) the items under …").
+- `SmartArtPreviewFamilyTests` (33): family per layout, exact-tail lookup, all 176 layouts render
+  one SVG containing every item, de-DE coordinates, empty hint, bullets, hanging org chart, hint.
+
+**Verified:** Desktop 0 warnings / 0 errors, smoke-launched; suite 3213 passed / 1 skipped /
+2 failed = the user's two `HouseLayoutTests` (their uncommitted `HouseLayout`/`DocxExportService`/
+`TemplateThemeService`/`HouseLayoutTests` WIP — still untouched and uncommitted).
+
+**Not checked:** the main document preview's SmartArt frame on a dark theme (auto-invert path is
+unchanged, but the new colours haven't been seen inverted), and the doc preview's click-to-zoom with
+the new variable-height SVG.
+
+**Next up:**
+1. Document preview pass for SmartArt: dark-theme invert of the new palette, click-to-zoom, a few
+   real `:::smartart` documents (memory `marksmith-examples-need-regen` — examples need regenerating
+   anyway).
+2. Remaining unaudited surfaces from run #11: export dialogs/progress, ⋯ menu flyouts, Version
+   History, Insert-menu dialogs (Table, Image, Canvas, Wave Function Collapse).
+3. Shape Studio by hand once the desktop is unlocked (drag-to-draw, group drag, Ctrl+click, hover,
+   nudge, fill flyout, Export dialog).
+4. Diagram Studio: canvas default fill vs Preview tab; connector inspector by eye.
+5. Small SmartArt follow-ups: break long words at their own hyphen ("Self-actualisation"), cycles of
+   7+ items could use cards instead of circles so long labels aren't cut.
+6. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
+   obstacle-aware routing.
