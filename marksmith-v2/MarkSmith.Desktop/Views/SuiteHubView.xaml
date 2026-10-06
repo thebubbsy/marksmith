@@ -17,11 +17,8 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Width="44" Height="44" CornerRadius="10"
-                            Background="{ThemeResource AccentFillColorDefaultBrush}"
-                            VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE946;" FontSize="22" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                    </Border>
+                    <Image Grid.Column="0" Source="ms-appx:///Assets/logo.png" Width="44" Height="44"
+                           VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -30,7 +27,7 @@
                                 <TextBlock x:Name="VersionText" Text="v3.0.0 · x64" FontSize="10.5" Opacity="0.8" />
                             </Border>
                             <Border x:Name="LicenseBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
-                                <TextBlock x:Name="LicenseText" Text="Pro Entitled" FontSize="10.5" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                                <TextBlock x:Name="LicenseText" Text="Pro Entitled" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </StackPanel>
                         <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
@@ -75,7 +72,7 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE7F4;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xE7F4;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="Desktop Engine" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
@@ -85,13 +82,13 @@
                         <TextBlock Grid.Row="1" Text="Native WinUI 3 editor, Looking Glass live preview, SAX streaming OpenXML O(1) compiler, OMML math, and CriticMarkup."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Diagram Studio (Mermaid)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE943;" FontSize="11" />
                                     <TextBlock Text="Diagram Studio" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnOpenShapeStudioClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnOpenShapeStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Shape Studio">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE790;" FontSize="11" />
                                     <TextBlock Text="Vector Shapes" />
@@ -112,20 +109,21 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE945;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xE945;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="AI &amp; MCP Server" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Gemini 3.8 / Claude" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="Any MCP client" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </Grid>
                         <TextBlock Grid.Row="1" Text="marksmith-mcp stdio server exposing 10 document tools, 3-block cycle governance, and lossless OpenXML patching."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Style="{StaticResource AccentButtonStyle}" Padding="8,4" FontSize="11">
+                            <Button Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy a ready-made MCP server entry for your client">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8C8;" FontSize="11" />
                                     <TextBlock Text="Copy MCP Config" />
+                                    <FontIcon Glyph="&#xE70D;" FontSize="9" Margin="2,1,0,0" />
                                 </StackPanel>
                                 <Button.Flyout>
                                     <MenuFlyout>
@@ -155,23 +153,23 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE774;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xE774;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="Browser Companion" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
-                            <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock x:Name="ApiStatusText" Text="REST API Listening" FontSize="10" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+                            <Border x:Name="ApiBadge" HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
+                                <TextBlock x:Name="ApiStatusText" Text="API off" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Chrome &amp; Edge extension for 1-click capture from ChatGPT, Claude, Gemini, and Copilot straight into MarkSmith."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy the local REST API address">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE71B;" FontSize="11" />
                                     <TextBlock Text="Copy API URL" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="How to install and connect the browser extension">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE897;" FontSize="11" />
                                     <TextBlock Text="Extension Guide" />
@@ -192,23 +190,23 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE756;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xE756;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="CLI Toolchain" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="CLI Installed" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                                <TextBlock x:Name="CliStatusText" Text="CLI" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Single-binary headless compiler, batch file watcher, high-res image snapshot rasterizer (render-image), and vector tracer."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnCopyCliCommandClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnCopyCliCommandClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy an example CLI command">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE756;" FontSize="11" />
                                     <TextBlock Text="Copy CLI Syntax" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnCopyCliPathClick" Padding="8,4" FontSize="11">
+                            <Button x:Name="CopyCliPathButton" Click="OnCopyCliPathClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy the full path of marksmith.exe">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8C8;" FontSize="11" />
                                     <TextBlock Text="Copy Path" />
@@ -229,7 +227,7 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE968;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xE968;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="Express Web Companion" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
@@ -239,7 +237,7 @@
                         <TextBlock Grid.Row="1" Text="Zero-dependency loopback web interface and conversion service for local network and lightweight browser workflows."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnLaunchExpressClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnLaunchExpressClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Start MarkSmith Express if needed and open it in your browser">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE774;" FontSize="11" />
                                     <TextBlock Text="Open in Browser" />
@@ -260,17 +258,17 @@
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xEC26;" FontSize="15" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <FontIcon Glyph="&#xEC26;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <TextBlock Text="Document Galaxy" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Visual Graph" FontSize="10" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="Visual graph" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </Grid>
                         <TextBlock Grid.Row="1" Text="Interconnected document vault library with radial, tree, and force layouts, relationship inference, and time machine history."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnOpenGalaxyClick" Style="{StaticResource AccentButtonStyle}" Padding="8,4" FontSize="11">
+                            <Button Click="OnOpenGalaxyClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open the Document Galaxy window">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xEC26;" FontSize="11" />
                                     <TextBlock Text="Launch Galaxy" />
@@ -282,8 +280,13 @@
             </Grid>
 
             <!-- Status Banner Toast / Feedback -->
-            <TextBlock x:Name="NotificationText" Text="" FontSize="11.5"
-                       Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+            <StackPanel x:Name="NotificationRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
+                        Margin="0,2,0,0" Opacity="0" MinHeight="20">
+                <FontIcon x:Name="NotificationIcon" Glyph="&#xE73E;" FontSize="13"
+                          Foreground="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
+                <TextBlock x:Name="NotificationText" Text="" FontSize="12" TextWrapping="Wrap" MaxWidth="600"
+                           VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
 
         </StackPanel>
     </ScrollViewer>

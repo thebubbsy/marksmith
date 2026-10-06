@@ -1271,7 +1271,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnSuiteHubClick(object sender, RoutedEventArgs e)
     {
-        var suiteHubView = new Views.SuiteHubView();
+        var suiteHubView = new Views.SuiteHubView(_automationManager.IsApiRunning,
+            _automationManager.IsApiRunning ? _automationManager.ApiPort : ViewModel.ApiPort);
         ContentDialog? dialog = null;
 
         suiteHubView.OpenMermaidStudioRequested += () =>
@@ -1297,6 +1298,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Title = "MarkSmith Platform Suite & Integrations",
             Content = suiteHubView,
             CloseButtonText = "Done",
+            // Done is the hub's one accent action; the cards' own buttons are all standard.
+            DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
         };
         // SuiteHubView asks for MinWidth 680, but ContentDialog's default ContentDialogMaxWidth is
