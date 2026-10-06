@@ -9,30 +9,30 @@ using MarkSmith.ViewModels.Mermaid;
 namespace MarkSmith.Views.Mermaid;
 
 /// <summary>
-/// A miniature overview of the whole diagram canvas. It renders every node as a small block and
-/// every connector as a hairline, scaled down from the 4000x3000 canvas world, and overlays a
-/// rectangle showing the region currently visible in the main canvas ScrollViewer. Clicking or
-/// dragging on the minimap recentres the canvas on that spot, so you can jump around a large
-/// diagram without scrolling/panning the full canvas.
+/// A miniature overview of the diagram. It draws every node as a small block and every connector
+/// as a hairline, scaled to fit the diagram plus the region currently visible in the main canvas
+/// (outlined), so the overview is readable at any diagram size. Clicking or dragging on the minimap
+/// recentres the canvas on that spot.
 /// </summary>
 public sealed class MermaidMinimapControl : UserControl
 {
-    // The canvas world is the fixed 4000x3000 InfiniteCanvasGrid. The minimap is a 200x150 view of
-    // that world, which works out to a uniform 0.05 scale on both axes (4000/200 == 3000/150 == 20).
-    private const double WorldWidth = 4000;
-    private const double WorldHeight = 3000;
+    // The map used to show the whole fixed 4000x3000 canvas world, so an ordinary diagram near the
+    // origin was a few pixels in one corner. It now fits the content + viewport bounds instead.
     private const double MapWidth = 200;
     private const double MapHeight = 150;
-    private static readonly double WorldToMapScale = MapWidth / WorldWidth;
+    private const double Pad = 40;
 
     private static readonly SolidColorBrush NodeBrush = new(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x4C, 0xC9, 0xF0));
     private static readonly SolidColorBrush ConnectorBrush = new(Microsoft.UI.ColorHelper.FromArgb(0x99, 0x8D, 0x99, 0xAE));
-    private static readonly SolidColorBrush ViewportFill = new(Microsoft.UI.ColorHelper.FromArgb(0x33, 0x4C, 0xC9, 0xF0));
+    private static readonly SolidColorBrush ViewportFill = new(Microsoft.UI.ColorHelper.FromArgb(0x22, 0x4C, 0xC9, 0xF0));
     private static readonly SolidColorBrush ViewportStroke = new(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x4C, 0xC9, 0xF0));
     private static readonly SolidColorBrush MapBackground = new(Microsoft.UI.ColorHelper.FromArgb(0xE6, 0x21, 0x22, 0x34));
 
     private readonly Canvas _mapCanvas;
     private readonly Rectangle _viewportRect;
+    // World -> map transform, recomputed each refresh (frozen while the user drags on the map so the
+    // point under the pointer doesn't slide as the viewport moves).
+    private double _scale = 0.05, _originX, _originY;
     private DispatcherQueueTimer? _refreshTimer;
     private bool _isNavigating;
 
@@ -73,7 +73,7 @@ public sealed class MermaidMinimapControl : UserControl
             BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0xFF, 0x2B, 0x2D, 0x42)),
             BorderThickness = new Thickness(1),
         };
-        ToolTipService.SetToolTip(Content, "Minimap - click or drag to navigate");
+        ToolTipService.SetToolTip(Content, "Overview — click or drag to move around the diagram");
 
         Loaded += (_, _) => StartRefreshTimer();
         Unloaded += (_, _) => StopRefreshTimer();
@@ -101,6 +101,7 @@ public sealed class MermaidMinimapControl : UserControl
     public void Refresh()
     {
         _mapCanvas.Children.Clear();
+        if (!_isNavigating) ComputeTransform();
 
         if (ViewModel is { } vm)
         {
@@ -109,10 +110,8 @@ public sealed class MermaidMinimapControl : UserControl
             {
                 _mapCanvas.Children.Add(new Line
                 {
-                    X1 = c.SourceX * WorldToMapScale,
-                    Y1 = c.SourceY * WorldToMapScale,
-                    X2 = c.TargetX * WorldToMapScale,
-                    Y2 = c.TargetY * WorldToMapScale,
+                    X1 = MapX(c.SourceX), Y1 = MapY(c.SourceY),
+                    X2 = MapX(c.TargetX), Y2 = MapY(c.TargetY),
                     Stroke = ConnectorBrush,
                     StrokeThickness = 1,
                     IsHitTestVisible = false,
@@ -123,19 +122,54 @@ public sealed class MermaidMinimapControl : UserControl
             {
                 var rect = new Rectangle
                 {
-                    Width = Math.Max(3, n.Width * WorldToMapScale),
-                    Height = Math.Max(2, n.Height * WorldToMapScale),
+                    Width = Math.Max(3, n.Width * _scale),
+                    Height = Math.Max(2, n.Height * _scale),
+                    RadiusX = 1.5, RadiusY = 1.5,
                     Fill = NodeBrush,
                     IsHitTestVisible = false,
                 };
-                Canvas.SetLeft(rect, n.X * WorldToMapScale);
-                Canvas.SetTop(rect, n.Y * WorldToMapScale);
+                Canvas.SetLeft(rect, MapX(n.X));
+                Canvas.SetTop(rect, MapY(n.Y));
                 _mapCanvas.Children.Add(rect);
             }
         }
 
         UpdateViewportRect();
         _mapCanvas.Children.Add(_viewportRect);
+    }
+
+    private double MapX(double worldX) => (worldX - _originX) * _scale;
+    private double MapY(double worldY) => (worldY - _originY) * _scale;
+
+    // ScrollViewer offsets and viewport sizes are in zoomed (screen) units; content is unzoomed.
+    private static (double X, double Y, double W, double H) VisibleWorld(ScrollViewer sv)
+    {
+        double zoom = Math.Max(0.01, sv.ZoomFactor);
+        return (sv.HorizontalOffset / zoom, sv.VerticalOffset / zoom, sv.ViewportWidth / zoom, sv.ViewportHeight / zoom);
+    }
+
+    private void ComputeTransform()
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        void Include(double x, double y, double w, double h)
+        {
+            minX = Math.Min(minX, x); minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x + w); maxY = Math.Max(maxY, y + h);
+        }
+        if (ViewModel is { } vm)
+            foreach (var n in vm.Nodes) Include(n.X - Pad, n.Y - Pad, n.Width + 2 * Pad, n.Height + 2 * Pad);
+        if (TargetScrollViewer is { } sv && sv.ViewportWidth > 0)
+        {
+            var v = VisibleWorld(sv);
+            Include(v.X, v.Y, v.W, v.H);
+        }
+        if (minX == double.MaxValue) { _scale = 0.05; _originX = _originY = 0; return; }
+
+        double w = Math.Max(1, maxX - minX), h = Math.Max(1, maxY - minY);
+        _scale = Math.Min(MapWidth / w, MapHeight / h);
+        // Centre the fitted bounds in the map.
+        _originX = minX - (MapWidth / _scale - w) / 2;
+        _originY = minY - (MapHeight / _scale - h) / 2;
     }
 
     private void UpdateViewportRect()
@@ -147,13 +181,11 @@ public sealed class MermaidMinimapControl : UserControl
         }
 
         _viewportRect.Visibility = Visibility.Visible;
-        double zoom = Math.Max(0.01, sv.ZoomFactor);
-        // Offsets are already in content units; the viewport size is in screen DIPs, so divide by the
-        // zoom factor to bring it back into content units before scaling down to the minimap.
-        Canvas.SetLeft(_viewportRect, sv.HorizontalOffset * WorldToMapScale);
-        Canvas.SetTop(_viewportRect, sv.VerticalOffset * WorldToMapScale);
-        _viewportRect.Width = Math.Max(6, sv.ViewportWidth / zoom * WorldToMapScale);
-        _viewportRect.Height = Math.Max(6, sv.ViewportHeight / zoom * WorldToMapScale);
+        var v = VisibleWorld(sv);
+        Canvas.SetLeft(_viewportRect, MapX(v.X));
+        Canvas.SetTop(_viewportRect, MapY(v.Y));
+        _viewportRect.Width = Math.Max(6, v.W * _scale);
+        _viewportRect.Height = Math.Max(6, v.H * _scale);
     }
 
     private void OnMapPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -183,10 +215,10 @@ public sealed class MermaidMinimapControl : UserControl
         if (TargetScrollViewer is not { } sv) return;
         var p = e.GetCurrentPoint(_mapCanvas).Position;
         double zoom = Math.Max(0.01, sv.ZoomFactor);
-        double contentX = p.X / WorldToMapScale;
-        double contentY = p.Y / WorldToMapScale;
-        double halfViewportW = sv.ViewportWidth / zoom / 2;
-        double halfViewportH = sv.ViewportHeight / zoom / 2;
-        sv.ChangeView(contentX - halfViewportW, contentY - halfViewportH, null, disableAnimation: true);
+        double worldX = p.X / _scale + _originX;
+        double worldY = p.Y / _scale + _originY;
+        var v = VisibleWorld(sv);
+        // ChangeView takes offsets in zoomed units.
+        sv.ChangeView((worldX - v.W / 2) * zoom, (worldY - v.H / 2) * zoom, null, disableAnimation: true);
     }
 }

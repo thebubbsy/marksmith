@@ -92,7 +92,19 @@ public partial class DiagramNodeViewModel : ObservableObject
     public bool ShowAnchors => IsSelected || IsHovered;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LabelColor))]
     private string _fillColor = "#2B2D42";
+
+    /// <summary>The label colour that reads on <see cref="FillColor"/>: the studio's light text on
+    /// dark fills, near-black on light ones. A fixed light label vanished on light fills (the theme's
+    /// heading colour on light themes, the Monochrome Print preset, a pale custom fill).</summary>
+    public string LabelColor => ReadableLabelOn(FillColor);
+
+    public static string ReadableLabelOn(string fillHex)
+    {
+        const string light = "#EDF2F4", dark = "#111827";
+        return ContrastGuard.GetContrastRatio(light, fillHex) >= ContrastGuard.GetContrastRatio(dark, fillHex) ? light : dark;
+    }
 
     [ObservableProperty]
     private string _strokeColor = "#8D99AE";

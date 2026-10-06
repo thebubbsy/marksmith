@@ -8,6 +8,31 @@ public sealed partial class NodePaletteControl : UserControl
 {
     private string _selectedCategory = "All";
 
+    /// <summary>A palette row was clicked: the host adds that shape in view (dragging places it).</summary>
+    public event EventHandler<ViewModels.Mermaid.MermaidPaletteItem>? ShapeRequested;
+
+    // Row hover: the card's own border lights up in the studio cyan (the ListViewItem's hover fill
+    // sits behind the card, so on its own a row gave no sign it was clickable).
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowRestBorder = new(Windows.UI.Color.FromArgb(255, 0x3D, 0x40, 0x5B));
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowHoverBorder = new(Windows.UI.Color.FromArgb(255, 0x4C, 0xC9, 0xF0));
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowRestFill = new(Windows.UI.Color.FromArgb(255, 0x2B, 0x2D, 0x42));
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush RowHoverFill = new(Windows.UI.Color.FromArgb(255, 0x33, 0x36, 0x50));
+
+    private void OnRowPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.Controls.Border row) { row.BorderBrush = RowHoverBorder; row.Background = RowHoverFill; }
+    }
+
+    private void OnRowPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.Controls.Border row) { row.BorderBrush = RowRestBorder; row.Background = RowRestFill; }
+    }
+
+    private void OnPaletteItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is ViewModels.Mermaid.MermaidPaletteItem item) ShapeRequested?.Invoke(this, item);
+    }
+
     public NodePaletteControl()
     {
         InitializeComponent();

@@ -135,7 +135,7 @@
                                             <ThemeShadow />
                                         </Border.Shadow>
                                         <TextBlock Text="{Binding LabelText}"
-                                                   Foreground="#EDF2F4"
+                                                   Foreground="{Binding LabelColor}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    HorizontalAlignment="Center"
@@ -150,7 +150,7 @@
                                                  Stroke="{Binding StrokeColor}"
                                                  StrokeThickness="{Binding StrokeWidth}" />
                                         <TextBlock Text="{Binding LabelText}"
-                                                   Foreground="#EDF2F4"
+                                                   Foreground="{Binding LabelColor}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    HorizontalAlignment="Center"
@@ -167,7 +167,7 @@
                                                  Points="50,0 100,50 50,100 0,50"
                                                  Stretch="Fill" />
                                         <TextBlock Text="{Binding LabelText}"
-                                                   Foreground="#EDF2F4"
+                                                   Foreground="{Binding LabelColor}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    HorizontalAlignment="Center"
@@ -184,7 +184,7 @@
                                                  Points="25,0 75,0 100,50 75,100 25,100 0,50"
                                                  Stretch="Fill" />
                                         <TextBlock Text="{Binding LabelText}"
-                                                   Foreground="#EDF2F4"
+                                                   Foreground="{Binding LabelColor}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    HorizontalAlignment="Center"
@@ -340,10 +340,10 @@
                 BorderThickness="1"
                 Padding="4">
             <StackPanel Orientation="Horizontal">
-                <Button Content="-" Width="32" Height="32" Click="OnZoomOutClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom Out" FontSize="18" FontWeight="Bold" />
+                <Button Width="32" Height="32" Padding="0" Click="OnZoomOutClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom out (Ctrl+wheel)" AutomationProperties.Name="Zoom out"><FontIcon Glyph="&#xE738;" FontSize="12" /></Button>
                 <TextBlock x:Name="ZoomLevelText" Text="100%" VerticalAlignment="Center" Margin="8,0" Foreground="#EDF2F4" Width="45" TextAlignment="Center" ToolTipService.ToolTip="Canvas zoom level" />
-                <Button Content="+" Width="32" Height="32" Click="OnZoomInClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom In" FontSize="18" FontWeight="Bold" />
-                <Button Content="Fit" Width="40" Height="32" Click="OnZoomFitClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" Margin="4,0,0,0" ToolTipService.ToolTip="Fit to Content" />
+                <Button Width="32" Height="32" Padding="0" Click="OnZoomInClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom in (Ctrl+wheel)" AutomationProperties.Name="Zoom in"><FontIcon Glyph="&#xE710;" FontSize="12" /></Button>
+                <Button Content="Fit" Width="40" Height="32" Click="OnZoomFitClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" Margin="4,0,0,0" ToolTipService.ToolTip="Fit the whole diagram in view" AutomationProperties.Name="Fit to content" />
             </StackPanel>
         </Border>
 

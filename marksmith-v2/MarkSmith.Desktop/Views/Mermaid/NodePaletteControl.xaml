@@ -4,7 +4,12 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:conv="using:MarkSmith.Converters"
     mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <conv:MermaidShapeThumbnailConverter x:Key="ShapeThumb" />
+    </UserControl.Resources>
 
     <Grid Background="#181825" Padding="12" RowSpacing="10">
         <Grid.RowDefinitions>
@@ -41,6 +46,8 @@
                   Grid.Row="2"
                   ItemsSource="{Binding PaletteItems}"
                   SelectionMode="None"
+                  IsItemClickEnabled="True"
+                  ItemClick="OnPaletteItemClick"
                   CanDragItems="True"
                   DragItemsStarting="OnPaletteDragItemsStarting">
             <ListView.ItemTemplate>
@@ -51,19 +58,26 @@
                             CornerRadius="6"
                             Padding="10,8"
                             Margin="0,3"
-                            ToolTipService.ToolTip="{Binding Tooltip}">
+                            PointerEntered="OnRowPointerEntered"
+                            PointerExited="OnRowPointerExited"
+                            PointerCanceled="OnRowPointerExited"
+                            ToolTipService.ToolTip="Click to add to the middle of the canvas, or drag it where you want it">
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <FontIcon Grid.Column="0" Glyph="{Binding IconGlyph}" FontSize="16" Foreground="#4CC9F0" />
+                            <!-- The shape itself, outlined, rather than a glyph that approximates it. -->
+                            <Path Grid.Column="0" Width="20" Height="14" VerticalAlignment="Center"
+                                  Data="{Binding ShapeType, Converter={StaticResource ShapeThumb}}"
+                                  Stroke="#4CC9F0" StrokeThickness="1.4" StrokeLineJoin="Round" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold" Foreground="#EDF2F4" />
                                 <TextBlock Text="{Binding Category}" FontSize="10" Foreground="#8D99AE" />
                             </StackPanel>
-                            <FontIcon Grid.Column="2" Glyph="&#xE768;" FontSize="12" Foreground="#8D99AE" VerticalAlignment="Center" />
+                            <!-- "+" says what a click does; it was a Play glyph, which suggested nothing. -->
+                            <FontIcon Grid.Column="2" Glyph="&#xE710;" FontSize="12" Foreground="#8D99AE" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
                 </DataTemplate>

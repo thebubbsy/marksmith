@@ -225,7 +225,7 @@ public static class MermaidSvgExporter
             $"  <circle cx=\"{F(cx)}\" cy=\"{F(headCy)}\" r=\"{F(headR)}\" fill=\"none\" stroke=\"{n.StrokeColor}\" stroke-width=\"{F(n.StrokeWidth)}\"/>"));
         sb.AppendLine(FormattableString.Invariant(
             $"  <path d=\"M {F(cx)},{F(shoulderY)} L {F(cx)},{F(hipY)} M {F(cx - 12)},{F(shoulderY + 5)} L {F(cx + 12)},{F(shoulderY + 5)} M {F(cx)},{F(hipY)} L {F(cx - 10)},{F(hipY + 13)} M {F(cx)},{F(hipY)} L {F(cx + 10)},{F(hipY + 13)}\" stroke=\"{n.StrokeColor}\" stroke-width=\"{F(n.StrokeWidth)}\" fill=\"none\" stroke-linecap=\"round\"/>"));
-        sb.Append(BuildNodeLabel(n, cx, n.Y + n.Height - 8));
+        sb.Append(BuildNodeLabel(n, cx, n.Y + n.Height - 8, onFill: false)); // label sits below the figure, on the background
         return sb.ToString();
     }
 
@@ -244,8 +244,10 @@ public static class MermaidSvgExporter
         return sb.ToString();
     }
 
-    private static string BuildNodeLabel(DiagramNodeViewModel n, double cx, double cy)
+    private static string BuildNodeLabel(DiagramNodeViewModel n, double cx, double cy, bool onFill = true)
     {
+        // Same rule as the canvas: a label drawn on the node's fill takes the colour that reads on it.
+        string textFill = onFill ? n.LabelColor : NodeTextFill;
         if (string.IsNullOrWhiteSpace(n.LabelText)) return string.Empty;
         var lines = n.LabelText.Split('\n');
         double totalH = lines.Length * LineHeight;
@@ -253,7 +255,7 @@ public static class MermaidSvgExporter
 
         var sb = new StringBuilder();
         sb.Append(FormattableString.Invariant(
-            $"  <text text-anchor=\"middle\" font-size=\"{F(NodeFontSize)}\" font-weight=\"600\" fill=\"{NodeTextFill}\">"));
+            $"  <text text-anchor=\"middle\" font-size=\"{F(NodeFontSize)}\" font-weight=\"600\" fill=\"{textFill}\">"));
         for (int i = 0; i < lines.Length; i++)
         {
             double ty = firstY + i * LineHeight;

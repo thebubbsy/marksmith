@@ -51,9 +51,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     {
         InitializeComponent();
 
-        PaletteContainer.Child = new NodePaletteControl();
+        var palette = new NodePaletteControl();
+        PaletteContainer.Child = palette;
         _canvas = new MermaidCanvasControl();
         CanvasContainer.Child = _canvas;
+        // The palette rows said "Add shape to canvas" but only dragging did anything.
+        palette.ShapeRequested += (_, item) => _canvas.AddInView(item);
 
         // The Studio window assigns DataContext AFTER LoadFromMarkdown runs, so this fires once
         // the restored palette is known — keeps the preset buttons' active highlight accurate.
@@ -67,7 +70,9 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             if (e.NewValue is MermaidStudioViewModel vm)
             {
                 vm.PropertyChanged += OnViewModelPropertyChanged;
+                WatchCollections(vm);
             }
+            UpdateSelectionChrome();
         };
 
         // Live code editing: debounce keystrokes, then sync code -> canvas (and, when the editor
@@ -81,6 +86,29 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         LeftPanePivot.SelectionChanged += OnLeftPaneSelectionChanged;
 
         HoverPolish.Track(this);
+        Loaded += (_, _) => DimDisabledToolbarButtons(StudioToolbar);
+    }
+
+    // Toolbar icons carry explicit colours (cyan, red for Delete), which the Button's disabled
+    // visual state can't reach — a disabled Undo or Delete looked exactly as live as an enabled
+    // one. Fade the whole button instead while it's disabled.
+    private static void DimDisabledToolbarButtons(DependencyObject root)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase button)
+            {
+                button.Opacity = button.IsEnabled ? 1 : 0.4;
+                button.IsEnabledChanged += (s, _) =>
+                {
+                    var b = (Control)s;
+                    b.Opacity = b.IsEnabled ? 1 : 0.4;
+                };
+                continue;
+            }
+            DimDisabledToolbarButtons(child);
+        }
     }
 
     // Seeds the Code pane once the ViewModel is available (DataContext is assigned after the
@@ -480,10 +508,61 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MermaidStudioViewModel.ZoomFactor) && ViewModel is not null)
+        if (ViewModel is null) return;
+        switch (e.PropertyName)
         {
-            _canvas.SetZoomFactor(ViewModel.ZoomFactor);
+            case nameof(MermaidStudioViewModel.ZoomFactor):
+                _canvas.SetZoomFactor(ViewModel.ZoomFactor);
+                break;
+            case nameof(MermaidStudioViewModel.Nodes):
+            case nameof(MermaidStudioViewModel.Connectors):
+            case nameof(MermaidStudioViewModel.SelectedNodes):
+                WatchCollections(ViewModel); // a load can swap in new collections
+                UpdateSelectionChrome();
+                break;
+            case nameof(MermaidStudioViewModel.SelectedNode):
+            case nameof(MermaidStudioViewModel.SelectedConnector):
+            case nameof(MermaidStudioViewModel.IsGridSnapEnabled):
+                UpdateSelectionChrome();
+                break;
         }
+    }
+
+    // ---- Selection-driven chrome ---------------------------------------------------------
+    // The inspector shows the panel for what is selected (or an empty state), Delete and Align
+    // enable only when they would do something, and the status bar says what the counts are.
+
+    private System.Collections.Specialized.INotifyCollectionChanged[] _watched = [];
+
+    private void WatchCollections(MermaidStudioViewModel vm)
+    {
+        foreach (var c in _watched) c.CollectionChanged -= OnWatchedCollectionChanged;
+        _watched = [vm.Nodes, vm.Connectors, vm.SelectedNodes];
+        foreach (var c in _watched) c.CollectionChanged += OnWatchedCollectionChanged;
+    }
+
+    private void OnWatchedCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+        UpdateSelectionChrome();
+
+    private void UpdateSelectionChrome()
+    {
+        var vm = ViewModel;
+        bool node = vm?.SelectedNode is not null;
+        bool connector = !node && vm?.SelectedConnector is not null;
+        NodeInspectorPanel.Visibility = node ? Visibility.Visible : Visibility.Collapsed;
+        ConnectorInspectorPanel.Visibility = connector ? Visibility.Visible : Visibility.Collapsed;
+        InspectorEmptyState.Visibility = node || connector ? Visibility.Collapsed : Visibility.Visible;
+
+        int selectedNodes = vm?.SelectedNodes.Count ?? 0;
+        DeleteSelectedButton.IsEnabled = node || connector || selectedNodes > 0;
+        AlignButton.IsEnabled = selectedNodes >= 2;
+
+        if (vm is null) { CanvasSummaryText.Text = ""; return; }
+        static string Count(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
+        var parts = new List<string> { Count(vm.Nodes.Count, "node"), Count(vm.Connectors.Count, "connector") };
+        if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
+        parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
+        CanvasSummaryText.Text = string.Join("  ·  ", parts);
     }
 
     private void OnSyncToMarkdownClick(object sender, RoutedEventArgs e)

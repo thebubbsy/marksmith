@@ -1019,6 +1019,41 @@ public sealed partial class MermaidCanvasControl : UserControl
         vm.StatusText = $"Sent '{node.Id}' to back.";
     }
 
+    /// <summary>Adds a palette shape in the visible part of the canvas: the free spot nearest the
+    /// centre of the view, so a click never drops a shape on top of an existing node.</summary>
+    public void AddInView(MermaidPaletteItem item)
+    {
+        var vm = ViewModel; if (vm is null) return;
+        double zoom = Math.Max(0.01, CanvasScrollViewer.ZoomFactor);
+        double cx = (CanvasScrollViewer.HorizontalOffset + CanvasScrollViewer.ViewportWidth / 2) / zoom;
+        double cy = (CanvasScrollViewer.VerticalOffset + CanvasScrollViewer.ViewportHeight / 2) / zoom;
+        double w = item.ShapeType == "TaskBar" ? 260 : 140, h = 60; // AddNodeFromPalette's sizes
+        const double gap = 24, step = 30;
+
+        bool Free(double x, double y) => !vm.Nodes.Any(n =>
+            x < n.X + n.Width + gap && x + w + gap > n.X && y < n.Y + n.Height + gap && y + h + gap > n.Y);
+
+        // Rings of candidate positions around the centre, nearest first.
+        double bestX = cx - w / 2, bestY = cy - h / 2;
+        if (!Free(bestX, bestY))
+        {
+            var found = false;
+            for (int ring = 1; ring <= 30 && !found; ring++)
+            {
+                double bestD = double.MaxValue;
+                for (int i = -ring; i <= ring; i++)
+                    foreach (var (dx, dy) in new[] { (i, -ring), (i, ring), (-ring, i), (ring, i) })
+                    {
+                        double x = cx - w / 2 + dx * step, y = cy - h / 2 + dy * step;
+                        if (x < 20 || y < 20 || !Free(x, y)) continue;
+                        double d = dx * dx + dy * dy;
+                        if (d < bestD) { bestD = d; bestX = x; bestY = y; found = true; }
+                    }
+            }
+        }
+        vm.AddNodeFromPalette(item, bestX, bestY);
+    }
+
     private void AddNodeAt(Point pos)
     {
         var vm = ViewModel; if (vm is null) return;

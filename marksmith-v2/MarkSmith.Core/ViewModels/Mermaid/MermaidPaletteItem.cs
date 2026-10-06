@@ -21,4 +21,8 @@ public partial class MermaidPaletteItem : ObservableObject
 
     [ObservableProperty]
     private string _tooltip = "Add shape to canvas";
+
+    // A ListView announces its items by ToString(): without this, screen readers read every
+    // Diagram Studio palette row as "MarkSmith.ViewModels.Mermaid.MermaidPaletteItem".
+    public override string ToString() => DisplayName;
 }
