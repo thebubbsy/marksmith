@@ -249,7 +249,7 @@ public static class MermaidSvgExporter
         // Same rule as the canvas: a label drawn on the node's fill takes the colour that reads on it.
         string textFill = onFill ? n.LabelColor : NodeTextFill;
         if (string.IsNullOrWhiteSpace(n.LabelText)) return string.Empty;
-        var lines = n.LabelText.Split('\n');
+        var lines = MarkSmith.Mermaid.Generator.MermaidCodeGenerator.Lines(n.LabelText);
         double totalH = lines.Length * LineHeight;
         double firstY = cy - totalH / 2 + LineHeight / 2;
 

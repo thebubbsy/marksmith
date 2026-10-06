@@ -42,7 +42,7 @@ public sealed partial class MarkdownHtmlService
     // as native SmartArt with the suggested layout, so the preview matches it): the marker line, then nested "- " bullets (indentation =
     // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts.
     // Handles optional type, quotes or unquoted, and flexible line breaks; fenced-code spans excluded.
-    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::(?<kind>smartart|workflow|timeline)(?:\s+type=[""']?([^""'\s>]+)[""']?)?\s*\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::(?<kind>smartart|workflow|timeline)(?<header>[ \t][^\r\n]*)?\r?\n(?<inner>[\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex SmartArtBlockRe();
 
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::watermark(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
@@ -194,11 +194,11 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
             }
-            string alias = m.Groups[1].Success ? m.Groups[1].Value.Trim().ToLowerInvariant() : "";
+            string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
             // An untyped :::workflow / :::timeline says what it is; don't let the guesser turn four
             // workflow steps into a 2x2 block grid.
             if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
-            smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
+            smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
 
@@ -2368,9 +2368,9 @@ public sealed partial class MarkdownHtmlService
             {
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
-            string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
+            string alias = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(m.Groups["header"].Value)?.ToLowerInvariant() ?? "";
             if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
-            smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
+            smartArtBlocks.Add((alias, m.Groups["inner"].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
 

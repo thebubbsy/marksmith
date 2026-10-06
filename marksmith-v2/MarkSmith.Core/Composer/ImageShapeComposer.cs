@@ -440,7 +440,7 @@ namespace MarkSmith.Core.Composer
             // out of its box — and a long label on a short shape rendered entirely outside it.
             // Word wraps text inside a shape; the preview has to agree or the two do not match.
             // Explicit newlines in a label were ignored for the same reason.
-            var paragraphs = s.Text!.Replace("\r", "").Split('\n');
+            var paragraphs = ShapeMarkdownCodec.NormalizeLineBreaks(s.Text!).Split('\n');
             double fontSize = Math.Clamp(Math.Min(w, h) * 0.30, 7, 96);
             List<string> lines;
             while (true)

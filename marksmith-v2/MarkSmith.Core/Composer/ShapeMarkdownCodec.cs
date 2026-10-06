@@ -78,7 +78,8 @@ namespace MarkSmith.Core.Composer
                     }
                 }
                 string? label = textMatch.Success
-                    ? textMatch.Groups[1].Value.Replace("&quot;", "\"").Replace("&amp;", "&").Replace("&#10;", "\n")
+                    // &amp; last, so a literal "&#10;" the user typed (written "&amp;#10;") stays text.
+                    ? textMatch.Groups[1].Value.Replace("&#10;", "\n").Replace("&quot;", "\"").Replace("&amp;", "&")
                     : null;
                 // A tcolor=/sw= INSIDE a quoted pts/text token is label data, not a token —
                 // the old sequential removal never let it match, so neither do we.
@@ -289,6 +290,11 @@ namespace MarkSmith.Core.Composer
             public int Compare((int Index, int Length) x, (int Index, int Length) y) => x.Index.CompareTo(y.Index);
         }
 
+        /// <summary>A label with every line break as '\n'. Shape Studio's label box is a WinUI
+        /// TextBox, which stores a typed line break as a bare '\r' — stripping '\r' (as this
+        /// codec used to) ran a two-line label together into one word.</summary>
+        public static string NormalizeLineBreaks(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n');
+
         public static string Format(ComposedShape s)
         {
             string line = string.Create(CultureInfo.InvariantCulture,
@@ -304,10 +310,9 @@ namespace MarkSmith.Core.Composer
             }
             if (!string.IsNullOrWhiteSpace(s.Text))
             {
-                string safeText = s.Text
+                string safeText = NormalizeLineBreaks(s.Text)
                     .Replace("&", "&amp;")
                     .Replace("\"", "&quot;")
-                    .Replace("\r", "")
                     .Replace("\n", "&#10;");
                 line += " text=\"" + safeText + "\"";
             }

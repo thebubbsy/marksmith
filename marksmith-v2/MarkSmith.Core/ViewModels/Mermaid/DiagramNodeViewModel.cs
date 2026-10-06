@@ -146,7 +146,7 @@ public partial class DiagramNodeViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(LabelText)) return;
         // Approximate width & height based on text length and lines
-        var lines = LabelText.Split('\n');
+        var lines = MarkSmith.Mermaid.Generator.MermaidCodeGenerator.Lines(LabelText);
         int maxLineLen = lines.Max(l => l.Length);
         double estWidth = Math.Max(120, maxLineLen * 10 + 30);
         double estHeight = Math.Max(50, lines.Length * 22 + 24);

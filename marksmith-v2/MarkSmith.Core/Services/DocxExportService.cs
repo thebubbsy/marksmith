@@ -2645,11 +2645,21 @@ public sealed partial class DocxExportService
             }
         }
 
+        // The text after ":::smartart" on the block's first line (e.g. ' process' or ' type="cycle"').
+        private static string SmartArtHeaderRest(FeatureNode node)
+        {
+            var raw = node.Block?.RawText ?? string.Empty;
+            int eol = raw.IndexOfAny(new[] { '\r', '\n' });
+            var first = (eol < 0 ? raw : raw[..eol]).TrimStart();
+            int sp = first.IndexOfAny(new[] { ' ', '\t' });
+            return sp < 0 ? string.Empty : first[sp..];
+        }
+
         private static void RenderNativeSmartArt(FeatureNode node, OpenXmlCompositeElement target, Ctx ctx)
         {
             try
             {
-                var layoutType = node.Attributes.TryGetValue("type", out var t) ? t : null;
+                var layoutType = MarkSmith.Core.Glox.SmartArtBlockHeader.Layout(SmartArtHeaderRest(node));
                 var ast = MarkSmith.Core.AST.MarkdownAstParser.Parse(BulletedBody(node));
                 layoutType ??= MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
                 ast.RequestedLayout = layoutType;

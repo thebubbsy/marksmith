@@ -54,12 +54,36 @@ public static class MermaidCodeGenerator
         return sb.ToString().TrimEnd();
     }
 
+    // Every Mermaid statement is one line, so a raw line break inside a label splits the
+    // statement and corrupts the diagram. The Studio's label boxes are WinUI TextBoxes, which
+    // store a typed line break as a bare '\r' — so all three break forms must be handled.
+    private static readonly System.Text.RegularExpressions.Regex LineBreak =
+        new(@"\r\n|\r|\n", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex BrTag =
+        new(@"<br\s*/?>", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>A label with its line breaks written as Mermaid's <c>&lt;br/&gt;</c>, for the
+    /// places Mermaid renders it (node, edge, participant, message, note and state text).</summary>
+    public static string ToBreakTags(string? text) => LineBreak.Replace(text ?? string.Empty, "<br/>");
+
+    /// <summary>The reverse of <see cref="ToBreakTags"/>: <c>&lt;br/&gt;</c> variants become
+    /// '\n' so the canvas shows a real multi-line label.</summary>
+    public static string FromBreakTags(string? text) => BrTag.Replace(text ?? string.Empty, "\n");
+
+    /// <summary>A label's lines, whichever line-break form it uses.</summary>
+    public static string[] Lines(string? text) => LineBreak.Split(text ?? string.Empty);
+
+    /// <summary>A label joined onto one line with spaces, for the places Mermaid has no line
+    /// break syntax (titles, section and task names, ER and class text, mindmap nodes).</summary>
+    public static string OneLine(string? text) =>
+        string.Join(" ", LineBreak.Split(text ?? string.Empty).Select(s => s.Trim()).Where(s => s.Length > 0));
+
     private static void GenerateFlowchart(FlowchartDiagramAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine($"flowchart {ast.Direction}");
         if (!string.IsNullOrEmpty(ast.Title))
         {
-            sb.AppendLine($"{indent}title {ast.Title}");
+            sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
         }
 
         var emittedNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -101,7 +125,7 @@ public static class MermaidCodeGenerator
     private static void GenerateSubgraph(FlowSubgraph sg, StringBuilder sb, string indent, int level, FlowchartDiagramAst ast, HashSet<string> emittedNodes)
     {
         string curIndent = string.Concat(Enumerable.Repeat(indent, level));
-        sb.AppendLine($"{curIndent}subgraph {sg.Id} [\"{sg.Title}\"]");
+        sb.AppendLine($"{curIndent}subgraph {sg.Id} [\"{OneLine(sg.Title)}\"]");
 
         foreach (var nodeId in sg.NodeIds)
         {
@@ -123,10 +147,9 @@ public static class MermaidCodeGenerator
     private static string FormatNode(FlowNode node)
     {
         string text = string.IsNullOrEmpty(node.Text) ? node.Id : node.Text;
-        // Multi-line labels (from <br/> in the original source, or newlines typed in the
-        // visual editor's inline TextBox) must be re-escaped on output: a raw newline inside
-        // a node statement splits it across lines and corrupts the entire diagram.
-        text = text.Replace("\r\n", "\n").Replace("\n", "<br/>");
+        // Multi-line labels (from <br/> in the original source, or line breaks typed in the
+        // visual editor) must be re-escaped on output — see LineBreak.
+        text = ToBreakTags(text);
         bool needsQuotes = text.Contains(" ") || text.Contains(":") || text.Contains("-") || text.Contains("<br/>");
         string labelStr = needsQuotes ? $"\"{text}\"" : text;
 
@@ -153,7 +176,7 @@ public static class MermaidCodeGenerator
         if (edge.StartHead == FlowArrowHead.Normal && edge.EndHead == FlowArrowHead.Normal) return "<-->";
 
         bool hasLabel = !string.IsNullOrEmpty(edge.Label);
-        string labelStr = hasLabel ? $" \"{edge.Label!.Replace("\r\n", "\n").Replace("\n", "<br/>")}\" " : string.Empty;
+        string labelStr = hasLabel ? $" \"{ToBreakTags(edge.Label)}\" " : string.Empty;
 
         return edge.LineStyle switch
         {
@@ -173,14 +196,14 @@ public static class MermaidCodeGenerator
     {
         sb.AppendLine("sequenceDiagram");
         if (ast.AutoNumber) sb.AppendLine($"{indent}autonumber");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
         foreach (var p in ast.Participants)
         {
             string keyword = p.Type == SequenceParticipantType.Actor ? "actor" : "participant";
             if (p.Alias != p.Id && !string.IsNullOrEmpty(p.Alias))
             {
-                sb.AppendLine($"{indent}{keyword} {p.Id} as {p.Alias}");
+                sb.AppendLine($"{indent}{keyword} {p.Id} as {ToBreakTags(p.Alias)}");
             }
             else
             {
@@ -197,19 +220,19 @@ public static class MermaidCodeGenerator
                 NotePlacement.RightOf => "right of",
                 _ => "over"
             };
-            sb.AppendLine($"{indent}Note {placement} {targets}: {note.Text}");
+            sb.AppendLine($"{indent}Note {placement} {targets}: {ToBreakTags(note.Text)}");
         }
 
         foreach (var block in ast.Blocks)
         {
-            sb.AppendLine($"{indent}{block.BlockType.ToString().ToLowerInvariant()} {block.HeaderText}".TrimEnd());
+            sb.AppendLine($"{indent}{block.BlockType.ToString().ToLowerInvariant()} {OneLine(block.HeaderText)}".TrimEnd());
             foreach (var msg in block.Messages)
             {
                 sb.AppendLine($"{indent}{indent}{FormatSequenceMessage(msg)}");
             }
             foreach (var elseBr in block.ElseBranches)
             {
-                sb.AppendLine($"{indent}else {elseBr.Condition}".TrimEnd());
+                sb.AppendLine($"{indent}else {OneLine(elseBr.Condition)}".TrimEnd());
                 foreach (var msg in elseBr.Messages)
                 {
                     sb.AppendLine($"{indent}{indent}{FormatSequenceMessage(msg)}");
@@ -237,13 +260,13 @@ public static class MermaidCodeGenerator
         };
 
         string act = msg.ActivateTarget ? "+" : (msg.DeactivateTarget ? "-" : string.Empty);
-        return $"{msg.FromId}{arrow}{act}{msg.ToId}: {msg.Text}";
+        return $"{msg.FromId}{arrow}{act}{msg.ToId}: {ToBreakTags(msg.Text)}";
     }
 
     private static void GenerateClass(ClassDiagramAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine("classDiagram");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
         foreach (var kvp in ast.Classes)
         {
@@ -290,7 +313,7 @@ public static class MermaidCodeGenerator
 
             string fromCard = !string.IsNullOrEmpty(rel.FromCardinality) ? $"\"{rel.FromCardinality}\" " : string.Empty;
             string toCard = !string.IsNullOrEmpty(rel.ToCardinality) ? $" \"{rel.ToCardinality}\"" : string.Empty;
-            string label = !string.IsNullOrEmpty(rel.Label) ? $" : {rel.Label}" : string.Empty;
+            string label = !string.IsNullOrEmpty(rel.Label) ? $" : {OneLine(rel.Label)}" : string.Empty;
 
             sb.AppendLine($"{indent}{rel.FromClass} {fromCard}{op}{toCard} {rel.ToClass}{label}");
         }
@@ -308,7 +331,7 @@ public static class MermaidCodeGenerator
     private static void GenerateState(StateDiagramAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine(ast.IsV2 ? "stateDiagram-v2" : "stateDiagram");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
         foreach (var kvp in ast.States)
         {
@@ -317,7 +340,7 @@ public static class MermaidCodeGenerator
 
         foreach (var trans in ast.Transitions)
         {
-            string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {trans.EventLabel}" : string.Empty;
+            string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {OneLine(trans.EventLabel)}" : string.Empty;
             sb.AppendLine($"{indent}{trans.FromId} --> {trans.ToId}{evt}");
         }
     }
@@ -347,27 +370,27 @@ public static class MermaidCodeGenerator
             }
             foreach (var trans in node.SubTransitions)
             {
-                string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {trans.EventLabel}" : string.Empty;
+                string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {OneLine(trans.EventLabel)}" : string.Empty;
                 sb.AppendLine($"{curIndent}{indent}{trans.FromId} --> {trans.ToId}{evt}");
             }
             sb.AppendLine($"{curIndent}}}");
         }
         else if (!string.IsNullOrEmpty(node.Label) && node.Label != node.Id && node.Type == StateNodeType.Normal)
         {
-            sb.AppendLine($"{curIndent}state \"{node.Label}\" as {node.Id}");
+            sb.AppendLine($"{curIndent}state \"{ToBreakTags(node.Label)}\" as {node.Id}");
         }
     }
 
     private static void GenerateGantt(GanttChartAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine("gantt");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
         sb.AppendLine($"{indent}dateFormat {ast.DateFormat}");
         sb.AppendLine($"{indent}axisFormat {ast.AxisFormat}");
 
         foreach (var sec in ast.Sections)
         {
-            sb.AppendLine($"{indent}section {sec.Name}");
+            sb.AppendLine($"{indent}section {OneLine(sec.Name)}");
             foreach (var task in sec.Tasks)
             {
                 var flags = new List<string>();
@@ -379,7 +402,7 @@ public static class MermaidCodeGenerator
                 string flagsStr = flags.Count > 0 ? string.Join(", ", flags) + ", " : string.Empty;
                 string startStr = !string.IsNullOrEmpty(task.StartDate) ? $"{task.StartDate}, " : string.Empty;
 
-                sb.AppendLine($"{indent}{indent}{task.Name} :{flagsStr}{task.Id}, {startStr}{task.DurationOrEndDate}");
+                sb.AppendLine($"{indent}{indent}{OneLine(task.Name)} :{flagsStr}{task.Id}, {startStr}{task.DurationOrEndDate}");
             }
         }
     }
@@ -387,7 +410,7 @@ public static class MermaidCodeGenerator
     private static void GenerateEr(ErDiagramAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine("erDiagram");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
         foreach (var kvp in ast.Entities)
         {
@@ -399,7 +422,7 @@ public static class MermaidCodeGenerator
                 {
                     string pk = attr.IsPrimaryKey ? " PK" : string.Empty;
                     string fk = attr.IsForeignKey ? " FK" : string.Empty;
-                    string cmt = !string.IsNullOrEmpty(attr.Comment) ? $" \"{attr.Comment}\"" : string.Empty;
+                    string cmt = !string.IsNullOrEmpty(attr.Comment) ? $" \"{OneLine(attr.Comment)}\"" : string.Empty;
                     sb.AppendLine($"{indent}{indent}{attr.Type} {attr.Name}{pk}{fk}{cmt}");
                 }
                 sb.AppendLine($"{indent}}}");
@@ -415,7 +438,7 @@ public static class MermaidCodeGenerator
             string c1 = FormatErCardinality(rel.Cardinality1, true);
             string c2 = FormatErCardinality(rel.Cardinality2, false);
             string lineStyle = rel.IsIdentifying ? "--" : "..";
-            string label = !string.IsNullOrEmpty(rel.RelationshipName) ? $" : \"{rel.RelationshipName}\"" : string.Empty;
+            string label = !string.IsNullOrEmpty(rel.RelationshipName) ? $" : \"{OneLine(rel.RelationshipName)}\"" : string.Empty;
             sb.AppendLine($"{indent}{rel.Entity1} {c1}{lineStyle}{c2} {rel.Entity2}{label}");
         }
     }
@@ -435,7 +458,7 @@ public static class MermaidCodeGenerator
     private static void GenerateMindmap(MindmapAst ast, StringBuilder sb, string indent)
     {
         sb.AppendLine("mindmap");
-        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {ast.Title}");
+        if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
         if (ast.Root != null)
         {
@@ -446,14 +469,15 @@ public static class MermaidCodeGenerator
     private static void GenerateMindmapNode(MindmapNode node, StringBuilder sb, string indent, int level)
     {
         string curIndent = string.Concat(Enumerable.Repeat(indent, level));
+        string text = OneLine(node.Text);
         string textStr = node.Shape switch
         {
-            MindmapNodeShape.Square => $"[{node.Text}]",
-            MindmapNodeShape.Rounded => $"({node.Text})",
-            MindmapNodeShape.Circle => strokeCircle(node.Text),
-            MindmapNodeShape.Cloud => $"){node.Text}(",
-            MindmapNodeShape.Bang => $")){node.Text}((" ,
-            _ => node.Text
+            MindmapNodeShape.Square => $"[{text}]",
+            MindmapNodeShape.Rounded => $"({text})",
+            MindmapNodeShape.Circle => strokeCircle(text),
+            MindmapNodeShape.Cloud => $"){text}(",
+            MindmapNodeShape.Bang => $")){text}((" ,
+            _ => text
         };
 
         string iconStr = !string.IsNullOrEmpty(node.Icon) ? $" {node.Icon}" : string.Empty;

@@ -186,7 +186,12 @@ namespace MarkSmith.Core.Composer
                     @"<wps:txbx><w:txbxContent><w:p><w:pPr>" +
                     @"<w:suppressAutoHyphens/><w:spacing w:before=""0"" w:after=""0"" w:line=""216"" w:lineRule=""auto""/>" +
                     $@"<w:jc w:val=""center""/><w:rPr>{rpr}</w:rPr></w:pPr>" +
-                    $@"<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space=""preserve"">{Esc(s.Text)}</w:t></w:r>" +
+                    // Word ignores a raw line break inside <w:t>; each label line is its own text
+                    // run joined by <w:br/>, matching the preview's line breaks.
+                    $@"<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space=""preserve"">" +
+                    string.Join(@"</w:t><w:br/><w:t xml:space=""preserve"">",
+                        ShapeMarkdownCodec.NormalizeLineBreaks(s.Text).Split('\n').Select(Esc)) +
+                    @"</w:t></w:r>" +
                     @"</w:p></w:txbxContent></wps:txbx>";
             }
 

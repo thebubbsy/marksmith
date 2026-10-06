@@ -371,7 +371,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                     // code generator re-escapes \n back to <br/> on sync, so the round-trip
                     // is lossless and multi-line labels render properly in both worlds.
                     string label = string.IsNullOrEmpty(fn.Text) ? fn.Id : fn.Text;
-                    label = System.Text.RegularExpressions.Regex.Replace(label, "<br\\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    label = MermaidCodeGenerator.FromBreakTags(label);
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = fn.Id,
@@ -388,7 +388,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                         SourceAnchor = "Bottom",
                         TargetNodeId = edge.ToId,
                         TargetAnchor = "Top",
-                        Label = edge.Label,
+                        Label = edge.Label is null ? null : MermaidCodeGenerator.FromBreakTags(edge.Label),
                         LineStyle = edge.LineStyle.ToString(),
                         EndHead = edge.EndHead.ToString()
                     });
@@ -401,7 +401,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = p.Id,
-                        LabelText = string.IsNullOrEmpty(p.Alias) ? p.Id : p.Alias,
+                        LabelText = string.IsNullOrEmpty(p.Alias) ? p.Id : MermaidCodeGenerator.FromBreakTags(p.Alias),
                         Shape = p.Type.ToString(),
                         Category = "Sequence"
                     });
@@ -414,7 +414,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                         SourceAnchor = "Right",
                         TargetNodeId = msg.ToId,
                         TargetAnchor = "Left",
-                        Label = msg.Text,
+                        Label = MermaidCodeGenerator.FromBreakTags(msg.Text),
                         LineStyle = msg.MessageType.ToString()
                     });
                 }
@@ -456,7 +456,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = s.Id,
-                        LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : s.Label,
+                        LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : MermaidCodeGenerator.FromBreakTags(s.Label),
                         Shape = s.Type.ToString(),
                         Category = "State"
                     });

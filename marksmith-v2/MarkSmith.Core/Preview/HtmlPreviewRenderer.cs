@@ -354,8 +354,17 @@ namespace MarkSmith.Core.Preview
                 var word = raw;
                 while (word.Length > maxChars)
                 {
-                    clean = false;
                     if (line.Length > 0) { lines.Add(line.ToString()); line.Clear(); }
+                    // A compound word breaks after its own hyphen ("Self-" / "actualisation")
+                    // before it is ever cut mid-syllable with an added one.
+                    int own = word.LastIndexOf('-', maxChars - 1);
+                    if (own > 0 && own < word.Length - 1)
+                    {
+                        lines.Add(word[..(own + 1)]);
+                        word = word[(own + 1)..];
+                        continue;
+                    }
+                    clean = false;
                     lines.Add(word[..(maxChars - 1)] + "-");
                     word = word[(maxChars - 1)..];
                 }
