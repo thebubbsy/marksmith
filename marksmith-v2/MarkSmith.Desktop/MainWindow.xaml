@@ -1549,6 +1549,7 @@
                     <!-- ISS-019: Word (.docx) is the default export — the primary click generates
                          a .docx; PDF and the rest live in the chevron flyout. -->
                     <SplitButton x:Name="ExportSplitButton" Grid.Column="0" Height="40" HorizontalAlignment="Stretch"
+                                 AutomationProperties.Name="Generate Word document"
                                  Click="OnPrimaryExportClick" IsEnabled="{Binding IsNotBusy}"
                                  ToolTipService.ToolTip="Generate a Word document — use the chevron for other formats">
                         <StackPanel Orientation="Horizontal" Spacing="8">

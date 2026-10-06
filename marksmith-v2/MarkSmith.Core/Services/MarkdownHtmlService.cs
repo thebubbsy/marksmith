@@ -1569,9 +1569,13 @@ public sealed partial class MarkdownHtmlService
         var next = fit
             ? Math.min(Math.max((vw - PAD) / natural, FIT_MIN), FIT_MAX)
             : Math.min(Math.max(+window.__msZoom || 1, ZOOM_MIN), ZOOM_MAX);
-        var ratio = scale ? next / scale : 1;
-        var preX = 0, preY = 0;
-        if (anchor) { preX = window.scrollX + anchor.x; preY = window.scrollY + anchor.y; }
+        // Anchor in SHEET coordinates: the sheet's own position moves when it switches between
+        // centred and scrolled, so a document-coordinate anchor drifted sideways on zoom.
+        var sheetPt = null;
+        if (anchor && scale) {
+            var r0 = canvas.getBoundingClientRect();
+            sheetPt = { x: (anchor.x - r0.left) / scale, y: (anchor.y - r0.top) / scale };
+        }
         scale = next;
         var w = natural * scale;
         // Wider than the pane: give the body the room so the page scrolls horizontally from a
@@ -1581,11 +1585,17 @@ public sealed partial class MarkdownHtmlService
         var left = w > vw ? PAD / 2 : (vw - w) / 2;
         canvas.style.transformOrigin = 'top left';
         canvas.style.transform = 'translateX(' + (left - canvas.offsetLeft) + 'px) scale(' + scale + ')';
-        // The transform doesn't change layout height, so size the body to the scaled page to
-        // keep all of it scrollable (document coordinates, so scrolling never shrinks it).
-        var rect = canvas.getBoundingClientRect();
-        body.style.minHeight = Math.max(window.innerHeight, rect.top + window.scrollY + rect.height + PAD + 60) + 'px';
-        if (anchor) window.scrollTo(Math.max(0, preX * ratio - anchor.x), Math.max(0, preY * ratio - anchor.y));
+        // The transform doesn't change layout height, so a bottom margin makes the flex item's
+        // outer height match the SCALED page — the scroll range ends just below the page at any
+        // zoom. The top margin is pinned: growing the body instead let flexbox's auto margins
+        // re-centre the page vertically, pushing it further down with every zoom step.
+        canvas.style.marginTop = '0';
+        canvas.style.marginBottom = (canvas.offsetHeight * (scale - 1)) + 'px';
+        body.style.minHeight = '';
+        if (sheetPt) {
+            var r1 = canvas.getBoundingClientRect();
+            window.scrollBy(r1.left + sheetPt.x * scale - anchor.x, r1.top + sheetPt.y * scale - anchor.y);
+        }
         try { window.chrome.webview.postMessage(JSON.stringify({ type: 'preview-scale', scale: scale, fit: fit })); } catch (_) {}
     };
     // Host API: z is 'fit' or a number; (ax, ay) is a viewport point to keep still while zooming.
