@@ -2070,6 +2070,11 @@ public sealed partial class MarkdownHtmlService
             .ms-form-dropdown:focus, .ms-form-date:focus, .ms-form-text:focus {
                 outline: 2px solid {{theme.Primary}};
             }
+            /* Task-list items ("- [x] Ship it") keep their list structure; like GitHub, the
+               checkbox stands in for the bullet instead of sitting beside one. */
+            li:has(> .ms-form-checkbox:first-child),
+            li:has(> p:first-child > .ms-form-checkbox:first-child) { list-style: none; }
+            .ms-form-checkbox { margin: 0 0.45em 0 -1.35em; vertical-align: -0.1em; accent-color: {{theme.Primary}}; }
 
             /* --- R9: Executive Cover Page Gallery --- */
             .cover-page {

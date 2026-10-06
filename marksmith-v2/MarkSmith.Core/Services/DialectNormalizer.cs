@@ -48,6 +48,10 @@ public static class DialectNormalizer
     private static readonly Regex DropdownControl = new(@"\[dropdown:\s*(?<options>[^\]]+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DateControl = new(@"\[date(?::\s*(?<date>[^\]]+))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TextControl = new(@"\[text(?::\s*(?:[""“](?<ph>(?:[^""”\\]|\\.)*?)[""”]|(?<ph>[^\]]+)))?\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    // A GFM task-list item ("- [x] Ship it", "1. [ ] Draft"): the list marker must survive the
+    // checkbox conversion below, or the item stops being a list item and Markdown folds it into
+    // the previous bullet as lazy continuation text ("…customers ☑ Ship it ☐ Draft" on one line).
+    private static readonly Regex TaskListItem = new(@"^(?<lead>[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)\[(?<checked>[ xX])\](?=[ \t]|$)", RegexOptions.Compiled);
     private static readonly Regex CheckboxControl = new(@"(?<=^|[|\s])(?:-\s*)?\[(?<checked>[ xX])\](?=\s|[|]|$)", RegexOptions.Compiled);
     private static readonly Regex TableDelimiterRegex = new(@"^\|[\s|:\-]+$", RegexOptions.Compiled);
     private static readonly Regex TabbedBlockRegex = new(@"===\s*""([^""]+)""\r?\n([\s\S]*?)(?=(===\s*""|$))", RegexOptions.Compiled);
@@ -253,6 +257,14 @@ public static class DialectNormalizer
                 var ph = m.Groups["ph"].Success ? m.Groups["ph"].Value.Trim() : "";
                 var phAttr = !string.IsNullOrEmpty(ph) ? $" placeholder=\"{System.Net.WebUtility.HtmlEncode(ph)}\" value=\"{System.Net.WebUtility.HtmlEncode(ph)}\"" : "";
                 return $"<input type=\"text\" class=\"ms-form-text\"{phAttr} />";
+            }, protectHtml: false);
+
+            line = ReplaceOutsideInlineCode(line, TaskListItem, m =>
+            {
+                bool isChecked = m.Groups["checked"].Value.Equals("x", StringComparison.OrdinalIgnoreCase);
+                return m.Groups["lead"].Value + (isChecked
+                    ? "<input type=\"checkbox\" class=\"ms-form-checkbox\" checked />"
+                    : "<input type=\"checkbox\" class=\"ms-form-checkbox\" />");
             }, protectHtml: false);
 
             line = ReplaceOutsideInlineCode(line, CheckboxControl, m =>
