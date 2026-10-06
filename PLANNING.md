@@ -515,3 +515,96 @@ and `SmartArtInsertControl`, and committed only its own paths.
 3. Run #6's Galaxy-by-eye check is still open.
 4. Keyboard focus order per window (focus *visuals* vs scale now handled).
 5. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 19:15 AEST (scheduled routine run #8 — ran concurrently with run #7)
+
+Reviewed: run #6's "Next up" and, mid-run, run #7's entry (#7 and #8 were launched at the same
+time; #7 took Shape Studio + HoverPolish + glyphs, this run took the main window, preview, first
+run and Galaxy, and stayed out of #7's files until it committed). Worked by **screenshotting a
+fresh-config launch** (`MARKSMITH_CONFIG_DIR` = scratch, so it is a true first-run) at the
+default 1220×800 and narrower, then fixing what the eye found. Six commits, all pushed.
+
+**Shipped — main window holds together at every width (59ffb48):**
+- Bottom editing bar: two methods fought over its visibility (resizing in Preview mode brought
+  the editing buttons back) and at the default width the labelled clusters were clipped at both
+  ends. One measured layout pass now picks expanded / labelled clusters / icon-only clusters.
+  The expanded bar uses Fluent icons (it showed "Img", "Tbl", "<>", "☑" as text).
+- Editor strip: Wrap, the lint chip, Fold and the word count were drawn **on top of each
+  other**. Real columns; word count moved to the status bar beside Ln/Col; the strip sheds items
+  in priority order (Split view leaves ~190 px) — Lines / Wrap / Fold are kept last. Lint chip
+  shows a check when clean (it showed a warning triangle beside "No issues").
+- **DPI bug:** `AppWindow.Resize(1220, 800)` is physical pixels, so a 150 %-scaled laptop opened
+  at ~813×533 DIPs with the Style & Export pane off-screen. Now DPI-scaled, clamped to the work
+  area, with a minimum window size (1120×640 DIP). The Style & Export pane yields width down to
+  its 290 px minimum instead of running off the window edge, and grows back to the user's
+  splitter width when room returns. Title-bar tagline steps aside rather than clipping.
+- Export row: the primary export fills the row; Cancel + busy ring only appear while busy.
+- Connector tip card: stacked layout (its body was squeezed to one word per line). Plain-paste
+  hint bar: same family, CTA drops under the text when narrow.
+- Startup no longer announces "Surround blur: 6px…" (a TwoWay binding fired ValueChanged during
+  InitializeComponent). Debug-mode exit dialog says where the logs are instead of dumping raw
+  HTML into a one-line TextBox. Table / Clean up / Fold icons fixed.
+
+**Shipped — preview zoom actually works (ca332a4, 4de1d04):**
+- The live preview's page-side fit-to-width script was **broken**: it scaled about `top center`
+  while an overflowing page's layout box sat at left 0, so at the default size the page opened
+  shifted right and clipped behind a horizontal scrollbar (Preview and Split). And it re-fitted
+  against the root CSS zoom the host used for user zoom, **cancelling the +/− buttons and
+  Ctrl+wheel** (the readout changed, the page barely did).
+- The page script is now the single owner of the scale (`window.__msZoom` = `'fit'` or an
+  absolute scale, set via `__msSetZoom`, seeded into every render, reported back so the % readout
+  is the truth). New **Fit page width** toggle beside the zoom buttons (`PreviewZoomFit`, on by
+  default; a manual zoom turns it off). Zoom anchors in *sheet* coordinates (cursor for
+  Ctrl+wheel, pane centre for buttons) and the page never drifts down the pane (a bottom margin
+  sizes the flex item to the scaled height; growing `body.min-height` had let flexbox re-centre
+  it on every step). Verified in Chromium (anchor point held exactly at 100→120→150 %, scroll
+  range = scaled page + padding) and in the app (Split 334 px → whole page at 37 %; Preview
+  688 px → 81 %; 4× zoom in → 121 %).
+
+**Shipped — other (2888203, 5f3d458, a5c7984):**
+- **Updater ran whatever it downloaded.** `DownloadAndInstallAsync` ShellExecuted any bytes —
+  a truncated download, a captive-portal page, or (in the test suite) random bytes, which is
+  where the bursts of Wow64 "cannot run on 64-bit Windows" errors in the Application event log
+  came from on every test run. Now it requires the full Content-Length and an MZ→PE header
+  (`LooksLikeWindowsExecutable`, unit-tested). A full test run now logs zero such events.
+- Launch focus goes to the editor (WinUI focused "Start 3-export trial" with a focus rectangle,
+  so typing / Ctrl+V straight after launch went nowhere).
+- Insert-menu icons from run #7's audit, **verified against the installed font first** (run #7's
+  note that E80A is a "tilt-down arrow" is wrong — it is a table grid; it is now Table's icon).
+  Duplicate top-level "Document Galaxy" entry removed. Glass/Surround blur toggles had the
+  bulleted-list glyph.
+- **Galaxy by eye (open since run #6):** two-row header, title bar and swatches are right; but
+  every node card began with a missing-glyph box — node icons are Fluent code points drawn in
+  the text font. Node cards + inspector Icon field now use a Fluent→MDL2→Emoji fallback chain.
+- **Task lists rendered as one bullet** ("Two customers ☑ Ship it ☐ Regenerate"): the form-
+  control checkbox pass swallowed the "- " marker. Fixed in `DialectNormalizer` (marker kept for
+  -, *, +, 1., indented); bullet hidden where a checkbox leads the item. Affected preview, PDF
+  and Word. `TaskListStructureTests` (7).
+- Generate Word SplitButton got an accessible name — the only unnamed control of 92 in the main
+  window. (Note: `FindAll(Descendants)` stops at the WebView2 and reports ~34 elements; a
+  `TreeWalker` walk reaches all 179. Not a real a11y gap — use the walker for audits.)
+
+**Verified:** builds 0 warnings / 0 errors (scratch OutDir — the user had their own instance
+open the whole run, untouched); tests 3105+ passed, 1 skipped, 2 failed = the same two
+`HouseLayoutTests` cases in the user's uncommitted WIP (still not mine, still uncommitted).
+
+**Test-harness notes for future runs:** PrintWindow (`PW_RENDERFULLCONTENT`) screenshots work
+without focus or an unlocked desktop and don't disturb the user. Posted WM_LBUTTON messages do
+NOT reach WinUI — use UIA Invoke via a `ControlViewWalker` (and note a button's tooltip carries
+the same Name, so a second lookup can hit the tooltip). Bash heredocs → python collapse `\` to
+`\` in this environment: `\0`, `\t`, `\n`, `\u` came out as real characters several times — use
+`chr(92)` or the Edit tool for escapes.
+
+**Next up, in priority order:**
+1. **Galaxy edge labels** sit on top of node borders when nodes are stacked closely ("evidence
+   for", "quoted in" in the starter vault) — needs label-aware vertical spacing in auto-layout,
+   or labels offset along the curve. Careful: changing layout moves users' saved vaults.
+2. **Welcome tour card** has a large empty band under its first slide's text (seen on first
+   run) — size the card to content or give every slide a visual.
+3. **Blockquote** has no visible quote styling in the GitHub Light preview theme; check every
+   built-in theme's blockquote, table and code-block styling side by side in the preview.
+4. Updater: verify the installer's Authenticode signature (thumbprint pin) before launching —
+   the structural check shipped here is not a security boundary.
+5. Run #7's list: Shape Studio Hierarchy/Cycle follow-ups; keyboard focus order per window.
+6. Suite Hub: four of six cards have no primary (accent) action while two do — pick one rule.
+7. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
