@@ -702,3 +702,56 @@ via UIA `ScrollPattern.SetScrollPercent` on the pane whose X > 900.
    raw values, MinWidth traps, unnamed controls via the UIA walker).
 4. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
    obstacle-aware routing, intro-video decision (run #9), memory `marksmith-examples-need-regen`.
+
+### 2026-10-07 00:45–01:50 AEST (scheduled routine run #11)
+
+Took run #10's "Next up" #3 (screenshot audit of the windows not yet seen this round) and #2
+(Style & Export pane). Fresh-config launches (`MARKSMITH_CONFIG_DIR`), PrintWindow screenshots, UIA
+invoke/expand/select. **The PC was locked the whole run** (LogonUI running), so real mouse input
+could not be sent — pointer behaviour (click/drag/Ctrl+click on the Shape Studio canvas) is covered
+by view-model unit tests, not by eye. Worth a hands-on check next time the desktop is unlocked.
+
+**Shipped (all pushed to main):**
+- **Shape Studio rework** (f39f3be). Found broken, not just rough: clicking empty canvas always
+  dropped a rounded rectangle (tool permanently armed, no way to deselect); the canvas was hidden
+  while empty so "click to draw" never worked there; Align/Distribute moved *every* shape (Align
+  left on a pyramid flattened it); Insert/Export/Align enabled on an empty canvas; export dropped a
+  timestamped file on the Desktop. Now: Select tool by default, one-shot armed tool with click-to-
+  place / drag-to-size + hint pill + Esc; multi-select (Ctrl/Shift+click, Ctrl+A), group drag, arrow
+  nudge; align/distribute act on the selection and disable below 2/3; snapshot undo/redo for every
+  structural change (Clear's "can't be undone" dialog removed); Export menu with a save dialog and
+  Copy/Load Markdown; left pane is Presets | Shapes | Picture tabs (palette and tracer were below the
+  fold); colour scheme is a swatch dropdown that recolours at once; real-size rounded-rect corners
+  (were pillows); hover outline; fill colour picker; shapes list leads with labels. Renamed
+  "MLShape & SmartArt Vector Studio" → "Shape Studio". `ShapeStudioSelectionTests` (16).
+- **SmartArt Design Studio** (7987124). Preview card was at 46% scale in a 400 px column — now the
+  preview takes the remaining width and scales to fit. Opens on the suggested layout (Org Chart 1)
+  instead of alphabetical-first "Accented Picture". Gallery rows: category icon + type, raw alias
+  moved to tooltip; the VM's type filter (never surfaced) is now a picker with a count. Outline |
+  Markdown tabs (Markdown was an Expander in the status bar); flat outline rows with hover/selected
+  washes and subtle row buttons. `SmartArtStudioGalleryTests` (8).
+- **Style & Export pane** (8ef7347) — closes run #10 "Next up" #2: sections remember open/closed
+  (`AppSettings.ExpandedStyleSections`), first launch opens Appearance only; Diagrams-section gap fixed.
+
+**Verified:** Desktop builds 0 warnings / 0 errors; full suite 3180 passed / 1 skipped / 2 failed =
+the same two `HouseLayoutTests` in the user's uncommitted WIP (`HouseLayout.cs`,
+`DocxExportService.cs`, `TemplateThemeService.cs`, `HouseLayoutTests.cs` — still theirs, untouched,
+not committed).
+
+**Seen but not changed:** Suite Hub (fine), Galaxy (fine at a glance; node text small at 63% fit).
+A test instance from run #9/#10 (`…\b28173a9…\scratchpad\build\Marksmith.exe`, started 06/10 23:12)
+is still running — left alone because it's unclear which config dir it uses.
+
+**Next up:**
+1. **SmartArt preview fidelity.** `HtmlPreviewRenderer` picks one of six drawings by alias keyword,
+   so most of the 176 layouts preview as a flat row of boxes (e.g. Architecture is "Hierarchy" in the
+   gallery but renders linear), and the hierarchy drawing puts grandchildren on long dotted diagonals.
+   Choose the drawing from the package category as well; shared with the document preview
+   (`MarkdownHtmlService`), so check documents too.
+2. Shape Studio by hand once the desktop is unlocked: drag-to-draw ghost, group drag, Ctrl+click,
+   hover outline, arrow nudge, fill picker flyout, Export save dialog.
+3. Diagram Studio "Next up" from run #10 (canvas default fill vs Preview tab; connector inspector).
+4. Remaining unaudited surfaces: export dialogs/progress, the ⋯ menu flyouts, Version History, the
+   Insert-menu dialogs (Table, Image, Canvas, Wave Function Collapse).
+5. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
+   obstacle-aware routing, intro-video decision (run #9), memory `marksmith-examples-need-regen`.
