@@ -65,7 +65,7 @@ public class ShapeStudioTests
 
         Assert.Equal(8, vm.Shapes.Count);
         Assert.Equal(4, vm.Shapes.Count(s => s.Prst == "roundrect"));
-        Assert.Equal(4, vm.Shapes.Count(s => s.Prst == "circulararrow"));
+        Assert.Equal(4, vm.Shapes.Count(s => s.Prst == "chevron")); // stage-to-stage connectors
     }
 
     [Fact]

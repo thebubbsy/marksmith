@@ -853,20 +853,35 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         StatusMessage = "✓ Generated RACI Accountability Grid";
     }
 
+    /// <summary>A small chevron midway between two stages, rotated to point from
+    /// <paramref name="from"/> to <paramref name="to"/>.</summary>
+    internal ShapeCanvasItemViewModel AddFlowChevron(ShapeCanvasItemViewModel from, ShapeCanvasItemViewModel to, string? fill, double size = 44)
+    {
+        double fx = from.X + from.Width / 2.0, fy = from.Y + from.Height / 2.0;
+        double tx = to.X + to.Width / 2.0, ty = to.Y + to.Height / 2.0;
+        var angle = (int)Math.Round(Math.Atan2(ty - fy, tx - fx) * 180.0 / Math.PI);
+        if (angle < 0) angle += 360;
+        double w = size, h = size * 0.6;
+        return AddShapeAt("chevron", (fx + tx) / 2.0 - w / 2.0, (fy + ty) / 2.0 - h / 2.0, w, h, fill, rot: angle);
+    }
+
     [RelayCommand]
     public void GenerateCycleTemplate()
     {
+        // Stage -> stage chevrons, each turned to point at the next stage. These used to be four
+        // identical circular-arrow icons, which read as "refresh" four times rather than as a
+        // direction of travel around the loop.
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("roundrect", 270, 40, 180, 65, colors[0 % colors.Length], "1 · PLAN\nStrategy & Goals");
-        AddShapeAt("roundrect", 480, 190, 180, 65, colors[1 % colors.Length], "2 · DO\nBuild & Execute");
-        AddShapeAt("roundrect", 270, 340, 180, 65, colors[2 % colors.Length], "3 · CHECK\nTest & Validate");
-        AddShapeAt("roundrect", 60, 190, 180, 65, colors[3 % colors.Length], "4 · ACT\nDeploy & Improve");
+        var plan = AddShapeAt("roundrect", 270, 40, 180, 65, colors[0 % colors.Length], "1 · PLAN\nStrategy & Goals");
+        var execute = AddShapeAt("roundrect", 480, 190, 180, 65, colors[1 % colors.Length], "2 · DO\nBuild & Execute");
+        var check = AddShapeAt("roundrect", 270, 340, 180, 65, colors[2 % colors.Length], "3 · CHECK\nTest & Validate");
+        var act = AddShapeAt("roundrect", 60, 190, 180, 65, colors[3 % colors.Length], "4 · ACT\nDeploy & Improve");
 
-        AddShapeAt("circulararrow", 460, 100, 55, 55, colors[0 % colors.Length]);
-        AddShapeAt("circulararrow", 460, 280, 55, 55, colors[1 % colors.Length]);
-        AddShapeAt("circulararrow", 200, 280, 55, 55, colors[2 % colors.Length]);
-        AddShapeAt("circulararrow", 200, 100, 55, 55, colors[3 % colors.Length]);
+        AddFlowChevron(plan, execute, colors[0 % colors.Length]);
+        AddFlowChevron(execute, check, colors[1 % colors.Length]);
+        AddFlowChevron(check, act, colors[2 % colors.Length]);
+        AddFlowChevron(act, plan, colors[3 % colors.Length]);
         StatusMessage = "✓ Generated PDCA Continuous Cycle";
     }
 
@@ -875,13 +890,13 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("roundrect", 270, 50, 180, 65, colors[0 % colors.Length], "1 · BUILD\nCode & Features");
-        AddShapeAt("roundrect", 450, 250, 180, 65, colors[1 % colors.Length], "2 · MEASURE\nMetrics & Signals");
-        AddShapeAt("roundrect", 90, 250, 180, 65, colors[2 % colors.Length], "3 · LEARN\nInsights & Pivot");
+        var build = AddShapeAt("roundrect", 270, 50, 180, 65, colors[0 % colors.Length], "1 · BUILD\nCode & Features");
+        var measure = AddShapeAt("roundrect", 450, 250, 180, 65, colors[1 % colors.Length], "2 · MEASURE\nMetrics & Signals");
+        var learn = AddShapeAt("roundrect", 90, 250, 180, 65, colors[2 % colors.Length], "3 · LEARN\nInsights & Pivot");
 
-        AddShapeAt("circulararrow", 440, 140, 60, 60, colors[0 % colors.Length]);
-        AddShapeAt("circulararrow", 280, 310, 60, 60, colors[1 % colors.Length]);
-        AddShapeAt("circulararrow", 150, 140, 60, 60, colors[2 % colors.Length]);
+        AddFlowChevron(build, measure, colors[0 % colors.Length]);
+        AddFlowChevron(measure, learn, colors[1 % colors.Length]);
+        AddFlowChevron(learn, build, colors[2 % colors.Length]);
         StatusMessage = "✓ Generated Build-Measure-Learn Loop";
     }
 
