@@ -108,7 +108,12 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty] private string _brandTemplatePath = "";
     [ObservableProperty] private bool _showAttribution;
     [ObservableProperty] private bool _noEmoji;
-    [ObservableProperty] private int _dashMode;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDashCustom))]
+    private int _dashMode;
+
+    /// <summary>The em-dash "Custom…" choice is selected, so its replacement box applies.</summary>
+    public bool IsDashCustom => DashMode == 3;
     [ObservableProperty] private string _dashCustom;
     [ObservableProperty] private int _headingShift;
     [ObservableProperty] private int _boldMode;

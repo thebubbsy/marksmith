@@ -475,7 +475,7 @@
             </Border>
             </Grid>
 
-            <controls:GridSplitter x:Name="LeftSplitter" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
+            <controls:GridSplitter x:Name="LeftSplitter" AutomationProperties.Name="Resize the Source pane" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                    ToolTipService.ToolTip="Drag to resize the Source pane" />
 
             <!-- CENTER PANE: LOOKING Glass -->
@@ -726,7 +726,7 @@
                                 </StackPanel>
                             </Grid>
                         </Grid>
-                        <controls:GridSplitter x:Name="SplitViewSplitter" Grid.Column="1" Width="16" Visibility="Collapsed"
+                        <controls:GridSplitter x:Name="SplitViewSplitter" AutomationProperties.Name="Resize the editor and preview" Grid.Column="1" Width="16" Visibility="Collapsed"
                                                Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                                ToolTipService.ToolTip="Drag to resize the editor / preview split" />
                         <Grid Grid.Column="2" x:Name="PreviewColumn" RowSpacing="8">
@@ -1062,7 +1062,7 @@
             </Grid>
 
 
-            <controls:GridSplitter x:Name="RightSplitter" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
+            <controls:GridSplitter x:Name="RightSplitter" AutomationProperties.Name="Resize the Style &amp; Export pane" Grid.Column="3" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
                                                ToolTipService.ToolTip="Drag to resize the Style &amp; Export pane" />
 
             <!-- RIGHT PANE -->
@@ -1296,15 +1296,17 @@
                                           IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
                             <TextBlock Text="When enabled, lines stay glued to shapes when dragged in Word."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                            <!-- Tag is the stored value (DrawingML arrow names); Content is what people read. -->
                             <ComboBox Header="Connector arrowheads" HorizontalAlignment="Stretch"
-                                      SelectedItem="{Binding ConnectorArrowhead, Mode=TwoWay}">
-                                <x:String>default</x:String>
-                                <x:String>triangle</x:String>
-                                <x:String>open</x:String>
-                                <x:String>diamond</x:String>
-                                <x:String>oval</x:String>
-                                <x:String>stealth</x:String>
-                                <x:String>none</x:String>
+                                      SelectedValuePath="Tag"
+                                      SelectedValue="{Binding ConnectorArrowhead, Mode=TwoWay}">
+                                <ComboBoxItem Content="Default (from the diagram)" Tag="default" />
+                                <ComboBoxItem Content="Triangle" Tag="triangle" />
+                                <ComboBoxItem Content="Open arrow" Tag="open" />
+                                <ComboBoxItem Content="Diamond" Tag="diamond" />
+                                <ComboBoxItem Content="Oval" Tag="oval" />
+                                <ComboBoxItem Content="Stealth" Tag="stealth" />
+                                <ComboBoxItem Content="None" Tag="none" />
                             </ComboBox>
                             <TextBlock Text="Fallback arrowhead style for connectors that don't specify one in the diagram source."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
@@ -1377,10 +1379,19 @@
                                                         <TextBox Text="{Binding Find, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                  PlaceholderText="Find" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
                                                         <TextBox Grid.Column="1" Text="{Binding Replace, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                 PlaceholderText="Replace (blank = strip)" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
-                                                        <CheckBox Grid.Column="2" IsChecked="{Binding IsRegex, Mode=TwoWay}" ToolTipService.ToolTip="Treat Find as a regex" VerticalAlignment="Center" />
-                                                        <Button Grid.Column="3" Padding="6,4"
+                                                                 PlaceholderText="Replace" ToolTipService.ToolTip="Leave blank to strip the match"
+                                                                 FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
+                                                        <!-- A ".*" toggle, as in VS Code's find box. It was a bare CheckBox, whose
+                                                             default MinWidth of 120 left a dead gap and squeezed Find/Replace until
+                                                             their text and placeholders clipped. -->
+                                                        <ToggleButton Grid.Column="2" IsChecked="{Binding IsRegex, Mode=TwoWay}" Content=".*"
+                                                                      FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" Padding="7,4" MinWidth="0"
+                                                                      VerticalAlignment="Stretch"
+                                                                      ToolTipService.ToolTip="Treat Find as a regular expression"
+                                                                      AutomationProperties.Name="Treat Find as a regular expression" />
+                                                        <Button Grid.Column="3" Padding="6,4" VerticalAlignment="Stretch"
                                                                 ToolTipService.ToolTip="Remove this rule"
+                                                                AutomationProperties.Name="Remove this rule"
                                                                 Command="{Binding ElementName=RootGrid, Path=DataContext.RemoveNormalizationRuleCommand}"
                                                                 CommandParameter="{Binding}">
                                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
@@ -1425,8 +1436,9 @@
                                             <x:String>Replace with spaced ( - )</x:String>
                                             <x:String>Custom…</x:String>
                                         </ComboBox>
-                                        <TextBox PlaceholderText="Custom replacement (used when 'Custom…' is selected)"
+                                        <TextBox PlaceholderText="Replace each em dash with…" AutomationProperties.Name="Custom em dash replacement"
                                                  Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Visibility="{Binding IsDashCustom, Converter={StaticResource BoolToVisibilityConverter}}"
                                                  IsSpellCheckEnabled="False" />
                                         <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
                                                    Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
