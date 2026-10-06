@@ -241,6 +241,7 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Padding="14,12" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0">
@@ -252,7 +253,9 @@
                         <TextBlock Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <WebView2 x:Name="PreviewWebView" Grid.Row="1" Margin="0" />
+                    <InfoBar Grid.Row="1" Margin="12,10,12,0" Severity="Informational" IsClosable="False"
+                             IsOpen="{Binding HasPreviewHint}" Message="{Binding PreviewHint}" />
+                    <WebView2 x:Name="PreviewWebView" Grid.Row="2" Margin="0" />
                 </Grid>
             </Border>
         </Grid>

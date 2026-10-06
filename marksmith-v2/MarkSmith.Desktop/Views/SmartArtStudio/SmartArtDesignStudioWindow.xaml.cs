@@ -77,22 +77,36 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
-        // The renderer emits a fixed 800x500 card (sized for documents) with a "Layout: …" caption.
-        // In the studio the card scales to the pane — it used to sit at 46% in a 500 px-tall box,
-        // labels unreadably small — and the caption is dropped because the pane header names the
-        // layout already.
+        // The renderer emits a card sized for documents (800 wide, as tall as the layout needs) with
+        // a "Layout: …" caption. In the studio the card fills the pane and the drawing scales to fit
+        // it either way (the SVG's default xMidYMid meet), and the caption is dropped because the
+        // pane header names the layout already.
         private static string BuildWrapperHtml(string body)
         {
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <style>
   html,body{{height:100%;margin:0}}
-  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex;justify-content:center;align-items:center}}
-  .smartart-container{{width:100%!important;max-width:none!important;height:auto!important;aspect-ratio:8/5;max-height:100%}}
-  .smartart-container > div:first-child{{display:none}}
+  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:100%!important;display:flex;flex-direction:column;padding:12px;box-sizing:border-box}}
+  .smartart-container > .smartart-caption{{display:none}}
+  .smartart-container > svg{{flex:1;min-height:0;width:100%!important;height:100%!important}}
 </style></head>
 <body>
   {body}
+<script>
+  // Frame the drawing itself rather than its 800-wide document canvas, so a three-box process
+  // fills the pane like an org chart does — but never zoom a lone shape up to poster size.
+  (function () {{
+    var s = document.querySelector('.smartart-container > svg');
+    if (!s || !s.getBBox) return;
+    var b = s.getBBox(), pad = 20;
+    if (!b.width || !b.height) return;
+    var w = Math.max(b.width + pad * 2, 560), h = Math.max(b.height + pad * 2, 340);
+    var cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    s.setAttribute('viewBox', (cx - w / 2) + ' ' + (cy - h / 2) + ' ' + w + ' ' + h);
+  }})();
+</script>
 </body></html>";
         }
 

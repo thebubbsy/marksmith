@@ -193,9 +193,8 @@ namespace MarkSmith.Core.Glox
 
         private GloxPackage? FindByUrnSuffix(string suffix)
         {
-            return _all.FirstOrDefault(p =>
-                p.UniqueId.EndsWith("/" + suffix, StringComparison.OrdinalIgnoreCase) ||
-                p.UniqueId.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+            return _all.FirstOrDefault(p => p.UniqueId.EndsWith("/" + suffix, StringComparison.OrdinalIgnoreCase))
+                ?? _all.FirstOrDefault(p => p.UniqueId.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -211,10 +210,12 @@ namespace MarkSmith.Core.Glox
             if (_byAlias.TryGetValue(normalized, out var byAlias)) return byAlias;
             if (_byUrn.TryGetValue(normalized, out var byUrn)) return byUrn;
 
-            // Tail match against real URNs.
+            // Tail match against real URNs — an exact last segment first, so "process2" is
+            // process2 and not whichever of bProcess2 / lProcess2 happens to sort earlier.
             var tail = _all.FirstOrDefault(p =>
-                p.UniqueId.EndsWith("/" + normalized, StringComparison.OrdinalIgnoreCase) ||
-                p.UniqueId.EndsWith(normalized, StringComparison.OrdinalIgnoreCase));
+                           p.UniqueId.EndsWith("/" + normalized, StringComparison.OrdinalIgnoreCase))
+                       ?? _all.FirstOrDefault(p =>
+                           p.UniqueId.EndsWith(normalized, StringComparison.OrdinalIgnoreCase));
             if (tail != null) return tail;
 
             return null;

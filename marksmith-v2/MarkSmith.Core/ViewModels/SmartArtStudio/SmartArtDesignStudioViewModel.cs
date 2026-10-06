@@ -147,6 +147,30 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private string _previewTitle = "";
 
+    /// <summary>Shown above the preview when the layout will draw a single shape because the
+    /// outline has one top-level item (empty when there's nothing to say).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreviewHint))]
+    private string _previewHint = "";
+
+    public bool HasPreviewHint => !string.IsNullOrEmpty(PreviewHint);
+
+    /// <summary>Lists, processes, cycles… draw one shape per top-level item and put sub-items inside
+    /// it as bullets (as Word does), so the default org-chart outline — one root — becomes a single
+    /// box. Say so, instead of leaving the user wondering where their shapes went.</summary>
+    internal static string SingleShapeHint(MarkSmith.Core.AST.CanonicalAst ast, string alias, string title)
+    {
+        var top = ast.Root.Children.Where(c => !string.IsNullOrWhiteSpace(c.Text)).ToList();
+        if (top.Count != 1 || top[0].Children.Count < 2) return "";
+        var family = HtmlPreviewRenderer.ResolveFamily(alias);
+        if (family is SmartArtPreviewFamily.Hierarchy or SmartArtPreviewFamily.HorizontalHierarchy
+            or SmartArtPreviewFamily.BlockHierarchy or SmartArtPreviewFamily.Pyramid
+            or SmartArtPreviewFamily.InvertedPyramid or SmartArtPreviewFamily.Radial or SmartArtPreviewFamily.Matrix)
+            return "";
+        return $"{title} draws one shape per top-level item, with sub-items as its bullet text. " +
+               $"Promote (‹) the items under “{top[0].Text}” to give each its own shape.";
+    }
+
     private readonly List<StudioLayoutItem> _allLayouts = new();
 
     private readonly List<string> _undoStack = new();
@@ -620,6 +644,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
             PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
             PreviewTitle = title;
+            PreviewHint = SingleShapeHint(ast, alias, title);
             PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -666,17 +691,22 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         return idx >= 0 ? urn[(idx + 1)..] : urn;
     }
 
-    private static string GuessCategory(string hint, GloxPackage pkg)
-    {
-        string combined = $"{hint} {pkg.Category} {pkg.UniqueId}".ToLowerInvariant();
-        if (combined.Contains("hier") || combined.Contains("org")) return "Hierarchy";
-        if (combined.Contains("process") || combined.Contains("workflow")) return "Process";
-        if (combined.Contains("cycle")) return "Cycle";
-        if (combined.Contains("matrix") || combined.Contains("grid")) return "Matrix";
-        if (combined.Contains("pyramid")) return "Pyramid";
-        if (combined.Contains("venn")) return "Venn";
-        if (combined.Contains("picture")) return "Picture List";
-        if (combined.Contains("relationship")) return "Relationship";
-        return "List";
-    }
+    /// <summary>The gallery category follows the drawing the preview uses, so a row's label, its icon
+    /// and the preview always agree (a keyword guess filed "Picture Grid" under Matrix).</summary>
+    private static string GuessCategory(string hint, GloxPackage pkg) =>
+        HtmlPreviewRenderer.ResolveFamily(pkg.UniqueId) switch
+        {
+            SmartArtPreviewFamily.Hierarchy or SmartArtPreviewFamily.HorizontalHierarchy
+                or SmartArtPreviewFamily.BlockHierarchy or SmartArtPreviewFamily.HierarchyList => "Hierarchy",
+            SmartArtPreviewFamily.Process or SmartArtPreviewFamily.Chevron or SmartArtPreviewFamily.VerticalProcess
+                or SmartArtPreviewFamily.BendingProcess or SmartArtPreviewFamily.StepsUp or SmartArtPreviewFamily.StepsDown
+                or SmartArtPreviewFamily.Timeline or SmartArtPreviewFamily.Equation => "Process",
+            SmartArtPreviewFamily.Cycle => "Cycle",
+            SmartArtPreviewFamily.Matrix => "Matrix",
+            SmartArtPreviewFamily.Pyramid or SmartArtPreviewFamily.InvertedPyramid => "Pyramid",
+            SmartArtPreviewFamily.Venn or SmartArtPreviewFamily.LinearVenn => "Venn",
+            SmartArtPreviewFamily.Radial or SmartArtPreviewFamily.Balance or SmartArtPreviewFamily.Target => "Relationship",
+            SmartArtPreviewFamily.Pictures => "Picture List",
+            _ => "List",
+        };
 }
