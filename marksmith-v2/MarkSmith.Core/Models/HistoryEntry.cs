@@ -63,7 +63,9 @@ public sealed class HistoryEntry
     public static string ExtractTitle(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return "";
-        var lines = markdown.Replace("\r", "").Split('\n');
+        // Normalise, don't strip: the WinUI editor stores line breaks as a bare \r, and deleting
+        // those ran a pasted document into one line, so its export file name became the whole text.
+        var lines = MarkSmith.Services.TextNormalizer.Newlines(markdown).Split('\n');
 
         if (lines.Length > 0 && lines[0].Trim() == "---")
         {

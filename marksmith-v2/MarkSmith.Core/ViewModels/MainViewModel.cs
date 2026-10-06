@@ -528,6 +528,31 @@ private readonly MarkdownExportService _mdExport = new();
     public bool IsNotBusy => !IsBusy;
     public bool HasOutput => !string.IsNullOrEmpty(LastOutputPath);
 
+    // The file the status bar's "Open · Show in folder" links act on. Set only while the status
+    // line is announcing that export; any later status message hides the links again, so they never
+    // sit beside an unrelated message (the Windows toast is easy to miss or switched off).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStatusOutput))]
+    private string? _statusOutputPath;
+    public bool HasStatusOutput => !string.IsNullOrEmpty(StatusOutputPath);
+    private bool _settingExportStatus;
+
+    partial void OnStatusTextChanged(string value)
+    {
+        if (!_settingExportStatus) StatusOutputPath = null;
+    }
+
+    private void AnnounceExport(string message, string? outputPath)
+    {
+        _settingExportStatus = true;
+        try
+        {
+            StatusText = message;
+            StatusOutputPath = outputPath;
+        }
+        finally { _settingExportStatus = false; }
+    }
+
     // Licensing (drives the paywall UI). Backed by AppServices.License; kept in sync via its Changed event.
     public bool IsPro => AppServices.License.IsPro;
     public bool IsFree => AppServices.License.State.Edition == Models.Edition.Free;
@@ -1359,6 +1384,7 @@ private readonly MarkdownExportService _mdExport = new();
         // resets the UI immediately rather than truly aborting an in-flight render call.
         // Handles asynchronous file write buffer latency during rapid source switching.
         _conversionCts?.Cancel();
+        _exportAllCancelled = true;
         StatusText = "Cancelled.";
         StatusSeverity = StatusSeverity.Warning;
         IsBusy = false;
@@ -1373,14 +1399,12 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("PDF", async ct =>
         {
+            var outPath = PrepareOutputPath(sourceLabel, "pdf");
             var html = BuildPreviewHtml(markdown);
-            var outPath = ResolveOutputPath(sourceLabel, "pdf");
-            await _pdfExport.ExportAsync(Host, html, outPath, _settingsService.Current);
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("PDF", outPath, markdown);
-            RaiseExportCompleted("PDF", outPath);
-            StatusText = $"PDF export done: {outPath}";
+            // Pass the source so the PDF carries it like batch and auto-ingest PDFs do — without it
+            // a PDF made with the main export button couldn't be reopened as Markdown.
+            await _pdfExport.ExportAsync(Host, html, outPath, _settingsService.Current, markdown);
+            CompleteExport("PDF", outPath, markdown, ct);
         });
     }
 
@@ -1399,7 +1423,7 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("DOCX", async ct =>
         {
-            var outPath = ResolveOutputPath(sourceLabel, "docx");
+            var outPath = PrepareOutputPath(sourceLabel, "docx");
             var settings = _settingsService.Current;
             var hasMermaid = markdown.Contains("```mermaid", StringComparison.Ordinal);
 
@@ -1442,12 +1466,8 @@ private readonly MarkdownExportService _mdExport = new();
             // path). Here we only detect the moment the trial was just SPENT so the status line can
             // say so — the note must never appear while the trial is still active (1st/2nd export).
             var trialSpentNow = wasTrialBefore && AppServices.License.State.Edition == Models.Edition.Free;
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("DOCX", outPath, markdown);
-            RaiseExportCompleted("DOCX", outPath);
             var trialNote = trialSpentNow ? "  (that was your last trial export - DOCX now requires Pro)" : "";
-            StatusText = $"DOCX export done: {outPath}{layoutNote}{trialNote}";
+            CompleteExport("DOCX", outPath, markdown, ct, layoutNote + trialNote);
         });
     }
 
@@ -1466,13 +1486,9 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("PPTX", async ct =>
         {
-            var outPath = ResolveOutputPath(sourceLabel, PptxExportService.Extension);
+            var outPath = PrepareOutputPath(sourceLabel, PptxExportService.Extension);
             await _pptxExport.ExportAsync(markdown, outPath, _settingsService.Current);
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("PPTX", outPath, markdown);
-            RaiseExportCompleted("PPTX", outPath);
-            StatusText = $"PPTX export done: {outPath}";
+            CompleteExport("PPTX", outPath, markdown, ct);
         });
     }
 
@@ -1484,13 +1500,9 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("EPUB", async ct =>
         {
-            var outPath = ResolveOutputPath(sourceLabel, EpubExportService.Extension);
+            var outPath = PrepareOutputPath(sourceLabel, EpubExportService.Extension);
             await _epubExport.ExportAsync(markdown, outPath, _settingsService.Current);
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("EPUB", outPath, markdown);
-            RaiseExportCompleted("EPUB", outPath);
-            StatusText = $"EPUB export done: {outPath}";
+            CompleteExport("EPUB", outPath, markdown, ct);
         });
     }
 
@@ -1502,14 +1514,13 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("HTML", async ct =>
         {
-            var outPath = ResolveOutputPath(sourceLabel, ".html");
-            var html = BuildPreviewHtml(markdown, interactive: false);
+            // "html", not ".html": ResolveOutputPath adds the dot (this used to write "Report..html").
+            var outPath = PrepareOutputPath(sourceLabel, "html");
+            // Embed the bundled mermaid/KaTeX/highlight.js: the preview loads them from an in-app
+            // virtual host, which a browser opening the saved file can't reach.
+            var html = StandaloneHtml.Inline(BuildPreviewHtml(markdown, interactive: false));
             await File.WriteAllTextAsync(outPath, html, ct);
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("HTML", outPath, markdown);
-            RaiseExportCompleted("HTML", outPath);
-            StatusText = $"HTML export done: {outPath}";
+            CompleteExport("HTML", outPath, markdown, ct);
         });
     }
 
@@ -1632,63 +1643,128 @@ private readonly MarkdownExportService _mdExport = new();
 
         await RunConversionAsync("Markdown", async ct =>
         {
-            var outPath = ResolveOutputPath(sourceLabel, MarkdownExportService.Extension);
+            var outPath = PrepareOutputPath(sourceLabel, MarkdownExportService.Extension);
             await _mdExport.ExportAsync(markdown, outPath, _settingsService.Current);
-            LastOutputPath = outPath;
-            if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport("MD", outPath, markdown);
-            RaiseExportCompleted("MD", outPath);
-            StatusText = $"Markdown export done: {outPath}";
+            CompleteExport("MD", outPath, markdown, ct);
         });
     }
 
     // One-click "Export all": produces every format the license allows (PDF always; DOCX/PPTX when
     // Pro) from the same resolved source, then reports a single combined summary. Each per-format
-    // export runs through its own ConvertTo*Async (own progress/error handling), so a failure in one
-    // format never blocks the others — success is detected by the export-history count growing.
+    // export runs through its own ConvertTo*Async (own error handling), so a failure in one format
+    // never blocks the others — success is detected by the export-history count growing. The busy
+    // state holds for the whole run (it used to drop between formats, re-enabling Export mid-run),
+    // the status line counts "2 of 3", Cancel stops the remaining formats, and the summary keeps
+    // each failure's reason instead of a bare "DOCX failed".
     public async Task ExportAllAsync()
     {
-        var (markdown, sourceLabel) = ResolveSource();
+        var (markdown, _) = ResolveSource();
         if (markdown is null) return;
 
+        var formats = new List<(string Kind, Func<Task> Export)> { ("PDF", ConvertToPdfAsync) };
+        var skipped = new List<string>();
+        if (AppServices.License.CanExportDocx) formats.Add(("DOCX", ConvertToDocxAsync)); else skipped.Add("DOCX");
+        if (AppServices.License.CanExportPptx) formats.Add(("PPTX", ConvertToPptxAsync)); else skipped.Add("PPTX");
+
         IsBusy = true;
+        _exportAllRunning = true;
+        _exportAllCancelled = false;
         _suppressExportToasts = true; // one combined toast at the end, not one per format
         var done = new List<string>();
-        var failed = new List<string>();
-        var skipped = new List<string>();
+        var failures = new List<string>();
+        string? firstOutput = null;
 
         try
         {
-            await RunOneFormatAsync("PDF", ConvertToPdfAsync, done, failed);
-            if (AppServices.License.CanExportDocx) await RunOneFormatAsync("DOCX", ConvertToDocxAsync, done, failed);
-            else skipped.Add("DOCX");
-            if (AppServices.License.CanExportPptx) await RunOneFormatAsync("PPTX", ConvertToPptxAsync, done, failed);
-            else skipped.Add("PPTX");
+            for (var i = 0; i < formats.Count; i++)
+            {
+                if (_exportAllCancelled) break;
+                _exportAllStep = $"Export all ({i + 1} of {formats.Count}): ";
+                var (kind, export) = formats[i];
+                var before = History.Count;
+                try { await export(); }
+                catch { /* per-format errors are already surfaced via the status bar */ }
+                if (History.Count > before)
+                {
+                    done.Add(kind);
+                    firstOutput ??= LastOutputPath;
+                }
+                else if (!_exportAllCancelled)
+                {
+                    failures.Add(StatusText.StartsWith(kind, StringComparison.Ordinal) ? StatusText : $"{kind} export failed.");
+                }
+            }
         }
         finally
         {
             _suppressExportToasts = false;
+            _exportAllRunning = false;
+            _exportAllStep = "";
+            IsBusy = false;
         }
-
-        IsBusy = false;
 
         if (done.Count > 0) RaiseExportCompleted(string.Join(" + ", done), LastOutputPath ?? string.Empty);
 
         var parts = new List<string>();
         if (done.Count > 0) parts.Add($"Exported {string.Join(" + ", done)}");
-        if (failed.Count > 0) parts.Add($"{string.Join(" + ", failed)} failed");
+        if (_exportAllCancelled) parts.Add(done.Count > 0 ? "cancelled before the rest" : "Export all cancelled");
+        parts.AddRange(failures);
         if (skipped.Count > 0) parts.Add($"{string.Join(" + ", skipped)} skipped (Pro)");
-        StatusText = string.Join(" · ", parts);
-        StatusSeverity = failed.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
+        var folder = firstOutput is null ? null : Path.GetDirectoryName(firstOutput);
+        if (folder is not null && failures.Count == 0 && !_exportAllCancelled) parts.Add($"in {folder}");
+        AnnounceExport(string.Join(" · ", parts), done.Count > 0 ? LastOutputPath : null);
+        StatusSeverity = _exportAllCancelled ? StatusSeverity.Warning
+            : failures.Count == 0 ? StatusSeverity.Success
+            : done.Count > 0 ? StatusSeverity.Warning
+            : StatusSeverity.Error;
     }
 
-    private async Task RunOneFormatAsync(string kind, Func<Task> export, List<string> done, List<string> failed)
+    private bool _exportAllRunning;
+    private bool _exportAllCancelled;
+    private string _exportAllStep = "";
+
+    // The output path of the export in flight, so a failure message can name the file.
+    private string? _pendingOutputPath;
+
+    // ResolveOutputPath plus two up-front checks:
+    //  - never write over the document being exported: with the default "{title}" template and an
+    //    output folder next to the input, "Export as Markdown" resolved to the open .md itself and
+    //    replaced the user's source with the normalized copy. Those exports get " (exported)".
+    //  - fail fast when the target is open in another program (Word, Acrobat), rather than after a
+    //    long render that then can't be written.
+    internal string PrepareOutputPath(string sourceLabel, string extension)
     {
-        var before = History.Count;
-        try { await export(); }
-        catch { /* per-format errors are already surfaced via the status bar */ }
-        if (History.Count > before) done.Add(kind);
-        else failed.Add(kind);
+        var outPath = ResolveOutputPath(sourceLabel, extension);
+        if (!UsePasteSource && IsSameFile(outPath, InputFilePath))
+        {
+            var dir = Path.GetDirectoryName(outPath) ?? "";
+            outPath = Path.Combine(dir, $"{Path.GetFileNameWithoutExtension(outPath)} (exported).{extension}");
+        }
+        _pendingOutputPath = outPath;
+        ExportFailureMessage.ThrowIfLocked(outPath);
+        return outPath;
+    }
+
+    private static bool IsSameFile(string a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(b)) return false;
+        try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), Services.PathEquality.Comparison); }
+        catch { return false; }
+    }
+
+    // Shared tail of every single-format export. Checking the token first means an export the user
+    // cancelled doesn't come back seconds later claiming "done", raising a toast and adding a history row.
+    private void CompleteExport(string kind, string outPath, string markdown, CancellationToken ct, string note = "")
+    {
+        ct.ThrowIfCancellationRequested();
+        LastOutputPath = outPath;
+        if (!UsePasteSource) TrackRecent(InputFilePath);
+        RecordExport(kind, outPath, markdown);
+        RaiseExportCompleted(kind, outPath);
+        // File name first: the status bar trims long text from the end, and the old
+        // "PDF export done: C:/Users/.../a/long/folder/Report.pdf" lost the one part that mattered.
+        var label = kind == "MD" ? "Markdown" : kind;
+        AnnounceExport($"{label} saved: {Path.GetFileName(outPath)}{note} · in {Path.GetDirectoryName(outPath)}", outPath);
     }
 
     public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
@@ -1716,28 +1792,34 @@ private readonly MarkdownExportService _mdExport = new();
     {
         _conversionCts?.Cancel();
         _conversionCts?.Dispose();
-        _conversionCts = new CancellationTokenSource();
+        var cts = new CancellationTokenSource();
+        _conversionCts = cts;
+        _pendingOutputPath = null;
         IsBusy = true;
-        StatusText = $"Converting to {kind}...";
+        StatusText = $"{_exportAllStep}Converting to {kind}…";
         StatusSeverity = StatusSeverity.Informational;
         try
         {
-            await work(_conversionCts.Token);
+            await work(cts.Token);
             StatusSeverity = StatusSeverity.Success;
-        }
-        catch (OperationCanceledException)
-        {
-            StatusText = "Cancelled.";
-            StatusSeverity = StatusSeverity.Warning;
         }
         catch (Exception ex)
         {
-            StatusText = $"Error: {ex.Message}";
-            StatusSeverity = StatusSeverity.Error;
+            // Cancel already reset the UI. If this run was cancelled (or replaced by a newer export
+            // after Cancel re-enabled the buttons), its late result must not overwrite that state.
+            if (cts.IsCancellationRequested || !ReferenceEquals(_conversionCts, cts))
+            {
+                if (ReferenceEquals(_conversionCts, cts)) { StatusText = "Cancelled."; StatusSeverity = StatusSeverity.Warning; }
+            }
+            else
+            {
+                StatusText = ex is OperationCanceledException ? "Cancelled." : ExportFailureMessage.Describe(kind, ex, _pendingOutputPath);
+                StatusSeverity = ex is OperationCanceledException ? StatusSeverity.Warning : StatusSeverity.Error;
+            }
         }
         finally
         {
-            IsBusy = false;
+            if (ReferenceEquals(_conversionCts, cts) && !_exportAllRunning) IsBusy = false;
         }
     }
 

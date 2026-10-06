@@ -1450,25 +1450,58 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnHistoryItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not Models.HistoryEntry entry) return;
-        if (File.Exists(entry.OutputPath))
+        OpenExportedFile(entry.OutputPath);
+    }
+
+    // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
+    // shell-executed. ".html" was missing, so the Open output button silently did nothing after an
+    // HTML export and its history row reported "Blocked opening untrusted file type".
+    private static bool IsExportedFileType(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md" or ".html";
+
+    private void OpenExportedFile(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        if (!File.Exists(path))
         {
-            var ext = System.IO.Path.GetExtension(entry.OutputPath).ToLowerInvariant();
-            if (ext is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md")
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
-            }
-            else
-            {
-                ViewModel.StatusText = $"Blocked opening untrusted file type: {ext}";
-                ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-            }
+            ViewModel.StatusText = $"{Path.GetFileName(path)} is no longer there. It was moved or deleted after export.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
         }
-        else
+        if (!IsExportedFileType(path))
         {
-            ViewModel.StatusText = $"File no longer exists: {entry.OutputPath}";
+            ViewModel.StatusText = $"Blocked opening untrusted file type: {Path.GetExtension(path)}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+            return;
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            // Typically "no app is associated with .epub" — say so instead of failing silently.
+            ViewModel.StatusText = $"Couldn't open {Path.GetFileName(path)}: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
+
+    private void ShowExportedFileInFolder(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        if (!File.Exists(path))
+        {
+            ViewModel.StatusText = $"{Path.GetFileName(path)} is no longer there. It was moved or deleted after export.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
+        try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\""); }
+        catch { /* Explorer unavailable — nothing useful to report */ }
+    }
+
+    private void OnStatusOpenOutputClick(object sender, RoutedEventArgs e) => OpenExportedFile(ViewModel.StatusOutputPath);
+
+    private void OnStatusShowOutputFolderClick(object sender, RoutedEventArgs e) => ShowExportedFileInFolder(ViewModel.StatusOutputPath);
 
     // Document outline (Task 17): scroll the preview to the clicked heading. The anchor is the exact
     // id Markdig rendered on the heading element, so getElementById + scrollIntoView lands on it.
@@ -2143,17 +2176,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return mode;
     }
 
-    private void OnOpenOutputClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel.LastOutputPath is { } path && File.Exists(path))
-        {
-            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
-            if (ext is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md")
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
-            }
-        }
-    }
+    private void OnOpenOutputClick(object sender, RoutedEventArgs e) => OpenExportedFile(ViewModel.LastOutputPath);
 
     // ---- Preview ----
 
@@ -3214,6 +3237,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnExportMarkdownClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ConvertToMarkdownAsync();
+    }
+
+    private async void OnExportHtmlClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.ConvertToHtmlAsync();
     }
 
     // Primary action of the export SplitButton: generate a Word document — ISS-019 made .docx

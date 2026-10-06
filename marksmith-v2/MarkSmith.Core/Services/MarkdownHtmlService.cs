@@ -23,6 +23,12 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex(@"\$\$\s*(\\begin\{[A-Za-z*]+\}.*?\\end\{[A-Za-z*]+\})\s*\$\$", RegexOptions.Singleline)]
     private static partial Regex MathEnvBlockRe();
 
+    // A line that is nothing but "$$ … $$". Markdig only treats $$ as display maths when the
+    // delimiters sit on their own lines; on one line it becomes INLINE maths, so the equation
+    // AI tools most often write ("$$\int_0^1 x^2\,dx$$") rendered small and left-aligned.
+    [GeneratedRegex(@"^(?<indent>[ \t]*)\$\$(?<body>(?:(?!\$\$)[^\n])+?)\$\$[ \t]*$", RegexOptions.Multiline)]
+    private static partial Regex OneLineDisplayMathRe();
+
     [GeneratedRegex("<pre><code class=\"language-mermaid\">(.*?)</code></pre>", RegexOptions.Singleline)]
     private static partial Regex MermaidFenceHtmlRe();
 
@@ -154,10 +160,27 @@ public sealed partial class MarkdownHtmlService
         return spans;
     }
 
+    // Rewrites one-line "$$ … $$" into the fenced form Markdig renders as display maths, keeping the
+    // line's indentation (so it stays inside a list item) and leaving code fences alone.
+    internal static string LiftOneLineDisplayMath(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown) || !markdown.Contains("$$", StringComparison.Ordinal)) return markdown;
+        var fences = FencedSpans(markdown);
+        return OneLineDisplayMathRe().Replace(markdown, m =>
+        {
+            if (fences.Any(f => m.Index >= f.Start && m.Index < f.End)) return m.Value;
+            var body = m.Groups["body"].Value.Trim();
+            if (body.Length == 0) return m.Value;
+            var ind = m.Groups["indent"].Value;
+            return $"{ind}\n{ind}$$\n{ind}{body}\n{ind}$$\n{ind}";
+        });
+    }
+
     private static string NormalizeForRender(string markdown, AppSettings settings)
     {
         markdown = TextNormalizer.Newlines(markdown);
         markdown = MathEnvBlockRe().Replace(markdown, "\n$$$$\n${1}\n$$$$\n");
+        markdown = LiftOneLineDisplayMath(markdown);
         markdown = AdmonitionNormalizer.Apply(markdown);
         markdown = KanbanNormalizer.Apply(markdown);
         markdown = DialectNormalizer.Apply(markdown, settings.DashMode);
@@ -2907,6 +2930,11 @@ public sealed partial class MarkdownHtmlService
 
     // KaTeX for math and highlight.js for code fences, pulled from the bundled offline assets only
     // when the rendered body actually needs them (plain documents stay dependency-free).
+    // highlight.js themes paint their own background and padding on <code>, which sat as a second
+    // box inside the theme's code block (white-on-grey in light themes, #0d1117 over the theme's
+    // own code colour in dark ones). The theme's <pre> already provides both.
+    private const string HljsBlockReset = "<style>pre code.hljs { background: transparent; padding: 0; }</style>";
+
     private static string BuildExtraHead(string body, ThemeDefinition theme)
     {
         var head = "";
@@ -2942,6 +2970,7 @@ public sealed partial class MarkdownHtmlService
             var hlTheme = !ThemeDefinition.IsLight(theme.Code) ? "github-dark" : "github";
             head += $"""
                 <link rel="stylesheet" href="{Services.WebAssets.Base}/{hlTheme}.min.css">
+                {HljsBlockReset}
                 <script src="{Services.WebAssets.HighlightJs}"></script>
                 <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
                 """;

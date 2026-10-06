@@ -1589,6 +1589,10 @@
                                                 ToolTipService.ToolTip="Creates a real Google Doc (headings, tables, images) — connect your Google account in Settings → Google first">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE774;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Export as web page (.html)" Click="OnExportHtmlClick"
+                                                ToolTipService.ToolTip="A self-contained HTML file of the rendered document, styled with the current theme">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE12B;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as Markdown (.md)" Click="OnExportMarkdownClick"
                                                 ToolTipService.ToolTip="Save the recovered/cleaned source as a Markdown file — the counterpart to importing a .docx">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
@@ -1637,7 +1641,29 @@
                     <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
                                VerticalAlignment="Center" FontSize="12" Opacity="0.85"
                                Foreground="{Binding StatusSeverity, Converter={StaticResource StatusSeverityToBrushConverter}}"
-                               TextTrimming="CharacterEllipsis" MaxWidth="560" />
+                               TextTrimming="CharacterEllipsis" MaxWidth="560"
+                               ToolTipService.ToolTip="{Binding StatusText}" />
+                    <!-- Shown only while the status line is announcing a finished export (the
+                         Windows toast is easy to miss, or switched off entirely). -->
+                    <StackPanel x:Name="StatusOutputLinks" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
+                                Visibility="{Binding HasStatusOutput, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <HyperlinkButton Click="OnStatusOpenOutputClick" Padding="6,1" FontSize="12"
+                                         ToolTipService.ToolTip="Open the exported file"
+                                         AutomationProperties.Name="Open exported file">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <FontIcon Glyph="&#xE8E5;" FontSize="11" />
+                                <TextBlock Text="Open" />
+                            </StackPanel>
+                        </HyperlinkButton>
+                        <HyperlinkButton Click="OnStatusShowOutputFolderClick" Padding="6,1" FontSize="12"
+                                         ToolTipService.ToolTip="Show the exported file in File Explorer"
+                                         AutomationProperties.Name="Show exported file in folder">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <FontIcon Glyph="&#xE838;" FontSize="11" />
+                                <TextBlock Text="Show in folder" />
+                            </StackPanel>
+                        </HyperlinkButton>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Margin="16,5">
