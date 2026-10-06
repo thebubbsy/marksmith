@@ -28,21 +28,10 @@
         <PivotItem Header="General">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="14" Margin="0,12,10,0">
-                <Border Style="{StaticResource PipelineCardStyle}">
-                    <Grid Padding="16,12" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Play intro video on launch" FontWeight="SemiBold" />
-                            <TextBlock Text="Shows the branded launch video before the main window appears. Off = straight to the editor."
-                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Play intro video on launch" IsOn="{Binding SkipLaunchVideo, Mode=TwoWay}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-
+                <!-- "Play intro video on launch" lived here. The launch intro (SplashWindow) was taken
+                     out of startup in Aug 2026 after a XamlParseException, so the switch changed
+                     nothing — and it was bound to SkipLaunchVideo, i.e. inverted. Removed until the
+                     intro itself comes back. -->
                 <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <Grid Padding="16,12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>

@@ -608,3 +608,44 @@ the same Name, so a second lookup can hit the tooltip). Bash heredocs → python
 5. Run #7's list: Shape Studio Hierarchy/Cycle follow-ups; keyboard focus order per window.
 6. Suite Hub: four of six cards have no primary (accent) action while two do — pick one rule.
 7. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 19:20–20:30 AEST (scheduled routine run #9)
+
+Reviewed run #8's "Next up" and worked it top-down, verifying by fresh-config launches
+(`MARKSMITH_CONFIG_DIR`), PrintWindow screenshots and UIA invoke; preview themes were checked by
+rendering one sample doc in all 13 themes and screenshotting with headless Edge.
+
+**Shipped (all pushed to main):**
+- **Preview/PDF body copy themed** (20bf0f9): links were browser #0000EE on every theme (unreadable
+  on dark); blockquotes had no styling; inline code, kbd, ==mark==, hr were browser defaults. Dark
+  pages are now detected by background luminance (`ThemeDefinition.IsDarkPage`) — the old name list
+  missed Nordic, Forest and all dark custom themes. 22 tests.
+- **Brand accent app-wide** (1fe71c0): SystemAccentColor ramp in the logo's electric blue — on a grey
+  Windows accent every primary button looked disabled. **Welcome tour**: pipeline cards on slide 1,
+  height = tallest page (no empty band), slide transitions, ←/→ paging, icons fixed.
+- **Suite Hub** (bcf10ae): API/CLI badges reflect real state (were hard-coded), one action rule
+  (Done is the only accent), fading result line, Express/extension dead ends fixed.
+- **Galaxy** (becaf27): cross-link labels no longer sit on stacked cards (bracket arcs, nested spans
+  step out); arrows meet borders; inspector "Icon" header rendered as four boxes.
+- **Updater** (745178a): Authenticode continuity check (InstallerTrust) before running an installer;
+  the banner states why an update failed.
+- **Shape Studio cycles** (5e28e18): PDCA / Build-Measure-Learn use rotated chevrons pointing
+  stage→stage instead of four identical circular arrows.
+- **Settings**: removed the "Play intro video on launch" switch — SplashWindow has not been wired
+  into startup since Aug 2026 (84c9937, XamlParseException), so it did nothing, and it was bound to
+  `SkipLaunchVideo` (inverted). **Decision for the user:** restore the intro (fix the parse error
+  first) or delete SplashWindow + the setting entirely.
+
+**Verified:** Desktop builds 0 warnings/0 errors; full suite 3134 passed / 1 skipped / 2 failed = the
+same two `HouseLayoutTests` from the user's uncommitted WIP (not touched, not committed).
+
+**Next up:**
+1. Settings toggles sit mid-card (ToggleSwitch MinWidth 154). An implicit Style in SettingsView
+   with MinWidth=0/HorizontalAlignment=Right did NOT take effect (UIA showed the column still
+   154 wide) — investigate (try inline attributes or BasedOn DefaultToggleSwitchStyle) and keep
+   the label width fixed so the switch doesn't jump between On/Off.
+2. Accent check in Light theme (can't switch OS theme in-run; check Dark1 #0068C9 on cards).
+3. Keyboard focus order per window (needs SendKeys → unlocked desktop; UIA can't press Tab).
+4. Shape Studio preset list: one glyph per category (pyramids share the org-chart icon) — low value.
+5. Galaxy diagonal cross-links can still cross unrelated cards; consider obstacle-aware routing.
+6. (Reminder: memory `marksmith-examples-need-regen`.)
