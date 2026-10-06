@@ -9,7 +9,7 @@
     mc:Ignorable="d"
     Title="MLShape &amp; SmartArt Vector Studio">
 
-    <Grid x:Name="RootGrid" Background="#1B1B1F">
+    <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
             <conv:ShapeGeometryConverter x:Key="ShapeGeom" />
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
@@ -25,7 +25,7 @@
         </Grid.RowDefinitions>
 
         <!-- Command bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="56" Padding="16,0" Background="#232329">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="56" Padding="16,0" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -33,11 +33,11 @@
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE790;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                 <StackPanel VerticalAlignment="Center" Spacing="0">
-                    <TextBlock Text="MLShape &amp; SmartArt Vector Studio" FontWeight="Bold" FontSize="16" Foreground="White" />
-                    <TextBlock Text="Native DrawingML vector diagrams &amp; line art — Word cannot strip or corrupt them" FontSize="11" Opacity="0.65" Foreground="White" />
+                    <TextBlock Text="MLShape &amp; SmartArt Vector Studio" FontWeight="Bold" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="Native DrawingML vector diagrams &amp; line art — Word cannot strip or corrupt them" FontSize="11" Opacity="0.65" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                 </StackPanel>
-                <Border Background="#0078D4" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="100% Native Word Vector" FontSize="11" Foreground="White" FontWeight="SemiBold" />
+                <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                    <TextBlock Text="100% Native Word Vector" FontSize="11" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold" />
                 </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -58,14 +58,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: SmartArt Templates + Palette + Tools -->
-            <Border Grid.Column="0" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
+            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
 
                         <!-- 1. SMARTART & DIAGRAM TEMPLATES & PRESETS (40+ PROFESSIONAL LAYOUTS) -->
                         <Expander Header="SmartArt &amp; Diagram Presets (40+ Layouts)" IsExpanded="True">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="Filter by category to explore 40+ native Word vector layouts." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                <TextBlock Text="Filter by category to explore 40+ native Word vector layouts." FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 
                                 <ComboBox ItemsSource="{Binding PresetCategories}" SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
 
@@ -77,8 +77,8 @@
                                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                                         <TextBlock Text="{Binding Icon}" FontSize="13" VerticalAlignment="Center" />
                                                         <StackPanel Spacing="1" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
-                                                            <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="#888888" TextTrimming="CharacterEllipsis" MaxWidth="180" />
+                                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                            <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Button>
@@ -87,7 +87,7 @@
                                     </ItemsControl>
                                 </ScrollViewer>
 
-                                <TextBlock Text="Quick Favorites:" FontSize="11" FontWeight="SemiBold" Foreground="#BBBBBB" Margin="0,4,0,0" />
+                                <TextBlock Text="Quick Favorites:" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
                                 <Grid ColumnSpacing="4" RowSpacing="4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -153,11 +153,11 @@
                         </Expander>
 
                         <!-- 2. COLOR THEMES & PALETTES -->
-                        <Border Background="#1E1E24" CornerRadius="6" Padding="8">
+                        <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8">
                             <StackPanel Spacing="6">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE790;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="Color Theme" FontWeight="SemiBold" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                                    <TextBlock Text="Color Theme" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <Grid ColumnSpacing="6">
                                     <Grid.ColumnDefinitions>
@@ -172,8 +172,8 @@
 
                         <!-- 3. DRAW WITH SHAPES -->
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Shape Primitives" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                            <TextBlock Text="Click a shape to place on canvas, or drag to draw." FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                            <TextBlock Text="Shape Primitives" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Click a shape to place on canvas, or drag to draw." FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                             <ItemsControl ItemsSource="{Binding PaletteItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
@@ -182,7 +182,7 @@
                                     <DataTemplate>
                                         <Button services:HoverPolish.ApplyOnLoad="True" Margin="2" Padding="8,5" Click="OnPaletteItemClick" Tag="{Binding}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Path Width="16" Height="16" Stretch="Uniform" Fill="#888888"
+                                                <Path Width="16" Height="16" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}"
                                                       Data="{Binding Converter={StaticResource ShapeGeom}}" />
                                                 <TextBlock Text="{Binding}" FontSize="11" />
                                             </StackPanel>
@@ -196,37 +196,37 @@
                         <Expander Header="⚡ Picture to Vector (Hybrid Studio)" IsExpanded="True">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Transform images into native Word vector shapes and crisp traced line art. Set either density to 0 for single-layer output."
-                                           FontSize="11" Opacity="0.7" Foreground="White" TextWrapping="Wrap" />
+                                           FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 
                                 <!-- Image Picker -->
                                 <Button Content="Choose image…" Click="OnPickImageClick" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Border Width="56" Height="56" Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="6"
+                                    <Border Width="56" Height="56" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6"
                                             Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
                                         <Image x:Name="FuseThumb" Stretch="Uniform" />
                                     </Border>
                                     <TextBlock x:Name="FuseImageLabel" Text="No image selected" FontSize="11" Opacity="0.7"
-                                               Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
 
                                 <!-- SECTION 1: SHAPES CONFIGURATION -->
-                                <Border Background="#1C1C22" CornerRadius="6" Padding="8" BorderBrush="#2A2A34" BorderThickness="1">
+                                <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                     <StackPanel Spacing="6">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="🔷" FontSize="12" />
-                                            <TextBlock Text="Base Shape Mosaic" FontWeight="SemiBold" FontSize="12" Foreground="White" />
+                                            <TextBlock Text="Base Shape Mosaic" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
                                         
                                         <StackPanel Spacing="2">
                                             <Grid>
-                                                <TextBlock Text="Shape Density (0 to disable):" FontSize="11" Foreground="#BBBBBB" HorizontalAlignment="Left" />
+                                                <TextBlock Text="Shape Density (0 to disable):" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" />
                                                 <TextBlock Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" FontSize="11" FontWeight="Bold"
                                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
                                             </Grid>
                                             <Slider x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
                                         </StackPanel>
 
-                                        <TextBlock Text="Tile primitives:" FontSize="10.5" Opacity="0.7" Foreground="White" />
+                                        <TextBlock Text="Tile primitives:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         <Grid ColumnSpacing="4" RowSpacing="2">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -238,44 +238,44 @@
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="RoundRect" IsChecked="True" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rect" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" FontSize="11" Foreground="White" />
-                                            <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" FontSize="11" Foreground="White" />
+                                            <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="RoundRect" IsChecked="True" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rect" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </Grid>
                                     </StackPanel>
                                 </Border>
 
                                 <!-- SECTION 2: LINE ART & CONTOUR CONFIGURATION -->
-                                <Border Background="#1C1C22" CornerRadius="6" Padding="8" BorderBrush="#2A2A34" BorderThickness="1">
+                                <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                     <StackPanel Spacing="6">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="✒️" FontSize="12" />
-                                            <TextBlock Text="Traced Line Art &amp; Contours" FontWeight="SemiBold" FontSize="12" Foreground="White" />
+                                            <TextBlock Text="Traced Line Art &amp; Contours" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
 
                                         <StackPanel Spacing="2">
                                             <Grid>
-                                                <TextBlock Text="Line Density (0 to disable):" FontSize="11" Foreground="#BBBBBB" HorizontalAlignment="Left" />
+                                                <TextBlock Text="Line Density (0 to disable):" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" />
                                                 <TextBlock Text="{Binding ElementName=FuseLineDensity, Path=Value}" FontSize="11" FontWeight="Bold"
                                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
                                             </Grid>
                                             <Slider x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" />
                                         </StackPanel>
 
-                                        <TextBlock Text="Linework style:" FontSize="10.5" Opacity="0.7" Foreground="White" />
+                                        <TextBlock Text="Linework style:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         <StackPanel Spacing="2">
-                                            <RadioButton x:Name="FuseModeCrossHatch" Content="Cross-Hatch (etching)" IsChecked="True" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeTopographic" Content="Topographic Waves (flow)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeCalligraphic" Content="Calligraphic (30° chisel)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeEdges" Content="Edges (contours)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeEngraved" Content="Engraved (hatching)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeScanlines" Content="Scanlines (strokes)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeSilhouette" Content="Silhouette (solid)" GroupName="FuseTraceMode" Foreground="White" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeCrossHatch" Content="Cross-Hatch (etching)" IsChecked="True" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeTopographic" Content="Topographic Waves (flow)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeCalligraphic" Content="Calligraphic (30° chisel)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeEdges" Content="Edges (contours)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeEngraved" Content="Engraved (hatching)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeScanlines" Content="Scanlines (strokes)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
+                                            <RadioButton x:Name="FuseModeSilhouette" Content="Silhouette (solid)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
                                         </StackPanel>
 
                                         <!-- Finer Detail Controls -->
@@ -286,17 +286,17 @@
                                             </Grid.ColumnDefinitions>
                                             
                                             <StackPanel Grid.Column="0" Spacing="1">
-                                                <TextBlock Text="Detail Threshold:" FontSize="10" Foreground="#BBBBBB" />
+                                                <TextBlock Text="Detail Threshold:" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 <Slider x:Name="FuseEdgeSensitivity" Minimum="5" Maximum="80" Value="30" ToolTipService.ToolTip="Lower = captures finer micro-textures and subtle details" />
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="1" Spacing="1">
-                                                <TextBlock Text="Stroke Width (pt):" FontSize="10" Foreground="#BBBBBB" />
+                                                <TextBlock Text="Stroke Width (pt):" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 <Slider x:Name="FuseStrokeWidth" Minimum="0.5" Maximum="5.0" Value="1.5" StepFrequency="0.1" ToolTipService.ToolTip="Thickness of traced vector ink strokes" />
                                             </StackPanel>
                                         </Grid>
 
-                                        <CheckBox x:Name="FuseMonochrome" Content="Monochrome dark ink" IsChecked="True" Foreground="White" FontSize="11" Margin="0,2,0,0" />
+                                        <CheckBox x:Name="FuseMonochrome" Content="Monochrome dark ink" IsChecked="True" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </Border>
 
@@ -317,7 +317,7 @@
             </Border>
 
             <!-- CENTER: canvas + toolbar -->
-            <Border Grid.Column="1" Background="#18181C" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="0">
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -325,13 +325,13 @@
                     </Grid.RowDefinitions>
 
                     <!-- Canvas Toolbar: Alignment, Spacing, Duplication -->
-                    <Grid Grid.Row="0" Padding="10,6" Background="#1F1F25">
+                    <Grid Grid.Row="0" Padding="10,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="Align:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,2,0" />
+                            <TextBlock Text="Align:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,2,0" />
                             <Button Command="{Binding AlignLeftCommand}" ToolTipService.ToolTip="Align Left" Padding="6,4"><FontIcon Glyph="&#xE8E4;" FontSize="12" /></Button>
                             <Button Command="{Binding AlignCenterCommand}" ToolTipService.ToolTip="Align Center" Padding="6,4"><FontIcon Glyph="&#xE8E3;" FontSize="12" /></Button>
                             <Button Command="{Binding AlignRightCommand}" ToolTipService.ToolTip="Align Right" Padding="6,4"><FontIcon Glyph="&#xE8E2;" FontSize="12" /></Button>
@@ -348,24 +348,24 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="Tool:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                            <TextBlock Text="Tool:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding ActiveTool}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
 
                     <!-- dense trace preview -->
                     <StackPanel Grid.Row="1" Visibility="{Binding IsDense, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Padding="20">
-                        <Border Background="#141417" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="12">
+                        <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
                             <Image x:Name="DensePreview" Stretch="Uniform" MaxWidth="1300" MaxHeight="820" />
                         </Border>
-                        <TextBlock Text="Dense line-art preview — every line is individually selectable and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="White" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
+                        <TextBlock Text="Dense line-art preview — every line is individually selectable and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
                     </StackPanel>
 
                     <!-- editable canvas -->
                     <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled"
                                   Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}">
                         <Grid Width="2200" Height="1800">
-                            <Canvas x:Name="MainCanvas" Background="#141417"
+                            <Canvas x:Name="MainCanvas" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                                     PointerPressed="OnCanvasPointerPressed">
                                 <ItemsControl ItemsSource="{Binding Shapes}">
                                     <ItemsControl.ItemsPanel>
@@ -412,48 +412,48 @@
                     <!-- empty hint -->
                     <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
                                 HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="520">
-                        <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="#555555" HorizontalAlignment="Center" />
-                        <TextBlock Text="SmartArt &amp; Vector Shape Studio" FontSize="18" FontWeight="SemiBold" Foreground="#BBBBBB" HorizontalAlignment="Center" />
+                        <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="{ThemeResource TextFillColorDisabledBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="SmartArt &amp; Vector Shape Studio" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                         <TextBlock Text="Pick a SmartArt Preset on the left (Pyramid, Org Chart, SWOT, Cycle, Roadmap) or compose pictures into shape mosaics. Every shape is 100% native vector in Word."
-                                   FontSize="12" Foreground="#888888" TextWrapping="Wrap" TextAlignment="Center" />
+                                   FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- RIGHT: inspector + shapes list -->
-            <Border Grid.Column="2" Background="#232329" BorderBrush="#33333B" BorderThickness="1" CornerRadius="8" Padding="10">
+            <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
-                        <TextBlock Text="Shape Inspector" FontWeight="SemiBold" FontSize="14" Foreground="White" />
+                        <TextBlock Text="Shape Inspector" FontWeight="SemiBold" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                         <StackPanel Spacing="8">
-                            <TextBlock Text="(select a shape to edit properties)" FontSize="11" Opacity="0.6" Foreground="White"
+                            <TextBlock Text="(select a shape to edit properties)" FontSize="11" Opacity="0.6" Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                        Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Type:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBlock Text="Type:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
                                 <ComboBox SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}" Width="150" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="X:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBlock Text="X:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
                                 <TextBox Text="{Binding SelectedShape.X, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                                <TextBlock Text="Y:" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                                <TextBlock Text="Y:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding SelectedShape.Y, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="W:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBlock Text="W:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
                                 <TextBox Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                                <TextBlock Text="H:" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                                <TextBlock Text="H:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Fill:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBlock Text="Fill:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
                                 <TextBox Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
                             </StackPanel>
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Text Label:" FontSize="12" Foreground="White" />
+                                <TextBlock Text="Text Label:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                 <TextBox Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Rot:" FontSize="12" Foreground="White" VerticalAlignment="Center" Width="40" />
+                                <TextBlock Text="Rot:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
                                 <Slider Minimum="-180" Maximum="180" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -462,13 +462,13 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Border Background="#1E1E24" CornerRadius="8" Padding="10">
+                        <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8" Padding="10">
                             <StackPanel Spacing="6">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Shapes on Canvas" FontWeight="SemiBold" FontSize="13" Foreground="White" />
-                                    <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                    <TextBlock Text="Shapes on Canvas" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock Text="Click any shape to select and inspect it." FontSize="10" Opacity="0.6" Foreground="White" TextWrapping="Wrap" />
+                                <TextBlock Text="Click any shape to select and inspect it." FontSize="10" Opacity="0.6" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 <ListView MaxHeight="400" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
@@ -478,11 +478,11 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <Path Grid.Column="0" Width="14" Height="14" Stretch="Uniform" Fill="#CCCCCC" Margin="0,0,8,0"
+                                                <Path Grid.Column="0" Width="14" Height="14" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,8,0"
                                                       Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Prst}" FontSize="12" Foreground="White" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="10" Opacity="0.7" Foreground="White" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+                                                    <TextBlock Text="{Binding Prst}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="10" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="160" />
                                                 </StackPanel>
                                                 <Border Grid.Column="2" Width="12" Height="12" CornerRadius="2"
                                                         Background="{Binding Fill, Converter={StaticResource FillBrushConverter}}" VerticalAlignment="Center" />
@@ -498,8 +498,8 @@
         </Grid>
 
         <!-- Status -->
-        <Border Grid.Row="2" Background="#232329" Padding="14,8" BorderBrush="#33333B" BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="#CCCCCC" />
+        <Border Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </Border>
     </Grid>
 </Window>

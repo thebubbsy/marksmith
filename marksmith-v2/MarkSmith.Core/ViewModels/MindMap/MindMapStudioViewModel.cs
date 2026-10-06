@@ -111,6 +111,8 @@ namespace MarkSmith.ViewModels.MindMap
         public bool CanUndo => _undo.Count > 0;
         public bool CanRedo => _redo.Count > 0;
         public bool HasTags => DistinctTags.Count > 0;
+        /// <summary>True when the galaxy has no nodes at all — drives the canvas empty state.</summary>
+        public bool IsGalaxyEmpty => Nodes.Count == 0;
         public bool HasSearchQuery => !string.IsNullOrWhiteSpace(SearchQuery);
 
         public ObservableCollection<string> DistinctTags { get; } = new();
@@ -209,6 +211,7 @@ namespace MarkSmith.ViewModels.MindMap
             // notification for them and the status bar counters sat frozen at their startup values
             // for the life of the window.
             OnPropertyChanged(nameof(NodesCountText));
+            OnPropertyChanged(nameof(IsGalaxyEmpty));
         }
 
         private void OnLinkCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

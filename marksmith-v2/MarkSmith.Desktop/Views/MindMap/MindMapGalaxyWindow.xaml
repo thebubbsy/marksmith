@@ -219,6 +219,36 @@
                     </Canvas>
                 </Canvas>
 
+                <!-- EMPTY GALAXY STATE: shown when every node has been deleted or the tour was
+                     dismissed with nothing of the user's own left, so the canvas is never just a
+                     blank void with no next step. -->
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="12" Padding="28,24"
+                        Visibility="{Binding IsGalaxyEmpty, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Spacing="10" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE946;" FontSize="36" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Your galaxy is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Add a first node and grow the map from it, or import a folder and Marksmith will link every document in it for you."
+                                   FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,6,0,0">
+                            <Button Command="{Binding AddRootNodeCommand}" Style="{StaticResource AccentButtonStyle}" Padding="12,6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE710;" FontSize="12" />
+                                    <TextBlock Text="Add first node" FontSize="12" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnImportFolderClick" Padding="12,6" ToolTipService.ToolTip="Scan a folder and auto-link everything in it">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="12" />
+                                    <TextBlock Text="Import Vault" FontSize="12" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- TOP OVERLAY STACK: first-run tour banner, then the tag filter pills -->
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Spacing="8">
 

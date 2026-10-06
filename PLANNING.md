@@ -219,3 +219,51 @@ beginning with `SmartArtDesignStudioWindow`, and found two cross-cutting hover b
    from run #1).
 5. Focus-visual consistency and keyboard navigation highlighting (carried over).
 6. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 (scheduled routine run #4)
+
+Reviewed: run #3's entry above. Worked its priorities #1 and #2.
+
+**Shipped** (commit follows this entry):
+- **`ShapeDesignStudioWindow` now follows Light/Dark theme.** Every hardcoded hex colour in the
+  XAML (root `#1B1B1F`, panels `#232329`/`#18181C`, inner sections `#1E1E24`/`#1C1C22`, toolbar
+  `#1F1F25`, canvas `#141417`, borders `#33333B`/`#2A2A34`, the `#0078D4` badge, and ~50
+  `Foreground="White"`/`#BBBBBB`/`#CCCCCC`/`#888888`/`#555555` text colours) is now a Fluent
+  `ThemeResource` brush, using the same set `SmartArtDesignStudioWindow` already uses:
+  `ApplicationPageBackgroundThemeBrush`, `CardBackgroundFillColorDefaultBrush` +
+  `CardStrokeColorDefaultBrush` for panels, `LayerOnAcrylicFillColorDefaultBrush` for title/
+  status/toolbar strips and inner sections, `SolidBackgroundFillColorBaseBrush` for the drawing
+  canvas, and `TextFillColorPrimary/Secondary/Tertiary/Disabled` for text. Zero hex literals left
+  in that file. Shape fills on the canvas are user content and untouched.
+- **`MindMapGalaxyWindow` empty-galaxy state.** Deleting every node (or dismissing the tour with
+  nothing of your own left) used to leave a blank dark void. It now shows a centred card: galaxy
+  icon, "Your galaxy is empty", one line of guidance, an accent **Add first node** button (reuses
+  the existing `AddRootNodeCommand`, which drops the node at the viewport centre and selects it)
+  and an **Import Vault** button (same handler as the toolbar). Backed by a new
+  `IsGalaxyEmpty` VM property raised from the existing `OnNodeCollectionChanged`. The card uses
+  theme brushes so it reads correctly on the galaxy's fixed dark canvas in either theme.
+
+**Verified:**
+- `dotnet build` (Debug/x64): 0 warnings, 0 errors.
+- Smoke-launched `Marksmith.exe`: still running after 8s, then killed.
+- Not seen by eye (still headless). **Next time the app is open:** switch to Light theme and open
+  Shape Studio — check every panel, the canvas, and the empty hint; then in Mind Map Galaxy,
+  select-all + delete (or Dismiss Tour on a fresh galaxy) to see the new empty card.
+
+**Notes:**
+- The working tree had unrelated uncommitted edits in `MarkSmith.Core` (`HouseLayout`,
+  `DocxExportService`, `TemplateThemeService`) and `MarkSmith.Tests/HouseLayoutTests.cs` when this
+  run started. They aren't part of this routine and were deliberately left uncommitted.
+- `MindMapGalaxyWindow` keeps two intentional hex colours (`#12131C` root/canvas) — the "galaxy"
+  is a deliberate always-dark space aesthetic, and every overlay on it is a self-contained card
+  with theme brushes, so it's coherent. Not changing it.
+
+**Next up, in priority order:**
+1. SmartArt studio's live preview hardcodes a `#18181c` page background in `BuildWrapperHtml`.
+   Check how it reads in Light theme (carried over).
+2. Hex-colour sweep of the remaining views: grep `"#[0-9A-Fa-f]{6}"` across
+   `MarkSmith.Desktop/**/*.xaml` and convert any that break Light theme (same approach as Shape
+   Studio this run). Skip the galaxy canvas (intentional, see above).
+3. Typography/spacing rhythm sweep across Suite Hub cards and Settings plugin cards (carried over).
+4. Focus-visual consistency and keyboard navigation highlighting (carried over).
+5. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
