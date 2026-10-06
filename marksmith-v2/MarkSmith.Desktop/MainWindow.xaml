@@ -976,7 +976,7 @@
                                             <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C4;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Web Embed" Click="OnInsertEmbedClick">
+                                            <MenuFlyoutItem Text="Video Embed" Click="OnInsertEmbedClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB41;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Native Chart" Click="OnInsertChartClick">

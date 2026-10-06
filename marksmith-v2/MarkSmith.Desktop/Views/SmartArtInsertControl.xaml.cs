@@ -21,7 +21,8 @@ public sealed partial class SmartArtInsertControl : UserControl
     public string SelectedType => _selectedType;
 
     public IReadOnlyList<string> Lines =>
-        StepsBox.Text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        // TextBox line breaks are a bare '\r'; splitting on '\n' alone made every step one item.
+        StepsBox.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
 
     public string GeneratedSnippet => Services.InsertSnippetBuilder.SmartArt(_selectedType, Lines);
 

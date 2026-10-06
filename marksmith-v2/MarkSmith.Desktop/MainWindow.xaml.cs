@@ -800,7 +800,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             || t.Contains(@"\begin{") || t.Contains("<table") || t.Contains("<div") || t.Contains("<span"))
             return false;
 
-        foreach (var raw in t.Split('\n'))
+        foreach (var raw in t.Split('\n', '\r'))
         {
             var s = raw.TrimStart();
             if (s.StartsWith('#') || s.StartsWith("- ") || s.StartsWith("* ") || s.StartsWith("> ")
@@ -3415,7 +3415,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var lastNewline = -1;
         for (var i = 0; i < start; i++)
         {
-            if (text[i] == '\n') { line++; lastNewline = i; }
+            if (IsLineBreak(text[i])) { line++; lastNewline = i; }
         }
         var col = start - lastNewline;
         var sel = tb.SelectionLength;
@@ -3689,7 +3689,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var lineCount = 1;
         for (var i = 0; i < text.Length; i++)
         {
-            if (text[i] == '\n') lineCount++;
+            if (IsLineBreak(text[i])) lineCount++;
         }
         var sb = new System.Text.StringBuilder(lineCount * 5);
         for (var i = 1; i <= lineCount; i++)
@@ -4073,7 +4073,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var line = 1;
         while (line < lineNo && offset < text.Length)
         {
-            if (text[offset] == '\n') line++;
+            if (IsLineBreak(text[offset])) line++;
             offset++;
         }
 
@@ -4106,7 +4106,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void TransformSelection(Func<string, string> transform)
     {
         var tb = PasteTextBox;
-        var text = tb.Text ?? string.Empty;
+        var text = EditorText();
         if (text.Length == 0) return;
         var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
         var selLen = Math.Clamp(tb.SelectionLength, 0, text.Length - selStart);
@@ -4130,11 +4130,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         pos = Math.Clamp(pos, 0, text.Length);
         var start = pos;
-        while (start > 0 && text[start - 1] != '\n') start--;
+        while (start > 0 && !IsLineBreak(text[start - 1])) start--;
         var end = pos;
-        while (end < text.Length && text[end] != '\n') end++;
+        while (end < text.Length && !IsLineBreak(text[end])) end++;
         return (start, end);
     }
+
+    // A WinUI TextBox stores every line break as a bare '\r' (it converts "\n" and "\r\n" on the
+    // way in), so editor line logic that only looked for '\n' saw the whole document as one line:
+    // "current line" transforms hit everything, Alt+Up/Down and Ctrl+D did nothing, lint jumps
+    // landed at the end, and Ln always read 1. Count either character as a break.
+    private static bool IsLineBreak(char c) => c is '\n' or '\r';
+
+    // The editor text with '\n' line breaks. Same length as PasteTextBox.Text (a char-for-char
+    // swap), so selection offsets carry over unchanged; '\n' written back becomes '\r' again.
+    private string EditorText() => (PasteTextBox.Text ?? string.Empty).Replace('\r', '\n');
 
     private void OnTransformUpperClick(object sender, RoutedEventArgs e) => TransformSelection(s => s.ToUpperInvariant());
     private void OnTransformLowerClick(object sender, RoutedEventArgs e) => TransformSelection(s => s.ToLowerInvariant());
@@ -4179,7 +4189,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var n = 0;
         var end = Math.Min(upTo, s.Length);
-        for (var i = 0; i < end; i++) if (s[i] == '\n') n++;
+        for (var i = 0; i < end; i++) if (IsLineBreak(s[i])) n++;
         return n;
     }
 
@@ -4187,7 +4197,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void MoveSelectedLines(int direction)
     {
         var tb = PasteTextBox;
-        var text = tb.Text ?? string.Empty;
+        var text = EditorText();
         if (text.Length == 0) return;
 
         var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
@@ -4229,7 +4239,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void DuplicateCurrentLines()
     {
         var tb = PasteTextBox;
-        var text = tb.Text ?? string.Empty;
+        var text = EditorText();
         if (text.Length == 0) return;
 
         var selStart = Math.Clamp(tb.SelectionStart, 0, text.Length);
@@ -4281,7 +4291,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (text.Length == 0) return;
 
         var hadCrlf = text.Contains("\r\n");
-        var norm = text.Replace("\r\n", "\n");
+        var norm = text.Replace("\r\n", "\n").Replace('\r', '\n'); // the TextBox's own breaks are a bare '\r'
         var lines = norm.Split('\n');
 
         var changes = 0;
@@ -4745,21 +4755,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         int newCoreLength;
 
         // Line-level prefix formatting (e.g. # , - , 1. , > ) when suffix is empty
-        if (string.IsNullOrEmpty(suffix) && (prefix.TrimEnd() == "#" || prefix.TrimEnd() == "##" || prefix.TrimEnd() == "###" || prefix.TrimEnd() == "####" || prefix.TrimEnd() == "-" || prefix.TrimEnd() == "1." || prefix.TrimEnd() == "- []" || prefix.TrimEnd() == ">"))
+        if (string.IsNullOrEmpty(suffix) && prefix.TrimEnd() is "#" or "##" or "###" or "####" or "-" or "1." or "- [ ]" or ">")
         {
-            string[] lines = coreText.Split('\n');
-            for (int i = 0; i < lines.Length; i++)
+            // The editor TextBox separates lines with a bare '\r', so split on every kind of break
+            // (keeping them): splitting on '\n' alone prefixed only the first selected line. A
+            // numbered list counts up (1. 2. 3.) instead of repeating "1.".
+            var parts = System.Text.RegularExpressions.Regex.Split(coreText, "(\r\n|\r|\n)");
+            int number = 0;
+            for (int i = 0; i < parts.Length; i += 2)
             {
-                string line = lines[i];
-                if (line.Length > 0)
-                {
-                    if (line.EndsWith("\r"))
-                        lines[i] = prefix + line.Substring(0, line.Length - 1) + "\r";
-                    else
-                        lines[i] = prefix + line;
-                }
+                if (parts[i].Length == 0) continue;
+                parts[i] = (prefix == "1. " ? $"{++number}. " : prefix) + parts[i];
             }
-            string formattedCore = string.Join("\n", lines);
+            string formattedCore = string.Concat(parts);
             replacement = leadingBreak + formattedCore + trailingBreak;
             newCoreStartOffset = selStart + leadingBreak.Length;
             newCoreLength = formattedCore.Length;
@@ -4826,9 +4834,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.LinesInsertControl("One step per line:", "Step 1\nStep 2\nStep 3");
+        var control = new Views.LinesInsertControl(
+            "A row of steps joined by arrows, in the order you list them.",
+            "Steps — one per line", "Step 1\nStep 2\nStep 3",
+            Services.InsertSnippetBuilder.Workflow, "step", minimum: 2);
         if (await ShowInsertDialogAsync("Insert workflow", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Workflow(control.Lines));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertTimelineClick(object sender, RoutedEventArgs e)
@@ -4839,9 +4850,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.LinesInsertControl("One entry per line (year: label):", "2020: Started\n2023: Progress\n2026: Done");
+        var control = new Views.LinesInsertControl(
+            "Milestones along a line, in the order you list them.",
+            "Milestones — when: what, one per line", "2020: Started\n2023: Progress\n2026: Done",
+            Services.InsertSnippetBuilder.Timeline, "milestone",
+            lineIsValid: MarkSmith.Core.AdvancedFeatures.TimelineDetector.IsTimelineEntry,
+            lineHint: "write each milestone as when: what, e.g. 2026: Launch.");
         if (await ShowInsertDialogAsync("Insert timeline", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Timeline(control.Lines));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
@@ -4859,9 +4875,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.LinesInsertControl("One tab title per line:", "Tab 1\nTab 2");
+        var control = new Views.LinesInsertControl(
+            "Switchable tabs in the preview. PDF and Word show every tab, one after another.",
+            "Tab titles — one per line", "Tab 1\nTab 2",
+            Services.InsertSnippetBuilder.Tabs, "tab", minimum: 2);
         if (await ShowInsertDialogAsync("Insert tab group", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Tabs(control.Lines));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertColumnsClick(object sender, RoutedEventArgs e)
@@ -4872,9 +4891,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.NumbersInsertControl(("Columns", 2, 2, 4));
+        var control = new Views.NumbersInsertControl(
+            "Side-by-side columns. A line containing only === starts the next column.",
+            v => Services.InsertSnippetBuilder.Columns(v[0]), ("Columns", 2, 2, 4));
         if (await ShowInsertDialogAsync("Insert multi-column section", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Columns(control.Value(0)));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertCanvasClick(object sender, RoutedEventArgs e)
@@ -4885,22 +4906,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.NumbersInsertControl(("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
+        var control = new Views.NumbersInsertControl(
+            "An SVG drawing area with a starter shape. Edit the SVG by hand to draw what you need.",
+            v => Services.InsertSnippetBuilder.Canvas(v[0], v[1]), ("Width", 200, 10, 4000), ("Height", 200, 10, 4000));
         if (await ShowInsertDialogAsync("Insert drawing canvas", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Canvas(control.Value(0), control.Value(1)));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertWaveFunctionClick(object sender, RoutedEventArgs e)
     {
         if (App.Settings.Current.ProMode)
         {
-            InsertMarkdown("\n:::wavefunction \"Quantum Superposition & Collapse\"\nstates: |0⟩: 0.6, |1⟩: 0.8\ncollapse_to: |1⟩\n:::\n");
+            // Same block the dialog makes: the menu item is the procedural tile map, not the
+            // quantum :::wavefunction diagram this used to insert.
+            InsertMarkdown(Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", 5, 5));
             return;
         }
 
-        var control = new Views.NumbersInsertControl(("Grid Width", 5, 2, 20), ("Grid Height", 5, 2, 20));
-        if (await ShowInsertDialogAsync("Insert Wave Function Collapse (WFC)", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", control.Value(0), control.Value(1)));
+        var control = new Views.NumbersInsertControl(
+            "A procedurally generated tile map (grass, road, water, wall) of the size you choose.",
+            v => Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", v[0], v[1]),
+            ("Grid width", 5, 2, 20), ("Grid height", 5, 2, 20));
+        if (await ShowInsertDialogAsync("Insert Wave Function Collapse map", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(control.Snippet);
     }
 
     private void OnBulletListClick(object sender, RoutedEventArgs e)
@@ -4986,6 +5014,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 dialog.DefaultButton = ContentDialogButton.Primary;
             }
             configure?.Invoke(dialog);
+            if (content is Views.InsertDialogBody body)
+            {
+                // Insert stays disabled while the values can't make a usable block (the body says
+                // why in red), and the caret starts in the first field with its sample selected.
+                dialog.IsPrimaryButtonEnabled = body.IsValid;
+                body.ValidityChanged += valid => dialog.IsPrimaryButtonEnabled = valid;
+                dialog.Opened += (_, _) => body.FocusFirstField();
+            }
             return await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
         }
         catch (Exception ex)
@@ -5047,7 +5083,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var control = new Views.TableInsertControl();
         if (await ShowInsertDialogAsync("Insert table", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Table(control.Rows, control.Columns, control.IncludeHeaderRow));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertEmbedClick(object sender, RoutedEventArgs e)
@@ -5059,8 +5095,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         var control = new Views.EmbedInsertControl();
-        if (await ShowInsertDialogAsync("Insert web embed", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Embed(control.Provider, control.Url));
+        if (await ShowInsertDialogAsync("Insert video embed", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertChartClick(object sender, RoutedEventArgs e)
@@ -5071,11 +5107,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        var control = new Views.TypeAndLinesInsertControl(
-            "Chart type", new[] { "bar", "line", "pie" }, "bar",
-            "One data point per line (label,value):", "Q1,10\nQ2,25\nQ3,15");
+        var control = new Views.ChartInsertControl();
         if (await ShowInsertDialogAsync("Insert chart", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Chart(control.SelectedType, control.Lines));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertDatagridClick(object sender, RoutedEventArgs e)
@@ -5087,10 +5121,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         var control = new Views.LinesInsertControl(
-            "First line = column headers, then one row per line (comma-separated):",
-            "label,value\nQ1,10\nQ2,25");
+            "A styled data table. Numbers line up on the right; the first line is the header.",
+            "Rows — comma-separated, headers first", "label,value\nQ1,10\nQ2,25",
+            Services.InsertSnippetBuilder.Datagrid, "row", minimum: 2);
         if (await ShowInsertDialogAsync("Insert data grid", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.Datagrid(control.Lines));
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnInsertReferencesClick(object sender, RoutedEventArgs e)
@@ -5103,7 +5138,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         var control = new Views.ReferencesInsertControl();
         if (await ShowInsertDialogAsync("Insert bibliography entry", control) != ContentDialogResult.Primary) return;
-        InsertMarkdown(Services.InsertSnippetBuilder.References(control.Id, control.Author, control.Title, control.Year));
+        InsertMarkdown(control.Snippet);
     }
 
     private void OnInsertAiContextClick(object sender, RoutedEventArgs e)
@@ -5309,7 +5344,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         int line = 0;
         for (int i = 0; i < offset && i < text.Length; i++)
-            if (text[i] == '\n') line++;
+            if (IsLineBreak(text[i])) line++;
         return line;
     }
 

@@ -154,6 +154,7 @@ namespace MarkSmith.Core.Glox
                 ["process"]      = "process1",
                 ["step_process"] = "process1",
                 ["workflow"]     = "process1",
+                ["timeline"]     = "hProcess11",
                 ["target"]       = "process1",
 
                 ["cycle"]       = "cycle1",

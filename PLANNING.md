@@ -804,3 +804,64 @@ the new variable-height SVG.
    7+ items could use cards instead of circles so long labels aren't cut.
 6. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
    obstacle-aware routing.
+
+### 2026-10-07 04:00–04:35 AEST (scheduled routine run #14)
+
+Run #13 (~03:00) never committed or logged: **C: was full (127 KB free)**, so its builds failed.
+Its work was sitting finished in the tree. Old routine scratchpads held ~900 MB of build output, so
+I cleared their `build`/`bin`/`obj` folders (782 MB free afterwards, still tight). I also stopped two
+leftover test instances from earlier runs. I left alone a third `Marksmith.exe` (PID 24328, running
+from the repo's own `bin`, started 2026-10-06 18:07) because it may be the user's. That instance
+locks `MarkSmith.Desktop\bin`, so build to a scratch `OutDir`.
+
+**Shipped (run #13's work, reviewed by PrintWindow screenshots + UIA, plus fixes):**
+- **Insert-menu dialogs reworked** (`Views/InsertDialogControls.cs`, base `InsertDialogBody`).
+  Every dialog has a one-line description and a live "Inserts" card showing the exact Markdown.
+  The red hint says what's wrong, and Insert stays disabled until the values make a usable block.
+  The caret starts in the first field with its sample text selected. Chart has a radio picker
+  (Bar / Line / Pie). "Web Embed" is now "Video Embed" with provider detection. The Wave Function
+  Collapse menu item inserts the tile map in Pro mode too, instead of the unrelated quantum diagram.
+- **Preview renders the Insert-menu containers** that used to be DOCX-only (`:::tabs`, `:::datagrid`,
+  `:::references`, `:::embed`, `:::ai-context`), in `MarkdownHtmlService.Containers.cs` and
+  `ContainerBlockParsers.cs`. Untyped `:::workflow` / `:::timeline` now draw as SmartArt with their
+  own layout. The "Layout: …" caption no longer shows in documents. `InsertBlockPreviewTests`.
+- **Fixed this run: the WinUI TextBox stores line breaks as a bare `\r`**, and every piece of
+  editor line logic only looked for `\n`. Confirmed live: setting "a\nb\nc" in the editor reads back
+  as CR-only. This broke:
+  - every multi-line Insert dialog: samples opened as just "Step 1" because `Text` was set before
+    `AcceptsReturn`, and typed lines merged into one ("Step 1Step 2Step 3");
+  - SmartArt insert: every step became a single item;
+  - toolbar bullet / numbered / task / quote / heading on a multi-line selection: only the first
+    line got the prefix. Task list also never took the per-line path (`"- []"` vs `"- [ ]"`).
+    Numbered lists now count 1. 2. 3.;
+  - Sort / Dedupe lines, "current line" transforms (which hit the whole document), Alt+↑/↓,
+    Ctrl+D, Cleanup;
+  - the Ln/Col readout (always Ln 1), the line-number gutter (always 1 line), and lint-issue click
+    and GoToLine (jumped to the end of the document).
+  
+  The new helpers `IsLineBreak` / `EditorText()` live in `MainWindow.xaml.cs`; **use them for any new
+  editor line logic.** Verified live via UIA: bullets, 1./2./3. and tasks on three selected lines;
+  caret readout "Ln 3, Col 2". The render and export paths already normalised `\r`. A new test pins
+  `\r`-only container blocks.
+- Bibliography dialog: the empty Citation id box shows the id it will actually get (author + year)
+  instead of a fixed "smith2026" that disagreed with the preview.
+
+**Verified:** Desktop 0 warnings / 0 errors (scratch OutDir). Full suite before the fixes:
+3235 passed / 1 skipped / 2 failed, the 2 failures being the user's own `HouseLayoutTests` WIP,
+still uncommitted and untouched. After the fixes, `InsertBlockPreviewTests` 23/23 (the fixes are
+Desktop-only).
+
+**Not verified:** Sort/Dedupe/Move/Duplicate/Cleanup were not driven live (they sit in menus and
+keyboard accelerators). They use the same `EditorText()` path as the verified operations.
+
+**Next up:**
+1. **Free disk space is critical** (~580 MB). Tell the user. Routine runs should delete their
+   scratch `build` folder at the end of each run.
+2. Audit the other text-entry surfaces for the bare-`\r` trap: Mermaid code editor, SmartArt Studio
+   outline/markdown tabs, Diagram Studio text, Shape Studio labels, Find & Replace (multi-line
+   finds), and Enter-key list continuation, if it exists. Any `Split('\n')` on a TextBox's `.Text`
+   is suspect.
+3. Run #12's carry-overs: SmartArt document preview on dark themes and click-to-zoom; Shape Studio
+   by hand once the desktop is unlocked; Diagram Studio canvas fill and connector inspector.
+4. Insert dialogs by keyboard (Tab order, Enter = Insert) once the desktop is unlocked.
+5. Carried over: Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.

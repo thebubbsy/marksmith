@@ -38,10 +38,11 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex("<div class=\"mermaid\">.*?</div>", RegexOptions.Singleline)]
     private static partial Regex MermaidDivRe();
 
-    // :::smartart type="…" blocks: the marker line, then nested "- " bullets (indentation =
+    // :::smartart type="…" blocks (and :::workflow / :::timeline, which the DOCX export also draws
+    // as native SmartArt with the suggested layout, so the preview matches it): the marker line, then nested "- " bullets (indentation =
     // hierarchy), closed by ":::". Same syntax the DOCX export's SmartArtDetector accepts.
     // Handles optional type, quotes or unquoted, and flexible line breaks; fenced-code spans excluded.
-    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::smartart(?:\s+type=[""']?([^""'\s>]+)[""']?)?\s*\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::(?<kind>smartart|workflow|timeline)(?:\s+type=[""']?([^""'\s>]+)[""']?)?\s*\r?\n([\s\S]*?)\r?\n:::\s*", RegexOptions.Singleline)]
     private static partial Regex SmartArtBlockRe();
 
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))\s*:::watermark(?:\s+[^\r\n]*)?(?:\r?\n(?!(?:#|:::|\r?\n))[\s\S]*?\r?\n:::\s*|\r?\n|$)", RegexOptions.Singleline)]
@@ -194,6 +195,9 @@ public sealed partial class MarkdownHtmlService
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value; // inside a code fence
             }
             string alias = m.Groups[1].Success ? m.Groups[1].Value.Trim().ToLowerInvariant() : "";
+            // An untyped :::workflow / :::timeline says what it is; don't let the guesser turn four
+            // workflow steps into a 2x2 block grid.
+            if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
             smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
@@ -202,6 +206,7 @@ public sealed partial class MarkdownHtmlService
         // compiled dispatch pass (see MarkdownHtmlService.EngineeringDiagrams.cs) instead of 49
         // separate interpreted full-document regex scans per preview render.
         markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
+        markdown = LiftContainerBlocks(markdown, theme, out var containerBlocks);
 
         // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
         markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
@@ -367,6 +372,7 @@ public sealed partial class MarkdownHtmlService
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
+        body = ReplaceCommentPlaceholders(body, "MSBLOCK", containerBlocks);
         body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);
@@ -1802,7 +1808,8 @@ public sealed partial class MarkdownHtmlService
             /* SmartArt diagrams (:::smartart blocks) get the same themed frame as mermaid; on dark
                themes the renderer's light-page artwork is auto-inverted for legibility. */
             .smartart { width: 100%; max-width: 100%; margin: 32px 0; background: {{theme.Code}}; border-radius: 8px; padding: 20px; border: 2px solid {{theme.Border}}; box-sizing: border-box; overflow-x: auto; text-align: center; cursor: zoom-in; }
-            .smartart .smartart-container { margin: 0 auto; }
+            .smartart .smartart-container { margin: 0 auto; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+            .smartart .smartart-caption { display: none; } /* the "Layout: …" label is for the Studio, not the document */
             .smartart-autoinvert .smartart-container { {{pluginDiagramSvgFilter}} }
             .smartart-error { color: #cf222e; font-size: 13px; text-align: center; padding: 12px; }
             /* Engineering & Science diagrams */
@@ -2362,6 +2369,7 @@ public sealed partial class MarkdownHtmlService
                 if (m.Index >= f.Start && m.Index < f.End) return m.Value;
             }
             string alias = m.Groups[1].Value.Trim().ToLowerInvariant();
+            if (alias.Length == 0 && m.Groups["kind"].Value is "workflow" or "timeline") alias = m.Groups["kind"].Value;
             smartArtBlocks.Add((alias, m.Groups[2].Value.Trim()));
             return $"\n\n<!--SMARTART:{smartArtBlocks.Count - 1}-->\n\n";
         });
@@ -2369,6 +2377,7 @@ public sealed partial class MarkdownHtmlService
         // Batch 11 (#58): same single-pass engineering-fence lift as Render() — without it the
         // incremental canvas swap would show raw :::fence text where full renders show SVG.
         markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
+        markdown = LiftContainerBlocks(markdown, theme, out var containerBlocks);
 
         var isDarkEarly = !settings.ThemeLightInfluence && theme.IsDarkPage;
 
@@ -2425,6 +2434,7 @@ public sealed partial class MarkdownHtmlService
         body = MarkSmith.Core.Composer.ShapeMarkdownHtml.PostInject(body, shapesBlocks);
 
         body = ReplaceCommentPlaceholders(body, "ENGDIAGRAM", engineeringDiagrams);
+        body = ReplaceCommentPlaceholders(body, "MSBLOCK", containerBlocks);
         body = ReplaceCommentPlaceholders(body, "WATERMARK", watermarkBlocks);
         body = ReplaceCommentPlaceholders(body, "COVERPAGE", coverPageBlocks);
         body = ReplaceCommentPlaceholders(body, "INDEX", indexBlocks);

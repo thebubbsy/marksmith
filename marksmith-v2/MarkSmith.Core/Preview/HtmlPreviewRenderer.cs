@@ -111,7 +111,9 @@ namespace MarkSmith.Core.Preview
             }
 
             // Only append the alias when it adds something (an untitled layout's title *is* its alias).
-            var layoutLabel = string.Equals(layoutTitle, layoutAlias, StringComparison.OrdinalIgnoreCase)
+            // A blank title used to print as "Layout:  (process)".
+            var layoutLabel = string.IsNullOrWhiteSpace(layoutTitle) ? layoutAlias
+                : string.Equals(layoutTitle, layoutAlias, StringComparison.OrdinalIgnoreCase)
                 ? layoutTitle
                 : $"{layoutTitle} ({layoutAlias})";
 
