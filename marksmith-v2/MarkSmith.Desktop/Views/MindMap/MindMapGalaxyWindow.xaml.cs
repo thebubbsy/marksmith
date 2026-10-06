@@ -153,6 +153,9 @@ namespace MarkSmith.Views.MindMap
 
         // ---- Retained scene ----
 
+        private static readonly Microsoft.UI.Xaml.Media.FontFamily IconFontFamily =
+            new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI");
+
         private sealed class NodeVisual
         {
             public Border Root = null!;
@@ -337,7 +340,10 @@ namespace MarkSmith.Views.MindMap
             topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             topPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            v.Icon = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
+            // Node icons are Segoe Fluent code points (the auto-linker and starter vault) or, in
+            // older/hand-edited vaults, emoji. A plain TextBlock in the text font drew every
+            // Fluent one as a missing-glyph box, so give it a per-character fallback chain.
+            v.Icon = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, FontFamily = IconFontFamily };
             Grid.SetColumn(v.Icon, 0);
             topPanel.Children.Add(v.Icon);
 

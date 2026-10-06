@@ -503,7 +503,11 @@
                                 <ComboBox Grid.Column="0" Header="Node type" HorizontalAlignment="Stretch"
                                           ItemsSource="{Binding ElementName=RootGrid, Path=DataContext.AvailableNodeTypes}"
                                           SelectedItem="{Binding NodeType, Mode=TwoWay}" />
-                                <TextBox Grid.Column="1" Header="Icon" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch" />
+                                <!-- Same fallback chain as the node cards, so a Fluent icon shows as the icon
+                                     rather than a missing-glyph box (emoji still work). -->
+                                <TextBox Grid.Column="1" Header="Icon" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch"
+                                         FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
+                                         ToolTipService.ToolTip="The node's icon — an emoji, or a Segoe Fluent icon character" />
                             </Grid>
 
                             <!-- Progress Slider -->
