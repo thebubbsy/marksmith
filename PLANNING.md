@@ -994,3 +994,73 @@ needs credentials.
 4. Version History window audit (still unaudited since run #11), plus the ⋯ menu flyouts.
 5. Carried over: Shape Studio by hand, SmartArt click-to-zoom and 7+ cycles, Diagram Studio canvas
    fill, Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 05:30–06:05 AEST (scheduled routine run #17)
+
+The PC was **unlocked** (no LogonUI) with 35 GB free, so PrintWindow screenshots and UIA driving
+both worked. Another routine run was working in the same tree at the same time (Mermaid canvas
+files, commit fc5dc41). I stayed off its files and committed only explicit paths. I took run
+#16's "Next up" #4, the **Version History window** (never audited), plus #2 (auto-ingest/watch-folder
+export errors) and the ⋯ menu.
+
+**Shipped (db6c58a):**
+- **Take Checkpoint saved the wrong text.** It captured the *selected old version* and starred it
+  as a new milestone. It now saves the editor's live text for that document. If the document isn't
+  open, a notice explains that instead (the button stays enabled so its tooltip can say why). A
+  checkpoint with no changes stars and names the latest version instead of silently doing nothing.
+- **Restore was one click with no confirmation** and could pour another document's text into
+  whichever document was open. It now confirms, gives a plain warning on a document mismatch,
+  saves the replaced text to history as "Before restore", shows a success or error InfoBar, and is
+  disabled with nothing selected.
+- **Rename and delete existed in the view model but had no UI.** Each row now has a ⋯ button and a
+  right-click menu: Rename (F2), Star, Restore, Delete (Del, confirmed). Renames show immediately
+  (the label used to be copied once at construction). Deleting the last version drops the document.
+- **Diffs:** unchanged runs fold to 3 lines of context ("⋯ 59 unchanged lines"). Rows render in
+  virtualised `ItemsRepeater`s (they were plain ItemsControls building every line of the file).
+  Identical versions say "Same text as the version before". A first version no longer shows a
+  phantom "−" blank line (`LineDiff.AllAdded`). Side by side wraps instead of two sideways scrollers.
+  The diff tints used the *foreground* Critical/Success brushes (solid pink under white text in
+  dark), and now use the `*BackgroundBrush` tints.
+- **Filters:** the selection survives search and Starred (the rows were rebuilt, dropping the
+  highlight). Search matches what a row shows ("Auto-Save", "Export · PDF", weekday). New states:
+  no matches + Clear filters, no history, loading, load error + Try again. Un-starring under the
+  Starred filter removes the row.
+- **Preview** used its own WebView2 environment with no asset host, so mermaid, KaTeX and code
+  highlighting couldn't load. It also opened links inside the pane, and the A4-wide page sat
+  clipped behind a horizontal scrollbar. It now uses the shared environment and `MapAssetHost`,
+  sends links to the browser, injects a fit-to-pane zoom, and renders only while visible.
+- **Store bug (data loss):** the load-time "same hash within 2 s" dedupe, meant to merge two
+  spellings of one path, also deleted a *different* version of the same file whenever its text
+  repeated an older version's. It's now limited to entries from other keys. The window also shows
+  the real file-name casing (keys are lower-cased), and the first capture counts bare-`\r` lines.
+- Window sized in DIPs with an icon and a minimum size. Scratch text is listed as "Unsaved text".
+- **⋯ menu:** added "Version history…", renamed "Export history" to "Recent exports" with an empty
+  state, and fixed the coffee item's copy (the tooltip said "Matthew Bubb is software for nerds"). The
+  History button beside Selected file is no longer disabled without a file, since the hub works
+  without one.
+- **Auto-ingest / watch-folder exports** go through `ExportFailureMessage` and `ThrowIfLocked`. One
+  failing format no longer aborts the others. They announce with the status-bar Open links
+  (`AnnounceExport` is now internal).
+- Tests: `HistoryPolishTests` (25).
+
+**Verified live** (scratch `MARKSMITH_CONFIG_DIR` seeded through `VersionHistoryService` from
+pwsh, PrintWindow and UIA): the vault with real casing, folded unified and side-by-side diffs, the
+row menu, the label dialog, rename showing immediately, search keeping the selection, no matches,
+the checkpoint-not-open error InfoBar, preview fitting the pane, and the restore confirmation then
+success InfoBar with the main status bar updated. Desktop 0 warnings / 0 errors. Suite 3289 passed /
+1 skipped / 17 failed = the 15 known scratch-OutDir path tests + the user's 2 `HouseLayoutTests`.
+
+**Not verified live:** the Recent exports flyout (the first-run tour dialog covered it in the fresh
+config), light theme, and keyboard F2/Del in the timeline.
+
+**Next up:**
+1. Light-theme pass on the History window (diff tints, selected rows, InfoBar) and the Recent
+   exports flyout with real entries. Then the run #15/#16 carry-overs: status-bar links after an
+   export, multi-line labels typed in Diagram and Shape Studio, and Insert dialogs by keyboard.
+2. Copy HTML still copies app-only asset URLs. Decide whether it should inline like the export does.
+3. Settings → every SettingsCard row: hover, disabled states, the descriptions' accuracy against
+   what the setting really does (unaudited since run #10's NavigationView rebuild).
+4. Welcome tour: drive every page (it opened on the fresh config this run). Check copy, the
+   arrow-key/dots navigation, and that "Skip" and finishing both stick.
+5. Carried over: Shape Studio by hand, SmartArt click-to-zoom and 7+ cycles, Diagram Studio canvas
+   fill, keyboard focus order, Galaxy obstacle-aware routing.
