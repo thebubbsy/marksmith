@@ -27,6 +27,17 @@ namespace MarkSmith.Controls
             this.InitializeComponent();
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
             HoverPolish.Track(this);
+            SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
+        }
+
+        // Wide: [icon | text | CTA | ×] on one row. Narrow: the CTA drops under the text so the
+        // body never gets squeezed into a sliver beside a fixed-width button.
+        private void ApplyLayout(double width)
+        {
+            var narrow = width < 640;
+            Grid.SetRow(GetExtensionButton, narrow ? 1 : 0);
+            Grid.SetColumn(GetExtensionButton, narrow ? 1 : 2);
+            GetExtensionButton.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
         }
 
         private async void OnGetExtensionClick(object sender, RoutedEventArgs e)

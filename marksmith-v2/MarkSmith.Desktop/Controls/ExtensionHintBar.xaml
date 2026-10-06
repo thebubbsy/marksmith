@@ -7,34 +7,39 @@
     mc:Ignorable="d"
     x:Name="RootControl">
 
-    <Grid>
-        <Border CornerRadius="8" Margin="0,0,0,10" 
-                Background="{ThemeResource SystemControlBackgroundAccentBrush}" Opacity="0.1" />
-        
-        <Border CornerRadius="8" Margin="0,0,0,10" 
-                BorderBrush="{ThemeResource SystemControlForegroundAccentBrush}" BorderThickness="1"
-                Background="Transparent" Padding="16,12">
-            
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="{ThemeResource SystemControlForegroundAccentBrush}" VerticalAlignment="Center" />
-                
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" />
-                    <TextBlock Text="Headings, tables, code, math ($…$), tabs (:::tabs), SmartArt (:::smartart), vector shapes (:::shapes), timelines, columns, and callouts were probably lost on the way. In your AI chat, use the MarkSmith Connector's 'Copy as Markdown' button (it's pulsing there now) to preserve full native formatting and diagrams."
-                               TextWrapping="Wrap" Opacity="0.75" />
-                </StackPanel>
-                
-                <Button Grid.Column="2" Content="Get the extension" Click="OnGetExtensionClick" 
-                        ToolTipService.ToolTip="Open the MarkSmith Connector browser extension page"
-                        Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center" />
-                
-                <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
-                        ToolTipService.ToolTip="Dismiss this hint"
-                        VerticalAlignment="Center" Padding="4">
-                    <FontIcon Glyph="&#xE711;" FontSize="12" Opacity="0.8" />
-                </Button>
-            </Grid>
-        </Border>
-    </Grid>
-</UserControl>
+    <!-- Same chrome as the Source pane's ExtensionTip (theme card, accent only on the glyph + CTA)
+         so the two Connector nudges read as one family. The CTA sits beside the text when the bar
+         is wide and drops under it when narrow (switched in code-behind on SizeChanged). -->
+    <Border CornerRadius="10" Margin="0,0,0,10" Padding="14,12"
+            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1">
+        <Grid x:Name="LayoutGrid" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto"
+              ColumnSpacing="12" RowSpacing="8">
+            <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                      VerticalAlignment="Top" Margin="0,2,0,0" />
 
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="That paste looks like plain text" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="Headings, tables, code and diagrams were probably lost on the way. Next time, use the MarkSmith Connector's “Copy as Markdown” button in your AI chat — it's pulsing there now — to keep the full formatting."
+                           TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <Button x:Name="GetExtensionButton" Grid.Column="2" Click="OnGetExtensionClick"
+                    ToolTipService.ToolTip="Open the MarkSmith Connector browser extension page"
+                    Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Get the extension" />
+                    <FontIcon Glyph="&#xE8A7;" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnCloseClick"
+                    ToolTipService.ToolTip="Dismiss this hint" AutomationProperties.Name="Dismiss this hint"
+                    VerticalAlignment="Top" Width="28" Height="28" Padding="0">
+                <FontIcon Glyph="&#xE711;" FontSize="11" Opacity="0.8" />
+            </Button>
+        </Grid>
+    </Border>
+</UserControl>

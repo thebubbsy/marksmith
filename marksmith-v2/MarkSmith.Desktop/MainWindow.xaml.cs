@@ -189,7 +189,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Unpackaged app: the exe icon covers Explorer/taskbar, but the title bar needs an
         // explicit runtime assignment (relative paths resolve against the CWD, so anchor to base).
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico"));
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1220, 800));
+        SizeWindowForDisplay();
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -406,8 +406,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Expanded editing bar: when the bottom bar has room, common actions become direct buttons
         // instead of hiding under the cluster dropdowns (split view, full code mode, fullscreen).
         BuildEditingExpandedButtons();
-        RootGrid.SizeChanged += (_, _) => UpdateEditingExpansion();
-        UpdateEditingExpansion();
+        // The centre column also changes width when a splitter is dragged, not just on window
+        // resize — so follow the bar itself.
+        CenterBottomBar.SizeChanged += (_, e) => { if (e.PreviousSize.Width != e.NewSize.Width) UpdateCenterBottomBar(); };
+        RootGrid.SizeChanged += (_, e) => { if (e.PreviousSize.Width != e.NewSize.Width) FitRightPane(); };
+        UpdateCenterBottomBar();
         App.License.Changed += () => DispatcherQueue.TryEnqueue(UpdateLicenseBanner);
         // Standardized pro-gate: any PRO feature a free user attempts raises this; the shell shows
         // the modal with trial/upgrade actions (non-UI hosts get only the StatusText fallback).
@@ -543,6 +546,40 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         MoreMenuTip.IsOpen = true;
     }
 
+    // AppWindow sizes are physical pixels, so the old fixed Resize(1220, 800) opened at ~813×533
+    // DIPs on a 150%-scaled laptop — narrower than the three panes need, so the Style & Export
+    // pane ran off the edge on first launch. Size in DIPs scaled by the window's DPI, clamp to the
+    // work area, and set a matching minimum so the layout can never be squeezed past the point
+    // where it breaks (320 Source + 400 editor + 290 Style & Export + splitters and padding).
+    private void SizeWindowForDisplay()
+    {
+        const int designWidth = 1220, designHeight = 800, minWidth = 1120, minHeight = 640;
+        var scale = GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96.0;
+        if (scale <= 0) scale = 1;
+
+        var work = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id,
+            Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+        var width = System.Math.Min((int)(designWidth * scale), work.Width);
+        var height = System.Math.Min((int)(designHeight * scale), work.Height);
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
+
+        if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+        {
+            presenter.PreferredMinimumWidth = System.Math.Min((int)(minWidth * scale), work.Width);
+            presenter.PreferredMinimumHeight = System.Math.Min((int)(minHeight * scale), work.Height);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    private void OnAppTitleBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Logo + name + dot + tagline need ~330px; below that, drop the dot and tagline whole.
+        var show = e.NewSize.Width >= 340;
+        TitleTagline.Visibility = TitleTaglineDot.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
     private void OnExportHistoryMenuClick(object sender, RoutedEventArgs e) =>
@@ -570,34 +607,49 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Visual cleanup: the 15 actions read as one noisy wall when expanded. They are now laid
         // out in four logical bands — text styles, headings, lists, inserts — separated by the
         // same subtle 1px divider the cluster dropdowns use, with uniform 30x32 buttons.
-        (string Content, string Tip, RoutedEventHandler Click)[] actions =
+        // Headings keep their H1–H4 letterforms; everything else uses the same Fluent icon as its
+        // entry in the cluster menus (Bold / Italic / Strikethrough included — a 12px italic "I"
+        // read as a slash) instead of the old "Img" / "Tbl" / "<>" text stand-ins.
+        const string numberedListPath = "M1,1 h1 v1 h-1 Z M0,2 h2 v1 h-2 Z M1,3 h1 v1 h-1 Z M1,4 h1 v1 h-1 Z M0,5 h3 v1 h-3 Z M0,9 h2 v1 h-2 Z M2,10 h1 v1 h-1 Z M1,11 h1 v1 h-1 Z M0,12 h1 v1 h-1 Z M0,13 h3 v1 h-3 Z M5,3 h11 v1.5 h-11 Z M5,11 h11 v1.5 h-11 Z";
+        (Func<UIElement> Content, string Tip, RoutedEventHandler Click)[] actions =
         {
-            ("B", "Bold (Ctrl+B)", OnBoldClick),
-            ("I", "Italic (Ctrl+I)", OnItalicClick),
-            ("S", "Strikethrough", OnStrikethroughClick),
-            ("H1", "Heading 1 (#)", OnH1Click),
-            ("H2", "Heading 2 (##)", OnH2Click),
-            ("H3", "Heading 3 (###)", OnH3Click),
-            ("H4", "Heading 4 (####)", OnH4Click),
-            ("•", "Bullet list", OnBulletListClick),
-            ("1.", "Numbered list", OnNumberedListClick),
-            ("☑", "Task list", OnTaskListClick),
-            ("❝", "Blockquote", OnBlockquoteClick),
-            ("Link", "Insert link", OnLinkClick),
-            ("Img", "Insert image", OnImageClick),
-            ("Tbl", "Insert table", OnTableClick),
-            ("<>", "Code block", OnCodeBlockClick),
+            (() => Glyph("\uE8DD"), "Bold (Ctrl+B)", OnBoldClick),
+            (() => Glyph("\uE8DB"), "Italic (Ctrl+I)", OnItalicClick),
+            (() => Glyph("\uEDE0"), "Strikethrough", OnStrikethroughClick),
+            (() => Letter("H1"), "Heading 1 (#)", OnH1Click),
+            (() => Letter("H2"), "Heading 2 (##)", OnH2Click),
+            (() => Letter("H3"), "Heading 3 (###)", OnH3Click),
+            (() => Letter("H4"), "Heading 4 (####)", OnH4Click),
+            (() => Glyph("\uE8FD"), "Bullet list", OnBulletListClick),
+            (() => new PathIcon { Data = (Microsoft.UI.Xaml.Media.Geometry)Microsoft.UI.Xaml.Markup.XamlBindingHelper.ConvertValue(typeof(Microsoft.UI.Xaml.Media.Geometry), numberedListPath) }, "Numbered list", OnNumberedListClick),
+            (() => Glyph("\uE73A"), "Task list", OnTaskListClick),
+            (() => Glyph("\uE9B1"), "Blockquote", OnBlockquoteClick),
+            (() => Glyph("\uE71B"), "Insert link", OnLinkClick),
+            (() => Glyph("\uEB9F"), "Insert image", OnImageClick),
+            (() => Glyph("\uE80A"), "Insert table", OnTableClick),
+            (() => Glyph("\uE943"), "Code block", OnCodeBlockClick),
         };
+
+        static UIElement Letter(string text) => new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        };
+        static UIElement Glyph(string glyph) => new FontIcon { Glyph = glyph, FontSize = 14 };
+
         for (int i = 0; i < actions.Length; i++)
         {
             var (content, tip, click) = actions[i];
             var button = new Button
             {
-                Content = new TextBlock { Text = content, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                Content = content(),
                 Width = 30,
                 Height = 32,
                 Padding = new Thickness(0),
             };
+            // Name from the tooltip's words (minus the shortcut), not the glyph/letterform.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, tip.Split(" (")[0]);
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, tip);
             button.Click += click;
             EditingExpandedPanel.Children.Add(button);
@@ -645,15 +697,6 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
     }
 
-    // Toggles the expanded vs clustered editing bars based on available width. Called on every
-    // resize and view-mode change; the cluster dropdowns return automatically when space is tight.
-    private void UpdateEditingExpansion()
-    {
-        if (EditingExpandedPanel is null || EditingClustersPanel is null) return;
-        var expanded = CenterBottomBar.ActualWidth >= 620; // strip is ~594px with Copy/Print + bands
-        EditingExpandedPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-        EditingClustersPanel.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
-    }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -3006,39 +3049,55 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (chosen is not null) await chosen.Run();
     }
 
+    // Debug mode (Ctrl+Alt+T) writes one log per preview render. On exit this used to read every
+    // log back and dump the raw HTML into a single-line TextBox (megabytes on a long session),
+    // with only "Close and Exit". Now it says how many logs were kept and where, and offers to
+    // open the folder before exiting — the files are the useful artefact, not a wall of HTML.
     private async Task ShowDebugLogsDialogAndExitAsync()
     {
-        var sb = new System.Text.StringBuilder();
-        foreach (var file in _sessionLogFiles)
-        {
-            if (File.Exists(file))
-            {
-                sb.AppendLine($"--- LOG FILE: {Path.GetFileName(file)} ---");
-                sb.AppendLine(File.ReadAllText(file));
-                sb.AppendLine();
-            }
-        }
+        var logs = _sessionLogFiles.Where(File.Exists).ToList();
+        var folder = logs.Count > 0 ? Path.GetDirectoryName(logs[0])! : Path.Combine(Services.AppPaths.ConfigDir, "DebugLogs");
 
-        var textBox = new TextBox
+        var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        body.Children.Add(new TextBlock
         {
-            Text = sb.ToString(),
-            IsReadOnly = true,
+            Text = logs.Count == 1
+                ? "Debug mode saved 1 preview log this session."
+                : $"Debug mode saved {logs.Count} preview logs this session.",
             TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            MaxHeight = 400
+        });
+        var path = new TextBox
+        {
+            Text = folder,
+            IsReadOnly = true,
+            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+            FontSize = 12,
         };
-        ScrollViewer.SetVerticalScrollBarVisibility(textBox, ScrollBarVisibility.Auto);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(path, "Debug log folder");
+        body.Children.Add(path);
+        body.Children.Add(new TextBlock
+        {
+            Text = "Each log holds the Markdown-to-HTML output of one render. Turn debug mode off with Ctrl+Alt+T.",
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        });
 
         var dialog = new ContentDialog
         {
-            Title = "Debug Mode - Session Logs",
-            Content = textBox,
-            CloseButtonText = "Close and Exit",
+            Title = "Debug logs saved",
+            Content = body,
+            PrimaryButtonText = "Open folder and exit",
+            CloseButtonText = "Exit",
+            DefaultButton = ContentDialogButton.Close,
             XamlRoot = RootGrid.XamlRoot
         };
 
-        await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
-        
+        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary)
+        {
+            try { await Windows.System.Launcher.LaunchFolderPathAsync(folder); } catch { }
+        }
+
         _exitRequested = true;
         Close();
     }
@@ -3632,15 +3691,69 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Centre pane bottom bar: the editing clusters show whenever the editor is visible or portal
     // mode turns the preview into an editor; the portal shape + size row only shows while portal
     // mode is on. Copy HTML / Print are always available, so the bar itself never hides.
+    //
+    // This is the ONE place that decides the editing bar's shape. It used to be split between this
+    // method (view mode) and a resize handler (width) that each set the panels' visibility, so a
+    // resize in Preview mode brought the editing buttons back, and at the default 1220px window the
+    // labelled clusters were clipped at both ends (Copy HTML and "Tools"). Three tiers, widest first:
+    //   1. expanded  — one direct button per common action
+    //   2. clusters  — the four labelled dropdowns
+    //   3. compact   — the same dropdowns, icon only (tooltips + accessible names keep the words)
     private void UpdateCenterBottomBar()
     {
-        if (CenterBottomBar is null) return;
+        if (CenterBottomBar is null || EditingExpandedPanel is null || EditingClustersPanel is null) return;
         var portalOn = LookingGlassToggle?.IsChecked == true;
         if (PortalControlsRow is not null)
             PortalControlsRow.Visibility = portalOn ? Visibility.Visible : Visibility.Collapsed;
-        if (EditingClustersPanel is not null)
-            EditingClustersPanel.Visibility = portalOn || _viewMode is ViewMode.Code or ViewMode.Split
-                ? Visibility.Visible : Visibility.Collapsed;
+
+        var editing = portalOn || _viewMode is ViewMode.Code or ViewMode.Split;
+        if (!editing)
+        {
+            EditingExpandedPanel.Visibility = Visibility.Collapsed;
+            EditingClustersPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var available = CenterBottomBar.ActualWidth;
+        if (available <= 0) available = double.PositiveInfinity; // before first layout: let it settle
+        const double copyPrint = 32 + 4 + 32 + 4; // two 32px buttons + the row spacing
+        var expanded = copyPrint + MeasureRow(EditingExpandedPanel) <= available;
+        EditingExpandedPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        EditingClustersPanel.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+        if (expanded) return;
+
+        SetClusterLabelsVisible(true);
+        if (copyPrint + MeasureRow(EditingClustersPanel) > available)
+            SetClusterLabelsVisible(false);
+    }
+
+    // Width a horizontal StackPanel would need, computed from its children so it works while the
+    // panel itself is collapsed (a collapsed element measures to zero).
+    private static double MeasureRow(StackPanel panel)
+    {
+        double width = 0;
+        int visible = 0;
+        foreach (var child in panel.Children)
+        {
+            if (child.Visibility != Visibility.Visible) continue;
+            child.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            width += child.DesiredSize.Width;
+            visible++;
+        }
+        return width + System.Math.Max(0, visible - 1) * panel.Spacing;
+    }
+
+    // The cluster dropdowns' content is [icon, label]; compact mode hides the label.
+    private void SetClusterLabelsVisible(bool visible)
+    {
+        foreach (var child in EditingClustersPanel.Children)
+        {
+            if (child is DropDownButton { Content: StackPanel content })
+            {
+                foreach (var part in content.Children)
+                    if (part is TextBlock label) label.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
     }
 
     // ISS-004: persist the portal reveal scope and push it straight into the page so an open
@@ -3688,6 +3801,45 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
+    // ---- Style & Export pane fit ----
+
+    private double _rightPanePreferredWidth = 380;
+    private double _rightPaneFittedWidth = -1;
+
+    // The Style & Export column is a fixed width (380, or whatever the splitter last set) beside a
+    // star editor column with a 400px floor, so once the window got narrower than ~1200px the right
+    // pane simply ran off the window edge. It now yields width down to its MinWidth (290) and
+    // grows back to the user's preferred width when room returns. A width this method didn't set
+    // (splitter drag, focus-mode restore) becomes the new preference.
+    private void FitRightPane()
+    {
+        if (MainLayoutGrid is null || RightPaneCol is null || !RightPaneCol.Width.IsAbsolute) return;
+        var current = RightPaneCol.Width.Value;
+        if (current <= 0) return; // focus mode hides the pane — leave it alone
+        if (System.Math.Abs(current - _rightPaneFittedWidth) > 0.5) _rightPanePreferredWidth = current;
+
+        var cols = MainLayoutGrid.ColumnDefinitions;
+        var others = MainLayoutGrid.Padding.Left + MainLayoutGrid.Padding.Right
+                     // the left column's Width, not ActualWidth: the drawer just changed it and
+                     // layout hasn't run yet
+                     + (cols[0].Width.IsAbsolute ? cols[0].Width.Value : cols[0].ActualWidth)
+                     + cols[1].ActualWidth + cols[3].ActualWidth
+                     + cols[2].MinWidth + MainLayoutGrid.ColumnSpacing * (cols.Count - 1);
+        // RootGrid, not MainLayoutGrid: once the columns' minimums exceed the window, the layout
+        // grid is arranged wider than the window (and clipped), so its own ActualWidth overstates
+        // the room. The root grid is always exactly the window's client width.
+        var available = RootGrid.ActualWidth - others;
+        var target = System.Math.Max(RightPaneCol.MinWidth, System.Math.Min(_rightPanePreferredWidth, available));
+        _rightPaneFittedWidth = target;
+        if (System.Math.Abs(target - current) > 0.5) RightPaneCol.Width = new GridLength(target);
+    }
+
+    private void OnRightPaneSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (OpenOutputLabel is not null)
+            OpenOutputLabel.Visibility = e.NewSize.Width >= 340 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // ---- Left-pane hover-drawer ----
 
     // Expand the Source/Files pane back to its pre-collapse width (hovering the drawer tab).
@@ -3698,6 +3850,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         LeftPaneCol.Width = new GridLength(_leftPaneExpandedWidth);
         LeftPane.Visibility = Visibility.Visible;
         if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Collapsed;
+        FitRightPane();
     }
 
     // Tuck the pane away to a slim tab (leaving the pane with the mouse, or a short beat after a
@@ -3713,6 +3866,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         LeftPaneCol.Width = new GridLength(28);
         LeftPane.Visibility = Visibility.Collapsed;
         if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Visible;
+        FitRightPane();
     }
 
     // Collapse on a short delay so the selection click finishes before the pane slides away.
@@ -3752,9 +3906,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void UpdateLintIndicator()
     {
         _lintIssues = Services.MarkdownLintService.Analyze(PasteTextBox?.Text);
-        if (LintCountText is not null)
-            LintCountText.Text = _lintIssues.Count == 0 ? "No issues" : $"{_lintIssues.Count} issue{(_lintIssues.Count == 1 ? "" : "s")}";
+        // A clean document shows a check, not the warning triangle it used to show even at
+        // "No issues"; the warning glyph is reserved for when there is something to review.
+        if (LintIcon is not null) LintIcon.Glyph = _lintIssues.Count == 0 ? "\uE73E" : "\uE7BA";
+        UpdateLintLabel();
         if (LintList is not null) LintList.ItemsSource = _lintIssues.ToList();
+    }
+
+    private bool _editorStripCompact;
+
+    // The lint chip spells out "No issues" / "3 issues" when the strip has room and drops to the
+    // bare count (the icon carries the meaning; the accessible name and tooltip keep the words)
+    // when the editor column is narrow, so it never collides with the tools on the left.
+    private void UpdateLintLabel()
+    {
+        if (LintCountText is null) return;
+        var n = _lintIssues.Count;
+        var words = n == 0 ? "No issues" : $"{n} issue{(n == 1 ? "" : "s")}";
+        LintCountText.Text = _editorStripCompact ? (n == 0 ? "" : n.ToString()) : words;
+        LintCountText.Visibility = LintCountText.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LintButton, $"Markdown issues: {words.ToLowerInvariant()}");
+    }
+
+    private void OnEditorStripSizeChanged(object sender, SizeChangedEventArgs e) => LayoutEditorStrip(e.NewSize.Width);
+
+    // Fits the strip under the editor into whatever width the column has (Split view at the
+    // default window size leaves ~190px). Shed in priority order until it fits: the lint chip's
+    // words, then the separators and the zoom % readout, then A−/A+ (Ctrl+wheel still zooms).
+    // Lines / Wrap / Fold — the toggles people actually reach for — are the last to go.
+    private void LayoutEditorStrip(double width)
+    {
+        if (EditorStripTools is null || LintButton is null || width <= 0) return;
+        var tools = EditorStripTools.Children;
+        var zoomBits = tools.Take(3).ToList(); // A−, the % readout, A+
+        var readoutAndSeparators = tools.Where(c => c is Border || c == EditorZoomText).ToList();
+
+        foreach (var c in tools) c.Visibility = Visibility.Visible;
+        bool Fits()
+        {
+            LintButton.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            return MeasureRow(EditorStripTools) + EditorStrip.ColumnSpacing + LintButton.DesiredSize.Width <= width;
+        }
+
+        _editorStripCompact = false;
+        UpdateLintLabel();
+        if (Fits()) return;
+        _editorStripCompact = true;
+        UpdateLintLabel();
+        if (Fits()) return;
+        foreach (var c in readoutAndSeparators) c.Visibility = Visibility.Collapsed;
+        if (Fits()) return;
+        foreach (var c in zoomBits) c.Visibility = Visibility.Collapsed;
     }
 
     // Clicking an issue jumps the editor caret to that line AND drops a red homing radar beacon on
@@ -4047,7 +4249,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // Ctrl+Alt+X: toggle the Looking Glass portal's focus blur — whether the rendered preview
-    private bool _initializingPortalBlur;
+    // Starts raised: the blur sliders' TwoWay bindings fire ValueChanged during
+    // InitializeComponent, which used to greet every launch with a "Surround blur: 6px behind
+    // portal aperture" status line nobody asked for. Lowered once the portal UI is initialized.
+    private bool _initializingPortalBlur = true;
 
     // Ctrl+Alt+X: toggle the Looking Glass portal's surrounding focus blur.
     private void OnTogglePortalBlurInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -4132,7 +4337,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             LeftPaneCol.Width = _savedLeftPaneWidth.IsAuto ? new GridLength(320) : _savedLeftPaneWidth;
             RightPaneCol.Width = _savedRightPaneWidth.IsAuto ? new GridLength(380) : _savedRightPaneWidth;
             LeftPaneCol.MinWidth = _savedLeftPaneMinWidth > 0 ? _savedLeftPaneMinWidth : 250;
-            RightPaneCol.MinWidth = _savedRightPaneMinWidth > 0 ? _savedRightPaneMinWidth : 250;
+            RightPaneCol.MinWidth = _savedRightPaneMinWidth > 0 ? _savedRightPaneMinWidth : 290;
             if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
             if (RightPane != null) RightPane.Visibility = Visibility.Visible;
             if (LeftSplitter != null) LeftSplitter.Visibility = Visibility.Visible;
