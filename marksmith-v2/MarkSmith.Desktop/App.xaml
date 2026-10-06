@@ -9,6 +9,19 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- MarkSmith's brand accent — the electric blue of the logo's spark — instead of the
+                 machine's Windows accent. A grey or near-black system accent made every primary
+                 button (Next, Export, Start trial), step badge and selection look disabled. Every
+                 Accent* brush, AccentButtonStyle and the focus/selection visuals derive from this
+                 ramp, in both themes (light uses Dark1, dark uses Light2, per the Fluent rules). -->
+            <Color x:Key="SystemAccentColor">#1A8CFF</Color>
+            <Color x:Key="SystemAccentColorLight1">#47A3FF</Color>
+            <Color x:Key="SystemAccentColorLight2">#7ABDFF</Color>
+            <Color x:Key="SystemAccentColorLight3">#B0D8FF</Color>
+            <Color x:Key="SystemAccentColorDark1">#0068C9</Color>
+            <Color x:Key="SystemAccentColorDark2">#00519E</Color>
+            <Color x:Key="SystemAccentColorDark3">#003B73</Color>
+
             <!-- Pipeline column card -->
             <Style x:Key="PipelineCardStyle" TargetType="Border">
                 <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />

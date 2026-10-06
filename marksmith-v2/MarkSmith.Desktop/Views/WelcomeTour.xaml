@@ -8,24 +8,6 @@
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <!-- Give the tour its own accent so the primary button is a deliberate MarkSmith green
-                 in BOTH themes, instead of the machine's system accent (which on some setups renders
-                 as a near-white/near-black slab that reads as "broken"). Overriding the Accent* fill
-                 brushes here keeps AccentButtonStyle's real hover/pressed states — just recoloured. -->
-            <ResourceDictionary.ThemeDictionaries>
-                <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#107C41" />
-                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#0E6E39" />
-                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#0C5F31" />
-                    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
-                </ResourceDictionary>
-                <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#2EA043" />
-                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#2C9740" />
-                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#278C3A" />
-                    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#FFFFFF" />
-                </ResourceDictionary>
-            </ResourceDictionary.ThemeDictionaries>
         <!-- One feature line: accent glyph + title + caption -->
         <Style x:Key="TourGlyph" TargetType="FontIcon">
             <Setter Property="FontSize" Value="18" />
@@ -55,6 +37,21 @@
              FeatureRow below), which is the ONLY layout that actually wraps it: a horizontal
              StackPanel hands its children unbounded width, so TextWrapping never fires and long
              lines clip off the card. This was a real bug — every feature line ran off the edge. -->
+        <!-- Welcome-slide pipeline cards: a real Button (keyboard, focus visual, hover/press
+             states and the app-wide HoverPolish lift for free) dressed as a card. -->
+        <Style x:Key="TourStepCard" TargetType="Button">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="Padding" Value="12,12,12,12" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style x:Key="TourStepCaption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
         <Style x:Key="TourFeatureText" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -77,7 +74,7 @@
              FlipView throws XamlParseException in WASDK 1.6 (bisected live — a FlipView-only
              skeleton fails, the identical skeleton without it parses). Pages are stacked panels
              visibility-switched from code-behind; Back/Next/pips still navigate. -->
-        <Grid Grid.Row="0" Height="340">
+        <Grid x:Name="PagesHost" Grid.Row="0">
 
             <!-- 1 · Welcome -->
             <StackPanel x:Name="Page0" Padding="8,4,8,4">
@@ -85,15 +82,49 @@
                 <TextBlock Text="Welcome to MarkSmith" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}"
                            Text="Turn messy AI-chat replies — ChatGPT, Gemini, Claude, Copilot — into polished, professional documents. Here's a 60-second tour of everything it can do." />
-                <Grid ColumnSpacing="12" Margin="0,4,0,0">
+                <!-- The pipeline the rest of the tour walks through, as three cards. Each one
+                     jumps straight to its page, so the welcome slide is a map, not a wall of
+                     empty space under one line of text. -->
+                <Grid ColumnSpacing="6" Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE8A1;" Style="{StaticResource TourGlyph}" />
-                    <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}"
-                               Text="A left-to-right pipeline: Source → Style → Preview &amp; Export. Everything updates live." />
+                    <Button Grid.Column="0" Tag="1" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                            AutomationProperties.Name="Source — go to step 1"
+                            ToolTipService.ToolTip="Jump to step 1 · Source">
+                        <StackPanel Spacing="4">
+                            <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
+                            <TextBlock Text="1 · Source" FontWeight="SemiBold" />
+                            <TextBlock Text="Paste, drop or pick a file" Style="{StaticResource TourStepCaption}" />
+                        </StackPanel>
+                    </Button>
+                    <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Tag="2" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                            AutomationProperties.Name="Style — go to step 2"
+                            ToolTipService.ToolTip="Jump to step 2 · Style">
+                        <StackPanel Spacing="4">
+                            <FontIcon Glyph="&#xE790;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
+                            <TextBlock Text="2 · Style" FontWeight="SemiBold" />
+                            <TextBlock Text="Themes, cleanup, structure" Style="{StaticResource TourStepCaption}" />
+                        </StackPanel>
+                    </Button>
+                    <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
+                    <Button Grid.Column="4" Tag="4" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                            AutomationProperties.Name="Preview and Export — go to step 3"
+                            ToolTipService.ToolTip="Jump to step 3 · Preview &amp; Export">
+                        <StackPanel Spacing="4">
+                            <FontIcon Glyph="&#xEDE1;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
+                            <TextBlock Text="3 · Preview &amp; Export" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="PDF, Word, slides, EPUB" Style="{StaticResource TourStepCaption}" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
+                <TextBlock Margin="0,14,0,0" Style="{StaticResource TourStepCaption}"
+                           Text="Everything updates live as you go. Use Next, the dots, or the arrow keys to move around." />
             </StackPanel>
 
             <!-- 2 · Source -->
@@ -123,7 +154,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xE99A;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="MarkSmith detects which assistant wrote it and cleans the tell-tale quirks — LaTeX delimiters, citation pips, pseudo-headings." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -148,7 +179,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE9A6;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xE771;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Ten themes — or build your own with the palette editor — plus page width, A4 lock, and a single-continuous-page mode for PDF." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -172,7 +203,7 @@
 
             <!-- 4 · Diagrams & math -->
             <StackPanel x:Name="Page3" Padding="8,4,8,4" Visibility="Collapsed">
-                <FontIcon Glyph="&#xE9D9;" Style="{StaticResource TourHero}" />
+                <FontIcon Glyph="&#xEBD2;" Style="{StaticResource TourHero}" />
                 <TextBlock Text="Diagrams &amp; math" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}" Text="The features nobody else bothers with." />
                 <StackPanel Spacing="10">
@@ -181,7 +212,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE9F5;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xEA86;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Six diagram engines from one code fence each: Mermaid ships built in; PlantUML, Graphviz, D2, Typst and Vega-Lite install as one-click plugins (Settings → Plugins) and render offline." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -189,7 +220,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE8B1;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xEB3C;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Every diagram engine becomes native, editable Word shapes (ShapeForge™) — not a flat picture. Big ones keep their exact layout via Web Layout." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -197,7 +228,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE943;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xE8EF;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="LaTeX / KaTeX math becomes real, clickable Word equations (OMML) — editable, not an image." />
                     </Grid>
                 </StackPanel>
@@ -222,7 +253,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE8FD;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xE786;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Also exports PowerPoint (PPTX) and EPUB." />
                     </Grid>
                     <Grid ColumnSpacing="12">
@@ -230,7 +261,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE8D4;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xEB9F;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Branding kit: a cover page with your logo and a document-wide font, so a chat lands as a client-ready deliverable." />
                     </Grid>
                 </StackPanel>
@@ -255,7 +286,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE968;" Style="{StaticResource TourGlyph}" />
+                        <FontIcon Glyph="&#xE943;" Style="{StaticResource TourGlyph}" />
                         <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Drive it from scripts via the local REST API — the same one both the Windows and cross-platform builds expose." />
                     </Grid>
                     <Grid ColumnSpacing="12">

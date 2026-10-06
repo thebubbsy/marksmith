@@ -291,7 +291,7 @@ public static class HoverPolish
     // lift is skipped entirely (values snap) — the stock Fluent hover colours still give feedback.
     private static readonly Windows.UI.ViewManagement.UISettings SystemUiSettings = new();
 
-    private static bool AnimationsEnabled
+    internal static bool AnimationsEnabled
     {
         get
         {
