@@ -1,6 +1,7 @@
 using System;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -24,8 +25,88 @@ public sealed partial class SettingsView : UserControl
         RefreshLicenseUi();
         BuildPluginCards();
         App.License.Changed += OnLicenseChanged;
+        // Unsubscribe when the dialog closes: License.Changed outlives every Settings instance, so
+        // each open used to leave one more dead view refreshing itself on every license change.
+        Unloaded += (_, _) => App.License.Changed -= OnLicenseChanged;
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
+        Nav.SelectedItem = Nav.MenuItems[0];
         HoverPolish.Track(this);
+    }
+
+    /// <summary>
+    /// Sizes the view to the window it opens in. The dialog adds ~200px of chrome (title, button
+    /// row, padding) around this content, so on a short window a fixed height pushed Close off
+    /// the bottom. Pages scroll, so shrinking is always safe.
+    /// </summary>
+    public void FitTo(Windows.Foundation.Size window)
+    {
+        Root.Width = Math.Clamp(window.Width - 140, 640, 820);
+        Root.Height = Math.Clamp(window.Height - 220, 360, 600);
+    }
+
+    /// <summary>Opens Settings on a particular page (General, Pdf, Automation, Google, License, Plugins, About).</summary>
+    public void ShowPage(string tag)
+    {
+        foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>())
+            if ((string)item.Tag == tag) { Nav.SelectedItem = item; return; }
+    }
+
+    private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (args.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
+        ScrollViewer target = tag switch
+        {
+            "Pdf" => PdfPage,
+            "Automation" => AutomationPage,
+            "Google" => GooglePage,
+            "License" => LicensePage,
+            "Plugins" => PluginsPage,
+            "About" => AboutPage,
+            _ => GeneralPage,
+        };
+        foreach (var page in Pages.Children.OfType<ScrollViewer>())
+            page.Visibility = ReferenceEquals(page, target) ? Visibility.Visible : Visibility.Collapsed;
+        PlayPageEntrance(target);
+    }
+
+    // The incoming page fades in while rising 12px (the short entrance Windows Settings uses), so
+    // switching pages reads as navigation rather than a hard content swap.
+    private static void PlayPageEntrance(UIElement page)
+    {
+        var shift = new TranslateTransform { Y = 12 };
+        page.RenderTransform = shift;
+        page.Opacity = 0;
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var sb = new Storyboard();
+        var fade = new DoubleAnimation { To = 1, Duration = new Duration(TimeSpan.FromMilliseconds(180)) };
+        Storyboard.SetTarget(fade, page);
+        Storyboard.SetTargetProperty(fade, "Opacity");
+        var rise = new DoubleAnimation { To = 0, Duration = new Duration(TimeSpan.FromMilliseconds(260)), EasingFunction = ease };
+        Storyboard.SetTarget(rise, shift);
+        Storyboard.SetTargetProperty(rise, "Y");
+        sb.Children.Add(fade);
+        sb.Children.Add(rise);
+        sb.Begin();
+    }
+
+    private void ShowLicenseStatus(bool ok, string message)
+    {
+        LicenseStatusBar.Severity = ok ? InfoBarSeverity.Success : InfoBarSeverity.Error;
+        LicenseStatusBar.Message = message;
+        LicenseStatusBar.IsOpen = !string.IsNullOrEmpty(message);
+    }
+
+    // Activate stays disabled until there's something to activate, and Enter in the key box
+    // activates: pasting a key and pressing Enter is how most people will do this.
+    private void OnKeyBoxTextChanged(object sender, TextChangedEventArgs e) =>
+        ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
+
+    private void OnKeyBoxKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter || !ActivateButton.IsEnabled) return;
+        e.Handled = true;
+        OnActivateLicense(sender, e);
     }
 
     private void OnGoogleSecretChanged(object sender, RoutedEventArgs e)
@@ -46,36 +127,35 @@ public sealed partial class SettingsView : UserControl
         var isPro = ed == Models.Edition.Pro;
         KeyEntryRow.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
         BuyButton.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
-        EditionIcon.Glyph = isPro ? "\uE735" : "\uE734"; // filled star once unlocked
+        EditionCard.Glyph = isPro ? "\uE735" : "\uE734"; // filled star once unlocked
         // The resolved state (Free / Trial — N exports remaining / Pro) is the card's heading
-        // (EditionStatus); LicenseStatus is only for the outcome of an action the user just took.
+        // (EditionStatus); LicenseStatusBar is only for the outcome of an action the user just took.
     }
 
     private void OnStartTrialClick(object sender, RoutedEventArgs e)
     {
         var (ok, message) = App.License.StartTrial();
-        LicenseStatus.Text = message;
-        LicenseStatus.Visibility = Visibility.Visible;
+        ShowLicenseStatus(ok, message);
         RefreshLicenseUi();
     }
 
     private async void OnActivateLicense(object sender, RoutedEventArgs e)
     {
         ActivateButton.IsEnabled = false;
-        var (ok, message) = await App.License.ActivateAsync(KeyBox.Text);
-        LicenseStatus.Text = message;
-        LicenseStatus.Visibility = Visibility.Visible;
+        KeyBox.IsEnabled = false;
+        var (ok, message) = await App.License.ActivateAsync(KeyBox.Text.Trim());
+        ShowLicenseStatus(ok, message);
+        KeyBox.IsEnabled = true;
         if (ok) KeyBox.Text = "";
         RefreshLicenseUi();
-        ActivateButton.IsEnabled = true;
+        ActivateButton.IsEnabled = !string.IsNullOrWhiteSpace(KeyBox.Text);
     }
 
     private async void OnBuyPro(object sender, RoutedEventArgs e)
     {
         if (!Services.LicenseService.IsStoreConfigured)
         {
-            LicenseStatus.Text = "The online store link isn't configured yet.";
-            LicenseStatus.Visibility = Visibility.Visible;
+            ShowLicenseStatus(false, "The online store link isn't configured yet.");
             return;
         }
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(Services.LicenseService.CheckoutUrl(App.License.State.Email))); }
@@ -88,9 +168,8 @@ public sealed partial class SettingsView : UserControl
         // Forgetting the key locally while the seat stays claimed is how a customer with a
         // 3-machine key runs out of machines they never used.
         DeactivateButton.IsEnabled = false;
-        var (_, message) = await App.License.DeactivateAsync();
-        LicenseStatus.Text = message;
-        LicenseStatus.Visibility = Visibility.Visible;
+        var (ok, message) = await App.License.DeactivateAsync();
+        ShowLicenseStatus(ok, message);
         RefreshLicenseUi();
         DeactivateButton.IsEnabled = true;
     }
@@ -111,13 +190,17 @@ public sealed partial class SettingsView : UserControl
     {
         CheckButton.IsEnabled = false;
         CheckRing.IsActive = true;
-        UpdateStatus.Visibility = Visibility.Visible;
-        UpdateStatus.Text = "Checking…";
+        UpdateStatusBar.IsOpen = false;
         DownloadLink.Visibility = Visibility.Collapsed;
 
         var result = await App.Updates.CheckAsync();
 
-        UpdateStatus.Text = result.Message;
+        UpdateStatusBar.Severity = !result.Ok ? InfoBarSeverity.Error
+            : result.UpdateAvailable ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
+        UpdateStatusBar.Title = !result.Ok ? "Couldn't check for updates"
+            : result.UpdateAvailable ? "Update available" : "You're up to date";
+        UpdateStatusBar.Message = result.Message;
+        UpdateStatusBar.IsOpen = true;
         if (result.UpdateAvailable)
         {
             App.ViewModel.IsUpdateAvailable = true;
@@ -146,23 +229,24 @@ public sealed partial class SettingsView : UserControl
         PluginsPanel.Children.Clear();
         var index = 0;
         foreach (var plugin in App.Plugins.All)
-            PluginsPanel.Children.Add(BuildPluginCard(plugin, zebra: index++ % 2 == 1));
+        {
+            PluginsPanel.Children.Add(BuildPluginCard(plugin));
+            index++;
+        }
         PluginsEmptyState.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (App.Plugins.LoadWarnings.Count > 0)
         {
-            PluginWarnings.Text = "Some plugin folders were skipped:\n" + string.Join("\n", App.Plugins.LoadWarnings);
-            PluginWarnings.Visibility = Visibility.Visible;
+            PluginWarningsBar.Message = string.Join("\n", App.Plugins.LoadWarnings);
+            PluginWarningsBar.IsOpen = true;
         }
     }
 
-    private UIElement BuildPluginCard(IMarksmithPlugin plugin, bool zebra)
+    private UIElement BuildPluginCard(IMarksmithPlugin plugin)
     {
-        // Same type ramp as the XAML-declared cards on the other tabs: SemiBold title, then
-        // StepCaptionStyle for everything secondary.
-        var caption = (Style)Application.Current.Resources["StepCaptionStyle"];
-        var title = new TextBlock { Text = plugin.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        var description = new TextBlock { Text = plugin.Description, Style = caption };
+        // A SettingsCard like every other row in Settings: name + description beside the
+        // Install / Remove buttons; secondary lines use the same caption style as the cards'.
+        var caption = (Style)Resources["SettingsHintStyle"];
         var fences = plugin is IDiagramPlugin diagram
             ? new TextBlock
             {
@@ -192,13 +276,16 @@ public sealed partial class SettingsView : UserControl
             Opacity = 0,
             RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
         };
+        // Standard buttons, not accent: with seven plugins listed, a column of accent Installs
+        // turned the page blue and none of them read as "the" action.
         var installButton = new Button
         {
             Content = "Install",
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
             MinWidth = 84,
         };
+        AutomationProperties.SetName(installButton, $"Install {plugin.Name}");
         var removeButton = new Button { Content = "Remove", MinWidth = 84 };
+        AutomationProperties.SetName(removeButton, $"Remove {plugin.Name}");
 
         void Refresh()
         {
@@ -271,35 +358,24 @@ public sealed partial class SettingsView : UserControl
 
         Refresh();
 
-        var text = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(title);
-        text.Children.Add(description);
-        if (fences != null) text.Children.Add(fences);
-        text.Children.Add(status);
+        // Fence languages and the install status sit under the description, aligned with it.
+        var details = new StackPanel { Spacing = 4 };
+        if (fences != null) details.Children.Add(fences);
+        details.Children.Add(status);
 
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0),
-        };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         buttons.Children.Add(ring);
         buttons.Children.Add(tick);
         buttons.Children.Add(installButton);
         buttons.Children.Add(removeButton);
 
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(text, 0);
-        Grid.SetColumn(buttons, 1);
-        grid.Children.Add(text);
-        grid.Children.Add(buttons);
-
-        return new Border
+        return new Controls.SettingsCard
         {
-            Style = (Style)Application.Current.Resources[zebra ? "PipelineCardZebraStyle" : "PipelineCardStyle"],
-            Padding = new Thickness(16, 12, 16, 12),
-            Child = grid,
+            Glyph = "\uEA86", // puzzle piece, as on the Plugins nav item
+            Header = plugin.Name,
+            Description = plugin.Description,
+            Action = buttons,
+            Details = details,
         };
     }
 

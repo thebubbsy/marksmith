@@ -203,6 +203,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // see Services/HoverPolish.cs. Flyout and ContentDialog content isn't in the tree yet
         // at this point, so those get polished individually where they're opened.
         Services.HoverPolish.Track(RootGrid);
+        // The ⋯ menu tip is light-dismiss, which only a click triggers; a dialog opened from the
+        // keyboard (Ctrl+,) left it floating above the dialog. Every dialog closes it first.
+        Services.HoverPolish.DialogOpening += dialog =>
+        {
+            if (dialog.XamlRoot == Content.XamlRoot) MoreMenuTip.IsOpen = false;
+        };
 
         // Ctrl+, opens Settings (the gear button's tooltip has always advertised it). Added in code
         // because VirtualKey has no named member for the comma key, so XAML can't spell it.
@@ -1259,13 +1265,20 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             await RefreshPreviewAsync(heavy: true);
         });
+        settingsView.FitTo(Content.XamlRoot.Size);
         var dialog = new ContentDialog
         {
             Title = "Settings",
             Content = settingsView,
             CloseButtonText = "Close",
+            // No DefaultButton: settings apply as you change them, so Close isn't a commit action,
+            // and an accent Close competed with each page's own primary (Sign in, Start trial).
             XamlRoot = Content.XamlRoot,
         };
+        // Left nav + pages needs up to 820 of content; the stock ContentDialogMaxWidth (~548) would
+        // clip it (the trap the tour and Suite Hub hit too).
+        dialog.Resources["ContentDialogMaxWidth"] = 900.0;
+        dialog.Resources["ContentDialogMaxHeight"] = 900.0;
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
     }
 

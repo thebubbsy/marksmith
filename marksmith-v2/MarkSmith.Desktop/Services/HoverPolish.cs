@@ -54,6 +54,12 @@ public static class HoverPolish
     private const string OptOutTag = "NoHoverPolish";
 
     /// <summary>
+    /// Raised just before <see cref="ShowPolishedAsync"/> shows a dialog. Windows that own
+    /// TeachingTips close them here so a tip never floats above a modal's smoke layer.
+    /// </summary>
+    public static event Action<ContentDialog>? DialogOpening;
+
+    /// <summary>
     /// Shows a <see cref="ContentDialog"/> with its Primary/Secondary/Close buttons (and any custom
     /// buttons in its Content) getting the same hover lift as the rest of the app. The dialog's
     /// button row only joins the visual tree once the dialog opens, so this hooks <c>Opened</c>
@@ -73,8 +79,13 @@ public static class HoverPolish
             return Task.FromResult(ContentDialogResult.None).AsAsyncOperation();
         }
 
-        // Track rather than a one-off Apply: dialog content like Settings realises each Pivot tab
-        // only when it's first selected.
+        // A light-dismiss TeachingTip only closes on a click; opened from the keyboard (Ctrl+,) a
+        // dialog appeared with the tip still floating above its smoke layer. Windows that own
+        // tips close them here — a modal owns the screen.
+        DialogOpening?.Invoke(dialog);
+
+        // Track rather than a one-off Apply: dialog content like Settings realises each page
+        // only when it's first shown.
         dialog.Opened += (sender, _) => Track((FrameworkElement)sender);
         return dialog.ShowAsync();
     }
