@@ -14,6 +14,16 @@
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
             <conv:SelectedBrushConverter x:Key="SelectedBrushConverter" />
+            <Style x:Key="ToolIconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="0" />
+            </Style>
+            <Style x:Key="PaneCaption" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -21,164 +31,207 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Command bar -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="52" Padding="16,0" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+        <!-- Title bar + window commands -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="56" Padding="16,0" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE8FD;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                <TextBlock Text="SmartArt Design Studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
-                <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="Structure → Markdown → Word SmartArt" FontSize="11" Foreground="White" FontWeight="SemiBold" />
-                </Border>
+                <FontIcon Glyph="&#xF003;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="SmartArt Design Studio" FontWeight="SemiBold" FontSize="16" />
+                    <TextBlock Text="Write the outline, pick a layout — it exports as real, editable Word SmartArt"
+                               FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Insert into document" Click="OnInsertIntoDocumentClick" Style="{StaticResource AccentButtonStyle}"
-                        ToolTipService.ToolTip="Add this SmartArt as Markdown to the active document — it renders in the preview and becomes native Word SmartArt on DOCX export." />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Button Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z)"><FontIcon Glyph="&#xE7A7;" FontSize="14" /></Button>
+                <Button Style="{StaticResource ToolIconButton}" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" AutomationProperties.Name="Redo" ToolTipService.ToolTip="Redo (Ctrl+Y)"><FontIcon Glyph="&#xE7A6;" FontSize="14" /></Button>
+                <Button Command="{Binding InsertIntoDocumentCommand}" Style="{StaticResource AccentButtonStyle}" Margin="4,0,0,0"
+                        ToolTipService.ToolTip="Add this SmartArt to the open document — it previews there and becomes native Word SmartArt on Word export">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8A5;" FontSize="14" />
+                        <TextBlock Text="Insert into document" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Grid>
 
         <!-- Body -->
-        <Grid Grid.Row="1" ColumnSpacing="12" Padding="16,12,16,8">
+        <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
-                <ColumnDefinition Width="*" MinWidth="380" />
-                <ColumnDefinition Width="400" />
+                <ColumnDefinition Width="290" />
+                <ColumnDefinition Width="424" />
+                <ColumnDefinition Width="*" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: layout gallery -->
             <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
-                        <TextBlock Text="Layout Gallery" FontWeight="SemiBold" FontSize="14" />
-                        <TextBox AutomationProperties.Name="Search layouts" PlaceholderText="Search…" MaxHeight="32"
-                                 Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Grid.Row="0" Spacing="8" Padding="12,12,12,6">
+                        <Grid>
+                            <TextBlock Text="Layouts" FontWeight="SemiBold" FontSize="14" />
+                            <TextBlock Text="{Binding LayoutCountText}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                        <AutoSuggestBox x:Name="LayoutSearch" AutomationProperties.Name="Search layouts" PlaceholderText="Search layouts"
+                                        QueryIcon="Find" TextChanged="OnLayoutSearchTextChanged" />
+                        <ComboBox AutomationProperties.Name="Layout type" HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}" />
                     </StackPanel>
-                    <ListView Grid.Row="1" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}">
+                    <ListView Grid.Row="1" x:Name="LayoutList" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}"
+                              Padding="4,0,4,8" AutomationProperties.Name="Layouts">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Padding="2,6">
+                                <Grid Padding="0,7" ColumnSpacing="10" AutomationProperties.Name="{Binding DisplayName}"
+                                      ToolTipService.ToolTip="{Binding AliasHint}">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                        <!-- The token you'd type after "layout:" in a ```smartart block. -->
-                                        <TextBlock Text="{Binding Alias}" FontSize="11" Opacity="0.6" FontFamily="Consolas" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <Border Grid.Column="1" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <Border Width="30" Height="30" CornerRadius="6" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                        <FontIcon Glyph="{Binding Glyph}" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                     </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Category}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <StackPanel Grid.Row="1" Spacing="6" Margin="8,24,8,0" HorizontalAlignment="Center" VerticalAlignment="Top"
+                    <StackPanel Grid.Row="1" Spacing="6" Margin="16,24,16,0" HorizontalAlignment="Center" VerticalAlignment="Top"
                                 Visibility="{Binding HasNoLayoutMatches, Converter={StaticResource BoolToVisibilityConverter}}">
                         <FontIcon Glyph="&#xE721;" FontSize="24" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="No layouts match your search" FontSize="13" FontWeight="SemiBold"
+                        <TextBlock Text="No layouts match" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                        <TextBlock Text="Try a shorter term, or a type like &quot;cycle&quot; or &quot;pyramid&quot;." FontSize="12"
+                        <TextBlock Text="Try a shorter term, set the type back to All, or search for &quot;cycle&quot; or &quot;pyramid&quot;." FontSize="12"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- CENTER: the designer — outline editor + design toolbar -->
+            <!-- CENTER: Outline | Markdown -->
             <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
-                <Grid RowSpacing="8">
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
+                    <SelectorBar x:Name="EditorTabs" Margin="6,4,6,0" SelectionChanged="OnEditorTabsChanged">
+                        <SelectorBarItem x:Name="OutlineTab" Text="Outline" IsSelected="True">
+                            <SelectorBarItem.Icon><FontIcon Glyph="&#xE8FD;" /></SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem x:Name="MarkdownTab" Text="Markdown">
+                            <SelectorBarItem.Icon><FontIcon Glyph="&#xE943;" /></SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                    </SelectorBar>
 
-                    <!-- Design toolbar -->
-                    <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="Design" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" Margin="0,0,4,0" />
-                            <Button Command="{Binding AddChildCommand}" ToolTipService.ToolTip="Add child under the selected node">
-                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Child" /></StackPanel>
+                    <!-- Outline editor -->
+                    <Grid x:Name="OutlinePanel" Grid.Row="1" Padding="10,6,10,10" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                            <Button Command="{Binding AddChildCommand}" Height="32" Padding="9,0" ToolTipService.ToolTip="Add a child under the selected item">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Child" /></StackPanel>
                             </Button>
-                            <Button Command="{Binding AddSiblingCommand}" ToolTipService.ToolTip="Add sibling after the selected node">
-                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE8FD;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
+                            <Button Command="{Binding AddSiblingCommand}" Height="32" Padding="9,0" ToolTipService.ToolTip="Add an item after the selected one, at the same level">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
                             </Button>
-                            <Button Command="{Binding BeginRenameCommand}" Click="OnRenameClick" ToolTipService.ToolTip="Rename (F2 or double-click)"
-                                    AutomationProperties.Name="Rename">
+                            <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding BeginRenameCommand}" Click="OnRenameClick"
+                                    AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2 or double-click)">
                                 <FontIcon Glyph="&#xE70F;" FontSize="14" />
                             </Button>
-                            <Button Command="{Binding DeleteSelectedCommand}" ToolTipService.ToolTip="Delete (Del)"
-                                    AutomationProperties.Name="Delete">
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DeleteSelectedCommand}"
+                                    AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete (Del)">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
-                            <AppBarSeparator />
-                            <Button Command="{Binding MoveUpCommand}" ToolTipService.ToolTip="Move up"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
-                            <Button Command="{Binding MoveDownCommand}" ToolTipService.ToolTip="Move down"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
-                            <Button Command="{Binding PromoteCommand}" ToolTipService.ToolTip="Promote (outdent)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
-                            <Button Command="{Binding DemoteCommand}" ToolTipService.ToolTip="Demote (indent)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
-                            <AppBarSeparator />
-                            <Button Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTipService.ToolTip="Undo (Ctrl+Z)"><FontIcon Glyph="&#xE7A7;" FontSize="14" /></Button>
-                            <Button Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTipService.ToolTip="Redo (Ctrl+Y)"><FontIcon Glyph="&#xE7A6;" FontSize="14" /></Button>
+                            <Rectangle Width="1" Height="20" Margin="4,0" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveUpCommand}" AutomationProperties.Name="Move up" ToolTipService.ToolTip="Move up"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding MoveDownCommand}" AutomationProperties.Name="Move down" ToolTipService.ToolTip="Move down"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding PromoteCommand}" AutomationProperties.Name="Promote" ToolTipService.ToolTip="Promote — move one level out"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DemoteCommand}" AutomationProperties.Name="Demote" ToolTipService.ToolTip="Demote — move one level in"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
                         </StackPanel>
-                    </ScrollViewer>
 
-                    <!-- Outline editor: one row per node, indented by depth; double-click or F2 to
-                         rename inline; + button adds a child, ✕ deletes. -->
-                    <ScrollViewer x:Name="OutlineScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding OutlineRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid services:HoverPolish.ApplyOnLoad="True" Padding="8,4" Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}}"
-                                          Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=themed}"
-                                          PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="▪" FontSize="11" Opacity="0.55"
-                                                   VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
-                                                   TextWrapping="Wrap" FontSize="13"
-                                                   Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                        <TextBox Grid.Column="1" AutomationProperties.Name="Node text" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                 KeyDown="OnRenameKeyDown" LostFocus="OnRenameLostFocus"
-                                                 FontSize="13" Padding="4,2" MinHeight="26" />
-                                        <Button Grid.Column="2" Click="OnRowAddChildClick" Padding="6,2" Margin="4,0,0,0"
-                                                ToolTipService.ToolTip="Add child" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE710;" FontSize="12" />
-                                        </Button>
-                                        <Button Grid.Column="3" Click="OnRowDeleteClick" Padding="6,2" Margin="2,0,0,0"
-                                                ToolTipService.ToolTip="Delete" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE74D;" FontSize="12" />
-                                        </Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                        <!-- One row per item, indented by depth; double-click or F2 renames inline. The
+                             row's own + / delete buttons are subtle (chrome on hover only) so a long
+                             outline isn't a wall of boxed buttons. -->
+                        <ScrollViewer x:Name="OutlineScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding OutlineRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}}" CornerRadius="4" Background="Transparent"
+                                                PointerEntered="OnRowPointerEntered" PointerExited="OnRowPointerExited">
+                                        <Grid Padding="8,2,4,2" MinHeight="36" CornerRadius="4"
+                                              Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=subtle}"
+                                              PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped" AutomationProperties.Name="{Binding Text}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Grid.Column="0" Width="6" Height="6" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                     Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
+                                                       TextWrapping="Wrap" FontSize="13"
+                                                       Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                            <TextBox Grid.Column="1" AutomationProperties.Name="Item text" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                     KeyDown="OnRenameKeyDown" LostFocus="OnRenameLostFocus"
+                                                     FontSize="13" Padding="6,3" MinHeight="28" />
+                                            <Button Grid.Column="2" Click="OnRowAddChildClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0" Margin="4,0,0,0"
+                                                    AutomationProperties.Name="Add child" ToolTipService.ToolTip="Add child" VerticalAlignment="Center">
+                                                <FontIcon Glyph="&#xE710;" FontSize="12" />
+                                            </Button>
+                                            <Button Grid.Column="3" Click="OnRowDeleteClick" Style="{StaticResource SubtleButtonStyle}" Width="30" Height="28" Padding="0"
+                                                    AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete" VerticalAlignment="Center">
+                                                <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                            </Button>
+                                        </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
 
-                    <!-- Empty state: shown once every node has been deleted. -->
-                    <StackPanel Grid.Row="1" Spacing="10" MaxWidth="340" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Visibility="{Binding IsOutlineEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <FontIcon Glyph="&#xE8FD;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="No nodes yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="Start the hierarchy with a top-level node, then build it out with Child and Sibling. You can also paste bullets into Markdown Data below."
-                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
-                        <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0">
-                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Add first node" /></StackPanel>
-                        </Button>
-                    </StackPanel>
+                        <!-- Empty state: shown once every item has been deleted. -->
+                        <StackPanel Grid.Row="1" Spacing="10" MaxWidth="300" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Visibility="{Binding IsOutlineEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <FontIcon Glyph="&#xF003;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="The outline is empty" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Add a first item, then build it out with Child and Sibling — or paste bullets on the Markdown tab."
+                                       Style="{StaticResource PaneCaption}" TextAlignment="Center" />
+                            <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Add first item" /></StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Markdown source -->
+                    <Grid x:Name="MarkdownPanel" Grid.Row="1" Padding="12,8,12,12" RowSpacing="8" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Indented bullets — each indent is one level of the diagram. Edits here and in the outline stay in sync."
+                                   Style="{StaticResource PaneCaption}" />
+                        <TextBox Grid.Row="1" AutomationProperties.Name="Markdown" AcceptsReturn="True" TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 FontFamily="Consolas" FontSize="13" />
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -190,34 +243,24 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Padding="12" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+                    <Grid Grid.Row="0" Padding="14,12" ColumnSpacing="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Live Preview" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="Preview" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding PreviewTitle}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </Grid>
                     <WebView2 x:Name="PreviewWebView" Grid.Row="1" Margin="0" />
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- Bottom: markdown + status -->
-        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="16,8"
+        <!-- Status -->
+        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                <Expander Header="Markdown Data" HorizontalAlignment="Left" MinWidth="520">
-                    <TextBox AutomationProperties.Name="Markdown data" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="150"
-                             Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="Consolas" FontSize="12" />
-                </Expander>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
-            </StackPanel>
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
         </Grid>
     </Grid>
 </Window>

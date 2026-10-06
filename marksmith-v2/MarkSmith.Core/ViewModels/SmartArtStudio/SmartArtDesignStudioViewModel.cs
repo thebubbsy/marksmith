@@ -24,6 +24,25 @@ public class StudioLayoutItem
     /// </summary>
     public string DisplayName => string.Equals(Name, Alias, StringComparison.Ordinal) ? Humanize(Alias) : Name;
 
+    /// <summary>Segoe Fluent glyph for the gallery row, one per category (checked against the
+    /// installed font: F003 relationship, E72A forward, E895 sync, E8A9 grid, E879 triangle,
+    /// EA3A circle, EBD2 network, EB9F picture, E8FD bulleted list).</summary>
+    public string Glyph => Category switch
+    {
+        "Hierarchy" => "",
+        "Process" => "",
+        "Cycle" => "",
+        "Matrix" => "",
+        "Pyramid" => "",
+        "Venn" => "",
+        "Relationship" => "",
+        "Picture List" => "",
+        _ => "",
+    };
+
+    /// <summary>Tooltip: the token used after <c>type=</c> in a <c>:::smartart</c> block.</summary>
+    public string AliasHint => $"Markdown name: {Alias}";
+
     internal static string Humanize(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return id;
@@ -96,7 +115,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<string> _categories = new()
     {
-        "All", "Hierarchy", "Process", "Cycle", "Matrix", "Pyramid", "Venn", "Relationship", "List"
+        "All", "Hierarchy", "Process", "Cycle", "Matrix", "Pyramid", "Venn", "Relationship", "Picture List", "List"
     };
 
     [ObservableProperty]
@@ -122,7 +141,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     private ObservableCollection<StudioNodeViewModel> _outlineRows = new();
 
     [ObservableProperty]
-    private string _statusMessage = "Ready";
+    private string _statusMessage = "Pick a layout, then shape the outline — the preview follows every edit.";
+
+    /// <summary>Name of the layout the preview is showing (the preview pane header).</summary>
+    [ObservableProperty]
+    private string _previewTitle = "";
 
     private readonly List<StudioLayoutItem> _allLayouts = new();
 
@@ -169,8 +192,24 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     public SmartArtDesignStudioViewModel()
     {
         LoadLayouts();
+        SelectSuggestedLayout();
         RebuildTree();
         UpdatePreview();
+    }
+
+    /// <summary>Open on the layout that suits the starting outline (an org chart for the sample
+    /// hierarchy) instead of whichever layout sorts first alphabetically ("Accented Picture").</summary>
+    private void SelectSuggestedLayout()
+    {
+        try
+        {
+            var suggested = SmartArtLayoutSuggester.Suggest(MarkdownAstParser.Parse(MarkdownText ?? ""));
+            var pkg = suggested is null ? null : SmartArtLayoutCatalog.Shared.TryResolve(suggested);
+            if (pkg is null) return;
+            var match = Layouts.FirstOrDefault(l => string.Equals(l.Alias, Tail(pkg.UniqueId), StringComparison.OrdinalIgnoreCase));
+            if (match is not null) SelectedLayout = match;
+        }
+        catch { /* keep the first layout */ }
     }
 
     partial void OnMarkdownTextChanged(string value) { RebuildTree(); UpdatePreview(); }
@@ -201,6 +240,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
 
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
     partial void OnSearchQueryChanged(string value) => FilterLayouts();
+    partial void OnSelectedCategoryChanged(string value) => FilterLayouts();
+
+    /// <summary>"176 layouts" / "12 of 176 layouts" under the gallery search.</summary>
+    public string LayoutCountText => Layouts.Count == _allLayouts.Count
+        ? $"{_allLayouts.Count} layouts"
+        : $"{Layouts.Count} of {_allLayouts.Count} layouts";
 
     private void LoadLayouts()
     {
@@ -228,15 +273,20 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     {
         Layouts.Clear();
         string q = (SearchQuery ?? "").Trim().ToLowerInvariant();
+        string cat = SelectedCategory ?? "All";
         foreach (var item in _allLayouts)
         {
-            if (!string.IsNullOrEmpty(q) && !item.Name.ToLower().Contains(q) && !item.Alias.ToLower().Contains(q))
+            if (!string.IsNullOrEmpty(q) && !item.Name.ToLower().Contains(q) && !item.Alias.ToLower().Contains(q)
+                && !item.DisplayName.ToLower().Contains(q))
+                continue;
+            if (cat != "All" && !string.Equals(item.Category, cat, StringComparison.Ordinal))
                 continue;
             Layouts.Add(item);
         }
         if (SelectedLayout == null || !Layouts.Contains(SelectedLayout))
             SelectedLayout = Layouts.FirstOrDefault();
         OnPropertyChanged(nameof(HasNoLayoutMatches));
+        OnPropertyChanged(nameof(LayoutCountText));
     }
 
     // ------------------------------------------------------------------ tree model
@@ -329,6 +379,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             Walk(root);
         }
         OnPropertyChanged(nameof(IsOutlineEmpty));
+        InsertIntoDocumentCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>Writes the designed tree back to Markdown (the canonical form). MarkdownText
@@ -568,7 +619,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
                 ?? StudioLayoutItem.Humanize(alias);
 
             PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
-            StatusMessage = $"Preview: {title} · layout: {alias}";
+            PreviewTitle = title;
             PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -577,7 +628,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    private bool CanInsert => !IsOutlineEmpty;
+
+    [RelayCommand(CanExecute = nameof(CanInsert))]
     public void InsertIntoDocument()
     {
         var ast = MarkdownAstParser.Parse(MarkdownText ?? "");

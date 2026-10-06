@@ -8,11 +8,14 @@ namespace MarkSmith.Converters;
 
 /// <summary>Accent brush when selected, neutral surface otherwise (structure canvas nodes, history
 /// hub rows). Pass ConverterParameter="themed" (used by the History window) to resolve theme-aware
-/// brushes at runtime; the dark Figma-style studios keep the fixed palette.</summary>
+/// brushes at runtime ("subtle": transparent when unselected); the dark Figma-style studios keep the
+/// fixed palette.</summary>
 public class SelectedBrushConverter : IValueConverter
 {
     private static readonly SolidColorBrush Selected =
         new(Color.FromArgb(255, 0, 120, 212));
+
+    private static readonly SolidColorBrush Transparent = new(Microsoft.UI.Colors.Transparent);
 
     private static readonly SolidColorBrush Normal =
         new(Color.FromArgb(255, 38, 48, 60));
@@ -22,6 +25,10 @@ public class SelectedBrushConverter : IValueConverter
         var isSelected = value is true;
         if (parameter is string s && string.Equals(s, "themed", StringComparison.OrdinalIgnoreCase))
             return isSelected ? ThemedSelection() : Themed("CardBackgroundFillColorSecondaryBrush");
+        // "subtle": unselected rows have no fill at all (outline editors, where a filled box per
+        // row reads as a wall of buttons).
+        if (parameter is string t && string.Equals(t, "subtle", StringComparison.OrdinalIgnoreCase))
+            return isSelected ? ThemedSelection() : Transparent;
         return isSelected ? Selected : Normal;
     }
 

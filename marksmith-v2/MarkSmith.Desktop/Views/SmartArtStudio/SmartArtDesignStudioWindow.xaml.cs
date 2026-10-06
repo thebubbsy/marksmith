@@ -35,6 +35,24 @@ namespace MarkSmith.Views.SmartArtStudio
             // (the rendered SmartArt is a self-contained light card either way).
             PreviewWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
             HoverPolish.Track(this.RootGrid);
+            // Open in the layout search (typing filters at once), not on the first title-bar button.
+            this.RootGrid.Loaded += (_, _) =>
+            {
+                LayoutSearch.Focus(FocusState.Programmatic);
+                if (ViewModel.SelectedLayout is { } layout) LayoutList.ScrollIntoView(layout, ScrollIntoViewAlignment.Leading);
+            };
+        }
+
+        private void OnEditorTabsChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+        {
+            bool outline = sender.SelectedItem == OutlineTab;
+            OutlinePanel.Visibility = outline ? Visibility.Visible : Visibility.Collapsed;
+            MarkdownPanel.Visibility = outline ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private void OnLayoutSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        {
+            ViewModel.SearchQuery = sender.Text;
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -59,18 +77,23 @@ namespace MarkSmith.Views.SmartArtStudio
             }
         }
 
+        // The renderer emits a fixed 800x500 card (sized for documents) with a "Layout: …" caption.
+        // In the studio the card scales to the pane — it used to sit at 46% in a 500 px-tall box,
+        // labels unreadably small — and the caption is dropped because the pane header names the
+        // layout already.
         private static string BuildWrapperHtml(string body)
         {
             return $@"<!DOCTYPE html>
-<html><head><meta charset=""utf-8""/></head>
-<body style=""margin:0;padding:12px;background:transparent;display:flex;justify-content:center;align-items:center;min-height:90vh;"">
+<html><head><meta charset=""utf-8""/>
+<style>
+  html,body{{height:100%;margin:0}}
+  body{{padding:16px;box-sizing:border-box;background:transparent;display:flex;justify-content:center;align-items:center}}
+  .smartart-container{{width:100%!important;max-width:none!important;height:auto!important;aspect-ratio:8/5;max-height:100%}}
+  .smartart-container > div:first-child{{display:none}}
+</style></head>
+<body>
   {body}
 </body></html>";
-        }
-
-        private void OnInsertIntoDocumentClick(object sender, RoutedEventArgs e)
-        {
-            ViewModel.InsertIntoDocumentCommand.Execute(null);
         }
 
         // ------------------------------------------------------------------ outline editor
@@ -85,6 +108,17 @@ namespace MarkSmith.Views.SmartArtStudio
                 ViewModel.Select(node);
                 e.Handled = true;
             }
+        }
+
+        private void OnRowPointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Border b && Application.Current.Resources.TryGetValue("SubtleFillColorSecondaryBrush", out var brush) && brush is Brush hover)
+                b.Background = hover;
+        }
+
+        private void OnRowPointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is Border b) b.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
 
         private static bool IsInsideButton(DependencyObject source)
