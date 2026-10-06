@@ -207,11 +207,11 @@ public partial class MermaidStudioViewModel : ObservableObject
         // 1. Flowchart Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Rectangle Box", ShapeType = "Rectangle", DefaultText = "Process", IconGlyph = "\uE8A5" });
         PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Rounded Rectangle", ShapeType = "RoundedRectangle", DefaultText = "Start/End", IconGlyph = "\uE739" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Stadium (Pill)", ShapeType = "Stadium", DefaultText = "Terminal", IconGlyph = "\uE91B" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Subroutine", ShapeType = "Subroutine", DefaultText = "Subroutine", IconGlyph = "\uE8B9" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Database", ShapeType = "CylindricalDatabase", DefaultText = "Data Store", IconGlyph = "\uEAF5" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Stadium (Pill)", ShapeType = "Stadium", DefaultText = "Terminal", IconGlyph = "\uE739" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Subroutine", ShapeType = "Subroutine", DefaultText = "Subroutine", IconGlyph = "\uE8F1" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Database", ShapeType = "CylindricalDatabase", DefaultText = "Data Store", IconGlyph = "\uEDA2" });
         PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Circle", ShapeType = "Circle", DefaultText = "Node", IconGlyph = "\uEA3A" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Decision Rhombus", ShapeType = "Rhombus", DefaultText = "Decision?", IconGlyph = "\uE803" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Decision Rhombus", ShapeType = "Rhombus", DefaultText = "Decision?", IconGlyph = "\uF178" });
         PaletteItems.Add(new MermaidPaletteItem { Category = "Flowchart", DisplayName = "Hexagon", ShapeType = "Hexagon", DefaultText = "Prepare", IconGlyph = "\uF0E2" });
 
         // 2. Sequence Primitives
@@ -220,15 +220,15 @@ public partial class MermaidStudioViewModel : ObservableObject
 
         // 3. Class Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "Class", DisplayName = "Class Box", ShapeType = "ClassBox", DefaultText = "Customer", IconGlyph = "\uE8A5" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Class", DisplayName = "Interface", ShapeType = "Interface", DefaultText = "IService", IconGlyph = "\uE896" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Class", DisplayName = "Interface", ShapeType = "Interface", DefaultText = "IService", IconGlyph = "\uE943" });
 
         // 4. State Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "State Node", ShapeType = "NormalState", DefaultText = "Idle", IconGlyph = "\uE739" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "Choice State", ShapeType = "ChoiceState", DefaultText = "Choice", IconGlyph = "\uE803" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "Choice State", ShapeType = "ChoiceState", DefaultText = "Choice", IconGlyph = "\uF178" });
 
         // 5. Gantt Primitives
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Gantt", DisplayName = "Task Bar", ShapeType = "TaskBar", DefaultText = "Design Phase", IconGlyph = "\uE91B" });
-        PaletteItems.Add(new MermaidPaletteItem { Category = "Gantt", DisplayName = "Milestone", ShapeType = "Milestone", DefaultText = "Release 1.0", IconGlyph = "\uE735" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Gantt", DisplayName = "Task Bar", ShapeType = "TaskBar", DefaultText = "Design Phase", IconGlyph = "\uE787" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "Gantt", DisplayName = "Milestone", ShapeType = "Milestone", DefaultText = "Release 1.0", IconGlyph = "\uE7C1" });
 
         // 6. ER Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "ER", DisplayName = "Entity Box", ShapeType = "Entity", DefaultText = "ORDER", IconGlyph = "\uE8A5" });

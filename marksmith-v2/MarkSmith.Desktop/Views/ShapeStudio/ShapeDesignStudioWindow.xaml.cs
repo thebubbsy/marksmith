@@ -149,6 +149,26 @@ namespace MarkSmith.Views.ShapeStudio
         // templates (never as direct children of MainCanvas), so this map is the only way to
         // reach a shape's visual for live updates (fill/preset edits repaint immediately).
         private readonly System.Collections.Generic.Dictionary<ShapeCanvasItemViewModel, Microsoft.UI.Xaml.Shapes.Path> _shapePaths = new();
+        // Reverse map so Unloaded never has to read DataContext: during a template swap (ClearAll →
+        // regenerate) WinUI raises Unloaded on Paths it is already tearing down, and touching their
+        // DataContext threw a COMException that took the whole app down.
+        private readonly System.Collections.Generic.Dictionary<Microsoft.UI.Xaml.Shapes.Path, ShapeCanvasItemViewModel> _pathItems = new();
+
+        private void TrackShapePath(Microsoft.UI.Xaml.Shapes.Path p, ShapeCanvasItemViewModel s)
+        {
+            if (_pathItems.TryGetValue(p, out var previous) && !ReferenceEquals(previous, s))
+            {
+                previous.PropertyChanged -= OnShapeItemChanged;
+                if (_shapePaths.TryGetValue(previous, out var prevPath) && ReferenceEquals(prevPath, p))
+                    _shapePaths.Remove(previous);
+            }
+            s.PropertyChanged -= OnShapeItemChanged;
+            s.PropertyChanged += OnShapeItemChanged;
+            _shapePaths[s] = p;
+            _pathItems[p] = s;
+            p.Unloaded -= OnShapePathUnloaded;
+            p.Unloaded += OnShapePathUnloaded;
+        }
 
         private void OnShapeLoaded(object sender, RoutedEventArgs e)
         {
@@ -157,12 +177,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is Microsoft.UI.Xaml.Shapes.Path p && p.DataContext is ShapeCanvasItemViewModel s)
             {
                 ApplyShapeVisual(p, s);
-
-                s.PropertyChanged -= OnShapeItemChanged;
-                s.PropertyChanged += OnShapeItemChanged;
-                _shapePaths[s] = p;
-                p.Unloaded -= OnShapePathUnloaded;
-                p.Unloaded += OnShapePathUnloaded;
+                TrackShapePath(p, s);
             }
         }
 
@@ -171,12 +186,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is Microsoft.UI.Xaml.Shapes.Path p && args.NewValue is ShapeCanvasItemViewModel s)
             {
                 ApplyShapeVisual(p, s);
-
-                s.PropertyChanged -= OnShapeItemChanged;
-                s.PropertyChanged += OnShapeItemChanged;
-                _shapePaths[s] = p;
-                p.Unloaded -= OnShapePathUnloaded;
-                p.Unloaded += OnShapePathUnloaded;
+                TrackShapePath(p, s);
             }
         }
 
@@ -185,9 +195,10 @@ namespace MarkSmith.Views.ShapeStudio
             if (sender is Microsoft.UI.Xaml.Shapes.Path p)
             {
                 p.Unloaded -= OnShapePathUnloaded;
-                if (p.DataContext is ShapeCanvasItemViewModel s)
+                if (_pathItems.Remove(p, out var s))
                 {
-                    _shapePaths.Remove(s);
+                    if (_shapePaths.TryGetValue(s, out var current) && ReferenceEquals(current, p))
+                        _shapePaths.Remove(s);
                     s.PropertyChanged -= OnShapeItemChanged;
                 }
             }
@@ -199,14 +210,30 @@ namespace MarkSmith.Views.ShapeStudio
             bool isLine = s.PathPoints is { Count: >= 2 };
             try
             {
-                p.Data = isLine ? BuildPolylineGeometry(s.PathPoints!) : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
+                // Lines are drawn at their real pixel size with no stretch. Stretch="Fill" scales the
+                // geometry's bounds to the element, and a straight connector's bounds are zero-wide
+                // (or zero-tall) — the degenerate scale threw horizontal/vertical connectors off
+                // their boxes (the org chart's tree lines floated across the canvas).
+                p.Stretch = isLine ? Microsoft.UI.Xaml.Media.Stretch.None : Microsoft.UI.Xaml.Media.Stretch.Fill;
+                p.Data = isLine ? BuildPolylineGeometry(s.PathPoints!, s.Width, s.Height) : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
             }
             catch { }
             try
             {
                 p.Fill = isLine ? null : BrushFromHex(s.Fill);
-                p.Stroke = BrushFromHex(s.Fill);
-                p.StrokeThickness = isLine ? Math.Max(1, s.StrokeWidthPt) : 1.5;
+                // Selection: a dashed outline in the fill's own colour read as a scalloped "cloud"
+                // edge on the shape. It is now a contrasting outline (light on the dark canvas,
+                // dark on the light one) so the selected shape is unmistakable on any fill.
+                if (s.IsSelected)
+                {
+                    p.Stroke = BrushFromHex(p.ActualTheme == ElementTheme.Light ? "1F1F1F" : "FFFFFF");
+                    p.StrokeThickness = isLine ? Math.Max(2, s.StrokeWidthPt) : 2;
+                }
+                else
+                {
+                    p.Stroke = BrushFromHex(s.Fill);
+                    p.StrokeThickness = isLine ? Math.Max(1, s.StrokeWidthPt) : 1.5;
+                }
             }
             catch { }
         }
@@ -214,16 +241,23 @@ namespace MarkSmith.Views.ShapeStudio
         private void OnShapeItemChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (sender is not ShapeCanvasItemViewModel s) return;
-            if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst)) &&
+            bool lineResized = s.PathPoints is { Count: >= 2 } &&
+                               (e.PropertyName == nameof(s.Width) || e.PropertyName == nameof(s.Height));
+            if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst) ||
+                 e.PropertyName == nameof(s.IsSelected) || lineResized) &&
                 _shapePaths.TryGetValue(s, out var path))
             {
                 ApplyShapeVisual(path, s);
             }
         }
 
-        private static Microsoft.UI.Xaml.Media.Geometry BuildPolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)
+        /// <summary>Maps a 0..100 local-space polyline onto the item's actual width × height.</summary>
+        private static Microsoft.UI.Xaml.Media.Geometry BuildPolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts, double width, double height)
         {
-            return MakePolylineGeometry(pts);
+            double sx = Math.Max(0, width) / 100.0, sy = Math.Max(0, height) / 100.0;
+            var scaled = new System.Collections.Generic.List<(double X, double Y)>(pts.Count);
+            foreach (var (x, y) in pts) scaled.Add((x * sx, y * sy));
+            return MakePolylineGeometry(scaled);
         }
 
         private static Microsoft.UI.Xaml.Media.PathGeometry MakePolylineGeometry(System.Collections.Generic.List<(double X, double Y)> pts)

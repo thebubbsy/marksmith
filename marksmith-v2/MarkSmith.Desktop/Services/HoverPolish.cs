@@ -244,6 +244,60 @@ public static class HoverPolish
             new PointerEventHandler((_, _) => Animate(scale, PressScale)), true);
         button.AddHandler(UIElement.PointerReleasedEvent,
             new PointerEventHandler((_, _) => Animate(scale, isHovering ? HoverScale : 1.0)), true);
+
+        // A click that opens a flyout/dialog or moves focus steals pointer capture, and the
+        // matching PointerExited often never arrives — the button stayed stuck "lifted" behind the
+        // popup. Settle back to the hover state the pointer is actually in.
+        button.PointerCaptureLost += (_, _) => Animate(scale, isHovering ? HoverScale : 1.0);
+
+        // Commands commonly disable their button mid-hover (e.g. Delete after the last shape
+        // goes); disabled controls get no pointer events, so reset rather than freeze at 1.035.
+        button.IsEnabledChanged += (_, _) =>
+        {
+            if (!button.IsEnabled)
+            {
+                isHovering = false;
+                Animate(scale, 1.0);
+            }
+        };
+
+        // Template-recycled buttons (ListView items) come back with whatever scale they left with.
+        button.Unloaded += (_, _) =>
+        {
+            isHovering = false;
+            Animate(scale, 1.0, instant: true);
+        };
+
+        // Keyboard users get the same press feedback as the mouse: Space/Enter/gamepad A dip the
+        // button while held. ButtonBase handles these keys itself, so listen with handledEventsToo.
+        button.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler((_, e) =>
+        {
+            if (IsActivationKey(e.Key)) Animate(scale, PressScale);
+        }), true);
+        button.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler((_, e) =>
+        {
+            if (IsActivationKey(e.Key)) Animate(scale, isHovering ? HoverScale : 1.0);
+        }), true);
+        button.LostFocus += (_, _) =>
+        {
+            if (!isHovering) Animate(scale, 1.0);
+        };
+    }
+
+    private static bool IsActivationKey(Windows.System.VirtualKey key) =>
+        key is Windows.System.VirtualKey.Space or Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.GamepadA;
+
+    // Windows Settings › Accessibility › Visual effects › "Animation effects". When it's off the
+    // lift is skipped entirely (values snap) — the stock Fluent hover colours still give feedback.
+    private static readonly Windows.UI.ViewManagement.UISettings SystemUiSettings = new();
+
+    private static bool AnimationsEnabled
+    {
+        get
+        {
+            try { return SystemUiSettings.AnimationsEnabled; }
+            catch { return true; }
+        }
     }
 
     /// <summary>
@@ -306,12 +360,22 @@ public static class HoverPolish
         }
     }
 
-    private static void Animate(ScaleTransform scale, double to)
+    private static void Animate(ScaleTransform scale, double to, bool instant = false)
     {
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        // Reduced motion: no scale changes at all (a press dip would still be motion). Values go
+        // through a zero-length storyboard rather than a local set, because a finished storyboard
+        // holds its end value over any local value.
+        if (!AnimationsEnabled)
+        {
+            to = 1.0;
+            instant = true;
+        }
 
-        var animationX = new DoubleAnimation { To = to, Duration = AnimationDuration, EasingFunction = easing };
-        var animationY = new DoubleAnimation { To = to, Duration = AnimationDuration, EasingFunction = easing };
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var duration = instant ? TimeSpan.Zero : AnimationDuration;
+
+        var animationX = new DoubleAnimation { To = to, Duration = duration, EasingFunction = easing };
+        var animationY = new DoubleAnimation { To = to, Duration = duration, EasingFunction = easing };
         Storyboard.SetTarget(animationX, scale);
         Storyboard.SetTargetProperty(animationX, nameof(ScaleTransform.ScaleX));
         Storyboard.SetTarget(animationY, scale);

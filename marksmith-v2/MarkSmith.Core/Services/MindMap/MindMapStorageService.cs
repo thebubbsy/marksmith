@@ -324,7 +324,7 @@ namespace MarkSmith.Services.MindMap
                 Width = 230,
                 Height = 56,
                 ColorHex = "#EC4899",
-                Icon = "\uE9D2",
+                Icon = "\uE786",
                 Progress = 100,
                 WordCount = 600,
                 Tags = new() { "example", "launch" },

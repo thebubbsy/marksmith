@@ -114,10 +114,80 @@ namespace MarkSmith.Converters
                     geo.Figures.Add(fig);
                     return geo;
 
+                // The rest of the primitives palette used to fall through to a plain square — the
+                // Cycle preset's four circular arrows drew as four boxes, and picking "Cloud" or
+                // "Moon" in the inspector visibly did nothing.
+                case "parallelogram":
+                    fig.StartPoint = P(25, 0);
+                    fig.Segments.Add(new LineSegment { Point = P(100, 0) });
+                    fig.Segments.Add(new LineSegment { Point = P(75, 100) });
+                    fig.Segments.Add(new LineSegment { Point = P(0, 100) });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "arc":
+                    // A quarter-thick band along the top-right quadrant, like Word's arc preset.
+                    fig.StartPoint = P(50, 0);
+                    fig.Segments.Add(new ArcSegment { Point = P(100, 50), Size = new Windows.Foundation.Size(50, 50), SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = P(88, 50) });
+                    fig.Segments.Add(new ArcSegment { Point = P(50, 12), Size = new Windows.Foundation.Size(38, 38), SweepDirection = SweepDirection.Counterclockwise });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "moon":
+                    fig.StartPoint = P(75, 0);
+                    fig.Segments.Add(new ArcSegment { Point = P(75, 100), Size = new Windows.Foundation.Size(50, 50), IsLargeArc = false, SweepDirection = SweepDirection.Counterclockwise });
+                    fig.Segments.Add(new ArcSegment { Point = P(75, 0), Size = new Windows.Foundation.Size(36, 50), SweepDirection = SweepDirection.Clockwise });
+                    geo.Figures.Add(fig);
+                    return geo;
+
+                case "cloud":
+                {
+                    var cloud = new GeometryGroup { FillRule = FillRule.Nonzero };
+                    cloud.Children.Add(Circle(28, 58, 22, 20));
+                    cloud.Children.Add(Circle(48, 38, 26, 26));
+                    cloud.Children.Add(Circle(72, 50, 24, 22));
+                    cloud.Children.Add(Circle(52, 70, 30, 18));
+                    return cloud;
+                }
+
+                case "smileyface":
+                {
+                    var face = new GeometryGroup { FillRule = FillRule.EvenOdd };
+                    face.Children.Add(Circle(50, 50, 50, 50));
+                    face.Children.Add(Circle(34, 36, 7, 8));
+                    face.Children.Add(Circle(66, 36, 7, 8));
+                    var mouth = new PathGeometry();
+                    var m = new PathFigure { StartPoint = P(28, 62), IsClosed = true };
+                    m.Segments.Add(new ArcSegment { Point = P(72, 62), Size = new Windows.Foundation.Size(24, 20), SweepDirection = SweepDirection.Counterclockwise });
+                    m.Segments.Add(new ArcSegment { Point = P(28, 62), Size = new Windows.Foundation.Size(30, 14), SweepDirection = SweepDirection.Clockwise });
+                    mouth.Figures.Add(m);
+                    face.Children.Add(mouth);
+                    return face;
+                }
+
+                case "circulararrow":
+                    // A 270° ring (outer r 44, inner r 26) ending in an arrowhead at the bottom,
+                    // pointing in the clockwise direction of travel.
+                    fig.StartPoint = P(6, 50);
+                    fig.Segments.Add(new ArcSegment { Point = P(50, 94), Size = new Windows.Foundation.Size(44, 44), IsLargeArc = true, SweepDirection = SweepDirection.Clockwise });
+                    fig.Segments.Add(new LineSegment { Point = P(50, 100) });
+                    fig.Segments.Add(new LineSegment { Point = P(28, 85) });
+                    fig.Segments.Add(new LineSegment { Point = P(50, 68) });
+                    fig.Segments.Add(new LineSegment { Point = P(50, 76) });
+                    fig.Segments.Add(new ArcSegment { Point = P(24, 50), Size = new Windows.Foundation.Size(26, 26), IsLargeArc = true, SweepDirection = SweepDirection.Counterclockwise });
+                    geo.Figures.Add(fig);
+                    return geo;
+
                 default:
                     return new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, 100, 100) };
             }
         }
+
+        private static Windows.Foundation.Point P(double x, double y) => new(x, y);
+
+        private static EllipseGeometry Circle(double cx, double cy, double rx, double ry) =>
+            new() { Center = P(cx, cy), RadiusX = rx, RadiusY = ry };
     }
 
     /// <summary>Maps a DrawingML preset name to a 100×100 geometry for canvas preview.</summary>

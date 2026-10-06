@@ -17,6 +17,13 @@
             <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <conv:EmptyStringToVisibilityConverter x:Key="EmptyToVis" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+            <conv:PresetDisplayNameConverter x:Key="PresetName" />
+            <conv:UprightLabelAngleConverter x:Key="UprightLabel" />
+            <Style x:Key="InspectorLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -75,7 +82,7 @@
                                             <DataTemplate>
                                                 <Button services:HoverPolish.ApplyOnLoad="True" Click="OnPresetItemClick" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,5" Margin="0,2">
                                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                                        <TextBlock Text="{Binding Icon}" FontSize="13" VerticalAlignment="Center" />
+                                                        <FontIcon Glyph="{Binding Glyph}" FontSize="14" Width="18" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                                         <StackPanel Spacing="1" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                                             <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
@@ -101,50 +108,50 @@
                                     </Grid.RowDefinitions>
 
                                     <Button Grid.Row="0" Grid.Column="0" Command="{Binding GeneratePyramidTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🔺" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <PathIcon Width="12" Height="12" Data="M6,0 L12,11 L0,11 Z" />
                                             <TextBlock Text="Pyramid" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="0" Grid.Column="1" Command="{Binding GenerateOrgChartTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🏢" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xF003;" FontSize="12" />
                                             <TextBlock Text="Org Chart" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="1" Grid.Column="0" Command="{Binding GenerateSwotMatrixTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🔲" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8A9;" FontSize="12" />
                                             <TextBlock Text="SWOT 2x2" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="1" Grid.Column="1" Command="{Binding GenerateCycleTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🔄" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE895;" FontSize="12" />
                                             <TextBlock Text="Cycle" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="2" Grid.Column="0" Command="{Binding GenerateTimelineTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="📅" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE787;" FontSize="12" />
                                             <TextBlock Text="Roadmap" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="2" Grid.Column="1" Command="{Binding GenerateVennTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="⭕" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xEA3A;" FontSize="12" />
                                             <TextBlock Text="Venn" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="3" Grid.Column="0" Command="{Binding GeneratePillarsTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🏛️" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <PathIcon Width="12" Height="12" Data="M6,0 L12,3 L12,4 L0,4 L0,3 Z M1,5 h2 v5 h-2 Z M5,5 h2 v5 h-2 Z M9,5 h2 v5 h-2 Z M0,11 h12 v1 h-12 Z" />
                                             <TextBlock Text="Pillars" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Row="3" Grid.Column="1" Command="{Binding GenerateFunnelTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="🔻" FontSize="11" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE71C;" FontSize="12" />
                                             <TextBlock Text="Funnel" FontSize="11" />
                                         </StackPanel>
                                     </Button>
@@ -184,7 +191,7 @@
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Path Width="16" Height="16" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}"
                                                       Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                                <TextBlock Text="{Binding}" FontSize="11" />
+                                                <TextBlock Text="{Binding Converter={StaticResource PresetName}}" FontSize="11" />
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -193,7 +200,7 @@
                         </StackPanel>
 
                         <!-- 4. PICTURE TO VECTOR STUDIO (HYBRID FUSION) -->
-                        <Expander Header="⚡ Picture to Vector (Hybrid Studio)" IsExpanded="True">
+                        <Expander Header="Picture to Vector" IsExpanded="True">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Transform images into native Word vector shapes and crisp traced line art. Set either density to 0 for single-layer output."
                                            FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
@@ -213,7 +220,7 @@
                                 <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                     <StackPanel Spacing="6">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="🔷" FontSize="12" />
+                                            <FontIcon Glyph="&#xF0E2;" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                             <TextBlock Text="Base Shape Mosaic" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
                                         
@@ -254,7 +261,7 @@
                                 <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                     <StackPanel Spacing="6">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="✒️" FontSize="12" />
+                                            <FontIcon Glyph="&#xE76D;" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                             <TextBlock Text="Traced Line Art &amp; Contours" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
 
@@ -301,9 +308,13 @@
                                 </Border>
 
                                 <!-- SINGLE GO BUTTON -->
-                                <Button Content="⚡ Convert Image to DrawingML Vectors" Click="OnFuseImageClick"
-                                        Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
-                                        FontWeight="SemiBold" FontSize="12" />
+                                <Button Click="OnFuseImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
+                                        AutomationProperties.Name="Convert image to DrawingML vectors">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE945;" FontSize="13" />
+                                        <TextBlock Text="Convert image to DrawingML vectors" FontWeight="SemiBold" FontSize="12" />
+                                    </StackPanel>
+                                </Button>
 
                                 <!-- Markdown Utilities -->
                                 <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
@@ -349,7 +360,7 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <TextBlock Text="Tool:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding ActiveTool}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ActiveTool, Converter={StaticResource PresetName}}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
 
@@ -379,10 +390,14 @@
                                                   PointerPressed="OnShapePointerPressed"
                                                   PointerMoved="OnShapePointerMoved"
                                                   PointerReleased="OnShapePointerReleased">
+                                                <!-- Rotate about the shape's own centre FIRST, then move it into place.
+                                                     The old translate-then-rotate order spun every rotated shape about
+                                                     its untranslated centre, so the Funnel preset (180°) and any shape
+                                                     given a rotation in the inspector flew off the canvas. -->
                                                 <Grid.RenderTransform>
                                                     <TransformGroup>
-                                                        <TranslateTransform X="{Binding X}" Y="{Binding Y}" />
                                                         <RotateTransform Angle="{Binding Rotation}" />
+                                                        <TranslateTransform X="{Binding X}" Y="{Binding Y}" />
                                                     </TransformGroup>
                                                 </Grid.RenderTransform>
                                                 <Path Stretch="Fill"
@@ -399,8 +414,12 @@
                                                            FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
                                                            TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            MaxWidth="{Binding Width}" MaxHeight="{Binding Height}"
-                                                           Padding="6,4"
-                                                           Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}" />
+                                                           Padding="6,4" RenderTransformOrigin="0.5,0.5"
+                                                           Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}">
+                                                    <TextBlock.RenderTransform>
+                                                        <RotateTransform Angle="{Binding Rotation, Converter={StaticResource UprightLabel}}" />
+                                                    </TextBlock.RenderTransform>
+                                                </TextBlock>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -425,42 +444,125 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Shape Inspector" FontWeight="SemiBold" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="(select a shape to edit properties)" FontSize="11" Opacity="0.6" Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                       Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Type:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <ComboBox AutomationProperties.Name="Shape type" SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}" Width="150" />
+                        <!-- Empty state: the property editors used to sit there blank (empty Type
+                             combo, empty boxes) whenever nothing was selected. Now a short card says
+                             why and what to do; the editors only appear with a selection. -->
+                        <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8" Padding="16,22"
+                                Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE8B0;" FontSize="26" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding InspectorEmptyTitle}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding InspectorEmptyHint}" FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="240"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="X:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox AutomationProperties.Name="X position" Text="{Binding SelectedShape.X, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                                <TextBlock Text="Y:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                <TextBox AutomationProperties.Name="Y position" Text="{Binding SelectedShape.Y, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                        </Border>
+
+                        <!-- Property editors: one label column so every row lines up; number boxes
+                             validate and commit on Enter / focus loss instead of silently dropping
+                             half-typed text; the fill shows a live swatch beside its hex. -->
+                        <Grid ColumnSpacing="10" RowSpacing="10" Visibility="{Binding HasSelectedShape, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="58" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Type" Style="{StaticResource InspectorLabel}" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" AutomationProperties.Name="Shape type" HorizontalAlignment="Stretch"
+                                      SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center"
+                                                  Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                                  Data="{Binding Converter={StaticResource ShapeGeom}}" />
+                                            <TextBlock Text="{Binding Converter={StaticResource PresetName}}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="1" Text="Position" Style="{StaticResource InspectorLabel}" />
+                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox AutomationProperties.Name="X position" PlaceholderText="X" ToolTipService.ToolTip="X position (px)"
+                                           Value="{Binding SelectedShape.X, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="Y position" PlaceholderText="Y" ToolTipService.ToolTip="Y position (px)"
+                                           Value="{Binding SelectedShape.Y, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="2" Text="Size" Style="{StaticResource InspectorLabel}" />
+                            <Grid Grid.Row="2" Grid.Column="1" ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <NumberBox AutomationProperties.Name="Width" PlaceholderText="W" ToolTipService.ToolTip="Width (px)" Minimum="0"
+                                           Value="{Binding SelectedShape.Width, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="Height" PlaceholderText="H" ToolTipService.ToolTip="Height (px)" Minimum="0"
+                                           Value="{Binding SelectedShape.Height, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="3" Text="Fill" Style="{StaticResource InspectorLabel}" />
+                            <Grid Grid.Row="3" Grid.Column="1" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28" Height="28" CornerRadius="6" VerticalAlignment="Center"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                        Background="{Binding SelectedShape.Fill, Converter={StaticResource FillBrushConverter}}" />
+                                <TextBox Grid.Column="1" AutomationProperties.Name="Fill color" PlaceholderText="RRGGBB" FontFamily="Consolas"
+                                         ToolTipService.ToolTip="Fill colour as a 6-digit hex value"
+                                         Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="4" Text="Rotation" Style="{StaticResource InspectorLabel}" />
+                            <Grid Grid.Row="4" Grid.Column="1" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="40" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Minimum="-180" Maximum="180" StepFrequency="1" AutomationProperties.Name="Rotation" VerticalAlignment="Center"
+                                        Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center" TextAlignment="Right" FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                    <Run Text="{Binding SelectedShape.Rotation}" /><Run Text="°" />
+                                </TextBlock>
+                            </Grid>
+
+                            <TextBlock Grid.Row="5" Text="Label" Style="{StaticResource InspectorLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBox Grid.Row="5" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
+                                     Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
+
+                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE8C8;" FontSize="13" />
+                                        <TextBlock Text="Duplicate" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding RemoveSelectedCommand}" ToolTipService.ToolTip="Delete selected shape (Del)">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="13" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="Delete" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="W:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox AutomationProperties.Name="Width" Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                                <TextBlock Text="H:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                <TextBox AutomationProperties.Name="Height" Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Fill:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox AutomationProperties.Name="Fill color" Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
-                            </StackPanel>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Text Label:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBox AutomationProperties.Name="Text label" Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Rot:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <Slider Minimum="-180" Maximum="180" AutomationProperties.Name="Rotation" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Duplicate" Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)" />
-                                <Button Content="Delete" Command="{Binding RemoveSelectedCommand}" ToolTipService.ToolTip="Delete selected shape (Del)" />
-                            </StackPanel>
-                        </StackPanel>
+                        </Grid>
 
                         <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8" Padding="10">
                             <StackPanel Spacing="6">
@@ -468,7 +570,7 @@
                                     <TextBlock Text="Shapes on Canvas" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                     <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock Text="Click any shape to select and inspect it." FontSize="10" Opacity="0.6" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ShapesListHint}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
                                 <ListView MaxHeight="400" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
@@ -481,7 +583,7 @@
                                                 <Path Grid.Column="0" Width="14" Height="14" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,8,0"
                                                       Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Prst}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                                                     <TextBlock Text="{Binding Text}" FontSize="10" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="160" />
                                                 </StackPanel>
                                                 <Border Grid.Column="2" Width="12" Height="12" CornerRadius="2"

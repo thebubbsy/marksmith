@@ -65,6 +65,32 @@ namespace MarkSmith.Converters
             => throw new NotSupportedException();
     }
 
+    /// <summary>DrawingML preset token ("roundrect") → friendly name ("Rounded rectangle") for the
+    /// inspector's shape-type picker.</summary>
+    public class PresetDisplayNameConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+            => MarkSmith.ViewModels.ShapeStudio.ShapeCanvasItemViewModel.DisplayNameFor(value as string);
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Shape rotation → counter-rotation for its label: 0 normally, but once the shape
+    /// turns past a quarter-turn the label is levelled (−rotation) so it never reads upside down —
+    /// the same rule the DOCX writer (bodyPr@upright) and the SVG preview apply.</summary>
+    public class UprightLabelAngleConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            double rot = value switch { int i => i, double d => d, _ => 0 };
+            return MarkSmith.Core.Composer.ShapeComposerDocxWriter.IsMostlyUpsideDown(rot) ? -rot : 0.0;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>Empty/null string → Collapsed (hides the shape label), anything else → Visible.</summary>
     public class EmptyStringToVisibilityConverter : IValueConverter
     {

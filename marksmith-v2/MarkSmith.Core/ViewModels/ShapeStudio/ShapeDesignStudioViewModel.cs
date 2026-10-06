@@ -17,6 +17,22 @@ public class DiagramPreset
     public string Icon { get; set; } = "📐";
     public string Description { get; set; } = "";
     public Action<ShapeDesignStudioViewModel> Generate { get; set; } = _ => { };
+
+    /// <summary>Segoe Fluent glyph for the preset list, one per category. The per-preset emoji in
+    /// <see cref="Icon"/> rendered as a mismatched set of colour emoji beside Fluent chrome.</summary>
+    public string Glyph => Category switch
+    {
+        "Hierarchy & Structure" => "",   // Relationship
+        "Process & Workflow" => "",      // Forward
+        "Cycles & Loops" => "",          // Sync
+        "Matrices & Strategy" => "",     // ViewAll (2×2 grid)
+        "Relationships & Venns" => "",   // CircleRing
+        "Roadmaps & Timelines" => "",    // Calendar
+        "Architecture & Cloud" => "",    // Cloud
+        "Funnels & Pipelines" => "",     // Filter
+        "Lists & Dashboards" => "",      // BulletedList
+        _ => "",                         // Document
+    };
 }
 
 public partial class ShapeCanvasItemViewModel : ObservableObject
@@ -83,6 +99,61 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     }
 
     partial void OnTextChanged(string value) => OnPropertyChanged(nameof(TextForegroundHex));
+
+    partial void OnPrstChanged(string value) => OnPropertyChanged(nameof(DisplayName));
+
+    // The inspector's NumberBoxes write NaN when cleared; a NaN coordinate or size would make the
+    // shape vanish (and poison the export), so an emptied box restores the previous value.
+#pragma warning disable MVVMTK0034
+    partial void OnXChanged(double oldValue, double newValue) { if (!double.IsFinite(newValue)) { _x = oldValue; OnPropertyChanged(nameof(X)); } }
+    partial void OnYChanged(double oldValue, double newValue) { if (!double.IsFinite(newValue)) { _y = oldValue; OnPropertyChanged(nameof(Y)); } }
+    partial void OnWidthChanged(double oldValue, double newValue) { if (!double.IsFinite(newValue)) { _width = oldValue; OnPropertyChanged(nameof(Width)); } }
+    partial void OnHeightChanged(double oldValue, double newValue) { if (!double.IsFinite(newValue)) { _height = oldValue; OnPropertyChanged(nameof(Height)); } }
+#pragma warning restore MVVMTK0034
+
+    /// <summary>Human-readable shape type for the inspector and shapes list ("roundrect" →
+    /// "Rounded rectangle"); the DrawingML preset token stays in <see cref="Prst"/>.</summary>
+    public string DisplayName => DisplayNameFor(Prst);
+
+    private static readonly Dictionary<string, string> PresetDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ellipse"] = "Ellipse",
+        ["rect"] = "Rectangle",
+        ["roundrect"] = "Rounded rectangle",
+        ["trapezoid"] = "Trapezoid",
+        ["cylinder"] = "Cylinder",
+        ["can"] = "Cylinder",
+        ["chevron"] = "Chevron",
+        ["diamond"] = "Diamond",
+        ["hexagon"] = "Hexagon",
+        ["triangle"] = "Triangle",
+        ["parallelogram"] = "Parallelogram",
+        ["line"] = "Line",
+        ["arc"] = "Arc",
+        ["cloud"] = "Cloud",
+        ["heart"] = "Heart",
+        ["moon"] = "Moon",
+        ["circulararrow"] = "Circular arrow",
+        ["smileyface"] = "Smiley face",
+        ["rightarrow"] = "Right arrow",
+        ["leftarrow"] = "Left arrow",
+        ["uparrow"] = "Up arrow",
+        ["downarrow"] = "Down arrow",
+        ["pentagon"] = "Pentagon",
+        ["octagon"] = "Octagon",
+        ["star5"] = "Star",
+        ["sketch"] = "Sketch stroke",
+    };
+
+    /// <summary>Friendly name for a DrawingML preset token; unknown tokens are split on
+    /// camel-case/digits and sentence-cased so nothing ever shows as a raw lowercase token.</summary>
+    public static string DisplayNameFor(string? prst)
+    {
+        if (string.IsNullOrWhiteSpace(prst)) return "Shape";
+        if (PresetDisplayNames.TryGetValue(prst.Trim(), out var name)) return name;
+        var spaced = System.Text.RegularExpressions.Regex.Replace(prst.Trim(), "(?<=[a-z])(?=[A-Z0-9])", " ").ToLowerInvariant();
+        return char.ToUpperInvariant(spaced[0]) + spaced[1..];
+    }
 
     /// <summary>Label colour guaranteed to contrast with THIS shape's fill (the CONTRAST RULE for
     /// font on top of shapes): WCAG 4.5:1 vs the fill — never against the page background.</summary>
@@ -244,10 +315,29 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(IsEditable));
         OnPropertyChanged(nameof(IsDense));
+        OnPropertyChanged(nameof(InspectorEmptyTitle));
+        OnPropertyChanged(nameof(InspectorEmptyHint));
+        OnPropertyChanged(nameof(ShapesListHint));
     }
+
+    public string ShapesListHint => IsEmpty
+        ? "No shapes yet — everything you draw is listed here."
+        : IsDense
+            ? "Traced line art — select a line here to inspect it."
+            : "Click any shape to select and inspect it.";
+
+    public bool HasSelectedShape => SelectedShape is not null;
+
+    /// <summary>Inspector empty state — differs between a blank canvas and an unselected one.</summary>
+    public string InspectorEmptyTitle => IsEmpty ? "Nothing to inspect yet" : "No shape selected";
+
+    public string InspectorEmptyHint => IsEmpty
+        ? "Draw a shape from the palette or pick a SmartArt preset — its properties appear here."
+        : "Click a shape on the canvas or in the list below to edit its type, position, size, fill and label.";
 
     partial void OnSelectedShapeChanged(ShapeCanvasItemViewModel? value)
     {
+        OnPropertyChanged(nameof(HasSelectedShape));
         foreach (var s in Shapes)
         {
             if (s.IsSelected != (s == value)) s.IsSelected = s == value;

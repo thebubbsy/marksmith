@@ -148,8 +148,8 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE2B1;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Ten themes — or build your own with the 🎨 palette editor — plus page width, A4 lock, and a single-continuous-page mode for PDF." />
+                        <FontIcon Glyph="&#xE9A6;" Style="{StaticResource TourGlyph}" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Ten themes — or build your own with the palette editor — plus page width, A4 lock, and a single-continuous-page mode for PDF." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>

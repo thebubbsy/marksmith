@@ -430,7 +430,10 @@ namespace MarkSmith.Core.Composer
             double cx = x + w / 2, cy = y + h / 2;
             string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
                 s.TextColor ?? "121212", "#" + s.Fill);
-            string transform = s.Rot != 0 ? $" transform=\"rotate({s.Rot} {cx} {cy})\"" : "";
+            // Labels go level once the shape turns past a quarter-turn (matches the DOCX writer's
+            // bodyPr@upright): a 180° funnel segment must not print its caption upside down.
+            double labelRot = ShapeComposerDocxWriter.IsMostlyUpsideDown(s.Rot) ? 0 : s.Rot;
+            string transform = labelRot % 360 != 0 ? $" transform=\"rotate({labelRot} {cx} {cy})\"" : "";
 
             // Wrap and shrink to fit. The label used to be emitted as one unwrapped <text> sized
             // only by the shape's smaller side, so anything longer than a word or two ran straight

@@ -429,3 +429,89 @@ invoke + audits (works even while the PC is locked).
    that the HoverPolish scale doesn't fight the focus rectangle.
 5. Re-run the glyph contact sheet for C#-built icons (this run covered XAML `Glyph=` only).
 6. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 18:40 AEST (scheduled routine run #7)
+
+Reviewed: run #6's entry above. Worked its #3 (Shape Studio inspector), #4 (keyboard/press
+feedback in `HoverPolish`) and #5 (icon audit, now covering C#-built icons too). **A second run of
+this routine was active in the same working tree at the same time** and shipped its own
+main-window commit (`59ffb48`, "main window holds together at every width"), which covers run #6's
+#2. To avoid colliding, this run stayed out of `MainWindow.*`, `ExtensionHint*`/`ExtensionTip`
+and `SmartArtInsertControl`, and committed only its own paths.
+
+**Shipped — Shape Studio (screenshots found four real bugs, not just polish):**
+- **Connectors were drawn wrong in every template.** Straight connector lines are degenerate
+  (zero-wide or zero-tall) polylines and the canvas drew them with `Stretch="Fill"`, so the org
+  chart's tree lines floated across the canvas instead of joining the boxes. Lines now render at
+  their real pixel size with no stretch (and re-render on resize).
+- **Rotated shapes flew off the canvas.** The item transform translated *then* rotated about the
+  untranslated centre, so the Funnel preset (180° trapezoids) rendered as a sliver at the top-left.
+  Order fixed (rotate about own centre, then translate).
+- **Rotation was effectively never exported to Word.** `ShapeComposerDocxWriter` wrote degrees
+  into DrawingML `xfrm@rot`, which is in 60,000ths of a degree — a 180° shape came out at 0.003°,
+  so a "funnel" exported as a pyramid. Now converted/normalised (`DrawingMlRotation`), with tests.
+- **Labels on shapes turned past a quarter-turn read upside down** (all four funnel captions).
+  Now levelled everywhere with one rule (`IsMostlyUpsideDown`): canvas counter-rotates the label,
+  DOCX sets `bodyPr@upright="1"`, the SVG/HTML preview drops the label's rotation.
+- **Crash: switching presets could kill the whole app** — `OnShapePathUnloaded` read
+  `DataContext` from Paths WinUI was already tearing down (COMException → App.UnhandledException).
+  Now uses a Path→item reverse map; stress-tested with 17 rapid preset switches, no crash.
+- **Missing geometries:** circular arrow, parallelogram, arc, moon, cloud and smiley all drew as
+  plain squares (the Cycle preset was four boxes). All six now have real canvas geometry.
+- **Inspector redesign (run #6 #3):** empty state card ("Nothing to inspect yet" on a blank canvas
+  / "No shape selected" otherwise) instead of blank boxes and an empty Type combo; properties only
+  appear with a selection, in one aligned label column; X/Y/W/H are `NumberBox`es (an emptied box
+  restores the old value rather than writing NaN — unit-tested); live fill swatch beside the hex;
+  rotation shows its degrees; Duplicate/Delete have icons.
+- **No raw tokens anywhere in the studio:** "Tool: roundrect", the primitives palette, the Type
+  combo and the shapes list now say "Rounded rectangle", "Circular arrow", … (`DisplayNameFor`,
+  unit-tested; unknown tokens are humanised). The Type combo shows each shape's outline.
+- **Selection outline** was a dashed stroke in the shape's own colour (read as a scalloped
+  "cloud" edge); now a contrasting dashed outline.
+- **Emoji chrome → Fluent:** the 40+ preset rows (mixed colour emoji) use one Fluent glyph per
+  category; Quick Favorites, "Picture to Vector" section headers and the Convert button lost their
+  🔺🏢🔲🔄📅⭕🏛️🔻⚡🔷✒️ for Fluent/Path icons.
+
+**Shipped — HoverPolish (applies app-wide):**
+- Keyboard press feedback: Space/Enter/Gamepad-A dip the button like a mouse press.
+- Respects Windows "Animation effects" off (reduced motion): no scale changes at all.
+- Buttons no longer stay stuck "lifted": reset on pointer-capture loss (click that opens a flyout
+  or dialog), on being disabled mid-hover, on focus loss, and when recycled (Unloaded).
+
+**Shipped — icon semantics audit (every glyph mapped to its official Segoe Fluent name):**
+- Mermaid palette: Database was a non-existent glyph (blank), Stadium/Task Bar showed a *photo*,
+  Subroutine a *picture*, Decision a street-view icon, Interface a *download* arrow, Milestone a
+  star → HardDrive / rounded box / Library / diamond / Code / Calendar / Flag.
+- Mermaid canvas menu: "Edit Label" showed a calendar, "Reset Zoom" a zoom-in, "Fit" a
+  back-to-window → Rename / Zoom / FitPage. Galaxy Focus mode + "Focus on Constellation": a
+  light bulb → eye. `.pptx` nodes: area chart → slideshow. Tour: a legacy code point that renders
+  blank → FitPage, and the copy no longer references a 🎨 button that no longer exists.
+
+**Verified:**
+- Builds green (0 warnings/0 errors) into a scratch output dir.
+- Tests: 3101 passed, 1 skipped, 2 failed — the same two `HouseLayoutTests` cases from the
+  user's uncommitted `MarkSmith.Core`/`Tests` WIP as run #6 (still not mine, still uncommitted).
+  New: `ShapeStudioInspectorTests` (11), `ShapeRotationExportTests` (16).
+- Screenshots of Shape Studio before/after: empty inspector, Org Chart, Funnel, Cycle.
+- **New, much safer test recipe:** `MARKSMITH_CONFIG_DIR=<scratch>` redirects *all* app state
+  (`AppPaths.ConfigDir`), so a test instance never touches the user's `%LOCALAPPDATA%\MarkSmith`
+  (recovery draft, settings, LaunchCount) and can run beside another instance. Build with
+  `-p:OutDir=<scratch>\build\` when the normal bin is locked by a running app. If two routine runs
+  overlap, builds can collide on the shared `obj` folder — just retry after ~30 s.
+
+**Next up, in priority order:**
+1. **Main window icon fixes found by this run's audit but left alone** (the file was mid-edit by
+   the parallel run): Insert ▸ Rich Components — *Native Chart* shows a **robot** (E99A → E9D2
+   AreaChart), *Web Embed* a **quiet-hours bell** (EE7A → EB41 Website), *Tab Group* a snipping
+   tool (F7ED → E7C4 TaskView), *From Spreadsheet…* a **tilt-down arrow** (E80A → E9F9
+   ReportDocument), *Table to Excel…* a button-menu (EDE3 → EDE1 Export), *Multi-column* a
+   library (E8F1 → E89A TwoPage); *Bibliography* uses E113 which **doesn't exist** (→ E82D);
+   *AI Context* reuses the wave-function bolt (→ E99A Robot fits AI). Portal *Glass* and
+   *Surround* blur toggles both use the **bulleted-list** glyph (E8FD → E91F FullCircleMask /
+   EF1F BackgroundToggle). The Insert menu also lists "Document Galaxy & Knowledge Graph…" twice.
+2. Shape Studio follow-ups: the Hierarchy category's pyramids share the org-chart icon; the
+   Cycle preset's four arrows all point the same way (rotate per quadrant); confirm in Word that
+   an exported Funnel is now a funnel with upright labels (unit tests prove the XML).
+3. Run #6's Galaxy-by-eye check is still open.
+4. Keyboard focus order per window (focus *visuals* vs scale now handled).
+5. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)

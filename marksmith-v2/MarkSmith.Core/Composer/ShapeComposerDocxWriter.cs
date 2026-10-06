@@ -190,19 +190,42 @@ namespace MarkSmith.Core.Composer
                     @"</w:p></w:txbxContent></wps:txbx>";
             }
 
+            // ComposedShape.Rot is in degrees (the SVG preview and the :::shapes codec use it as
+            // such), but DrawingML's xfrm@rot is in 60,000ths of a degree. Writing the raw degrees
+            // meant a 180° shape came out rotated 0.003° in Word — the Funnel preset's segments
+            // were all upright, i.e. a pyramid.
+            long rot = DrawingMlRotation(s.Rot);
+            // A label on a shape turned past a quarter-turn would read upside down; DrawingML's
+            // bodyPr@upright keeps the text level while the geometry rotates.
+            string upright = IsMostlyUpsideDown(s.Rot) ? @" upright=""1""" : "";
+
             return
                 @"<wps:wsp>" +
                 $@"<wps:cNvPr id=""{id}"" name=""shape {s.Prst} {id}""/>" +
                 @"<wps:cNvSpPr/>" +
                 @"<wps:spPr>" +
-                $@"<a:xfrm rot=""{s.Rot}""><a:off x=""{x}"" y=""{y}""/><a:ext cx=""{w}"" cy=""{h}""/></a:xfrm>" +
+                $@"<a:xfrm rot=""{rot}""><a:off x=""{x}"" y=""{y}""/><a:ext cx=""{w}"" cy=""{h}""/></a:xfrm>" +
                 $@"<a:prstGeom prst=""{prst}""><a:avLst/></a:prstGeom>" +
                 $@"<a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill>" +
                 $@"<a:ln w=""6350""><a:solidFill><a:srgbClr val=""{s.Fill}""/></a:solidFill></a:ln>" +
                 @"</wps:spPr>" +
                 textXml +
-                @"<wps:bodyPr rot=""0"" wrap=""square"" lIns=""12700"" tIns=""6350"" rIns=""12700"" bIns=""6350"" anchor=""ctr"" anchorCtr=""0""><a:noAutofit/></wps:bodyPr>" +
+                $@"<wps:bodyPr rot=""0""{upright} wrap=""square"" lIns=""12700"" tIns=""6350"" rIns=""12700"" bIns=""6350"" anchor=""ctr"" anchorCtr=""0""><a:noAutofit/></wps:bodyPr>" +
                 @"</wps:wsp>";
+        }
+
+        /// <summary>Degrees (any sign/range) → DrawingML rotation in [0, 21 600 000).</summary>
+        public static long DrawingMlRotation(double degrees)
+        {
+            double normalized = ((degrees % 360) + 360) % 360;
+            return (long)Math.Round(normalized * 60000) % 21600000;
+        }
+
+        /// <summary>True when a rotation would leave a label reading upside down (90°–270° exclusive).</summary>
+        public static bool IsMostlyUpsideDown(double degrees)
+        {
+            double normalized = ((degrees % 360) + 360) % 360;
+            return normalized > 90 && normalized < 270;
         }
 
         private static string Esc(string s) =>

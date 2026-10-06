@@ -869,7 +869,7 @@ namespace MarkSmith.Views.MindMap
             moveItem.Click += async (s, e) => await ShowReparentDialogAsync(node);
             flyout.Items.Add(moveItem);
 
-            var focusItem = new MenuFlyoutItem { Text = "Focus on Constellation", Icon = new FontIcon { Glyph = "\uEA80" } };
+            var focusItem = new MenuFlyoutItem { Text = "Focus on Constellation", Icon = new FontIcon { Glyph = "\uE890" } };
             focusItem.Click += (s, e) =>
             {
                 ViewModel.SelectedNode = node;

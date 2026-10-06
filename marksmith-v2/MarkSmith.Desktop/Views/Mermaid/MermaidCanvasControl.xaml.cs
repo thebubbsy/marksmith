@@ -951,7 +951,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             // Ensure the right-clicked node is selected so menu ops act on it.
             if (!node.IsSelected) vm.SelectNode(node, false);
 
-            flyout.Items.Add(MenuItem("Edit Label", "\uE8BF", (s, e) => StartNodeInPlaceEdit(node)));
+            flyout.Items.Add(MenuItem("Edit Label", "\uE8AC", (s, e) => StartNodeInPlaceEdit(node)));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
             flyout.Items.Add(MenuItem("Duplicate (Ctrl+D)", "\uE8C8", (s, e) => vm.DuplicateSelected()));
             flyout.Items.Add(MenuItem("Copy (Ctrl+C)", "\uE8C8", (s, e) => vm.CopySelected()));
@@ -966,7 +966,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             vm.SelectedConnector = conn;
             vm.SelectedNode = null;
 
-            flyout.Items.Add(MenuItem("Edit Label", "\uE8BF", (s, e) => StartConnectorInPlaceEdit(conn)));
+            flyout.Items.Add(MenuItem("Edit Label", "\uE8AC", (s, e) => StartConnectorInPlaceEdit(conn)));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
             flyout.Items.Add(MenuItem("Delete Connector", "\uE74D", (s, e) => vm.DeleteSelected()));
         }
@@ -978,8 +978,8 @@ public sealed partial class MermaidCanvasControl : UserControl
             flyout.Items.Add(MenuItem("Paste (Ctrl+V)", "\uE77F", (s, e) => vm.PasteClipboard()));
             flyout.Items.Add(MenuItem("Select All (Ctrl+A)", "\uE8B3", (s, e) => vm.SelectAll()));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Fit to Content", "\uE73F", (s, e) => FitToContent()));
-            flyout.Items.Add(MenuItem("Reset Zoom (Ctrl+0)", "\uE8A3", (s, e) => ZoomReset()));
+            flyout.Items.Add(MenuItem("Fit to Content", "\uE9A6", (s, e) => FitToContent()));
+            flyout.Items.Add(MenuItem("Reset Zoom (Ctrl+0)", "\uE71E", (s, e) => ZoomReset()));
         }
 
         // Anchor the flyout to the canvas at the pointer position.

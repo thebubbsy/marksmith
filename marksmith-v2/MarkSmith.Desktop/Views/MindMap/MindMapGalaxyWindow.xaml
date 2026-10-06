@@ -148,7 +148,7 @@
 
                         <Button Click="OnToggleFocusModeClick" ToolTipService.ToolTip="Focus mode — dim everything the selected document isn't connected to (F)" Padding="8,5">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xEA80;" FontSize="12" />
+                                <FontIcon Glyph="&#xE890;" FontSize="12" />
                                 <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="6" Padding="5,0" VerticalAlignment="Center"
                                         Visibility="{Binding IsFocusModeEnabled, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="ON" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />

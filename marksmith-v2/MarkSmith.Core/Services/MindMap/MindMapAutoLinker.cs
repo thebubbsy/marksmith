@@ -640,7 +640,7 @@ namespace MarkSmith.Services.MindMap
             ".md" or ".markdown" or ".mdx" => "\uE82D",
             ".docx" or ".rtf" => "\uE8A5",
             ".pdf" => "\uEA90",
-            ".pptx" => "\uE9D2",
+            ".pptx" => "\uE786",
             ".epub" => "\uE82D",
             ".html" or ".htm" => "\uE774",
             ".txt" => "\uE8A5",
