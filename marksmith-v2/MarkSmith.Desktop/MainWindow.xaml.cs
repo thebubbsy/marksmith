@@ -102,9 +102,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private readonly List<int> _findMatches = new();
     private int _findMatchIndex = -1;
 
-    // Preview zoom: WinUI 3's WebView2 exposes no ZoomFactor, so zoom is applied as a CSS zoom on the
-    // document via script. A document-created listener turns Ctrl+wheel into a "preview-zoom" message
-    // so the buttons and the wheel share one code path and one source of truth (_lastPreviewZoom).
+    // Preview zoom: WinUI 3's WebView2 exposes no ZoomFactor, so the page's own script scales the
+    // sheet (fit-to-width, or an absolute zoom handed over via window.__msSetZoom). A
+    // document-created listener turns Ctrl+wheel into a "preview-zoom" message so the buttons and
+    // the wheel share one code path. _lastPreviewZoom is the scale currently on screen (the page
+    // reports it back), so +/− always step from what the user is looking at.
     private double _lastPreviewZoom = 1.0;
 
     // Auto-recovery: the paste buffer is debounced-written to a recovery file so an unexpected exit
@@ -2137,13 +2139,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // user had in the editor (stashed just before we re-navigated on the tab switch).
         PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPendingPreviewScroll();
 
-        // Preview zoom: restore the persisted factor, install the Ctrl+wheel listener, and re-apply
-        // the CSS zoom after every navigation (NavigateToString rebuilds the DOM, dropping the style).
-        // Non-anchored here: a launch restore must keep the document at the top, not re-aim at the
-        // (still untracked) cursor.
-        ApplyPreviewZoom(App.Settings.Current.PreviewZoom, persist: false, anchored: false);
+        // Preview zoom: the page's own script owns the scale (fit-to-width or an absolute zoom);
+        // RefreshPreviewAsync seeds the persisted choice into every render, so there is nothing to
+        // re-apply after navigation. Here: restore the persisted state and install the
+        // Ctrl+wheel bridge.
+        _lastPreviewZoom = Math.Clamp(App.Settings.Current.PreviewZoom, PreviewZoomMin, PreviewZoomMax);
+        SetPreviewFit(App.Settings.Current.PreviewZoomFit);
+        UpdatePreviewZoomReadout(_lastPreviewZoom);
         await SetupPreviewZoomAsync();
-        PreviewWebView.CoreWebView2.NavigationCompleted += (_, _) => ApplyPreviewCssZoom(_lastPreviewZoom);
 
         await RefreshPreviewAsync();
     }
@@ -2166,7 +2169,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (type == "preview-zoom")
             {
                 var delta = root.TryGetProperty("delta", out var dProp) ? dProp.GetDouble() : 0;
-                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), persist: true, cursor: true);
+                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), cursor: true);
+                return;
+            }
+
+            // The page reports the scale it actually applied (fit changes with every resize), so
+            // the readout shows the truth and the next +/− steps from what the user is looking at.
+            if (type == "preview-scale")
+            {
+                if (root.TryGetProperty("scale", out var scProp) && scProp.GetDouble() is var applied and > 0)
+                {
+                    _lastPreviewZoom = applied;
+                    UpdatePreviewZoomReadout(applied);
+                }
                 return;
             }
 
@@ -2618,6 +2633,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 "if(tx>0||ty>0){window.scrollTo(tx,ty);}" +
                 "})();</script></body>");
         }
+
+        // Seed the zoom before the page's zoom script first lays out (it waits for
+        // DOMContentLoaded), so a re-render never flashes at the wrong scale.
+        html = html.Replace("</body>", "<script>window.__msZoom=" + PreviewZoomArg() + ";</script></body>");
 
         try
         {
@@ -4387,81 +4406,81 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private const double PreviewZoomMax = 4.0;
     private const double PreviewZoomStep = 0.1;
 
-    private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom + PreviewZoomStep, persist: true);
+    private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom + PreviewZoomStep);
 
-    private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom - PreviewZoomStep, persist: true);
+    private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom - PreviewZoomStep);
 
-    private void ApplyPreviewZoom(double factor, bool persist, bool anchored = true, bool cursor = false)
+    // Fit page width: the page fills the pane and follows it as the window, splitter or drawer
+    // changes its width. Turning it off holds the current scale, so nothing jumps.
+    private void OnPreviewFitClick(object sender, RoutedEventArgs e)
     {
-        var clamped = Math.Clamp(factor, PreviewZoomMin, PreviewZoomMax);
-        _lastPreviewZoom = clamped;
-        ApplyPreviewCssZoom(clamped, anchored, cursor);
-        if (PreviewZoomText is not null)
+        var on = PreviewFitToggle.IsChecked == true;
+        SetPreviewFit(on);
+        if (!on) PersistPreviewZoom(_lastPreviewZoom);
+        SendPreviewZoom(anchor: null);
+    }
+
+    private bool _previewFit;
+
+    private void SetPreviewFit(bool on)
+    {
+        _previewFit = on;
+        if (PreviewFitToggle is not null) PreviewFitToggle.IsChecked = on;
+        if (App.Settings.Current.PreviewZoomFit != on)
         {
-            var percent = (int)Math.Round(clamped * 100.0);
-            PreviewZoomText.Text = $"{percent}%";
-            // Live zoom diagnostics: the status-bar readout always carries the current level
-            // in its tooltip, so hovering shows the exact preview zoom ("Preview Zoom: 100%").
-            ToolTipService.SetToolTip(PreviewZoomText, $"Preview Zoom: {percent}%");
-        }
-        if (persist)
-        {
-            App.Settings.Current.PreviewZoom = clamped;
+            App.Settings.Current.PreviewZoomFit = on;
             App.Settings.Save();
         }
     }
 
-    // Apply the zoom as a CSS zoom on the root element. Best-effort: the CoreWebView2 may not be
-    // ready on the very first call (the value is re-applied after every navigation regardless).
-    //
-    // anchored: true (user-initiated zoom — buttons / Ctrl+wheel) re-aims the viewport per axis,
-    // measured against the sheet (#canvas) rect so the units never lie:
-    //   * while the sheet is narrower than the pane, the document CSS (flex + auto margins)
-    //     keeps it centred on the backdrop — the script leaves that axis alone (scroll 0);
-    //   * while the sheet is shorter than the pane, it is likewise centred vertically and the
-    //     script leaves the axis alone;
-    //   * once the sheet overflows the pane on an axis, the mouse owns that axis: the document
-    //     point under the cursor stays under the cursor ((scroll + cursor) * newZoom/oldZoom -
-    //     cursor, clamped to the scrollable range).
-    // cursor: true only for Ctrl+wheel (the cursor is provably over the document then). Button
-    // zooms centre an overflowing horizontal axis instead (maxX/2) — anchoring to a stale
-    // mousemove position from the toolbar made near-fit zoom levels look off-centre; vertical
-    // still aims at the last hovered document row (or the viewport middle if never hovered).
-    // anchored: false (launch restore / re-apply after navigation) only sets the zoom so the
-    // scroll-restore script injected into the page keeps owning the scroll position.
-    private void ApplyPreviewCssZoom(double factor, bool anchored = false, bool cursor = false)
+    // A manual zoom (buttons, Ctrl+wheel) steps from the scale currently on screen — fitted or
+    // not — and takes over from fit-width.
+    private void ApplyPreviewZoom(double factor, bool cursor = false)
     {
-        var core = PreviewWebView.CoreWebView2;
+        var clamped = Math.Round(Math.Clamp(factor, PreviewZoomMin, PreviewZoomMax), 2);
+        if (_previewFit) SetPreviewFit(false);
+        _lastPreviewZoom = clamped;
+        UpdatePreviewZoomReadout(clamped);
+        PersistPreviewZoom(clamped);
+        SendPreviewZoom(anchor: cursor ? "cursor" : "button");
+    }
+
+    private void PersistPreviewZoom(double zoom)
+    {
+        App.Settings.Current.PreviewZoom = zoom;
+        App.Settings.Save();
+    }
+
+    private void UpdatePreviewZoomReadout(double scale)
+    {
+        if (PreviewZoomText is null) return;
+        var percent = (int)Math.Round(scale * 100.0);
+        PreviewZoomText.Text = $"{percent}%";
+        ToolTipService.SetToolTip(PreviewZoomText, _previewFit
+            ? $"Preview zoom: {percent}% — fitted to the pane's width (Ctrl+wheel to zoom)"
+            : $"Preview zoom: {percent}% (Ctrl+wheel to zoom)");
+    }
+
+    // The page-side value of window.__msZoom: 'fit' or the absolute scale.
+    private string PreviewZoomArg() => _previewFit
+        ? "'fit'"
+        : _lastPreviewZoom.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    // Hand the zoom to the page's script (see MarkdownHtmlService's fit-width script). Anchors:
+    // "cursor" (Ctrl+wheel) keeps the document point under the mouse still; "button" keeps the
+    // horizontal centre and the last-hovered row (or the viewport middle) still; null just
+    // re-scales. Best-effort: before the first render the seed in RefreshPreviewAsync covers it.
+    private void SendPreviewZoom(string? anchor)
+    {
+        var core = PreviewWebView?.CoreWebView2;
         if (core is null) return;
-        var f = factor.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
-        if (!anchored)
+        var point = anchor switch
         {
-            _ = core.ExecuteScriptAsync($"document.documentElement.style.zoom = '{f}';");
-            return;
-        }
-        _ = core.ExecuteScriptAsync(
-            "(function(f,cur){" +
-            "var old=parseFloat(getComputedStyle(document.documentElement).zoom)||1;" +
-            "var ratio=f/old;" +
-            "var hasX=cur===1&&(typeof window.__msX==='number'),hasY=(typeof window.__msY==='number');" +
-            "var ax=hasX?window.__msX:window.innerWidth/2;" +
-            "var ay=hasY?window.__msY:window.innerHeight/2;" +
-            "var preX=window.scrollX+ax,preY=window.scrollY+ay;" +
-            "document.documentElement.style.zoom=f;" +
-            "var maxX=document.documentElement.scrollWidth-window.innerWidth;" +
-            "var maxY=document.documentElement.scrollHeight-window.innerHeight;" +
-            "var tx=0,ty=0;" +
-            "var sheet=document.getElementById('canvas');" +
-            "if(sheet){" +
-            "var r=sheet.getBoundingClientRect();" +
-            "var vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight;" +
-            "if(r.width>vw){tx=hasX?preX*ratio-ax:maxX/2;}" +
-            "if(r.height>vh){ty=preY*ratio-ay;}" +
-            "}" +
-            "tx=Math.max(0,Math.min(maxX,tx));" +
-            "ty=Math.max(0,Math.min(maxY,ty));" +
-            "window.scrollTo(tx,ty);" +
-            $"}})({f},{(cursor ? 1 : 0)});");
+            "cursor" => ",(typeof window.__msX==='number'?window.__msX:innerWidth/2),(typeof window.__msY==='number'?window.__msY:innerHeight/2)",
+            "button" => ",innerWidth/2,(typeof window.__msY==='number'?window.__msY:innerHeight/2)",
+            _ => "",
+        };
+        _ = core.ExecuteScriptAsync($"window.__msSetZoom&&window.__msSetZoom({PreviewZoomArg()}{point});");
     }
 
     // Install the Ctrl+wheel -> "preview-zoom" bridge once. Native browser zoom is disabled so the

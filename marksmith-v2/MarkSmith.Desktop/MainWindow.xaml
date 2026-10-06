@@ -787,6 +787,12 @@
                                     <!-- Preview zoom (persisted): the WebView also honors the browser's native Ctrl+wheel;
                                          the readout stays in sync via a light poll in code-behind. -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <ToggleButton x:Name="PreviewFitToggle" Width="24" Height="22" Padding="0"
+                                                      ToolTipService.ToolTip="Fit page width — the page fills the preview and follows it as you resize (zooming turns this off)"
+                                                      AutomationProperties.Name="Fit page width"
+                                                      Click="OnPreviewFitClick">
+                                            <FontIcon Glyph="&#xE9A6;" FontSize="11" />
+                                        </ToggleButton>
                                         <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
                                             <FontIcon Glyph="&#xE738;" FontSize="11" />
                                         </Button>

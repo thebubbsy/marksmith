@@ -1538,40 +1538,68 @@ public sealed partial class MarkdownHtmlService
             </script>
             """ : "";
 
-        // Fit-to-width (LIVE preview only): the page is laid out at a fixed content width (A4
-        // fidelity), but the live preview should USE the whole pane — when the left drawer
-        // auto-closes (or the window widens) the page zooms to fill the space, exactly like
-        // Word's zoom-to-fit. A transform keeps the page layout intact; the print/export CSS
-        // overrides the scale, so DOCX/PDF output is unaffected.
+        // Preview zoom (LIVE preview only): the page is laid out at a fixed content width (A4
+        // fidelity) and scaled with a transform, so the DOCX/PDF output (a re-layout whose print
+        // CSS overrides the transform) is never affected. This script is the ONE owner of the
+        // preview's scale: window.__msZoom is either 'fit' — fill the pane's width, exactly like
+        // Word's zoom-to-fit, so the page grows when the left drawer closes — or an absolute scale
+        // the user picked with the zoom buttons / Ctrl+wheel. The host seeds __msZoom before load,
+        // changes it via __msSetZoom, and is told the effective scale for its % readout.
+        //
+        // History: the previous version only knew 'fit', scaled about 'top center' while an
+        // overflowing page's layout box sat at left 0 (so the scaled page was shifted right and
+        // clipped behind a horizontal scrollbar), ignored the scrollbar, and re-fitted against a
+        // root CSS zoom the host applied for user zoom — cancelling it, so +/− barely did anything.
         var fitWidthScript = interactive ? """
 <script>
 (function () {
     // marksmith-fit-width
     var canvas = document.getElementById('canvas');
     if (!canvas) return;
-    var PAD = 24; // breathing room on each side
+    var PAD = 24, FIT_MIN = 0.25, FIT_MAX = 2.0, ZOOM_MIN = 0.25, ZOOM_MAX = 4.0;
+    if (window.__msZoom === undefined) window.__msZoom = 'fit';
     var scale = 0;
-    var fit = function () {
-        var natural = canvas.offsetWidth; // fixed content width (px, box-sizing: border-box)
+    var apply = function (anchor) {
+        var natural = canvas.offsetWidth; // fixed content width (px), unaffected by the transform
         if (!natural) return;
-        var avail = window.innerWidth;
-        var next = Math.min(Math.max((avail - PAD) / natural, 0.5), 2.0);
-        if (Math.abs(next - scale) >= 0.01) { // no-op guard (also breaks observer loops)
-            scale = next;
-            canvas.style.transformOrigin = 'top center';
-            canvas.style.transform = 'scale(' + scale + ')';
-        }
-        // The minHeight tracks the scaled content so the page stays fully scrollable
+        var de = document.documentElement;
+        var body = document.body;
+        var vw = de.clientWidth; // the pane minus its vertical scrollbar
+        var fit = window.__msZoom === 'fit';
+        var next = fit
+            ? Math.min(Math.max((vw - PAD) / natural, FIT_MIN), FIT_MAX)
+            : Math.min(Math.max(+window.__msZoom || 1, ZOOM_MIN), ZOOM_MAX);
+        var ratio = scale ? next / scale : 1;
+        var preX = 0, preY = 0;
+        if (anchor) { preX = window.scrollX + anchor.x; preY = window.scrollY + anchor.y; }
+        scale = next;
+        var w = natural * scale;
+        // Wider than the pane: give the body the room so the page scrolls horizontally from a
+        // small left margin; otherwise centre it. Placed from the measured layout position, so it
+        // is right whether flexbox centred the unscaled box or pinned it to the left edge.
+        body.style.minWidth = w > vw ? (w + PAD) + 'px' : '';
+        var left = w > vw ? PAD / 2 : (vw - w) / 2;
+        canvas.style.transformOrigin = 'top left';
+        canvas.style.transform = 'translateX(' + (left - canvas.offsetLeft) + 'px) scale(' + scale + ')';
+        // The transform doesn't change layout height, so size the body to the scaled page to
+        // keep all of it scrollable (document coordinates, so scrolling never shrinks it).
         var rect = canvas.getBoundingClientRect();
-        var minH = Math.max(window.innerHeight, rect.top + rect.height + PAD + 60);
-        document.body.style.minHeight = minH + 'px';
+        body.style.minHeight = Math.max(window.innerHeight, rect.top + window.scrollY + rect.height + PAD + 60) + 'px';
+        if (anchor) window.scrollTo(Math.max(0, preX * ratio - anchor.x), Math.max(0, preY * ratio - anchor.y));
+        try { window.chrome.webview.postMessage(JSON.stringify({ type: 'preview-scale', scale: scale, fit: fit })); } catch (_) {}
+    };
+    // Host API: z is 'fit' or a number; (ax, ay) is a viewport point to keep still while zooming.
+    window.__msSetZoom = function (z, ax, ay) {
+        window.__msZoom = z;
+        apply(typeof ax === 'number' ? { x: ax, y: ay } : null);
     };
     var timer = 0;
-    var schedule = function () { clearTimeout(timer); timer = setTimeout(fit, 60); };
+    var schedule = function () { clearTimeout(timer); timer = setTimeout(function () { apply(null); }, 60); };
     window.addEventListener('resize', schedule);
     window.addEventListener('load', schedule);
-    if (document.readyState !== 'loading') schedule();
-    else document.addEventListener('DOMContentLoaded', schedule);
+    // First paint at the right size (no flash of an unscaled page), then settle on late content.
+    if (document.readyState !== 'loading') apply(null);
+    else document.addEventListener('DOMContentLoaded', function () { apply(null); });
     // Late-rendered content (mermaid SVGs, images) changes the canvas size — re-fit then too.
     new MutationObserver(schedule).observe(canvas, { childList: true, subtree: true });
 })();

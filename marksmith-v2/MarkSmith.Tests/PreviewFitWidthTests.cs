@@ -7,7 +7,8 @@ namespace MarkSmith.Tests;
 // Fit-to-width live preview: when the left drawer auto-closes (or the window widens), the preview
 // page zooms to FILL the reclaimed space instead of leaving empty margins. The zoom is a
 // transform (page fidelity preserved — the DOCX/PDF output is a re-layout, never the zoom) and
-// exists ONLY in the live preview, never in export renders.
+// exists ONLY in the live preview, never in export renders. The same script owns the user's
+// manual zoom (window.__msSetZoom), so fit and the zoom buttons can't fight each other.
 public class PreviewFitWidthTests
 {
     private static readonly ThemeDefinition LightTheme = new(
@@ -20,7 +21,10 @@ public class PreviewFitWidthTests
             "# Hi\n\nSome text.", new AppSettings(), LightTheme, interactive: true);
 
         Assert.Contains("marksmith-fit-width", html);
-        Assert.Contains("canvas.style.transform = 'scale('", html);
+        Assert.Contains("canvas.style.transform = 'translateX('", html);
+        Assert.Contains("canvas.style.transformOrigin = 'top left'", html); // placed, not centre-scaled
+        Assert.Contains("window.__msSetZoom", html); // the host's zoom API — one owner of the scale
+        Assert.Contains("de.clientWidth", html);     // the scrollbar is excluded from the fit
         Assert.Contains("MutationObserver", html); // re-fits when mermaid/images land late
     }
 

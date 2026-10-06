@@ -29,6 +29,11 @@ public sealed class AppSettings
     // native Ctrl+wheel inside the WebView; persisted so the preview opens at the last zoom.
     public double PreviewZoom { get; set; } = 1.0;
 
+    // Fit-width preview: the page is scaled to fill the preview pane's width and follows it as the
+    // pane resizes (the live preview's long-standing default). A manual zoom (buttons / Ctrl+wheel)
+    // turns it off and PreviewZoom then holds that absolute scale; the Fit button turns it back on.
+    public bool PreviewZoomFit { get; set; } = true;
+
     // GPU rendering for the WebView2 previews (main preview + Diagram Studio). On by default —
     // Chromium composites on the GPU. Turning it off passes --disable-gpu to the browser process to
     // work around graphics-driver bugs (black preview, flickering, crashes) on affected hardware,
@@ -346,6 +351,7 @@ public sealed class AppSettings
         PinnedFiles = new List<string>(other.PinnedFiles);
         EditorFontSize = other.EditorFontSize;
         PreviewZoom = other.PreviewZoom;
+        PreviewZoomFit = other.PreviewZoomFit;
         EditorWordWrap = other.EditorWordWrap;
         EditorViewMode = other.EditorViewMode;
         EditorDocumentViewMode = other.EditorDocumentViewMode;
