@@ -176,8 +176,7 @@ public sealed partial class MarkdownHtmlService
         }
 
         markdown = NormalizeForRender(markdown, settings);
-        var isDarkEarly = !settings.ThemeLightInfluence &&
-                          (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        var isDarkEarly = !settings.ThemeLightInfluence && theme.IsDarkPage;
         var (cleanShapesMd, shapesBlocks) = MarkSmith.Core.Composer.ShapeMarkdownHtml.LiftShapes(markdown);
         markdown = cleanShapesMd;
 
@@ -329,8 +328,7 @@ public sealed partial class MarkdownHtmlService
             }
         }
 
-        var isDark = !settings.ThemeLightInfluence && 
-                     (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        var isDark = !settings.ThemeLightInfluence && theme.IsDarkPage;
         var alertStyles = isDark ? AlertStylesDark : AlertStyles;
 
         // Plugin diagrams (PlantUML, Graphviz, D2, …) emit their own SVG with fixed dark-on-white
@@ -553,10 +551,20 @@ public sealed partial class MarkdownHtmlService
         string effectiveBodyBg = settings.ThemeLightInfluence ? $"radial-gradient(circle at center, #ffffff 40%, {theme.Background} 120%)" : theme.Background;
         string effectiveText = theme.Text;
 
-        bool isLight = ThemeDefinition.IsLight(theme.Background);
+        // Light influence paints a white page over a dark theme, so the page reads as light even
+        // though theme.Background is still the dark colour (it only tints the vignette edges).
+        bool isLight = settings.ThemeLightInfluence || ThemeDefinition.IsLight(theme.Background);
         string workspaceBg = interactive ? (isLight ? "#eaeaea" : "#141416") : effectiveBodyBg;
         string pageBg = effectiveBodyBg;
         string bodyClass = isLight ? "ms-light" : "ms-dark";
+        // The page colour body copy actually sits on (light influence paints white over the theme).
+        string proseBg = settings.ThemeLightInfluence ? "#ffffff" : theme.Background;
+        string linkColor = PickLinkColor(theme.Heading, proseBg, isLight);
+        string markBg = isLight ? "#fff3a3" : "rgba(250, 204, 21, 0.28)";
+        // Quotes read a step quieter than body copy — but only when the theme's text has contrast to
+        // spare (Solarized Light's body text is already ~4:1, and muting it would make quotes faint).
+        string quoteText = ContrastGuard.GetContrastRatio(effectiveText, proseBg) >= 7
+            ? $"color-mix(in srgb, {effectiveText} 80%, {proseBg})" : effectiveText;
 
         var overflowScript = interactive ? $$"""
             <script>
@@ -1758,6 +1766,21 @@ public sealed partial class MarkdownHtmlService
             table { border-collapse: collapse; width: 100%; margin: 16px 0; border: 2px solid {{theme.Border}}; word-break: break-word; overflow-wrap: anywhere; }
             th, td { border: 1px solid {{theme.Border}}; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
             th { background: {{theme.Code}}; font-weight: bold; }
+            /* Body copy the palette never reached: links were the browser's #0000EE (unreadable on
+               every dark theme), blockquotes had no quote styling at all, and inline code, kbd,
+               ==mark== and --- were browser defaults. Everything derives from the theme, so custom
+               themes follow too. :not([class]) leaves styled quotes (epigraphs) to their own CSS. */
+            a { color: {{linkColor}}; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+            a:hover { text-decoration-thickness: 2px; }
+            blockquote:not([class]) { margin: 16px 0; padding: 2px 0 2px 18px; border-left: 4px solid {{theme.Border}}; color: {{quoteText}}; }
+            blockquote:not([class]) > :first-child { margin-top: 0; }
+            blockquote:not([class]) > :last-child { margin-bottom: 0; }
+            :not(pre) > code { background: {{theme.Code}}; padding: 0.12em 0.4em; border-radius: 4px; font-size: 0.88em; }
+            th code { background: {{proseBg}}; }
+            kbd { display: inline-block; padding: 0.05em 0.45em; font: 0.82em "Cascadia Mono", Consolas, monospace; line-height: 1.5; color: {{effectiveText}}; background: {{theme.Code}}; border: 1px solid {{theme.Border}}; border-bottom-width: 2px; border-radius: 4px; vertical-align: 0.08em; }
+            mark { background: {{markBg}}; color: inherit; padding: 0 0.15em; border-radius: 3px; }
+            hr { border: 0; height: 1px; background: {{theme.Border}}; margin: 28px 0; }
+            hr.footnotes-sep { margin-top: 40px; }
             .markdown-alert { border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; }
             .markdown-alert-title { font-weight: bold; margin: 0 0 4px 0; }
             {{alertCss}}
@@ -2347,8 +2370,7 @@ public sealed partial class MarkdownHtmlService
         // incremental canvas swap would show raw :::fence text where full renders show SVG.
         markdown = LiftEngineeringDiagrams(markdown, smartArtFences, out var engineeringDiagrams);
 
-        var isDarkEarly = !settings.ThemeLightInfluence &&
-                          (theme.Name.Contains("Dark") || theme.Name is "Dracula" or "Cyberpunk" or "Obsidian" or "Monokai Pro");
+        var isDarkEarly = !settings.ThemeLightInfluence && theme.IsDarkPage;
 
         // Milestone 1 (R2, R3, R9): Watermarks, Cover Pages, and Line Numbering
         markdown = LiftWatermarks(markdown, smartArtFences, isDarkEarly, out var watermarkBlocks);
@@ -3362,6 +3384,22 @@ public sealed partial class MarkdownHtmlService
 
         chartHtmlBlocks = blocks;
         return markdown;
+    }
+
+    /// <summary>Link colour for body copy: the theme's accent when it is a real colour that reads
+    /// as text on this page (WCAG 4.5:1), otherwise the platform link blue for the page's lightness.
+    /// Achromatic accents (GitHub Light's is black) would make links indistinguishable from text, and
+    /// low-contrast ones (Solarized Light's yellow) would be hard to read.</summary>
+    internal static string PickLinkColor(string accent, string pageBg, bool pageIsLight)
+    {
+        var fallback = pageIsLight ? "#0969da" : "#58a6ff";
+        var hex = (accent ?? "").Trim().TrimStart('#');
+        if (hex.Length != 6 || !int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
+            return fallback;
+        int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+        var chroma = (Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b))) / 255.0;
+        if (chroma < 0.2) return fallback;
+        return ContrastGuard.GetContrastRatio("#" + hex, pageBg) >= 4.5 ? "#" + hex : fallback;
     }
 
     /// <summary>Builds the chart SVG. Colours come from the active theme so it matches the page.</summary>

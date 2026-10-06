@@ -46,6 +46,11 @@ public sealed record ThemeDefinition(
         return $"#{r:x2}{g:x2}{b:x2}";
     }
 
+    /// <summary>True when the page itself is dark. Decided by the Background colour, never by the
+    /// theme's name — the old name list ("Dark", Dracula, …) missed Nordic, Forest and every dark
+    /// custom theme, which then got light-page alert colours and un-inverted diagram art.</summary>
+    public bool IsDarkPage => !IsLight(Background);
+
     public static bool IsLight(string cssColor)
     {
         if (!TryParseHex(cssColor, out var r, out var g, out var b)) return true;
