@@ -924,3 +924,73 @@ click, and that's impossible while locked. The exact VM path the bindings use is
    Cycles of 7+ items still draw small circles with cut labels.
 4. Diagram Studio canvas default fill vs the Preview tab; connector inspector by eye.
 5. Carried over: Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 04:55–05:25 AEST (scheduled routine run #16)
+
+The PC was locked all run (LogonUI up), with 36 GB free. I picked run #11's still-unaudited **export
+flow** (every export button, Export all, Cancel, status line, Open output, history) and read the
+view model behind each one. Several were broken, not just rough. Checks used UIA (driving a real
+export through the SplitButton flyout) and headless-Edge renders of the exported HTML.
+
+**Shipped (ea0009b):**
+- **HTML export was broken twice.** It wrote `Report..html` because the extension was passed as
+  `".html"`. It also referenced `https://marksmith.assets/…`, the WebView-only virtual host, so in a
+  browser mermaid showed as source, maths as raw LaTeX and code unhighlighted. The new
+  `Services/StandaloneHtml.Inline` embeds the bundled files. Scripts become `data:` URLs, which
+  keeps `defer`/`onload` so KaTeX's hook still fires. CSS becomes `<style>` with the KaTeX woff2
+  fonts inlined. Verified by rendering before and after. HTML is now in the export flyout, and
+  Open output and history rows open it (they used to do nothing, or say "Blocked opening
+  untrusted file type").
+- **Generate PDF never embedded the Markdown source.** `PdfSourceStore` round-trips the source, and
+  batch and auto exports passed it, but the main button didn't.
+- **Export as Markdown overwrote the open source `.md`.** With the default `{title}` template and
+  the output folder next to the input, it resolved to the same path. Same-path outputs now get
+  ` (exported)` (`PrepareOutputPath`).
+- **Failures read as crashes.** "Error: The process cannot access the file…" is now, for example,
+  "DOCX export failed: Report.docx is open in another program. Close it there and export again."
+  Access denied, read-only, disk full, path too long and missing folder each get their own message
+  (`ExportFailureMessage`). A locked target is caught *before* the render. Previously DOCX waited out
+  the whole mermaid harvest, and PDF only got a bare `false` from WebView2.
+- **Cancel lied.** A cancelled export came back seconds later with "done", a toast and a history
+  row. A late result could also clear the busy state of a newer export. `CompleteExport` now checks
+  the token, and `RunConversionAsync` only touches state for its own CTS.
+- **Export all** used to drop `IsBusy` between formats, which re-enabled the Export button mid-run.
+  It now stays busy throughout, shows "Export all (2 of 3): Converting to DOCX…", stops on Cancel,
+  and keeps each failure's reason in the summary.
+- **Status line:** it now leads with the file name ("PDF saved: Report.pdf · in C:\…"). The old
+  form, path first, got ellipsised before the name. The full text is in a tooltip. **Open** and
+  **Show in folder** links appear while the line announces an export and hide when the status
+  moves on (`StatusOutputPath`). The Windows toast was the only way to reach the file, and it's
+  easy to miss or switched off.
+- **Bare-`\r` again:** `HistoryEntry.ExtractTitle` *stripped* `\r`, so text typed or pasted in
+  the editor exported under the whole document as its file name. Found by the live UIA export
+  ("Smoke exportHello from UIA.$$x^2$$.html").
+- **Preview:** a line that is only `$$…$$` (very common in AI output) rendered as *inline* maths,
+  small and left-aligned. It is now lifted to a display block, fence-aware, keeping list
+  indentation. highlight.js painted a second box inside every themed code block (white on grey in
+  light themes, `#0d1117` over the theme colour in dark ones). It's now reset to transparent.
+- `ExportPolishTests` (24 tests).
+
+**Verified:** Desktop 0 warnings / 0 errors (scratch OutDir). Live via UIA: the app launches, the
+status links are hidden at start, and Paste → flyout "Export as web page" → "HTML saved: Smoke
+export.html", with the Open link visible. The file on disk has no in-app refs, embedded KaTeX, and
+display maths as `<div class="math">`. Test exports were deleted from Documents. Full suite:
+3263 passed / 1 skipped / 17 failed = the 15 known scratch-OutDir path tests + the user's 2
+`HouseLayoutTests`. Their WIP (`HouseLayout`, `DocxExportService`, `TemplateThemeService`,
+`HouseLayoutTests`) is still uncommitted and untouched.
+
+**Not verified:** the links' hover look and spacing (screenshots are black while locked). Cancel
+and Export all were not driven live; they are covered by the VM logic only. Google Docs export
+needs credentials.
+
+**Next up:**
+1. With an unlocked desktop: screenshot the status bar after an export (link spacing, hover, dark
+   theme) and the export flyout. Then do run #15's carry-overs: multi-line labels typed in Diagram
+   and Shape Studio, and the Insert dialogs by keyboard.
+2. Auto-ingest / watch-folder exports (`ExportCoordinator`) still show raw exception text and their
+   own toast path. Route them through `ExportFailureMessage` too.
+3. Copy HTML still copies app-only asset URLs. That's fine for pasting into Word, but decide whether
+   it should inline like the export does (mermaid alone is 2.5 MB).
+4. Version History window audit (still unaudited since run #11), plus the ⋯ menu flyouts.
+5. Carried over: Shape Studio by hand, SmartArt click-to-zoom and 7+ cycles, Diagram Studio canvas
+   fill, Light-theme accent check, keyboard focus order, Galaxy obstacle-aware routing.
