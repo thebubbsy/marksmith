@@ -472,6 +472,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             !App.Settings.Current.HasSeenCoffeeReminder)
             RootGrid.Loaded += OnCoffeeReminderLoaded;
 
+        // Start in the editor. Without this WinUI focuses the first tab stop — the licence banner's
+        // "Start 3-export trial" button, drawn with a focus rectangle on every launch — so typing
+        // or Ctrl+V right after opening the app went nowhere. Registered before the recovery and
+        // tour handlers so their dialogs open after it and hand focus back to the editor on close.
+        RootGrid.Loaded += OnInitialFocusLoaded;
+
         // Auto-recovery: offer back any unsaved document that survived the previous session.
         RootGrid.Loaded += OnRecoveryCheckLoaded;
 
@@ -513,6 +519,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         Environment.Exit(0);
+    }
+
+    private void OnInitialFocusLoaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.Loaded -= OnInitialFocusLoaded; // one-shot
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (PasteTextBox is { Visibility: Visibility.Visible, ActualWidth: > 0 })
+                PasteTextBox.Focus(FocusState.Programmatic);
+        });
     }
 
     private void OnRecoveryCheckLoaded(object sender, RoutedEventArgs e)

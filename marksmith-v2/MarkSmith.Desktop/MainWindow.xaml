@@ -849,7 +849,7 @@
                                       IsChecked="{Binding PortalInsideBlur, Mode=TwoWay}"
                                       Click="OnPortalInsideBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
                             <StackPanel Orientation="Horizontal" Spacing="5">
-                                <FontIcon Glyph="&#xE8FD;" FontSize="12" />
+                                <FontIcon Glyph="&#xE91F;" FontSize="12" />
                                 <TextBlock Text="Glass" FontSize="12" />
                             </StackPanel>
                         </ToggleButton>
@@ -865,7 +865,7 @@
                                       IsChecked="{Binding PortalFocusBlur, Mode=TwoWay}"
                                       Click="OnPortalBlurToggled" VerticalAlignment="Center" Height="32" Padding="8,0">
                             <StackPanel Orientation="Horizontal" Spacing="5">
-                                <FontIcon Glyph="&#xE8FD;" FontSize="12" />
+                                <FontIcon Glyph="&#xEF1F;" FontSize="12" />
                                 <TextBlock Text="Surround" FontSize="12" />
                             </StackPanel>
                         </ToggleButton>
@@ -974,25 +974,25 @@
                                         <MenuFlyoutSubItem Text="Rich Components">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutSubItem.Icon>
                                             <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF7ED;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C4;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Web Embed" Click="OnInsertEmbedClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE7A;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB41;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Native Chart" Click="OnInsertChartClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Data Grid" Click="OnInsertDatagridClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="From Spreadsheet…" Click="OnInsertSpreadsheetClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Table to Excel…" Click="OnExportTableClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE3;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Multi-column Section" Click="OnInsertColumnsClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F1;" /></MenuFlyoutItem.Icon>
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
@@ -1021,18 +1021,15 @@
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutItem Text="Document Galaxy &amp; Knowledge Graph…" Click="OnOpenMindMapGalaxyClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE113;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="AI Context metadata" Click="OnInsertAiContextClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>

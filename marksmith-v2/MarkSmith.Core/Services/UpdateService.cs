@@ -203,10 +203,10 @@ public sealed class UpdateService
                 using var fileStream = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
 
                 var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(64 * 1024);
+                var totalRead = 0L;
                 try
                 {
                     var bytesRead = 0;
-                    var totalRead = 0L;
 
                     while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
                     {
@@ -222,7 +222,17 @@ public sealed class UpdateService
                 {
                     System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                 }
+
+                // A dropped connection can end the stream early without an exception; never run
+                // a half-downloaded installer.
+                if (totalBytes > 0 && totalRead != totalBytes) return false;
             }
+
+            // Only ever launch something that is actually a Windows executable. Previously any
+            // bytes that arrived were ShellExecuted — a captive-portal HTML page, a truncated
+            // file, or (in the test suite) random bytes, which showed up as bursts of "cannot run
+            // on 64-bit Windows" errors in the event log.
+            if (!LooksLikeWindowsExecutable(setupPath)) return false;
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
@@ -238,6 +248,31 @@ public sealed class UpdateService
                 return proc.ExitCode == 0;
             }
             return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>True when the file carries a DOS "MZ" header whose e_lfanew points at a "PE\0\0"
+    /// signature — the minimum shape of anything Windows can execute. Cheap structural gate
+    /// before launching a downloaded installer; not a substitute for signature checking.</summary>
+    internal static bool LooksLikeWindowsExecutable(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            if (fs.Length < 0x40) return false;
+            var header = new byte[0x40];
+            if (fs.Read(header, 0, header.Length) != header.Length) return false;
+            if (header[0] != (byte)'M' || header[1] != (byte)'Z') return false;
+            var peOffset = BitConverter.ToInt32(header, 0x3C);
+            if (peOffset < 0x40 || peOffset > fs.Length - 4) return false;
+            fs.Seek(peOffset, SeekOrigin.Begin);
+            var sig = new byte[4];
+            if (fs.Read(sig, 0, 4) != 4) return false;
+            return sig[0] == (byte)'P' && sig[1] == (byte)'E' && sig[2] == 0 && sig[3] == 0;
         }
         catch
         {

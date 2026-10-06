@@ -274,4 +274,64 @@ public sealed class UpdateServiceTests
         // than the dev line that produced it.
         Assert.True(UpdateService.Compare("2.18.0", "2.18.0-dev.8161030") > 0);
     }
+
+    // ---- LooksLikeWindowsExecutable: the gate before a downloaded installer is launched ----
+
+    private static string TempFileWith(byte[] bytes)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "ms-pe-" + Guid.NewGuid().ToString("n") + ".bin");
+        File.WriteAllBytes(path, bytes);
+        return path;
+    }
+
+    private static byte[] MinimalPe()
+    {
+        var bytes = new byte[0x100];
+        bytes[0] = (byte)'M'; bytes[1] = (byte)'Z';
+        BitConverter.GetBytes(0x80).CopyTo(bytes, 0x3C); // e_lfanew
+        bytes[0x80] = (byte)'P'; bytes[0x81] = (byte)'E'; // followed by two zero bytes
+        return bytes;
+    }
+
+    [Fact]
+    public void LooksLikeWindowsExecutable_AcceptsMzWithPeSignature()
+    {
+        var path = TempFileWith(MinimalPe());
+        try { Assert.True(UpdateService.LooksLikeWindowsExecutable(path)); }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void LooksLikeWindowsExecutable_RejectsHtmlErrorPage()
+    {
+        var path = TempFileWith(System.Text.Encoding.UTF8.GetBytes("<!DOCTYPE html><html><body>Sign in to Wi-Fi</body></html>"));
+        try { Assert.False(UpdateService.LooksLikeWindowsExecutable(path)); }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void LooksLikeWindowsExecutable_RejectsMzWithoutPeSignature()
+    {
+        var bytes = MinimalPe();
+        bytes[0x80] = (byte)'X';
+        var path = TempFileWith(bytes);
+        try { Assert.False(UpdateService.LooksLikeWindowsExecutable(path)); }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void LooksLikeWindowsExecutable_RejectsTruncatedOrOutOfRangeHeader()
+    {
+        var shortFile = TempFileWith(new byte[] { (byte)'M', (byte)'Z', 0, 0 });
+        var bytes = MinimalPe();
+        BitConverter.GetBytes(0x7FFF_0000).CopyTo(bytes, 0x3C); // e_lfanew past the end of file
+        var badOffset = TempFileWith(bytes);
+        try
+        {
+            Assert.False(UpdateService.LooksLikeWindowsExecutable(shortFile));
+            Assert.False(UpdateService.LooksLikeWindowsExecutable(badOffset));
+            Assert.False(UpdateService.LooksLikeWindowsExecutable(Path.Combine(Path.GetTempPath(), "does-not-exist-" + Guid.NewGuid())));
+        }
+        finally { File.Delete(shortFile); File.Delete(badOffset); }
+    }
 }
