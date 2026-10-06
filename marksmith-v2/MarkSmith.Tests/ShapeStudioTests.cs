@@ -113,6 +113,7 @@ public class ShapeStudioTests
         vm.AddShapeAt("rect", 10, 50, 100, 50);
         vm.AddShapeAt("rect", 200, 150, 100, 50);
         vm.AddShapeAt("rect", 80, 250, 100, 50);
+        vm.SelectAll();
 
         vm.AlignLeftCommand.Execute(null);
         Assert.All(vm.Shapes, s => Assert.Equal(10, s.X));

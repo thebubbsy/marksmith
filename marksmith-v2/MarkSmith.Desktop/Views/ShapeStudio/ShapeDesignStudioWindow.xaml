@@ -7,13 +7,12 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
     mc:Ignorable="d"
-    Title="MLShape &amp; SmartArt Vector Studio">
+    Title="Shape Studio">
 
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
             <conv:ShapeGeometryConverter x:Key="ShapeGeom" />
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
-            <conv:DashConverter x:Key="DashConverter" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <conv:EmptyStringToVisibilityConverter x:Key="EmptyToVis" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
@@ -24,6 +23,23 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
             </Style>
+            <Style x:Key="PaneCaption" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="SectionHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <!-- Square icon buttons in the canvas toolbar: one size, one padding, so the row reads
+                 as a single control strip instead of a run of differently sized chips. -->
+            <Style x:Key="ToolIconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="0" />
+            </Style>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -31,7 +47,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Command bar -->
+        <!-- Title bar + window commands -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="56" Padding="16,0" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -39,63 +55,182 @@
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE790;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                <StackPanel VerticalAlignment="Center" Spacing="0">
-                    <TextBlock Text="MLShape &amp; SmartArt Vector Studio" FontWeight="Bold" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                    <TextBlock Text="Native DrawingML vector diagrams &amp; line art — Word cannot strip or corrupt them" FontSize="11" Opacity="0.65" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Shape Studio" FontWeight="SemiBold" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="Diagrams built from native Word shapes — still editable in Word, never flattened to a picture"
+                               FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-                <Border Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="100% Native Word Vector" FontSize="11" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold" />
-                </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Content="Insert into document" Command="{Binding InsertIntoDocumentCommand}" Style="{ThemeResource AccentButtonStyle}"
-                        ToolTipService.ToolTip="Insert this vector diagram into the active document — renders in preview and exports as native editable Word shapes." />
-                <Button Content="Export .docx" Command="{Binding ExportDocxCommand}" ToolTipService.ToolTip="Export as standalone Word Document" />
-                <Button Content="Export .dotx" Command="{Binding ExportDotxCommand}" ToolTipService.ToolTip="Export as Word Template" />
-                <Button Content="Clear" Click="OnClearClick" ToolTipService.ToolTip="Remove every shape from the canvas" />
+                <Button Click="OnClearClick" IsEnabled="{Binding HasShapes}"
+                        ToolTipService.ToolTip="Remove every shape from the canvas (Ctrl+Z brings them back)">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE894;" FontSize="14" />
+                        <TextBlock Text="Clear" />
+                    </StackPanel>
+                </Button>
+                <DropDownButton AutomationProperties.Name="Export" ToolTipService.ToolTip="Save the diagram as a Word file, or move it in and out as Markdown">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xEDE1;" FontSize="14" />
+                        <TextBlock Text="Export" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="ExportMenu" Placement="BottomEdgeAlignedRight" Opening="OnExportMenuOpening">
+                            <MenuFlyoutItem x:Name="ExportDocxItem" Text="Word document (.docx)…" Click="OnExportDocxClick">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A5;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="ExportDotxItem" Text="Word template (.dotx)…" Click="OnExportDotxClick">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F1;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem x:Name="CopyMarkdownItem" Text="Copy as Markdown" Click="OnCopyMarkdownClick">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Load Markdown from clipboard" Click="OnLoadMarkdownClick">
+                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE77F;" /></MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button Command="{Binding InsertIntoDocumentCommand}" Style="{ThemeResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Insert this diagram into the open document — it previews live and exports as editable Word shapes">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8A5;" FontSize="14" />
+                        <TextBlock Text="Insert into document" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Grid>
 
         <!-- Body -->
-        <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,8">
+        <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="300" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="310" />
+                <ColumnDefinition Width="300" />
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT: SmartArt Templates + Palette + Tools -->
-            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="12">
+            <!-- LEFT: Presets | Shapes | Picture. One section at a time, each with the full pane
+                 height — the old single scroll put the shape palette and the picture tracer below
+                 the fold, so most people never found them. -->
+            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <SelectorBar x:Name="LeftTabs" Margin="6,4,6,0" SelectionChanged="OnLeftTabsChanged">
+                        <SelectorBarItem x:Name="PresetsTab" Text="Presets" IsSelected="True">
+                            <SelectorBarItem.Icon><FontIcon Glyph="&#xF0E2;" /></SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem x:Name="ShapesTab" Text="Shapes">
+                            <SelectorBarItem.Icon><FontIcon Glyph="&#xE790;" /></SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem x:Name="PictureTab" Text="Picture">
+                            <SelectorBarItem.Icon><FontIcon Glyph="&#xEB9F;" /></SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                    </SelectorBar>
 
-                        <!-- 1. SMARTART & DIAGRAM TEMPLATES & PRESETS (40+ PROFESSIONAL LAYOUTS) -->
-                        <Expander Header="Diagram presets (40+)" IsExpanded="True">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Filter by category to explore 40+ native Word vector layouts." FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
-                                
-                                <ComboBox AutomationProperties.Name="Preset category" ItemsSource="{Binding PresetCategories}" SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                    <!-- Presets -->
+                    <Grid x:Name="PresetsPanel" Grid.Row="1" Padding="12,8,12,12" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="One click builds a finished diagram you can then edit shape by shape." Style="{StaticResource PaneCaption}" />
+                        <ComboBox Grid.Row="1" AutomationProperties.Name="Preset category" ItemsSource="{Binding PresetCategories}"
+                                  SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                        <ListView Grid.Row="2" x:Name="PresetList" ItemsSource="{Binding FilteredPresets}" SelectionMode="None"
+                                  IsItemClickEnabled="True" ItemClick="OnPresetItemClick" Margin="-12,0,-12,0" Padding="4,0"
+                                  AutomationProperties.Name="Diagram presets">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,8" ColumnSpacing="12" AutomationProperties.Name="{Binding Name}"
+                                          ToolTipService.ToolTip="{Binding Description}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="32" Height="32" CornerRadius="6" VerticalAlignment="Top"
+                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                            <FontIcon Glyph="{Binding Glyph}" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Description}" FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
 
-                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                                    <ItemsControl ItemsSource="{Binding FilteredPresets}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Button services:HoverPolish.ApplyOnLoad="True" Click="OnPresetItemClick" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,5" Margin="0,2">
-                                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                                        <FontIcon Glyph="{Binding Glyph}" FontSize="14" Width="18" VerticalAlignment="Center" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                                        <StackPanel Spacing="1" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                                            <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
+                    <!-- Shapes -->
+                    <ScrollViewer x:Name="ShapesPanel" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Padding="12,8,12,12" Spacing="8">
+                            <TextBlock Text="Pick a shape, then click the canvas to drop it — or drag to draw it at the size you want." Style="{StaticResource PaneCaption}" />
+                            <GridView x:Name="PaletteGrid" ItemsSource="{Binding PaletteItems}" SelectionMode="Single"
+                                      SelectedItem="{Binding ArmedTool, Mode=TwoWay}" Margin="-4,0"
+                                      AutomationProperties.Name="Shapes to draw">
+                                <GridView.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Width="84" Height="74" Spacing="5" Padding="2,8,2,4"
+                                                    AutomationProperties.Name="{Binding Converter={StaticResource PresetName}}"
+                                                    ToolTipService.ToolTip="{Binding Converter={StaticResource PresetName}}">
+                                            <Path Width="26" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
+                                                  Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                                  Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="1.5"
+                                                  Data="{Binding Converter={StaticResource ShapeGeom}}" />
+                                            <TextBlock Text="{Binding Converter={StaticResource PresetName}}" FontSize="11" TextAlignment="Center" LineHeight="13"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </ScrollViewer>
 
-                                <TextBlock Text="Quick Favorites:" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
-                                <Grid ColumnSpacing="4" RowSpacing="4">
+                    <!-- Picture → vector -->
+                    <ScrollViewer x:Name="PicturePanel" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Padding="12,8,12,12" Spacing="12">
+                            <TextBlock Text="Turn a photo or logo into Word shapes and traced line art. Set either density to 0 to skip that layer." Style="{StaticResource PaneCaption}" />
+
+                            <!-- Image card -->
+                            <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="10">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="56" Height="56" CornerRadius="6" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                        <Grid>
+                                            <FontIcon Glyph="&#xEB9F;" FontSize="20" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                      Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
+                                            <Image x:Name="FuseThumb" Stretch="UniformToFill" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock x:Name="FuseImageLabel" Text="No image chosen" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        <Button x:Name="PickImageButton" Content="Choose image…" Click="OnPickImageClick" Padding="10,4" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Shape mosaic layer -->
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Shape mosaic" Style="{StaticResource SectionHeader}" />
+                                <Grid>
+                                    <TextBlock Text="Density" Style="{StaticResource InspectorLabel}" />
+                                    <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                               Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" />
+                                </Grid>
+                                <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
+                                <TextBlock Text="Tile shapes" Style="{StaticResource InspectorLabel}" />
+                                <Grid ColumnSpacing="4" RowSpacing="0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
@@ -106,262 +241,150 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-
-                                    <Button Grid.Row="0" Grid.Column="0" Command="{Binding GeneratePyramidTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Width="12" Height="12" Data="M6,0 L12,11 L0,11 Z" />
-                                            <TextBlock Text="Pyramid" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="0" Grid.Column="1" Command="{Binding GenerateOrgChartTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xF003;" FontSize="12" />
-                                            <TextBlock Text="Org Chart" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="1" Grid.Column="0" Command="{Binding GenerateSwotMatrixTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE8A9;" FontSize="12" />
-                                            <TextBlock Text="SWOT 2x2" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="1" Grid.Column="1" Command="{Binding GenerateCycleTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE895;" FontSize="12" />
-                                            <TextBlock Text="Cycle" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="2" Grid.Column="0" Command="{Binding GenerateTimelineTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE787;" FontSize="12" />
-                                            <TextBlock Text="Roadmap" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="2" Grid.Column="1" Command="{Binding GenerateVennTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xEA3A;" FontSize="12" />
-                                            <TextBlock Text="Venn" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="3" Grid.Column="0" Command="{Binding GeneratePillarsTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Width="12" Height="12" Data="M6,0 L12,3 L12,4 L0,4 L0,3 Z M1,5 h2 v5 h-2 Z M5,5 h2 v5 h-2 Z M9,5 h2 v5 h-2 Z M0,11 h12 v1 h-12 Z" />
-                                            <TextBlock Text="Pillars" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Row="3" Grid.Column="1" Command="{Binding GenerateFunnelTemplateCommand}" HorizontalAlignment="Stretch" Padding="4,4">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE71C;" FontSize="12" />
-                                            <TextBlock Text="Funnel" FontSize="11" />
-                                        </StackPanel>
-                                    </Button>
+                                    <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="Rounded rect" IsChecked="True" MinWidth="0" />
+                                    <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rectangle" MinWidth="0" />
+                                    <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" MinWidth="0" />
+                                    <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" MinWidth="0" />
+                                    <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" MinWidth="0" />
+                                    <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" MinWidth="0" />
+                                    <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" MinWidth="0" />
+                                    <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" MinWidth="0" />
                                 </Grid>
                             </StackPanel>
-                        </Expander>
 
-                        <!-- 2. COLOR THEMES & PALETTES -->
-                        <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8">
+                            <!-- Line-art layer -->
                             <StackPanel Spacing="6">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon Glyph="&#xE790;" FontSize="13" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="Color Theme" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <Grid ColumnSpacing="6">
+                                <TextBlock Text="Traced line art" Style="{StaticResource SectionHeader}" />
+                                <Grid>
+                                    <TextBlock Text="Density" Style="{StaticResource InspectorLabel}" />
+                                    <TextBlock HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                               Text="{Binding ElementName=FuseLineDensity, Path=Value}" />
+                                </Grid>
+                                <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" StepFrequency="10" />
+                                <ComboBox x:Name="FuseModePicker" Header="Line style" HorizontalAlignment="Stretch" SelectedIndex="0"
+                                          AutomationProperties.Name="Line style">
+                                    <ComboBoxItem Content="Cross-hatch — etching" Tag="CrossHatch" />
+                                    <ComboBoxItem Content="Topographic waves — flowing contours" Tag="TopographicWaves" />
+                                    <ComboBoxItem Content="Calligraphic — 30° chisel strokes" Tag="Calligraphic" />
+                                    <ComboBoxItem Content="Edges — outlines only" Tag="Edges" />
+                                    <ComboBoxItem Content="Engraved — fine hatching" Tag="Engraved" />
+                                    <ComboBoxItem Content="Scanlines — horizontal strokes" Tag="Scanlines" />
+                                    <ComboBoxItem Content="Silhouette — solid shapes" Tag="Silhouette" />
+                                </ComboBox>
+                                <Grid ColumnSpacing="12" Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0" AutomationProperties.Name="Color theme" ItemsSource="{Binding PaletteNames}" SelectedItem="{Binding SelectedPaletteName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
-                                    <Button Grid.Column="1" Content="Apply" Command="{Binding ApplyPaletteThemeCommand}" ToolTipService.ToolTip="Recolor all shapes with selected palette" />
+                                    <StackPanel Spacing="0">
+                                        <Grid>
+                                            <TextBlock Text="Detail" Style="{StaticResource InspectorLabel}" />
+                                            <TextBlock HorizontalAlignment="Right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       Text="{Binding ElementName=FuseEdgeSensitivity, Path=Value}" />
+                                        </Grid>
+                                        <Slider x:Name="FuseEdgeSensitivity" Minimum="5" Maximum="80" Value="30" AutomationProperties.Name="Detail threshold"
+                                                ToolTipService.ToolTip="Lower values pick up finer texture and subtle detail" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="0">
+                                        <Grid>
+                                            <TextBlock Text="Stroke (pt)" Style="{StaticResource InspectorLabel}" />
+                                            <TextBlock x:Name="StrokeWidthReadout" HorizontalAlignment="Right" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="1.5" />
+                                        </Grid>
+                                        <Slider x:Name="FuseStrokeWidth" Minimum="0.5" Maximum="5.0" Value="1.5" StepFrequency="0.1" AutomationProperties.Name="Stroke width"
+                                                ValueChanged="OnStrokeWidthChanged" ToolTipService.ToolTip="Thickness of the traced ink strokes" />
+                                    </StackPanel>
                                 </Grid>
+                                <CheckBox x:Name="FuseMonochrome" Content="Dark ink only (ignore the picture's colours)" IsChecked="True" MinWidth="0" />
                             </StackPanel>
-                        </Border>
 
-                        <!-- 3. DRAW WITH SHAPES -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Shape Primitives" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="Click a shape to place on canvas, or drag to draw." FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
-                            <ItemsControl ItemsSource="{Binding PaletteItems}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><VariableSizedWrapGrid MaximumRowsOrColumns="2" /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button services:HoverPolish.ApplyOnLoad="True" Margin="2" Padding="8,5" Click="OnPaletteItemClick" Tag="{Binding}">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Path Width="16" Height="16" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}"
-                                                      Data="{Binding Converter={StaticResource ShapeGeom}}" />
-                                                <TextBlock Text="{Binding Converter={StaticResource PresetName}}" FontSize="11" />
-                                            </StackPanel>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <!-- 4. PICTURE TO VECTOR STUDIO (HYBRID FUSION) -->
-                        <Expander Header="Picture to Vector" IsExpanded="True">
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Transform images into native Word vector shapes and crisp traced line art. Set either density to 0 for single-layer output."
-                                           FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
-                                
-                                <!-- Image Picker -->
-                                <Button Content="Choose image…" Click="OnPickImageClick" HorizontalAlignment="Left" />
+                            <Button x:Name="ConvertButton" Click="OnFuseImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
+                                    IsEnabled="{Binding HasImage}" AutomationProperties.Name="Convert picture to shapes"
+                                    ToolTipService.ToolTip="Replace the canvas with the converted picture (Ctrl+Z restores it)">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Border Width="56" Height="56" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6"
-                                            Visibility="{Binding HasImage, Converter={StaticResource BoolToVis}}">
-                                        <Image x:Name="FuseThumb" Stretch="Uniform" />
-                                    </Border>
-                                    <TextBlock x:Name="FuseImageLabel" Text="No image selected" FontSize="11" Opacity="0.7"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <FontIcon Glyph="&#xE945;" FontSize="14" />
+                                    <TextBlock Text="Convert picture to shapes" />
                                 </StackPanel>
-
-                                <!-- SECTION 1: SHAPES CONFIGURATION -->
-                                <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <StackPanel Spacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xF0E2;" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                            <TextBlock Text="Base Shape Mosaic" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        </StackPanel>
-                                        
-                                        <StackPanel Spacing="2">
-                                            <Grid>
-                                                <TextBlock Text="Shape Density (0 to disable):" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" />
-                                                <TextBlock Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" FontSize="11" FontWeight="Bold"
-                                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
-                                            </Grid>
-                                            <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
-                                        </StackPanel>
-
-                                        <TextBlock Text="Tile primitives:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        <Grid ColumnSpacing="4" RowSpacing="2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <CheckBox x:Name="CompRoundRect" Grid.Row="0" Grid.Column="0" Content="RoundRect" IsChecked="True" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompRect" Grid.Row="0" Grid.Column="1" Content="Rect" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompEllipse" Grid.Row="1" Grid.Column="0" Content="Ellipse" IsChecked="True" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompChevron" Grid.Row="1" Grid.Column="1" Content="Chevron" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompDiamond" Grid.Row="2" Grid.Column="0" Content="Diamond" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompHexagon" Grid.Row="2" Grid.Column="1" Content="Hexagon" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompTriangle" Grid.Row="3" Grid.Column="0" Content="Triangle" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                            <CheckBox x:Name="CompCloud" Grid.Row="3" Grid.Column="1" Content="Cloud" FontSize="11" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- SECTION 2: LINE ART & CONTOUR CONFIGURATION -->
-                                <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="6" Padding="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                    <StackPanel Spacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE76D;" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                            <TextBlock Text="Traced Line Art &amp; Contours" FontWeight="SemiBold" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        </StackPanel>
-
-                                        <StackPanel Spacing="2">
-                                            <Grid>
-                                                <TextBlock Text="Line Density (0 to disable):" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Left" />
-                                                <TextBlock Text="{Binding ElementName=FuseLineDensity, Path=Value}" FontSize="11" FontWeight="Bold"
-                                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
-                                            </Grid>
-                                            <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" />
-                                        </StackPanel>
-
-                                        <TextBlock Text="Linework style:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                        <StackPanel Spacing="2">
-                                            <RadioButton x:Name="FuseModeCrossHatch" Content="Cross-Hatch (etching)" IsChecked="True" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeTopographic" Content="Topographic Waves (flow)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeCalligraphic" Content="Calligraphic (30° chisel)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeEdges" Content="Edges (contours)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeEngraved" Content="Engraved (hatching)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeScanlines" Content="Scanlines (strokes)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                            <RadioButton x:Name="FuseModeSilhouette" Content="Silhouette (solid)" GroupName="FuseTraceMode" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" />
-                                        </StackPanel>
-
-                                        <!-- Finer Detail Controls -->
-                                        <Grid ColumnSpacing="6" Margin="0,2,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <StackPanel Grid.Column="0" Spacing="1">
-                                                <TextBlock Text="Detail Threshold:" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <Slider x:Name="FuseEdgeSensitivity" Minimum="5" Maximum="80" Value="30" ToolTipService.ToolTip="Lower = captures finer micro-textures and subtle details" />
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1" Spacing="1">
-                                                <TextBlock Text="Stroke Width (pt):" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <Slider x:Name="FuseStrokeWidth" Minimum="0.5" Maximum="5.0" Value="1.5" StepFrequency="0.1" ToolTipService.ToolTip="Thickness of traced vector ink strokes" />
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <CheckBox x:Name="FuseMonochrome" Content="Monochrome dark ink" IsChecked="True" Foreground="{ThemeResource TextFillColorPrimaryBrush}" FontSize="11" Margin="0,2,0,0" />
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- SINGLE GO BUTTON -->
-                                <Button Click="OnFuseImageClick" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Padding="12,8"
-                                        AutomationProperties.Name="Convert image to DrawingML vectors">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon Glyph="&#xE945;" FontSize="13" />
-                                        <TextBlock Text="Convert image to DrawingML vectors" FontWeight="SemiBold" FontSize="12" />
-                                    </StackPanel>
-                                </Button>
-
-                                <!-- Markdown Utilities -->
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <Button Content="Copy Markdown" Click="OnCopyMarkdownClick" FontSize="11" Padding="8,4" />
-                                    <Button Content="Load Markdown" Click="OnLoadMarkdownClick" FontSize="11" Padding="8,4" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Expander>
-                    </StackPanel>
-                </ScrollViewer>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Border>
 
-            <!-- CENTER: canvas + toolbar -->
-            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="0">
+            <!-- CENTER: toolbar + canvas -->
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Canvas Toolbar: Alignment, Spacing, Duplication -->
-                    <Grid Grid.Row="0" Padding="10,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+                    <Grid Grid.Row="0" Padding="8,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="Align:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,2,0" />
-                            <Button Command="{Binding AlignLeftCommand}" ToolTipService.ToolTip="Align Left" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M3,2.62 h7.5 v2.25 h-7.5 Z M3,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
-                            <Button Command="{Binding AlignCenterCommand}" ToolTipService.ToolTip="Align Center" Padding="6,4"><PathIcon Width="12" Height="12" Data="M5.44,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h9 v2.25 h-9 Z M3,7.12 h6 v2.25 h-6 Z" /></Button>
-                            <Button Command="{Binding AlignRightCommand}" ToolTipService.ToolTip="Align Right" Padding="6,4"><PathIcon Width="12" Height="12" Data="M10.12,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h7.5 v2.25 h-7.5 Z M4.5,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
-                            <Button Command="{Binding AlignTopCommand}" ToolTipService.ToolTip="Align Top" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M2.62,3 h2.25 v7.5 h-2.25 Z M7.12,3 h2.25 v4.5 h-2.25 Z" /></Button>
-                            <Button Command="{Binding AlignMiddleCommand}" ToolTipService.ToolTip="Align Middle" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,5.44 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v9 h-2.25 Z M7.12,3 h2.25 v6 h-2.25 Z" /></Button>
-                            <Button Command="{Binding AlignBottomCommand}" ToolTipService.ToolTip="Align Bottom" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,10.12 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v7.5 h-2.25 Z M7.12,4.5 h2.25 v4.5 h-2.25 Z" /></Button>
-                            <AppBarSeparator Margin="2,0" />
-                            <Button Command="{Binding DistributeHorizontalCommand}" ToolTipService.ToolTip="Distribute Horizontally" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
-                            <Button Command="{Binding DistributeVerticalCommand}" ToolTipService.ToolTip="Distribute Vertically" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
-                            <AppBarSeparator Margin="2,0" />
-                            <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)" Padding="6,4">
-                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock Text="Duplicate" FontSize="11" /></StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z)">
+                                <FontIcon Glyph="&#xE7A7;" FontSize="14" />
+                            </Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RedoCommand}" AutomationProperties.Name="Redo" ToolTipService.ToolTip="Redo (Ctrl+Y)">
+                                <FontIcon Glyph="&#xE7A6;" FontSize="14" />
+                            </Button>
+                            <AppBarSeparator Margin="0" Padding="0" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignLeftCommand}" AutomationProperties.Name="Align left" ToolTipService.ToolTip="Align left edges — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M3,2.62 h7.5 v2.25 h-7.5 Z M3,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignCenterCommand}" AutomationProperties.Name="Align centre" ToolTipService.ToolTip="Align centres — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M5.44,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h9 v2.25 h-9 Z M3,7.12 h6 v2.25 h-6 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignRightCommand}" AutomationProperties.Name="Align right" ToolTipService.ToolTip="Align right edges — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M10.12,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h7.5 v2.25 h-7.5 Z M4.5,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignTopCommand}" AutomationProperties.Name="Align top" ToolTipService.ToolTip="Align top edges — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M2.62,3 h2.25 v7.5 h-2.25 Z M7.12,3 h2.25 v4.5 h-2.25 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignMiddleCommand}" AutomationProperties.Name="Align middle" ToolTipService.ToolTip="Align middles — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M0.75,5.44 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v9 h-2.25 Z M7.12,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding AlignBottomCommand}" AutomationProperties.Name="Align bottom" ToolTipService.ToolTip="Align bottom edges — select two or more shapes (Ctrl+click)"><PathIcon Width="14" Height="14" Data="M0.75,10.12 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v7.5 h-2.25 Z M7.12,4.5 h2.25 v4.5 h-2.25 Z" /></Button>
+                            <AppBarSeparator Margin="0" Padding="0" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DistributeHorizontalCommand}" AutomationProperties.Name="Distribute horizontally" ToolTipService.ToolTip="Space evenly left to right — select three or more shapes"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DistributeVerticalCommand}" AutomationProperties.Name="Distribute vertically" ToolTipService.ToolTip="Space evenly top to bottom — select three or more shapes"><PathIcon Width="14" Height="14" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
+                            <AppBarSeparator Margin="0" Padding="0" />
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding DuplicateSelectedCommand}" AutomationProperties.Name="Duplicate" ToolTipService.ToolTip="Duplicate the selection (Ctrl+D)">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="14" />
+                            </Button>
+                            <Button Style="{StaticResource ToolIconButton}" Command="{Binding RemoveSelectedCommand}" AutomationProperties.Name="Delete" ToolTipService.ToolTip="Delete the selection (Del)">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="Tool:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding ActiveTool, Converter={StaticResource PresetName}}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- Colour scheme: picking one recolours the canvas at once (and every preset
+                             after it). Swatches show the colours instead of a bare name + "Apply". -->
+                        <DropDownButton x:Name="PaletteButton" Grid.Column="1" Padding="8,4" AutomationProperties.Name="Colour scheme"
+                                        ToolTipService.ToolTip="Colour scheme for presets and new shapes">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <StackPanel x:Name="PaletteButtonSwatches" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding SelectedPaletteName}" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <DropDownButton.Flyout>
+                                <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight">
+                                    <StackPanel Spacing="8" Width="240">
+                                        <TextBlock Text="Colour scheme" Style="{StaticResource SectionHeader}" />
+                                        <TextBlock Text="Recolours the canvas now, and every preset you add after." Style="{StaticResource PaneCaption}" />
+                                        <ListView x:Name="PaletteList" SelectionMode="Single" Margin="-12,0" SelectionChanged="OnPaletteListSelectionChanged" AutomationProperties.Name="Colour schemes">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Padding="0,6" Spacing="6" AutomationProperties.Name="{Binding Name}">
+                                                        <TextBlock Text="{Binding Name}" FontSize="12" />
+                                                        <ItemsControl ItemsSource="{Binding Swatches}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Width="26" Height="12" CornerRadius="3" Background="{Binding}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                    </StackPanel>
+                                </Flyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                     </Grid>
 
                     <!-- dense trace preview -->
@@ -369,15 +392,17 @@
                         <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
                             <Image x:Name="DensePreview" Stretch="Uniform" MaxWidth="1300" MaxHeight="820" />
                         </Border>
-                        <TextBlock Text="Dense line-art preview — every line is individually selectable and exports as a native Word line." FontSize="11" Opacity="0.65" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
+                        <TextBlock Text="Line-art preview — every stroke exports as its own native Word line." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="760" />
                     </StackPanel>
 
                     <!-- editable canvas -->
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled"
-                                  Visibility="{Binding IsEditable, Converter={StaticResource BoolToVis}}">
+                    <ScrollViewer x:Name="CanvasScroller" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled"
+                                  IsTabStop="True" UseSystemFocusVisuals="False" AutomationProperties.Name="Canvas"
+                                  Visibility="{Binding IsDense, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
                         <Grid Width="2200" Height="1800">
                             <Canvas x:Name="MainCanvas" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                    PointerPressed="OnCanvasPointerPressed">
+                                    PointerPressed="OnCanvasPointerPressed" PointerMoved="OnCanvasPointerMoved"
+                                    PointerReleased="OnCanvasPointerReleased" PointerCaptureLost="OnCanvasPointerCaptureLost">
                                 <ItemsControl ItemsSource="{Binding Shapes}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
@@ -389,7 +414,9 @@
                                                   RenderTransformOrigin="0.5,0.5"
                                                   PointerPressed="OnShapePointerPressed"
                                                   PointerMoved="OnShapePointerMoved"
-                                                  PointerReleased="OnShapePointerReleased">
+                                                  PointerReleased="OnShapePointerReleased"
+                                                  PointerEntered="OnShapePointerEntered"
+                                                  PointerExited="OnShapePointerExited">
                                                 <!-- Rotate about the shape's own centre FIRST, then move it into place.
                                                      The old translate-then-rotate order spun every rotated shape about
                                                      its untranslated centre, so the Funnel preset (180°) and any shape
@@ -401,11 +428,7 @@
                                                     </TransformGroup>
                                                 </Grid.RenderTransform>
                                                 <Path Stretch="Fill"
-                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}"
-                                                      Fill="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
-                                                      Stroke="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
                                                       StrokeThickness="1.5"
-                                                      StrokeDashArray="{Binding IsSelected, Converter={StaticResource DashConverter}}"
                                                       Loaded="OnShapeLoaded"
                                                       DataContextChanged="OnShapeDataContextChanged" />
                                                 <!-- Text on top of the shape -->
@@ -414,7 +437,7 @@
                                                            FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
                                                            TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            MaxWidth="{Binding Width}" MaxHeight="{Binding Height}"
-                                                           Padding="6,4" RenderTransformOrigin="0.5,0.5"
+                                                           Padding="6,4" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False"
                                                            Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}">
                                                     <TextBlock.RenderTransform>
                                                         <RotateTransform Angle="{Binding Rotation, Converter={StaticResource UprightLabel}}" />
@@ -424,50 +447,62 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- live outline while dragging out a new shape -->
+                                <Rectangle x:Name="DrawGhost" Visibility="Collapsed" StrokeThickness="1.5" StrokeDashArray="4,3"
+                                           Stroke="{ThemeResource AccentFillColorDefaultBrush}" Fill="{ThemeResource SubtleFillColorSecondaryBrush}" RadiusX="2" RadiusY="2" />
                             </Canvas>
                         </Grid>
                     </ScrollViewer>
 
-                    <!-- empty hint -->
-                    <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"
-                                HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="520">
+                    <!-- empty state -->
+                    <StackPanel Grid.Row="1" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" IsHitTestVisible="False"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="440">
                         <FontIcon Glyph="&#xE790;" FontSize="40" Foreground="{ThemeResource TextFillColorDisabledBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="SmartArt &amp; Vector Shape Studio" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="Pick a SmartArt Preset on the left (Pyramid, Org Chart, SWOT, Cycle, Roadmap) or compose pictures into shape mosaics. Every shape is 100% native vector in Word."
+                        <TextBlock Text="Start with a preset or a shape" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Presets build a whole diagram — pyramids, org charts, cycles, roadmaps. Shapes let you draw your own, and Picture turns an image into editable Word shapes."
                                    FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
                     </StackPanel>
+
+                    <!-- placement hint -->
+                    <Border Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,12,0,0" Padding="14,6" CornerRadius="14"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}" IsHitTestVisible="False"
+                            Visibility="{Binding IsPlacing, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding PlacementHint}" FontSize="12" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                    </Border>
                 </Grid>
             </Border>
 
             <!-- RIGHT: inspector + shapes list -->
-            <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="Shape Inspector" FontWeight="SemiBold" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        <!-- Empty state: the property editors used to sit there blank (empty Type
-                             combo, empty boxes) whenever nothing was selected. Now a short card says
-                             why and what to do; the editors only appear with a selection. -->
+            <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel x:Name="InspectorPanel" Padding="12,12,12,4" Spacing="12">
+                        <TextBlock Text="Inspector" Style="{StaticResource SectionHeader}" FontSize="14" />
+                        <!-- Empty state -->
                         <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8" Padding="16,22"
                                 Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}">
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
                                 <FontIcon Glyph="&#xE8B0;" FontSize="26" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,4" />
                                 <TextBlock Text="{Binding InspectorEmptyTitle}" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="{Binding InspectorEmptyHint}" FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="240"
+                                <TextBlock Text="{Binding InspectorEmptyHint}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="240"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
 
-                        <!-- Property editors: one label column so every row lines up; number boxes
-                             validate and commit on Enter / focus loss instead of silently dropping
-                             half-typed text; the fill shows a live swatch beside its hex. -->
+                        <InfoBar IsOpen="{Binding IsMultiSelect}" IsClosable="False" Severity="Informational" Padding="0"
+                                 Message="Editing the last shape you clicked. Align, duplicate and delete act on the whole selection." />
+
+                        <!-- Property editors -->
                         <Grid ColumnSpacing="10" RowSpacing="10" Visibility="{Binding HasSelectedShape, Converter={StaticResource BoolToVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="58" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -497,9 +532,9 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox AutomationProperties.Name="X position" PlaceholderText="X" ToolTipService.ToolTip="X position (px)"
+                                <NumberBox AutomationProperties.Name="X position" PlaceholderText="X" ToolTipService.ToolTip="X — distance from the left edge (px)" Minimum="0"
                                            Value="{Binding SelectedShape.X, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="Y position" PlaceholderText="Y" ToolTipService.ToolTip="Y position (px)"
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="Y position" PlaceholderText="Y" ToolTipService.ToolTip="Y — distance from the top edge (px)" Minimum="0"
                                            Value="{Binding SelectedShape.Y, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
                             </Grid>
 
@@ -509,9 +544,9 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox AutomationProperties.Name="Width" PlaceholderText="W" ToolTipService.ToolTip="Width (px)" Minimum="0"
+                                <NumberBox AutomationProperties.Name="Width" PlaceholderText="W" ToolTipService.ToolTip="Width (px)" Minimum="4"
                                            Value="{Binding SelectedShape.Width, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
-                                <NumberBox Grid.Column="1" AutomationProperties.Name="Height" PlaceholderText="H" ToolTipService.ToolTip="Height (px)" Minimum="0"
+                                <NumberBox Grid.Column="1" AutomationProperties.Name="Height" PlaceholderText="H" ToolTipService.ToolTip="Height (px)" Minimum="4"
                                            Value="{Binding SelectedShape.Height, Mode=TwoWay}" SmallChange="1" LargeChange="10" />
                             </Grid>
 
@@ -521,10 +556,21 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="28" Height="28" CornerRadius="6" VerticalAlignment="Center"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                        Background="{Binding SelectedShape.Fill, Converter={StaticResource FillBrushConverter}}" />
-                                <TextBox Grid.Column="1" AutomationProperties.Name="Fill color" PlaceholderText="RRGGBB" FontFamily="Consolas"
+                                <Button x:Name="FillSwatchButton" Width="32" Height="32" Padding="3" AutomationProperties.Name="Pick fill colour"
+                                        ToolTipService.ToolTip="Pick a fill colour">
+                                    <Border Width="24" Height="24" CornerRadius="4"
+                                            Background="{Binding SelectedShape.Fill, Converter={StaticResource FillBrushConverter}}" />
+                                    <Button.Flyout>
+                                        <Flyout x:Name="FillFlyout" Opening="OnFillFlyoutOpening">
+                                            <StackPanel Spacing="10">
+                                                <ColorPicker x:Name="FillPicker" ColorSpectrumShape="Ring" IsAlphaEnabled="False" IsMoreButtonVisible="False"
+                                                             IsColorSliderVisible="True" IsColorChannelTextInputVisible="False" IsHexInputVisible="True" />
+                                                <Button Content="Use this colour" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Right" Click="OnFillPickerApply" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <TextBox Grid.Column="1" AutomationProperties.Name="Fill colour" PlaceholderText="RRGGBB" FontFamily="Consolas"
                                          ToolTipService.ToolTip="Fill colour as a 6-digit hex value"
                                          Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
                             </Grid>
@@ -547,61 +593,56 @@
                             <TextBox Grid.Row="5" Grid.Column="1" AutomationProperties.Name="Text label" PlaceholderText="Text shown on the shape"
                                      Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
-
-                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE8C8;" FontSize="13" />
-                                        <TextBlock Text="Duplicate" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Command="{Binding RemoveSelectedCommand}" ToolTipService.ToolTip="Delete selected shape (Del)">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE74D;" FontSize="13" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                                        <TextBlock Text="Delete" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
                         </Grid>
-
-                        <Border Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8" Padding="10">
-                            <StackPanel Spacing="6">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Shapes on Canvas" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="{Binding LineStats}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding ShapesListHint}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
-                                <ListView MaxHeight="400" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Padding="2,4">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <Path Grid.Column="0" Width="14" Height="14" Stretch="Uniform" Fill="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,8,0"
-                                                      Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" VerticalAlignment="Center" />
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="10" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="160" />
-                                                </StackPanel>
-                                                <Border Grid.Column="2" Width="12" Height="12" CornerRadius="2"
-                                                        Background="{Binding Fill, Converter={StaticResource FillBrushConverter}}" VerticalAlignment="Center" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
-                </ScrollViewer>
+
+                    <!-- Shapes on canvas: fills the rest of the pane -->
+                    <Grid Grid.Row="1" Margin="12,8,12,12" Padding="10,10,10,4" RowSpacing="4" CornerRadius="8" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock Text="Shapes on canvas" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Text="{Binding LineStats}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding ShapesListHint}" Style="{StaticResource PaneCaption}" FontSize="11.5" />
+                        <ListView Grid.Row="2" x:Name="ShapesList" ItemsSource="{Binding Shapes}" SelectedItem="{Binding SelectedShape, Mode=TwoWay}"
+                                  Margin="-10,4,-10,0" AutomationProperties.Name="Shapes on canvas">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="0,6" ColumnSpacing="10" AutomationProperties.Name="{Binding ListTitle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Path Width="18" Height="14" Stretch="Uniform" VerticalAlignment="Center"
+                                              Fill="{Binding Fill, Converter={StaticResource FillBrushConverter}}"
+                                              Stroke="{Binding Fill, Converter={StaticResource FillBrushConverter}}" StrokeThickness="1"
+                                              Data="{Binding Prst, Converter={StaticResource ShapeGeom}}" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding ListTitle}" FontSize="12.5" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ListSubtitle}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding ListSubtitle, Converter={StaticResource EmptyToVis}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+                </Grid>
             </Border>
         </Grid>
 
         <!-- Status -->
-        <Border Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        </Border>
+        <Grid Grid.Row="2" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" Padding="14,7" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+        </Grid>
     </Grid>
 </Window>

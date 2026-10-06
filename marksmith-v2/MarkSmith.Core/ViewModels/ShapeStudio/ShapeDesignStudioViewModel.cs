@@ -98,9 +98,34 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
         OnPropertyChanged(nameof(TextForegroundHex));
     }
 
-    partial void OnTextChanged(string value) => OnPropertyChanged(nameof(TextForegroundHex));
+    partial void OnTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(TextForegroundHex));
+        OnPropertyChanged(nameof(ListTitle));
+        OnPropertyChanged(nameof(ListSubtitle));
+    }
 
-    partial void OnPrstChanged(string value) => OnPropertyChanged(nameof(DisplayName));
+    partial void OnPrstChanged(string value)
+    {
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(ListTitle));
+        OnPropertyChanged(nameof(ListSubtitle));
+    }
+
+    /// <summary>Shapes-list headline: the label's first line ("Executive Board"), or the shape type
+    /// when it has no label — five rows of "Rounded rectangle" told the user nothing.</summary>
+    public string ListTitle
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Text)) return DisplayName;
+            var first = Text.Trim().Split('\n')[0].Trim();
+            return first.Length == 0 ? DisplayName : first;
+        }
+    }
+
+    /// <summary>Shapes-list second line: the shape type, shown only under a label.</summary>
+    public string ListSubtitle => string.IsNullOrWhiteSpace(Text) ? "" : DisplayName;
 
     // The inspector's NumberBoxes write NaN when cleared; a NaN coordinate or size would make the
     // shape vanish (and poison the export), so an emptied box restores the previous value.
@@ -250,17 +275,230 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     /// instead of one XAML Path per shape (which would freeze at trace densities).</summary>
     public const int DenseCanvasThreshold = 400;
 
+    /// <summary>The shape the next canvas click (or drag) places; null = the Select tool. Placing
+    /// disarms it again — the old always-armed "roundrect" tool dropped a new shape on every click
+    /// of empty canvas, so there was no way to click away a selection without adding a shape.</summary>
     [ObservableProperty]
-    private string _activeTool = "roundrect";
+    [NotifyPropertyChangedFor(nameof(IsPlacing))]
+    [NotifyPropertyChangedFor(nameof(PlacementHint))]
+    private string? _armedTool;
+
+    public bool IsPlacing => ArmedTool is not null;
+
+    public string PlacementHint => ArmedTool is null
+        ? ""
+        : $"Click or drag on the canvas to place a {ShapeCanvasItemViewModel.DisplayNameFor(ArmedTool).ToLowerInvariant()} · Esc to cancel";
 
     [ObservableProperty]
     private ObservableCollection<ShapeCanvasItemViewModel> _shapes = new();
 
+    partial void OnShapesChanged(ObservableCollection<ShapeCanvasItemViewModel>? oldValue, ObservableCollection<ShapeCanvasItemViewModel> newValue)
+    {
+        if (oldValue is not null) oldValue.CollectionChanged -= OnShapesCollectionChanged;
+        if (newValue is not null) newValue.CollectionChanged += OnShapesCollectionChanged;
+        OnShapesMutated();
+    }
+
+    private void OnShapesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => OnShapesMutated();
+
+    public bool HasShapes => Shapes.Count > 0;
+
+    private void OnShapesMutated()
+    {
+        OnPropertyChanged(nameof(HasShapes));
+        InsertIntoDocumentCommand.NotifyCanExecuteChanged();
+        ExportDocxCommand.NotifyCanExecuteChanged();
+        ExportDotxCommand.NotifyCanExecuteChanged();
+        ApplyPaletteThemeCommand.NotifyCanExecuteChanged();
+        SelectAllCommand.NotifyCanExecuteChanged();
+        RaiseSelectionChanged();
+    }
+
     [ObservableProperty]
     private ShapeCanvasItemViewModel? _selectedShape;
 
+    // ---- multi-selection ----
+    // SelectedShape is the primary (the one the inspector edits); IsSelected marks every shape in
+    // the selection. Align / distribute act on the selection only — they used to move EVERY shape
+    // on the canvas, so "Align left" on a pyramid stacked the whole diagram against one edge.
+
+    private bool _additiveSelect;
+
+    /// <summary>Number of shapes currently selected (primary + Ctrl-click additions).</summary>
+    public int SelectionCount => Shapes.Count(s => s.IsSelected);
+
+    public bool HasSelection => SelectedShape is not null;
+    public bool CanAlign => SelectionCount >= 2;
+    public bool IsMultiSelect => SelectionCount >= 2;
+    public bool CanDistribute => SelectionCount >= 3;
+
+    /// <summary>Ctrl+click: add the shape to the selection, or take it out again.</summary>
+    public void ToggleSelection(ShapeCanvasItemViewModel shape)
+    {
+        if (!Shapes.Contains(shape)) return;
+        _additiveSelect = true;
+        try
+        {
+            if (shape.IsSelected)
+            {
+                shape.IsSelected = false;
+                if (ReferenceEquals(SelectedShape, shape))
+                    SelectedShape = Shapes.LastOrDefault(s => s.IsSelected);
+            }
+            else
+            {
+                shape.IsSelected = true;
+                SelectedShape = shape;
+            }
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasShapes))]
+    public void SelectAll()
+    {
+        if (Shapes.Count == 0 || IsDense) return;
+        _additiveSelect = true;
+        try
+        {
+            foreach (var s in Shapes) s.IsSelected = true;
+            SelectedShape = Shapes[^1];
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = $"Selected all {Shapes.Count} shapes.";
+    }
+
+    public void ClearSelection() => SelectedShape = null;
+
+    /// <summary>Plain click on a shape: an unselected shape becomes the only selection; a shape
+    /// already in a multi-selection becomes the primary WITHOUT dropping the others, so the whole
+    /// group can be dragged.</summary>
+    public void ClickSelect(ShapeCanvasItemViewModel shape)
+    {
+        if (!shape.IsSelected) { SelectedShape = shape; return; }
+        _additiveSelect = true;
+        try { SelectedShape = shape; }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+    }
+
+    /// <summary>Selected shapes, in canvas order.</summary>
+    public IReadOnlyList<ShapeCanvasItemViewModel> Selection => Shapes.Where(s => s.IsSelected).ToList();
+
+    private IEnumerable<ShapeCanvasItemViewModel> SelectedItems => Shapes.Where(s => s.IsSelected);
+
+    private void RaiseSelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectionCount));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(CanAlign));
+        OnPropertyChanged(nameof(IsMultiSelect));
+        OnPropertyChanged(nameof(CanDistribute));
+        OnPropertyChanged(nameof(SelectionSummary));
+        DuplicateSelectedCommand.NotifyCanExecuteChanged();
+        RemoveSelectedCommand.NotifyCanExecuteChanged();
+        AlignLeftCommand.NotifyCanExecuteChanged();
+        AlignCenterCommand.NotifyCanExecuteChanged();
+        AlignRightCommand.NotifyCanExecuteChanged();
+        AlignTopCommand.NotifyCanExecuteChanged();
+        AlignMiddleCommand.NotifyCanExecuteChanged();
+        AlignBottomCommand.NotifyCanExecuteChanged();
+        DistributeHorizontalCommand.NotifyCanExecuteChanged();
+        DistributeVerticalCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Toolbar readout: what the align/distribute buttons will act on.</summary>
+    public string SelectionSummary => SelectionCount switch
+    {
+        0 => Shapes.Count == 0 ? "" : "Ctrl+click shapes to select several",
+        1 => "1 selected · Ctrl+click to add more",
+        var n => $"{n} selected",
+    };
+
+    // ---- undo / redo ----
+    // Snapshot-based: every structural change (add, delete, duplicate, clear, preset, align,
+    // recolour, move, trace, load) records the canvas first. Clear used to say "can't be undone".
+
+    private const int UndoDepth = 40;
+    private readonly List<List<ComposedShape>> _undo = new();
+    private readonly List<List<ComposedShape>> _redo = new();
+
+    public bool CanUndo => _undo.Count > 0;
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Record the current canvas so the next change can be undone.</summary>
+    public void RecordUndo()
+    {
+        var snap = SnapshotComposed();
+        if (_undo.Count > 0 && SameCanvas(_undo[^1], snap)) return;
+        _undo.Add(snap);
+        if (_undo.Count > UndoDepth) _undo.RemoveAt(0);
+        _redo.Clear();
+        RaiseUndoChanged();
+    }
+
+    private static bool SameCanvas(List<ComposedShape> a, List<ComposedShape> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            var x = a[i];
+            var y = b[i];
+            if (x.Prst != y.Prst || x.X != y.X || x.Y != y.Y || x.W != y.W || x.H != y.H ||
+                x.Fill != y.Fill || x.Rot != y.Rot || x.Text != y.Text || !ReferenceEquals(x.PathPoints, y.PathPoints))
+                return false;
+        }
+        return true;
+    }
+
+    private void RaiseUndoChanged()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    public System.Threading.Tasks.Task UndoAsync() => StepHistoryAsync(_undo, _redo, "Undid the last change");
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    public System.Threading.Tasks.Task RedoAsync() => StepHistoryAsync(_redo, _undo, "Redid the change");
+
+    private async System.Threading.Tasks.Task StepHistoryAsync(List<List<ComposedShape>> from, List<List<ComposedShape>> to, string message)
+    {
+        // Skip entries identical to the canvas (e.g. recorded when the inspector took focus but
+        // nothing was edited) so every Ctrl+Z visibly changes something.
+        var current = SnapshotComposed();
+        while (from.Count > 0 && SameCanvas(from[^1], current)) from.RemoveAt(from.Count - 1);
+        if (from.Count == 0) { RaiseUndoChanged(); return; }
+        var target = from[^1];
+        from.RemoveAt(from.Count - 1);
+        to.Add(current);
+        Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(target.Select(ToItem));
+        SelectedShape = null;
+        LineStats = Shapes.Count == 0 ? "" : $"{Shapes.Count:N0} shapes";
+        await RefreshCanvasModeAsync();
+        StatusMessage = $"{message} — {Shapes.Count:N0} shape{(Shapes.Count == 1 ? "" : "s")} on the canvas.";
+        RaiseUndoChanged();
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Move every selected shape by (dx, dy), clamped at the canvas origin.</summary>
+    public void NudgeSelection(double dx, double dy)
+    {
+        foreach (var s in SelectedItems)
+        {
+            s.X = Math.Max(0, s.X + dx);
+            s.Y = Math.Max(0, s.Y + dy);
+        }
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     [ObservableProperty]
-    private string _statusMessage = "Ready — pick a SmartArt template, click a shape to draw, or trace an image.";
+    private string _statusMessage = "Ready — pick a preset, draw a shape, or convert a picture.";
 
     public event EventHandler<string>? InsertToDocumentRequested;
 
@@ -332,16 +570,20 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public string InspectorEmptyTitle => IsEmpty ? "Nothing to inspect yet" : "No shape selected";
 
     public string InspectorEmptyHint => IsEmpty
-        ? "Draw a shape from the palette or pick a SmartArt preset — its properties appear here."
+        ? "Pick a preset or draw a shape — its properties appear here."
         : "Click a shape on the canvas or in the list below to edit its type, position, size, fill and label.";
 
     partial void OnSelectedShapeChanged(ShapeCanvasItemViewModel? value)
     {
         OnPropertyChanged(nameof(HasSelectedShape));
-        foreach (var s in Shapes)
+        if (!_additiveSelect)
         {
-            if (s.IsSelected != (s == value)) s.IsSelected = s == value;
+            foreach (var s in Shapes)
+            {
+                if (s.IsSelected != (s == value)) s.IsSelected = s == value;
+            }
         }
+        RaiseSelectionChanged();
     }
 
     [ObservableProperty]
@@ -386,6 +628,9 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         if (preset == null) return;
         preset.Generate(this);
+        // A fresh diagram opens with nothing selected — the generator's last shape used to come up
+        // selected (dashed), which read as "this one is special".
+        SelectedShape = null;
     }
 
     public string[] GetPaletteColors() =>
@@ -397,6 +642,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         RegisterPresets();
         UpdateFilteredPresets();
+        // The initial collection is assigned to the field, so OnShapesChanged never saw it.
+        Shapes.CollectionChanged += OnShapesCollectionChanged;
     }
 
     public ShapeCanvasItemViewModel AddShapeAt(string prst, double x, double y, double width = 120, double height = 70, string? fill = null, string text = "", int rot = 0)
@@ -420,7 +667,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         SelectedShape = item;
         CanvasMode = "editable";
         PreviewPng = null;
-        StatusMessage = $"Placed {prst} at ({x:F0}, {y:F0})";
+        StatusMessage = $"Placed {item.DisplayName.ToLowerInvariant()} at ({x:F0}, {y:F0})";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
         return item;
     }
@@ -471,12 +718,14 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return item;
     }
 
-    [RelayCommand]
+    /// <summary>Duplicates every selected shape (offset 20 px) and selects the copies.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
     public void DuplicateSelected()
     {
-        if (SelectedShape == null) return;
-        var s = SelectedShape;
-        var clone = new ShapeCanvasItemViewModel
+        var sources = SelectedItems.ToList();
+        if (sources.Count == 0) return;
+        RecordUndo();
+        var clones = sources.Select(s => new ShapeCanvasItemViewModel
         {
             Prst = s.Prst,
             Name = s.Name,
@@ -488,27 +737,43 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             Rotation = s.Rotation,
             Text = s.Text,
             TextColor = s.TextColor,
-            IsSelected = true
-        };
-        Shapes.Add(clone);
-        SelectedShape = clone;
-        StatusMessage = $"Duplicated {clone.Prst}";
+            PathPoints = s.PathPoints is null ? null : new List<(double X, double Y)>(s.PathPoints),
+            StrokeWidthPt = s.StrokeWidthPt,
+        }).ToList();
+        SelectedShape = null;
+        foreach (var c in clones) Shapes.Add(c);
+        _additiveSelect = true;
+        try
+        {
+            foreach (var c in clones) c.IsSelected = true;
+            SelectedShape = clones[^1];
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        StatusMessage = clones.Count == 1
+            ? $"Duplicated {clones[0].DisplayName.ToLowerInvariant()}"
+            : $"Duplicated {clones.Count} shapes";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    [RelayCommand]
+    /// <summary>Deletes every selected shape.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
     public async System.Threading.Tasks.Task RemoveSelectedAsync()
     {
-        if (SelectedShape == null) return;
-        Shapes.Remove(SelectedShape);
+        var doomed = SelectedItems.ToList();
+        if (doomed.Count == 0) return;
+        RecordUndo();
         SelectedShape = null;
+        foreach (var s in doomed) Shapes.Remove(s);
         await RefreshCanvasModeAsync();
+        StatusMessage = doomed.Count == 1 ? "Deleted 1 shape · Ctrl+Z to undo" : $"Deleted {doomed.Count} shapes · Ctrl+Z to undo";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
     public void ClearAll()
     {
+        RecordUndo();
         Shapes.Clear();
         SelectedShape = null;
         CanvasMode = "empty";
@@ -518,7 +783,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasShapes))]
     public void InsertIntoDocument()
     {
         if (Shapes.Count == 0)
@@ -532,10 +797,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         StatusMessage = $"✓ Inserted {composed.Count} native DrawingML shapes into document.";
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasShapes))]
     public void ApplyPaletteTheme()
     {
         if (Shapes.Count == 0) return;
+        RecordUndo();
         var colors = GetPaletteColors();
         int idx = 0;
         foreach (var s in Shapes)
@@ -1406,90 +1672,98 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     // Alignment & Distribution Tools
     // =========================================================================
 
-    [RelayCommand]
+    // Align / distribute act on the SELECTION (Ctrl+click or Ctrl+A), never the whole canvas.
+
+    private bool BeginArrange(int minimum, out List<ShapeCanvasItemViewModel> targets)
+    {
+        targets = SelectedItems.ToList();
+        if (targets.Count < minimum) return false;
+        RecordUndo();
+        return true;
+    }
+
+    private void EndArrange(string what, int count)
+    {
+        StatusMessage = $"{what} {count} shapes";
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignLeft()
     {
-        if (Shapes.Count < 2) return;
-        double minX = Shapes.Min(s => s.X);
-        foreach (var s in Shapes) s.X = minX;
-        StatusMessage = "Aligned shapes to Left";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double minX = t.Min(s => s.X);
+        foreach (var s in t) s.X = minX;
+        EndArrange("Aligned left edges of", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignCenter()
     {
-        if (Shapes.Count < 2) return;
-        double avgCenter = Shapes.Average(s => s.X + s.Width / 2.0);
-        foreach (var s in Shapes) s.X = avgCenter - s.Width / 2.0;
-        StatusMessage = "Aligned shapes to Center";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double avgCenter = t.Average(s => s.X + s.Width / 2.0);
+        foreach (var s in t) s.X = Math.Max(0, avgCenter - s.Width / 2.0);
+        EndArrange("Centred", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignRight()
     {
-        if (Shapes.Count < 2) return;
-        double maxRight = Shapes.Max(s => s.X + s.Width);
-        foreach (var s in Shapes) s.X = maxRight - s.Width;
-        StatusMessage = "Aligned shapes to Right";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double maxRight = t.Max(s => s.X + s.Width);
+        foreach (var s in t) s.X = Math.Max(0, maxRight - s.Width);
+        EndArrange("Aligned right edges of", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignTop()
     {
-        if (Shapes.Count < 2) return;
-        double minY = Shapes.Min(s => s.Y);
-        foreach (var s in Shapes) s.Y = minY;
-        StatusMessage = "Aligned shapes to Top";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double minY = t.Min(s => s.Y);
+        foreach (var s in t) s.Y = minY;
+        EndArrange("Aligned top edges of", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignMiddle()
     {
-        if (Shapes.Count < 2) return;
-        double avgMiddle = Shapes.Average(s => s.Y + s.Height / 2.0);
-        foreach (var s in Shapes) s.Y = avgMiddle - s.Height / 2.0;
-        StatusMessage = "Aligned shapes to Middle";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double avgMiddle = t.Average(s => s.Y + s.Height / 2.0);
+        foreach (var s in t) s.Y = Math.Max(0, avgMiddle - s.Height / 2.0);
+        EndArrange("Middle-aligned", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAlign))]
     public void AlignBottom()
     {
-        if (Shapes.Count < 2) return;
-        double maxBottom = Shapes.Max(s => s.Y + s.Height);
-        foreach (var s in Shapes) s.Y = maxBottom - s.Height;
-        StatusMessage = "Aligned shapes to Bottom";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        if (!BeginArrange(2, out var t)) return;
+        double maxBottom = t.Max(s => s.Y + s.Height);
+        foreach (var s in t) s.Y = Math.Max(0, maxBottom - s.Height);
+        EndArrange("Aligned bottom edges of", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDistribute))]
     public void DistributeHorizontal()
     {
-        if (Shapes.Count < 3) return;
-        var ordered = Shapes.OrderBy(s => s.X).ToList();
+        if (!BeginArrange(3, out var t)) return;
+        var ordered = t.OrderBy(s => s.X).ToList();
         double start = ordered[0].X;
         double end = ordered[^1].X;
         double step = (end - start) / (ordered.Count - 1);
         for (int i = 0; i < ordered.Count; i++) ordered[i].X = start + i * step;
-        StatusMessage = "Distributed shapes horizontally";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        EndArrange("Spaced out horizontally:", t.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDistribute))]
     public void DistributeVertical()
     {
-        if (Shapes.Count < 3) return;
-        var ordered = Shapes.OrderBy(s => s.Y).ToList();
+        if (!BeginArrange(3, out var t)) return;
+        var ordered = t.OrderBy(s => s.Y).ToList();
         double start = ordered[0].Y;
         double end = ordered[^1].Y;
         double step = (end - start) / (ordered.Count - 1);
         for (int i = 0; i < ordered.Count; i++) ordered[i].Y = start + i * step;
-        StatusMessage = "Distributed shapes vertically";
-        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        EndArrange("Spaced out vertically:", t.Count);
     }
 
     private CancellationTokenSource? _generationCts;
@@ -1527,6 +1801,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             var traced = await System.Threading.Tasks.Task.Run(() => ImageLineTracer.TraceLines(imagePath, opt), ct);
             if (ct.IsCancellationRequested) return;
 
+            RecordUndo();
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(traced.Select(ToItem));
             SelectedShape = null;
             LineStats = $"{traced.Count:N0} lines";
@@ -1566,6 +1841,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 return;
             }
 
+            RecordUndo();
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(parsed.Select(ToItem));
             SelectedShape = null;
             LineStats = $"{parsed.Count:N0} shapes";
@@ -1711,17 +1987,27 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(items);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasShapes))]
     public System.Threading.Tasks.Task ExportDocxAsync() => ExportToWordAsync(template: false);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasShapes))]
     public System.Threading.Tasks.Task ExportDotxAsync() => ExportToWordAsync(template: true);
 
-    private async System.Threading.Tasks.Task ExportToWordAsync(bool template)
+    /// <summary>Default export file name (no folder) — the window offers it in a save dialog.</summary>
+    public static string SuggestedExportName(bool template) =>
+        $"Shape Studio {DateTime.Now:yyyy-MM-dd HHmm}{(template ? ".dotx" : ".docx")}";
+
+    /// <summary>Path of the last successful export, for "Open" / "Show in folder".</summary>
+    [ObservableProperty]
+    private string? _lastExportPath;
+
+    /// <summary>Write the canvas to <paramref name="outPath"/> (null = a dated file on the Desktop).
+    /// Returns true on success.</summary>
+    public async System.Threading.Tasks.Task<bool> ExportToWordAsync(bool template, string? outPath = null)
     {
         try
         {
-            if (Shapes.Count == 0) { StatusMessage = "Nothing to export."; return; }
+            if (Shapes.Count == 0) { StatusMessage = "Nothing to export."; return false; }
 
             var composed = SnapshotComposed();
             double maxX = composed.Max(s => s.X + s.W);
@@ -1732,7 +2018,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             string ext = template ? ".dotx" : ".docx";
             // Full date stamp, not just HHmmss — an export today must not silently overwrite a
             // leftover file from a previous day that happened at the same clock time.
-            string outPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            outPath ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
                 $"MLShape_Studio_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
             string themeXml = SmartArtLayoutCatalog.Shared.ThemeXml;
             StatusMessage = $"Exporting {composed.Count:N0} shapes…";
@@ -1743,11 +2029,14 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                 else
                     ShapeComposerDocxWriter.WriteDocx(outPath, composed, w, h, themeXml);
             });
-            StatusMessage = $"✓ Exported {composed.Count:N0} native DrawingML shapes → {outPath}";
+            LastExportPath = outPath;
+            StatusMessage = $"✓ Exported {composed.Count:N0} native Word shapes → {Path.GetFileName(outPath)}";
+            return true;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Export error: {ex.Message}";
+            StatusMessage = $"Export failed: {ex.Message}";
+            return false;
         }
     }
 

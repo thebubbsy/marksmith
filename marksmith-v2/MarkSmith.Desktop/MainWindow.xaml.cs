@@ -2982,7 +2982,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Open Platform Suite & Integrations Hub", "Studio", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Document Galaxy Mind Map", "Studio", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Diagram Studio", "Studio", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+Shift+M"),
-            new("Open Vector Shape Studio", "Studio", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Shape Studio", "Studio", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open SmartArt Design Studio", "Studio", () => { OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; return Task.CompletedTask; }, "F11"),
             new("Open Settings", "App", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+,"),
@@ -5339,7 +5339,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // ── SmartArt offer (non-invasive): detect diagram-shaped pasted content and offer a preview.
-    // MLShape & SmartArt Vector Studio — free-form native DrawingML shape & diagram composing
+    // Shape Studio — free-form native DrawingML shape & diagram composing
     private void OnOpenShapeDesignStudioClick(object sender, RoutedEventArgs e)
     {
         if (_shapeDesignStudio == null)
@@ -5355,7 +5355,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
         }
         _shapeDesignStudio.Activate();
-        ViewModel.StatusText = "MLShape & SmartArt Vector Studio opened.";
+        ViewModel.StatusText = "Shape Studio opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 

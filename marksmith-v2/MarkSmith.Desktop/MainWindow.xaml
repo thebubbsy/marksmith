@@ -1007,7 +1007,7 @@
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="MLShape &amp; SmartArt Vector Studio…" Click="OnOpenShapeDesignStudioClick">
+                                            <MenuFlyoutItem Text="Shape Studio…" Click="OnOpenShapeDesignStudioClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutItem Text="SmartArt Design Studio…" Click="OnOpenSmartArtDesignStudioClick">
