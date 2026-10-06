@@ -30,6 +30,9 @@ namespace MarkSmith.Views.SmartArtStudio
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
             this.Activated += OnWindowActivated;
+            // Transparent page so the preview card's theme brush shows through in Light and Dark
+            // (the rendered SmartArt is a self-contained light card either way).
+            PreviewWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
             HoverPolish.Apply(this.RootGrid);
         }
 
@@ -59,7 +62,7 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             return $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/></head>
-<body style=""margin:0;padding:12px;background:#18181c;display:flex;justify-content:center;align-items:center;min-height:90vh;"">
+<body style=""margin:0;padding:12px;background:transparent;display:flex;justify-content:center;align-items:center;min-height:90vh;"">
   {body}
 </body></html>";
         }

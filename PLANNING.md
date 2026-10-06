@@ -267,3 +267,55 @@ Reviewed: run #3's entry above. Worked its priorities #1 and #2.
 3. Typography/spacing rhythm sweep across Suite Hub cards and Settings plugin cards (carried over).
 4. Focus-visual consistency and keyboard navigation highlighting (carried over).
 5. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 (scheduled routine run #5)
+
+Reviewed: run #4's entry above. Worked its priorities #1, #2 and #3.
+
+**Shipped** (commit follows this entry):
+- **SmartArt live preview follows the app theme.** `BuildWrapperHtml` hardcoded a `#18181c` page
+  behind the rendered SmartArt, which showed as a near-black slab inside the Light-theme preview
+  card. The page is now `background:transparent` and `PreviewWebView.DefaultBackgroundColor` is
+  `Transparent`, so the preview card's own theme brush shows through. The rendered diagram itself
+  is a self-contained light card (`#f8f9fa`) in `HtmlPreviewRenderer`, so it reads on either.
+- **Mermaid Diagram Studio caption buttons.** The Studio is deliberately always-dark
+  (`RequestedTheme="Dark"`, custom cyan palette), but its extended title bar's min/max/close glyphs
+  follow the *OS* theme — on a Light-mode Windows they were black on `#1E1E2E`, i.e. invisible.
+  Now pinned via `AppWindow.TitleBar.Button*ForegroundColor`/`HoverBackgroundColor`/
+  `PressedBackgroundColor` in `MermaidDiagramStudioWindow.cs`.
+- **Suite Hub card rhythm.** Audited all 6 cards: padding (14), corner radius (10), header (15px
+  icon / 13 SemiBold), description (11.5 secondary), badges and button sizes were already
+  identical. The one real inconsistency: each card body was a `StackPanel`, so in a row where one
+  description wraps to more lines, the two cards' button rows sat at different heights. Bodies are
+  now a 3-row `Grid` (Auto / * / Auto) so action buttons are bottom-aligned across each row.
+
+**Hex-colour sweep result (priority #2) — no further conversions needed:**
+- `Mermaid/MermaidDiagramStudioControl.xaml`, `MermaidCanvasControl.xaml`, `NodePaletteControl.xaml`
+  (~130 hex literals): intentional. The whole Studio is forced `RequestedTheme="Dark"` with its own
+  cyan accent overrides, so it's internally coherent in either app/OS theme. Same category as the
+  galaxy canvas — don't "fix" it.
+- `WelcomeTour.xaml` (8): per-theme `ThemeDictionaries` accent overrides (green), already
+  Light/Dark aware.
+- `MindMapGalaxyWindow.xaml` (2): the intentional `#12131C` galaxy canvas.
+- There is no in-app theme switch — the app follows the OS theme — so windows other than the
+  Mermaid Studio don't need caption-button pinning (checked SmartArt, Shape, Splash, Main).
+
+**Verified:**
+- `dotnet build` (Debug/x64): 0 warnings, 0 errors.
+- Smoke-launched `Marksmith.exe`: still running after 8s, then killed.
+- Not seen by eye (still headless). **Next time the app is open:** with Windows in Light mode,
+  open Mermaid Studio and check the caption buttons; open SmartArt Studio and check the preview
+  pane has no dark slab; open Suite Hub and confirm the button rows line up across each card row.
+
+**Notes:**
+- The same unrelated uncommitted `MarkSmith.Core`/`MarkSmith.Tests` edits from run #4 are still in
+  the working tree; again left uncommitted.
+
+**Next up, in priority order:**
+1. Settings plugin cards: the same rhythm audit just done on Suite Hub (padding, type sizes,
+   bottom-aligned actions).
+2. Focus-visual consistency and keyboard navigation highlighting (carried over — still untouched
+   by every run so far; all work has been mouse/visual).
+3. GUI-session visual check of everything listed under "Next time the app is open" across runs
+   #1–#5 (hover/press tuning in `HoverPolish.cs`, dialog lift, empty states, Light theme).
+4. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)

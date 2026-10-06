@@ -41,6 +41,14 @@ public sealed class MermaidDiagramStudioWindow : Window
         ExtendsContentIntoTitleBar = true;
         AppWindow.TitleBar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
         AppWindow.TitleBar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        // The Studio is always dark (RequestedTheme="Dark"), but caption-button glyphs follow the
+        // OS theme — on a Light OS they'd be black-on-#1E1E2E and effectively invisible. Pin them.
+        AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0xED, 0xF2, 0xF4);
+        AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(255, 0x8D, 0x99, 0xAE);
+        AppWindow.TitleBar.ButtonHoverForegroundColor = Microsoft.UI.Colors.White;
+        AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF);
+        AppWindow.TitleBar.ButtonPressedForegroundColor = Microsoft.UI.Colors.White;
+        AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
 
         _studioControl = new MermaidDiagramStudioControl();
 
