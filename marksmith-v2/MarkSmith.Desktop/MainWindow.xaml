@@ -2,6 +2,7 @@
     x:Class="MarkSmith.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:MarkSmith.Services"
     xmlns:conv="using:MarkSmith.Converters"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     xmlns:localcontrols="using:MarkSmith.Controls">
@@ -1334,7 +1335,7 @@
                                         <ItemsControl ItemsSource="{Binding NormalizationRules}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid ColumnSpacing="4">
+                                                    <Grid services:HoverPolish.ApplyOnLoad="True" ColumnSpacing="4">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="*" />

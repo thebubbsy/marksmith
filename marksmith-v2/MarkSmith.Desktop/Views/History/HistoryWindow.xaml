@@ -2,6 +2,7 @@
     x:Class="MarkSmith.Views.History.HistoryWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:MarkSmith.Services"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:conv="using:MarkSmith.Converters"
     Title="Document Time Machine — Version History">
@@ -170,7 +171,7 @@
                                             <ItemsControl ItemsSource="{Binding Items}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
+                                                        <Border services:HoverPolish.ApplyOnLoad="True" Background="{Binding IsSelected, Converter={StaticResource SelectedBrush}, ConverterParameter=themed}"
                                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
                                                                 Padding="10,8" Margin="2,2,2,4"
                                                                 Tapped="OnVersionTapped">

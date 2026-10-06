@@ -124,6 +124,18 @@ namespace MarkSmith.Views.SmartArtStudio
         {
             if (node != null) ViewModel.BeginRename(node);
             else ViewModel.BeginRenameCommand.Execute(null);
+            FocusRenameBox();
+        }
+
+        private void OnAddFirstNodeClick(object sender, RoutedEventArgs e)
+        {
+            // AddChild with no selection creates a root node already in inline-rename mode.
+            ViewModel.AddChildCommand.Execute(null);
+            FocusRenameBox();
+        }
+
+        private void FocusRenameBox()
+        {
             // The rename box appears on the next layout pass — focus + select-all then.
             DispatcherQueue.TryEnqueue(() =>
             {

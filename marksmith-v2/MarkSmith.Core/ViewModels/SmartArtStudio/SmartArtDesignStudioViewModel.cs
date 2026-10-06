@@ -128,6 +128,10 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     }
 
     public bool HasSelection => SelectedNode is not null;
+    /// <summary>True when every node has been deleted — drives the outline's empty state.</summary>
+    public bool IsOutlineEmpty => OutlineRows.Count == 0;
+    /// <summary>True when the gallery search filters out every layout.</summary>
+    public bool HasNoLayoutMatches => Layouts.Count == 0;
     public bool CanUndo => _undoStack.Count > 0;
     public bool CanRedo => _redoStack.Count > 0;
 
@@ -201,6 +205,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         }
         if (SelectedLayout == null || !Layouts.Contains(SelectedLayout))
             SelectedLayout = Layouts.FirstOrDefault();
+        OnPropertyChanged(nameof(HasNoLayoutMatches));
     }
 
     // ------------------------------------------------------------------ tree model
@@ -292,6 +297,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         {
             Walk(root);
         }
+        OnPropertyChanged(nameof(IsOutlineEmpty));
     }
 
     /// <summary>Writes the designed tree back to Markdown (the canonical form). MarkdownText

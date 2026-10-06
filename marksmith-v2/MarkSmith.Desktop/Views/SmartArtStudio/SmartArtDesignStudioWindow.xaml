@@ -2,6 +2,7 @@
     x:Class="MarkSmith.Views.SmartArtStudio.SmartArtDesignStudioWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:MarkSmith.Services"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
@@ -79,6 +80,14 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+                    <StackPanel Grid.Row="1" Spacing="6" Margin="8,24,8,0" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                Visibility="{Binding HasNoLayoutMatches, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <FontIcon Glyph="&#xE721;" FontSize="24" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="No layouts match your search" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock Text="Try a shorter term, or a type like &quot;cycle&quot; or &quot;pyramid&quot;." FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -124,7 +133,7 @@
                         <ItemsControl ItemsSource="{Binding OutlineRows}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="8,4" Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}}"
+                                    <Grid services:HoverPolish.ApplyOnLoad="True" Padding="8,4" Margin="{Binding Depth, Converter={StaticResource LevelToIndentConverter}}"
                                           Background="{Binding IsSelected, Converter={StaticResource SelectedBrushConverter}, ConverterParameter=themed}"
                                           PointerPressed="OnRowPointerPressed" DoubleTapped="OnRowDoubleTapped">
                                         <Grid.ColumnDefinitions>
@@ -155,6 +164,18 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                    <!-- Empty state: shown once every node has been deleted. -->
+                    <StackPanel Grid.Row="1" Spacing="10" MaxWidth="340" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding IsOutlineEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="No nodes yet" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="Start the hierarchy with a top-level node, then build it out with Child and Sibling. You can also paste bullets into Markdown Data below."
+                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
+                        <Button Click="OnAddFirstNodeClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Margin="0,4,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE710;" FontSize="13" /><TextBlock Text="Add first node" /></StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 

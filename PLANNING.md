@@ -162,3 +162,60 @@ items 1 and 3.
 5. (Unrelated to this routine, left here only as a reminder — see memory
    `marksmith-examples-need-regen`): once PRs #85 and #86 are both merged, regenerate
    `examples/*.docx`/`*.pdf` once from a branch containing both fixes.
+
+### 2026-10-06 11:07 AEST (scheduled routine run #3)
+
+Reviewed: run #2's entry above. Started on its priority #1 (per-studio empty/first-run pass),
+beginning with `SmartArtDesignStudioWindow`, and found two cross-cutting hover bugs along the way.
+
+**Shipped** (commit follows this entry):
+- **Bug fix — press feedback never fired.** `ButtonBase` marks `PointerPressed`/`PointerReleased`
+  as handled for its own click logic, so `HoverPolish.AttachTo`'s plain `+=` subscriptions for
+  those two events never ran: buttons lifted on hover but the 0.97x press "squish" from run #1
+  never happened anywhere. Now subscribed via `AddHandler(..., handledEventsToo: true)`.
+- **Bug fix — templated buttons had no hover lift.** `HoverPolish.Apply` runs at construction,
+  before any `DataTemplate` content is realized, so every button inside an item template missed
+  the polish (only `MermaidCanvasControl` had a hand-written workaround). Added a XAML-settable
+  attached property, `services:HoverPolish.ApplyOnLoad="True"` (class is now `public` so the
+  XAML compiler can see it), and set it on the template root at all 8 affected sites:
+  `MainWindow.xaml` (1), `HistoryWindow.xaml` (1), `MindMapGalaxyWindow.xaml` (tag pills, palette
+  swatches), `ShapeDesignStudioWindow.xaml` (preset list, palette items),
+  `SmartArtDesignStudioWindow.xaml` (per-row add/delete buttons). Future item templates with
+  buttons should use the same attribute.
+- **SmartArt studio empty states:**
+  - Deleting every node used to leave the centre outline panel completely blank. It now shows an
+    icon, "No nodes yet", a one-line explanation, and an accent **Add first node** button that
+    reuses the existing `AddChild` command and drops focus straight into the inline rename box.
+  - A Layout Gallery search with zero matches used to show an empty list. It now shows "No
+    layouts match your search" with a hint.
+  - Backed by two computed VM properties in `MarkSmith.Core` (`IsOutlineEmpty`,
+    `HasNoLayoutMatches`), raised from `RebuildOutline`/`FilterLayouts`. No behaviour change
+    otherwise.
+
+**Verified:**
+- `dotnet build` (Debug/x64): 0 warnings, 0 errors. Confirmed `ApplyOnLoad` is registered in the
+  generated `XamlTypeInfo.g.cs`.
+- Smoke-launched `Marksmith.exe`: still running cleanly after 8s, then killed.
+- Still no GUI automation in these headless runs, so neither the press squish nor the new empty
+  states have been seen by eye. **Next time the app is open:** click-and-hold any button to check
+  the press now feels right, and in SmartArt Studio delete every node, then search the gallery
+  for "zzz", to see both empty states.
+
+**Audit notes (no change needed):**
+- `ShapeDesignStudioWindow` already has a deliberate empty-canvas hint ("SmartArt & Vector Shape
+  Studio" + guidance), but it uses hardcoded hex colours (`#555555`/`#BBBBBB`/`#888888`, and
+  `#232329` panels) rather than theme brushes, so it will look wrong in Light theme. Logged below.
+- `MindMapGalaxyWindow` has an empty-*selection* hint in the inspector, but no check yet for an
+  empty *galaxy* (zero nodes) canvas state.
+
+**Next up, in priority order:**
+1. `ShapeDesignStudioWindow`: swap its hardcoded dark hex colours for `ThemeResource` brushes so
+   it respects Light/Dark like the rest of the app (check the whole window, not just the empty
+   hint).
+2. `MindMapGalaxyWindow`: confirm/add a polished empty-galaxy state for when there are zero nodes.
+3. SmartArt studio's live preview hardcodes a `#18181c` page background in `BuildWrapperHtml`.
+   Check how it reads in Light theme.
+4. Typography/spacing rhythm sweep across Suite Hub cards and Settings plugin cards (carried over
+   from run #1).
+5. Focus-visual consistency and keyboard navigation highlighting (carried over).
+6. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)

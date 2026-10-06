@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
@@ -16,7 +17,7 @@ namespace MarkSmith.Services;
 /// (Button, ToggleButton, RepeatButton, HyperlinkButton, …), skipping ones already wired so it is
 /// safe to call again if the same instance is reloaded into the tree.
 /// </summary>
-internal static class HoverPolish
+public static class HoverPolish
 {
     private const double HoverScale = 1.035;
     private const double PressScale = 0.97;
@@ -24,6 +25,27 @@ internal static class HoverPolish
 
     private static readonly DependencyProperty AttachedProperty = DependencyProperty.RegisterAttached(
         "HoverPolishAttached", typeof(bool), typeof(HoverPolish), new PropertyMetadata(false));
+
+    /// <summary>
+    /// Set <c>services:HoverPolish.ApplyOnLoad="True"</c> on the root element of a
+    /// <c>DataTemplate</c> whose buttons should get the lift. Template content is realized per item
+    /// long after a view's constructor-time <see cref="Apply"/> has run, so those buttons would
+    /// otherwise silently miss the polish.
+    /// </summary>
+    public static readonly DependencyProperty ApplyOnLoadProperty = DependencyProperty.RegisterAttached(
+        "ApplyOnLoad", typeof(bool), typeof(HoverPolish), new PropertyMetadata(false, OnApplyOnLoadChanged));
+
+    public static bool GetApplyOnLoad(DependencyObject element) => (bool)element.GetValue(ApplyOnLoadProperty);
+
+    public static void SetApplyOnLoad(DependencyObject element, bool value) => element.SetValue(ApplyOnLoadProperty, value);
+
+    private static void OnApplyOnLoadChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is FrameworkElement element && e.NewValue is true)
+        {
+            element.Loaded += (sender, _) => Apply((DependencyObject)sender);
+        }
+    }
 
     /// <summary>Opt a control out by setting <c>Tag="NoHoverPolish"</c> in XAML.</summary>
     private const string OptOutTag = "NoHoverPolish";
@@ -97,8 +119,12 @@ internal static class HoverPolish
             isHovering = false;
             Animate(scale, 1.0);
         };
-        button.PointerPressed += (_, _) => Animate(scale, PressScale);
-        button.PointerReleased += (_, _) => Animate(scale, isHovering ? HoverScale : 1.0);
+        // ButtonBase marks PointerPressed/PointerReleased as handled for its own click logic, so a
+        // plain += subscription never fires — listen with handledEventsToo instead.
+        button.AddHandler(UIElement.PointerPressedEvent,
+            new PointerEventHandler((_, _) => Animate(scale, PressScale)), true);
+        button.AddHandler(UIElement.PointerReleasedEvent,
+            new PointerEventHandler((_, _) => Animate(scale, isHovering ? HoverScale : 1.0)), true);
     }
 
     private static void Animate(ScaleTransform scale, double to)
