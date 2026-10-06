@@ -25,7 +25,7 @@ public sealed partial class SettingsView : UserControl
         BuildPluginCards();
         App.License.Changed += OnLicenseChanged;
         GoogleSecretBox.Password = App.ViewModel.GoogleClientSecret; // masked; pre-fill for convenience
-        HoverPolish.Apply(this);
+        HoverPolish.Track(this);
     }
 
     private void OnGoogleSecretChanged(object sender, RoutedEventArgs e)
@@ -42,9 +42,13 @@ public sealed partial class SettingsView : UserControl
         // "Start trial" is offered to Free users; StartTrial() itself refuses (with the reason) if
         // the 3-export trial is already active or spent.
         StartTrialButton.Visibility = App.License.CanStartTrial ? Visibility.Visible : Visibility.Collapsed;
-        // Always surface the resolved state (Free / Trial — N exports remaining / Pro).
-        LicenseStatus.Text = App.License.State.Status ?? "Free";
-        LicenseStatus.Visibility = Visibility.Visible;
+        // Once Pro is active there is nothing to paste or buy — just the way to hand the seat back.
+        var isPro = ed == Models.Edition.Pro;
+        KeyEntryRow.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        BuyButton.Visibility = isPro ? Visibility.Collapsed : Visibility.Visible;
+        EditionIcon.Glyph = isPro ? "\uE735" : "\uE734"; // filled star once unlocked
+        // The resolved state (Free / Trial — N exports remaining / Pro) is the card's heading
+        // (EditionStatus); LicenseStatus is only for the outcome of an action the user just took.
     }
 
     private void OnStartTrialClick(object sender, RoutedEventArgs e)
@@ -140,8 +144,10 @@ public sealed partial class SettingsView : UserControl
     private void BuildPluginCards()
     {
         PluginsPanel.Children.Clear();
+        var index = 0;
         foreach (var plugin in App.Plugins.All)
-            PluginsPanel.Children.Add(BuildPluginCard(plugin));
+            PluginsPanel.Children.Add(BuildPluginCard(plugin, zebra: index++ % 2 == 1));
+        PluginsEmptyState.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (App.Plugins.LoadWarnings.Count > 0)
         {
@@ -150,46 +156,56 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
-    private UIElement BuildPluginCard(IMarksmithPlugin plugin)
+    private UIElement BuildPluginCard(IMarksmithPlugin plugin, bool zebra)
     {
+        // Same type ramp as the XAML-declared cards on the other tabs: SemiBold title, then
+        // StepCaptionStyle for everything secondary.
+        var caption = (Style)Application.Current.Resources["StepCaptionStyle"];
         var title = new TextBlock { Text = plugin.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        var description = new TextBlock
-        {
-            Text = plugin.Description,
-            Opacity = 0.7, FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-        };
+        var description = new TextBlock { Text = plugin.Description, Style = caption };
         var fences = plugin is IDiagramPlugin diagram
             ? new TextBlock
             {
                 Text = "Code blocks: " + string.Join(", ", diagram.FenceLanguages.Select(l => "```" + l)),
-                Opacity = 0.55, FontSize = 11,
+                Style = caption,
+                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
             }
             : null;
 
-        var status = new TextBlock { Text = "", Opacity = 0.7, FontSize = 12, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
-        var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18 };
+        // Collapsed while empty so a not-yet-installed card doesn't carry a blank line of spacing.
+        var status = new TextBlock { Style = caption, IsTextSelectionEnabled = true, Visibility = Visibility.Collapsed };
+        void SetStatus(string message)
+        {
+            status.Text = message;
+            status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+        }
+        var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18, Visibility = Visibility.Collapsed };
         // Green success tick shown once download hits 100% — animated in by ShowTick, replacing the
         // "Downloading… 100%" spinner/text so completion reads as a clear, finished state.
         var tick = new FontIcon
         {
-            Glyph = "", // CheckMark
+            Glyph = "\uE73E", // CheckMark
             FontSize = 16,
-            Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0x2E, 0xA0, 0x43)),
+            Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"],
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
             Opacity = 0,
             RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
         };
-        var installButton = new Button { Content = "Install" };
-        var removeButton = new Button { Content = "Remove" };
+        var installButton = new Button
+        {
+            Content = "Install",
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+            MinWidth = 84,
+        };
+        var removeButton = new Button { Content = "Remove", MinWidth = 84 };
 
         void Refresh()
         {
             var installed = plugin.State == PluginInstallState.Installed;
             installButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
             removeButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-            if (installed && string.IsNullOrEmpty(status.Text)) status.Text = "Installed.";
+            if (installed && string.IsNullOrEmpty(status.Text)) SetStatus("Installed");
         }
 
         installButton.Click += async (_, _) =>
@@ -197,8 +213,9 @@ public sealed partial class SettingsView : UserControl
             installButton.IsEnabled = false;
             tick.Visibility = Visibility.Collapsed;
             tick.Opacity = 0;
+            ring.Visibility = Visibility.Visible;
             ring.IsActive = true;
-            status.Text = "Downloading…";
+            SetStatus("Downloading…");
 
             // Install downloads tens of MB in a tight loop that reports progress far faster than
             // the UI needs — throttle to whole-percent updates so this doesn't flood the dispatcher.
@@ -208,28 +225,28 @@ public sealed partial class SettingsView : UserControl
                 var percent = (int)(p * 100);
                 if (percent == lastPercent) return;
                 lastPercent = percent;
-                DispatcherQueue.TryEnqueue(() => status.Text = $"Downloading… {percent}%");
+                DispatcherQueue.TryEnqueue(() => SetStatus($"Downloading… {percent}%"));
             });
 
             var ok = false;
             try
             {
                 await plugin.InstallAsync(progress, CancellationToken.None);
-                status.Text = "Downloading… 100%";
                 ok = true;
             }
             catch (Exception ex)
             {
-                status.Text = $"Install failed: {ex.Message}";
+                SetStatus($"Install failed: {ex.Message}");
             }
 
             ring.IsActive = false;
+            ring.Visibility = Visibility.Collapsed;
             installButton.IsEnabled = true;
             Refresh();
 
             if (ok)
             {
-                status.Text = "Done — installed.";
+                SetStatus("Installed");
                 ShowTick(tick);
                 // A new engine can change what the current document renders — refresh the preview.
                 PluginsChanged?.Invoke();
@@ -242,11 +259,11 @@ public sealed partial class SettingsView : UserControl
             {
                 plugin.Uninstall();
                 tick.Visibility = Visibility.Collapsed;
-                status.Text = "Removed.";
+                SetStatus("Removed");
             }
             catch (Exception ex)
             {
-                status.Text = $"Remove failed: {ex.Message}";
+                SetStatus($"Remove failed: {ex.Message}");
             }
             Refresh();
             PluginsChanged?.Invoke();
@@ -263,7 +280,7 @@ public sealed partial class SettingsView : UserControl
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0),
         };
         buttons.Children.Add(ring);
         buttons.Children.Add(tick);
@@ -280,7 +297,7 @@ public sealed partial class SettingsView : UserControl
 
         return new Border
         {
-            Style = (Style)Application.Current.Resources["PipelineCardStyle"],
+            Style = (Style)Application.Current.Resources[zebra ? "PipelineCardZebraStyle" : "PipelineCardStyle"],
             Padding = new Thickness(16, 12, 16, 12),
             Child = grid,
         };
@@ -340,14 +357,9 @@ public sealed partial class SettingsView : UserControl
         }
         catch (Exception ex)
         {
-            var dlg = new ContentDialog
-            {
-                Title = "Template Error",
-                Content = $"Could not parse the template:\n{ex.Message}",
-                CloseButtonText = "OK",
-                XamlRoot = XamlRoot,
-            };
-            await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dlg);
+            // Reported inline rather than in a ContentDialog: Settings is itself a ContentDialog,
+            // and WinUI can't open a second one on top of it.
+            App.ViewModel.HouseStyleStatus = $"Couldn't read that template: {ex.Message}";
         }
     }
 }

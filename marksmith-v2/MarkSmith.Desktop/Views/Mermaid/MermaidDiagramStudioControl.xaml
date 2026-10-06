@@ -93,7 +93,7 @@
 
                     <Button Click="OnAutoLayoutClick" ToolTipService.ToolTip="Auto Arrange Nodes"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
-                        <FontIcon Glyph="&#xE8D7;" FontSize="14" Foreground="#4CC9F0" />
+                        <FontIcon Glyph="&#xECA5;" FontSize="14" Foreground="#4CC9F0" />
                     </Button>
 
                     <!-- Snap Grid: headerless compact pill (label moved to tooltip) -->
@@ -112,36 +112,36 @@
                     <Button ToolTipService.ToolTip="Align &amp; Distribute selected nodes"
                             Background="#2B2D42" BorderBrush="#8D99AE" BorderThickness="1" Foreground="#EDF2F4">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon Glyph="&#xE8FD;" FontSize="14" Foreground="#4CC9F0" />
+                            <PathIcon Width="14" Height="14" Data="M0.88,0.88 h1.31 v12.25 h-1.31 Z M3.5,3.06 h8.75 v2.62 h-8.75 Z M3.5,8.31 h5.25 v2.62 h-5.25 Z" Foreground="#4CC9F0" />
                             <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#8D99AE" />
                         </StackPanel>
                         <Button.Flyout>
                             <MenuFlyout Placement="Bottom">
                                 <MenuFlyoutItem Text="Align Left" Click="OnAlignLeftClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M4,3.5 h10 v3 h-10 Z M4,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Align Center" Click="OnAlignHCenterClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M7.25,1 h1.5 v14 h-1.5 Z M2,3.5 h12 v3 h-12 Z M4,9.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Align Right" Click="OnAlignRightClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M13.5,1 h1.5 v14 h-1.5 Z M2,3.5 h10 v3 h-10 Z M6,9.5 h6 v3 h-6 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem Text="Align Top" Click="OnAlignTopClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M3.5,4 h3 v10 h-3 Z M9.5,4 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Align Middle" Click="OnAlignVMiddleClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,7.25 h14 v1.5 h-14 Z M3.5,2 h3 v12 h-3 Z M9.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Align Bottom" Click="OnAlignBottomClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89B;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,13.5 h14 v1.5 h-14 Z M3.5,2 h3 v10 h-3 Z M9.5,6 h3 v6 h-3 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem Text="Distribute Horizontally" Click="OnDistributeHClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D7;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1.5 v14 h-1.5 Z M13.5,1 h1.5 v14 h-1.5 Z M6.5,4 h3 v8 h-3 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Distribute Vertically" Click="OnDistributeVClick">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8D7;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h14 v1.5 h-14 Z M1,13.5 h14 v1.5 h-14 Z M4,6.5 h8 v3 h-8 Z" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>
                         </Button.Flyout>

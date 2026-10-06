@@ -40,15 +40,17 @@ public sealed partial class VersionItemViewModel : ObservableObject
             _ => entry.Source,
         };
 
-        SourceIcon = entry.Source switch
+        // Segoe Fluent Icons code points (rendered by a FontIcon), so the timeline matches the
+        // rest of the app's iconography instead of mixing in colour emoji.
+        SourceGlyph = entry.Source switch
         {
-            "opened" => "📂",
-            "autosave" => "✏️",
-            "snapshot" or "manual" => "💾",
-            "ingest" => "📥",
-            var s when s.Contains("pdf") => "📄",
-            var s when s.Contains("docx") => "📝",
-            _ => "⏱️"
+            "opened" => "\uE8E5",                    // OpenFile
+            "autosave" => "\uE70F",                  // Edit
+            "snapshot" or "manual" => "\uE74E",      // Save
+            "ingest" => "\uE896",                    // Download
+            var s when s.Contains("pdf") => "\uEA90", // PDF
+            var s when s.Contains("docx") => "\uE8A5", // Document
+            _ => "\uE823"                            // Clock
         };
     }
 
@@ -56,7 +58,7 @@ public sealed partial class VersionItemViewModel : ObservableObject
     public string TimestampLabel { get; }
     public string Snippet { get; }
     public string SourceLabel { get; }
-    public string SourceIcon { get; }
+    public string SourceGlyph { get; }
     public string Id => Entry.Id;
     public int LinesAdded { get; }
     public int LinesRemoved { get; }

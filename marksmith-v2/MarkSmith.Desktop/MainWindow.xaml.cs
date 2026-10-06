@@ -200,7 +200,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // App-wide hover/press "lift" animation for every button already declared in XAML —
         // see Services/HoverPolish.cs. Flyout and ContentDialog content isn't in the tree yet
         // at this point, so those get polished individually where they're opened.
-        Services.HoverPolish.Apply(RootGrid);
+        Services.HoverPolish.Track(RootGrid);
+
+        // Ctrl+, opens Settings (the gear button's tooltip has always advertised it). Added in code
+        // because VirtualKey has no named member for the comma key, so XAML can't spell it.
+        var settingsAccelerator = new KeyboardAccelerator
+        {
+            Key = (Windows.System.VirtualKey)188, // VK_OEM_COMMA
+            Modifiers = Windows.System.VirtualKeyModifiers.Control,
+        };
+        settingsAccelerator.Invoked += (_, args) =>
+        {
+            args.Handled = true;
+            OnSettingsClick(this, new RoutedEventArgs());
+        };
+        RootGrid.KeyboardAccelerators.Add(settingsAccelerator);
 
         // Style-panel expanders auto-scroll their newly-revealed fields into view. Wired in
         // code-behind because the XAML Expanded="…" attribute crashes XamlCompiler (it exits 1 with
@@ -2767,55 +2781,85 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async Task ShowShortcutsCheatsheetAsync()
     {
-        var shortcuts = new (string Keys, string Action)[]
+        // Grouped so the list scans by task. Keep in sync with RootGrid.KeyboardAccelerators in
+        // MainWindow.xaml (plus the Ctrl+, accelerator added in the constructor) — every row here
+        // must be a shortcut that actually works.
+        var sections = new (string Title, (string Keys, string Action)[] Rows)[]
         {
-            ("Ctrl + O", "Open a Markdown file"),
-            ("Ctrl + E", "Generate PDF"),
-            ("Ctrl + Shift + P", "Instant PDF export"),
-            ("Ctrl + Shift + E", "Instant DOCX export"),
-            ("Ctrl + Shift + D", "Export DOCX"),
-            ("Ctrl + Shift + T", "Export PPTX"),
-            ("Ctrl + Shift + M", "Open the Visual Mermaid Studio"),
-            ("Ctrl + ,", "Open Settings"),
-            ("Ctrl + K", "Command palette"),
-            ("Ctrl + S", "Save edits back to the source file"),
-            ("Ctrl + F", "Find in the editor"),
-            ("Ctrl + Alt + T", "Toggle debug mode"),
-            ("Ctrl + Alt + X", "Portal focus: blur / unblur the preview behind the aperture"),
-            ("F1", "Show this cheatsheet"),
+            ("File & export", new[]
+            {
+                ("Ctrl + O", "Open a Markdown file"),
+                ("Ctrl + S", "Save edits back to the source file"),
+                ("Ctrl + E", "Generate PDF"),
+                ("Ctrl + Shift + P", "Instant PDF export"),
+                ("Ctrl + Shift + E", "Instant DOCX export"),
+                ("Ctrl + Shift + D", "Export DOCX"),
+                ("Ctrl + Shift + T", "Export PPTX"),
+                ("Ctrl + P", "Print the rendered document"),
+            }),
+            ("Editing", new[]
+            {
+                ("Ctrl + Z", "Undo"),
+                ("Ctrl + Y", "Redo (also Ctrl + Shift + Z)"),
+                ("Ctrl + F", "Find in the editor"),
+                ("Ctrl + H", "Find and replace"),
+                ("Ctrl + D", "Duplicate the current line"),
+                ("Alt + ↑ / ↓", "Move the current line up / down"),
+            }),
+            ("View & tools", new[]
+            {
+                ("F11", "Focus mode — hide the side panels"),
+                ("Ctrl + Alt + X", "Portal focus: blur / unblur the preview behind the aperture"),
+                ("Ctrl + Shift + M", "Open the Visual Mermaid Studio"),
+                ("Ctrl + K", "Command palette"),
+                ("Ctrl + ,", "Open Settings"),
+                ("Ctrl + Alt + T", "Toggle debug mode"),
+                ("F1", "Show this cheatsheet"),
+            }),
         };
 
         var rows = new StackPanel { Spacing = 10 };
-        foreach (var (keys, action) in shortcuts)
+        foreach (var (title, sectionRows) in sections)
         {
-            var row = new Grid { ColumnSpacing = 16 };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var keyBox = new Border
+            rows.Children.Add(new TextBlock
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 4, 10, 4),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Child = new TextBlock { Text = keys, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12.5 },
-            };
-            Grid.SetColumn(keyBox, 0);
+                Text = title,
+                Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
+                Margin = new Thickness(0, rows.Children.Count == 0 ? 0 : 10, 0, 0),
+            });
 
-            var desc = new TextBlock { Text = action, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
-            Grid.SetColumn(desc, 1);
+            foreach (var (keys, action) in sectionRows)
+            {
+                var row = new Grid { ColumnSpacing = 16 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            row.Children.Add(keyBox);
-            row.Children.Add(desc);
-            rows.Children.Add(row);
+                var keyBox = new Border
+                {
+                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+                    BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(10, 4, 10, 4),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Child = new TextBlock { Text = keys, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12.5 },
+                };
+                Grid.SetColumn(keyBox, 0);
+
+                var desc = new TextBlock { Text = action, VerticalAlignment = VerticalAlignment.Center, FontSize = 13, TextWrapping = TextWrapping.Wrap };
+                Grid.SetColumn(desc, 1);
+
+                row.Children.Add(keyBox);
+                row.Children.Add(desc);
+                rows.Children.Add(row);
+            }
         }
 
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
-            Content = rows,
+            // Scrolls rather than growing past the window on smaller screens.
+            Content = new ScrollViewer { Content = rows, Padding = new Thickness(0, 0, 12, 0), MaxHeight = 520 },
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
@@ -2825,26 +2869,31 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Command palette (Ctrl+K): fuzzy search across actions, themes, and recent files ----
 
-    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run);
+    // Shortcut is display-only: the matching accelerator lives in RootGrid.KeyboardAccelerators.
+    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run, string Shortcut = "");
 
     private List<PaletteCommand> BuildPaletteCommands()
     {
         var cmds = new List<PaletteCommand>
         {
-            new("Generate PDF", "Action", () => ViewModel.ConvertToPdfAsync()),
-            new("Export DOCX", "Action", () => ViewModel.ConvertToDocxAsync()),
-            new("Export PPTX", "Action", () => ViewModel.ConvertToPptxAsync()),
-            new("Export EPUB", "Action", () => ViewModel.ConvertToEpubAsync()),
-            new("Export HTML", "Action", () => ViewModel.ConvertToHtmlAsync()),
-            new("Export all formats", "Action", () => ViewModel.ExportAllAsync()),
-            new("Open a Markdown file", "Action", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Platform Suite & Integrations Hub", "Suite", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Document Galaxy Mind Map", "Galaxy", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Diagram Studio", "Action", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Vector Shape Studio", "Action", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Settings", "Action", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Take the welcome tour", "Action", ShowWelcomeTourAsync),
-            new("Show keyboard shortcuts", "Action", ShowShortcutsCheatsheetAsync),
+            new("Generate PDF", "Export", () => ViewModel.ConvertToPdfAsync(), "Ctrl+E"),
+            new("Export DOCX", "Export", () => ViewModel.ConvertToDocxAsync(), "Ctrl+Shift+D"),
+            new("Export PPTX", "Export", () => ViewModel.ConvertToPptxAsync(), "Ctrl+Shift+T"),
+            new("Export EPUB", "Export", () => ViewModel.ConvertToEpubAsync()),
+            new("Export HTML", "Export", () => ViewModel.ConvertToHtmlAsync()),
+            new("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
+            new("Print the rendered document", "Export", () => { PrintDocument(); return Task.CompletedTask; }, "Ctrl+P"),
+            new("Open a Markdown file", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+O"),
+            new("Open version history", "File", () => { OnOpenHistoryClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Platform Suite & Integrations Hub", "Studio", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Document Galaxy Mind Map", "Studio", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open Diagram Studio", "Studio", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+Shift+M"),
+            new("Open Vector Shape Studio", "Studio", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Open SmartArt Design Studio", "Studio", () => { OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; return Task.CompletedTask; }, "F11"),
+            new("Open Settings", "App", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+,"),
+            new("Take the welcome tour", "App", ShowWelcomeTourAsync),
+            new("Show keyboard shortcuts", "App", ShowShortcutsCheatsheetAsync, "F1"),
         };
 
         foreach (var theme in App.Themes.All)
@@ -2887,10 +2936,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 340, IsItemClickEnabled = true };
         list.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
             "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
-            "<StackPanel Orientation='Horizontal' Spacing='10' Padding='0,2'>" +
-            "<TextBlock Text='{Binding Label}' FontWeight='SemiBold' FontSize='13'/>" +
-            "<TextBlock Text='{Binding Category}' Opacity='0.5' FontSize='11' VerticalAlignment='Center'/>" +
-            "</StackPanel></DataTemplate>");
+            "<Grid ColumnSpacing='10' Padding='0,2'>" +
+            "<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
+            "<TextBlock Text='{Binding Label}' FontWeight='SemiBold' FontSize='13' TextTrimming='CharacterEllipsis'/>" +
+            "<TextBlock Grid.Column='1' Text='{Binding Category}' Opacity='0.5' FontSize='11' VerticalAlignment='Center'/>" +
+            "<TextBlock Grid.Column='2' Text='{Binding Shortcut}' Opacity='0.6' FontSize='11' FontFamily='Consolas' VerticalAlignment='Center'/>" +
+            "</Grid></DataTemplate>");
+        // Without this a query with no hits just shows an empty box, which reads as broken.
+        var noMatches = new TextBlock
+        {
+            Opacity = 0.6,
+            FontSize = 13,
+            Margin = new Thickness(4, 6, 4, 6),
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed,
+        };
 
         void Refresh()
         {
@@ -2900,11 +2960,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 : commands.Where(c => FuzzyMatch(c.Label, q) || FuzzyMatch(c.Category, q)).ToList();
             list.ItemsSource = filtered;
             if (filtered.Count > 0) list.SelectedIndex = 0;
+            noMatches.Text = $"No commands, themes or recent files match \u201C{q}\u201D.";
+            noMatches.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         var panel = new StackPanel { Spacing = 10, Width = 480 };
         panel.Children.Add(search);
         panel.Children.Add(list);
+        panel.Children.Add(noMatches);
 
         var dialog = new ContentDialog
         {
@@ -4267,7 +4330,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Title = "Recover unsaved document",
                 Content = "MarkSmith found an unsaved document from your last session. Would you like to restore it?",
                 PrimaryButtonText = "Restore",
-                CloseButtonText = "Discard",
+                // Discard is the *secondary* button, not the Close button: Escape (and any other
+                // dismissal) reports the Close/None result, and a stray Escape must never delete
+                // someone's only copy of their work. Dismissing files the draft away instead.
+                SecondaryButtonText = "Discard",
+                CloseButtonText = "Keep as file",
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = RootGrid.XamlRoot,
             };
@@ -4279,8 +4346,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ViewModel.StatusText = "Unsaved document restored from your last session.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Success;
                 await RefreshPreviewAsync(heavy: true);
+                File.Delete(RecoveryPath);
             }
-            File.Delete(RecoveryPath);
+            else if (result == ContentDialogResult.Secondary)
+            {
+                File.Delete(RecoveryPath);
+            }
+            else
+            {
+                // Dismissed (Keep as file / Escape). The recovery slot is about to be reused by this
+                // session's autosave, so move the draft somewhere it will survive and say where.
+                var keptDir = Path.Combine(RecoveryDir, "Recovered drafts");
+                Directory.CreateDirectory(keptDir);
+                var keptPath = Path.Combine(keptDir, $"Unsaved draft {DateTime.Now:yyyy-MM-dd HHmmss}.md");
+                File.Move(RecoveryPath, keptPath);
+                ViewModel.StatusText = $"Your previous unsaved draft was kept at {keptPath}";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            }
         }
         catch { /* recovery is best-effort */ }
     }

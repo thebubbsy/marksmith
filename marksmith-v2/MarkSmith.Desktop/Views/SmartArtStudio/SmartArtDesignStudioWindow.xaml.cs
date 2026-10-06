@@ -25,6 +25,7 @@ namespace MarkSmith.Views.SmartArtStudio
 
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
+            TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
             this.RootGrid.DataContext = ViewModel;
 
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();
@@ -33,7 +34,7 @@ namespace MarkSmith.Views.SmartArtStudio
             // Transparent page so the preview card's theme brush shows through in Light and Dark
             // (the rendered SmartArt is a self-contained light card either way).
             PreviewWebView.DefaultBackgroundColor = Microsoft.UI.Colors.Transparent;
-            HoverPolish.Apply(this.RootGrid);
+            HoverPolish.Track(this.RootGrid);
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)

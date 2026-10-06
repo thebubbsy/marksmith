@@ -26,7 +26,7 @@ namespace MarkSmith.Controls
         {
             this.InitializeComponent();
             this.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
-            HoverPolish.Apply(this);
+            HoverPolish.Track(this);
         }
 
         private async void OnGetExtensionClick(object sender, RoutedEventArgs e)

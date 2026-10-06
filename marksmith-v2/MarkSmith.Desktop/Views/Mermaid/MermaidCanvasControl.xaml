@@ -208,7 +208,7 @@
                                     <!-- Cylindrical Database Shape -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='CylindricalDatabase'}">
-                                        <FontIcon Glyph="&#xEAF5;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <FontIcon Glyph="&#xEE94;" FontSize="40" Foreground="{Binding StrokeColor}" />
                                         <TextBlock Text="{Binding LabelText}"
                                                    Foreground="#EDF2F4"
                                                    FontWeight="SemiBold"

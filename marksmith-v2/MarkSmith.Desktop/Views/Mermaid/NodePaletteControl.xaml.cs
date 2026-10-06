@@ -11,7 +11,7 @@ public sealed partial class NodePaletteControl : UserControl
     public NodePaletteControl()
     {
         InitializeComponent();
-        HoverPolish.Apply(this);
+        HoverPolish.Track(this);
     }
 
     private void OnCategoryPillClick(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)

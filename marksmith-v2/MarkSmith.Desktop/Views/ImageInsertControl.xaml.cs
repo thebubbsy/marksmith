@@ -28,7 +28,7 @@ public sealed partial class ImageInsertControl : UserControl
     {
         InitializeComponent();
         _restBorderBrush = DropZone.BorderBrush;
-        HoverPolish.Apply(this);
+        HoverPolish.Track(this);
     }
 
     // ---- drag & drop ---------------------------------------------------------------------------

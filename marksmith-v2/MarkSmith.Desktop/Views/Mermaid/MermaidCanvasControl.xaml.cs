@@ -79,7 +79,7 @@ public sealed partial class MermaidCanvasControl : UserControl
         // Only the static toolbar chrome (zoom in/out/fit) is covered here — the per-node quick-add
         // buttons live in NodesItemsControl's DataTemplate and are polished individually as each
         // node is realized (see OnNodeTemplateLoaded).
-        HoverPolish.Apply(this);
+        HoverPolish.Track(this);
     }
 
     #region Zoom Controls

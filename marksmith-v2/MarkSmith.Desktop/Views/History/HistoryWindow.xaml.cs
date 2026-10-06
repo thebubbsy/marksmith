@@ -33,7 +33,7 @@ public sealed partial class HistoryWindow : Window
         _ = _vm.LoadCommand.ExecuteAsync(null);
 
         RootGrid.KeyDown += OnRootKeyDown;
-        HoverPolish.Apply(RootGrid);
+        HoverPolish.Track(RootGrid);
     }
 
     private async Task InitializeWebViewAsync()
@@ -61,21 +61,20 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
-    private void OnFileTapped(object sender, TappedRoutedEventArgs e)
+    private void OnFileClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: FileSummaryViewModel file })
             _ = _vm.SelectFileCommand.ExecuteAsync(file);
     }
 
-    private void OnVersionTapped(object sender, TappedRoutedEventArgs e)
+    private void OnVersionClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
             _vm.SelectVersionCommand.Execute(item);
     }
 
-    private void OnStarTapped(object sender, TappedRoutedEventArgs e)
+    private void OnStarClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
         if (sender is FrameworkElement { DataContext: VersionItemViewModel item })
             _ = _vm.ToggleStarCommand.ExecuteAsync(item);
     }
@@ -135,11 +134,18 @@ public sealed partial class HistoryWindow : Window
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
         var isCtrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var isShift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (isCtrl && e.Key == VirtualKey.F)
         {
             SearchBox.Focus(FocusState.Programmatic);
             SearchBox.SelectAll();
             e.Handled = true;
+        }
+        else if (isCtrl && isShift && e.Key == VirtualKey.S)
+        {
+            // Advertised on the Take Checkpoint button's tooltip.
+            e.Handled = true;
+            OnTakeSnapshotClick(this, new RoutedEventArgs());
         }
     }
 }

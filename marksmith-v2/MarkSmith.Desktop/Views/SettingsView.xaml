@@ -8,16 +8,41 @@
         <!-- Declared locally: this view is hosted inside a ContentDialog, so it can't rely on
              MainWindow's Grid.Resources being reachable for StaticResource lookups. -->
         <conv:BoolToVisibilityConverter x:Key="SettingsBoolToVisibilityConverter" />
+        <conv:BoolToInverseConverter x:Key="SettingsBoolInverseConverter" />
     </UserControl.Resources>
 
     <!-- Tabbed so each concern gets its own page and nothing needs to scroll; Plugins in
          particular is expected to grow, so it lives apart from the always-there basics. -->
     <Pivot MinWidth="500" MaxWidth="500" Height="560">
+        <!-- Stock Pivot headers are 24pt SemiLight with 12px side padding — in a 500px dialog only
+             General…License fit and Plugins/About were scrolled off the edge. Compact headers keep
+             all seven tabs visible at once. -->
+        <Pivot.Resources>
+            <x:Double x:Key="PivotHeaderItemFontSize">15</x:Double>
+            <Thickness x:Key="PivotHeaderItemMargin">9,0,9,0</Thickness>
+            <x:Int32 x:Key="PivotHeaderItemCharacterSpacing">0</x:Int32>
+            <FontWeight x:Key="PivotHeaderItemThemeFontWeight">SemiBold</FontWeight>
+        </Pivot.Resources>
 
         <!-- ===== General ===== -->
         <PivotItem Header="General">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="14" Margin="0,12,10,0">
+                <Border Style="{StaticResource PipelineCardStyle}">
+                    <Grid Padding="16,12" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Play intro video on launch" FontWeight="SemiBold" />
+                            <TextBlock Text="Shows the branded launch video before the main window appears. Off = straight to the editor."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Play intro video on launch" IsOn="{Binding SkipLaunchVideo, Mode=TwoWay}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
                 <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <Grid Padding="16,12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -25,26 +50,11 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Play intro video on launch" />
-                            <TextBlock Text="Shows the branded launch video before the main window appears. Off = straight to the editor."
-                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1" IsOn="{Binding SkipLaunchVideo, Mode=TwoWay}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-
-                <Border Style="{StaticResource PipelineCardStyle}">
-                    <Grid Padding="16,12" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Pro mode" />
+                            <TextBlock Text="Pro mode" FontWeight="SemiBold" />
                             <TextBlock Text="Skip the interactive pickers — Insert ▸ Image drops the raw markdown placeholder straight into the editor instead of opening the drag &amp; drop / URL dialog."
                                        Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                         </StackPanel>
-                        <ToggleSwitch Grid.Column="1" IsOn="{Binding ProMode, Mode=TwoWay}" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Pro mode" IsOn="{Binding ProMode, Mode=TwoWay}" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
 
@@ -55,20 +65,20 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Hardware acceleration" />
+                            <TextBlock Text="Hardware acceleration" FontWeight="SemiBold" />
                             <TextBlock Text="Render the live preview on the GPU. Turn off to work around graphics-driver problems (black preview, flickering, crashes). Takes effect after you restart the app."
                                        Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                         </StackPanel>
-                        <ToggleSwitch Grid.Column="1" IsOn="{Binding HardwareAcceleration, Mode=TwoWay}" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Hardware acceleration" IsOn="{Binding HardwareAcceleration, Mode=TwoWay}" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
 
                 <Border Style="{StaticResource PipelineCardZebraStyle}">
                     <StackPanel Padding="16,12" Spacing="6">
-                        <TextBlock Text="Export file name" />
+                        <TextBlock Text="Export file name" FontWeight="SemiBold" />
                         <TextBlock Text="Template for generated file names. Tokens: {title}, {date}, {time}, {format}."
                                    Style="{StaticResource StepCaptionStyle}" />
-                        <TextBox Text="{Binding FileNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox AutomationProperties.Name="Export file name template" Text="{Binding FileNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  PlaceholderText="{}{title}" IsSpellCheckEnabled="False" />
                         <TextBlock Text="Example: “{date} {title}” → 2026-07-24 My Report.pdf"
                                    Style="{StaticResource StepCaptionStyle}" Opacity="0.6" />
@@ -81,7 +91,7 @@
                         <TextBlock Text="Document font" FontWeight="SemiBold" />
                         <TextBlock Text="Fallback typography preset (only used when no document font is set — the document font field governs)"
                                    Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
-                        <ComboBox SelectedItem="{Binding FontPreset, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                        <ComboBox AutomationProperties.Name="Document font" SelectedItem="{Binding FontPreset, Mode=TwoWay}" HorizontalAlignment="Stretch">
                             <x:String>System</x:String>
                             <x:String>Serif</x:String>
                             <x:String>Sans-Serif</x:String>
@@ -98,11 +108,12 @@
 
                         <StackPanel Spacing="4">
                             <TextBlock Text="Default output format" Style="{StaticResource StepCaptionStyle}" />
-                            <ComboBox SelectedItem="{Binding TargetFormat, Mode=TwoWay}" HorizontalAlignment="Stretch">
-                                <x:String>docx</x:String>
-                                <x:String>pdf</x:String>
-                                <x:String>pptx</x:String>
-                                <x:String>epub</x:String>
+                            <!-- Tag carries the stored setting value; Content is what people read. -->
+                            <ComboBox SelectedValuePath="Tag" AutomationProperties.Name="Default output format" SelectedValue="{Binding TargetFormat, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="Word document (.docx)" Tag="docx" />
+                                <ComboBoxItem Content="PDF (.pdf)" Tag="pdf" />
+                                <ComboBoxItem Content="PowerPoint (.pptx)" Tag="pptx" />
+                                <ComboBoxItem Content="EPUB e-book (.epub)" Tag="epub" />
                             </ComboBox>
                             <TextBlock Text="Used by the browser extension, watch folder and quick-export shortcuts."
                                        Style="{StaticResource StepCaptionStyle}" Opacity="0.6" TextWrapping="Wrap" />
@@ -110,7 +121,7 @@
 
                         <StackPanel Spacing="4">
                             <TextBlock Text="When a choice is ambiguous" Style="{StaticResource StepCaptionStyle}" />
-                            <ComboBox SelectedIndex="{Binding AmbiguityMode, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                            <ComboBox AutomationProperties.Name="When a choice is ambiguous" SelectedIndex="{Binding AmbiguityMode, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                 <x:String>Always ask me</x:String>
                                 <x:String>Use the default</x:String>
                                 <x:String>Remember my choices</x:String>
@@ -127,7 +138,7 @@
                                 <TextBlock Text="Poll GitHub Releases once at launch and notify you when a newer MarkSmith is available."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch Grid.Column="1" IsOn="{Binding CheckForUpdatesOnStartup, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Check for updates on startup" IsOn="{Binding CheckForUpdatesOnStartup, Mode=TwoWay}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Grid ColumnSpacing="12">
@@ -140,7 +151,7 @@
                                 <TextBlock Text="Download and install new versions silently in the background without installer prompts."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Automatically install updates on launch" IsOn="{Binding AutoInstallUpdatesOnLaunch, Mode=TwoWay}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Grid ColumnSpacing="12">
@@ -153,7 +164,7 @@
                                 <TextBlock Text="Restart MarkSmith immediately when background installation finishes."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoRestartAfterUpdate, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Relaunch automatically after update" IsOn="{Binding AutoRestartAfterUpdate, Mode=TwoWay}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Grid ColumnSpacing="12">
@@ -166,7 +177,7 @@
                                 <TextBlock Text="Automatically collapse side panels into focus mode when entering Split view."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AutoFocusOnSplit, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Full-screen focus on Split mode" IsOn="{Binding AutoFocusOnSplit, Mode=TwoWay}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Grid ColumnSpacing="12">
@@ -179,7 +190,7 @@
                                 <TextBlock Text="Show the reading-time pill at the top of the live preview."
                                            Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowWordCount, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Word count in preview" IsOn="{Binding ShowWordCount, Mode=TwoWay}" VerticalAlignment="Center" />
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -202,28 +213,28 @@
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Page number position" Style="{StaticResource StepCaptionStyle}" />
-                                <ComboBox SelectedItem="{Binding PdfPageNumberPosition, Mode=TwoWay}" HorizontalAlignment="Stretch">
-                                    <x:String>None</x:String>
-                                    <x:String>BottomRight</x:String>
-                                    <x:String>BottomCenter</x:String>
-                                    <x:String>TopRight</x:String>
+                                <ComboBox SelectedValuePath="Tag" AutomationProperties.Name="Page number position" SelectedValue="{Binding PdfPageNumberPosition, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="None" Tag="None" />
+                                    <ComboBoxItem Content="Bottom right" Tag="BottomRight" />
+                                    <ComboBoxItem Content="Bottom center" Tag="BottomCenter" />
+                                    <ComboBoxItem Content="Top right" Tag="TopRight" />
                                 </ComboBox>
                             </StackPanel>
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Header template" Style="{StaticResource StepCaptionStyle}" />
-                                <TextBox Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox AutomationProperties.Name="PDF header template" Text="{Binding PdfHeaderTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="e.g. {title} — {date}" IsSpellCheckEnabled="False" />
                             </StackPanel>
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Footer template" Style="{StaticResource StepCaptionStyle}" />
-                                <TextBox Text="{Binding PdfFooterTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox AutomationProperties.Name="PDF footer template" Text="{Binding PdfFooterTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="e.g. Page {page} of {pages}" IsSpellCheckEnabled="False" />
                             </StackPanel>
 
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Preview" Style="{StaticResource StepCaptionStyle}" Opacity="0.7" />
+                                <TextBlock Text="Preview" Style="{StaticResource StepCaptionStyle}" />
                                 <TextBlock Text="{Binding PdfFooterPreview}" Style="{StaticResource StepCaptionStyle}" />
                             </StackPanel>
                         </StackPanel>
@@ -242,7 +253,7 @@
                                     <TextBlock Text="Encrypt the exported PDF and control who can open, print or edit it."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" IsOn="{Binding PdfEncrypt, Mode=TwoWay}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" AutomationProperties.Name="PDF password protection" IsOn="{Binding PdfEncrypt, Mode=TwoWay}" VerticalAlignment="Center" />
                             </Grid>
 
                             <StackPanel Spacing="8" Visibility="{Binding PdfEncrypt, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
@@ -254,7 +265,7 @@
                                              PlaceholderText="Auto-generated if left blank"
                                              ToolTipService.ToolTip="If you restrict permissions below but leave both passwords blank, a random owner password is generated automatically." />
 
-                                <StackPanel Spacing="2">
+                                <StackPanel Spacing="4">
                                     <TextBlock Text="Allowed actions" Style="{StaticResource StepCaptionStyle}" />
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <CheckBox Content="Print" IsChecked="{Binding PdfAllowPrinting, Mode=TwoWay}" />
@@ -286,12 +297,12 @@
                                     <TextBlock Text="Listens on loopback (127.0.0.1) for conversion requests from local scripts and browser extension."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" IsOn="{Binding ApiEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Local REST API server" IsOn="{Binding ApiEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
                             </Grid>
 
                             <StackPanel Spacing="4" Margin="0,4,0,0">
                                 <TextBlock Text="API Port" Style="{StaticResource StepCaptionStyle}" />
-                                <NumberBox Value="{Binding ApiPort, Mode=TwoWay}" Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="180" HorizontalAlignment="Left" />
+                                <NumberBox AutomationProperties.Name="API port" Value="{Binding ApiPort, Mode=TwoWay}" Minimum="1024" Maximum="65535" SpinButtonPlacementMode="Compact" Width="180" HorizontalAlignment="Left" />
                             </StackPanel>
 
                             <Grid ColumnSpacing="12" Margin="0,4,0,0">
@@ -304,7 +315,7 @@
                                     <TextBlock Text="Live progress + preview events on ws://127.0.0.1:PORT/api/stream, and streaming text into the editor from scripts. Off by default."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" IsOn="{Binding EnableStreamingApi, Mode=TwoWay}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" AutomationProperties.Name="WebSocket streaming" IsOn="{Binding EnableStreamingApi, Mode=TwoWay}" VerticalAlignment="Center" />
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -322,7 +333,7 @@
                                     <TextBlock Text="Mirror every export into a cloud drive. Uses the provider's own desktop sync client — no API keys needed for local providers."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" IsOn="{Binding CloudAutoPublish, Mode=TwoWay}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" AutomationProperties.Name="Cloud storage sync" IsOn="{Binding CloudAutoPublish, Mode=TwoWay}" VerticalAlignment="Center" />
                             </Grid>
 
                             <StackPanel Spacing="4">
@@ -332,7 +343,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox ItemsSource="{Binding CloudProviders}"
+                                    <ComboBox AutomationProperties.Name="Cloud storage provider" ItemsSource="{Binding CloudProviders}"
                                               SelectedValuePath="Id"
                                               SelectedValue="{Binding CloudProviderId, Mode=TwoWay}"
                                               DisplayMemberPath="DisplayName"
@@ -346,7 +357,7 @@
 
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Subfolder" Style="{StaticResource StepCaptionStyle}" />
-                                <TextBox Text="{Binding CloudSubfolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox AutomationProperties.Name="Cloud subfolder" Text="{Binding CloudSubfolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="Marksmith" IsSpellCheckEnabled="False" />
                                 <TextBlock Text="Exports are saved into this folder inside your cloud drive."
                                            Style="{StaticResource StepCaptionStyle}" Opacity="0.6" />
@@ -355,13 +366,13 @@
                             <!-- WebDAV fields (shown when the user picks the WebDAV provider) -->
                             <StackPanel Spacing="4" Visibility="{Binding IsWebDavProvider, Converter={StaticResource SettingsBoolToVisibilityConverter}}">
                                 <TextBlock Text="WebDAV Endpoint" Style="{StaticResource StepCaptionStyle}" />
-                                <TextBox Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox AutomationProperties.Name="WebDAV endpoint" Text="{Binding WebDavEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="https://dav.example.com/remote.php/dav/files/user/" IsSpellCheckEnabled="False" />
                                 <TextBlock Text="Username" Style="{StaticResource StepCaptionStyle}" />
-                                <TextBox Text="{Binding WebDavUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox AutomationProperties.Name="WebDAV username" Text="{Binding WebDavUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          PlaceholderText="user@example.com" IsSpellCheckEnabled="False" />
                                 <TextBlock Text="Token / Password" Style="{StaticResource StepCaptionStyle}" />
-                                <PasswordBox Password="{Binding WebDavToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                <PasswordBox AutomationProperties.Name="WebDAV token or password" Password="{Binding WebDavToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              PlaceholderText="App password or access token" />
                             </StackPanel>
                         </StackPanel>
@@ -374,7 +385,7 @@
                             <TextBlock Text="Copy your Extension ID from the Chrome/Edge extension popup and paste it here to authorize 1-click prompt ingestion."
                                        Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
 
-                            <TextBox Text="{Binding AllowedExtensionId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox AutomationProperties.Name="Browser extension ID" Text="{Binding AllowedExtensionId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      PlaceholderText="Paste your Extension ID (e.g. ext-xxxx or Chrome Extension ID)"
                                      IsSpellCheckEnabled="False" />
 
@@ -418,30 +429,33 @@
 
         <!-- ===== Google ===== -->
         <PivotItem Header="Google">
-            <ScrollViewer>
-                <StackPanel Spacing="12" MaxWidth="560" HorizontalAlignment="Left" Padding="0,16,0,24">
-                    <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                               Text="Export straight to Google Docs — sign in with your Google account and we create a real doc in your Drive with native headings, tables and images. Requires custom Google Cloud OAuth Client ID &amp; Secret configured in Advanced Settings before signing in." />
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14" Margin="0,12,10,0">
+                    <TextBlock Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap"
+                               Text="Export straight to Google Docs — Marksmith creates a real doc in your Drive with native headings, tables and images." />
                     <InfoBar x:Name="GoogleStatusBar" IsOpen="True" Severity="Informational"
                              Message="{Binding GoogleAuthStatus}" IsClosable="False" />
                     <Border Style="{StaticResource PipelineCardStyle}">
-                        <StackPanel Padding="16" Spacing="12">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
+                        <StackPanel Padding="16,12" Spacing="10">
+                            <TextBlock Text="Google account" FontWeight="SemiBold" />
+                            <TextBlock Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap"
+                                       Text="Sign-in shows a short code — approve it in your browser and you're connected. Marksmith only ever creates documents and the images inside them; nothing else in your Drive is touched." />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="Sign in with Google" Command="{Binding ConnectGoogleCommand}" Style="{StaticResource AccentButtonStyle}" />
                                 <Button Content="Sign out" Command="{Binding SignOutGoogleCommand}" />
                             </StackPanel>
-                            <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.75"
-                                       Text="Requires custom Google Cloud OAuth Client ID &amp; Secret configured in Advanced Settings before signing in. Sign-in opens a code in your browser — approve it and you're connected. Marksmith only ever creates documents and the images inside them; nothing else in your Drive is touched." />
                         </StackPanel>
                     </Border>
-                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <!-- Opens by itself while no client is configured, since sign-in can't work until it is. -->
+                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                              IsExpanded="{Binding IsGoogleConfigured, Mode=OneTime, Converter={StaticResource SettingsBoolInverseConverter}}">
                         <Expander.Header>
-                            <TextBlock Text="Advanced — use your own Google Cloud client" />
+                            <TextBlock Text="Google Cloud client (required for sign-in)" />
                         </Expander.Header>
-                        <StackPanel Spacing="12" Padding="0,12,0,0">
-                            <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.75"
-                                       Text="Only needed if you want to use your own Google Cloud project instead of the built-in client. When both are blank, the app's built-in client is used." />
-                            <TextBox Header="Client ID" PlaceholderText="xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+                        <StackPanel Spacing="12" Padding="0,4,0,4">
+                            <TextBlock Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap"
+                                       Text="Create a &quot;Desktop app&quot; OAuth client in your Google Cloud project (with the Google Docs and Google Drive APIs enabled), then paste its ID and secret here." />
+                            <TextBox Header="Client ID" PlaceholderText="xxxxxxxxxxxxxxxx.apps.googleusercontent.com" IsSpellCheckEnabled="False"
                                      Text="{Binding GoogleClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <PasswordBox x:Name="GoogleSecretBox" Header="Client secret" PlaceholderText="GOCSPX-…"
                                          PasswordChanged="OnGoogleSecretChanged" />
@@ -453,29 +467,34 @@
 
         <!-- ===== License ===== -->
         <PivotItem Header="License">
-            <StackPanel Spacing="14" Margin="0,12,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14" Margin="0,12,10,0">
                 <Border Style="{StaticResource PipelineCardStyle}">
                     <StackPanel Padding="16" Spacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <FontIcon Glyph="&#xE734;" FontSize="16" Foreground="{ThemeResource SystemAccentColor}" VerticalAlignment="Center" />
+                            <FontIcon x:Name="EditionIcon" Glyph="&#xE734;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding EditionStatus}" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Text="MarkSmith Pro unlocks DOCX export (with editable equations), hands-free automation, and removes the footer from your exports."
                                    Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBox x:Name="KeyBox" PlaceholderText="Paste your license key" Width="290" IsSpellCheckEnabled="False" />
-                            <Button x:Name="ActivateButton" Content="Activate" Click="OnActivateLicense"
+                        <Grid x:Name="KeyEntryRow" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox AutomationProperties.Name="License key" x:Name="KeyBox" PlaceholderText="Paste your license key" IsSpellCheckEnabled="False" />
+                            <Button x:Name="ActivateButton" Grid.Column="1" Content="Activate" Click="OnActivateLicense"
                                     ToolTipService.ToolTip="Validate the key and unlock Pro features" />
-                        </StackPanel>
+                        </Grid>
                         <TextBlock x:Name="LicenseStatus" Text="" Style="{StaticResource StepCaptionStyle}"
                                    TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button x:Name="StartTrialButton" Content="Start 3-export trial" Click="OnStartTrialClick"
                                     Style="{ThemeResource AccentButtonStyle}"
                                     ToolTipService.ToolTip="Your trial is full Pro for exactly 3 DOCX exports — then the paywall returns" />
-                            <Button Click="OnBuyPro"
+                            <Button x:Name="BuyButton" Click="OnBuyPro"
                                     ToolTipService.ToolTip="Open the MarkSmith Pro purchase page">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE719;" FontSize="14" />
@@ -488,6 +507,7 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
+            </ScrollViewer>
         </PivotItem>
 
         <!-- ===== Plugins ===== -->
@@ -499,6 +519,14 @@
                     <!-- One card per registered plugin, built in code-behind from App.Plugins.All
                          (manifest-driven — see MarkSmith.Core/Plugins). -->
                     <StackPanel x:Name="PluginsPanel" Spacing="10" />
+                    <Border x:Name="PluginsEmptyState" Style="{StaticResource PipelineCardStyle}" Visibility="Collapsed">
+                        <StackPanel Padding="16,20" Spacing="6" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xEA86;" FontSize="22" Opacity="0.6" />
+                            <TextBlock Text="No plugins available" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Drop a plugin folder into %LOCALAPPDATA%\MarkSmith\Plugins and reopen Settings."
+                                       Style="{StaticResource StepCaptionStyle}" TextAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                     <TextBlock x:Name="PluginWarnings" Text="" Style="{StaticResource StepCaptionStyle}"
                                TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
                     <HyperlinkButton Content="Browse more plugins &amp; write your own"
@@ -509,7 +537,8 @@
 
         <!-- ===== About ===== -->
         <PivotItem Header="About">
-            <StackPanel Spacing="14" Margin="0,12,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14" Margin="0,12,10,0">
                 <Border Style="{StaticResource PipelineCardStyle}">
                     <StackPanel Padding="16" Spacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="12">
@@ -523,7 +552,7 @@
 
                         <TextBlock Text="Turn AI chats into polished documents." Opacity="0.8" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <Button x:Name="CheckButton" Click="OnCheckForUpdates"
                                     ToolTipService.ToolTip="Check GitHub for a newer MarkSmith release">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -553,8 +582,9 @@
                 </Border>
 
                 <TextBlock Text="© 2026 Matthew Bubb · All rights reserved · Built with WinUI 3, .NET 8 and WebView2"
-                           Style="{StaticResource StepCaptionStyle}" HorizontalAlignment="Center" />
+                           Style="{StaticResource StepCaptionStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
             </StackPanel>
+            </ScrollViewer>
         </PivotItem>
     </Pivot>
 </UserControl>

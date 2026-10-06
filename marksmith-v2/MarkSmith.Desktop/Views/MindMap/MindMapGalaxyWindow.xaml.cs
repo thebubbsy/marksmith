@@ -47,6 +47,12 @@ namespace MarkSmith.Views.MindMap
             ViewModel = viewModel ?? new MindMapStudioViewModel();
             this.RootGrid.DataContext = ViewModel;
 
+            // Same chrome as the other studio windows: the header doubles as the title bar, instead
+            // of a stock (light on a light-mode PC) system caption strip above an always-dark galaxy.
+            this.ExtendsContentIntoTitleBar = true;
+            this.SetTitleBar(AppTitleBar);
+            TitleBarInsets.Reserve(this, AppTitleBar);
+
             ViewModel.CanvasRedrawRequested += (s, e) => RequestRedraw();
             ViewModel.OpenDocumentRequested += (s, path) => OpenDocumentRequested?.Invoke(this, path);
 
@@ -55,7 +61,7 @@ namespace MarkSmith.Views.MindMap
 
             this.Activated += OnWindowActivated;
             this.RootGrid.KeyDown += OnRootKeyDown;
-            HoverPolish.Apply(this.RootGrid);
+            HoverPolish.Track(this.RootGrid);
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -1067,12 +1073,18 @@ namespace MarkSmith.Views.MindMap
         private async void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
         {
             // Never steal a keystroke that belongs to a text box in the inspector.
-            if (FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox or AutoSuggestBox)
+            var focused = FocusManager.GetFocusedElement(this.Content.XamlRoot);
+            if (focused is TextBox or AutoSuggestBox)
             {
                 return;
             }
 
             bool ctrl = IsCtrlDown();
+
+            // Tab / Enter / Delete / Backspace edit the galaxy only while the canvas itself has
+            // focus (clicking a node or the canvas focuses it). Anywhere else they keep their normal
+            // meaning — Tab moves between toolbar buttons instead of spawning a child node.
+            bool canvasFocused = focused is null || ReferenceEquals(focused, GalaxyCanvas);
 
             switch (e.Key)
             {
@@ -1101,24 +1113,42 @@ namespace MarkSmith.Views.MindMap
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Number0 when ctrl:
+                case Windows.System.VirtualKey.NumberPad0 when ctrl:
                     FitToWindow();
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.Delete:
-                case Windows.System.VirtualKey.Back:
+                // Ctrl+= / Ctrl++ and Ctrl+- (main row 0xBB/0xBD, plus the numpad keys), matching the
+                // zoom buttons' tooltips.
+                case (Windows.System.VirtualKey)0xBB when ctrl:
+                case Windows.System.VirtualKey.Add when ctrl:
+                    OnZoomInClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case (Windows.System.VirtualKey)0xBD when ctrl:
+                case Windows.System.VirtualKey.Subtract when ctrl:
+                    OnZoomOutClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.Delete when canvasFocused:
+                case Windows.System.VirtualKey.Back when canvasFocused:
                     ViewModel.DeleteSelectionCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.Tab:
+                case Windows.System.VirtualKey.Tab when canvasFocused && !ctrl:
                     ViewModel.AddChildNodeCommand.Execute(null);
                     e.Handled = true;
                     return;
-                case Windows.System.VirtualKey.Enter:
+                case Windows.System.VirtualKey.Enter when canvasFocused:
                     ViewModel.AddSiblingNodeCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.F3:
                     ViewModel.FocusNextMatch(!IsShiftDown());
+                    e.Handled = true;
+                    return;
+                case Windows.System.VirtualKey.F when !ctrl && canvasFocused:
+                    // Advertised on the focus-mode button's tooltip.
+                    OnToggleFocusModeClick(this, new RoutedEventArgs());
                     e.Handled = true;
                     return;
                 case Windows.System.VirtualKey.Escape:

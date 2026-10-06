@@ -22,10 +22,41 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel = new ShapeDesignStudioViewModel();
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
+            TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
             this.RootGrid.DataContext = ViewModel;
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
-            HoverPolish.Apply(this.RootGrid);
+            HoverPolish.Track(this.RootGrid);
+            this.RootGrid.KeyDown += OnRootKeyDown;
+        }
+
+        // Canvas shortcuts: Delete removes the selected shape, Ctrl+D duplicates it, Esc deselects.
+        // Text fields (W/H/Fill/label, Markdown) keep their own keys.
+        private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (FocusManager.GetFocusedElement(this.RootGrid.XamlRoot) is TextBox or PasswordBox or AutoSuggestBox)
+            {
+                return;
+            }
+
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            if (e.Key == Windows.System.VirtualKey.Delete && ViewModel.SelectedShape is not null)
+            {
+                ViewModel.RemoveSelectedCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (ctrl && e.Key == Windows.System.VirtualKey.D && ViewModel.SelectedShape is not null)
+            {
+                ViewModel.DuplicateSelectedCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Escape && ViewModel.SelectedShape is not null)
+            {
+                ViewModel.SelectedShape = null;
+                e.Handled = true;
+            }
         }
 
         private async void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -277,7 +308,28 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnExportDotxClick(object sender, RoutedEventArgs e) => ViewModel.ExportDotxCommand.Execute(null);
 
-        private void OnClearClick(object sender, RoutedEventArgs e) => ViewModel.ClearAllCommand.Execute(null);
+        // Clear has no undo, so confirm before wiping a canvas that has work on it.
+        private async void OnClearClick(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel.Shapes.Count == 0)
+            {
+                return;
+            }
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = this.RootGrid.XamlRoot,
+                Title = "Clear the canvas?",
+                Content = $"This removes all {ViewModel.Shapes.Count} shape{(ViewModel.Shapes.Count == 1 ? "" : "s")} and can't be undone.",
+                PrimaryButtonText = "Clear canvas",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+            };
+            if (await HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary)
+            {
+                ViewModel.ClearAllCommand.Execute(null);
+            }
+        }
 
         private void OnDeleteShapeClick(object sender, RoutedEventArgs e) => ViewModel.RemoveSelectedCommand.Execute(null);
 

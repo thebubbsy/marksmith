@@ -45,7 +45,7 @@
                         ToolTipService.ToolTip="Insert this vector diagram into the active document — renders in preview and exports as native editable Word shapes." />
                 <Button Content="Export .docx" Command="{Binding ExportDocxCommand}" ToolTipService.ToolTip="Export as standalone Word Document" />
                 <Button Content="Export .dotx" Command="{Binding ExportDotxCommand}" ToolTipService.ToolTip="Export as Word Template" />
-                <Button Content="Clear" Command="{Binding ClearAllCommand}" />
+                <Button Content="Clear" Click="OnClearClick" ToolTipService.ToolTip="Remove every shape from the canvas" />
             </StackPanel>
         </Grid>
 
@@ -63,11 +63,11 @@
                     <StackPanel Spacing="12">
 
                         <!-- 1. SMARTART & DIAGRAM TEMPLATES & PRESETS (40+ PROFESSIONAL LAYOUTS) -->
-                        <Expander Header="SmartArt &amp; Diagram Presets (40+ Layouts)" IsExpanded="True">
+                        <Expander Header="Diagram presets (40+)" IsExpanded="True">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Filter by category to explore 40+ native Word vector layouts." FontSize="11" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                 
-                                <ComboBox ItemsSource="{Binding PresetCategories}" SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                <ComboBox AutomationProperties.Name="Preset category" ItemsSource="{Binding PresetCategories}" SelectedItem="{Binding SelectedPresetCategory, Mode=TwoWay}" HorizontalAlignment="Stretch" />
 
                                 <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding FilteredPresets}">
@@ -164,7 +164,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0" ItemsSource="{Binding PaletteNames}" SelectedItem="{Binding SelectedPaletteName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                    <ComboBox Grid.Column="0" AutomationProperties.Name="Color theme" ItemsSource="{Binding PaletteNames}" SelectedItem="{Binding SelectedPaletteName, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <Button Grid.Column="1" Content="Apply" Command="{Binding ApplyPaletteThemeCommand}" ToolTipService.ToolTip="Recolor all shapes with selected palette" />
                                 </Grid>
                             </StackPanel>
@@ -223,7 +223,7 @@
                                                 <TextBlock Text="{Binding ElementName=FuseMosaicDensity, Path=Value}" FontSize="11" FontWeight="Bold"
                                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
                                             </Grid>
-                                            <Slider x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
+                                            <Slider AutomationProperties.Name="Mosaic density" x:Name="FuseMosaicDensity" Minimum="0" Maximum="120" Value="32" SmallChange="1" LargeChange="5" />
                                         </StackPanel>
 
                                         <TextBlock Text="Tile primitives:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -264,7 +264,7 @@
                                                 <TextBlock Text="{Binding ElementName=FuseLineDensity, Path=Value}" FontSize="11" FontWeight="Bold"
                                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
                                             </Grid>
-                                            <Slider x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" />
+                                            <Slider AutomationProperties.Name="Line density" x:Name="FuseLineDensity" Minimum="0" Maximum="1200" Value="300" SmallChange="10" LargeChange="50" />
                                         </StackPanel>
 
                                         <TextBlock Text="Linework style:" FontSize="10.5" Opacity="0.7" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -332,17 +332,17 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <TextBlock Text="Align:" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,2,0" />
-                            <Button Command="{Binding AlignLeftCommand}" ToolTipService.ToolTip="Align Left" Padding="6,4"><FontIcon Glyph="&#xE8E4;" FontSize="12" /></Button>
-                            <Button Command="{Binding AlignCenterCommand}" ToolTipService.ToolTip="Align Center" Padding="6,4"><FontIcon Glyph="&#xE8E3;" FontSize="12" /></Button>
-                            <Button Command="{Binding AlignRightCommand}" ToolTipService.ToolTip="Align Right" Padding="6,4"><FontIcon Glyph="&#xE8E2;" FontSize="12" /></Button>
-                            <Button Command="{Binding AlignTopCommand}" ToolTipService.ToolTip="Align Top" Padding="6,4"><FontIcon Glyph="&#xE8E1;" FontSize="12" /></Button>
-                            <Button Command="{Binding AlignMiddleCommand}" ToolTipService.ToolTip="Align Middle" Padding="6,4"><FontIcon Glyph="&#xE8E3;" FontSize="12" /></Button>
-                            <Button Command="{Binding AlignBottomCommand}" ToolTipService.ToolTip="Align Bottom" Padding="6,4"><FontIcon Glyph="&#xE8E0;" FontSize="12" /></Button>
+                            <Button Command="{Binding AlignLeftCommand}" ToolTipService.ToolTip="Align Left" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M3,2.62 h7.5 v2.25 h-7.5 Z M3,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button Command="{Binding AlignCenterCommand}" ToolTipService.ToolTip="Align Center" Padding="6,4"><PathIcon Width="12" Height="12" Data="M5.44,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h9 v2.25 h-9 Z M3,7.12 h6 v2.25 h-6 Z" /></Button>
+                            <Button Command="{Binding AlignRightCommand}" ToolTipService.ToolTip="Align Right" Padding="6,4"><PathIcon Width="12" Height="12" Data="M10.12,0.75 h1.12 v10.5 h-1.12 Z M1.5,2.62 h7.5 v2.25 h-7.5 Z M4.5,7.12 h4.5 v2.25 h-4.5 Z" /></Button>
+                            <Button Command="{Binding AlignTopCommand}" ToolTipService.ToolTip="Align Top" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M2.62,3 h2.25 v7.5 h-2.25 Z M7.12,3 h2.25 v4.5 h-2.25 Z" /></Button>
+                            <Button Command="{Binding AlignMiddleCommand}" ToolTipService.ToolTip="Align Middle" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,5.44 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v9 h-2.25 Z M7.12,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button Command="{Binding AlignBottomCommand}" ToolTipService.ToolTip="Align Bottom" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,10.12 h10.5 v1.12 h-10.5 Z M2.62,1.5 h2.25 v7.5 h-2.25 Z M7.12,4.5 h2.25 v4.5 h-2.25 Z" /></Button>
                             <AppBarSeparator Margin="2,0" />
-                            <Button Command="{Binding DistributeHorizontalCommand}" ToolTipService.ToolTip="Distribute Horizontally" Padding="6,4"><FontIcon Glyph="&#xE8D8;" FontSize="12" /></Button>
-                            <Button Command="{Binding DistributeVerticalCommand}" ToolTipService.ToolTip="Distribute Vertically" Padding="6,4"><FontIcon Glyph="&#xE8D7;" FontSize="12" /></Button>
+                            <Button Command="{Binding DistributeHorizontalCommand}" ToolTipService.ToolTip="Distribute Horizontally" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h1.12 v10.5 h-1.12 Z M10.12,0.75 h1.12 v10.5 h-1.12 Z M4.88,3 h2.25 v6 h-2.25 Z" /></Button>
+                            <Button Command="{Binding DistributeVerticalCommand}" ToolTipService.ToolTip="Distribute Vertically" Padding="6,4"><PathIcon Width="12" Height="12" Data="M0.75,0.75 h10.5 v1.12 h-10.5 Z M0.75,10.12 h10.5 v1.12 h-10.5 Z M3,4.88 h6 v2.25 h-6 Z" /></Button>
                             <AppBarSeparator Margin="2,0" />
-                            <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape" Padding="6,4">
+                            <Button Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)" Padding="6,4">
                                 <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE8C8;" FontSize="12" /><TextBlock Text="Duplicate" FontSize="11" /></StackPanel>
                             </Button>
                         </StackPanel>
@@ -430,35 +430,35 @@
                                        Visibility="{Binding SelectedShape, Converter={StaticResource NullToVisibilityConverter}}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Type:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <ComboBox SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}" Width="150" />
+                                <ComboBox AutomationProperties.Name="Shape type" SelectedItem="{Binding SelectedShape.Prst, Mode=TwoWay}" ItemsSource="{Binding PaletteItems}" Width="150" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="X:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox Text="{Binding SelectedShape.X, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                <TextBox AutomationProperties.Name="X position" Text="{Binding SelectedShape.X, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                                 <TextBlock Text="Y:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding SelectedShape.Y, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                <TextBox AutomationProperties.Name="Y position" Text="{Binding SelectedShape.Y, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="W:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                <TextBox AutomationProperties.Name="Width" Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                                 <TextBlock Text="H:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                <TextBox AutomationProperties.Name="Height" Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Fill:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <TextBox Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                                <TextBox AutomationProperties.Name="Fill color" Text="{Binding SelectedShape.Fill, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="140" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Text Label:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                <TextBox Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
+                                <TextBox AutomationProperties.Name="Text label" Text="{Binding SelectedShape.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Rot:" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Width="40" />
-                                <Slider Minimum="-180" Maximum="180" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
+                                <Slider Minimum="-180" Maximum="180" AutomationProperties.Name="Rotation" Value="{Binding SelectedShape.Rotation, Mode=TwoWay}" Width="180" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Duplicate" Command="{Binding DuplicateSelectedCommand}" />
-                                <Button Content="Delete" Command="{Binding RemoveSelectedCommand}" />
+                                <Button Content="Duplicate" Command="{Binding DuplicateSelectedCommand}" ToolTipService.ToolTip="Duplicate selected shape (Ctrl+D)" />
+                                <Button Content="Delete" Command="{Binding RemoveSelectedCommand}" ToolTipService.ToolTip="Delete selected shape (Del)" />
                             </StackPanel>
                         </StackPanel>
 

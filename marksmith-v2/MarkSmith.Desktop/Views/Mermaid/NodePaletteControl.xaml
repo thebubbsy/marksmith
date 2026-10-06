@@ -17,7 +17,7 @@
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="Shape Palette" FontWeight="SemiBold" FontSize="14" Foreground="#EDF2F4" />
             <TextBox x:Name="SearchTextBox"
-                     PlaceholderText="Search primitives..."
+                     PlaceholderText="Search primitives…"
                      TextChanged="OnSearchTextChanged"
                      FontSize="12" />
         </StackPanel>

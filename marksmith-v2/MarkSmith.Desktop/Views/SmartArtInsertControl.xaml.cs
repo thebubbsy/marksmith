@@ -15,7 +15,7 @@ public sealed partial class SmartArtInsertControl : UserControl
         InitializeComponent();
         SetDefaultTemplate("phases");
         UpdatePreview();
-        Services.HoverPolish.Apply(this);
+        Services.HoverPolish.Track(this);
     }
 
     public string SelectedType => _selectedType;

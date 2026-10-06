@@ -21,8 +21,18 @@ public class SelectedBrushConverter : IValueConverter
     {
         var isSelected = value is true;
         if (parameter is string s && string.Equals(s, "themed", StringComparison.OrdinalIgnoreCase))
-            return isSelected ? Themed("SystemAccentColor") : Themed("CardBackgroundFillColorSecondaryBrush");
+            return isSelected ? ThemedSelection() : Themed("CardBackgroundFillColorSecondaryBrush");
         return isSelected ? Selected : Normal;
+    }
+
+    // SystemAccentColor is a Color resource, not a Brush — looking it up through Themed() always
+    // missed and every "selected" History row fell back to plain grey. A translucent accent wash
+    // reads as selected in both themes while keeping the row's primary text legible.
+    private static Brush ThemedSelection()
+    {
+        if (Application.Current.Resources.TryGetValue("SystemAccentColor", out var c) && c is Color accent)
+            return new SolidColorBrush(accent) { Opacity = 0.24 };
+        return Selected;
     }
 
     private static Brush Themed(string key)

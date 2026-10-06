@@ -319,3 +319,113 @@ Reviewed: run #4's entry above. Worked its priorities #1, #2 and #3.
 3. GUI-session visual check of everything listed under "Next time the app is open" across runs
    #1–#5 (hover/press tuning in `HoverPolish.cs`, dialog lift, empty states, Light theme).
 4. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)
+
+### 2026-10-06 15:50 AEST (scheduled routine run #6)
+
+Reviewed: run #5's entry above. Worked its #1 (Settings card audit) and #2 (keyboard/focus — the
+first run to touch it), and — new this run — **actually looked at the app**: the routine can now
+screenshot windows (PowerShell `CopyFromScreen`) and drive/inspect them through UI Automation, so
+several bugs below were found by eye rather than by reading XAML. Large run; grouped by theme.
+
+**Shipped — wrong / broken things you could see:**
+- **Icon audit (every `Glyph` in the app rendered into a contact sheet next to its tooltip).**
+  Fixed: main editor **Italic and Strikethrough showed thumbs-up/down** (legacy `E19D`/`E19E`
+  code points), Bold/Lists normalised; **Numbered List and the Mermaid database node were blank
+  boxes** (`E293`/`EAF5` don't exist in Segoe Fluent); Blockquote showed a report icon; Shape
+  Studio's **Align Top/Bottom were thumbs, Align Middle duplicated Align Center, Distribute H/V
+  were a sync-off and a key**; Mermaid Studio's six Align items all shared one chat-bubble glyph
+  and Distribute/Auto-arrange were keys; SmartArt Move up/down showed a keyboard and a sticky
+  note; galaxy/graph features used the "info" icon; Suite Hub/Galaxy/Hierarchy/Clustered icons
+  fixed. Align/distribute/numbered-list now use custom `PathIcon` geometry (Fluent has none).
+- **Inverted star states:** the file-pin and theme-favourite stars showed *filled* when not
+  pinned. Swapped (filled = pinned).
+- **History window:** the per-version star rendered a `Visibility` value instead of a star (bool
+  was run through `BoolToVisibilityConverter` into `Text`); the "selected" row highlight silently
+  fell back to grey (`SystemAccentColor` is a Color, looked up as a Brush) — now a translucent
+  accent wash; all emoji chrome (⏱️🔍⭐💾📄⏮ and the per-source emoji) → Fluent glyphs; Restore uses
+  `AccentButtonStyle`.
+- **Shape & SmartArt Studio title bars:** right-hand buttons (Clear, Export .dotx, Insert) sat
+  *underneath* min/max/close. New `Services/TitleBarInsets.Reserve(window, bar)` pads custom title
+  bars by the live caption-button inset (DPI-aware). Verified by screenshot.
+- **Mind Map Galaxy:** stock white OS caption strip over an always-dark window, and the toolbar
+  overflowed (Child drawn under the subtitle, Save cut off by search). Header is now a two-row
+  layout — row 0 is an extended title bar (title + search/zoom, inset-reserved), row 1 the
+  toolbar in a horizontal scroller. **Branch accent swatches rendered as empty grey squares**
+  (unsized Border in a centred Button) — fixed. *Opened OK via UIA but not seen by eye — the
+  PC locked mid-run; please glance at it.*
+- **Settings dialog:** stock 24pt Pivot headers meant **License/Plugins/About were scrolled off
+  the edge** — compact 15pt headers now fit all 7. Strict plain/zebra card alternation, SemiBold
+  card titles everywhere, raw values in combos replaced (`docx` → "Word document (.docx)",
+  `BottomRight` → "Bottom right"), Google tab rewritten (it claimed a built-in client that's
+  empty — copy now says credentials are required and the expander opens itself until they're
+  set), License/About scroll like the other tabs, License hides key entry + Buy once Pro is active
+  (and stops printing the status twice), plugin cards use the shared caption style, theme
+  success colour, accent Install, collapse empty status lines, plus an empty state.
+- **SmartArt Studio:** gallery printed every untitled layout twice ("AccentedPicture /
+  AccentedPicture", "arrow1") — now "Accented Picture" over a monospace `AccentedPicture` token
+  (`StudioLayoutItem.DisplayName`, unit-tested); preview badge no longer repeats the name; design
+  toolbar fits (Rename/Delete icon-only with tooltips) instead of clipping Redo.
+- Shape Studio presets header no longer truncated; ASCII "..." → "…" in 18 UI strings; emoji
+  buttons in the Style panel (🎨, ✕, ＋) → Fluent icons.
+
+**Shipped — keyboard & dialogs (run #5's priority #2):**
+- Advertised-but-dead shortcuts now work: **Ctrl+,** (Settings), **Ctrl+Shift+S** (History
+  checkpoint), **Ctrl+− / Ctrl++** (Galaxy zoom, incl. numpad), **F** (Galaxy focus mode).
+- **Galaxy bug: Tab anywhere (e.g. moving between toolbar buttons) added a node**, and
+  Delete/Backspace/Enter acted on the canvas from anywhere. Those keys now only apply while the
+  canvas has focus.
+- Shape Studio had no keyboard support: Delete, Ctrl+D, Esc added; **Clear (no undo) now
+  confirms**.
+- F1 cheat-sheet listed half the real shortcuts — now grouped (File & export / Editing / View &
+  tools), complete, scrollable.
+- Command palette: "No commands match …" state, shortcut shown per row, consistent categories,
+  and the missing SmartArt Studio / Version history / Print / Focus mode entries.
+- `ShowPolishedAsync` now refuses to open a second ContentDialog (WinUI throws — e.g. F1 or
+  Ctrl+K while Settings is open used to crash); Settings' .dotx error now reports inline instead
+  of trying to stack a dialog.
+- **Data-loss fix:** the startup "Recover unsaved document" prompt had Discard as its *Close*
+  button, so **Escape deleted the only copy of your draft**. Discard is now an explicit secondary
+  button; Escape / "Keep as file" moves the draft to `%LOCALAPPDATA%\MarkSmith\Recovered drafts\`
+  and says where in the status bar.
+
+**Shipped — accessibility (found via UI Automation):**
+- Almost every icon+label or icon-only button exposed **no accessible name** (Narrator said
+  "button"). `HoverPolish` now names buttons from their visible label (tooltip when the label is
+  glyph-like: "B", "H1", "A+"), names composite-header Expanders, and names header-less
+  inputs from their tooltip; Settings/studio inputs with separate label TextBlocks got explicit
+  `AutomationProperties.Name`.
+- `HoverPolish.Track(root)` replaces construction-time `Apply` everywhere: re-walks (throttled,
+  ~2–7 ms, zero at idle — measured) as content realises, so buttons in unselected Pivot tabs,
+  expanders and late templates finally get the hover lift *and* names. Handles WinUI's
+  out-of-order Loaded/Unloaded on reparenting.
+- UIA audit result: main window 18/18, Suite Hub 30/30, every Settings tab, Mermaid Studio 56/56,
+  Shape Studio 118/118, Galaxy 51/51 interactive controls named.
+
+**Verified:**
+- `dotnet build` (Debug/x64): 0 warnings, 0 errors. Smoke launch: running + responding after 10 s.
+- Tests: 3074 passed, 1 skipped, 2 failed — both failures are the new
+  `HouseLayoutTests.Export_using_an_exported_doc_as_template_retitles_its_header` cases in the
+  **uncommitted, not-mine** `MarkSmith.Core`/`MarkSmith.Tests` work-in-progress (still left
+  uncommitted, as in runs #4–#5). New `SmartArtStudioLayoutNameTests` 6/6.
+- Screenshots reviewed: main window, recovery prompt (before/after), Settings (General, PDF,
+  Google, License, Plugins), shortcuts sheet, command palette (list + no-match), Shape Studio
+  (empty, populated, align icons zoomed, Clear confirm), SmartArt Studio (before/after), Galaxy
+  (before only).
+- Test hygiene: the app's real data was backed up first; the recovery draft was parked during
+  testing and restored byte-identical; `settings.json` restored (only `LaunchCount` had moved).
+
+**How to see it:** screenshots need an unlocked desktop. Tooling lives only in the session
+scratchpad; the recipe is: `GetWindowRect` + `Graphics.CopyFromScreen` per window, `SendKeys`
+after `SetForegroundWindow` (tap Alt first), and `System.Windows.Automation` for named-control
+invoke + audits (works even while the PC is locked).
+
+**Next up, in priority order:**
+1. **Galaxy by eye**: confirm the new two-row header/title bar and the swatches look right.
+2. **Main window at ~1220 px**: the bottom editing toolbar clips "Tools" against the preview
+   column edge (seen in screenshots) — needs an overflow strategy like the studios got.
+3. **Shape Studio inspector empty state**: with shapes on canvas but none selected, the inspector
+   shows blank boxes and an empty Type combo — wants a "Select a shape" state like SmartArt's.
+4. Keyboard focus visuals: now that keys work, tab through each window and check focus order and
+   that the HoverPolish scale doesn't fight the focus rectangle.
+5. Re-run the glyph contact sheet for C#-built icons (this run covered XAML `Glyph=` only).
+6. (Reminder, unrelated to this routine: see memory `marksmith-examples-need-regen`.)

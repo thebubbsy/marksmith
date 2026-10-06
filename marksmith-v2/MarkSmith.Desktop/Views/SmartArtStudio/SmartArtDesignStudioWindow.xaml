@@ -58,7 +58,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
                         <TextBlock Text="Layout Gallery" FontWeight="SemiBold" FontSize="14" />
-                        <TextBox PlaceholderText="Search..." MaxHeight="32"
+                        <TextBox AutomationProperties.Name="Search layouts" PlaceholderText="Search…" MaxHeight="32"
                                  Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <ListView Grid.Row="1" ItemsSource="{Binding Layouts}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}">
@@ -70,11 +70,12 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
-                                        <TextBlock Text="{Binding Alias}" FontSize="11" Opacity="0.6" />
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                        <!-- The token you'd type after "layout:" in a ```smartart block. -->
+                                        <TextBlock Text="{Binding Alias}" FontSize="11" Opacity="0.6" FontFamily="Consolas" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-                                    <Border Grid.Column="1" Background="{ThemeResource SystemControlBackgroundAccentBrush}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Category}" FontSize="9" Foreground="White" />
+                                    <Border Grid.Column="1" Background="{ThemeResource SubtleFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Border>
                                 </Grid>
                             </DataTemplate>
@@ -110,15 +111,17 @@
                             <Button Command="{Binding AddSiblingCommand}" ToolTipService.ToolTip="Add sibling after the selected node">
                                 <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE8FD;" FontSize="13" /><TextBlock Text="Sibling" /></StackPanel>
                             </Button>
-                            <Button Command="{Binding BeginRenameCommand}" Click="OnRenameClick" ToolTipService.ToolTip="Rename (F2 or double-click)">
-                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE70F;" FontSize="13" /><TextBlock Text="Rename" /></StackPanel>
+                            <Button Command="{Binding BeginRenameCommand}" Click="OnRenameClick" ToolTipService.ToolTip="Rename (F2 or double-click)"
+                                    AutomationProperties.Name="Rename">
+                                <FontIcon Glyph="&#xE70F;" FontSize="14" />
                             </Button>
-                            <Button Command="{Binding DeleteSelectedCommand}" ToolTipService.ToolTip="Delete (Del)">
-                                <StackPanel Orientation="Horizontal" Spacing="4"><FontIcon Glyph="&#xE74D;" FontSize="13" /><TextBlock Text="Delete" /></StackPanel>
+                            <Button Command="{Binding DeleteSelectedCommand}" ToolTipService.ToolTip="Delete (Del)"
+                                    AutomationProperties.Name="Delete">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" />
                             </Button>
                             <AppBarSeparator />
-                            <Button Command="{Binding MoveUpCommand}" ToolTipService.ToolTip="Move up"><FontIcon Glyph="&#xE70A;" FontSize="14" /></Button>
-                            <Button Command="{Binding MoveDownCommand}" ToolTipService.ToolTip="Move down"><FontIcon Glyph="&#xE70B;" FontSize="14" /></Button>
+                            <Button Command="{Binding MoveUpCommand}" ToolTipService.ToolTip="Move up"><FontIcon Glyph="&#xE74A;" FontSize="14" /></Button>
+                            <Button Command="{Binding MoveDownCommand}" ToolTipService.ToolTip="Move down"><FontIcon Glyph="&#xE74B;" FontSize="14" /></Button>
                             <Button Command="{Binding PromoteCommand}" ToolTipService.ToolTip="Promote (outdent)"><FontIcon Glyph="&#xE76B;" FontSize="14" /></Button>
                             <Button Command="{Binding DemoteCommand}" ToolTipService.ToolTip="Demote (indent)"><FontIcon Glyph="&#xE76C;" FontSize="14" /></Button>
                             <AppBarSeparator />
@@ -147,7 +150,7 @@
                                         <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
                                                    TextWrapping="Wrap" FontSize="13"
                                                    Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                        <TextBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Grid.Column="1" AutomationProperties.Name="Node text" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}"
                                                  KeyDown="OnRenameKeyDown" LostFocus="OnRenameLostFocus"
                                                  FontSize="13" Padding="4,2" MinHeight="26" />
@@ -208,7 +211,7 @@
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                 <Expander Header="Markdown Data" HorizontalAlignment="Left" MinWidth="520">
-                    <TextBox AcceptsReturn="True" TextWrapping="Wrap" MinHeight="150"
+                    <TextBox AutomationProperties.Name="Markdown data" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="150"
                              Text="{Binding MarkdownText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              FontFamily="Consolas" FontSize="12" />
                 </Expander>

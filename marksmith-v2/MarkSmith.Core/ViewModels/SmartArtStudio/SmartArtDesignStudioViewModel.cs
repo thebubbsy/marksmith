@@ -16,6 +16,37 @@ public class StudioLayoutItem
     public string Name { get; set; } = string.Empty;
     public string Alias { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
+
+    /// <summary>
+    /// What the gallery shows. Most packages have no title, so Name is just the alias
+    /// ("AlternatingCircleProcess", "arrow1"); split those into words ("Alternating Circle
+    /// Process", "Arrow 1") rather than printing the same identifier twice.
+    /// </summary>
+    public string DisplayName => string.Equals(Name, Alias, StringComparison.Ordinal) ? Humanize(Alias) : Name;
+
+    internal static string Humanize(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return id;
+        var sb = new System.Text.StringBuilder(id.Length + 8);
+        for (var i = 0; i < id.Length; i++)
+        {
+            var c = id[i];
+            if (c is '_' or '-') { sb.Append(' '); continue; }
+            if (i > 0)
+            {
+                var prev = id[i - 1];
+                var wordBreak =
+                    (char.IsUpper(c) && char.IsLower(prev)) ||
+                    (char.IsDigit(c) && char.IsLetter(prev)) ||
+                    (char.IsLetter(c) && char.IsDigit(prev)) ||
+                    // "SWOTMatrix" -> "SWOT Matrix": an upper followed by a lower ends an acronym.
+                    (char.IsUpper(c) && char.IsUpper(prev) && i + 1 < id.Length && char.IsLower(id[i + 1]));
+                if (wordBreak && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+            }
+            sb.Append(sb.Length == 0 ? char.ToUpperInvariant(c) : c);
+        }
+        return sb.ToString();
+    }
 }
 
 /// <summary>One node of the hierarchy the user is designing. The outline editor drives this
@@ -532,12 +563,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         {
             var ast = MarkdownAstParser.Parse(MarkdownText ?? "");
             string alias = SelectedLayout?.Alias ?? MarkSmith.Core.Glox.SmartArtLayoutSuggester.Suggest(ast) ?? "list";
-            string title = SelectedLayout?.Name
+            string title = SelectedLayout?.DisplayName
                 ?? MarkSmith.Core.Glox.SmartArtLayoutCatalog.Shared.TryResolve(alias)?.Title
-                ?? "SmartArt Layout";
+                ?? StudioLayoutItem.Humanize(alias);
 
             PreviewHtml = HtmlPreviewRenderer.RenderHtml(ast, alias, title);
-            StatusMessage = $"Preview: {title} ({alias})";
+            StatusMessage = $"Preview: {title} · layout: {alias}";
             PreviewHtmlChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)

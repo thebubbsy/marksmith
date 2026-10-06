@@ -1,5 +1,8 @@
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -55,12 +58,31 @@ public static class HoverPolish
     /// buttons in its Content) getting the same hover lift as the rest of the app. The dialog's
     /// button row only joins the visual tree once the dialog opens, so this hooks <c>Opened</c>
     /// rather than applying immediately. Use in place of <c>dialog.ShowAsync()</c>.
+    /// <para>
+    /// WinUI allows only one open ContentDialog per XamlRoot and throws if a second one is shown
+    /// (e.g. pressing F1 or Ctrl+K while Settings is already up). Every dialog in the app goes
+    /// through here, so a request that would collide is dropped and reported as
+    /// <see cref="ContentDialogResult.None"/> — exactly what callers already get for a dismissed
+    /// dialog — instead of crashing the app.
+    /// </para>
     /// </summary>
     public static IAsyncOperation<ContentDialogResult> ShowPolishedAsync(this ContentDialog dialog)
     {
-        dialog.Opened += (sender, _) => Apply((DependencyObject)sender);
+        if (IsContentDialogOpen(dialog.XamlRoot))
+        {
+            return Task.FromResult(ContentDialogResult.None).AsAsyncOperation();
+        }
+
+        // Track rather than a one-off Apply: dialog content like Settings realises each Pivot tab
+        // only when it's first selected.
+        dialog.Opened += (sender, _) => Track((FrameworkElement)sender);
         return dialog.ShowAsync();
     }
+
+    /// <summary>True when a ContentDialog is already showing on <paramref name="xamlRoot"/>.</summary>
+    public static bool IsContentDialogOpen(XamlRoot? xamlRoot) =>
+        xamlRoot is not null &&
+        VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot).Any(p => p.Child is ContentDialog);
 
     /// <summary>
     /// Wires a <see cref="Flyout"/> (not <see cref="MenuFlyout"/> — its items intentionally keep
@@ -78,11 +100,105 @@ public static class HoverPolish
         };
     }
 
+    private static readonly DependencyProperty TrackedProperty = DependencyProperty.RegisterAttached(
+        "HoverPolishTracked", typeof(bool), typeof(HoverPolish), new PropertyMetadata(false));
+
+    /// <summary>
+    /// <see cref="Apply"/> now, then again (throttled) whenever layout changes while
+    /// <paramref name="root"/> is loaded. A one-shot Apply at construction only reaches what is
+    /// already in the visual tree, so buttons realised later — an unselected Pivot tab, collapsed
+    /// expander content, controls inside templates that hadn't been applied yet — silently missed
+    /// both the hover lift and their accessible name. Apply is idempotent, so re-walking is safe;
+    /// the walk (a few ms) runs at most every 300 ms, and only while layout is changing.
+    /// </summary>
+    public static void Track(FrameworkElement root)
+    {
+        Apply(root);
+        if ((bool)root.GetValue(TrackedProperty)) return;
+        root.SetValue(TrackedProperty, true);
+
+        Microsoft.UI.Dispatching.DispatcherQueueTimer? timer = null;
+        var subscribed = false;
+
+        void OnLayoutUpdated(object? sender, object e)
+        {
+            if (timer is null)
+            {
+                var queue = root.DispatcherQueue;
+                if (queue is null) return;
+                timer = queue.CreateTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(300);
+                timer.IsRepeating = false;
+                timer.Tick += (_, _) => Apply(root);
+            }
+            // Capped, not trailing: some views re-layout continuously enough that a
+            // "wait for quiet" debounce never fired. A walk costs a few ms and only runs while
+            // layout is actually changing (none at idle).
+            if (!timer.IsRunning) timer.Start();
+        }
+
+        void Subscribe()
+        {
+            if (subscribed) return;
+            root.LayoutUpdated += OnLayoutUpdated;
+            subscribed = true;
+        }
+
+        // Unhook when the root leaves the tree (window closed, dialog dismissed) so closed views
+        // don't keep reacting to every layout pass in the app.
+        void Unsubscribe()
+        {
+            if (!subscribed) return;
+            root.LayoutUpdated -= OnLayoutUpdated;
+            subscribed = false;
+            timer?.Stop();
+        }
+
+        Subscribe();
+        root.Loaded += (_, _) => Subscribe();
+        // WinUI can raise a reparented element's Unloaded *after* its new Loaded (e.g. content
+        // moving into a ContentDialog's popup), which would switch tracking off for good. So only
+        // unhook once the element has genuinely left the tree.
+        root.Unloaded += (_, _) => root.DispatcherQueue?.TryEnqueue(() =>
+        {
+            if (!root.IsLoaded) Unsubscribe();
+        });
+    }
+
     public static void Apply(DependencyObject root)
     {
         if (root is ButtonBase button)
         {
+            EnsureAccessibleName(button);
             AttachTo(button);
+        }
+        else if (root is Expander expander
+                 && string.IsNullOrWhiteSpace(AutomationProperties.GetName(expander))
+                 && expander.Header is not string)
+        {
+            // Same gap as icon+label buttons: a composite header leaves the expander unnamed.
+            var parts = new List<string>();
+            CollectText(expander.Header, parts, 0);
+            if (parts.Count > 0) AutomationProperties.SetName(expander, string.Join(" ", parts));
+        }
+        else if (root is Control control && string.IsNullOrWhiteSpace(AutomationProperties.GetName(control)))
+        {
+            // Compact, headerless inputs (toolbar ComboBoxes, snap ToggleSwitch, …) describe
+            // themselves only through a tooltip; use it as the name. A Header already names them.
+            var header = control switch
+            {
+                ToggleSwitch t => t.Header,
+                ComboBox c => c.Header,
+                TextBox t => t.Header,
+                PasswordBox pw => pw.Header,
+                NumberBox n => n.Header,
+                Slider sl => sl.Header,
+                _ => "skip",
+            };
+            if (header is null && ToolTipService.GetToolTip(control) is string { Length: > 0 } tip)
+            {
+                AutomationProperties.SetName(control, tip);
+            }
         }
 
         var childCount = VisualTreeHelper.GetChildrenCount(root);
@@ -97,6 +213,9 @@ public static class HoverPolish
         if (Equals(button.Tag, OptOutTag)) return;
         if ((bool)button.GetValue(AttachedProperty)) return;
         button.SetValue(AttachedProperty, true);
+
+        // Bound text (and template content) may not have resolved yet at construction time.
+        button.Loaded += (_, _) => EnsureAccessibleName(button);
 
         button.RenderTransformOrigin = new Point(0.5, 0.5);
         var scale = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
@@ -125,6 +244,66 @@ public static class HoverPolish
             new PointerEventHandler((_, _) => Animate(scale, PressScale)), true);
         button.AddHandler(UIElement.PointerReleasedEvent,
             new PointerEventHandler((_, _) => Animate(scale, isHovering ? HoverScale : 1.0)), true);
+    }
+
+    /// <summary>
+    /// Buttons whose content is an icon + label StackPanel, or an icon alone, expose no UI
+    /// Automation name, so Narrator announced most of the app as just "button". Fill in
+    /// AutomationProperties.Name from the visible label text, falling back to the tooltip.
+    /// An explicitly set name, or plain string content (which already names itself), wins.
+    /// </summary>
+    private static void EnsureAccessibleName(ButtonBase button)
+    {
+        if (!string.IsNullOrWhiteSpace(AutomationProperties.GetName(button))) return;
+        if (button.Content is string { Length: > 0 }) return;
+
+        var parts = new List<string>();
+        CollectText(button.Content, parts, 0);
+        var name = string.Join(" ", parts).Trim();
+        var tooltip = ToolTipService.GetToolTip(button) switch
+        {
+            string tip => tip,
+            ToolTip { Content: string tip } => tip,
+            _ => "",
+        };
+
+        // Glyph-like labels ("B", "I", "•", "A+", "H1", "Img") make poor spoken names; the tooltip
+        // ("Bold", "Heading 1", …) says what the button does.
+        if (name.Count(char.IsLetter) < 4 && tooltip.Length > 0)
+        {
+            name = tooltip;
+        }
+
+        if (name.Length > 0)
+        {
+            AutomationProperties.SetName(button, name);
+        }
+    }
+
+    private static void CollectText(object? node, List<string> parts, int depth)
+    {
+        if (node is null || depth > 6) return;
+        switch (node)
+        {
+            case string text when !string.IsNullOrWhiteSpace(text):
+                parts.Add(text);
+                break;
+            case TextBlock { Visibility: Visibility.Visible } textBlock when !string.IsNullOrWhiteSpace(textBlock.Text):
+                parts.Add(textBlock.Text);
+                break;
+            case Panel panel:
+                foreach (var child in panel.Children) CollectText(child, parts, depth + 1);
+                break;
+            case Border border:
+                CollectText(border.Child, parts, depth + 1);
+                break;
+            case Viewbox viewbox:
+                CollectText(viewbox.Child, parts, depth + 1);
+                break;
+            case ContentControl contentControl:
+                CollectText(contentControl.Content, parts, depth + 1);
+                break;
+        }
     }
 
     private static void Animate(ScaleTransform scale, double to)
