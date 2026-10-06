@@ -567,21 +567,20 @@ namespace MarkSmith.Views.MindMap
             {
                 if (!_nodeIndex.TryGetValue(e.SourceId, out var src) || !_nodeIndex.TryGetValue(e.TargetId, out var tgt)) continue;
 
-                Point start, end;
+                Point start, end, c1, c2;
                 if (e.FromNodeEdge)
                 {
                     start = new Point(src.X + src.Width, src.Y + (src.Height / 2.0));
                     end = new Point(tgt.X, tgt.Y + (tgt.Height / 2.0));
+                    double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
+                    c1 = new Point(start.X + ctrl, start.Y);
+                    c2 = new Point(end.X - ctrl, end.Y);
                 }
                 else
                 {
-                    start = new Point(src.X + (src.Width / 2.0), src.Y + (src.Height / 2.0));
-                    end = new Point(tgt.X + (tgt.Width / 2.0), tgt.Y + (tgt.Height / 2.0));
+                    (start, c1, c2, end) = RouteCrossLink(src.X, src.Y, src.Width, src.Height,
+                        tgt.X, tgt.Y, tgt.Width, tgt.Height, e.LabelSize.Width);
                 }
-
-                double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 40);
-                var c1 = new Point(start.X + ctrl, start.Y);
-                var c2 = new Point(end.X - ctrl, end.Y);
 
                 e.Figure.StartPoint = start;
                 e.Segment.Point1 = c1;
@@ -599,19 +598,60 @@ namespace MarkSmith.Views.MindMap
                 if (e.Link != null)
                 {
                     var dir = e.Link.Direction;
-                    SetArrow(e.ArrowForward, start, end, dir is MindMapLinkDirection.SourceToTarget or MindMapLinkDirection.Bidirectional);
-                    SetArrow(e.ArrowBackward, end, start, dir is MindMapLinkDirection.TargetToSource or MindMapLinkDirection.Bidirectional);
+                    // Heads follow the curve's tangent at each end (control point -> end point), so
+                    // they point into the card border the connector actually meets.
+                    SetArrow(e.ArrowForward, c2, end, dir is MindMapLinkDirection.SourceToTarget or MindMapLinkDirection.Bidirectional);
+                    SetArrow(e.ArrowBackward, c1, start, dir is MindMapLinkDirection.TargetToSource or MindMapLinkDirection.Bidirectional);
 
                     if (e.Label != null)
                     {
                         // Uses the size measured when the text last changed: measuring all of them
                         // on every frame of a drag is exactly the kind of work this rewrite removes.
-                        Canvas.SetLeft(e.Label, ((start.X + end.X) / 2.0) - (e.LabelSize.Width / 2.0));
-                        Canvas.SetTop(e.Label, ((start.Y + end.Y) / 2.0) - (e.LabelSize.Height / 2.0));
+                        // Centred on the curve's own midpoint (t = 0.5), not the chord's.
+                        var mid = BezierMidpoint(start, c1, c2, end);
+                        Canvas.SetLeft(e.Label, mid.X - (e.LabelSize.Width / 2.0));
+                        Canvas.SetTop(e.Label, mid.Y - (e.LabelSize.Height / 2.0));
                     }
                 }
             }
         }
+
+        /// <summary>
+        /// Route for a manual / inferred link between two cards (rects in world space). Links used to
+        /// run centre to centre with the label at the chord midpoint — between cards stacked in one
+        /// column that midpoint is the narrow gap between them, so the label sat on both cards'
+        /// borders and the line itself hid under the cards. Cards that share a column now get a
+        /// bracket-shaped arc out past their right edges, wide enough that the label on its apex
+        /// clears both cards; any other pair runs between the facing side edges.
+        /// </summary>
+        internal static (Point Start, Point C1, Point C2, Point End) RouteCrossLink(
+            double sx, double sy, double sw, double sh,
+            double tx, double ty, double tw, double th,
+            double labelWidth)
+        {
+            double sCy = sy + sh / 2.0, tCy = ty + th / 2.0;
+            double overlapX = Math.Min(sx + sw, tx + tw) - Math.Max(sx, tx);
+            if (overlapX > Math.Min(sw, tw) * 0.3)
+            {
+                double right = Math.Max(sx + sw, tx + tw);
+                // Both controls sit at right + bulge, so the apex is at right + 0.75 * bulge; size the
+                // bulge so a label centred on the apex keeps 12 px clear of the cards. Longer spans
+                // bulge further, so links nested in one column read as nested brackets and their
+                // labels step outwards instead of stacking on top of each other.
+                double bulge = Math.Max(36, (labelWidth / 2.0 + 12) / 0.75) + Math.Abs(tCy - sCy) * 0.45;
+                return (new Point(sx + sw, sCy), new Point(right + bulge, sCy),
+                        new Point(right + bulge, tCy), new Point(tx + tw, tCy));
+            }
+
+            bool leftToRight = tx + tw / 2.0 >= sx + sw / 2.0;
+            var start = new Point(leftToRight ? sx + sw : sx, sCy);
+            var end = new Point(leftToRight ? tx : tx + tw, tCy);
+            double ctrl = Math.Max(Math.Abs(end.X - start.X) * 0.5, 30) * (leftToRight ? 1 : -1);
+            return (start, new Point(start.X + ctrl, start.Y), new Point(end.X - ctrl, end.Y), end);
+        }
+
+        internal static Point BezierMidpoint(Point p0, Point p1, Point p2, Point p3) =>
+            new((p0.X + 3 * p1.X + 3 * p2.X + p3.X) / 8.0, (p0.Y + 3 * p1.Y + 3 * p2.Y + p3.Y) / 8.0);
 
         private static void SetArrow(Polygon? arrow, Point from, Point to, bool visible)
         {
@@ -630,8 +670,9 @@ namespace MarkSmith.Views.MindMap
             dx /= len;
             dy /= len;
 
-            // Back the head off the card edge so it points at the node rather than sitting under it.
-            const double inset = 26;
+            // Connectors end on the card border; back the head off it by a hair so the tip meets the
+            // border instead of being half-covered by it.
+            const double inset = 2;
             const double size = 9;
             var tip = new Point(to.X - dx * inset, to.Y - dy * inset);
 

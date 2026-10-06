@@ -505,9 +505,15 @@
                                           SelectedItem="{Binding NodeType, Mode=TwoWay}" />
                                 <!-- Same fallback chain as the node cards, so a Fluent icon shows as the icon
                                      rather than a missing-glyph box (emoji still work). -->
-                                <TextBox Grid.Column="1" Header="Icon" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch"
+                                <TextBox Grid.Column="1" Text="{Binding Icon, Mode=TwoWay}" MaxLength="4" HorizontalAlignment="Stretch"
                                          FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Emoji, Segoe UI"
-                                         ToolTipService.ToolTip="The node's icon — an emoji, or a Segoe Fluent icon character" />
+                                         ToolTipService.ToolTip="The node's icon — an emoji, or a Segoe Fluent icon character">
+                                    <!-- The icon font chain above is inherited by the header too, and Segoe Fluent
+                                         Icons draws Latin letters as boxes — "Icon" rendered as four boxes. -->
+                                    <TextBox.Header>
+                                        <TextBlock Text="Icon" FontFamily="{ThemeResource ContentControlThemeFontFamily}" />
+                                    </TextBox.Header>
+                                </TextBox>
                             </Grid>
 
                             <!-- Progress Slider -->
