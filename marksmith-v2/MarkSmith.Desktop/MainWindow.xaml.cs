@@ -229,6 +229,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // no output.json), whereas subscribing here is equivalent and build-safe. Note the control
         // exposes Expanding/Collapsed (there is no Expanded event in this Windows App SDK).
         ExportBrandingExpander.Expanding += OnStyleExpanderExpanded;
+        WireStyleSectionMemory();
 
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
@@ -2013,6 +2014,38 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 sp.Children[sp.Children.Count - 1].StartBringIntoView();
         };
         timer.Start();
+    }
+
+    // Style & Export sections remember whether they are open. With every section expanded on
+    // first launch the pane was a ~2,700 px scroll; now a fresh install opens Appearance only and
+    // afterwards each section stays the way the user left it.
+    private Expander[] StyleSectionExpanders => new[]
+    {
+        StyleAppearanceExpander, StyleLayoutExpander, StyleWordExpander, StyleDiagramsExpander,
+        StyleContentExpander, StyleFormattingExpander, ExportBrandingExpander,
+    };
+
+    private void WireStyleSectionMemory()
+    {
+        var saved = App.Settings.Current.ExpandedStyleSections;
+        foreach (var exp in StyleSectionExpanders)
+        {
+            var key = exp.Tag as string ?? "";
+            exp.IsExpanded = saved is null ? key == "Appearance" : saved.Contains(key);
+            exp.Expanding += (_, _) => RememberStyleSection(key, open: true);
+            exp.Collapsed += (_, _) => RememberStyleSection(key, open: false);
+        }
+    }
+
+    private void RememberStyleSection(string key, bool open)
+    {
+        var settings = App.Settings.Current;
+        var list = settings.ExpandedStyleSections
+                   ?? StyleSectionExpanders.Where(x => x.IsExpanded && !Equals(x.Tag, key)).Select(x => x.Tag as string ?? "").ToList();
+        list.Remove(key);
+        if (open) list.Add(key);
+        settings.ExpandedStyleSections = list;
+        try { App.Settings.Save(); } catch { /* not worth interrupting a click for */ }
     }
 
     private void OnMarkdownFileSelected(object sender, SelectionChangedEventArgs e)

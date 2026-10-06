@@ -21,6 +21,11 @@ public sealed class AppSettings
     // Step-1 file picker (above the auto-surfaced recents) so a go-to document is one click away.
     public List<string> PinnedFiles { get; set; } = new();
 
+    // Which Style & Export sections (by name: "Appearance", "Layout", "Word", "Diagrams", "Content",
+    // "Formatting", "Branding") are expanded. Null = never touched: only Appearance opens, instead
+    // of every section at once (a ~2,700 px scroll on first launch).
+    public List<string>? ExpandedStyleSections { get; set; }
+
     // Editor (Markdown source) font size in px. Zoomable at runtime (A+/A- buttons, Ctrl+wheel)
     // and persisted so the editor comes back at the size the user last chose. 13 matches the XAML default.
     public double EditorFontSize { get; set; } = 13;
@@ -349,6 +354,7 @@ public sealed class AppSettings
         FileNameTemplate = other.FileNameTemplate;
         FavoriteThemes = new List<string>(other.FavoriteThemes);
         PinnedFiles = new List<string>(other.PinnedFiles);
+        ExpandedStyleSections = other.ExpandedStyleSections is null ? null : new List<string>(other.ExpandedStyleSections);
         EditorFontSize = other.EditorFontSize;
         PreviewZoom = other.PreviewZoom;
         PreviewZoomFit = other.PreviewZoomFit;

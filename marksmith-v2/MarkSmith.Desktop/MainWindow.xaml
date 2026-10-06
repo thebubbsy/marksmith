@@ -1177,7 +1177,7 @@
                                                 <StackPanel Padding="14" Spacing="12">
 
                             <!-- ══════════ APPEARANCE ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleAppearanceExpander" Tag="Appearance" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE790;" FontSize="14" />
@@ -1249,7 +1249,7 @@
                                 </Expander>
 
                             <!-- ══════════ LAYOUT & PDF ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleLayoutExpander" Tag="Layout" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8A1;" FontSize="14" />
@@ -1271,7 +1271,7 @@
                                 </Expander>
 
                             <!-- ══════════ WORD EXPORT ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleWordExpander" Tag="Word" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8A5;" FontSize="14" />
@@ -1318,7 +1318,7 @@
                                 </Expander>
 
                             <!-- ══════════ DIAGRAMS ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleDiagramsExpander" Tag="Diagrams" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xF003;" FontSize="14" />
@@ -1329,10 +1329,13 @@
                             <ToggleSwitch Header="Render Mermaid diagrams" IsOn="{Binding MermaidEnabled, Mode=TwoWay}" />
                             <TextBlock Text="When off, mermaid code fences are shown as plain code blocks instead of rendered diagrams."
                                        Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <!-- Collapsed as well as closed: a closed InfoBar still took the panel's
+                                 spacing plus its own margin, leaving a gap under the caption. -->
                             <InfoBar IsOpen="{Binding HasMermaidDiagram}"
+                                     Visibility="{Binding HasMermaidDiagram, Converter={StaticResource BoolToVisibilityConverter}}"
                                      Severity="{Binding DiagramHintSeverity, Converter={StaticResource StatusSeverityConverter}}"
                                      Message="{Binding DiagramHintText}"
-                                     IsClosable="False" Margin="0,0,0,8">
+                                     IsClosable="False">
                                 <InfoBar.ActionButton>
                                     <Button Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio (Ctrl+Shift+M)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -1347,7 +1350,7 @@
                                 </Expander>
 
                             <!-- ══════════ CONTENT & CLEANUP ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleContentExpander" Tag="Content" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE8D2;" FontSize="14" />
@@ -1417,7 +1420,7 @@
                                 </Expander>
 
                             <!-- ══════════ FORMATTING & TEXT ══════════ -->
-                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True">
+                                <Expander x:Name="StyleFormattingExpander" Tag="Formatting" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <FontIcon Glyph="&#xE943;" FontSize="14" />
@@ -1463,7 +1466,7 @@
                                 </Expander>
 
                             <!-- ══════════ BRANDING (PRO) ══════════ -->
-                                <Expander x:Name="ExportBrandingExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander x:Name="ExportBrandingExpander" Tag="Branding" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8D4;" FontSize="14" />
