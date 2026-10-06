@@ -649,3 +649,56 @@ same two `HouseLayoutTests` from the user's uncommitted WIP (not touched, not co
 4. Shape Studio preset list: one glyph per category (pyramids share the org-chart icon) — low value.
 5. Galaxy diagonal cross-links can still cross unrelated cards; consider obstacle-aware routing.
 6. (Reminder: memory `marksmith-examples-need-regen`.)
+
+### 2026-10-07 00:01–00:35 AEST (scheduled routine run #10)
+
+Picked up an **uncommitted Settings redesign** left in the tree (files stamped 23:28 by a run that
+stopped before committing or writing up — the reflog shows only `reset: moving to HEAD`). It built
+clean, so it was reviewed by screenshot on every page, finished, and shipped. Then two more areas
+were audited by PrintWindow screenshots + UIA and fixed. Fresh-config launches throughout
+(`MARKSMITH_CONFIG_DIR`); the user's own instance was not touched.
+
+**Shipped (all pushed to main):**
+- **Settings rebuilt** (fd44828) — closes run #9's "Next up" #1. Left NavigationView (General, PDF,
+  Automation, Google Docs, License, Plugins, About & updates) replaces the 7-tab Pivot. Every row is
+  a new `Controls/SettingsCard` (icon, title, description, right-aligned control, optional Details);
+  toggles share one column. Sized to the window (`SettingsView.FitTo`), page entrance animation,
+  InfoBars for license/update/plugin results. Review fixes on top: Google shows only Sign in *or*
+  Sign out; one accent per page (Close, Activate, plugin Install are standard); cloud provider
+  fields only while sync is on; plugin descriptions no longer print raw ``` fences; ⋯-menu tip
+  closes before any dialog (`HoverPolish.DialogOpening`); License.Changed unsubscribed on close.
+- **Diagram Studio** (57095ae) — on a light theme every node was white with white text. Labels now
+  pick the colour that reads on the fill (canvas + SVG export, unit-tested). Inspector: "Nothing
+  selected" empty state, node/connector panels only for what's selected, real pickers (shape, line,
+  arrow head) with readable names, NumberBoxes, "A → B" connector ends. Toolbar: labelled Snap
+  toggle (was a bare "On" switch), Delete/Align enable only when they'd act, disabled buttons dim,
+  Sync to Markdown is the accent, redundant zoom slider ("1") removed. Palette rows draw the actual
+  shape (`MermaidShapeThumbnailConverter`), click adds at the nearest free spot in view (only drag
+  worked), hover highlight, accessible names (were the CLR type name). Minimap fits diagram +
+  viewport (was a fixed 4000×3000 world — a speck) and handles zoom. Status bar labelled.
+- **Style & Export pane** (933b0aa) — cleanup-rule rows were crushed by CheckBox MinWidth 120 (now a
+  ".*" toggle); em-dash custom box only for "Custom…"; arrowhead picker readable; the three pane
+  splitters announced an unresolved `ms-resource://…WCT_SizerBase_AutomationName`.
+
+**Verified:** Desktop builds 0 warnings/0 errors; tests 3141 passed / 1 skipped / 17 failed = the
+two `HouseLayoutTests` in the user's uncommitted WIP (still theirs, still uncommitted) + 15 tests
+that locate repo files (governance docs, gauntlet.md, liquid_fill.css, mermaid_interop.js) relative
+to the test output dir — they fail only because this run built tests into a scratch OutDir.
+
+**Process notes:** a test instance from an earlier run (`…\b28173a9…\scratchpad\build\Marksmith.exe`)
+was still running — end every run by stopping your own test instance. UIA lookups by Name can hit
+the title-bar Close; pick the match index (this run's helper takes `-idx`). The right pane scrolls
+via UIA `ScrollPattern.SetScrollPercent` on the pane whose X > 900.
+
+**Next up:**
+1. Diagram Studio: the canvas's default node fill (theme heading routed through ContrastGuard →
+   white on GitHub Light) doesn't match the Preview tab (mermaid `dark` theme) — pick one look.
+   Connector inspector not yet seen by eye (UIA can't select a connector; needs a real click).
+2. Style & Export pane is ~2,700 px tall with every section expanded; consider remembering
+   expander state and opening only Appearance on first run. The Diagrams section leaves a gap
+   under its caption (a closed InfoBar still takes StackPanel spacing + margin).
+3. Every other window not yet screenshotted this round: Suite Hub, Shape Studio, SmartArt,
+   Galaxy, export dialogs, the ⋯ menu and its flyouts — same audit (empty states, pickers showing
+   raw values, MinWidth traps, unnamed controls via the UIA walker).
+4. Carried over: Light-theme accent check, keyboard focus order (needs unlocked desktop), Galaxy
+   obstacle-aware routing, intro-video decision (run #9), memory `marksmith-examples-need-regen`.
