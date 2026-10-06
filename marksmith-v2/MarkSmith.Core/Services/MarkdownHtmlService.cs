@@ -520,6 +520,30 @@ public sealed partial class MarkdownHtmlService
                 gitGraph: { useMaxWidth: false },
                 securityLevel: "strict"
             });
+            // The live preview scales #canvas with a CSS transform (fit-to-width / zoom), and
+            // mermaid sizes HTML labels with getBoundingClientRect, which includes that transform:
+            // at 171% every node was measured 1.7x too big, so boxes ballooned and their labels sat
+            // in the top-left corner (too small a zoom clipped them instead). While a render is in
+            // flight, report layout-size rects for anything inside a .mermaid block; afterwards the
+            // real method is back, so the gesture/lens hit-testing still sees on-screen sizes.
+            // startOnLoad calls this same mermaid.run, and so do the app's re-renders.
+            (function () {
+                const run = mermaid.run.bind(mermaid);
+                mermaid.run = async function (options) {
+                    const canvas = document.getElementById("canvas");
+                    const scale = canvas && canvas.offsetWidth
+                        ? canvas.getBoundingClientRect().width / canvas.offsetWidth : 1;
+                    if (!isFinite(scale) || scale <= 0 || Math.abs(scale - 1) < 0.001) return run(options);
+                    const proto = Element.prototype, real = proto.getBoundingClientRect;
+                    proto.getBoundingClientRect = function () {
+                        const r = real.call(this);
+                        return this.closest && this.closest(".mermaid")
+                            ? new DOMRect(r.x, r.y, r.width / scale, r.height / scale) : r;
+                    };
+                    try { return await run(options); }
+                    finally { proto.getBoundingClientRect = real; }
+                };
+            })();
             </script>
             """ : "";
 

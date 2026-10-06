@@ -2747,7 +2747,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
         if (!string.IsNullOrWhiteSpace(vm.PastedMarkdown))
             return vm.PastedMarkdown;
-        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or switch to **Paste** and start typing.";
+        // "Paste" was the old name of the editor tab; it's "Code" now.
+        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or open the **Code** tab and paste or start typing.";
     }
 
     private async Task<bool> UpdatePreviewCanvasLiveAsync(string? markdown = null)

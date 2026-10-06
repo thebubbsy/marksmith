@@ -1587,7 +1587,7 @@
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export to Google Docs (native)" Click="OnExportGoogleDocsClick"
                                                 ToolTipService.ToolTip="Creates a real Google Doc (headings, tables, images) — connect your Google account in Settings → Google first">
-                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE774;" /></MenuFlyoutItem.Icon>
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE753;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as web page (.html)" Click="OnExportHtmlClick"
                                                 ToolTipService.ToolTip="A self-contained HTML file of the rendered document, styled with the current theme">
