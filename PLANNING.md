@@ -2245,3 +2245,114 @@ line too: Ctrl+B and working headings are things every user will feel.
 6. Carried over: Shape Studio rotated handles and connector re-routing, the light-theme pass,
    SmartArt outline keyboard pass, Google Docs OAuth decision, open Shape/SmartArt exports in real
    Word.
+
+### 2026-10-08 06:45–07:25 AEST (routine run #25: EPUB export done properly; Mermaid edge labels)
+
+Run #24's "Next up" put email Phase 3 first. This run took #21b finding 1 (EPUB) instead, plus
+finding 11 (edge labels): both were broken output a paying user would hit, while `.msg` is a new
+format. The PC was locked the whole run. Everything was verified through UIA on a scratch-config
+instance, with the produced files rendered in headless Edge.
+
+**Broken things fixed** (they existed and didn't work):
+- **EPUB chapters weren't well-formed XML.** The writer regex-patched HTML, so a bare attribute,
+  an `&nbsp;` or raw inline HTML made strict readers (Apple Books, epubcheck) reject the chapter.
+- **Every code block in every EPUB was invisible.** The stylesheet painted code *text* in
+  `theme.Code`, which is the code *background* colour (`#f6f8fa` on `#f6f8fa` in GitHub Light).
+- **Mermaid shipped as raw source** (`flowchart LR A --> B`) because readers run no JavaScript.
+- **Math shipped as literal `\(E = mc^2\)`.**
+- **Footnote links went nowhere.** A reference in chapter 1 pointed at `#fn:1`, but the note lives
+  in the last chapter's file.
+- **Task lists showed a bullet and a checkbox.** The app's pipeline writes a bare
+  `<li><input type=checkbox>`, without Markdig's classes.
+- **Mermaid edge labels were struck through** in the preview, PDF, DOCX rasters, the email preview
+  and Diagram Studio. Mermaid's own CSS draws `.edgeLabel rect` at `opacity: 0.5`.
+- The local-image embed's de-duplication never matched, so the same image could be packed twice.
+
+**What shipped:**
+- `Core/Services/XhtmlWriter`: parses with AngleSharp and writes XML from the DOM.
+  - Boolean attributes get values. Text is escaped to `&amp; &lt; &gt;` only, so `&nbsp;` becomes
+    U+00A0. Void tags self-close.
+  - MathML and SVG get their `xmlns`; xlink attributes get theirs.
+  - Scripts, styles, iframes, `on*` handlers and names that aren't XML names are dropped.
+  - Chapters split on **top-level** `<h1>` only, so an h1 inside a blockquote can't cut a tree.
+  - A `raw` callback lets the caller substitute ready-made XHTML for an element.
+- `Core/Services/LatexToMathMl`: walks the OMML tree from `LatexToOmml.Build`, so Word and the
+  e-book share one LaTeX parser. It covers fractions (and `\binom`'s no-bar), scripts, radicals,
+  n-ary operators with limits, fences, matrices and cases, accents, over/underbraces,
+  `\boxed` and function names. Adjacent runs merge so `12.5` is one `<mn>`. Minus is U+2212. The
+  original LaTeX rides along as an `application/x-tex` annotation and `alttext`.
+- `EpubExportService`:
+  - New overload taking `mermaidPngs`. Diagrams become `<figure class="diagram"><img>` packed as
+    `images/diagram-NNN.png`. Alt text comes from `accTitle:` / `title`, else the kind and number
+    ("Flowchart 1").
+  - Without a renderer (CLI, `BatchExportRunner`) a diagram becomes labelled source: "Flowchart 1
+    (diagram source; export from the MarkSmith app to draw it)".
+  - The OPF declares `mathml` / `svg` / `remote-resources` per chapter (`ChapterProperties`).
+    Every page has `lang` / `xml:lang`. Chapters have `<meta charset>`.
+  - Cross-chapter fragment links are retargeted (`RetargetCrossChapterLinks`). Footnotes carry
+    `epub:type="noteref"` / `"footnote"` plus ARIA roles, so Apple Books, Kobo and Thorium show
+    them as pop-ups.
+  - Task-list items are tagged and their boxes disabled.
+  - The stylesheet adds rules for figures, captions, block math margin, the task list, footnotes
+    and `details`.
+- Mermaid PNGs now reach EPUB from every path with a renderer: Export as EPUB (status reads
+  "Drawing diagrams for the e-book…"), auto-generate, batch and `/api/convert`.
+- `Core/Services/MermaidLabelStyle.ThemeCss(bg)`: a JS string literal for `themeCSS` that makes
+  labels opaque, plus `edgeLabelBackground`. It's wired into the preview (on `theme.Code`, the
+  card colour), the diagram viewer, the export raster, the email preview and Diagram Studio. Theme
+  values that could break out of the rule fall back to white.
+
+**Verified live** (scratch config, UIA, PC locked):
+- I pasted a sample (task list, inline and display math, a code block, a labelled flowchart, a
+  table and a footnote), ran **Export as EPUB** from the split button, and got "EPUB saved: Field
+  guide.epub".
+- Every `.xhtml` file and the OPF parsed as XML.
+- `diagram-001.png` (25 KB) is the real diagram with solid labels.
+- In headless Edge, chapter 1 shows the MathML quadratic formula with centred block math and real
+  minus signs, a bulletless task list with disabled boxes, and a readable code block.
+- The app's "Export as web page" of the same document shows solid edge labels on the grey card.
+- Not checked: Apple Books, Kobo or epubcheck themselves (none installed). The XML, the manifest
+  properties and the `epub:type` shapes follow the EPUB 3.3 spec.
+
+**Tests:**
+- New: `EpubXhtmlTests` (23). It covers well-formedness of every entry in a rich book, entities and
+  boolean attributes, MathML and manifest properties, PNG and fallback diagrams, cross-chapter
+  footnotes, nested h1, dropped scripts and bad names, inline-SVG namespaces, nine MathML
+  constructs, the minus sign, bare-checkbox task lists, label-CSS injection and the code colour.
+- `Category1And3FixTests.M1_07` reflected into the deleted `XhtmlSafe`. It now pins the same
+  property through `XhtmlWriter`.
+- Full suite with a scratch OutDir: 3647 passed and 20 failed. That's the same environmental set
+  as run #24 (governance-doc paths, the gauntlet, asset files, the user's 2 HouseLayout WIP, and
+  the 3 `%TEMP%` MarkdownCopy/HtmlToMarkdown tests).
+
+**Lessons for the next run:**
+- `ThemeDefinition.Code` is a **background** colour everywhere (`pre`, `th`, inline code and the
+  `.mermaid` card). Never use it as a text colour.
+- Don't set `display: block` on `math[display=block]`. Chromium and WebKit centre it with their
+  own `display: block math`, and the override left-aligns it.
+- Mermaid accepts `themeCSS` as a top-level `initialize` option. That's the clean way to override
+  its built-in rules.
+- PowerShell `Remove-Item` on scratch paths is blocked by a guard in this environment. Rename the
+  output folder instead, and leave cleanup to the end-of-run sweep.
+
+**Release:** still held on the Outlook compose-window check (run #22), and I didn't cut one.
+v3.4.0 now has three solid headline items: working Ctrl+B and headings (#24), email (#22/#23) and
+an EPUB that actually opens with its diagrams and equations. **It needs a person to confirm one
+Ctrl+Shift+O draft in Outlook, then it should ship.**
+
+**Next up:**
+1. Email Phase 3 (`.msg` writer and import, MSGReader), then the rest of Phase 5. Carried from #23.
+2. #21b finding 2: the free-tier export path and paywall copy. A free user's biggest button is
+   "Generate Word" (Pro). Also add a trial offer in the paywall, and the PPTX paywall's "Markdown,
+   PDF and HTML" claim is wrong because EPUB is free.
+3. #21b finding 10: Preview-only view opens at about 171% and zoom steps are about 4%. Cap
+   fit-zoom for reading and use standard stops.
+4. EPUB follow-ups: a cover-less book could get a generated title page, and the EPUB export
+   could offer the metadata dialog (`EpubMetadata` exists but the desktop path passes null). Check
+   whether any UI collects it before building one. Also try one real reader if the user has
+   Apple Books or Calibre.
+5. Keyboard follow-ups from #24: root-scoped Ctrl+D and Alt+↑↓ while focus is in another TextBox,
+   and a focus-order pass.
+6. Carried over: Shape Studio rotated handles and connector re-routing, the light-theme pass,
+   the SmartArt outline keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt
+   exports in real Word.
