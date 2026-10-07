@@ -43,6 +43,29 @@ public class OpenXmlSyntaxHighlighter
         }
     }
 
+    /// <summary>The same tokens as <see cref="GetHighlightedRuns"/>, as plain coloured spans, for
+    /// targets that aren't Word (email bodies, which need inline styles). Unknown languages come
+    /// back as one span with a null colour.</summary>
+    public static IEnumerable<(string Text, string? Hex, bool Italic, bool Bold)> GetHighlightedSpans(
+        string sourceCode, string languageId, string codeBackgroundHex)
+    {
+        if (string.IsNullOrEmpty(sourceCode)) yield break;
+        var profile = ResolveProfile(languageId);
+        if (profile == null)
+        {
+            yield return (sourceCode, null, false, false);
+            yield break;
+        }
+        var bg = codeBackgroundHex.TrimStart('#');
+        bool isDark = !ThemeDefinition.IsLight("#" + bg);
+        foreach (var (text, kind) in Tokenize(sourceCode, profile))
+        {
+            if (kind == TokenKind.Plain) { yield return (text, null, false, false); continue; }
+            var hex = ContrastGuard.EnsureLegibleText(ColorFor(kind, isDark), bg, isDark ? "E6EDF3" : "1F2328");
+            yield return (text, "#" + hex.TrimStart('#'), kind == TokenKind.Comment, kind == TokenKind.Keyword);
+        }
+    }
+
     // ── language-id normalisation ──────────────────────────────────────────────
 
     private static string NormalizeLanguageId(string id)

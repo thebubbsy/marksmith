@@ -439,7 +439,26 @@ public sealed class AppSettings
         AutoFocusOnSplit = other.AutoFocusOnSplit;
         AmbiguityMode = other.AmbiguityMode;
         AmbiguityPreferences = new List<AmbiguityPreference>(other.AmbiguityPreferences);
+        EmailTo = other.EmailTo;
+        EmailCc = other.EmailCc;
+        EmailSubjectTemplate = other.EmailSubjectTemplate;
+        EmailRepeatTitleInBody = other.EmailRepeatTitleInBody;
+        EmailAttachPdf = other.EmailAttachPdf;
+        EmailAttachDocx = other.EmailAttachDocx;
+        EmailFormat = other.EmailFormat;
     }
+
+    // Email (Outlook .eml / .msg drafts). Every email feature is free on every plan.
+    public string EmailTo { get; set; } = "";
+    public string EmailCc { get; set; } = "";
+    public string EmailSubjectTemplate { get; set; } = "{title}";
+    // The opening H1 becomes the subject; repeating it as a big heading in the body is opt-in.
+    public bool EmailRepeatTitleInBody { get; set; }
+    public bool EmailAttachPdf { get; set; }
+    // A Word copy follows the DOCX licence like any other DOCX export.
+    public bool EmailAttachDocx { get; set; }
+    // "auto", "eml" or "msg".
+    public string EmailFormat { get; set; } = "auto";
 
     public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
     public bool AutoRestartAfterUpdate { get; set; } = true;

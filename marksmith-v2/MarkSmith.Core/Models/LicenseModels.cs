@@ -71,6 +71,7 @@ public enum FeatureId
 {
     // ---- Free tier (works for everyone) ----
     MarkdownToPdf,     // PDF/HTML/Markdown export, editing, live preview, themes, studios
+    EmailDraft,        // email drafts (.eml/.msg), Copy as email, email import and the email API — free for everyone
 
     // ---- Pro tier (checked against the license) ----
     DocxExport,        // Word export (+ editable equations) — the 3-export trial unlocks this (then Free)
@@ -87,12 +88,14 @@ public static class FeatureClassifier
     public static bool IsFree(FeatureId id) => id switch
     {
         FeatureId.MarkdownToPdf => true,
+        FeatureId.EmailDraft => true,
         _ => false,
     };
 
     public static string DisplayName(FeatureId id) => id switch
     {
         FeatureId.MarkdownToPdf => "Markdown → PDF export",
+        FeatureId.EmailDraft => "Email drafts",
         FeatureId.DocxExport => "DOCX export",
         FeatureId.PptxExport => "PPTX export",
         FeatureId.BatchConvert => "Batch conversion",
@@ -107,6 +110,7 @@ public static class FeatureClassifier
     public static bool LicenseAllows(FeatureId id, LicenseState state) => id switch
     {
         FeatureId.MarkdownToPdf => true,
+        FeatureId.EmailDraft => true,
         FeatureId.DocxExport => state.CanExportDocx,
         FeatureId.PptxExport => state.CanExportPptx,
         FeatureId.BatchConvert or FeatureId.WatchFolder

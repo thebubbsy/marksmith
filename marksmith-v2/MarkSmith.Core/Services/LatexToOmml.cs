@@ -616,7 +616,7 @@ internal static class LatexToOmml
 
     // ---- lookup tables -----------------------------------------------------------------------
 
-    private static readonly Dictionary<string, (string Char, bool UnderOver)> Nary = new()
+    internal static readonly Dictionary<string, (string Char, bool UnderOver)> Nary = new()
     {
         ["sum"] = ("∑", true), ["prod"] = ("∏", true), ["coprod"] = ("∐", true),
         ["bigcup"] = ("⋃", true), ["bigcap"] = ("⋂", true), ["bigvee"] = ("⋁", true),
@@ -632,7 +632,7 @@ internal static class LatexToOmml
         "deg","gcd","hom","arg","Pr","mod",
     };
 
-    private static readonly Dictionary<string, string> Symbols = new()
+    internal static readonly Dictionary<string, string> Symbols = new()
     {
         // lowercase greek
         ["alpha"]="α",["beta"]="β",["gamma"]="γ",["delta"]="δ",["epsilon"]="ε",
