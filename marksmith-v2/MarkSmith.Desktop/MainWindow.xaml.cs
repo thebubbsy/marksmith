@@ -2731,7 +2731,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown), interactive: true);
+        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown, forPreview: true), interactive: true);
 
         // Essential refresh check: skip re-navigating WebView2 if content is identical and not heavy
         if (!heavy && markdown == _lastLiveCanvasMd && _lastRenderedHtml != null && html == _lastRenderedHtml)
@@ -2813,7 +2813,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (markdown == _lastLiveCanvasMd) return true; // canvas already shows exactly this source
 
         var vm = ViewModel;
-        var inner = vm.BuildPreviewCanvasHtml(vm.PrepareMarkdown(markdown));
+        var inner = vm.BuildPreviewCanvasHtml(vm.PrepareMarkdown(markdown, forPreview: true));
         if (inner is null) return false;
 
         var js = "(function(){var c=document.getElementById('canvas');if(!c)return 'nav';" +

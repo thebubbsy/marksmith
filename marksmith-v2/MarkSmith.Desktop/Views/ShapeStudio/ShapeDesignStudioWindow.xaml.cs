@@ -26,10 +26,26 @@ namespace MarkSmith.Views.ShapeStudio
         public ShapeDesignStudioViewModel ViewModel { get; }
         public event EventHandler<string>? InsertToDocumentRequested;
 
-        // Shape drag (moves the whole selection)
+        // Shape drag (moves the whole selection). The pointer's total travel is compared with what
+        // the group actually moved, so a drag held against the canvas edge doesn't leave the shapes
+        // trailing behind the pointer once it comes back.
         private ShapeCanvasItemViewModel? _dragShape;
         private Point _dragStart;
         private bool _dragMoved;
+        private double _dragAppliedX, _dragAppliedY;
+
+        // Rubber-band selection on empty canvas
+        private bool _marquee;
+        private bool _marqueeAdditive;
+        private Point _marqueeStart;
+
+        // Resize handles
+        private ShapeCanvasItemViewModel? _adornedShape;
+        private readonly List<(Microsoft.UI.Xaml.Shapes.Rectangle Handle, ShapeDesignStudioViewModel.ResizeEdges Edges)> _handles = new();
+        private ShapeDesignStudioViewModel.ResizeEdges _resizeEdges;
+        private (double X, double Y, double W, double H) _resizeFrom;
+        private Point _resizeStart;
+        private bool _resized;
 
         // Drag-to-draw with an armed tool
         private bool _drawing;
@@ -58,6 +74,9 @@ namespace MarkSmith.Views.ShapeStudio
             this.RootGrid.PreviewKeyDown += OnRootPreviewKeyDown;
             InspectorPanel.GettingFocus += OnInspectorGettingFocus;
             BuildPaletteChoices();
+            BuildResizeHandles();
+            MarqueeRect.Fill = new SolidColorBrush(AccentColor(0x33));
+            SetCursor(MainCanvas, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
@@ -101,8 +120,11 @@ namespace MarkSmith.Views.ShapeStudio
 
         private static readonly double[] ZoomSteps = { 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4 };
 
-        private void OnCanvasViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) =>
+        private void OnCanvasViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+        {
             ZoomText.Text = $"{Math.Round(CanvasScroller.ZoomFactor * 100)}%";
+            UpdateAdorner(); // handles stay the same size on screen at any zoom
+        }
 
         /// <summary>Shows the whole diagram: zooms out (never in past 100%) until it fits the view.
         /// Presets are laid out up to ~720 px wide, so on a narrower canvas their right side used to
@@ -370,12 +392,19 @@ namespace MarkSmith.Views.ShapeStudio
                 case nameof(ShapeDesignStudioViewModel.SelectedShape):
                     if (!ReferenceEquals(ViewModel.SelectedShape, _inspectorUndoFor)) _inspectorUndoFor = null;
                     if (ViewModel.SelectedShape is { } sel) ShapesList.ScrollIntoView(sel);
+                    TrackAdornedShape(ViewModel.SelectedShape);
+                    return;
+                case nameof(ShapeDesignStudioViewModel.SelectionCount):
+                case nameof(ShapeDesignStudioViewModel.IsDense):
+                    UpdateAdorner();
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectedPaletteName):
                     SyncPaletteUi();
                     foreach (var thumb in _presetThumbs) RenderPresetThumb(thumb);
                     return;
                 case nameof(ShapeDesignStudioViewModel.ArmedTool):
+                    SetCursor(MainCanvas, ViewModel.IsPlacing ? Microsoft.UI.Input.InputSystemCursorShape.Cross : Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+                    UpdateAdorner();
                     if (ViewModel.ArmedTool is { } tool)
                     {
                         _armedStatus = $"{ShapeCanvasItemViewModel.DisplayNameFor(tool)} — click the canvas to place it, or drag to draw it.";
@@ -428,8 +457,14 @@ namespace MarkSmith.Views.ShapeStudio
             var pos = e.GetCurrentPoint(MainCanvas).Position;
             if (ViewModel.ArmedTool is null)
             {
-                // Select tool: empty canvas clears the selection.
-                ViewModel.ClearSelection();
+                // Select tool: a click on empty canvas clears the selection; a drag draws a
+                // rubber band that selects every shape it touches (Ctrl/Shift adds to it).
+                _marqueeAdditive = IsDown(VirtualKey.Control) || IsDown(VirtualKey.Shift);
+                if (!_marqueeAdditive) ViewModel.ClearSelection();
+                if (ViewModel.IsDense) { e.Handled = true; return; }
+                _marquee = true;
+                _marqueeStart = pos;
+                MainCanvas.CapturePointer(e.Pointer);
                 e.Handled = true;
                 return;
             }
@@ -445,6 +480,19 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)
         {
+            if (_marquee)
+            {
+                var m = DragRect(_marqueeStart, e.GetCurrentPoint(MainCanvas).Position);
+                if (m.Width < 3 && m.Height < 3) return;
+                MarqueeRect.Visibility = Visibility.Visible;
+                Canvas.SetLeft(MarqueeRect, m.X);
+                Canvas.SetTop(MarqueeRect, m.Y);
+                MarqueeRect.Width = m.Width;
+                MarqueeRect.Height = m.Height;
+                MarqueeRect.StrokeThickness = 1 / CanvasScroller.ZoomFactor;
+                e.Handled = true;
+                return;
+            }
             if (!_drawing) return;
             var cur = e.GetCurrentPoint(MainCanvas).Position;
             var r = DragRect(_drawStart, cur);
@@ -459,6 +507,15 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnCanvasPointerReleased(object sender, PointerRoutedEventArgs e)
         {
+            if (_marquee)
+            {
+                // Finish first: releasing capture raises PointerCaptureLost synchronously, which
+                // cancels the band.
+                FinishMarquee(e.GetCurrentPoint(MainCanvas).Position);
+                MainCanvas.ReleasePointerCapture(e.Pointer);
+                e.Handled = true;
+                return;
+            }
             if (!_drawing) return;
             var cur = e.GetCurrentPoint(MainCanvas).Position;
             MainCanvas.ReleasePointerCapture(e.Pointer);
@@ -468,9 +525,25 @@ namespace MarkSmith.Views.ShapeStudio
 
         private void OnCanvasPointerCaptureLost(object sender, PointerRoutedEventArgs e)
         {
+            _marquee = false;
+            MarqueeRect.Visibility = Visibility.Collapsed;
             if (!_drawing) return;
             _drawing = false;
             DrawGhost.Visibility = Visibility.Collapsed;
+        }
+
+        private void FinishMarquee(Point end)
+        {
+            bool dragged = MarqueeRect.Visibility == Visibility.Visible;
+            _marquee = false;
+            MarqueeRect.Visibility = Visibility.Collapsed;
+            if (!dragged) return; // a plain click: the selection was already cleared on press
+            var r = DragRect(_marqueeStart, end);
+            int hit = ViewModel.SelectInRect(r.X, r.Y, r.Width, r.Height, _marqueeAdditive);
+            int n = ViewModel.SelectionCount;
+            ViewModel.StatusMessage = hit == 0 && n == 0 ? "No shapes there — drag across a shape to select it."
+                : n == 1 ? $"Selected {ViewModel.SelectedShape?.DisplayName.ToLowerInvariant()}"
+                : $"Selected {n} shapes";
         }
 
         private void FinishDraw(Point end)
@@ -519,6 +592,7 @@ namespace MarkSmith.Views.ShapeStudio
             ViewModel.ClickSelect(shape);
             _dragShape = shape;
             _dragMoved = false;
+            _dragAppliedX = _dragAppliedY = 0;
             _dragStart = e.GetCurrentPoint(MainCanvas).Position;
             fe.CapturePointer(e.Pointer);
             e.Handled = true;
@@ -536,8 +610,10 @@ namespace MarkSmith.Views.ShapeStudio
                 _dragMoved = true;
                 ViewModel.RecordUndo();
             }
-            ViewModel.NudgeSelection(dx, dy);
-            _dragStart = cur;
+            // dx/dy are the pointer's travel since the press; move by whatever is still owed.
+            var (mx, my) = ViewModel.NudgeSelection(dx - _dragAppliedX, dy - _dragAppliedY);
+            _dragAppliedX += mx;
+            _dragAppliedY += my;
             e.Handled = true;
         }
 
@@ -558,6 +634,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (sender is FrameworkElement fe && fe.DataContext is ShapeCanvasItemViewModel s)
             {
+                SetCursor(fe, ViewModel.IsPlacing ? Microsoft.UI.Input.InputSystemCursorShape.Cross : Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
                 _hoverShape = s;
                 if (_shapePaths.TryGetValue(s, out var p)) ApplyShapeVisual(p, s, hovered: true);
             }
@@ -769,6 +846,157 @@ namespace MarkSmith.Views.ShapeStudio
                     return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212));
                 }
             });
+        }
+
+        // ---- resize handles ----
+        // One unrotated, unlocked shape gets a frame with eight handles; dragging one resizes the
+        // shape from the opposite edge (Shift keeps the proportions on a corner), and the label
+        // refits as it goes. Rotated shapes and connectors are still sized from the inspector.
+
+        private const double HandleSize = 9;
+
+        private void BuildResizeHandles()
+        {
+            var E = ShapeDesignStudioViewModel.ResizeEdges.None;
+            var L = ShapeDesignStudioViewModel.ResizeEdges.Left;
+            var T = ShapeDesignStudioViewModel.ResizeEdges.Top;
+            var R = ShapeDesignStudioViewModel.ResizeEdges.Right;
+            var B = ShapeDesignStudioViewModel.ResizeEdges.Bottom;
+            var specs = new (ShapeDesignStudioViewModel.ResizeEdges Edges, Microsoft.UI.Input.InputSystemCursorShape Cursor, string Name)[]
+            {
+                (L | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast, "top-left"),
+                (T | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth, "top"),
+                (R | T, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest, "top-right"),
+                (R | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast, "right"),
+                (R | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast, "bottom-right"),
+                (B | E, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth, "bottom"),
+                (L | B, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest, "bottom-left"),
+                (L | E, Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast, "left"),
+            };
+            foreach (var (edges, cursor, name) in specs)
+            {
+                var h = new Microsoft.UI.Xaml.Shapes.Rectangle
+                {
+                    Width = HandleSize, Height = HandleSize, RadiusX = 1.5, RadiusY = 1.5,
+                    Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
+                    Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                    StrokeThickness = 1.25,
+                };
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, $"Resize from the {name}");
+                ToolTipService.SetToolTip(h, edges.HasFlag(L) || edges.HasFlag(R) ? (edges.HasFlag(T) || edges.HasFlag(B) ? "Drag to resize · Shift keeps the proportions" : "Drag to change the width") : "Drag to change the height");
+                SetCursor(h, cursor);
+                h.PointerPressed += OnHandlePointerPressed;
+                h.PointerMoved += OnHandlePointerMoved;
+                h.PointerReleased += OnHandlePointerReleased;
+                h.PointerCaptureLost += (_, _) => _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None;
+                SelectionAdorner.Children.Add(h);
+                _handles.Add((h, edges));
+            }
+        }
+
+        private void TrackAdornedShape(ShapeCanvasItemViewModel? shape)
+        {
+            if (_adornedShape is not null) _adornedShape.PropertyChanged -= OnAdornedShapeChanged;
+            _adornedShape = shape;
+            if (_adornedShape is not null) _adornedShape.PropertyChanged += OnAdornedShapeChanged;
+            UpdateAdorner();
+        }
+
+        private void OnAdornedShapeChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ShapeCanvasItemViewModel.X) or nameof(ShapeCanvasItemViewModel.Y)
+                or nameof(ShapeCanvasItemViewModel.Width) or nameof(ShapeCanvasItemViewModel.Height)
+                or nameof(ShapeCanvasItemViewModel.Rotation))
+                UpdateAdorner();
+        }
+
+        private void UpdateAdorner()
+        {
+            var s = _adornedShape;
+            bool show = s is not null && !ViewModel.IsDense && !ViewModel.IsPlacing && ViewModel.SelectionCount == 1
+                        && s.Rotation % 360 == 0 && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
+            SelectionAdorner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (!show || s is null) return;
+
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+            double size = HandleSize / z, half = size / 2;
+            Canvas.SetLeft(SelectionFrame, s.X);
+            Canvas.SetTop(SelectionFrame, s.Y);
+            SelectionFrame.Width = Math.Max(0, s.Width);
+            SelectionFrame.Height = Math.Max(0, s.Height);
+            SelectionFrame.StrokeThickness = 1 / z;
+            foreach (var (h, edges) in _handles)
+            {
+                double x = edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Left) ? s.X
+                         : edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Right) ? s.X + s.Width : s.X + s.Width / 2;
+                double y = edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Top) ? s.Y
+                         : edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Bottom) ? s.Y + s.Height : s.Y + s.Height / 2;
+                h.Width = h.Height = size;
+                h.StrokeThickness = 1.25 / z;
+                // Edge handles hide on a shape too small to tell them from the corners.
+                bool edge = edges is ShapeDesignStudioViewModel.ResizeEdges.Left or ShapeDesignStudioViewModel.ResizeEdges.Right
+                    ? s.Height * z < 28 : edges is ShapeDesignStudioViewModel.ResizeEdges.Top or ShapeDesignStudioViewModel.ResizeEdges.Bottom && s.Width * z < 28;
+                h.Visibility = edge ? Visibility.Collapsed : Visibility.Visible;
+                Canvas.SetLeft(h, x - half);
+                Canvas.SetTop(h, y - half);
+            }
+        }
+
+        private void OnHandlePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Rectangle h || _adornedShape is not { } s) return;
+            CanvasScroller.Focus(FocusState.Pointer);
+            _resizeEdges = _handles.First(x => ReferenceEquals(x.Handle, h)).Edges;
+            _resizeFrom = (s.X, s.Y, s.Width, s.Height);
+            _resizeStart = e.GetCurrentPoint(MainCanvas).Position;
+            _resized = false;
+            h.CapturePointer(e.Pointer);
+            e.Handled = true;
+        }
+
+        private void OnHandlePointerMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (_resizeEdges == ShapeDesignStudioViewModel.ResizeEdges.None || _adornedShape is not { } s) return;
+            var cur = e.GetCurrentPoint(MainCanvas).Position;
+            double dx = cur.X - _resizeStart.X, dy = cur.Y - _resizeStart.Y;
+            if (!_resized)
+            {
+                if (Math.Abs(dx) < 2 && Math.Abs(dy) < 2) return;
+                _resized = true;
+                ViewModel.RecordUndo();
+            }
+            ViewModel.ResizeShape(s, _resizeFrom, _resizeEdges, dx, dy, keepAspect: IsDown(VirtualKey.Shift));
+            ViewModel.StatusMessage = $"{s.DisplayName}: {s.Width:F0} × {s.Height:F0}";
+            e.Handled = true;
+        }
+
+        private void OnHandlePointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (_resizeEdges == ShapeDesignStudioViewModel.ResizeEdges.None) return;
+            if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
+            if (_resized && _adornedShape is { } s)
+                ViewModel.StatusMessage = $"Resized {s.DisplayName.ToLowerInvariant()} to {s.Width:F0} × {s.Height:F0} · Ctrl+Z to undo";
+            _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None;
+            e.Handled = true;
+        }
+
+        // ---- cursors ----
+        // UIElement.ProtectedCursor is protected in WinUI 3; reflection is the usual way to set it on
+        // elements we don't subclass.
+        private static readonly System.Reflection.PropertyInfo? CursorProperty =
+            typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        private static void SetCursor(UIElement element, Microsoft.UI.Input.InputSystemCursorShape shape)
+        {
+            try { CursorProperty?.SetValue(element, Microsoft.UI.Input.InputSystemCursor.Create(shape)); }
+            catch { /* cosmetic only */ }
+        }
+
+        private static Windows.UI.Color AccentColor(byte alpha)
+        {
+            var c = Application.Current.Resources.TryGetValue("SystemAccentColor", out var v) && v is Windows.UI.Color accent
+                ? accent : Windows.UI.Color.FromArgb(255, 0, 120, 212);
+            return Windows.UI.Color.FromArgb(alpha, c.R, c.G, c.B);
         }
 
         // ---- inspector: fill colour picker ----

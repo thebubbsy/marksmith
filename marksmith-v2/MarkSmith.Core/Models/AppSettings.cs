@@ -71,8 +71,7 @@ public sealed class AppSettings
         // Plain (no regex): strip a ChatGPT disclaimer footer line verbatim.
         new TextCleanupRule { Find = "ChatGPT can make mistakes. Check important info.", Replace = "" },
         // Regex with a capture: promote "**Bold**" pseudo-headings to real H3 headings.
-        new TextCleanupRule { Find = @"^\*\*([^*
-]+)\*\*\s*$", Replace = "### $1", IsRegex = true },
+        new TextCleanupRule { Find = @"^\*\*([^*\n]+)\*\*\s*$", Replace = "### $1", IsRegex = true },
         // Plain: collapse runs of three-or-more blank lines down to two (the built-in does this
         // with regex; the plain version shows the limitation — it only collapses one run at a time).
         new TextCleanupRule { Find = "\n\n\n", Replace = "\n\n" },

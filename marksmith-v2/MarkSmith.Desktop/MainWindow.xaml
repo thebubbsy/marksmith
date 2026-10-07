@@ -1391,17 +1391,30 @@
                                 <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding NormalizeLlm, Mode=TwoWay}" />
                             </localcontrols:OptionRow>
                             <localcontrols:OptionRow Header="Custom cleanup rules"
-                                                     Description="Strip your pet-peeve AI phrases (e.g. 'In conclusion', 'delve'). Applied after the fixes above, while they're on. Regex rules can use $1 captures; a blank Find is ignored.">
+                                                     Description="Strip your pet-peeve AI phrases (e.g. 'In conclusion', 'delve'). Applied after the fixes above, while they're on. Type \n for a line break; regex rules can use $1 captures.">
                                 <localcontrols:OptionRow.Details>
                                 <StackPanel Spacing="8">
+                            <!-- The rules only run inside the AI-quirks pass. Say so instead of leaving
+                                 the user to wonder why a rule does nothing. -->
+                            <Border Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" CornerRadius="4" Padding="8,6"
+                                    Visibility="{Binding NormalizationRulesPaused, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE769;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <TextBlock Grid.Column="1" Text="Paused: turn on Fix AI formatting quirks to run these rules."
+                                               TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </Border>
                             <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                                     CornerRadius="4" Padding="6"
                                     Visibility="{Binding HasNormalizationRules, Converter={StaticResource BoolToVisibilityConverter}}">
-                                <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                <!-- No inner scroller: rows now carry a status line, and a 140 px nested
+                                     scroll hid most of them inside a pane that already scrolls. -->
                                     <StackPanel Spacing="4">
                                         <ItemsControl ItemsSource="{Binding NormalizationRules}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
+                                                    <StackPanel Spacing="2" Margin="0,0,0,4">
                                                     <Grid services:HoverPolish.ApplyOnLoad="True" ColumnSpacing="4">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1409,10 +1422,15 @@
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox Text="{Binding Find, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                 PlaceholderText="Find" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
-                                                        <TextBox Grid.Column="1" Text="{Binding Replace, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                 PlaceholderText="Replace" ToolTipService.ToolTip="Leave blank to strip the match"
+                                                        <!-- FindText/ReplaceText show line breaks and tabs as \n and \t: these boxes
+                                                             are single-line, so a real break showed as nothing. -->
+                                                        <TextBox Text="{Binding FindText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PlaceholderText="Find" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12"
+                                                                 AutomationProperties.Name="Find"
+                                                                 ToolTipService.ToolTip="Text to find, any case. \n is a line break, \t a tab." />
+                                                        <TextBox Grid.Column="1" Text="{Binding ReplaceText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PlaceholderText="Replace" ToolTipService.ToolTip="Leave blank to strip the match. \n is a line break."
+                                                                 AutomationProperties.Name="Replace with"
                                                                  FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" />
                                                         <!-- A ".*" toggle, as in VS Code's find box. It was a bare CheckBox, whose
                                                              default MinWidth of 120 left a dead gap and squeezed Find/Replace until
@@ -1430,11 +1448,22 @@
                                                             <FontIcon Glyph="&#xE711;" FontSize="12" />
                                                         </Button>
                                                     </Grid>
+                                                    <!-- Checked as you type (bad pattern) and after each preview pass (matches). -->
+                                                    <Grid ColumnSpacing="5" Margin="2,0,0,0"
+                                                                Visibility="{Binding HasPatternError, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                        <FontIcon Glyph="&#xE783;" FontSize="11" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding PatternError}" FontSize="11" TextWrapping="Wrap"
+                                                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" Margin="2,0,0,0"
+                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                               Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                    </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
-                                </ScrollViewer>
                             </Border>
                             <Button FontSize="12" Padding="10,4"
                                     Command="{Binding AddNormalizationRuleCommand}" HorizontalAlignment="Left">

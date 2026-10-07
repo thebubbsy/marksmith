@@ -489,15 +489,92 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         CanvasChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Move every selected shape by (dx, dy), clamped at the canvas origin.</summary>
-    public void NudgeSelection(double dx, double dy)
+    /// <summary>Move every selected shape by (dx, dy), stopping the whole group at the canvas
+    /// origin. Returns the distance actually moved. Each shape used to be clamped on its own, so
+    /// dragging a group into the left edge squashed it into one column.</summary>
+    public (double Dx, double Dy) NudgeSelection(double dx, double dy)
     {
-        foreach (var s in SelectedItems)
+        var selected = SelectedItems.ToList();
+        if (selected.Count == 0) return (0, 0);
+        dx = Math.Max(dx, -selected.Min(s => s.X));
+        dy = Math.Max(dy, -selected.Min(s => s.Y));
+        if (dx == 0 && dy == 0) return (0, 0);
+        foreach (var s in selected)
         {
             s.X = Math.Max(0, s.X + dx);
             s.Y = Math.Max(0, s.Y + dy);
         }
         CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return (dx, dy);
+    }
+
+    // ---- canvas resize handles ----
+
+    /// <summary>Smallest width or height a shape can be dragged down to.</summary>
+    public const double MinShapeSize = 8;
+
+    /// <summary>Which edges a resize handle moves.</summary>
+    [Flags]
+    public enum ResizeEdges { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
+
+    /// <summary>The rectangle a shape takes when one of its handles is dragged by (dx, dy) from
+    /// where it started. The opposite edge stays put, the shape never shrinks below
+    /// <see cref="MinShapeSize"/> or crosses the canvas origin, and <paramref name="keepAspect"/>
+    /// (Shift on a corner) keeps its proportions.</summary>
+    public static (double X, double Y, double W, double H) ResizeRect(
+        double x, double y, double w, double h, ResizeEdges edges, double dx, double dy, bool keepAspect)
+    {
+        double left = x, top = y, right = x + w, bottom = y + h;
+        if (edges.HasFlag(ResizeEdges.Left)) left = Math.Clamp(x + dx, 0, right - MinShapeSize);
+        if (edges.HasFlag(ResizeEdges.Right)) right = Math.Max(left + MinShapeSize, x + w + dx);
+        if (edges.HasFlag(ResizeEdges.Top)) top = Math.Clamp(y + dy, 0, bottom - MinShapeSize);
+        if (edges.HasFlag(ResizeEdges.Bottom)) bottom = Math.Max(top + MinShapeSize, y + h + dy);
+
+        bool corner = (edges & (ResizeEdges.Left | ResizeEdges.Right)) != 0 && (edges & (ResizeEdges.Top | ResizeEdges.Bottom)) != 0;
+        if (keepAspect && corner && w > 0 && h > 0)
+        {
+            // Follow whichever side the pointer stretched more, and size the other to match.
+            double nw = right - left, nh = bottom - top, ratio = w / h;
+            if (nw / w >= nh / h) nh = nw / ratio; else nw = nh * ratio;
+            if (edges.HasFlag(ResizeEdges.Left)) left = Math.Max(0, right - nw); else right = left + nw;
+            if (edges.HasFlag(ResizeEdges.Top)) top = Math.Max(0, bottom - nh); else bottom = top + nh;
+        }
+        return (Math.Round(left, 1), Math.Round(top, 1), Math.Round(right - left, 1), Math.Round(bottom - top, 1));
+    }
+
+    /// <summary>Applies a handle drag to <paramref name="shape"/> from its starting rectangle.</summary>
+    public void ResizeShape(ShapeCanvasItemViewModel shape, (double X, double Y, double W, double H) start,
+        ResizeEdges edges, double dx, double dy, bool keepAspect)
+    {
+        var r = ResizeRect(start.X, start.Y, start.W, start.H, edges, dx, dy, keepAspect);
+        shape.X = r.X;
+        shape.Y = r.Y;
+        shape.Width = r.W;
+        shape.Height = r.H;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ---- marquee selection ----
+
+    /// <summary>Selects every shape the dragged rectangle touches (adding to the selection when
+    /// <paramref name="additive"/>, i.e. Ctrl or Shift is held). Returns how many it touched.</summary>
+    public int SelectInRect(double x, double y, double w, double h, bool additive)
+    {
+        if (IsDense) return 0;
+        var hits = Shapes.Where(s => s.X < x + w && s.X + s.Width > x && s.Y < y + h && s.Y + s.Height > y).ToList();
+        _additiveSelect = true;
+        try
+        {
+            foreach (var s in Shapes)
+            {
+                bool on = hits.Contains(s) || (additive && s.IsSelected);
+                if (s.IsSelected != on) s.IsSelected = on;
+            }
+            SelectedShape = hits.Count > 0 ? hits[^1] : Shapes.LastOrDefault(s => s.IsSelected);
+        }
+        finally { _additiveSelect = false; }
+        RaiseSelectionChanged();
+        return hits.Count;
     }
 
     [ObservableProperty]

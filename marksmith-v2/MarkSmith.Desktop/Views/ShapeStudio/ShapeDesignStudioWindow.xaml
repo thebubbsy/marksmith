@@ -461,6 +461,14 @@
                                 <!-- live outline while dragging out a new shape -->
                                 <Rectangle x:Name="DrawGhost" Visibility="Collapsed" StrokeThickness="1.5" StrokeDashArray="4,3"
                                            Stroke="{ThemeResource AccentFillColorDefaultBrush}" Fill="{ThemeResource SubtleFillColorSecondaryBrush}" RadiusX="2" RadiusY="2" />
+                                <!-- rubber-band selection: drag on empty canvas (Ctrl/Shift adds) -->
+                                <Rectangle x:Name="MarqueeRect" Visibility="Collapsed" StrokeThickness="1" IsHitTestVisible="False"
+                                           Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <!-- selection frame with eight resize handles (built in code) for one unrotated shape -->
+                                <Canvas x:Name="SelectionAdorner" Visibility="Collapsed">
+                                    <Rectangle x:Name="SelectionFrame" IsHitTestVisible="False" StrokeThickness="1"
+                                               Stroke="{ThemeResource AccentFillColorDefaultBrush}" />
+                                </Canvas>
                             </Canvas>
                         </Grid>
                     </ScrollViewer>

@@ -101,6 +101,7 @@ private readonly MarkdownExportService _mdExport = new();
     private bool _usePasteSource;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NormalizationRulesPaused))]
     private bool _normalizeLlm;
 
     [ObservableProperty]
@@ -621,14 +622,26 @@ private readonly MarkdownExportService _mdExport = new();
     private void SaveNormalizationRules()
     {
         _settingsService.Current.CustomNormalizationRules =
-            NormalizationRules.Select(r => new TextCleanupRule { Find = r.Find, Replace = r.Replace, IsRegex = r.IsRegex }).ToList();
+            NormalizationRules.Select(r => r.ToRule()).ToList();
         SaveSettingsDebounced();
         // Raised on every add, remove and edit: the side panel hides the empty list box by it, and
         // the shell re-renders the preview so a rule's effect shows as you type it.
         OnPropertyChanged(nameof(HasNormalizationRules));
+        OnPropertyChanged(nameof(NormalizationRulesPaused));
     }
 
     public bool HasNormalizationRules => NormalizationRules.Count > 0;
+
+    /// <summary>The rules only run as part of the AI-quirks pass, so say so while that's off rather
+    /// than showing match counts that no longer apply.</summary>
+    public bool NormalizationRulesPaused => !NormalizeLlm && HasNormalizationRules;
+
+    // Hands each rule row what the latest preview pass did with it (match count or a run-time error).
+    private void ShowNormalizationRuleOutcomes(IReadOnlyList<CleanupRuleOutcome>? outcomes)
+    {
+        for (var i = 0; i < NormalizationRules.Count; i++)
+            NormalizationRules[i].ShowOutcome(outcomes is not null && i < outcomes.Count ? outcomes[i] : null);
+    }
 
     // Document outline (Task 17): H1–H6 entries extracted from CurrentMarkdown. The anchors are the
     // exact Markdig AutoIdentifier ids the preview renders, so the outline flyout can click-to-scroll.
@@ -1268,7 +1281,9 @@ private readonly MarkdownExportService _mdExport = new();
     // normalization is idempotent, and the badge only updates when the new classification says
     // something stronger than what's already displayed (re-running on cleaned text scores lower
     // because most signals were just removed).
-    public string PrepareMarkdown(string markdown)
+    /// <param name="forPreview">True from the live preview (UI thread): the cleanup-rule rows then show
+    /// how many matches each rule made in this document.</param>
+    public string PrepareMarkdown(string markdown, bool forPreview = false)
     {
         var classification = AppServices.LlmSource.Classify(markdown);
 
@@ -1278,8 +1293,10 @@ private readonly MarkdownExportService _mdExport = new();
         // specific vendor either: they apply to AI-ish text with no ChatGPT/Gemini/Claude tells at
         // all, and each is a no-op when its pattern doesn't match, so running on Generic text is safe.
         (markdown, _) = AppServices.LlmSource.RepairArtifacts(markdown, classification);
+        var ruleOutcomes = forPreview && NormalizeLlm ? new List<CleanupRuleOutcome>() : null;
         if (NormalizeLlm)
-            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification, _settingsService.Current.CustomNormalizationRules);
+            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification, _settingsService.Current.CustomNormalizationRules, ruleOutcomes);
+        if (forPreview) ShowNormalizationRuleOutcomes(ruleOutcomes);
 
         // The source badge, though, only makes sense for a recognized vendor.
         if (classification.Source == LlmSource.Generic) return markdown;

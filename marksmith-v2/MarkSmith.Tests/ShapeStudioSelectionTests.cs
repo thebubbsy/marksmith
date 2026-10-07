@@ -199,9 +199,12 @@ public class ShapeStudioSelectionTests
         var vm = ThreeRects();
         vm.SelectedShape = vm.Shapes[0];
         vm.ToggleSelection(vm.Shapes[1]);
-        vm.NudgeSelection(-50, 10);
+        var moved = vm.NudgeSelection(-50, 10);
+        // The group stops as one when its leftmost shape reaches the edge (run #21); each shape used
+        // to stop on its own, which squashed the group's layout.
+        Assert.Equal((-10.0, 10.0), moved);
         Assert.Equal(0, vm.Shapes[0].X);
-        Assert.Equal(150, vm.Shapes[1].X);
+        Assert.Equal(190, vm.Shapes[1].X);
         Assert.Equal(60, vm.Shapes[0].Y);
         Assert.Equal(80, vm.Shapes[2].X);
     }

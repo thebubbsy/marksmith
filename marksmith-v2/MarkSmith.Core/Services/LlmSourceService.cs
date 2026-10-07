@@ -234,7 +234,7 @@ public sealed partial class LlmSourceService
     // real headings, and tightening blank-line spacing. A user could legitimately want any of them
     // left alone. Assumes RepairArtifacts has already run.
     public (string Cleaned, List<string> Fixes) NormalizeStyle(string markdown, LlmClassification classification,
-        IReadOnlyList<TextCleanupRule>? customRules = null)
+        IReadOnlyList<TextCleanupRule>? customRules = null, IList<CleanupRuleOutcome>? ruleOutcomes = null)
     {
         var fixes = new List<string>();
         var text = markdown;
@@ -264,33 +264,11 @@ public sealed partial class LlmSourceService
         {
             foreach (var rule in customRules)
             {
-                if (string.IsNullOrWhiteSpace(rule.Find)) continue;
-                try
-                {
-                    int count;
-                    if (rule.IsRegex)
-                    {
-                        var rx = new Regex(rule.Find, RegexOptions.IgnoreCase | RegexOptions.Multiline);
-                        count = rx.Matches(text).Count;
-                        if (count > 0) text = rx.Replace(text, rule.Replace ?? "");
-                    }
-                    else
-                    {
-                        count = 0;
-                        int idx = 0;
-                        while ((idx = text.IndexOf(rule.Find, idx, StringComparison.OrdinalIgnoreCase)) >= 0)
-                        {
-                            count++;
-                            text = text.Remove(idx, rule.Find.Length).Insert(idx, rule.Replace ?? "");
-                            idx += (rule.Replace ?? "").Length;
-                        }
-                    }
-                    if (count > 0) fixes.Add("Custom: " + rule.Find + " (" + count + ")");
-                }
-                catch (ArgumentException)
-                {
-                    fixes.Add("Custom rule skipped (bad regex): " + rule.Find);
-                }
+                (text, var outcome) = CleanupRuleEngine.Apply(text, rule);
+                ruleOutcomes?.Add(outcome);
+                var label = CleanupRuleEngine.ToDisplay(rule.Find, rule.IsRegex);
+                if (outcome.Error is not null) fixes.Add("Custom rule skipped: " + label);
+                else if (outcome.Matches > 0) fixes.Add("Custom: " + label + " (" + outcome.Matches + ")");
             }
         }
 
