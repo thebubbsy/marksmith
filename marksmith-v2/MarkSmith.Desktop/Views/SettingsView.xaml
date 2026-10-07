@@ -112,7 +112,7 @@
 
                         <TextBlock Text="Export" Style="{StaticResource SettingsSectionStyle}" />
                         <controls:SettingsCard Glyph="&#xE8A5;" Header="Default output format"
-                                               Description="What the browser extension, clipboard and folder automation, batch convert and the local API export to.">
+                                               Description="What the browser extension, clipboard and folder automation, batch convert and the local API export to. Automation that writes email drafts is free on every plan.">
                             <!-- Tag carries the stored setting value; Content is what people read. -->
                             <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
                                       AutomationProperties.Name="Default output format"
@@ -121,6 +121,8 @@
                                 <ComboBoxItem Content="PDF (.pdf)" Tag="pdf" />
                                 <ComboBoxItem Content="PowerPoint (.pptx)" Tag="pptx" />
                                 <ComboBoxItem Content="EPUB e-book (.epub)" Tag="epub" />
+                                <ComboBoxItem Content="Email draft (.eml)" Tag="eml" />
+                                <ComboBoxItem Content="Outlook message (.msg)" Tag="msg" />
                             </ComboBox>
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE8AC;" Header="Export file name"

@@ -11,14 +11,13 @@ namespace MarkSmith.Services;
 
 public sealed class ExportCoordinator
 {
-    private readonly SemaphoreSlim _convertLock = new(1, 1);
-    private readonly MermaidHarvestService _mermaidHarvest = new();
     private readonly PdfExportService _pdfExport = new();
     private readonly DocxExportService _docxExport = new();
     private readonly PptxExportService _pptxExport = new();
     private readonly EpubExportService _epubExport = new();
 
-    public SemaphoreSlim ConvertLock => _convertLock;
+    /// <summary>Shared with every other export that uses the preview engine (batch, API, watch folder).</summary>
+    public SemaphoreSlim ConvertLock => AppServices.AutomationExport.Lock;
 
     public async Task ExportToPdfAsync(IWebRenderHost? host, string html, string outPath, AppSettings settings, string? markdown = null)
     {
@@ -50,19 +49,25 @@ public sealed class ExportCoordinator
         return AppServices.MarkdownHtml.Render(markdown, settings, theme, null);
     }
 
+    /// <summary>The requested formats in canonical form. "both" is PDF + Word; anything no exporter
+    /// writes is dropped; nothing usable falls back to <paramref name="defaultFormat"/>, then PDF.</summary>
     public static string[] ParseFormats(string? format, string? defaultFormat = null)
     {
-        var fallback = string.IsNullOrWhiteSpace(defaultFormat) ? "pdf" : defaultFormat.Trim().ToLowerInvariant();
-        if (fallback is not ("pdf" or "docx" or "pptx" or "epub")) fallback = "pdf";
+        var fallback = OutputFormats.Normalize(defaultFormat) ?? OutputFormats.Pdf;
         if (string.IsNullOrWhiteSpace(format)) return new[] { fallback };
-        if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { "pdf", "docx" };
+        if (format.Trim().Equals("both", StringComparison.OrdinalIgnoreCase)) return new[] { OutputFormats.Pdf, OutputFormats.Docx };
         var fmts = format.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(f => f.ToLowerInvariant())
-            .Where(f => f is "pdf" or "docx" or "pptx" or "epub")
+            .Select(OutputFormats.Normalize)
+            .OfType<string>()
             .Distinct().ToArray();
         return fmts.Length > 0 ? fmts : new[] { fallback };
     }
 
+    private static AutomationExportService Exporter => AppServices.AutomationExport;
+
+    /// <summary>The clipboard watcher, the browser extension and /api/ingest land the document in
+    /// the editor; with "auto-export" on, this writes it out in the default format (or the formats
+    /// the request asked for) with no clicks.</summary>
     public async Task AutoExportIngestAsync(
         MainViewModel vm,
         OutputOverride? output,
@@ -71,90 +76,56 @@ public sealed class ExportCoordinator
         Action<string>? showToast = null,
         Func<Task>? onCompletedRefresh = null)
     {
-        await _convertLock.WaitAsync();
+        await ConvertLock.WaitAsync();
         try
         {
             var md = vm.PastedMarkdown;
             if (string.IsNullOrWhiteSpace(md)) return;
 
-            if (host is null || !await host.EnsureReadyAsync())
+            var settings = AppServices.Settings.Current.CloneWith(output);
+            var formats = ParseFormats(output?.Format, settings.TargetFormat);
+            if (!AutomationPolicy.Allows(AppServices.License.State, formats))
             {
-                vm.StatusText = "Auto-generate failed: the preview engine couldn't start. Try the export again.";
+                vm.StatusText = ProGate.StatusLine(FeatureId.AutoExportIngest, AppServices.License.State) + " " + AutomationPolicy.EmailIsFreeHint;
+                vm.StatusSeverity = StatusSeverity.Warning;
+                return;
+            }
+            if (formats.Any(OutputFormats.NeedsRenderHost) && (host is null || !await host.EnsureReadyAsync()))
+            {
+                vm.StatusText = "Auto-export failed: the preview engine couldn't start, and a PDF needs it. The document is in the editor; try Export again.";
                 vm.StatusSeverity = StatusSeverity.Error;
                 return;
             }
 
             using var offscreenScope = beginOffscreen?.Invoke();
-            var settings = AppServices.Settings.Current.CloneWith(output);
             Directory.CreateDirectory(settings.OutputFolder);
-            var label = (vm.LastClassification?.SourceName ?? "chat").Replace(" ", "");
+            // The conversation's title when the extension sent one, else the detected assistant.
+            var title = SafeStem(vm.SuggestedTitle);
+            var label = title.Length > 0 ? title : (vm.LastClassification?.SourceName ?? "chat").Replace(" ", "");
             var stem = Path.Combine(settings.OutputFolder, $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}");
 
             var produced = new List<string>();
-            var pending = new List<string>();
             var failures = new List<string>();
-            var formats = ParseFormats(output?.Format, settings.TargetFormat);
-
-            IReadOnlyList<byte[]?>? mermaidImgs = null;
-            IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-            IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGen = null;
-
-            if ((formats.Contains("docx") || formats.Contains("epub")) && md.Contains("```mermaid", StringComparison.Ordinal))
-            {
-                var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, theme);
-                if (formats.Contains("docx") && settings.MermaidDocxMode == 1)
-                {
-                    mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                    mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
-                }
-            }
-
             foreach (var fmt in formats)
             {
                 var outPath = $"{stem}.{fmt}";
                 try
                 {
-                    if (!(fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath)))
-                        ExportFailureMessage.ThrowIfLocked(outPath);
-                    switch (fmt)
+                    var written = await Exporter.ExportAsync(new AutomationExportJob
                     {
-                        case "pdf":
-                            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                            var html = AppServices.MarkdownHtml.Render(md, settings, theme, vm.LastClassification);
-                            await _pdfExport.ExportAsync(host, html, outPath, settings, md);
-                            break;
-                        case "docx":
-                            if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                            {
-                                await _docxExport.ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
-                                outPath = settings.RunningDocPath;
-                            }
-                            else
-                            {
-                                await _docxExport.ExportAsync(md, outPath, settings, mermaidImgs,
-                                    settings.NormalizeLlm ? vm.LastClassification?.AppliedFixes : null, mermaidGeo, mermaidGen);
-                            }
-                            break;
-                        case "pptx":
-                            await _pptxExport.ExportAsync(md, outPath, settings);
-                            break;
-                        case "epub":
-                            await _epubExport.ExportAsync(md, outPath, settings, null, mermaidImgs);
-                            break;
-                    }
-                    produced.Add(outPath);
-                    vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                }
-                catch (NotImplementedException)
-                {
-                    pending.Add(fmt.ToUpperInvariant());
+                        Markdown = md, Format = fmt, OutputPath = outPath, Settings = settings, Host = host,
+                        Classification = vm.LastClassification,
+                        SourceLabel = title.Length > 0 ? title : null,
+                        EmailSubject = output?.EmailSubject,
+                    });
+                    produced.Add(written);
+                    vm.RecordExport(OutputFormats.Kind(fmt), written, md);
                 }
                 catch (Exception ex)
                 {
                     // One format failing (the PDF open in Acrobat, say) used to abort the whole run
                     // and leave a raw exception message. Keep going and report each reason plainly.
-                    failures.Add(ExportFailureMessage.Describe(fmt.ToUpperInvariant(), ex, outPath));
+                    failures.Add(ExportFailureMessage.Describe(OutputFormats.Kind(fmt), ex, outPath));
                 }
             }
 
@@ -162,74 +133,28 @@ public sealed class ExportCoordinator
             {
                 vm.LastOutputPath = produced[^1];
                 var names = string.Join(", ", produced.Select(Path.GetFileName));
-                var message = $"Auto-generated {names} · in {Path.GetDirectoryName(produced[^1])}"
-                    + (pending.Count > 0 ? $"  ({string.Join("/", pending)} coming soon)" : "")
-                    + (failures.Count > 0 ? " · " + string.Join(" · ", failures) : "");
+                var message = $"Auto-exported {names}"
+                    + (failures.Count > 0 ? " · " + string.Join(" · ", failures) : "")
+                    + $" · in {Path.GetDirectoryName(produced[^1])}";
                 vm.AnnounceExport(message, produced[^1]);
                 vm.StatusSeverity = failures.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
                 showToast?.Invoke(produced[^1]);
+                await PublishToCloudAsync(vm, settings, produced);
             }
             else if (failures.Count > 0)
             {
-                vm.StatusText = "Auto-generate: " + string.Join(" · ", failures);
+                vm.StatusText = "Auto-export failed: " + string.Join(" · ", failures);
                 vm.StatusSeverity = StatusSeverity.Error;
-            }
-            else if (pending.Count > 0)
-            {
-                vm.StatusText = $"{string.Join("/", pending)} export is on the roadmap — not yet available.";
-                vm.StatusSeverity = StatusSeverity.Warning;
-            }
-
-            // Cloud auto-publish (Task 9): mirror each produced file into the configured cloud drive
-            // (a local sync-folder copy, or a WebDAV PUT). Best-effort — a failed sync must never
-            // fail the export that just succeeded.
-            if (settings.CloudAutoPublish && produced.Count > 0)
-            {
-                if (string.IsNullOrWhiteSpace(settings.CloudProviderId))
-                {
-                    // The user enabled cloud publish but never picked a provider — tell them.
-                    vm.StatusText += "  (Cloud publish skipped: no provider configured in Settings.)";
-                    vm.StatusSeverity = StatusSeverity.Warning;
-                }
-                else
-                {
-                    var publishFailures = new List<string>();
-                    foreach (var p in produced)
-                    {
-                        try
-                        {
-                            await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
-                                settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
-                        }
-                        catch (Exception cex)
-                        {
-                            publishFailures.Add(Path.GetFileName(p));
-                            System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
-                        }
-                    }
-
-                    // Local export succeeded but a requested cloud publish did not — never let the
-                    // earlier Success status falsely imply the file was published.
-                    if (publishFailures.Count > 0)
-                    {
-                        vm.StatusText += $"  (Local export OK, but cloud publish FAILED for: {string.Join(", ", publishFailures)} — check your connection/credentials.)";
-                        vm.StatusSeverity = StatusSeverity.Warning;
-                    }
-                    else
-                    {
-                        vm.StatusText += "  (Cloud publish successful.)";
-                    }
-                }
             }
         }
         catch (Exception ex)
         {
-            vm.StatusText = "Auto-generate: " + ExportFailureMessage.Describe("Auto", ex, null);
+            vm.StatusText = "Auto-export failed: " + ExportFailureMessage.Describe("Auto-export", ex, null);
             vm.StatusSeverity = StatusSeverity.Error;
         }
         finally
         {
-            _convertLock.Release();
+            ConvertLock.Release();
             if (onCompletedRefresh is not null)
             {
                 await onCompletedRefresh();
@@ -237,6 +162,51 @@ public sealed class ExportCoordinator
         }
     }
 
+    // Cloud auto-publish (Task 9): mirror each produced file into the configured cloud drive (a
+    // local sync-folder copy, or a WebDAV PUT). Best-effort: a failed sync never fails the export
+    // that just succeeded, but the status line says so instead of implying it was published.
+    private static async Task PublishToCloudAsync(MainViewModel vm, AppSettings settings, IReadOnlyList<string> produced)
+    {
+        if (!settings.CloudAutoPublish || produced.Count == 0) return;
+        if (string.IsNullOrWhiteSpace(settings.CloudProviderId))
+        {
+            vm.StatusText += " · Cloud publish skipped: no cloud provider is set in Settings.";
+            vm.StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+
+        var publishFailures = new List<string>();
+        foreach (var p in produced)
+        {
+            try
+            {
+                await AppServices.CloudStorage.PublishAsync(p, settings.CloudProviderId, settings.CloudSubfolder,
+                    settings.WebDavEndpoint, settings.WebDavUser, settings.WebDavToken);
+            }
+            catch (Exception cex)
+            {
+                publishFailures.Add(Path.GetFileName(p));
+                System.Diagnostics.Debug.WriteLine($"Cloud publish failed for {Path.GetFileName(p)}: {cex.Message}");
+            }
+        }
+
+        if (publishFailures.Count > 0)
+        {
+            vm.StatusText += $" · Saved here, but the cloud copy failed for {string.Join(", ", publishFailures)}. Check the connection and sign-in in Settings.";
+            vm.StatusSeverity = StatusSeverity.Warning;
+        }
+        else
+        {
+            vm.StatusText += " · Also published to the cloud.";
+        }
+    }
+
+    // What each watched file last held, so a save that didn't change the text (or the burst of
+    // Changed events one save raises) isn't ingested and exported again.
+    private readonly Dictionary<string, string> _watchedContent = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A new or changed Markdown file in the watch folder: load it into the editor and,
+    /// with "convert automatically" on, export it next to the other exports under its own name.</summary>
     public async Task OnWatchedFileAsync(
         MainViewModel vm,
         string path,
@@ -245,78 +215,81 @@ public sealed class ExportCoordinator
         Action<string>? showToast = null,
         Func<Task>? onCompletedRefresh = null)
     {
-        vm.IngestFile(path);
-        if (!vm.WatchFolderAutoConvert) return;
-        if (!AppServices.License.CanAutomate)
+        var name = Path.GetFileName(path);
+
+        // The file open in the editor is the user's own work in progress: saving it with Ctrl+S
+        // used to bounce it back in as an "ingest", re-running the AI clean-up over their edits.
+        if (vm.IsOpenDocument(path)) return;
+
+        string text;
+        try { text = await File.ReadAllTextAsync(path); }
+        catch (Exception ex)
         {
-            vm.StatusText = ProGate.StatusLine(FeatureId.WatchFolder, AppServices.License.State);
+            vm.StatusText = $"Watch folder: couldn't read {name}. {ExportFailureMessage.Describe("Watch folder", ex, null)}";
+            vm.StatusSeverity = StatusSeverity.Error;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(text)) return; // a file being created; its content arrives in a later event
+        lock (_watchedContent)
+        {
+            if (_watchedContent.TryGetValue(path, out var last) && last == text) return;
+            _watchedContent[path] = text;
+        }
+
+        vm.IngestMarkdown(text, name);
+        if (!vm.WatchFolderAutoConvert) return;
+
+        var settings = AppServices.Settings.Current;
+        var fmt = OutputFormats.Normalize(settings.TargetFormat) ?? OutputFormats.Pdf;
+        if (!AutomationPolicy.Allows(AppServices.License.State, fmt))
+        {
+            vm.StatusText = ProGate.StatusLine(FeatureId.WatchFolder, AppServices.License.State) + " " + AutomationPolicy.EmailIsFreeHint;
             vm.StatusSeverity = StatusSeverity.Warning;
             return;
         }
-        if (host is null || !await host.EnsureReadyAsync()) return;
+        if (OutputFormats.NeedsRenderHost(fmt) && (host is null || !await host.EnsureReadyAsync()))
+        {
+            vm.StatusText = $"Watch folder: {name} is in the editor, but the preview engine couldn't start to make the PDF. Use Export to try again.";
+            vm.StatusSeverity = StatusSeverity.Error;
+            return;
+        }
 
         using var offscreenScope = beginOffscreen?.Invoke();
-
-        var attemptedFormat = "Auto";
-        string? attemptedPath = null;
+        var stem = Path.GetFileNameWithoutExtension(path);
+        var outPath = Path.Combine(settings.OutputFolder, $"{stem}.{fmt}");
+        await ConvertLock.WaitAsync();
         try
         {
-            await _convertLock.WaitAsync();
-            try
+            var md = vm.PastedMarkdown;
+            var written = await Exporter.ExportAsync(new AutomationExportJob
             {
-                var settings = AppServices.Settings.Current;
-                var md = vm.PastedMarkdown;
-                var folder = settings.OutputFolder;
-                Directory.CreateDirectory(folder);
-
-                // Respect the user's target format instead of hardcoding PDF.
-                var fmt = (settings.TargetFormat ?? "pdf").ToLowerInvariant();
-                string outPath;
-                attemptedFormat = fmt.ToUpperInvariant();
-
-                if (fmt == "docx" && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                {
-                    await _docxExport.ExportAppendAsync(md, settings.RunningDocPath, settings, null, null, null);
-                    outPath = settings.RunningDocPath;
-                }
-                else if (fmt == "docx")
-                {
-                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".docx");
-                    attemptedPath = outPath;
-                    ExportFailureMessage.ThrowIfLocked(outPath);
-                    await _docxExport.ExportAsync(md, outPath, settings, null, null, null, null);
-                }
-                else
-                {
-                    var html = vm.BuildPreviewHtml(md);
-                    outPath = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".pdf");
-                    attemptedPath = outPath;
-                    ExportFailureMessage.ThrowIfLocked(outPath);
-                    await _pdfExport.ExportAsync(host, html, outPath, settings, md);
-                }
-
-                vm.LastOutputPath = outPath;
-                vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                vm.AnnounceExport($"Auto-converted {Path.GetFileName(path)} to {Path.GetFileName(outPath)} · in {Path.GetDirectoryName(outPath)}", outPath);
-                vm.StatusSeverity = StatusSeverity.Success;
-                showToast?.Invoke(outPath);
-            }
-            finally
-            {
-                _convertLock.Release();
-                if (onCompletedRefresh is not null)
-                {
-                    await onCompletedRefresh();
-                }
-            }
+                Markdown = md, Format = fmt, OutputPath = outPath, Settings = settings, Host = host,
+                Classification = vm.LastClassification, SourceLabel = stem,
+                BaseDirectory = Path.GetDirectoryName(path),
+            });
+            vm.LastOutputPath = written;
+            vm.RecordExport(OutputFormats.Kind(fmt), written, md, sourcePath: path);
+            vm.AnnounceExport($"Watch folder: {name} → {Path.GetFileName(written)} · in {Path.GetDirectoryName(written)}", written);
+            vm.StatusSeverity = StatusSeverity.Success;
+            showToast?.Invoke(written);
+            await PublishToCloudAsync(vm, settings, new[] { written });
         }
         catch (Exception ex)
         {
-            vm.StatusText = $"Watch folder ({Path.GetFileName(path)}): " + ExportFailureMessage.Describe(attemptedFormat, ex, attemptedPath);
+            vm.StatusText = $"Watch folder ({name}): " + ExportFailureMessage.Describe(OutputFormats.Kind(fmt), ex, outPath);
             vm.StatusSeverity = StatusSeverity.Error;
+        }
+        finally
+        {
+            ConvertLock.Release();
+            if (onCompletedRefresh is not null)
+            {
+                await onCompletedRefresh();
+            }
         }
     }
 
+    /// <summary>/api/convert: the document in <c>output.Format</c> (or the default output format) as bytes.</summary>
     public async Task<byte[]> ConvertForApiAsync(
         MainViewModel vm,
         string markdown,
@@ -325,107 +298,31 @@ public sealed class ExportCoordinator
         Func<IDisposable>? beginOffscreen = null,
         Func<Task>? onCompletedRefresh = null)
     {
-        if (host is null || !await host.EnsureReadyAsync())
+        var settings = AppServices.Settings.Current.CloneWith(output);
+        var fmt = OutputFormats.Normalize(output?.Format) ?? OutputFormats.Normalize(settings.TargetFormat) ?? OutputFormats.Pdf;
+        if (OutputFormats.NeedsRenderHost(fmt) && (host is null || !await host.EnsureReadyAsync()))
         {
             throw new InvalidOperationException("The preview engine couldn't start.");
         }
 
         using var offscreenScope = beginOffscreen?.Invoke();
-        await _convertLock.WaitAsync();
+        await ConvertLock.WaitAsync();
         try
         {
-            var settings = AppServices.Settings.Current.CloneWith(output);
             var md = markdown;
             var classification = AppServices.LlmSource.Classify(md);
             (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
             if (settings.NormalizeLlm)
                 (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification, settings.CustomNormalizationRules);
-            var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-            var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
-            var fmt = settings.TargetFormat.ToLowerInvariant();
-            if (output?.Format is { Length: > 0 } outputFmt)
-                fmt = outputFmt.ToLowerInvariant();
-
-            if (fmt == "docx")
+            return await Exporter.ExportToBytesAsync(new AutomationExportJob
             {
-                IReadOnlyList<byte[]?>? mermaidImgs = null;
-                IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGen = null;
-                if (md.Contains("```mermaid", StringComparison.Ordinal))
-                {
-                    mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, theme);
-                    if (settings.MermaidDocxMode == 1)
-                    {
-                        mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                        mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
-                    }
-                }
-
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.docx");
-                if (settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath))
-                {
-                    await _docxExport.ExportAppendAsync(md, settings.RunningDocPath, settings, mermaidImgs, mermaidGeo, mermaidGen);
-                    tmp = settings.RunningDocPath;
-                }
-                else
-                {
-                    await _docxExport.ExportAsync(md, tmp, settings, mermaidImgs,
-                        settings.NormalizeLlm ? classification.AppliedFixes : null, mermaidGeo, mermaidGen);
-                }
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                if (tmp != settings.RunningDocPath) File.Delete(tmp);
-                return bytes;
-            }
-            else if (fmt == "pptx")
-            {
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pptx");
-                await _pptxExport.ExportAsync(md, tmp, settings);
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                File.Delete(tmp);
-                return bytes;
-            }
-            else if (fmt is "eml" or "email" or "msg")
-            {
-                // Free on every plan (FeatureId.EmailDraft). Diagrams are harvested in the email's
-                // white palette so a dark theme doesn't put a dark slab in a light message.
-                List<byte[]?>? mermaidImgs = null;
-                if (md.Contains("```mermaid", StringComparison.Ordinal))
-                {
-                    var prepared = Email.EmailHtmlRenderer.Prepare(md, settings, theme);
-                    mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, prepared, settings, Email.EmailPalette.From(theme).DiagramTheme());
-                }
-                var doc = Email.EmailComposer.Compose(new Email.EmailComposeRequest
-                {
-                    Markdown = md,
-                    SourceLabel = output?.SourceTitle,
-                    Subject = output?.EmailSubject,
-                    MermaidPngs = mermaidImgs,
-                }, settings, theme);
-                return fmt == "msg" ? Email.MsgWriter.ToBytes(doc) : Email.EmlWriter.ToBytes(doc);
-            }
-            else if (fmt == "epub")
-            {
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.epub");
-                IReadOnlyList<byte[]?>? diagrams = md.Contains("```mermaid", StringComparison.Ordinal)
-                    ? await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, theme)
-                    : null;
-                await _epubExport.ExportAsync(md, tmp, settings, null, diagrams);
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                File.Delete(tmp);
-                return bytes;
-            }
-            else
-            {
-                var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.pdf");
-                await _pdfExport.ExportAsync(host, html, tmp, settings, md);
-                var bytes = await File.ReadAllBytesAsync(tmp);
-                File.Delete(tmp);
-                return bytes;
-            }
+                Markdown = md, Format = fmt, Settings = settings, Host = host, Classification = classification,
+                SourceLabel = output?.SourceTitle, EmailSubject = output?.EmailSubject,
+            });
         }
         finally
         {
-            _convertLock.Release();
+            ConvertLock.Release();
             if (onCompletedRefresh is not null)
             {
                 await onCompletedRefresh();
@@ -433,7 +330,9 @@ public sealed class ExportCoordinator
         }
     }
 
-    public async Task<object> BatchConvertForApiAsync(
+    /// <summary>Batch convert a folder (the Batch convert button and /api/batch). Every document
+    /// the editor can open is converted, each into the output folder under its own name.</summary>
+    public async Task<BatchConvertResult> BatchConvertForApiAsync(
         MainViewModel vm,
         string folderPath,
         string format,
@@ -448,102 +347,40 @@ public sealed class ExportCoordinator
             throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
         }
 
-        var files = Directory.GetFiles(folderPath, "*.md", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
-        if (files.Length == 0)
-        {
-            return new { done = 0, failed = 0, message = "No .md files found." };
-        }
-
         var settings = AppServices.Settings.Current.CloneWith(ovr);
-        var fmt = format.ToLowerInvariant();
+        var fmt = OutputFormats.Normalize(format)
+            ?? throw new ArgumentException($"MarkSmith can't batch-convert to \"{format}\". Use pdf, docx, pptx, epub, eml or msg.");
         var outFolder = settings.OutputFolder;
-        Directory.CreateDirectory(outFolder);
+        var files = AutomationExportService.FindBatchSources(folderPath, recursive, outFolder);
+        if (files.Length == 0) return new BatchConvertResult { Format = fmt, OutputFolder = outFolder };
 
-        if (fmt == "pdf")
+        if (OutputFormats.NeedsRenderHost(fmt) && (host is null || !await host.EnsureReadyAsync()))
         {
-            if (host is null || !await host.EnsureReadyAsync())
-            {
-                throw new InvalidOperationException("WebView2 initialization failed.");
-            }
+            throw new InvalidOperationException("The preview engine couldn't start, and a PDF needs it.");
         }
 
         using var offscreenScope = beginOffscreen?.Invoke();
-        int done = 0, failed = 0;
-        var processedFiles = new List<string>();
-
-        // The theme is identical for every file in a batch (settings is fixed above), so resolve it
-        // once here instead of re-running Themes.GetOrDefault on every iteration of the loop below.
-        var batchTheme = AppServices.Themes.GetOrDefault(settings.Theme);
-
-        foreach (var f in files)
+        try
         {
-            await _convertLock.WaitAsync();
-            try
+            return await AppServices.BatchConvert.ConvertFilesAsync(
+                host, files, folderPath, outFolder, fmt, settings,
+                progressCallback: msg => { if (msg.StartsWith("Converting ", StringComparison.Ordinal)) vm.StatusText = "Batch: " + msg; },
+                recorded: (written, md, source) => vm.RecordExport(OutputFormats.Kind(fmt), written, md, sourcePath: source));
+        }
+        finally
+        {
+            if (onCompletedRefresh is not null)
             {
-                var md = vm.PrepareMarkdown(await Plugins.PluginFileReader.ReadAsMarkdownAsync(f));
-                // Mirror the source's relative folder structure under the output folder so a
-                // recursive batch doesn't collide same-named files from different subfolders.
-                // (For a top-level-only batch relDir is "" and this is the same flat path as before.)
-                var relDir = Path.GetDirectoryName(Path.GetRelativePath(folderPath, f)) ?? "";
-                var outDir = Path.Combine(outFolder, relDir);
-                Directory.CreateDirectory(outDir);
-                var outPath = Path.Combine(outDir, Path.GetFileNameWithoutExtension(f) + "." + fmt);
-
-                switch (fmt)
-                {
-                    case "pdf":
-                        var html = AppServices.MarkdownHtml.Render(md, settings, batchTheme, null);
-                        // host is guaranteed non-null here: the fmt=="pdf" guard above throws otherwise.
-                        await _pdfExport.ExportAsync(host!, html, outPath, settings, md);
-                        break;
-                    case "docx":
-                        IReadOnlyList<byte[]?>? mermaidImgs = null;
-                        IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
-                        IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGen = null;
-                        // Mermaid rendering/geometry harvesting needs a live web host. In headless/API
-                        // batch runs host can be null — skip harvesting instead of crashing; the DOCX
-                        // exporter falls back to parser-based ShapeForge or a code block for diagrams.
-                        if (host is not null && md.Contains("```mermaid", StringComparison.Ordinal))
-                        {
-                            mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, batchTheme);
-                            if (settings.MermaidDocxMode == 1)
-                            {
-                                mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, batchTheme);
-                                mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, batchTheme);
-                            }
-                        }
-                        await _docxExport.ExportAsync(md, outPath, settings, mermaidImgs, null, mermaidGeo, mermaidGen);
-                        break;
-                    case "pptx":
-                        await _pptxExport.ExportAsync(md, outPath, settings);
-                        break;
-                    case "epub":
-                        IReadOnlyList<byte[]?>? diagrams = host is not null && md.Contains("```mermaid", StringComparison.Ordinal)
-                            ? await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, batchTheme)
-                            : null;
-                        await _epubExport.ExportAsync(md, outPath, settings, null, diagrams);
-                        break;
-                }
-                vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);
-                processedFiles.Add(outPath);
-                done++;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Batch convert failed for {f}: {ex}");
-                failed++;
-            }
-            finally
-            {
-                _convertLock.Release();
+                await onCompletedRefresh();
             }
         }
+    }
 
-        if (onCompletedRefresh is not null)
-        {
-            await onCompletedRefresh();
-        }
-
-        return new { done, failed, outputFolder = outFolder, files = processedFiles };
+    private static string SafeStem(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "";
+        var invalid = Path.GetInvalidFileNameChars();
+        var clean = new string(title.Trim().Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Trim(' ', '.', '-');
+        return clean.Length > 60 ? clean[..60].TrimEnd() : clean;
     }
 }

@@ -131,7 +131,7 @@
         if (banner) {
             banner.textContent = lic.canAutomate
                 ? `MarkSmith ${lic.edition}: every option below is available.`
-                : `MarkSmith ${lic.edition || "Free"}: rows marked PRO need MarkSmith Pro or the trial. Email is free on every plan.`;
+                : `MarkSmith ${lic.edition || "Free"}: rows marked PRO need MarkSmith Pro or the trial. Email is free on every plan, and so is automation that writes email drafts.`;
         }
 
         for (const group of schema.groups || []) {
@@ -161,6 +161,14 @@
         return b;
     }
 
+    // Automation rows unlock on the free plan when the default output format is an email draft,
+    // so the hint is recomputed whenever the app reports a new lock state.
+    function hintText(field) {
+        return field.locked
+            ? `${field.description} Needs MarkSmith Pro (start the trial in the app), or set the default output format to an email draft: email automation is free.`
+            : field.description;
+    }
+
     function renderField(field) {
         const wrap = document.createElement("div");
         wrap.className = "field app-field" + (field.locked ? " locked" : "");
@@ -174,7 +182,7 @@
 
         const hint = document.createElement("div");
         hint.className = "hint";
-        hint.textContent = field.locked ? `${field.description} Needs MarkSmith Pro: start the trial in the app.` : field.description;
+        hint.textContent = hintText(field);
 
         const status = document.createElement("div");
         status.className = "field-status";
@@ -227,7 +235,7 @@
         input.setAttribute("aria-describedby", hint.id);
         input.disabled = !!field.locked;
 
-        const row = { field, input, status, timer: null, sent: field.value };
+        const row = { field, input, hint, wrap, status, timer: null, sent: field.value };
         rows.set(field.key, row);
 
         if (field.kind === "toggle" || field.kind === "choice") {
@@ -283,6 +291,8 @@
                 other.sent = f.value;
                 other.field.locked = f.locked;
                 other.input.disabled = !!f.locked;
+                other.wrap.classList.toggle("locked", !!f.locked);
+                other.hint.textContent = hintText(other.field);
                 if (other !== row && document.activeElement !== other.input) restore(other);
             }
         }

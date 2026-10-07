@@ -40,16 +40,16 @@ private readonly MarkdownExportService _mdExport = new();
     /// automation options used to say "PDF" whatever the setting, while the watch folder, clipboard
     /// ingest and batch convert all export in <see cref="TargetFormat"/>.
     /// </summary>
-    public string TargetFormatLabel => (TargetFormat ?? "pdf").ToLowerInvariant() switch
-    {
-        "docx" => "Word document",
-        "pptx" => "PowerPoint deck",
-        "epub" => "EPUB e-book",
-        _ => "PDF",
-    };
+    public string TargetFormatLabel => OutputFormats.Label(TargetFormat);
 
     public string AutomationFormatNote =>
-        $"Automatic exports use your default format ({TargetFormatLabel}), set in Settings ▸ General.";
+        AppServices.License.CanAutomate || !OutputFormats.IsEmail(TargetFormat)
+            ? $"Automatic exports use your default format ({TargetFormatLabel}), set in Settings ▸ General."
+            : $"Automatic exports use your default format ({TargetFormatLabel}), set in Settings ▸ General. Email automation is free on every plan.";
+
+    /// <summary>Whether unattended exports may run for this license and default format
+    /// (<see cref="AutomationPolicy"/>: Pro, or anything that only writes email drafts).</summary>
+    public bool AutomationAllowed => AutomationPolicy.Allows(AppServices.License.State, TargetFormat);
 
     /// <summary>
     /// The local API server's state in words, set by the shell after every start/stop attempt:
@@ -722,7 +722,10 @@ private readonly MarkdownExportService _mdExport = new();
         _ = RefreshMarkdownFilesAsync();
     }
 
-    public void RecordExport(string kind, string outputPath, string markdown, long durationMs = 0)
+    /// <param name="sourcePath">The file the export was made from when it isn't the document in the
+    /// editor (a watched or batch-converted file): the history row names it and the version is
+    /// filed under it, instead of under whatever happens to be open.</param>
+    public void RecordExport(string kind, string outputPath, string markdown, long durationMs = 0, string? sourcePath = null)
     {
         long sizeBytes = 0;
         try { if (File.Exists(outputPath)) sizeBytes = new FileInfo(outputPath).Length; } catch { /* best-effort */ }
@@ -730,7 +733,7 @@ private readonly MarkdownExportService _mdExport = new();
         var entry = new HistoryEntry
         {
             Timestamp = DateTime.Now,
-            SourceLabel = UsePasteSource ? "pasted" : Path.GetFileName(InputFilePath),
+            SourceLabel = sourcePath is not null ? Path.GetFileName(sourcePath) : UsePasteSource ? "pasted" : Path.GetFileName(InputFilePath),
             Detected = LastClassification?.SourceName ?? "Markdown",
             Theme = SelectedThemeName,
             OutputPath = outputPath,
@@ -743,7 +746,7 @@ private readonly MarkdownExportService _mdExport = new();
         AppServices.History.Add(entry);
 
         // Version history: every successful export is a version of the working document.
-        var effectivePath = !string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md";
+        var effectivePath = sourcePath ?? (!string.IsNullOrWhiteSpace(InputFilePath) ? InputFilePath : "scratch://workspace-session.md");
         CaptureVersionSafe(effectivePath, markdown, "export:" + kind.ToLowerInvariant());
     }
 
@@ -858,7 +861,7 @@ private readonly MarkdownExportService _mdExport = new();
     // otherwise leave the toggles looking active while AutomationManager refuses to run them).
     private void SanitizeAutomationForLicense()
     {
-        if (AppServices.License.CanAutomate) return;
+        if (AutomationAllowed) return;
         bool changed = false;
         if (AutoClipboardIngest) { AutoClipboardIngest = false; changed = true; }
         if (WatchFolderEnabled) { WatchFolderEnabled = false; changed = true; }
@@ -897,6 +900,10 @@ private readonly MarkdownExportService _mdExport = new();
         _appendToRunningDoc = settings.AppendToRunningDoc;
         _runningDocPath = settings.RunningDocPath;
         _showExtensionTip = settings.ShowExtensionTip;
+        // The free plan's email-only automation depends on the default format, so read it first:
+        // it's loaded further down, and checking before that switched a free user's email
+        // watch folder off at every start.
+        _targetFormat = settings.TargetFormat;
         SanitizeAutomationForLicense();
         foreach (var rule in _settingsService.Current.CustomNormalizationRules ?? new List<TextCleanupRule>())
             NormalizationRules.Add(new Models.TextCleanupRuleItem(SaveNormalizationRules, rule.Find, rule.Replace, rule.IsRegex));
@@ -1087,6 +1094,13 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnTargetFormatChanged(string value) { 
         _settingsService.Current.TargetFormat = value; 
         SaveSettingsDebounced(); 
+        OnPropertyChanged(nameof(AutomationAllowed));
+        if ((AutoClipboardIngest || WatchFolderEnabled || AutoConvertIngests) && !AutomationAllowed)
+        {
+            SanitizeAutomationForLicense();
+            StatusText = $"Automation is off: on the free plan it only runs for email drafts, and the default format is now {OutputFormats.Label(value)}.";
+            StatusSeverity = StatusSeverity.Warning;
+        }
         OnPropertyChanged(nameof(IsPdfFormat));
         OnPropertyChanged(nameof(IsDocxFormat));
         OnPropertyChanged(nameof(TargetFormatIndex));
@@ -1106,7 +1120,7 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnNormalizeLlmChanged(bool value) { _settingsService.Current.NormalizeLlm = value; SaveSettingsDebounced(); }
     partial void OnAutoClipboardIngestChanged(bool value)
     {
-        if (value && !AppServices.License.CanAutomate)
+        if (value && !AutomationAllowed)
         {
             // Gate at the SOURCE: a free user cannot even switch automation on, so the feature
             // never half-runs (the old bug: watchers started and only the export step complained).
@@ -1115,32 +1129,35 @@ private readonly MarkdownExportService _mdExport = new();
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
             ReportProGate(FeatureId.ClipboardIngest, () => { AutoClipboardIngest = true; return Task.CompletedTask; });
+            StatusText += " " + AutomationPolicy.EmailIsFreeHint;
             return;
         }
         _settingsService.Current.AutoClipboardIngest = value; SaveSettingsDebounced();
     }
     partial void OnWatchFolderEnabledChanged(bool value)
     {
-        if (value && !AppServices.License.CanAutomate)
+        if (value && !AutomationAllowed)
         {
 #pragma warning disable MVVMTK0034
             _watchFolderEnabled = false;
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
             ReportProGate(FeatureId.WatchFolder, () => { WatchFolderEnabled = true; return Task.CompletedTask; });
+            StatusText += " " + AutomationPolicy.EmailIsFreeHint;
             return;
         }
         _settingsService.Current.WatchFolderEnabled = value; SaveSettingsDebounced();
     }
     partial void OnAutoConvertIngestsChanged(bool value)
     {
-        if (value && !AppServices.License.CanAutomate)
+        if (value && !AutomationAllowed)
         {
 #pragma warning disable MVVMTK0034
             _autoConvertIngests = false;
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
             ReportProGate(FeatureId.AutoExportIngest, () => { AutoConvertIngests = true; return Task.CompletedTask; });
+            StatusText += " " + AutomationPolicy.EmailIsFreeHint;
             return;
         }
         _settingsService.Current.AutoConvertIngests = value; SaveSettingsDebounced();
@@ -1417,6 +1434,9 @@ private readonly MarkdownExportService _mdExport = new();
               (classification.AppliedFixes.Count > 0 ? $", applied {classification.AppliedFixes.Count} fixes." : ".");
         StatusSeverity = StatusSeverity.Success;
     }
+
+    /// <summary>True when <paramref name="path"/> is the file open in the editor.</summary>
+    public bool IsOpenDocument(string path) => !UsePasteSource && IsSameFile(path, InputFilePath);
 
     public void IngestFile(string path)
     {
@@ -1859,23 +1879,65 @@ private readonly MarkdownExportService _mdExport = new();
         AnnounceExport($"{label} saved: {Path.GetFileName(outPath)}{note} · in {Path.GetDirectoryName(outPath)}", outPath);
     }
 
-    public async Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat)
+    /// <summary>Converts every document in <paramref name="sourceDir"/> (and its subfolders).</summary>
+    public Task BatchConvertAsync(string sourceDir, string outputDir, string targetFormat) =>
+        RunBatchAsync(() => AutomationExportService.FindBatchSources(sourceDir, recursive: true, outputDir), sourceDir, outputDir, targetFormat,
+            () => BatchConvertAsync(sourceDir, outputDir, targetFormat));
+
+    /// <summary>Converts the given files (several dropped on the window) into <paramref name="outputDir"/>.</summary>
+    public Task BatchConvertFilesAsync(IReadOnlyList<string> files, string outputDir, string targetFormat) =>
+        RunBatchAsync(() => files, null, outputDir, targetFormat, () => BatchConvertFilesAsync(files, outputDir, targetFormat));
+
+    private async Task RunBatchAsync(Func<IReadOnlyList<string>> files, string? baseFolder, string outputDir, string targetFormat, Func<Task> resume)
     {
-        if (targetFormat.Equals("docx", StringComparison.OrdinalIgnoreCase) && !AppServices.License.CanExportDocx)
+        var fmt = OutputFormats.Normalize(targetFormat);
+        if (fmt is null)
         {
-            ReportProGate(FeatureId.DocxExport, () => BatchConvertAsync(sourceDir, outputDir, targetFormat));
+            StatusText = $"Batch convert can't write \"{targetFormat}\". Pick PDF, Word, PowerPoint, EPUB or an email draft as the default output format.";
+            StatusSeverity = StatusSeverity.Error;
+            return;
+        }
+        if (fmt == OutputFormats.Docx && !AppServices.License.CanExportDocx)
+        {
+            ReportProGate(FeatureId.DocxExport, resume);
+            return;
+        }
+        if (!AutomationPolicy.Allows(AppServices.License.State, fmt))
+        {
+            ReportProGate(FeatureId.BatchConvert, resume);
+            StatusText += " " + AutomationPolicy.EmailIsFreeHint;
             return;
         }
 
-        await RunConversionAsync($"Batch {targetFormat.ToUpper()}", async ct =>
+        var list = files();
+        if (list.Count == 0)
         {
-            var settings = _settingsService.Current;
-            await AppServices.BatchConvert.ConvertDirectoryAsync(Host, sourceDir, outputDir, targetFormat, settings, msg =>
-            {
-                StatusText = msg;
-            });
-            StatusText = $"Batch conversion to {targetFormat.ToUpper()} finished in {outputDir}";
+            StatusText = "There's nothing here MarkSmith can convert: no Markdown, text, Word, web page or email files.";
+            StatusSeverity = StatusSeverity.Warning;
+            return;
+        }
+
+        BatchConvertResult? result = null;
+        await RunConversionAsync($"{list.Count} {(list.Count == 1 ? "file" : "files")}", async ct =>
+        {
+            result = await AppServices.BatchConvert.ConvertFilesAsync(Host, list, baseFolder, outputDir, fmt, _settingsService.Current,
+                progressCallback: msg => { if (msg.StartsWith("Converting ", StringComparison.Ordinal)) StatusText = "Batch: " + msg; },
+                recorded: (written, md, source) => RecordExport(OutputFormats.Kind(fmt), written, md, sourcePath: source),
+                ct: ct);
+            if (result.Cancelled) ct.ThrowIfCancellationRequested();
+            if (result.Done > 0) LastOutputPath = result.Produced[^1];
         });
+        if (result is { Cancelled: false } r) AnnounceBatch(r);
+    }
+
+    /// <summary>The finished batch on the status line: how many, the first failure and where the
+    /// files went, with the Open button on the last file written.</summary>
+    public void AnnounceBatch(BatchConvertResult result)
+    {
+        AnnounceExport(result.Summary(), result.Done > 0 ? result.Produced[^1] : null);
+        StatusSeverity = result.Total == 0 ? StatusSeverity.Warning
+            : result.Failed == 0 ? StatusSeverity.Success
+            : result.Done > 0 ? StatusSeverity.Warning : StatusSeverity.Error;
     }
 
     private async Task RunConversionAsync(string kind, Func<CancellationToken, Task> work)

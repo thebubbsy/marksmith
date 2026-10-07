@@ -16,6 +16,7 @@ namespace MarkSmith.Core.Tests;
 /// must instead skip web-based mermaid harvesting and still emit a valid DOCX via its parser-based
 /// fallbacks.
 /// </summary>
+[Collection("LicenseState")]
 public class HeadlessBatchExportTests
 {
     private static (string inFolder, string outFolder) MakeTempFolders()
@@ -47,6 +48,8 @@ public class HeadlessBatchExportTests
                 Some trailing prose so the body is non-trivial.
                 """);
 
+            AppServices.License.ResetToFree();
+            AppServices.License.ToggleDevPro();
             var vm = new MainViewModel();
 
             // host: null simulates an API/headless caller with no WebView2. MermaidDocxMode = 1
@@ -79,6 +82,8 @@ public class HeadlessBatchExportTests
             await File.WriteAllTextAsync(Path.Combine(inFolder, "plain.md"),
                 "# Plain\n\nNo diagrams here, just **text** and a list:\n\n- one\n- two\n");
 
+            AppServices.License.ResetToFree();
+            AppServices.License.ToggleDevPro();
             var vm = new MainViewModel();
             var result = await AppServices.ExportCoordinator.BatchConvertForApiAsync(
                 vm, inFolder, "docx",

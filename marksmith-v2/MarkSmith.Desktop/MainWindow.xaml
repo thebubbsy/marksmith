@@ -401,7 +401,7 @@
 
                                 <TextBlock Text="Folders" Style="{StaticResource OptionSectionStyle}" />
                                 <localcontrols:OptionRow Header="Watch a folder"
-                                                         Description="New Markdown files saved to the folder are picked up as they appear.">
+                                                         Description="New Markdown and text files saved to the folder are picked up as they appear. A file open in the editor is left to you.">
                                     <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding WatchFolderEnabled, Mode=TwoWay}" />
                                     <localcontrols:OptionRow.Details>
                                         <StackPanel Spacing="8">
@@ -446,10 +446,10 @@
                                     <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding WatchFolderAutoConvert, Mode=TwoWay}" />
                                 </localcontrols:OptionRow>
                                 <localcontrols:OptionRow Header="Batch convert"
-                                                         Description="Pick a folder: every .md file inside is cleaned up and exported to your output folder.">
+                                                         Description="Pick a folder: every document inside (Markdown, text, Word, web pages, emails) is cleaned up and exported to your output folder.">
                                     <localcontrols:OptionRow.Details>
                                         <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch"
-                                                ToolTipService.ToolTip="Pick a folder and export every .md file inside it">
+                                                ToolTipService.ToolTip="Pick a folder and export every document inside it">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                                 <TextBlock Text="Convert a folder…" />

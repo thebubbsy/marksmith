@@ -228,7 +228,7 @@ public class AdversarialSecurityAndLicensingTests
         // POST /api/batch from browser origin -> 403 Forbidden
         var req3 = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
         req3.Headers.Add("Origin", "http://127.0.0.1:3000");
-        req3.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"pdf\"}", Encoding.UTF8, "application/json");
+        req3.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"eml\"}", Encoding.UTF8, "application/json");
         var resp3 = await client.SendAsync(req3);
         Assert.Equal(HttpStatusCode.Forbidden, resp3.StatusCode);
         Assert.Contains("batch conversion is not permitted cross-origin", await resp3.Content.ReadAsStringAsync());
@@ -240,7 +240,7 @@ public class AdversarialSecurityAndLicensingTests
 
         // Direct POST /api/batch -> 200 OK
         var req5 = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
-        req5.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"pdf\"}", Encoding.UTF8, "application/json");
+        req5.Content = new StringContent("{\"folder\":\"C:\\\\docs\",\"format\":\"eml\"}", Encoding.UTF8, "application/json");
         var resp5 = await client.SendAsync(req5);
         Assert.Equal(HttpStatusCode.OK, resp5.StatusCode);
 

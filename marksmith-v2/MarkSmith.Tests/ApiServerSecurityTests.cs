@@ -273,7 +273,7 @@ public class ApiServerSecurityTests
         using var client = new HttpClient();
         var req = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
         req.Headers.Add("Origin", "http://127.0.0.1:3000");
-        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "pdf" }), Encoding.UTF8, "application/json");
+        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "eml" }), Encoding.UTF8, "application/json");
 
         var resp = await client.SendAsync(req);
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
@@ -299,7 +299,7 @@ public class ApiServerSecurityTests
         using var client = new HttpClient();
         var req = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
         req.Headers.Add("Origin", "chrome-extension://test-extension-id");
-        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "pdf" }), Encoding.UTF8, "application/json");
+        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "eml" }), Encoding.UTF8, "application/json");
 
         var resp = await client.SendAsync(req);
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
@@ -324,7 +324,7 @@ public class ApiServerSecurityTests
 
         using var client = new HttpClient();
         var req = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
-        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "pdf" }), Encoding.UTF8, "application/json");
+        req.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "eml" }), Encoding.UTF8, "application/json");
 
         var resp = await client.SendAsync(req);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
@@ -416,7 +416,7 @@ public class ApiServerSecurityTests
             int preBatch = batchCount;
             var reqBatch = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/batch");
             if (origin != null) reqBatch.Headers.Add("Origin", origin);
-            reqBatch.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "pdf" }), Encoding.UTF8, "application/json");
+            reqBatch.Content = new StringContent(JsonSerializer.Serialize(new { folder = "C:\\docs", format = "eml" }), Encoding.UTF8, "application/json");
             var respBatch = await client.SendAsync(reqBatch);
             Assert.Equal((HttpStatusCode)expBatch, respBatch.StatusCode);
             var batchBody = await respBatch.Content.ReadAsStringAsync();

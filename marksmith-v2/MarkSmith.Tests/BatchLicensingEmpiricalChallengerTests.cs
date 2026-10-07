@@ -465,24 +465,23 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
         File.WriteAllText(Path.Combine(subDirB, "03_subB.md"), "# Sub B doc");
         File.WriteAllText(Path.Combine(subDirB, "04_subB_blocked.md"), "# Sub B doc blocked");
 
-        // Add non-markdown files (must be ignored)
-        File.WriteAllText(Path.Combine(tempSrc, "readme.txt"), "Ignored text file");
+        // A text file is a document too (run #28) and spends a trial export; an image is not.
+        File.WriteAllText(Path.Combine(tempSrc, "readme.txt"), "A plain text document");
         File.WriteAllText(Path.Combine(subDirA, "image.png"), "Fake image binary");
 
         try
         {
             await service.ConvertDirectoryAsync(null, tempSrc, tempOut, "docx", new AppSettings());
 
-            // 01, 02, 03 should convert and preserve folder structure
+            // In path order: 01_root, readme, subA/02 convert (folder structure kept) and use the
+            // three trial exports; subB/03 and subB/04 are blocked.
             Assert.True(File.Exists(Path.Combine(tempOut, "01_root.docx")));
+            Assert.True(File.Exists(Path.Combine(tempOut, "readme.docx")));
             Assert.True(File.Exists(Path.Combine(tempOut, "subA", "02_subA.docx")));
-            Assert.True(File.Exists(Path.Combine(tempOut, "subB", "03_subB.docx")));
-
-            // 04 should be blocked
+            Assert.False(File.Exists(Path.Combine(tempOut, "subB", "03_subB.docx")));
             Assert.False(File.Exists(Path.Combine(tempOut, "subB", "04_subB_blocked.docx")));
 
-            // Non-markdown files must not produce .docx
-            Assert.False(File.Exists(Path.Combine(tempOut, "readme.docx")));
+            // Not a document: no .docx
             Assert.False(File.Exists(Path.Combine(tempOut, "subA", "image.docx")));
 
             Assert.Equal(0, AppServices.License.State.TrialExportsRemaining);
@@ -517,11 +516,12 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
 
         try
         {
-            // Without a WebRenderHost, PDF export skips with a message rather than throwing an entitlement exception
-            await service.ConvertDirectoryAsync(null, tempSrc, tempOut, "pdf", new AppSettings(), msg => progress.Add(msg));
+            // Without a WebRenderHost, PDF export fails per file with a reason rather than throwing an entitlement exception
+            var result = await service.ConvertDirectoryAsync(null, tempSrc, tempOut, "pdf", new AppSettings(), msg => progress.Add(msg));
 
             // Must NOT throw InvalidOperationException about Pro feature
-            Assert.Contains(progress, m => m.Contains("PDF export requires a web render host"));
+            Assert.Contains(progress, m => m.Contains("free1.md") && m.Contains("preview engine"));
+            Assert.Equal(1, result.Failed);
             Assert.Equal(Edition.Free, AppServices.License.State.Edition);
         }
         finally

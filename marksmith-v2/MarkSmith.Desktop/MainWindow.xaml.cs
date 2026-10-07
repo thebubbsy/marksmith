@@ -64,6 +64,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.WatchFolder),
         nameof(ViewModels.MainViewModel.ApiEnabled),
         nameof(ViewModels.MainViewModel.ApiPort),
+        // On the free plan automation only runs for email drafts, so the format decides it too.
+        nameof(ViewModels.MainViewModel.TargetFormat),
     };
 
     private readonly DispatcherQueueTimer _previewDebounce;
@@ -434,7 +436,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _extensionHeartbeat.Tick += (_, _) => ViewModel.TickExtensionChannel();
         _extensionHeartbeat.Start();
 
-        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output));
+        _clipboardIngest = new Services.ClipboardIngestService(DispatcherQueue, (text, origin, output) => IngestFromSource(text, origin, output), () => ViewModel.PastedMarkdown);
         _folderIngest = new Services.FolderIngestService(DispatcherQueue, path => _ = OnWatchedFileAsync(path));
         // ISS-011: surface the auto-detected AI-agent export folders as one-click watch presets.
         WatchFolderPresets.ItemsSource = Services.AiAgentFolderPresets.GetAvailablePresets();
@@ -1509,10 +1511,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // see MainViewModel.IngestMarkdown.
         ViewModel.IngestMarkdown(text, origin, output);
         if (!ViewModel.AutoConvertIngests) return;
-        if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);
+        var formats = Services.ExportCoordinator.ParseFormats(output?.Format, App.Settings.Current.TargetFormat);
+        if (Models.AutomationPolicy.Allows(App.License.State, formats)) _ = AutoExportIngestAsync(output);
         else
         {
-            ViewModel.StatusText = Models.ProGate.FeatureName(Models.FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature. The content is in the editor, ready to export by hand.";
+            ViewModel.StatusText = Models.ProGate.FeatureName(Models.FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature. The content is in the editor, ready to export by hand. " + Models.AutomationPolicy.EmailIsFreeHint;
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
@@ -1526,7 +1529,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             output,
             this,
             () => new OffscreenScope(this),
-            ShowPdfToast,
+            ShowAutomationToast,
             () => RefreshPreviewAsync());
     }
 
@@ -1537,11 +1540,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             path,
             this,
             () => new OffscreenScope(this),
-            ShowPdfToast,
+            ShowAutomationToast,
             () => RefreshPreviewAsync());
     }
 
-    private static void ShowPdfToast(string pdfPath) => ShowExportToast("PDF", pdfPath);
+    // Automation can write any format; the toast used to say "PDF ready" for a Word file or an email.
+    private static void ShowAutomationToast(string path) => ShowExportToast(Models.OutputFormats.KindForPath(path), path);
 
     // Windows toast on export completion. kind is "PDF"/"DOCX"/"PPTX" (or a combined "PDF + DOCX"
     // label from Export-all). Best-effort: notifications can be disabled system-wide, and the
@@ -1577,9 +1581,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // Every format MarkSmith itself exports. Anything else in a history row is refused rather than
     // shell-executed. ".html" was missing, so the Open output button silently did nothing after an
-    // HTML export and its history row reported "Blocked opening untrusted file type".
+    // HTML export and its history row reported "Blocked opening untrusted file type". The same
+    // happened to every saved email and Outlook message until .eml/.msg joined the list.
     private static bool IsExportedFileType(string path) =>
-        Path.GetExtension(path).ToLowerInvariant() is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md" or ".html";
+        Path.GetExtension(path).ToLowerInvariant() is ".pdf" or ".docx" or ".pptx" or ".epub" or ".md" or ".html" or ".eml" or ".msg";
 
     private void OpenExportedFile(string? path)
     {
@@ -1765,42 +1770,45 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBatchConvertClick(object sender, RoutedEventArgs e)
     {
-        if (!App.License.CanAutomate)
-        {
-            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.BatchConvert, () => { OnBatchConvertClick(sender, e); return Task.CompletedTask; });
-            return;
-        }
-
+        // Batch is Pro, except a batch that only writes email drafts (AutomationPolicy). The format
+        // is picked in the dialog, so a free user still gets the dialog with the email formats.
         var picker = new FolderPicker();
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
         picker.FileTypeFilter.Add("*");
         var folder = await picker.PickSingleFolderAsync();
         if (folder is null) return;
 
-        // Count the whole tree so the dialog reflects every file we could reach, and we don't bail
-        // on a folder whose .md files all live in subfolders.
-        var files = Directory.GetFiles(folder.Path, "*.md", SearchOption.AllDirectories);
-        if (files.Length == 0)
+        var outFolder = App.Settings.Current.OutputFolder;
+        var all = Services.AutomationExportService.FindBatchSources(folder.Path, recursive: true, outFolder);
+        var top = Services.AutomationExportService.FindBatchSources(folder.Path, recursive: false, outFolder);
+        if (all.Length == 0)
         {
-            ViewModel.StatusText = $"No .md files found in {folder.Path} or its subfolders.";
+            ViewModel.StatusText = $"Nothing to convert in {folder.Name}: no Markdown, text, Word, web page or email files there or in its subfolders.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
 
-        // Which format? PDF/DOCX/PPTX/EPUB — the same choice the individual exports offer — plus
-        // whether to descend into subfolders.
-        var (fmt, recursive) = await AskBatchFormatAsync(files.Length);
+        var (fmt, recursive) = await AskBatchFormatAsync(folder.Name, top.Length, all.Length);
         if (fmt is null) return;
-        var docxGated = fmt is "docx" && !App.License.CanExportDocx;
-        if (docxGated) { ViewModel.NotifyProFeatureAttempted(Models.FeatureId.DocxExport); return; }
-
-        if (fmt == "pdf" && !await EnsurePreviewWebViewAsync())
+        if (fmt == Models.OutputFormats.Docx && !App.License.CanExportDocx)
         {
-            ViewModel.StatusText = "Batch failed: the preview engine couldn't start. Try again.";
+            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.DocxExport, () => { OnBatchConvertClick(sender, e); return Task.CompletedTask; });
+            return;
+        }
+        if (!Models.AutomationPolicy.Allows(App.License.State, fmt))
+        {
+            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.BatchConvert, () => { OnBatchConvertClick(sender, e); return Task.CompletedTask; });
+            return;
+        }
+
+        if (Models.OutputFormats.NeedsRenderHost(fmt) && !await EnsurePreviewWebViewAsync())
+        {
+            ViewModel.StatusText = "Batch convert couldn't start: the preview engine didn't load, and a PDF needs it. Try again.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
             return;
         }
 
+        ViewModel.IsBusy = true;
         try
         {
             var result = await _exportCoordinator.BatchConvertForApiAsync(
@@ -1813,47 +1821,73 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 () => RefreshPreviewAsync(false),
                 recursive);
 
-            var propDone = result.GetType().GetProperty("done")?.GetValue(result);
-            var propFailed = result.GetType().GetProperty("failed")?.GetValue(result);
-            var propFolder = result.GetType().GetProperty("outputFolder")?.GetValue(result);
-
-            int done = propDone is int d ? d : 0;
-            int failed = propFailed is int f ? f : 0;
-            string outFolder = propFolder is string s ? s : App.Settings.Current.OutputFolder;
-
-            ViewModel.StatusText = failed == 0
-                ? $"Batch done: {done} {fmt.ToUpperInvariant()} file{(done == 1 ? "" : "s")} in {outFolder}"
-                : $"Batch done: {done} converted, {failed} failed — see {outFolder}";
-            ViewModel.StatusSeverity = failed == 0 ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
+            if (result.Done > 0) ViewModel.LastOutputPath = result.Produced[^1];
+            ViewModel.AnnounceBatch(result);
         }
         catch (Exception ex)
         {
-            ViewModel.StatusText = $"Batch convert failed: {ex.Message}";
+            ViewModel.StatusText = "Batch convert failed: " + Services.ExportFailureMessage.Describe(Models.OutputFormats.Kind(fmt), ex, null);
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+        finally
+        {
+            ViewModel.IsBusy = false;
         }
     }
 
-    // Ask which format to batch-convert to and whether to include subfolders; returns
-    // ("pdf"/"docx"/"pptx"/"epub", recursive) or (null, false) if cancelled.
-    private async Task<(string? Format, bool Recursive)> AskBatchFormatAsync(int count)
+    // Which format to batch-convert to, and whether to include subfolders. Starts on the default
+    // output format; on the free plan the Pro formats say so (email drafts are free). Returns
+    // (null, false) if cancelled.
+    private async Task<(string? Format, bool Recursive)> AskBatchFormatAsync(string folderName, int topCount, int allCount)
     {
-        var combo = new ComboBox { SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0) };
-        combo.Items.Add("PDF");
-        combo.Items.Add("Word (DOCX)");
-        combo.Items.Add("PowerPoint (PPTX)");
-        combo.Items.Add("EPUB");
-        var recurse = new CheckBox { Content = "Include subfolders", Margin = new Thickness(0, 12, 0, 0) };
+        var state = App.License.State;
+        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0) };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(combo, "Convert to");
+        foreach (var f in Models.OutputFormats.All)
+        {
+            var label = char.ToUpperInvariant(Models.OutputFormats.Label(f)[0]) + Models.OutputFormats.Label(f)[1..];
+            if (!Models.AutomationPolicy.Allows(state, f)) label += "  ·  Pro";
+            combo.Items.Add(new ComboBoxItem { Content = label, Tag = f });
+        }
+        var preferred = Models.OutputFormats.Normalize(App.Settings.Current.TargetFormat) ?? Models.OutputFormats.Pdf;
+        combo.SelectedIndex = Math.Max(0, Models.OutputFormats.All.ToList().IndexOf(preferred));
+
+        static string Files(int n) => n == 1 ? "1 document" : $"{n} documents";
+        var hasNested = allCount > topCount;
+        var recurse = new CheckBox
+        {
+            Content = $"Include subfolders ({Files(allCount)} in all)",
+            IsChecked = topCount == 0,
+            Visibility = hasNested ? Visibility.Visible : Visibility.Collapsed,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        void UpdateSummary() => summary.Text = recurse.IsChecked == true
+            ? $"{Files(allCount)} in {folderName} and its subfolders will be converted with the current Style settings. The folder structure is recreated in your output folder."
+            : $"{Files(topCount)} in {folderName} will be converted with the current Style settings, into your output folder.";
+        recurse.Checked += (_, _) => UpdateSummary();
+        recurse.Unchecked += (_, _) => UpdateSummary();
+        UpdateSummary();
+
+        var where = new TextBlock
+        {
+            Text = "Output folder: " + App.Settings.Current.OutputFolder,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 12, 0, 0),
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+        };
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = $"Batch convert up to {count} .md file{(count == 1 ? "" : "s")}",
-            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Every .md file in the folder is converted to your chosen format, using the current Style settings. Tick \u201CInclude subfolders\u201D to also convert nested folders \u2014 their structure is recreated in the output." }, combo, recurse } },
+            Title = "Batch convert " + folderName,
+            Content = new StackPanel { Children = { summary, combo, recurse, where } },
             PrimaryButtonText = "Convert",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
         if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) != ContentDialogResult.Primary) return (null, false);
-        var fmt = combo.SelectedIndex switch { 1 => "docx", 2 => "pptx", 3 => "epub", _ => "pdf" };
+        var fmt = (combo.SelectedItem as ComboBoxItem)?.Tag as string ?? Models.OutputFormats.Pdf;
         return (fmt, recurse.IsChecked == true);
     }
 
@@ -1956,7 +1990,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     this,
                     () => new OffscreenScope(this),
                     () => RefreshPreviewAsync(false));
-                tcs.SetResult(result);
+                if (result.Total > 0) ViewModel.AnnounceBatch(result);
+                tcs.SetResult(result.ToApi());
             }
             catch (Exception ex)
             {
@@ -2011,31 +2046,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        // Multi-file drop (Task 11): stage the dropped documents into a temp folder and run them
-        // through the batch converter as one queue — a multi-file drop becomes a single batch job in
-        // the current default format, written to the configured output folder.
+        // Multi-file drop (Task 11): one batch job in the default output format, written to the
+        // output folder, with progress and a summary on the status line.
         await RunMultiFileBatchAsync(docs);
     }
 
-    private async Task RunMultiFileBatchAsync(List<StorageFile> docs)
-    {
-        var staging = Path.Combine(Path.GetTempPath(), "mk-batch-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            Directory.CreateDirectory(staging);
-            foreach (var f in docs)
-                File.Copy(f.Path, Path.Combine(staging, Path.GetFileName(f.Path)), overwrite: true);
-
-            var format = App.Settings.Current.TargetFormat;
-            var outDir = App.Settings.Current.OutputFolder;
-            await ViewModel.BatchConvertAsync(staging, outDir, format);
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Batch conversion failed: {ex.Message}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
-        }
-    }
+    // Straight from where the files are (no temp copy): every dropped document is read in place,
+    // and an output that would land on one of them gets " (converted)" instead of replacing it.
+    private Task RunMultiFileBatchAsync(List<StorageFile> docs) =>
+        ViewModel.BatchConvertFilesAsync(docs.Select(f => f.Path).ToList(), App.Settings.Current.OutputFolder, App.Settings.Current.TargetFormat);
 
     private void OnWindowDragOver(object sender, DragEventArgs e)
     {

@@ -57,12 +57,16 @@ public sealed class AutomationManager : IDisposable
         bool isFolderRunning,
         Action<string>? onApiStatusChanged = null)
     {
-        // Automation is a PRO feature: the watchers must never run for a free user, no matter how
-        // the settings got flipped (the VM gates the toggles too, but this is the enforcement layer).
-        var automationAllowed = AppServices.License.CanAutomate;
+        // Automation is a PRO feature, except automation that only writes email drafts
+        // (AutomationPolicy): the watchers must never run otherwise, no matter how the settings got
+        // flipped (the VM gates the toggles too, but this is the enforcement layer).
+        var automationAllowed = AutomationPolicy.Allows(AppServices.License.State, vm.TargetFormat);
 
-        if (automationAllowed && vm.AutoClipboardIngest && !isClipboardRunning) startClipboard();
-        else if (!vm.AutoClipboardIngest && isClipboardRunning) stopClipboard();
+        var wantClipboard = automationAllowed && vm.AutoClipboardIngest;
+        if (wantClipboard && !isClipboardRunning) startClipboard();
+        // Also stops it when the licence lapses or the format leaves email while it was running;
+        // it used to keep watching until the toggle itself was switched off.
+        else if (!wantClipboard && isClipboardRunning) stopClipboard();
 
         if (automationAllowed && vm.WatchFolderEnabled && Directory.Exists(vm.WatchFolder)) startFolder(vm.WatchFolder);
         else stopFolder();

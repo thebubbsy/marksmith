@@ -1,115 +1,79 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using MarkSmith.Models;
 
 namespace MarkSmith.Services;
 
+/// <summary>
+/// Batch convert: a folder or a list of files into one format. The conversion itself is
+/// <see cref="AutomationExportService.ConvertFilesAsync"/>; this adds the Word-licence check up
+/// front and the source clean-up every batch gets (repairs, AI-quirk normalisation).
+/// </summary>
 public sealed class BatchConvertService
 {
-    private readonly PdfExportService _pdfExport = new();
-    private readonly DocxExportService _docxExport = new();
-    private readonly MermaidHarvestService _mermaidHarvest = new();
-
-    public async Task ConvertDirectoryAsync(
+    /// <summary>Converts every document in <paramref name="sourceDir"/> and its subfolders,
+    /// recreating the folder structure under <paramref name="outputDir"/>.</summary>
+    public async Task<BatchConvertResult> ConvertDirectoryAsync(
         IWebRenderHost? host,
         string sourceDir,
         string outputDir,
         string targetFormat,
         AppSettings settings,
-        Action<string>? progressCallback = null)
+        Action<string>? progressCallback = null,
+        CancellationToken ct = default)
     {
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException($"Source directory not found: {sourceDir}");
+        var files = AutomationExportService.FindBatchSources(sourceDir, recursive: true, outputDir);
+        return await ConvertFilesAsync(host, files, sourceDir, outputDir, targetFormat, settings, progressCallback, null, ct);
+    }
 
-        var format = targetFormat.ToLowerInvariant();
-        bool isPdf = format == "pdf";
-        bool isDocx = format == "docx";
+    /// <summary>Converts the given files. <paramref name="baseFolder"/> null writes them all
+    /// straight into <paramref name="outputDir"/> (dropped files from different folders).</summary>
+    public async Task<BatchConvertResult> ConvertFilesAsync(
+        IWebRenderHost? host,
+        IReadOnlyList<string> files,
+        string? baseFolder,
+        string outputDir,
+        string targetFormat,
+        AppSettings settings,
+        Action<string>? progressCallback = null,
+        Action<string, string, string>? recorded = null,
+        CancellationToken ct = default)
+    {
+        var format = OutputFormats.Normalize(targetFormat)
+            ?? throw new ArgumentException($"MarkSmith can't batch-convert to \"{targetFormat}\". Pick PDF, Word, PowerPoint, EPUB or an email draft.", nameof(targetFormat));
 
-        if (!isPdf && !isDocx)
-            throw new ArgumentException("Target format must be 'pdf' or 'docx'");
-
-        if (isDocx && !AppServices.License.CanExportDocx)
-            throw new InvalidOperationException(Models.ProGate.ApiLine(Models.FeatureId.DocxExport, AppServices.License.State));
+        if (format == OutputFormats.Docx && !AppServices.License.CanExportDocx)
+            throw new InvalidOperationException(ProGate.ApiLine(FeatureId.DocxExport, AppServices.License.State));
 
         Directory.CreateDirectory(outputDir);
+        if (files.Count == 0) return new BatchConvertResult { Format = format, OutputFolder = outputDir };
 
-        var mdFiles = Directory.GetFiles(sourceDir, "*.md", SearchOption.AllDirectories);
-        Array.Sort(mdFiles, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in mdFiles)
-        {
-            try
+        var result = await AppServices.AutomationExport.ConvertFilesAsync(
+            files, baseFolder, outputDir, format, settings, host,
+            prepare: md => Prepare(md, settings),
+            progress: (n, total, name) => progressCallback?.Invoke($"Converting {n} of {total}: {name}…"),
+            recorded: (written, md, source) =>
             {
-                if (isDocx && !AppServices.License.CanExportDocx)
-                {
-                    progressCallback?.Invoke($"Failed to convert {file}: DOCX export trial quota exhausted. Upgrade to MarkSmith Pro.");
-                    continue;
-                }
+                progressCallback?.Invoke($"Successfully converted: {written}");
+                recorded?.Invoke(written, md, source);
+            },
+            ct: ct);
+        foreach (var failure in result.Failures) progressCallback?.Invoke($"Failed to convert {failure}");
+        return result;
+    }
 
-                var relPath = Path.GetRelativePath(sourceDir, file);
-                var outFileDir = Path.Combine(outputDir, Path.GetDirectoryName(relPath) ?? "");
-                Directory.CreateDirectory(outFileDir);
-
-                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-                var outFilePath = Path.Combine(outFileDir, $"{fileNameWithoutExt}.{format}");
-
-                progressCallback?.Invoke($"Converting {file} to {format}...");
-
-                var mdContent = await File.ReadAllTextAsync(file);
-
-                // Run basic repairs like MainViewModel does
-                var classification = AppServices.LlmSource.Classify(mdContent);
-                (mdContent, _) = AppServices.LlmSource.RepairArtifacts(mdContent, classification);
-                if (settings.NormalizeLlm)
-                {
-                    (mdContent, _) = AppServices.LlmSource.NormalizeStyle(mdContent, classification, settings.CustomNormalizationRules);
-                }
-
-                if (isPdf)
-                {
-                    if (host == null)
-                    {
-                        progressCallback?.Invoke($"Skipped {file}: PDF export requires a web render host.");
-                        continue;
-                    }
-                    var html = AppServices.ViewModel.BuildPreviewHtml(mdContent);
-                    await _pdfExport.ExportAsync(host, html, outFilePath, settings, mdContent);
-                }
-                else if (isDocx)
-                {
-                    var hasMermaid = mdContent.Contains("```mermaid", StringComparison.Ordinal);
-                    var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-                    
-                    System.Collections.Generic.List<Mermaid.HarvestedDiagram?>? geometry = null;
-                    System.Collections.Generic.List<Mermaid.GenericDiagram?>? genericGeom = null;
-                    System.Collections.Generic.List<byte[]?>? mermaidImgs = null;
-
-                    if (hasMermaid && host != null)
-                    {
-                        if (settings.MermaidDocxMode == 1)
-                        {
-                            var mode = settings.OversizedDiagramMode;
-                            if (mode == 1 || (mode >= 3 && mode <= 7))
-                            {
-                                geometry = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, mdContent, settings, theme);
-                                var usable = geometry?.Any(g => g is { IsEmpty: false }) == true;
-                                if (!usable) geometry = null;
-                            }
-                            genericGeom = await _mermaidHarvest.HarvestGenericGeometryAsync(host, mdContent, settings, theme);
-                        }
-                        mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, mdContent, settings, theme);
-                    }
-
-                    await _docxExport.ExportAsync(mdContent, outFilePath, settings, mermaidImgs, null, geometry, genericGeom, null);
-                }
-
-                progressCallback?.Invoke($"Successfully converted: {outFilePath}");
-            }
-            catch (Exception ex)
-            {
-                progressCallback?.Invoke($"Failed to convert {file}: {ex.Message}");
-            }
-        }
+    // The same clean-up an opened file gets: correctness repairs always, style only when on.
+    private static string Prepare(string md, AppSettings settings)
+    {
+        var classification = AppServices.LlmSource.Classify(md);
+        (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
+        if (settings.NormalizeLlm)
+            (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification, settings.CustomNormalizationRules);
+        return md;
     }
 }

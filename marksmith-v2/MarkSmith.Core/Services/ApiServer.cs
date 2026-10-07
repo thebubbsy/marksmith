@@ -488,42 +488,16 @@ public sealed class ApiServer : IDisposable
                     // Go-live licensing: the local API is a SECOND entrance to the Pro exporters
                     // (browser extension, automation scripts) — enforce the same paywall the UI
                     // applies so a free install can't bypass it by calling /api/convert directly.
-                    var gateError = LicenseGateError(ovr.Format);
+                    // No format means the default output format. The response used to be labelled
+                    // "export.pdf" whatever that was, so a Word default came back as a .pdf name.
+                    var format = OutputFormats.Normalize(ovr.Format) ?? OutputFormats.Normalize(_getSettings().TargetFormat) ?? OutputFormats.Pdf;
+                    ovr.Format = format;
+                    var gateError = LicenseGateError(format);
                     if (gateError is not null) { await WriteJsonAsync(ctx, 402, new { error = gateError }); break; }
                     var bytes = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
-                    if (ovr.Format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        ctx.Response.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.docx");
-                    }
-                    else if (ovr.Format?.Equals("pptx", StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        ctx.Response.ContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pptx");
-                    }
-                    else if (ovr.Format?.Equals("epub", StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        ctx.Response.ContentType = "application/epub+zip";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.epub");
-                    }
-                    else if (ovr.Format?.ToLowerInvariant() is "eml" or "email")
-                    {
-                        // An Outlook draft (X-Unsent): free on every plan, like every email path.
-                        ctx.Response.ContentType = "message/rfc822";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.eml");
-                    }
-                    else if (ovr.Format?.Equals("msg", StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        // The same draft as an Outlook message (MSGFLAG_UNSENT). Free too.
-                        ctx.Response.ContentType = "application/vnd.ms-outlook";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.msg");
-                    }
-                    else
-                    {
-                        ctx.Response.ContentType = "application/pdf";
-                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pdf");
-                    }
+                    ctx.Response.ContentType = ContentTypeFor(format);
+                    ctx.Response.AddHeader("Content-Disposition", $"attachment; filename=export.{format}");
                     await ctx.Response.OutputStream.WriteAsync(bytes);
                     break;
                 }
@@ -675,8 +649,16 @@ public sealed class ApiServer : IDisposable
                     if (IsBrowserOrigin(origin)) { await WriteJsonAsync(ctx, 403, new { error = "batch conversion is not permitted cross-origin" }); break; }
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Folder is not { Length: > 0 } folder) { await WriteJsonAsync(ctx, 400, new { error = "folder is required" }); break; }
-                    var format = req.Format ?? "pdf";
-                    var gateError = LicenseGateError(format);
+                    var requested = req.Format ?? _getSettings().TargetFormat;
+                    if (OutputFormats.Normalize(requested) is not { } format)
+                    {
+                        await WriteJsonAsync(ctx, 400, new { error = $"unknown format \"{requested}\"", formats = OutputFormats.All });
+                        break;
+                    }
+                    // Batch is automation: Pro, unless it only writes email drafts. It used to check
+                    // only the Word/PowerPoint gates, so a free install could batch PDFs here.
+                    var gateError = LicenseGateError(format)
+                        ?? (AutomationPolicy.Allows(LicenseSource().State, format) ? null : ProGate.ApiLine(FeatureId.BatchConvert, LicenseSource().State));
                     if (gateError is not null) { await WriteJsonAsync(ctx, 402, new { error = gateError }); break; }
                     var result = await _batchConvert(folder, format, req.Output);
                     await WriteJsonAsync(ctx, 200, result);
@@ -751,6 +733,16 @@ public sealed class ApiServer : IDisposable
             return ProGate.ApiLine(FeatureId.PptxExport, license.State);
         return null;
     }
+
+    private static string ContentTypeFor(string format) => format switch
+    {
+        OutputFormats.Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        OutputFormats.Pptx => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        OutputFormats.Epub => "application/epub+zip",
+        OutputFormats.Eml => "message/rfc822",          // an Outlook draft (X-Unsent); free on every plan
+        OutputFormats.Msg => "application/vnd.ms-outlook", // the same draft as MSGFLAG_UNSENT; free too
+        _ => "application/pdf",
+    };
 
     public void Dispose() => Stop();
 }

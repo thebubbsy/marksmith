@@ -11,7 +11,7 @@ public static class ProGate
 {
     /// <summary>What a free user keeps. Kept in step with <see cref="FeatureClassifier.IsFree"/>.</summary>
     public const string FreePlanIncludes =
-        "Free includes PDF, web page, EPUB, Markdown and email exports, the live preview, every theme and every studio.";
+        "Free includes PDF, web page, EPUB, Markdown and email exports, email automation, the live preview, every theme and every studio.";
 
     /// <summary>The trial in one sentence. It is the whole of Pro, capped by Word exports, not by days.</summary>
     public const string TrialSummary =
@@ -116,7 +116,7 @@ public static class ProGate
                 null);
         }
         return ("MarkSmith Free",
-            "PDF, web page, EPUB and email exports are free. Word, PowerPoint and automation are Pro.",
+            "PDF, web page, EPUB and email exports are free, and so is automation that writes email drafts. Word, PowerPoint and other automation are Pro.",
             OffersTrial(state) ? StartTrialLabel : BuyLabel);
     }
 }

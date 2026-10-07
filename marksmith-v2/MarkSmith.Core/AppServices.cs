@@ -44,6 +44,10 @@ public static class AppServices
     private static readonly Lazy<Services.UpdateService> _updates = new(() => new());
     public static Services.UpdateService Updates => _updates.Value;
 
+    private static readonly Lazy<Services.AutomationExportService> _automationExport = new(() => new());
+    /// <summary>The single unattended exporter and the lock every preview-engine export shares.</summary>
+    public static Services.AutomationExportService AutomationExport => _automationExport.Value;
+
     private static readonly Lazy<Services.BatchConvertService> _batchConvert = new(() => new());
     public static Services.BatchConvertService BatchConvert => _batchConvert.Value;
 

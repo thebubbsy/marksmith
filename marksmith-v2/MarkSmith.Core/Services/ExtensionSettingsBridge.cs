@@ -50,6 +50,7 @@ public sealed class ExtensionSettingsBridge
     {
         new("pdf", "PDF (.pdf)"), new("docx", "Word document (.docx)"),
         new("pptx", "PowerPoint (.pptx)"), new("epub", "EPUB e-book (.epub)"),
+        new("eml", "Email draft (.eml)"), new("msg", "Outlook message (.msg)"),
     };
 
     /// <summary>The groups, in the order of the desktop app's Style &amp; Export panel, then the
@@ -133,7 +134,7 @@ public sealed class ExtensionSettingsBridge
         }),
         new Group("export", "Export", "Defaults for automatic exports.", new[]
         {
-            new Field("targetFormat", "TargetFormat", "Default output format", "What the browser extension, clipboard and folder automation, batch convert and the local API export to.", "choice", Formats),
+            new Field("targetFormat", "TargetFormat", "Default output format", "What the browser extension, clipboard and folder automation, batch convert and the local API export to. Automation that writes email drafts is free on every plan.", "choice", Formats),
             new Field("fileNameTemplate", "FileNameTemplate", "Export file name", "Template for generated file names. Tokens: {title}, {date}, {time}, {format}.", "text", Placeholder: "{title}"),
         }),
         new Group("automation", "Automation", "Hands-free conversion. Automation is a Pro feature.", new[]
@@ -156,12 +157,14 @@ public sealed class ExtensionSettingsBridge
         await _onUiThread(() =>
         {
             var license = _license();
+            var automationAllowed = AutomationAllowed(null);
             result = new
             {
                 license = new
                 {
                     edition = license.State.Edition.ToString(),
                     canAutomate = license.CanAutomate,
+                    automationAllowed,
                     canExportDocx = license.CanExportDocx,
                 },
                 groups = Groups().Select(g => new
@@ -181,7 +184,7 @@ public sealed class ExtensionSettingsBridge
                         pro = f.Pro,
                         placeholder = f.Placeholder,
                         maxLength = f.MaxLength,
-                        locked = f.Pro == "automation" && !license.CanAutomate,
+                        locked = f.Pro == "automation" && !automationAllowed,
                         value = ReadValue(f),
                     }),
                 }),
@@ -209,9 +212,9 @@ public sealed class ExtensionSettingsBridge
             if (!byKey.TryGetValue(key, out var field)) { rejected.Add(new(key, "Not a setting the extension can change.")); continue; }
             var (ok, value, reason) = Parse(field, json);
             if (!ok) { rejected.Add(new(field.Key, reason!)); continue; }
-            if (field.Pro == "automation" && value is true && !_license().CanAutomate)
+            if (field.Pro == "automation" && value is true && !AutomationAllowed(changes))
             {
-                rejected.Add(new(field.Key, $"{field.Label} is a MarkSmith Pro feature. Start the trial or upgrade in the app."));
+                rejected.Add(new(field.Key, $"{field.Label} is a MarkSmith Pro feature. Start the trial or upgrade in the app. {AutomationPolicy.EmailIsFreeHint}"));
                 continue;
             }
             pending.Add((field, value!));
@@ -219,7 +222,8 @@ public sealed class ExtensionSettingsBridge
 
         await _onUiThread(() =>
         {
-            foreach (var (field, value) in pending)
+            // The default format first: the automation toggles are judged against it.
+            foreach (var (field, value) in pending.OrderBy(p => p.Field.Key == "targetFormat" ? 0 : 1))
             {
                 try
                 {
@@ -279,6 +283,19 @@ public sealed class ExtensionSettingsBridge
             }
         }
         return (false, null, "Unknown setting type.");
+    }
+
+    // Pro, or automation that only writes email drafts (AutomationPolicy). A request that changes
+    // the default format and switches automation on in one go is judged on the new format.
+    private bool AutomationAllowed(IReadOnlyDictionary<string, JsonElement>? changes)
+    {
+        string? format = null;
+        if (changes is not null)
+            foreach (var (key, json) in changes)
+                if (key.Equals("targetFormat", StringComparison.OrdinalIgnoreCase) && json.ValueKind == JsonValueKind.String)
+                    format = json.GetString();
+        format ??= AllFields().FirstOrDefault(f => f.Key == "targetFormat") is { } tf ? ReadValue(tf) as string : null;
+        return AutomationPolicy.Allows(_license().State, format);
     }
 
     private object? ReadValue(Field f)
