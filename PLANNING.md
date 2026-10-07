@@ -1902,3 +1902,93 @@ default and check that too: X-Unsent behaviour there is the plan's open risk.
    pages by hand, the left Source pane auto-collapse, Word first-run prompt, light-theme pass, and
    the #21b planning-hunt list (EPUB, paywall copy, shortcuts sheet from a shared table, find, lint,
    naming).
+
+### 2026-10-08 02:00–03:20 AEST (run #22, continued at the user's request: the browser extension)
+
+The user asked, live, to update the extension for the email workflow and to audit it: every
+option still relevant, every WinUI feature available and controllable, and the app's settings
+settable from the extension, in the extension's existing design. That widens this routine's
+"desktop only" scope for the extension, by the user's explicit request.
+
+**App side (`9345b58`, `bb0b9f2` + `e543242`):**
+- `Services/ExtensionSettingsBridge` with `GET/POST /api/extension/settings`.
+  - Publishes every user-facing option as a schema: group, label, help text, kind, choices,
+    range, Pro flag, value. The groups mirror Style & Export plus the Settings options the
+    extension used to override per capture.
+  - Applies changes through the VM's setters on the UI thread (`RunOnUiAsync`), so the
+    panels update instantly and the VM's own gates still hold.
+  - Automation can't be switched on from a Free install.
+  - Only extension origins or local scripts (no Origin) may call it. It never exposes secrets,
+    licence data or paths (a test pins that).
+  - **Add a row there when a new desktop option ships.** The extension picks it up
+    automatically.
+- `POST /api/email` (free): `open:true` makes `OpenEmailDraftForApiAsync` write to the outbox,
+  ShellExecute it and post a status line; `open:false` returns the .eml. Bad addresses are a 400.
+  `OutputOverride` gains `EmailTo`, `EmailCc` and `EmailSubject`.
+- **Dead control removed:** "Shrink wide diagrams to fit" (Word export). `DocxExportService`
+  forces `OversizedDiagramMode = 4` on every export by product decision, so it did nothing. Its
+  converter is gone too.
+- The Editor / Preview header is now two columns; the mail toggle from earlier this run had made
+  the toggles overlap the title whenever the Source pane was open.
+- Tests: `ExtensionSettingsBridgeTests` (9). Applies run against a stand-in with the VM's
+  property names, so they never touch the shared settings; one test pins the real VM's
+  properties and types.
+
+**Extension (`ce33e48`, manifest 3.4.0):**
+- Email:
+  - An **Email** button beside "Copy as Markdown" under every reply.
+  - Email in the selection bar.
+  - Right-click: email the latest reply or the selection.
+  - **Alt+Shift+E** (`commands`).
+  - Popup "Email it" card: optional To/Subject for one draft, Enter sends.
+  - EML in the download grid and on history rows.
+  - PRO marks on DOCX/PPTX when the app reports Free (`app-info` message).
+  - Options: Email drafts card with To/Cc overrides.
+- **Options ▸ "MarkSmith app · live" tab** (`appsettings.js`), rendered from the schema:
+  - Toggles, selects and numbers save on change; text saves on a 700 ms pause.
+  - Each row shows "Saved to MarkSmith" or the app's refusal, and the control reverts.
+  - Pro rows are locked on Free.
+  - Offline card with Try again; quiet refresh when the page regains focus.
+  - Reachable as `options.html#app` and from the popup footer's "App settings".
+- **Broken things fixed** (they existed and didn't work):
+  - **`copybutton.js` had not parsed since `791e0e5`.** The Lens commit deleted
+    `floatBar.innerHTML = `` and the copy handler's catch, so there have been no reply
+    buttons, selection bar or attention pulse anywhere since 2026-09.
+  - CI didn't notice because the `node --check` loop only returned the last file's status. It
+    now fails on any file and runs `npm test` in `extension/tests`.
+  - "Ingest all AI tabs" read `.text` (the extractor returns `.markdown`), so it always found
+    nothing.
+  - Auto-send never ran on Copilot, despite its checkbox (not injected, no selectors).
+  - `managed_schema.json` was never registered. It now is, and policy values win and show
+    "Set by your organisation".
+  - The 8-strategy "Oversized diagrams" override was dead and is removed.
+  - Toggle rows stacked under their text (`.field` column with no `flex-direction` reset), on
+    the existing page too. `[hidden]` lost to `display:` rules. Site checkboxes were unstyled.
+  - Pip stripping left "Body  text." / "claim ."; the 402 text always said DOCX; the popup used
+    a non-existent "busy" toast class; the "Suite Hub" link went to the bare API port.
+  - Lens now closes on Esc or a click outside.
+- Tests: `tests/appsettings.test.js` (15) and `tests/copybutton.test.js` (7; it runs the real
+  content script on the ChatGPT fixture, and the pre-fix file crashes it). Hygiene has 4 new
+  pip cases. All suites green: 25 + 15 + 7 + 12, plus selector drift.
+
+**Verified live**, with a scratch config and a scratch Edge profile:
+- Driving headless Edge with `--load-extension` over CDP (`cdp.mjs`, `shotext.sh` in the
+  scratchpad) rendered the real popup and both Options tabs against the running test app.
+- The live tab switched Table of contents on and set To = "ann@example.com; bob". The desktop
+  panels showed both immediately, including the amber "bob" warning. Page width 50 was refused
+  inline with the app's own message.
+- The email flow ran against a mock API on :47999, so Outlook was never launched. The payload
+  carried the profile, the source meta, the per-draft to/subject and the pips stripped. A 400
+  showed "Check the address"; with the app offline it said "MarkSmith isn't running".
+- The unpacked extension ID for this path is `fkallnoogapfflnnapbogoaoggflnhbk`. Edge blocks it
+  (ERR_BLOCKED_BY_CLIENT) on a re-used profile, so use a fresh `--user-data-dir` per run.
+- .NET: 3587 tests, the same 17 known failures.
+
+**Still not verified:** a real Outlook compose window, as before (Ctrl+Shift+O, or the reply's
+Email button). Also not yet seen on a live ChatGPT / Gemini / Claude / Copilot page: the fixture
+and jsdom tests cover the injection, but each site's real DOM may have drifted. Load the unpacked
+extension and click Email under a reply.
+
+**Next up:** unchanged from the 01:15 entry (Phase 6 import, Phase 3 .msg, the Phase 5 rest, then
+v3.4.0 once Outlook is confirmed), plus: Chrome Web Store packaging for 3.4.0, and an
+extension "Email" target for auto-send (send each finished conversation as a draft).
