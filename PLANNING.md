@@ -1903,7 +1903,7 @@ default and check that too: X-Unsent behaviour there is the plan's open risk.
    the #21b planning-hunt list (EPUB, paywall copy, shortcuts sheet from a shared table, find, lint,
    naming).
 
-### 2026-10-08 02:00–03:20 AEST (run #22, continued at the user's request: the browser extension)
+### 2026-10-08 02:00–02:25 AEST (run #22, continued at the user's request: the browser extension)
 
 The user asked, live, to update the extension for the email workflow and to audit it: every
 option still relevant, every WinUI feature available and controllable, and the app's settings
@@ -1952,7 +1952,7 @@ settable from the extension, in the extension's existing design. That widens thi
   - Reachable as `options.html#app` and from the popup footer's "App settings".
 - **Broken things fixed** (they existed and didn't work):
   - **`copybutton.js` had not parsed since `791e0e5`.** The Lens commit deleted
-    `floatBar.innerHTML = `` and the copy handler's catch, so there have been no reply
+    the `floatBar.innerHTML` assignment and the copy handler's catch, so there have been no reply
     buttons, selection bar or attention pulse anywhere since 2026-09.
   - CI didn't notice because the `node --check` loop only returned the last file's status. It
     now fails on any file and runs `npm test` in `extension/tests`.
