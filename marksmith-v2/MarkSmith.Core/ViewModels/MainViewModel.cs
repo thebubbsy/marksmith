@@ -905,6 +905,7 @@ private readonly MarkdownExportService _mdExport = new();
         _connectorArrowhead = settings.ConnectorArrowhead;
         _pageBorder = settings.PageBorder;
         _trackChanges = settings.TrackChanges;
+        LoadEmailSettings(settings);
         _authorName = settings.AuthorName;
         _customFontPath = settings.CustomFontPath;
         _ambiguityMode = settings.AmbiguityMode;

@@ -38,6 +38,13 @@ public sealed record EmailPalette(
         };
     }
 
+    /// <summary>The theme Mermaid diagrams are drawn with for an email: a white canvas (the harvest
+    /// paints its background with the node fill) and dark text in the email's own colours, so a
+    /// Dracula document doesn't drop a dark slab, or a grey box, into a white message.</summary>
+    public ThemeDefinition DiagramTheme() =>
+        new("Email", Background: Page, Text: Text, Heading: Heading, Code: CodeBackground,
+            Border: Border, Primary: Text, Secondary: CodeBackground, Line: Muted);
+
     private static bool IsHex(string? s)
     {
         var t = (s ?? "").Trim().TrimStart('#');

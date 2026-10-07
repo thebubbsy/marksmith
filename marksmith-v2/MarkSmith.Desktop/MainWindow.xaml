@@ -28,6 +28,7 @@
             <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnGeneratePdfAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="T" Invoked="OnExportPptxAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="M" Invoked="OnMermaidStudioAcceleratorInvoked" />
+            <KeyboardAccelerator Modifiers="Control,Shift" Key="O" Invoked="OnEmailDraftAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="K" Invoked="OnCommandPaletteInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="S" Invoked="OnSaveDocumentAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control" Key="F" Invoked="OnFindAcceleratorInvoked" />
@@ -1344,6 +1345,81 @@
                                     </StackPanel>
                                 </Expander>
 
+                            <!-- ══════════ EMAIL (free on every plan) ══════════ -->
+                                <Expander x:Name="StyleEmailExpander" Tag="Email" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE724;" FontSize="14" />
+                                            <TextBlock Text="Email" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Expander.Header>
+                                    <StackPanel Spacing="12">
+                            <TextBlock Text="Export ▸ Email draft (Ctrl+Shift+O) opens the document as a new Outlook message. Every email feature is free."
+                                       Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
+                            <localcontrols:OptionRow Header="To"
+                                                     Description="Filled in on every draft. Separate addresses with ; or ,">
+                                <localcontrols:OptionRow.Details>
+                                    <StackPanel Spacing="6">
+                                        <TextBox Text="{Binding EmailTo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 PlaceholderText="name@company.com; team@company.com"
+                                                 AutomationProperties.Name="Default To recipients" />
+                                        <Grid ColumnSpacing="6" Visibility="{Binding HasEmailToProblem, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                            <TextBlock Grid.Column="1" Text="{Binding EmailToProblem}" TextWrapping="Wrap" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Cc">
+                                <localcontrols:OptionRow.Details>
+                                    <StackPanel Spacing="6">
+                                        <TextBox Text="{Binding EmailCc, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 PlaceholderText="Optional"
+                                                 AutomationProperties.Name="Default Cc recipients" />
+                                        <Grid ColumnSpacing="6" Visibility="{Binding HasEmailCcProblem, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                            <TextBlock Grid.Column="1" Text="{Binding EmailCcProblem}" TextWrapping="Wrap" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Subject"
+                                                     Description="{}{title} is the document's opening heading; {source} its file name; {date} today.">
+                                <localcontrols:OptionRow.Details>
+                                    <StackPanel Spacing="6">
+                                        <TextBox Text="{Binding EmailSubjectTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 PlaceholderText="{}{title}"
+                                                 AutomationProperties.Name="Email subject template" />
+                                        <TextBlock Text="{Binding EmailSubjectPreview}" TextWrapping="Wrap" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="2"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Keep the title in the message"
+                                                     Description="The opening heading becomes the subject. Turn this on to repeat it as a heading at the top of the message too.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding EmailRepeatTitleInBody, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Attach a PDF copy"
+                                                     Description="The same document as a PDF, for readers who want to print or file it.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding EmailAttachPdf, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Attach a Word copy"
+                                                     Description="An editable .docx of the document. Attaching Word files is a Pro feature; on the free plan the email still goes, without the copy.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding EmailAttachDocx, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Saved drafts"
+                                                     Description="Each email draft is kept in MarkSmith's outbox for 7 days, then deleted.">
+                                <Button Content="Clear now" Command="{Binding ClearEmailOutboxCommand}"
+                                        ToolTipService.ToolTip="Delete every email draft MarkSmith has saved" />
+                            </localcontrols:OptionRow>
+                                    </StackPanel>
+                                </Expander>
+
                             <!-- ══════════ DIAGRAMS ══════════ -->
                                 <Expander x:Name="StyleDiagramsExpander" Tag="Diagrams" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                     <Expander.Header>
@@ -1692,6 +1768,18 @@
                                 <MenuFlyoutItem Text="Export as Markdown (.md)" Click="OnExportMarkdownClick"
                                                 ToolTipService.ToolTip="Save the recovered/cleaned source as a Markdown file — the counterpart to importing a .docx">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C3;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <!-- Email is free on every plan (FeatureId.EmailDraft). -->
+                                <MenuFlyoutItem Text="Email draft (opens in Outlook)" Click="OnEmailDraftClick"
+                                                KeyboardAcceleratorTextOverride="Ctrl+Shift+O"
+                                                AutomationProperties.Name="Email draft"
+                                                ToolTipService.ToolTip="Opens the document as a new email in Outlook (or your default mail app), ready to address and send. The title becomes the subject; tables, code and diagrams come through. Free on every plan.">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE724;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Save as email (.eml)" Click="OnSaveEmailClick"
+                                                ToolTipService.ToolTip="Saves an .eml draft beside your other exports. Double-click it to open it in Outlook as a message you can send.">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE715;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem Text="Export all licensed formats" Click="OnExportAllClick">

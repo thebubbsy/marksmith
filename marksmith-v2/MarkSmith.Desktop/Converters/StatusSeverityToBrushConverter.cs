@@ -15,7 +15,9 @@ public sealed class StatusSeverityToBrushConverter : IValueConverter
         var key = value is Models.StatusSeverity s ? s switch
         {
             Models.StatusSeverity.Success => "SystemFillColorSuccessBrush",
-            Models.StatusSeverity.Warning => "SystemFillColorWarningBrush",
+            // WinUI names its amber "Caution"; there is no SystemFillColorWarningBrush, so this key
+            // used to miss and every warning status fell back to plain grey.
+            Models.StatusSeverity.Warning => "SystemFillColorCautionBrush",
             Models.StatusSeverity.Error => "SystemFillColorCriticalBrush",
             _ => "TextFillColorSecondaryBrush",
         } : "TextFillColorSecondaryBrush";

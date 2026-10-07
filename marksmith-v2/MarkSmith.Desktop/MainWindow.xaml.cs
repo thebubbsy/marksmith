@@ -238,6 +238,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // no output.json), whereas subscribing here is equivalent and build-safe. Note the control
         // exposes Expanding/Collapsed (there is no Expanded event in this Windows App SDK).
         ExportBrandingExpander.Expanding += OnStyleExpanderExpanded;
+        // The subject preview follows the document; refresh it when the section comes into view
+        // instead of on every keystroke.
+        StyleEmailExpander.Expanding += (_, _) => ViewModel.RefreshEmailSubjectPreview();
+        var subjectDebounce = DispatcherQueue.CreateTimer();
+        subjectDebounce.Interval = TimeSpan.FromMilliseconds(400);
+        subjectDebounce.IsRepeating = false;
+        subjectDebounce.Tick += (_, _) => ViewModel.RefreshEmailSubjectPreview();
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ViewModel.CurrentMarkdown) && StyleEmailExpander.IsExpanded)
+            {
+                subjectDebounce.Stop();
+                subjectDebounce.Start();
+            }
+        };
         WireStyleSectionMemory();
 
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
@@ -2107,7 +2122,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // afterwards each section stays the way the user left it.
     private Expander[] StyleSectionExpanders => new[]
     {
-        StyleAppearanceExpander, StyleLayoutExpander, StyleWordExpander, StyleDiagramsExpander,
+        StyleAppearanceExpander, StyleLayoutExpander, StyleWordExpander, StyleEmailExpander, StyleDiagramsExpander,
         StyleContentExpander, StyleFormattingExpander, ExportBrandingExpander,
     };
 
@@ -2999,6 +3014,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 ("Ctrl + Shift + E", "Instant DOCX export"),
                 ("Ctrl + Shift + D", "Export DOCX"),
                 ("Ctrl + Shift + T", "Export PPTX"),
+                ("Ctrl + Shift + O", "Email draft: open the document as a new Outlook message"),
                 ("Ctrl + P", "Print the rendered document"),
             }),
             ("Editing", new[]
@@ -3085,6 +3101,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Export PPTX", "Export", () => ViewModel.ConvertToPptxAsync(), "Ctrl+Shift+T"),
             new("Export EPUB", "Export", () => ViewModel.ConvertToEpubAsync()),
             new("Export HTML", "Export", () => ViewModel.ConvertToHtmlAsync()),
+            new("Email draft (open in Outlook)", "Export", () => ViewModel.CreateEmailDraftAsync(), "Ctrl+Shift+O"),
+            new("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync()),
             new("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
             new("Print the rendered document", "Export", () => { PrintDocument(); return Task.CompletedTask; }, "Ctrl+P"),
             new("Open a Markdown file", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+O"),
@@ -3296,6 +3314,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnExportHtmlClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.ConvertToHtmlAsync();
+    }
+
+    private async void OnEmailDraftClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.CreateEmailDraftAsync();
+    }
+
+    private async void OnSaveEmailClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.SaveEmailAsync();
+    }
+
+    private void OnEmailDraftAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel.IsNotBusy) _ = ViewModel.CreateEmailDraftAsync();
+        args.Handled = true;
     }
 
     // Primary action of the export SplitButton: generate a Word document — ISS-019 made .docx
