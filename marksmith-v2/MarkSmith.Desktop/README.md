@@ -24,7 +24,7 @@
 - **High-Resolution PDF**: Deterministic PDF generation powered by a local Chromium engine (`CoreWebView2`).
 
 ### 4. 🛡️ 100% Air-Gapped Local REST API & Enterprise DLP Governance
-- **Local Loopback REST API (`http://127.0.0.1:47821`)**: Full programmatic conversion endpoints (`/api/convert`, `/api/governance/report`, `/api/governance/summary`) allowing local scripts, terminal commands, and watch-folder daemons to compile Markdown into PDF/DOCX/PPTX/EPUB silently.
+- **Local Loopback REST API (`http://127.0.0.1:47821`)**: Full programmatic conversion endpoints (`/api/convert`, `/api/governance/report`, `/api/governance/summary`) allowing local scripts, terminal commands, and watch-folder daemons to compile Markdown into PDF/DOCX/PPTX/EPUB or an Outlook-ready email draft (.eml) silently.
 - **1-Click Browser Connector**: Chrome/Edge browser extension that streams replies from ChatGPT, Gemini, and Claude directly into Marksmith in one click.
 - **Data Loss Prevention (DLP)**: Local governance script monitors AI prompt ingestion and automatically masks sensitive credentials, passwords, and API keys (`sk-proj-[redacted]`) before saving local audit logs (`%LOCALAPPDATA%\MarkSmith\governance.json`). Zero remote cloud server calls.
 
@@ -113,7 +113,12 @@ When Marksmith is running, the local REST API listens on `http://127.0.0.1:47821
 }
 ```
 
-**Supported Formats**: `"pdf"`, `"docx"`, `"pptx"`, `"epub"`
+**Supported Formats**: `"pdf"`, `"docx"`, `"pptx"`, `"epub"`, `"eml"`
+
+`"eml"` (alias `"email"`) returns an Outlook draft (`message/rfc822`, `X-Unsent: 1`): the first
+heading becomes the subject, the default recipients come from Style & Export ▸ Email, and tables,
+code and diagrams are drawn in Outlook-safe HTML with inline PNGs. Double-click the file to open it
+in Outlook ready to send. Email output is free on every plan; DOCX and PPTX need Pro.
 
 ### 2. Ingest Extension Report & DLP Scan
 `POST /api/governance/report`

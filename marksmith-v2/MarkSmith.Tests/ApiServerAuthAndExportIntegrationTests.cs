@@ -239,6 +239,30 @@ public class ApiLicenseGateTests : IDisposable
     }
 
     [Fact]
+    public async Task Api_Convert_Email_Is_Free_And_Served_As_A_Message()
+    {
+        // Every email path is free (FeatureId.EmailDraft): a Free install gets the .eml, not a 402.
+        AppServices.License.Load();
+        AppServices.License.ResetToFree();
+        var emlStub = Encoding.ASCII.GetBytes("Subject: X\r\nX-Unsent: 1\r\n\r\nbody");
+
+        using var server = CreateServer((md, ovr) => Task.FromResult(emlStub));
+        int port = await StartServerRetryingAsync(server);
+        try
+        {
+            foreach (var fmt in new[] { "eml", "email" })
+            {
+                var resp = await PostJsonAsync(port, "/api/convert", "{\"markdown\":\"# X\",\"format\":\"" + fmt + "\"}");
+                Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+                Assert.Equal("message/rfc822", resp.Content.Headers.ContentType?.MediaType);
+                Assert.Equal("export.eml", resp.Content.Headers.ContentDisposition?.FileName);
+                Assert.Equal(emlStub, await resp.Content.ReadAsByteArrayAsync());
+            }
+        }
+        finally { server.Stop(); }
+    }
+
+    [Fact]
     public async Task Api_Convert_Free_Formats_Are_Not_Gated()
     {
         // PDF is a free format — the gate must not touch it even on a Free install.

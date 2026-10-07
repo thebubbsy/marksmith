@@ -487,6 +487,12 @@ public sealed class ApiServer : IDisposable
                         ctx.Response.ContentType = "application/epub+zip";
                         ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.epub");
                     }
+                    else if (ovr.Format?.ToLowerInvariant() is "eml" or "email")
+                    {
+                        // An Outlook draft (X-Unsent): free on every plan, like every email path.
+                        ctx.Response.ContentType = "message/rfc822";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.eml");
+                    }
                     else
                     {
                         ctx.Response.ContentType = "application/pdf";

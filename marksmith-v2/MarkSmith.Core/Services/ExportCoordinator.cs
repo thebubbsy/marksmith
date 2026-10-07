@@ -384,6 +384,24 @@ public sealed class ExportCoordinator
                 File.Delete(tmp);
                 return bytes;
             }
+            else if (fmt is "eml" or "email")
+            {
+                // Free on every plan (FeatureId.EmailDraft). Diagrams are harvested in the email's
+                // white palette so a dark theme doesn't put a dark slab in a light message.
+                List<byte[]?>? mermaidImgs = null;
+                if (md.Contains("```mermaid", StringComparison.Ordinal))
+                {
+                    var prepared = Email.EmailHtmlRenderer.Prepare(md, settings, theme);
+                    mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, prepared, settings, Email.EmailPalette.From(theme).DiagramTheme());
+                }
+                var doc = Email.EmailComposer.Compose(new Email.EmailComposeRequest
+                {
+                    Markdown = md,
+                    SourceLabel = output?.SourceTitle,
+                    MermaidPngs = mermaidImgs,
+                }, settings, theme);
+                return Email.EmlWriter.ToBytes(doc);
+            }
             else if (fmt == "epub")
             {
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.epub");
