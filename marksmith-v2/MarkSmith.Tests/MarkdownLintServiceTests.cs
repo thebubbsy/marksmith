@@ -99,6 +99,35 @@ public class MarkdownLintServiceTests
     }
 
     [Fact]
+    public void Analyze_Blank_Lines_Around_Separate_Code_Blocks_Are_Not_A_Blank_Run()
+    {
+        // Run #21b found this live: one blank line on each side of two code blocks was flagged as
+        // "3+ consecutive blank lines", because fence lines skipped the run reset.
+        var issues = MarkdownLintService.Analyze(
+            "Intro.\n\n```\ncode\n```\n\nMiddle.\n\n~~~\nmore\n~~~\n\nEnd.\n");
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void Analyze_Blank_Lines_Inside_A_Code_Block_Do_Not_Leak_Out()
+    {
+        var issues = MarkdownLintService.Analyze("Intro.\n\n```\n\n\n```\n\nEnd.\n");
+
+        Assert.Empty(issues);
+    }
+
+    [Fact]
+    public void Analyze_Still_Flags_A_Real_Blank_Run_Next_To_A_Code_Block()
+    {
+        var issues = MarkdownLintService.Analyze("```\ncode\n```\n\n\n\nEnd.\n");
+
+        var issue = Assert.Single(issues);
+        Assert.Equal("3+ consecutive blank lines", issue.Message);
+        Assert.Equal(6, issue.Line);
+    }
+
+    [Fact]
     public void Analyze_Flags_Genuinely_Unclosed_Fence()
     {
         var issues = MarkdownLintService.Analyze("```csharp\nvar x = 1;\n");

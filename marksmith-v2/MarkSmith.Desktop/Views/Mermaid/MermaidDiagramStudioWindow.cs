@@ -26,7 +26,7 @@ public sealed class MermaidDiagramStudioWindow : Window
 
     public MermaidDiagramStudioWindow(string currentMarkdown, int blockIndex = 0)
     {
-        Title = "Mermaid Diagram Studio";
+        Title = "Diagram Studio — MarkSmith";
 
         // Set official Marksmith taskbar & titlebar icon
         var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");

@@ -8,7 +8,7 @@
     xmlns:conv="using:MarkSmith.Converters"
     xmlns:vm="using:MarkSmith.ViewModels.MindMap"
     mc:Ignorable="d"
-    Title="Document Galaxy &amp; Mind Map Library — MarkSmith">
+    Title="Document Galaxy — MarkSmith">
 
     <Grid x:Name="RootGrid" Background="#12131C">
         <Grid.Resources>

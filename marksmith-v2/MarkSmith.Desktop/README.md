@@ -22,6 +22,7 @@
 - **PowerPoint Decks (.pptx)**: Converts Markdown header structures (`# Slide 1`, `## Slide 2`) into formatted presentation decks.
 - **EPUB eBooks**: Generates reflowable EPUB3 eBooks complete with automatic table of contents and chapter navigation.
 - **High-Resolution PDF**: Deterministic PDF generation powered by a local Chromium engine (`CoreWebView2`).
+- **Keyboard first**: Ctrl+B / Ctrl+I and Ctrl+1–4 format the editor (press again to remove a heading or list marker); Ctrl+F / Ctrl+H find and replace; Ctrl+K (or the "Search commands" box in the title bar) runs any command by name. F1 lists every shortcut, generated from the same table the app registers.
 - **Open anything as Markdown**: Ctrl+O (or drag and drop) opens Word, PDF, HTML and Outlook email (`.eml`) files as clean, editable Markdown. Emails keep a From/To/Date header, their inline images and attachments (saved to `<name>_media`), with the quoted thread folded away (Settings ▸ Opening files). Ctrl+S on a converted file saves a Markdown copy beside it; the original is never overwritten.
 
 ### 4. 🛡️ 100% Air-Gapped Local REST API & Enterprise DLP Governance

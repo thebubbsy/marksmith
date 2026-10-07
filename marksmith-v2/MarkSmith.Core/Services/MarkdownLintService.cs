@@ -32,6 +32,11 @@ public static class MarkdownLintService
             // closing fence must use the same character and be at least as long as the opener —
             // a shorter or differently-charactered run (e.g. a nested ``` example shown inside an
             // outer ```` fence) is just literal content, not a close.
+            // A fence or code line is content, so it ends a run of blank lines. The checks below
+            // `continue` past it, so reset here: otherwise the blanks before one code block and
+            // after the next added up to a false "3+ consecutive blank lines".
+            if (fenceLen > 0 || IsFenceOpener(trimmed)) blankRun = 0;
+
             if (fenceLen > 0)
             {
                 if (IsClosingFence(trimmed, fenceChar, fenceLen)) fenceLen = 0;
@@ -101,6 +106,10 @@ public static class MarkdownLintService
     /// that many copies of the same character, followed by nothing but whitespace (CommonMark
     /// forbids an info string on a closing fence).
     /// </summary>
+    private static bool IsFenceOpener(string trimmed) =>
+        trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~') &&
+        trimmed[1] == trimmed[0] && trimmed[2] == trimmed[0];
+
     private static bool IsClosingFence(string trimmed, char fenceChar, int fenceLen)
     {
         var runLen = 0;

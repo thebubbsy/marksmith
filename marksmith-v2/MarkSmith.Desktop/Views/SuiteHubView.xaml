@@ -22,7 +22,7 @@
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="MarkSmith Platform Suite" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="Suite Hub" FontSize="16" FontWeight="SemiBold" />
                             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
                                 <TextBlock x:Name="VersionText" Text="v3.0.0 · x64" FontSize="10.5" Opacity="0.8" />
                             </Border>
@@ -82,7 +82,7 @@
                         <TextBlock Grid.Row="1" Text="Native WinUI 3 editor, Looking Glass live preview, SAX streaming OpenXML O(1) compiler, OMML math, and CriticMarkup."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Diagram Studio (Mermaid)">
+                            <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE943;" FontSize="11" />
                                     <TextBlock Text="Diagram Studio" />
@@ -91,7 +91,7 @@
                             <Button Click="OnOpenShapeStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Shape Studio">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE790;" FontSize="11" />
-                                    <TextBlock Text="Vector Shapes" />
+                                    <TextBlock Text="Shape Studio" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>

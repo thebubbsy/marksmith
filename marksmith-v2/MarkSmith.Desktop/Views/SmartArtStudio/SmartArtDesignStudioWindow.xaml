@@ -7,7 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
     mc:Ignorable="d"
-    Title="SmartArt Design Studio">
+    Title="SmartArt Studio — MarkSmith">
 
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" KeyDown="OnRootGridKeyDown">
         <Grid.Resources>
@@ -51,7 +51,7 @@
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xF003;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="SmartArt Design Studio" FontWeight="SemiBold" FontSize="16" />
+                    <TextBlock Text="SmartArt Studio" FontWeight="SemiBold" FontSize="16" />
                     <TextBlock Text="Write the outline, pick a layout — it exports as real, editable Word SmartArt"
                                FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>

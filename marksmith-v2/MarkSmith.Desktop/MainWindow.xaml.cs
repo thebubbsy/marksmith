@@ -13,6 +13,7 @@ using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 using MarkSmith.Mermaid.Sync;
+using Shortcuts = MarkSmith.Services.KeyboardShortcuts;
 
 namespace MarkSmith;
 
@@ -342,6 +343,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // portal/view state now that both toggles are initialized.
         UpdateCenterBottomBar();
 
+        // Find keeps focus in its own box, so the editor must still show the current match while
+        // unfocused (the default not-focused highlight is invisible).
+        if (Application.Current.Resources.TryGetValue("SystemAccentColor", out var accentObj) && accentObj is Windows.UI.Color accent)
+            PasteTextBox.SelectionHighlightColorWhenNotFocused = new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, accent.R, accent.G, accent.B));
+
         // Markdown lint refresh on every edit + the non-invasive SmartArt offer (debounced so a
         // paste of a long ChatGPT answer is scanned once, not per keystroke).
         PasteTextBox.TextChanged += (_, _) =>
@@ -350,6 +356,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             UpdateLineNumbers();
             UpdateFoldStatus();
             SyncLineGutterScroll();
+            // An open find bar's "3 of 12" must follow edits, or Next jumps to stale offsets.
+            if (FindBar.Visibility == Visibility.Visible) RecomputeFindMatches(keepPosition: true);
             // RULE: blank editor -> the left Source/Files pane is forcibly expanded again.
             if (string.IsNullOrWhiteSpace(PasteTextBox?.Text))
             {
@@ -640,7 +648,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Logo + name + dot + tagline need ~330px; below that, drop the dot and tagline whole.
         var show = e.NewSize.Width >= 340;
         TitleTagline.Visibility = TitleTaglineDot.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        // Once the tagline has gone and space is still short, the palette button drops its label
+        // (icon + Ctrl+K keycap stay) so the drag region never shrinks to nothing.
+        // Hiding the label gives the drag region its ~110px back, so it only returns once there's
+        // room for it again; one threshold would flip the label on and off forever.
+        if (CommandPaletteLabel is not null)
+        {
+            var labelShown = CommandPaletteLabel.Visibility == Visibility.Visible;
+            if (labelShown && e.NewSize.Width < 200) CommandPaletteLabel.Visibility = Visibility.Collapsed;
+            else if (!labelShown && e.NewSize.Width >= 330) CommandPaletteLabel.Visibility = Visibility.Visible;
+        }
     }
+
+    private void OnCommandPaletteClick(object sender, RoutedEventArgs e) => _ = ShowCommandPaletteAsync();
+
+    private void OnEditorFindClick(object sender, RoutedEventArgs e) => ShowFindBar();
+
+    private void OnEditorReplaceClick(object sender, RoutedEventArgs e) => ShowFindBar(replace: true);
 
     // "Export history" moved into the ⋯ menu but kept its rich ListView flyout: the menu item
     // re-opens it as the button's attached flyout (enqueued so the closing menu doesn't eat it).
@@ -681,13 +705,13 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         const string numberedListPath = "M1,1 h1 v1 h-1 Z M0,2 h2 v1 h-2 Z M1,3 h1 v1 h-1 Z M1,4 h1 v1 h-1 Z M0,5 h3 v1 h-3 Z M0,9 h2 v1 h-2 Z M2,10 h1 v1 h-1 Z M1,11 h1 v1 h-1 Z M0,12 h1 v1 h-1 Z M0,13 h3 v1 h-3 Z M5,3 h11 v1.5 h-11 Z M5,11 h11 v1.5 h-11 Z";
         (Func<UIElement> Content, string Tip, RoutedEventHandler Click)[] actions =
         {
-            (() => Glyph("\uE8DD"), "Bold (Ctrl+B)", OnBoldClick),
-            (() => Glyph("\uE8DB"), "Italic (Ctrl+I)", OnItalicClick),
+            (() => Glyph("\uE8DD"), Shortcuts.Tip("Bold", "format.bold"), OnBoldClick),
+            (() => Glyph("\uE8DB"), Shortcuts.Tip("Italic", "format.italic"), OnItalicClick),
             (() => Glyph("\uEDE0"), "Strikethrough", OnStrikethroughClick),
-            (() => Letter("H1"), "Heading 1 (#)", OnH1Click),
-            (() => Letter("H2"), "Heading 2 (##)", OnH2Click),
-            (() => Letter("H3"), "Heading 3 (###)", OnH3Click),
-            (() => Letter("H4"), "Heading 4 (####)", OnH4Click),
+            (() => Letter("H1"), Shortcuts.Tip("Heading 1", "format.h1"), OnH1Click),
+            (() => Letter("H2"), Shortcuts.Tip("Heading 2", "format.h2"), OnH2Click),
+            (() => Letter("H3"), Shortcuts.Tip("Heading 3", "format.h3"), OnH3Click),
+            (() => Letter("H4"), Shortcuts.Tip("Heading 4", "format.h4"), OnH4Click),
             (() => Glyph("\uE8FD"), "Bullet list", OnBulletListClick),
             (() => new PathIcon { Data = (Microsoft.UI.Xaml.Media.Geometry)Microsoft.UI.Xaml.Markup.XamlBindingHelper.ConvertValue(typeof(Microsoft.UI.Xaml.Media.Geometry), numberedListPath) }, "Numbered list", OnNumberedListClick),
             (() => Glyph("\uE73A"), "Task list", OnTaskListClick),
@@ -1378,7 +1402,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         dialog = new ContentDialog
         {
-            Title = "MarkSmith Platform Suite & Integrations",
+            Title = "Suite Hub",
             Content = suiteHubView,
             CloseButtonText = "Done",
             // Done is the hub's one accent action; the cards' own buttons are all standard.
@@ -3062,88 +3086,98 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ShowShortcutsCheatsheetAsync();
     }
 
+    // Generated from Core's KeyboardShortcuts, the same list the palette and tooltips read and a
+    // test checks against the XAML accelerators, so every row is a shortcut that works. Each key
+    // is drawn as its own keycap; alternative chords stack in the keys column.
     private async Task ShowShortcutsCheatsheetAsync()
     {
-        // Grouped so the list scans by task. Keep in sync with RootGrid.KeyboardAccelerators in
-        // MainWindow.xaml (plus the Ctrl+, accelerator added in the constructor) — every row here
-        // must be a shortcut that actually works.
-        var sections = new (string Title, (string Keys, string Action)[] Rows)[]
-        {
-            ("File & export", new[]
-            {
-                ("Ctrl + O", "Open a document: Markdown, Word, PDF, HTML or email (.eml)"),
-                ("Ctrl + S", "Save edits (Word, PDF, HTML and email files are saved as a Markdown copy)"),
-                ("Ctrl + E", "Generate PDF"),
-                ("Ctrl + Shift + P", "Instant PDF export"),
-                ("Ctrl + Shift + E", "Instant DOCX export"),
-                ("Ctrl + Shift + D", "Export DOCX"),
-                ("Ctrl + Shift + T", "Export PPTX"),
-                ("Ctrl + Shift + O", "Email draft: open the document as a new Outlook message"),
-                ("Ctrl + P", "Print the rendered document"),
-            }),
-            ("Editing", new[]
-            {
-                ("Ctrl + Z", "Undo"),
-                ("Ctrl + Y", "Redo (also Ctrl + Shift + Z)"),
-                ("Ctrl + F", "Find in the editor"),
-                ("Ctrl + H", "Find and replace"),
-                ("Ctrl + D", "Duplicate the current line"),
-                ("Alt + ↑ / ↓", "Move the current line up / down"),
-            }),
-            ("View & tools", new[]
-            {
-                ("F11", "Focus mode — hide the side panels"),
-                ("Ctrl + Alt + X", "Portal focus: blur / unblur the preview behind the aperture"),
-                ("Ctrl + Shift + M", "Open the Visual Mermaid Studio"),
-                ("Ctrl + K", "Command palette"),
-                ("Ctrl + ,", "Open Settings"),
-                ("Ctrl + Alt + T", "Toggle debug mode"),
-                ("F1", "Show this cheatsheet"),
-            }),
-        };
+        var res = Application.Current.Resources;
+        var secondary = (Brush)res["TextFillColorSecondaryBrush"];
 
-        var rows = new StackPanel { Spacing = 10 };
-        foreach (var (title, sectionRows) in sections)
+        var rows = new StackPanel { Spacing = 6 };
+        foreach (var (section, sectionRows) in Shortcuts.Sheet())
         {
+            if (sectionRows.Count == 0) continue;
             rows.Children.Add(new TextBlock
             {
-                Text = title,
-                Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
-                Margin = new Thickness(0, rows.Children.Count == 0 ? 0 : 10, 0, 0),
+                Text = section,
+                Style = (Style)res["BodyStrongTextBlockStyle"],
+                Margin = new Thickness(0, rows.Children.Count == 0 ? 0 : 14, 0, 2),
             });
-
-            foreach (var (keys, action) in sectionRows)
+            if (section == Shortcuts.FormattingSection)
             {
-                var row = new Grid { ColumnSpacing = 16 };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                rows.Children.Add(new TextBlock
+                {
+                    Text = "These work while the Markdown editor has focus.",
+                    Style = (Style)res["CaptionTextBlockStyle"],
+                    Foreground = secondary,
+                    Margin = new Thickness(0, -2, 0, 2),
+                });
+            }
+
+            foreach (var shortcut in sectionRows)
+            {
+                var row = new Grid { ColumnSpacing = 16, MinHeight = 30 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(196) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                var keyBox = new Border
+                // Alternative chords stack one per line, so three-key pairs never overflow the column.
+                var keys = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+                var chordKeyLists = shortcut.Chords.Count > 0
+                    ? shortcut.Chords.Select(c => c.Keys).ToList()
+                    : new List<IReadOnlyList<string>> { (shortcut.Gesture ?? "").Split('+') };
+                foreach (var chordKeys in chordKeyLists)
                 {
-                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-                    BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(10, 4, 10, 4),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Child = new TextBlock { Text = keys, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12.5 },
-                };
-                Grid.SetColumn(keyBox, 0);
+                    var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+                    AddChord(line, chordKeys);
+                    keys.Children.Add(line);
+                }
+                Grid.SetColumn(keys, 0);
 
-                var desc = new TextBlock { Text = action, VerticalAlignment = VerticalAlignment.Center, FontSize = 13, TextWrapping = TextWrapping.Wrap };
+                var desc = new TextBlock { Text = shortcut.Action, VerticalAlignment = VerticalAlignment.Center, FontSize = 13, TextWrapping = TextWrapping.Wrap };
                 Grid.SetColumn(desc, 1);
 
-                row.Children.Add(keyBox);
+                row.Children.Add(keys);
                 row.Children.Add(desc);
                 rows.Children.Add(row);
             }
         }
 
+        void AddChord(StackPanel host, IEnumerable<string> chordKeys)
+        {
+            var first = true;
+            foreach (var key in chordKeys)
+            {
+                if (!first) host.Children.Add(new TextBlock { Text = "+", FontSize = 11, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center });
+                first = false;
+                host.Children.Add(new Border
+                {
+                    Background = (Brush)res["ControlFillColorDefaultBrush"],
+                    BorderBrush = (Brush)res["ControlStrokeColorDefaultBrush"],
+                    BorderThickness = new Thickness(1, 1, 1, 2),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(7, 1, 7, 2),
+                    MinWidth = 24,
+                    Child = new TextBlock { Text = key, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center },
+                });
+            }
+        }
+
+        var footer = new TextBlock
+        {
+            Text = $"Can't remember a shortcut? Press {Shortcuts.KeysFor("app.palette")} and type what you want to do.",
+            Style = (Style)res["CaptionTextBlockStyle"],
+            Foreground = secondary,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 14, 0, 0),
+        };
+        rows.Children.Add(footer);
+
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
             // Scrolls rather than growing past the window on smaller screens.
-            Content = new ScrollViewer { Content = rows, Padding = new Thickness(0, 0, 12, 0), MaxHeight = 520 },
+            Content = new ScrollViewer { Content = rows, Padding = new Thickness(0, 0, 14, 0), MaxHeight = 540, Width = 500 },
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = Content.XamlRoot,
@@ -3153,35 +3187,97 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Command palette (Ctrl+K): fuzzy search across actions, themes, and recent files ----
 
-    // Shortcut is display-only: the matching accelerator lives in RootGrid.KeyboardAccelerators.
-    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run, string Shortcut = "");
+    // Shortcut is display-only, read from Core's KeyboardShortcuts (the accelerators live in XAML).
+    private sealed record PaletteCommand(string Label, string Category, Func<Task> Run, string Shortcut = "", string Keywords = "")
+    {
+        public Visibility ShortcutVisibility => Shortcut.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
 
+    // Every action a user might go looking for: run #21b found the palette had no Find, Save,
+    // Import, view switching, inserting or clean-up. Names match the toolbar and menus (one name
+    // per studio: Diagram Studio, Shape Studio, SmartArt Studio, Document Galaxy, Suite Hub).
     private List<PaletteCommand> BuildPaletteCommands()
     {
+        PaletteCommand Do(string label, string category, Action run, string? shortcutId = null, string keywords = "") =>
+            new(label, category, () => { run(); return Task.CompletedTask; }, shortcutId is null ? "" : Shortcuts.KeysFor(shortcutId), keywords);
+        PaletteCommand DoAsync(string label, string category, Func<Task> run, string? shortcutId = null, string keywords = "") =>
+            new(label, category, run, shortcutId is null ? "" : Shortcuts.KeysFor(shortcutId), keywords);
+        // Editing commands act on the editor, so bring it into view from Preview first.
+        PaletteCommand Edit(string label, RoutedEventHandler handler, string? shortcutId = null, string keywords = "") =>
+            Do(label, "Edit", () => { EnsureEditorVisible(); handler(this, new RoutedEventArgs()); }, shortcutId, keywords);
+        PaletteCommand Insert(string label, RoutedEventHandler handler) =>
+            Do(label, "Insert", () => { EnsureEditorVisible(); handler(this, new RoutedEventArgs()); });
+        var click = new RoutedEventArgs();
+
         var cmds = new List<PaletteCommand>
         {
-            new("Generate PDF", "Export", () => ViewModel.ConvertToPdfAsync(), "Ctrl+E"),
-            new("Export DOCX", "Export", () => ViewModel.ConvertToDocxAsync(), "Ctrl+Shift+D"),
-            new("Export PPTX", "Export", () => ViewModel.ConvertToPptxAsync(), "Ctrl+Shift+T"),
-            new("Export EPUB", "Export", () => ViewModel.ConvertToEpubAsync()),
-            new("Export HTML", "Export", () => ViewModel.ConvertToHtmlAsync()),
-            new("Email draft (open in Outlook)", "Export", () => ViewModel.CreateEmailDraftAsync(), "Ctrl+Shift+O"),
-            new("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync()),
-            new("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
-            new("Print the rendered document", "Export", () => { PrintDocument(); return Task.CompletedTask; }, "Ctrl+P"),
-            new("Open a document", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+O"),
-            new("Open an email (.eml)", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Save (converted files save as a Markdown copy)", "File", SaveDocumentToFileAsync, "Ctrl+S"),
-            new("Open version history", "File", () => { OnOpenHistoryClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Platform Suite & Integrations Hub", "Studio", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Document Galaxy Mind Map", "Studio", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open Diagram Studio", "Studio", () => { OnOpenMermaidStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+Shift+M"),
-            new("Open Shape Studio", "Studio", () => { OnOpenShapeDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Open SmartArt Design Studio", "Studio", () => { OnOpenSmartArtDesignStudioClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
-            new("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; return Task.CompletedTask; }, "F11"),
-            new("Open Settings", "App", () => { OnSettingsClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+,"),
-            new("Take the welcome tour", "App", ShowWelcomeTourAsync),
-            new("Show keyboard shortcuts", "App", ShowShortcutsCheatsheetAsync, "F1"),
+            DoAsync("Export PDF", "Export", () => ViewModel.ConvertToPdfAsync(), "export.pdf", "save as pdf acrobat"),
+            DoAsync("Export Word (.docx)", "Export", () => ViewModel.ConvertToDocxAsync(), "export.docx", "docx microsoft office"),
+            DoAsync("Export PowerPoint (.pptx)", "Export", () => ViewModel.ConvertToPptxAsync(), "export.pptx", "pptx slides deck presentation"),
+            DoAsync("Export EPUB", "Export", () => ViewModel.ConvertToEpubAsync(), keywords: "ebook kindle book"),
+            DoAsync("Export HTML", "Export", () => ViewModel.ConvertToHtmlAsync()),
+            DoAsync("Email draft (open in Outlook)", "Export", () => ViewModel.CreateEmailDraftAsync(), "export.email", "mail send message"),
+            DoAsync("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync()),
+            DoAsync("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
+            Do("Copy the rendered HTML", "Export", () => OnCopyHtmlClick(this, click)),
+            Do("Print the rendered document", "Export", PrintDocument, "file.print"),
+            Do("Recent exports", "Export", () => OnExportHistoryMenuClick(this, click)),
+
+            Do("Open a document", "File", () => OnBrowseFileClick(this, click), "file.open"),
+            Do("Open an email (.eml)", "File", () => OnBrowseFileClick(this, click)),
+            Do("Import Word, PDF, HTML or email as a new document", "File", () => OnImportDocumentClick(this, click)),
+            DoAsync("Save (converted files save as a Markdown copy)", "File", SaveDocumentToFileAsync, "file.save"),
+            Do("Version history", "File", () => OnOpenHistoryClick(this, click), keywords: "undo restore backup checkpoint"),
+
+            Do("Find", "Edit", () => ShowFindBar(), "edit.find", "search look up"),
+            Do("Find and replace", "Edit", () => ShowFindBar(replace: true), "edit.replace", "search substitute swap"),
+            Edit("Bold", OnBoldClick, "format.bold"),
+            Edit("Italic", OnItalicClick, "format.italic"),
+            Edit("Strikethrough", OnStrikethroughClick),
+            Edit("Heading 1", OnH1Click, "format.h1"),
+            Edit("Heading 2", OnH2Click, "format.h2"),
+            Edit("Heading 3", OnH3Click, "format.h3"),
+            Edit("Heading 4", OnH4Click, "format.h4"),
+            Edit("Bullet list", OnBulletListClick),
+            Edit("Numbered list", OnNumberedListClick),
+            Edit("Task list", OnTaskListClick),
+            Edit("Blockquote", OnBlockquoteClick),
+            Edit("Make selection UPPERCASE", OnTransformUpperClick),
+            Edit("Make selection lowercase", OnTransformLowerClick),
+            Edit("Make selection Title Case", OnTransformTitleClick),
+            Edit("Sort lines A to Z", OnSortLinesAscClick),
+            Edit("Sort lines Z to A", OnSortLinesDescClick),
+            Edit("Remove duplicate lines", OnDedupeLinesClick),
+            Edit("Clean up document", OnCleanupClick, keywords: "tidy fix normalise normalize"),
+
+            Insert("Insert link", OnLinkClick),
+            Insert("Insert image", OnImageClick),
+            Insert("Insert table", OnTableClick),
+            Insert("Insert code block", OnCodeBlockClick),
+            Insert("Insert table from a spreadsheet", OnInsertSpreadsheetClick),
+            Insert("Insert workflow", OnInsertWorkflowClick),
+            Insert("Insert timeline", OnInsertTimelineClick),
+            Insert("Insert SmartArt", OnInsertSmartArtClick),
+            Insert("Insert references", OnInsertReferencesClick),
+            Do("Copy a table to Excel", "Insert", () => OnExportTableClick(this, click)),
+
+            Do("Code view (editor only)", "View", () => ViewCodeTab.IsSelected = true),
+            Do("Split view (editor and preview)", "View", () => ViewSplitTab.IsSelected = true),
+            Do("Preview view (rendered page only)", "View", () => ViewPreviewTab.IsSelected = true),
+            Do("Toggle focus mode", "View", () => { if (FocusModeToggle != null) FocusModeToggle.IsChecked = FocusModeToggle.IsChecked != true; }, "view.focus"),
+            Do("Toggle Looking Glass portal", "View", () => { if (LookingGlassToggle.IsEnabled) LookingGlassToggle.IsChecked = LookingGlassToggle.IsChecked != true; }),
+            Do("Toggle preview as email", "View", () => EmailPreviewToggle.IsChecked = EmailPreviewToggle.IsChecked != true),
+            Do("Document outline", "View", () => OutlineButton.Flyout?.ShowAt(OutlineButton)),
+
+            Do("Open Diagram Studio", "Studio", () => OnOpenMermaidStudioClick(this, click), "studio.diagram", "mermaid flowchart chart"),
+            Do("Open Shape Studio", "Studio", () => OnOpenShapeDesignStudioClick(this, click), keywords: "vector shapes drawing"),
+            Do("Open SmartArt Studio", "Studio", () => OnOpenSmartArtDesignStudioClick(this, click)),
+            Do("Open Document Galaxy", "Studio", () => OnOpenMindMapGalaxyClick(this, click), keywords: "mind map graph links"),
+            Do("Open Suite Hub", "Studio", () => OnSuiteHubClick(this, click), keywords: "integrations extension cli mcp"),
+
+            Do("Open Settings", "App", () => OnSettingsClick(this, click), "app.settings", "preferences options"),
+            DoAsync("Take the welcome tour", "App", ShowWelcomeTourAsync),
+            DoAsync("Show keyboard shortcuts", "App", ShowShortcutsCheatsheetAsync, "app.shortcuts", "keys hotkeys help"),
         };
 
         foreach (var theme in App.Themes.All)
@@ -3204,31 +3300,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return cmds;
     }
 
-    private static bool FuzzyMatch(string text, string query)
-    {
-        if (text.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        // Subsequence match: every query character appears in order (case-insensitive).
-        var qi = 0;
-        foreach (var ch in text)
-        {
-            if (qi < query.Length && char.ToLowerInvariant(ch) == char.ToLowerInvariant(query[qi])) qi++;
-        }
-        return qi == query.Length;
-    }
-
     private async Task ShowCommandPaletteAsync()
     {
         var commands = BuildPaletteCommands();
 
-        var search = new TextBox { PlaceholderText = "Type a command, theme, or recent file\u2026", FontSize = 14 };
+        var search = new TextBox { PlaceholderText = "Type what you want to do: export, find, heading, theme\u2026", FontSize = 14 };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(search, "Search commands");
         var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 340, IsItemClickEnabled = true };
         list.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
             "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
-            "<Grid ColumnSpacing='10' Padding='0,2'>" +
-            "<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
-            "<TextBlock Text='{Binding Label}' FontWeight='SemiBold' FontSize='13' TextTrimming='CharacterEllipsis'/>" +
-            "<TextBlock Grid.Column='1' Text='{Binding Category}' Opacity='0.5' FontSize='11' VerticalAlignment='Center'/>" +
-            "<TextBlock Grid.Column='2' Text='{Binding Shortcut}' Opacity='0.6' FontSize='11' FontFamily='Consolas' VerticalAlignment='Center'/>" +
+            "<Grid ColumnSpacing='10' Padding='0,4'>" +
+            "<Grid.ColumnDefinitions><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
+            "<TextBlock Text='{Binding Label}' FontSize='13' TextTrimming='CharacterEllipsis' VerticalAlignment='Center'/>" +
+            "<TextBlock Grid.Column='1' Text='{Binding Category}' FontSize='11' VerticalAlignment='Center' Foreground='{ThemeResource TextFillColorTertiaryBrush}'/>" +
+            "<Border Grid.Column='2' Visibility='{Binding ShortcutVisibility}' VerticalAlignment='Center' CornerRadius='3' Padding='5,0,5,1' " +
+            "Background='{ThemeResource SubtleFillColorSecondaryBrush}' BorderBrush='{ThemeResource ControlStrokeColorDefaultBrush}' BorderThickness='1'>" +
+            "<TextBlock Text='{Binding Shortcut}' FontSize='11' Foreground='{ThemeResource TextFillColorSecondaryBrush}'/></Border>" +
             "</Grid></DataTemplate>");
         // Without this a query with no hits just shows an empty box, which reads as broken.
         var noMatches = new TextBlock
@@ -3243,9 +3330,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         void Refresh()
         {
             var q = search.Text.Trim();
-            var filtered = string.IsNullOrEmpty(q)
-                ? commands
-                : commands.Where(c => FuzzyMatch(c.Label, q) || FuzzyMatch(c.Category, q)).ToList();
+            var filtered = Services.CommandSearch.Rank(commands, q, c => c.Label, c => c.Category, c => c.Keywords);
             list.ItemsSource = filtered;
             if (filtered.Count > 0) list.SelectedIndex = 0;
             noMatches.Text = $"No commands, themes or recent files match \u201C{q}\u201D.";
@@ -3281,6 +3366,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var idx = list.SelectedIndex;
                 idx = e.Key == Windows.System.VirtualKey.Down ? Math.Min(idx + 1, list.Items.Count - 1) : Math.Max(idx - 1, 0);
                 list.SelectedIndex = idx;
+                list.ScrollIntoView(list.SelectedItem);
                 e.Handled = true;
             }
         };
@@ -3633,13 +3719,64 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Find bar (Ctrl+F): search the Markdown source and jump between matches ----
 
-    private void ShowFindBar()
+    // Ctrl+F / Ctrl+H, the palette, and the Find button in the editor bar all land here.
+    // - From Preview view the editor column is hidden, so switch to Split first (the bar used to
+    //   open invisibly in the collapsed column).
+    // - A one-line selection prefills the query, like every other editor.
+    // - Focus stays in the find box while matches are highlighted in the editor, so Enter keeps
+    //   going to the next match instead of typing a line break over the selection.
+    private void ShowFindBar(bool replace = false)
     {
         if (FindBar is null) return;
+        EnsureEditorVisible();
+
+        var selected = PasteTextBox.SelectedText ?? string.Empty;
+        if (selected.Length is > 0 and <= 200 && selected.IndexOfAny(new[] { '\r', '\n' }) < 0)
+        {
+            _suppressFindJump = true;
+            FindTextBox.Text = selected;
+            _suppressFindJump = false;
+        }
+
         FindBar.Visibility = Visibility.Visible;
+        if (replace) ReplaceExpandToggle.IsChecked = true;
         SyncFindBarSpacer();
-        FindTextBox.Focus(FocusState.Programmatic);
-        FindTextBox.SelectAll();
+
+        RecomputeFindMatches();
+        // Start from the caret: the first match at or after it is "current".
+        _findMatchIndex = _findMatches.Count == 0 ? -1 : Math.Max(0, _findMatches.FindIndex(m => m >= PasteTextBox.SelectionStart));
+        UpdateFindCount();
+
+        if (replace && FindTextBox.Text.Length > 0)
+        {
+            ReplaceTextBox.Focus(FocusState.Programmatic);
+            ReplaceTextBox.SelectAll();
+        }
+        else
+        {
+            FindTextBox.Focus(FocusState.Programmatic);
+            FindTextBox.SelectAll();
+        }
+    }
+
+    // Find, insert and format commands act on the editor; from Preview view bring it back (Split
+    // keeps the preview the user was looking at).
+    private void EnsureEditorVisible()
+    {
+        if (_viewMode == ViewMode.Preview && ViewSplitTab is not null) ViewSplitTab.IsSelected = true;
+    }
+
+    private void OnFindBarSizeChanged(object sender, SizeChangedEventArgs e) => SyncFindBarSpacer();
+
+    private void OnReplaceExpandToggled(object sender, RoutedEventArgs e)
+    {
+        var open = ReplaceExpandToggle.IsChecked == true;
+        ReplaceRow.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        ReplaceExpandGlyph.Glyph = open ? "\uE70D" : "\uE76C"; // chevron down / right
+        var name = open ? "Hide replace" : "Show replace";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReplaceExpandToggle, name);
+        ToolTipService.SetToolTip(ReplaceExpandToggle, open ? name : $"{name} ({Shortcuts.KeysFor("edit.replace")})");
+        UpdateFindCount();
     }
 
     private void OnFindCloseClick(object sender, RoutedEventArgs e) => CloseFindBar();
@@ -3669,20 +3806,34 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void OnFindTextChanged(object sender, TextChangedEventArgs e) => RecomputeFindMatches();
+    private bool _suppressFindJump;
+
+    // Typing a query jumps to the first match from the caret (search-as-you-type).
+    private void OnFindTextChanged(object sender, TextChangedEventArgs e)
+    {
+        RecomputeFindMatches();
+        if (_suppressFindJump || _findMatches.Count == 0) return;
+        var caret = PasteTextBox.SelectionStart;
+        var i = _findMatches.FindIndex(m => m >= caret);
+        _findMatchIndex = i < 0 ? 0 : i;
+        SelectFindMatch(keepFindFocus: true);
+    }
 
     private void OnFindNextClick(object sender, RoutedEventArgs e) => FindNext();
 
     private void OnFindPrevClick(object sender, RoutedEventArgs e) => FindPrev();
 
-    // The comparison used by find/replace — the "Aa" checkbox toggles case sensitivity.
+    // The comparison used by find/replace: the "Aa" toggle turns on case sensitivity.
     private StringComparison FindComparison => MatchCaseCheck?.IsChecked == true
         ? StringComparison.Ordinal
         : StringComparison.OrdinalIgnoreCase;
 
-    // Rebuild the match list for the current query and refresh the "n/m" readout.
-    private void RecomputeFindMatches()
+    // Rebuild the match list for the current query and refresh the "3 of 12" readout.
+    // keepPosition (used while the user edits with the bar open) keeps the current match.
+    private void RecomputeFindMatches(bool keepPosition = false)
     {
+        var previous = keepPosition && _findMatchIndex >= 0 && _findMatchIndex < _findMatches.Count
+            ? _findMatches[_findMatchIndex] : -1;
         _findMatches.Clear();
         _findMatchIndex = -1;
         var query = FindTextBox?.Text ?? string.Empty;
@@ -3697,6 +3848,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 idx = text.IndexOf(query, idx + query.Length, cmp);
             }
         }
+        if (previous >= 0 && _findMatches.Count > 0)
+        {
+            var i = _findMatches.FindIndex(m => m >= previous);
+            _findMatchIndex = i < 0 ? _findMatches.Count - 1 : i;
+        }
         UpdateFindCount();
     }
 
@@ -3705,34 +3861,52 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void UpdateFindCount()
     {
         if (FindCountText is null) return;
-        FindCountText.Text = _findMatches.Count == 0
-            ? (string.IsNullOrEmpty(FindTextBox?.Text) ? string.Empty : "No matches")
-            : $"{_findMatchIndex + 1}/{_findMatches.Count}";
+        var hasQuery = !string.IsNullOrEmpty(FindTextBox?.Text);
+        var count = _findMatches.Count;
+        FindCountText.Text = !hasQuery ? string.Empty
+            : count == 0 ? "No results"
+            : _findMatchIndex >= 0 ? $"{_findMatchIndex + 1} of {count}"
+            : count == 1 ? "1 match" : $"{count} matches";
+        FindCountText.Foreground = (Brush)Application.Current.Resources[
+            hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
+
+        // Dead buttons look dead: nothing to step through or replace without a match.
+        FindPrevButton.IsEnabled = FindNextButton.IsEnabled = count > 0;
+        ReplaceOneButton.IsEnabled = ReplaceAllButton.IsEnabled = count > 0;
     }
 
     private void FindNext()
     {
         if (_findMatches.Count == 0) { UpdateFindCount(); return; }
         _findMatchIndex = (_findMatchIndex + 1) % _findMatches.Count;
-        SelectFindMatch();
+        SelectFindMatch(keepFindFocus: true);
     }
 
     private void FindPrev()
     {
         if (_findMatches.Count == 0) { UpdateFindCount(); return; }
-        _findMatchIndex = (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
-        SelectFindMatch();
+        _findMatchIndex = _findMatchIndex < 0 ? _findMatches.Count - 1
+            : (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
+        SelectFindMatch(keepFindFocus: true);
     }
 
-    // Highlight the current match in the editor and scroll it into view. Selecting text on a focused
-    // TextBox makes WinUI bring the caret into view, which gives us scroll-into-view for free.
-    private void SelectFindMatch()
+    // Highlight the current match in the editor and scroll it into view. Selecting text on a
+    // focused TextBox makes WinUI bring the caret into view, so the editor is focused for the
+    // select and focus then goes back to whichever find box the user was typing in; the
+    // editor's not-focused highlight (set in the constructor) keeps the match visible.
+    private void SelectFindMatch(bool keepFindFocus = false)
     {
         if (_findMatchIndex < 0 || _findMatchIndex >= _findMatches.Count) return;
         var start = _findMatches[_findMatchIndex];
         var len = (FindTextBox?.Text ?? string.Empty).Length;
+        var returnTo = keepFindFocus
+            ? (ReplaceTextBox.FocusState != FocusState.Unfocused ? (Control)ReplaceTextBox : FindTextBox)
+            : null;
         PasteTextBox.Focus(FocusState.Programmatic);
         PasteTextBox.Select(start, len);
+        UpdateCursorPosition();
+        returnTo?.Focus(FocusState.Programmatic);
         UpdateFindCount();
     }
 
@@ -3752,22 +3926,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // Replace the currently-highlighted match (if the selection is one), then jump to the next match.
+    // Replace the current match (when the editor's selection is it), then go to the next one.
     private void OnReplaceClick(object sender, RoutedEventArgs e)
     {
         var query = FindTextBox?.Text ?? string.Empty;
         if (query.Length == 0) return;
         var replacement = ReplaceTextBox?.Text ?? string.Empty;
-
-        if (PasteTextBox.SelectionLength == query.Length)
-        {
-            PasteTextBox.SelectedText = replacement; // swaps the selected match in place
-        }
-
-        // Continue searching from just after the caret, wrapping to the top if needed.
         var text = PasteTextBox.Text ?? string.Empty;
         var cmp = FindComparison;
-        var from = Math.Clamp(PasteTextBox.SelectionStart, 0, text.Length);
+
+        var selStart = PasteTextBox.SelectionStart;
+        var isMatch = PasteTextBox.SelectionLength == query.Length
+            && selStart + query.Length <= text.Length
+            && string.Compare(text, selStart, query, 0, query.Length, cmp) == 0;
+        if (isMatch)
+        {
+            ViewModel.BreakUndoBurst();
+            PasteTextBox.SelectedText = replacement; // swaps the selected match in place
+            selStart += replacement.Length;
+            text = PasteTextBox.Text ?? string.Empty;
+        }
+
+        // Continue from just after the replacement, wrapping to the top if needed.
+        var from = Math.Clamp(selStart, 0, text.Length);
         var next = text.IndexOf(query, from, cmp);
         if (next < 0) next = text.IndexOf(query, 0, cmp);
 
@@ -3775,11 +3956,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (next >= 0)
         {
             _findMatchIndex = _findMatches.IndexOf(next);
-            SelectFindMatch();
+            SelectFindMatch(keepFindFocus: true);
+        }
+        else
+        {
+            ViewModel.StatusText = "Replaced the last match.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
     }
 
-    // Replace every match in the document in one pass.
+    // Replace every match in the document in one pass (one undo step).
     private void OnReplaceAllClick(object sender, RoutedEventArgs e)
     {
         var query = FindTextBox?.Text ?? string.Empty;
@@ -3805,7 +3991,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ViewModel.BreakUndoBurst(); // Replace All must undo as its own step
             PasteTextBox.Text = sb.ToString();
-            ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")}.";
+            ViewModel.BreakUndoBurst();
+            ViewModel.StatusText = $"Replaced {count} occurrence{(count == 1 ? "" : "s")} of \u201C{query}\u201D. Ctrl+Z undoes it.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         else
@@ -3818,8 +4005,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void OnReplaceAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
-        ShowFindBar();
-        ReplaceTextBox?.Focus(FocusState.Programmatic);
+        ShowFindBar(replace: true);
         args.Handled = true;
     }
 
@@ -5020,10 +5206,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown(Services.InsertSnippetBuilder.CodeBlock(control.SelectedLanguage, control.Body));
     }
 
-    private void OnBlockquoteClick(object sender, RoutedEventArgs e)
-    {
-        InsertMarkdown("> ", "");
-    }
+    private void OnBlockquoteClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Quote, "> ");
 
     private async void OnInsertWorkflowClick(object sender, RoutedEventArgs e)
     {
@@ -5130,39 +5313,63 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         InsertMarkdown(control.Snippet);
     }
 
-    private void OnBulletListClick(object sender, RoutedEventArgs e)
+    // Headings and list markers act on whole lines (Core's LineFormatting): the caret's line or
+    // every selected line, toggling off when pressed again. They used to insert "# " at the caret.
+    private void OnBulletListClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Bullet, "- ");
+
+    private void OnNumberedListClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Numbered, "1. ");
+
+    private void OnTaskListClick(object sender, RoutedEventArgs e) => ApplyLineMarker(Services.LineMarker.Task, "- [ ] ");
+
+    private void OnH1Click(object sender, RoutedEventArgs e) => ApplyHeading(1);
+
+    private void OnH2Click(object sender, RoutedEventArgs e) => ApplyHeading(2);
+
+    private void OnH3Click(object sender, RoutedEventArgs e) => ApplyHeading(3);
+
+    private void OnH4Click(object sender, RoutedEventArgs e) => ApplyHeading(4);
+
+    private void ApplyHeading(int level)
     {
-        InsertMarkdown("- ", "");
+        // The Looking Glass portal edits its own buffer through __portalApplyEdit.
+        if (_portalOpen) { InsertMarkdown(new string('#', level) + " ", ""); return; }
+        ApplyLineEdit(Services.LineFormatting.Heading(PasteTextBox.Text ?? "", PasteTextBox.SelectionStart, PasteTextBox.SelectionLength, level));
     }
 
-    private void OnNumberedListClick(object sender, RoutedEventArgs e)
+    private void ApplyLineMarker(Services.LineMarker marker, string portalPrefix)
     {
-        InsertMarkdown("1. ", "");
+        if (_portalOpen) { InsertMarkdown(portalPrefix, ""); return; }
+        ApplyLineEdit(Services.LineFormatting.Toggle(PasteTextBox.Text ?? "", PasteTextBox.SelectionStart, PasteTextBox.SelectionLength, marker));
     }
 
-    private void OnTaskListClick(object sender, RoutedEventArgs e)
+    // Swaps only the touched lines (not the whole Text), so the editor keeps its scroll position,
+    // and the change undoes as one step.
+    private void ApplyLineEdit(Services.LineEdit edit)
     {
-        InsertMarkdown("- [ ] ", "");
+        var tb = PasteTextBox;
+        ViewModel.BreakUndoBurst();
+        tb.Select(edit.Start, edit.Length);
+        tb.SelectedText = edit.Replacement;
+        var length = (tb.Text ?? "").Length;
+        var start = Math.Clamp(edit.SelectionStart, 0, length);
+        tb.Select(start, Math.Clamp(edit.SelectionLength, 0, length - start));
+        tb.Focus(FocusState.Programmatic);
+        ViewModel.BreakUndoBurst();
     }
 
-    private void OnH1Click(object sender, RoutedEventArgs e)
+    // Ctrl+B / Ctrl+I / Ctrl+1-4 (editor-scoped accelerators, listed in Core's KeyboardShortcuts).
+    private void OnFormatAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
-        InsertMarkdown("# ", "");
-    }
-
-    private void OnH2Click(object sender, RoutedEventArgs e)
-    {
-        InsertMarkdown("## ", "");
-    }
-
-    private void OnH3Click(object sender, RoutedEventArgs e)
-    {
-        InsertMarkdown("### ", "");
-    }
-
-        private void OnH4Click(object sender, RoutedEventArgs e)
-    {
-        InsertMarkdown("#### ", "");
+        args.Handled = true;
+        switch (sender.Key)
+        {
+            case Windows.System.VirtualKey.B: InsertMarkdown("**", "**"); break;
+            case Windows.System.VirtualKey.I: InsertMarkdown("*", "*"); break;
+            case Windows.System.VirtualKey.Number1: ApplyHeading(1); break;
+            case Windows.System.VirtualKey.Number2: ApplyHeading(2); break;
+            case Windows.System.VirtualKey.Number3: ApplyHeading(3); break;
+            case Windows.System.VirtualKey.Number4: ApplyHeading(4); break;
+        }
     }
 
     private async void OnLinkClick(object sender, RoutedEventArgs e)
@@ -5616,7 +5823,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             _smartArtDesignStudio.ViewModel.Preload(preloadMarkdown, layoutAlias ?? string.Empty);
         }
         _smartArtDesignStudio.Activate();
-        ViewModel.StatusText = "SmartArt Design Studio opened.";
+        ViewModel.StatusText = "SmartArt Studio opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 
@@ -5660,7 +5867,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             };
         }
         _mindMapGalaxyWindow.Activate();
-        ViewModel.StatusText = "Document Galaxy & Mind Map Library opened.";
+        ViewModel.StatusText = "Document Galaxy opened.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
     }
 

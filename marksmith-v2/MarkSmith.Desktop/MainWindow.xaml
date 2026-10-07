@@ -23,7 +23,7 @@
             <KeyboardAccelerator Modifiers="Control" Key="E" Invoked="OnGeneratePdfAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="D" Invoked="OnExportDocxAcceleratorInvoked" />
             <!-- Instant-export shortcuts (QODER task 8): Ctrl+Shift+E = DOCX, Ctrl+Shift+P = PDF
-                 (PPTX moved to Ctrl+Shift+T to free Ctrl+Shift+P), Ctrl+Shift+M = Mermaid Studio. -->
+                 (PPTX moved to Ctrl+Shift+T to free Ctrl+Shift+P), Ctrl+Shift+M = Diagram Studio. -->
             <KeyboardAccelerator Modifiers="Control,Shift" Key="E" Invoked="OnExportDocxAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="P" Invoked="OnGeneratePdfAcceleratorInvoked" />
             <KeyboardAccelerator Modifiers="Control,Shift" Key="T" Invoked="OnExportPptxAcceleratorInvoked" />
@@ -132,6 +132,25 @@
                  Right margin clears the system caption buttons (min/max/close overlay). -->
             <StackPanel x:Name="TitleBarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4"
                         VerticalAlignment="Center" Margin="0,0,150,0">
+                <!-- The command palette's visible entry point: it used to be reachable only by
+                     Ctrl+K, which nothing on screen mentioned. The "Search" label steps aside when
+                     the title bar is tight (OnAppTitleBarSizeChanged). -->
+                <Button x:Name="CommandPaletteButton" Height="30" Padding="8,0,6,0"
+                        Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="6" Click="OnCommandPaletteClick"
+                        AutomationProperties.Name="Command palette"
+                        ToolTipService.ToolTip="Search every command, theme and recent file (Ctrl+K)">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE721;" FontSize="12" />
+                        <TextBlock x:Name="CommandPaletteLabel" Text="Search commands" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="3" Padding="5,0,5,1">
+                            <TextBlock Text="Ctrl+K" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Border>
+                    </StackPanel>
+                </Button>
+                <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnConvertPdfClick" IsEnabled="{Binding IsNotBusy}"
                         ToolTipService.ToolTip="Export as PDF (.pdf)">
@@ -159,7 +178,7 @@
                 <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnOpenMermaidStudioClick"
-                        ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio">
+                        ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE943;" FontSize="12" />
                         <TextBlock Text="Diagram Studio" FontSize="12" />
@@ -167,7 +186,7 @@
                 </Button>
                 <Button x:Name="SuiteHubButton" Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnSuiteHubClick"
-                        ToolTipService.ToolTip="MarkSmith Platform Suite &amp; Integrations Hub">
+                        ToolTipService.ToolTip="Open Suite Hub: the studios, browser extension, AI server and command line in one place">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xECA5;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
                         <TextBlock Text="Suite Hub" FontSize="12" FontWeight="SemiBold" />
@@ -551,60 +570,84 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <!-- Find & replace bar (Ctrl+F / Ctrl+H): search and replace in the Markdown source. -->
+                            <!-- Find & replace bar (Ctrl+F / Ctrl+H): search and replace in the Markdown source.
+                                 Ctrl+F opens the find row only; Ctrl+H, or the chevron, adds the replace row. -->
                             <Border x:Name="FindBar" Grid.Row="0" Visibility="Collapsed"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1" CornerRadius="8" Padding="8,6">
-                                <StackPanel Spacing="6">
-                                    <Grid ColumnSpacing="6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document…"
-                                                 Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
-                                                 TextChanged="OnFindTextChanged" />
-                                        <TextBlock x:Name="FindCountText" Grid.Column="1" VerticalAlignment="Center"
-                                                   FontSize="12" Opacity="0.7" MinWidth="52" TextAlignment="Center" />
-                                        <CheckBox x:Name="MatchCaseCheck" Grid.Column="2" Content="Aa" MinWidth="0"
-                                                  VerticalAlignment="Center" ToolTipService.ToolTip="Match case"
-                                                  Checked="OnMatchCaseChanged" Unchecked="OnMatchCaseChanged" />
-                                        <Button Grid.Column="3" Height="30" Padding="8,0" Click="OnFindPrevClick"
-                                                ToolTipService.ToolTip="Previous match (Shift+Enter)">
-                                            <FontIcon Glyph="&#xE70E;" FontSize="13" />
-                                        </Button>
-                                        <Button Grid.Column="4" Height="30" Padding="8,0" Click="OnFindNextClick"
-                                                ToolTipService.ToolTip="Next match (Enter)">
-                                            <FontIcon Glyph="&#xE70D;" FontSize="13" />
-                                        </Button>
-                                        <Button Grid.Column="5" Height="30" Padding="8,0" Click="OnFindCloseClick"
-                                                ToolTipService.ToolTip="Close (Escape)">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" />
-                                        </Button>
-                                    </Grid>
-                                    <Grid ColumnSpacing="6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
-                                                 Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown" />
-                                        <Button Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
-                                                ToolTipService.ToolTip="Replace the current match (Enter)">
-                                            <TextBlock Text="Replace" FontSize="12" />
-                                        </Button>
-                                        <Button Grid.Column="2" Height="30" Padding="12,0" Click="OnReplaceAllClick"
-                                                ToolTipService.ToolTip="Replace every match">
-                                            <TextBlock Text="Replace all" FontSize="12" />
-                                        </Button>
-                                    </Grid>
-                                </StackPanel>
+                                    BorderThickness="1" CornerRadius="8" Padding="6,6,8,6"
+                                    SizeChanged="OnFindBarSizeChanged">
+                                <Grid ColumnSpacing="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton x:Name="ReplaceExpandToggle" Width="26" Height="30" Padding="0"
+                                                  VerticalAlignment="Top" Background="Transparent" BorderThickness="0"
+                                                  AutomationProperties.Name="Show replace"
+                                                  ToolTipService.ToolTip="Show replace (Ctrl+H)"
+                                                  Checked="OnReplaceExpandToggled" Unchecked="OnReplaceExpandToggled">
+                                        <FontIcon x:Name="ReplaceExpandGlyph" Glyph="&#xE76C;" FontSize="11" />
+                                    </ToggleButton>
+                                    <StackPanel Grid.Column="1" Spacing="6">
+                                        <Grid ColumnSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="FindTextBox" Grid.Column="0" PlaceholderText="Find in document…"
+                                                     AutomationProperties.Name="Find in document"
+                                                     Height="30" FontSize="13" KeyDown="OnFindTextBoxKeyDown"
+                                                     TextChanged="OnFindTextChanged" />
+                                            <TextBlock x:Name="FindCountText" Grid.Column="1" VerticalAlignment="Center"
+                                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       MinWidth="64" TextAlignment="Center" />
+                                            <ToggleButton x:Name="MatchCaseCheck" Grid.Column="2" Width="32" Height="30" Padding="0"
+                                                          AutomationProperties.Name="Match case"
+                                                          ToolTipService.ToolTip="Match case"
+                                                          Checked="OnMatchCaseChanged" Unchecked="OnMatchCaseChanged">
+                                                <TextBlock Text="Aa" FontSize="12" FontWeight="SemiBold" />
+                                            </ToggleButton>
+                                            <Button x:Name="FindPrevButton" Grid.Column="3" Width="32" Height="30" Padding="0" Click="OnFindPrevClick"
+                                                    AutomationProperties.Name="Previous match"
+                                                    ToolTipService.ToolTip="Previous match (Shift+Enter)">
+                                                <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                                            </Button>
+                                            <Button x:Name="FindNextButton" Grid.Column="4" Width="32" Height="30" Padding="0" Click="OnFindNextClick"
+                                                    AutomationProperties.Name="Next match"
+                                                    ToolTipService.ToolTip="Next match (Enter)">
+                                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                                            </Button>
+                                            <Button Grid.Column="5" Width="32" Height="30" Padding="0" Click="OnFindCloseClick"
+                                                    AutomationProperties.Name="Close find"
+                                                    ToolTipService.ToolTip="Close (Esc)">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" />
+                                            </Button>
+                                        </Grid>
+                                        <Grid x:Name="ReplaceRow" ColumnSpacing="6" Visibility="Collapsed">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ReplaceTextBox" Grid.Column="0" PlaceholderText="Replace with…"
+                                                     AutomationProperties.Name="Replace with"
+                                                     Height="30" FontSize="13" KeyDown="OnReplaceTextBoxKeyDown" />
+                                            <Button x:Name="ReplaceOneButton" Grid.Column="1" Height="30" Padding="12,0" Click="OnReplaceClick"
+                                                    ToolTipService.ToolTip="Replace this match and go to the next one (Enter)">
+                                                <TextBlock Text="Replace" FontSize="12" />
+                                            </Button>
+                                            <Button x:Name="ReplaceAllButton" Grid.Column="2" Height="30" Padding="12,0" Click="OnReplaceAllClick"
+                                                    ToolTipService.ToolTip="Replace every match (one undo step)">
+                                                <TextBlock Text="Replace all" FontSize="12" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
                             </Border>
 
                             <Grid Grid.Row="1">
@@ -648,6 +691,15 @@
                                         <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="OnUndoAcceleratorInvoked" />
                                         <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="OnRedoAcceleratorInvoked" />
                                         <KeyboardAccelerator Key="Z" Modifiers="Control,Shift" Invoked="OnRedoAcceleratorInvoked" />
+                                        <!-- Formatting keys: editor-scoped so Ctrl+B in the find box or a
+                                             dialog does nothing. Listed in Core's KeyboardShortcuts (a
+                                             test holds this block and that list to each other). -->
+                                        <KeyboardAccelerator Key="B" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="I" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Number1" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Number2" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Number3" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
+                                        <KeyboardAccelerator Key="Number4" Modifiers="Control" Invoked="OnFormatAcceleratorInvoked" />
                                     </TextBox.KeyboardAccelerators>
                                 </TextBox>
                             </Grid>
@@ -665,40 +717,47 @@
                                 <!-- Editor font-size zoom (persisted): A− / A+ buttons plus Ctrl+wheel in the
                                      editor. The % readout is relative to the 13px default. -->
                                 <StackPanel x:Name="EditorStripTools" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                    <Button ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
+                                    <!-- Find used to be reachable only by Ctrl+F / Ctrl+H. -->
+                                    <Button x:Name="EditorFindButton" Width="28" Height="24" Padding="0" Click="OnEditorFindClick"
+                                            AutomationProperties.Name="Find and replace"
+                                            ToolTipService.ToolTip="Find (Ctrl+F) · Find and replace (Ctrl+H)">
+                                        <FontIcon Glyph="&#xE721;" FontSize="12" />
+                                    </Button>
+                                    <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                                    <Button ToolTipService.ToolTip="Decrease editor font size (Ctrl+wheel down)" AutomationProperties.Name="Decrease editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomOutClick">
                                         <TextBlock Text="A&#x2212;" FontSize="12" />
                                     </Button>
                                     <TextBlock x:Name="EditorZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
                                                Opacity="0.6" MinWidth="42" TextAlignment="Center"
                                                ToolTipService.ToolTip="Editor font size" />
-                                    <Button ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
+                                    <Button ToolTipService.ToolTip="Increase editor font size (Ctrl+wheel up)" AutomationProperties.Name="Increase editor font size" Width="28" Height="24" Padding="0" Click="OnEditorZoomInClick">
                                         <TextBlock Text="A+" FontSize="12" />
                                     </Button>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <ToggleButton x:Name="LineNumbersToggle" ToolTipService.ToolTip="Line numbers — show line counter gutter on the left"
+                                    <ToggleButton x:Name="LineNumbersToggle" ToolTipService.ToolTip="Show line numbers"
                                                   Height="24" Padding="6,0" Checked="OnLineNumbersToggled" Unchecked="OnLineNumbersToggled">
                                         <TextBlock Text="Lines" FontSize="11" />
                                     </ToggleButton>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <ToggleButton x:Name="WordWrapToggle" ToolTipService.ToolTip="Word wrap"
+                                    <ToggleButton x:Name="WordWrapToggle" ToolTipService.ToolTip="Wrap long lines"
                                                   Height="24" Padding="6,0" Checked="OnWordWrapToggled" Unchecked="OnWordWrapToggled">
                                         <TextBlock Text="Wrap" FontSize="11" />
                                     </ToggleButton>
                                     <Border Width="1" Height="14" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
-                                    <DropDownButton ToolTipService.ToolTip="Code &amp; Section Folding" AutomationProperties.Name="Folding" Height="24" Padding="6,0">
+                                    <DropDownButton ToolTipService.ToolTip="Fold code blocks and sections" AutomationProperties.Name="Folding" Height="24" Padding="6,0">
                                         <!-- Text-only like Lines / Wrap beside it: the old leading chevron
                                              doubled up with the dropdown's own chevron. -->
                                         <TextBlock x:Name="FoldStatusText" Text="Fold" FontSize="11" VerticalAlignment="Center" />
                                         <DropDownButton.Flyout>
                                             <MenuFlyout>
-                                                <MenuFlyoutItem Text="Toggle Fold at Cursor" Click="OnToggleFoldAtCursorClick">
+                                                <MenuFlyoutItem Text="Fold or unfold at the cursor" Click="OnToggleFoldAtCursorClick">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70D;" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
-                                                <MenuFlyoutItem Text="Fold All Code Blocks" Click="OnFoldAllCodeClick">
+                                                <MenuFlyoutItem Text="Fold all code blocks" Click="OnFoldAllCodeClick">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
                                                 <MenuFlyoutSeparator />
-                                                <MenuFlyoutItem Text="Unfold All" Click="OnUnfoldAllClick">
+                                                <MenuFlyoutItem Text="Unfold everything" Click="OnUnfoldAllClick">
                                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70E;" /></MenuFlyoutItem.Icon>
                                                 </MenuFlyoutItem>
                                             </MenuFlyout>
@@ -917,45 +976,45 @@
                         <StackPanel x:Name="EditingClustersPanel" Orientation="Horizontal" Spacing="4">
                             <Border Width="1" Height="16" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
 
-                            <DropDownButton AutomationProperties.Name="Text style" ToolTipService.ToolTip="Text style — bold, italic, strikethrough, headings" Height="32" Padding="8,0">
+                            <DropDownButton AutomationProperties.Name="Text style" ToolTipService.ToolTip="Text style: bold, italic, strikethrough, headings" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE8DD;" FontSize="14" />
-                                    <TextBlock Text="Text Style" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBlock Text="Text style" FontSize="12" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <DropDownButton.Flyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="Bold" Click="OnBoldClick">
+                                        <MenuFlyoutItem Text="Bold" Click="OnBoldClick" KeyboardAcceleratorTextOverride="Ctrl+B">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Italic" Click="OnItalicClick">
+                                        <MenuFlyoutItem Text="Italic" Click="OnItalicClick" KeyboardAcceleratorTextOverride="Ctrl+I">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DB;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Strikethrough" Click="OnStrikethroughClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE0;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Heading 1 (#)" Click="OnH1Click" />
-                                        <MenuFlyoutItem Text="Heading 2 (##)" Click="OnH2Click" />
-                                        <MenuFlyoutItem Text="Heading 3 (###)" Click="OnH3Click" />
-                                        <MenuFlyoutItem Text="Heading 4 (####)" Click="OnH4Click" />
+                                        <MenuFlyoutItem Text="Heading 1" Click="OnH1Click" KeyboardAcceleratorTextOverride="Ctrl+1" />
+                                        <MenuFlyoutItem Text="Heading 2" Click="OnH2Click" KeyboardAcceleratorTextOverride="Ctrl+2" />
+                                        <MenuFlyoutItem Text="Heading 3" Click="OnH3Click" KeyboardAcceleratorTextOverride="Ctrl+3" />
+                                        <MenuFlyoutItem Text="Heading 4" Click="OnH4Click" KeyboardAcceleratorTextOverride="Ctrl+4" />
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton AutomationProperties.Name="Lists" ToolTipService.ToolTip="Lists — bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
+                            <DropDownButton AutomationProperties.Name="Lists" ToolTipService.ToolTip="Lists: bullet, numbered, task list, blockquote" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE8FD;" FontSize="14" />
                                     <TextBlock Text="Lists" FontSize="12" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <DropDownButton.Flyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="Bullet List" Click="OnBulletListClick">
+                                        <MenuFlyoutItem Text="Bullet list" Click="OnBulletListClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Numbered List" Click="OnNumberedListClick">
+                                        <MenuFlyoutItem Text="Numbered list" Click="OnNumberedListClick">
                                             <MenuFlyoutItem.Icon><PathIcon Data="M1,1 h1 v1 h-1 Z M0,2 h2 v1 h-2 Z M1,3 h1 v1 h-1 Z M1,4 h1 v1 h-1 Z M0,5 h3 v1 h-3 Z M0,9 h2 v1 h-2 Z M2,10 h1 v1 h-1 Z M1,11 h1 v1 h-1 Z M0,12 h1 v1 h-1 Z M0,13 h3 v1 h-3 Z M5,3 h11 v1.5 h-11 Z M5,11 h11 v1.5 h-11 Z" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Task List" Click="OnTaskListClick">
+                                        <MenuFlyoutItem Text="Task list" Click="OnTaskListClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
@@ -966,7 +1025,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton x:Name="InsertClusterButton" AutomationProperties.Name="Insert" ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
+                            <DropDownButton x:Name="InsertClusterButton" AutomationProperties.Name="Insert" ToolTipService.ToolTip="Insert: links, images, tables, rich components, diagrams" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="14" />
                                     <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
@@ -982,81 +1041,82 @@
                                         <MenuFlyoutItem Text="Table" Click="OnTableClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE80A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="Code Block" Click="OnCodeBlockClick">
+                                        <MenuFlyoutItem Text="Code block" Click="OnCodeBlockClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutSubItem Text="Rich Components">
+                                        <MenuFlyoutSubItem Text="Rich components">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutSubItem.Icon>
-                                            <MenuFlyoutItem Text="Tab Group" Click="OnInsertTabsClick">
+                                            <MenuFlyoutItem Text="Tab group" Click="OnInsertTabsClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE7C4;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Video Embed" Click="OnInsertEmbedClick">
+                                            <MenuFlyoutItem Text="Video embed" Click="OnInsertEmbedClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEB41;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Native Chart" Click="OnInsertChartClick">
+                                            <MenuFlyoutItem Text="Chart" Click="OnInsertChartClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9D2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Data Grid" Click="OnInsertDatagridClick">
+                                            <MenuFlyoutItem Text="Data grid" Click="OnInsertDatagridClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xF0E2;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="From Spreadsheet…" Click="OnInsertSpreadsheetClick">
+                                            <MenuFlyoutItem Text="Table from a spreadsheet…" Click="OnInsertSpreadsheetClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9F9;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Table to Excel…" Click="OnExportTableClick">
-                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Multi-column Section" Click="OnInsertColumnsClick">
+                                            <MenuFlyoutItem Text="Columns" Click="OnInsertColumnsClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE89A;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Drawing Canvas" Click="OnInsertCanvasClick">
+                                            <MenuFlyoutItem Text="Drawing canvas" Click="OnInsertCanvasClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEE56;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Wave Function Collapse…" Click="OnInsertWaveFunctionClick">
+                                            <MenuFlyoutItem Text="Random tile map…" Click="OnInsertWaveFunctionClick" ToolTipService.ToolTip="A procedurally generated map of grass, road, water and wall tiles">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE945;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutSubItem Text="Diagram &amp; Galaxy">
+                                        <MenuFlyoutSubItem Text="Diagrams and studios">
                                             <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xF003;" /></MenuFlyoutSubItem.Icon>
-                                            <MenuFlyoutItem Text="Document Galaxy &amp; Knowledge Graph…" Click="OnOpenMindMapGalaxyClick">
+                                            <MenuFlyoutItem Text="Document Galaxy…" Click="OnOpenMindMapGalaxyClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC26;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Text="Shape Studio…" Click="OnOpenShapeDesignStudioClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE790;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="SmartArt Design Studio…" Click="OnOpenSmartArtDesignStudioClick">
+                                            <MenuFlyoutItem Text="SmartArt Studio…" Click="OnOpenSmartArtDesignStudioClick">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FD;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
-                                            <MenuFlyoutItem Text="Visual Diagram Studio…" Click="OnOpenMermaidStudioClick">
+                                            <MenuFlyoutItem Text="Diagram Studio…" Click="OnOpenMermaidStudioClick" KeyboardAcceleratorTextOverride="Ctrl+Shift+M">
                                                 <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE943;" /></MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
                                             <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Text="Workflow / Flowchart" Click="OnInsertWorkflowClick" />
+                                            <MenuFlyoutItem Text="Workflow" Click="OnInsertWorkflowClick" />
                                             <MenuFlyoutItem Text="Timeline" Click="OnInsertTimelineClick" />
                                             <MenuFlyoutItem Text="SmartArt" Click="OnInsertSmartArtClick" />
                                         </MenuFlyoutSubItem>
-                                        <MenuFlyoutItem Text="Version History…" Click="OnOpenHistoryClick">
-                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE823;" /></MenuFlyoutItem.Icon>
-                                        </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Bibliography / References" Click="OnInsertReferencesClick">
+                                        <MenuFlyoutItem Text="References" Click="OnInsertReferencesClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
-                                        <MenuFlyoutItem Text="AI Context metadata" Click="OnInsertAiContextClick">
+                                        <MenuFlyoutItem Text="AI context metadata" Click="OnInsertAiContextClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE99A;" /></MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton x:Name="ToolsClusterButton" AutomationProperties.Name="Tools" ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
+                            <DropDownButton x:Name="ToolsClusterButton" AutomationProperties.Name="Tools" ToolTipService.ToolTip="Tools: find and replace, change case, sort lines, clean up the document" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE90F;" FontSize="14" />
                                     <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <DropDownButton.Flyout>
                                     <MenuFlyout>
+                                        <MenuFlyoutItem Text="Find" Click="OnEditorFindClick" KeyboardAcceleratorTextOverride="Ctrl+F">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE721;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Find and replace" Click="OnEditorReplaceClick" KeyboardAcceleratorTextOverride="Ctrl+H">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AB;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="UPPERCASE" Click="OnTransformUpperClick" />
                                         <MenuFlyoutItem Text="lowercase" Click="OnTransformLowerClick" />
                                         <MenuFlyoutItem Text="Title Case" Click="OnTransformTitleClick" />
@@ -1064,6 +1124,10 @@
                                         <MenuFlyoutItem Text="Sort lines A to Z" Click="OnSortLinesAscClick" />
                                         <MenuFlyoutItem Text="Sort lines Z to A" Click="OnSortLinesDescClick" />
                                         <MenuFlyoutItem Text="Remove duplicate lines" Click="OnDedupeLinesClick" />
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Copy a table to Excel…" Click="OnExportTableClick">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDE1;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem Text="Clean up document" Click="OnCleanupClick">
                                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE771;" /></MenuFlyoutItem.Icon>
@@ -1452,7 +1516,7 @@
                                      Message="{Binding DiagramHintText}"
                                      IsClosable="False">
                                 <InfoBar.ActionButton>
-                                    <Button Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open the visual Mermaid Diagram Studio (Ctrl+Shift+M)">
+                                    <Button Click="OnOpenMermaidStudioClick" ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE943;" FontSize="14" />
                                         <TextBlock Text="Diagram Studio" />
