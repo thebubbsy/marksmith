@@ -1992,3 +1992,128 @@ extension and click Email under a reply.
 **Next up:** unchanged from the 01:15 entry (Phase 6 import, Phase 3 .msg, the Phase 5 rest, then
 v3.4.0 once Outlook is confirmed), plus: Chrome Web Store packaging for 3.4.0, and an
 extension "Email" target for auto-send (send each finished conversation as a draft).
+
+### 2026-10-08 02:25–03:05 AEST (routine run #23: opening non-Markdown files, done properly; email Phase 6)
+
+Picked up the run #22 backlog at item 1 (Phase 6, `.eml` import). Mapping the open path first
+turned up a **data-loss bug that predates the email work**, so this run fixed the whole "open
+anything that isn't Markdown" path rather than bolting `.eml` onto it.
+
+**Broken things fixed** (they existed and didn't work):
+- **Ctrl+O on a `.docx`, `.pdf` or `.html` put the raw file in the editor.**
+  `MainViewModel.ReadInputFileAsync` used `File.ReadAllTextAsync`; only the preview went through
+  `PluginFileReader`. So the editor held zip/PDF bytes as text (or raw HTML).
+- **Then Ctrl+S wrote that editor text over the original file.** Opening a Word document, touching
+  it and pressing Ctrl+S destroyed it. `ResolveSource` (every export) also read the raw bytes.
+- The Open picker offered `.docx/.pdf/.html`, but all three drop targets accepted only
+  `.md/.markdown/.txt` and plugin formats.
+- The "Import" title-bar button only took `.docx/.pdf`, and its failures had no severity colour.
+
+**What shipped:**
+- `Services/Import/HtmlToMarkdown`: a DOM converter on **AngleSharp 1.8.3** (MIT, 1 MB, net8.0,
+  no deps). The clipboard normaliser is regex-only and has no tables, so it wasn't usable.
+  - Spec-compliant parse, then a walker.
+  - GFM tables with alignment (Word puts `text-align` on the cell's `<p>`). Header-cell `<b>` is
+    stripped. Layout tables (single column, one row, nested/block content, `role=presentation`)
+    are unwrapped.
+  - Word/Outlook `mso-list` paragraphs become real nested lists. Indents follow the parent's
+    marker width.
+  - Inline `style` bold/italic/monospace count. Adjacent same-format runs merge
+    (`<b>Hel</b><b>lo</b>` gives `**Hello**`), and edge spaces move outside the markers.
+  - Outlook Safe Links unwrap. Tracking pixels, `display:none`/`mso-hide`, mail preheaders,
+    `<nav>` and MarkSmith's own "Made with" footer are dropped.
+  - Escaping is minimal: snake_case is left alone, and `<` becomes `\<`.
+- `Services/Email/EmailImporter` (MimeKitLite, already a dependency):
+  - The subject becomes the H1, followed by a From / To / Cc / Date / Attachments block. A draft
+    (`X-Unsent`, e.g. one MarkSmith wrote) gets just its subject, so a MarkSmith email round-trips.
+  - HTML body via the converter; plain text via `FromPlainText` (short lines keep breaks; quotes
+    become their own paragraphs). TNEF `winmail.dat` is unpacked first.
+  - CID images and attachments are written to `<name>_media` beside the email (same convention as
+    the Word importer) and linked relatively. If the email sits in `%TEMP%` / `Content.Outlook` /
+    `INetCache` or a read-only folder, they go to `<ConfigDir>\imports\<name>-<hash>` instead.
+  - The quoted thread is found per client (OWA `#divRplyFwdMsg`/`#appendonsend`, new Outlook,
+    classic Outlook's `border-top` "From:" div, Gmail, Apple, Thunderbird, Yahoo, "-----Original
+    Message-----", "On … wrote:", trailing `>` lines). It is folded into
+    `<details><summary>Earlier in this thread</summary>`, removed or kept.
+  - External-sender banners (incl. Outlook's "You don't often get email from") and "Sent from my
+    iPhone"-style lines are removed.
+  - The status line reads: "Opened email from Priya Raman · 7 Oct 2026, 09:14 · 1 image and 1
+    attachment saved to …".
+- `PluginFileReader`:
+  - `ImportAsync` returns `ImportedDocument(Markdown, Kind, Summary)`; `Kind` is null only for
+    Markdown/text.
+  - `NativeExtensions`, `CanOpen`, `IsMarkdownFile`, `IsTransient`, `InvalidateCache`.
+  - **One cached conversion task per (path, size, mtime).** The preview and the editor ask at the
+    same moment; they used to race to write the same media files, and the loser silently dropped
+    the attachment. Found live, pinned by a test.
+  - `.html` opens through the converter, with `data:` images extracted to content-hashed files in
+    `<name>_media`.
+- VM `SourceImportKind`:
+  - The editor gets the converted Markdown, with a status line ending "Ctrl+S saves a Markdown
+    copy; the original file is never changed".
+  - Read failures now show an error status; they used to be silent.
+  - Exports of an unedited converted file use the converted text.
+- **Ctrl+S on a converted file** goes through `Services/Import/MarkdownCopy.Save`:
+  - It writes `<name>.md` beside the original, or `<name> (2).md`; it never overwrites. A
+    temp/read-only original saves to the output folder, and `<name>_media` travels with it.
+  - The editor then switches to the new `.md`.
+  - Note: that switch starts a fresh undo history (the persistent undo is keyed per path).
+- Drop targets, Ctrl+O and the palette share one list. Palette: "Open a document", "Open an email
+  (.eml)", and "Save (converted files save as a Markdown copy)". The Import button takes Word,
+  PDF, HTML and email.
+- Settings ▸ General ▸ **Opening files ▸ Earlier messages in an email** (Fold them away / Leave
+  them out / Keep them inline): `AppSettings.EmailImportHistory` plus VM `EmailImportHistory`.
+  Changing it invalidates the cache and re-imports an open, unedited email. Mirrored in
+  `ExtensionSettingsBridge` so the extension's live tab shows it.
+- Copy:
+  - The source card reads "Drop a document here" with "Markdown, Word, PDF, HTML or email (.eml)".
+  - Shortcut sheet: Ctrl+O and Ctrl+S rows.
+  - Welcome tour and desktop README updated.
+- Core's 10 MVVMTK0034 warnings (deliberate backing-field writes in `LoadEmailSettings`) are now
+  suppressed with a reason. Desktop and Core are both at 0 warnings.
+- Tests:
+  - `Import/HtmlToMarkdownTests` (19)
+  - `Email/EmailImportTests` (10: Outlook reply, re-import idempotence, remove/keep, classic
+    Outlook, plain text, MarkSmith draft round-trip, file reader + cache, concurrent opens, VM open)
+  - `Import/MarkdownCopyTests` (3)
+  - Full suite: **3616 passed, 2 failed (the user's known HouseLayout WIP), 1 skipped.**
+
+**Verified live** (scratch config, PC locked the whole run, so UIA plus headless-Edge renders):
+- Fixture: a Python-built Outlook-style reply (Word HTML, safety banner, preheader, mso-list
+  bullets with a Consolas run, right-aligned Word table, Safe Link, CID chart, tracking pixel,
+  iPhone sign-off, PDF attachment, classic quoted header).
+- Opened through the "Selected file" box: UIA `SetValue`, then `SetFocus` elsewhere, because
+  TwoWay TextBox bindings commit on LostFocus. The editor and status were exactly as intended.
+  The app's own preview HTML, rendered with headless Edge, showed the header block, the aligned
+  table, the nested list, the chart, and a closed "Earlier in this thread".
+- A `.docx` opened as its embedded Markdown source.
+- One of our own HTML exports opened as the original Markdown: no footer, no TOC, images moved to
+  media.
+- The Settings combo was found and switched via UIA (`ExpandCollapse` + `SelectionItem`), and
+  `settings.json` then held `"EmailImportHistory": "remove"`.
+- **Not verified live:** pressing Ctrl+S (no keyboard input while locked). The logic is in Core
+  and unit-tested, and the desktop handler is a thin call.
+
+**Lessons for the next run:**
+- A test instance on a fresh scratch config opens the **Welcome tour**, which blocks Settings from
+  opening. Invoke its "Skip" button via UIA first.
+- `ValuePattern.SetValue` on a TwoWay TextBox doesn't reach the VM until focus leaves:
+  `SetFocus()` the box, `SetValue`, then `SetFocus()` another element.
+- Bash heredoc → Python ate backslashes twice more (`'\\'` became `'\'`), and a long heredoc with
+  apostrophes failed to parse. Write files with the Write tool and edit backslash lines with Edit.
+
+**Release:** still held on the Outlook compose-window check from run #22. This run adds email
+*import* to v3.4.0's story ("open an email, get clean Markdown; Ctrl+Shift+O, get a draft back").
+
+**Next up:**
+1. Phase 3, the `.msg` writer *and* `.msg` import (MSGReader 6.1.3 is already in the NuGet cache;
+   check its size and deps). Classic Outlook drags produce `.msg`, so import is the common case.
+   Then expose `EmailFormat`.
+2. Phase 5 rest: `TargetFormat` "email" for the watch folder, clipboard and batch (the batch path
+   now accepts .eml/.html *inputs* via `PluginFileReader`), and the `MarkdownApiSpecService` docs.
+3. Consider routing rich-text paste (Word/web HTML on the clipboard) through `HtmlToMarkdown`:
+   today a paste into the editor is plain text, and `ClipboardNormalizerService` has no callers.
+   That's arguably a new feature, so it needs the user's OK.
+4. Carried over: the Outlook check, then v3.4.0; Shape Studio rotated handles and connector
+   re-routing; the light-theme pass; the #21b list (EPUB, paywall copy, shortcut sheet from a
+   shared table, find, lint, naming).
