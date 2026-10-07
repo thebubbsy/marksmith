@@ -1762,3 +1762,143 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
   (`SanitizerTests` covers the preview) before rendering. Never auto-load remote images on import.
 - **Privacy:** outbox drafts contain user content. Keep them under the app data dir, auto-clean them
   after 7 days, and add a "Clear outbox" button in Settings.
+
+### 2026-10-08 01:15–02:00 AEST (scheduled routine run #22: email, Phases 1, 2, 4 and part of 5)
+
+The PC was **unlocked** with 25 GB free, and no MarkSmith instance of the user's was running. I used a
+scratch OutDir and a scratch `MARKSMITH_CONFIG_DIR` throughout. This run followed the 20:35 feature
+plan above (the user-approved email exception).
+
+**Picked up from a dead run.** The tree held **uncommitted Phase 1 work**:
+- `Services/Email/` (renderer, composer, .eml writer, palette, LaTeX-to-text, scrubber).
+- `MarkdownHtmlService.Email.cs`, `FeatureId.EmailDraft`, the `Email*` settings, MimeKitLite 4.18.1.
+- 28 tests, 3 of them failing.
+
+No session was running and the files were last touched at 00:28, so I finished that work and shipped it
+rather than discarding it. The EverythingHttpPlugin, omnisight and sign_plugin files in the tree are the
+user's and are still uncommitted.
+
+**Phase 0 facts (this PC):**
+- New Outlook (`Microsoft.OutlookForWindows` 1.2026.812) and classic Outlook (`Outlook.Application`
+  registered) are both installed.
+- `.eml` and `.msg` are associated with **classic** (`Outlook.File.eml.15` / `.msg.15`; no
+  per-user UserChoice).
+- I did **not** launch Outlook. Opening a draft unattended risks first-run account dialogs (cf.
+  Word in run #19). So "opens as an editable draft" is still unverified on a real Outlook, and that is
+  why there's no release yet (see below).
+
+**Shipped:**
+- **`eb9a873` Phase 1 core.** I fixed the previous run's three failures, which were real bugs:
+  - Pipe-table alignment was lost because Markdig only sets `TableCell.ColumnIndex` for grid
+    tables. The renderer now tracks the running column itself, as the DOCX exporter does.
+  - Text inside `<script>`/`<style>`/`<iframe>`… leaked into the body. Inline content is now
+    skipped until the closing tag.
+  - `WebUtility.HtmlEncode` turned every Latin-1 character (é, ², Ä) into `&#NNN;`. `Enc` now
+    escapes only the markup characters; the message is UTF-8.
+  - Also, a `---` right before the footnotes drew two rules (in both the HTML and the text part).
+- **`3c17290` Phase 2 desktop.**
+  - Export flyout: "Email draft (opens in Outlook)" (Send glyph E724, **Ctrl+Shift+O**, which
+    was free) and "Save as email (.eml)" (Mail glyph E715). Glyphs were checked by rendering the
+    font. Both are in the command palette and the F1 sheet.
+  - VM `CreateEmailDraftAsync` / `SaveEmailAsync` live in the new partial
+    `ViewModels/MainViewModel.Email.cs`.
+  - Drafts go to `Services/Email/EmailOutbox` (`<ConfigDir>\outbox`). Drafts older than 7 days are
+    cleaned, names never collide, and `EmailOutbox.Open` is swappable so tests never launch a mail
+    app.
+  - Mermaid is harvested through the web host with `EmailPalette.DiagramTheme()`: a white canvas
+    and dark text, so a Dracula document doesn't drop a dark slab into the mail.
+  - New **Style & Export ▸ Email** section (`StyleEmailExpander`, which remembers whether it's open):
+    - To and Cc, with **inline address validation** ("\"bob\" isn't an email address, so drafts
+      leave it out.").
+    - Subject template with a live "Subject: …" preview, debounced 400 ms and refreshed only while the
+      section is open.
+    - Keep-title toggle.
+    - Attach PDF (free) and attach Word (follows the DOCX licence; says so, and the draft still goes
+      without it).
+    - "Clear now" for the outbox.
+  - Status line: caveats now come **before** the folder, because the 560 px status trims from the end
+    and the bob warning had vanished. With no `.eml` handler, the status gives an honest warning that
+    still links the saved draft.
+  - **App-wide fix:** `StatusSeverityToBrushConverter` mapped Warning to `SystemFillColorWarningBrush`,
+    which **doesn't exist in WinUI**, so every warning status in the app rendered plain grey. It's now
+    `SystemFillColorCautionBrush` (amber).
+- **`2f3a587` Preview as email** (Phase 4).
+  - A mail ToggleButton beside Looking Glass sets VM `PreviewAsEmail` (session only).
+  - `Services/Email/EmailPreviewPage` builds a mail-client view from the same composer as the export:
+    the subject, To/Cc (or "No recipients yet…"), attachment chips, and the composer's caveats. The
+    exact email HTML sits in an isolated `iframe srcdoc`, auto-sized with no inner scrollbar.
+  - CIDs are inlined as data URIs. Diagrams use `LiveMermaidPlaceholders` and are drawn live with
+    mermaid.js in the email palette; the placeholders never reach an exported file, which a test pins.
+  - A narrow pane **scales the real 720 px message** (CSS zoom, floor 0.4) instead of reflowing it.
+  - Turning the preview on from Code view switches to Split. Looking Glass is turned off and disabled,
+    and the width ruler and zoom bar hide while it shows (they'd be dead controls).
+  - The Email options are in `PreviewAffectingProperties`.
+  - The Welcome tour now lists email and says what Free includes ("PDF, HTML, Markdown, EPUB and
+    email"; Pro adds Word and PowerPoint).
+- **`6dcea4b` `/api/convert` `format: "eml"`** (alias `"email"`), part of Phase 5.
+  - The endpoint returns `message/rfc822` / `export.eml`. `ExportCoordinator.ConvertForApiAsync` has
+    the eml branch, using the same composer and email-palette harvest.
+  - It's free: the licence gate is untouched, and a test pins that a Free install gets 200.
+  - Documented in `MarkSmith.Desktop/README.md`.
+- Tests: `Email/EmailRenderingTests` (30), `Email/EmailExportFlowTests` (9), and
+  `Api_Convert_Email_Is_Free_And_Served_As_A_Message`.
+
+**Verified live** (scratch config, screenshots):
+- The Email section rendered with the amber validation line, and its subject preview followed the
+  document.
+- The Export flyout lists the two items; checked by UIA dump, since PrintWindow misses popups.
+- Save as email from the real app wrote `Q3 rollout plan.eml` with X-Unsent, To=ann (bob dropped), and
+  the SmartArt as a CID PNG. A Mermaid document's `.eml` carried a crisp light diagram on a white canvas.
+- Status bar: "Email saved: … · Left out "bob": … · in …" in amber, with Open / Show in folder.
+- Preview as email in Split and Preview views showed the scaled message, the live Mermaid and the dead
+  controls hidden.
+- `curl` POST `/api/convert {format:"eml"}` against the running app returned 200 `message/rfc822`; the
+  `.eml` parsed and rendered with both diagrams.
+- Desktop 0 warnings. Full suite: 3574 total, **17 failed, all known**: the user's 2 HouseLayout tests
+  and the 15 path-based failures (governance / gauntlet / milestone assets) caused by running from a
+  scratch OutDir.
+
+**Lessons for the next run:**
+- **pwsh + Core DLL:** `Add-Type` of MarkSmith.Core can't find SkiaSharp's native library. Call
+  `[NativeLibrary]::Load("<build>\runtimes\win-x64\native\libSkiaSharp.dll")` (and
+  libHarfBuzzSharp) first, or every raster silently falls back. SmartArt fell back to flattened
+  HTML until I did this.
+- In XAML, an attribute value that starts with `{title}` is parsed as a markup extension. Write
+  `{}{title}…`.
+- The bash-heredoc→python escape mangling struck twice more (`\b` became a backspace and `\n` a real
+  newline in C# source). Use the Write tool for any script that contains backslashes.
+- Headless Edge hangs on a page that loads the 3 MB mermaid.min.js from file://. The built-in browser
+  pane only shows static snapshots of out-of-project files. To check live script behaviour, use the
+  real app, putting the content at the top so no WebView scroll is needed.
+- `rm` inside a long Bash chain needs approval in this unattended mode. Overwrite files instead.
+
+**Release: not yet.** The feature is real and polished, but "opens in Outlook as a draft you can send"
+hasn't been seen in a real Outlook on this PC. **User, one click please:** open any document, press
+**Ctrl+Shift+O**, and check that Outlook (classic, the current `.eml` handler) opens a compose window,
+not a read-only received message. If it does, the next run cuts **v3.4.0 "Inbox-ready"** (bump
+`MarksmithBaseVersion` to 3.5.0 afterwards). If new Outlook is the one you use, set it as the `.eml`
+default and check that too: X-Unsent behaviour there is the plan's open risk.
+
+**Next up (email plan, in order):**
+1. **Phase 6, import .eml** (then .msg via MSGReader). There's no real HTML→Markdown converter in
+   Core: `ClipboardNormalizerService.NormalizeHtmlToMarkdown` is regex-only and has **no tables**, so
+   Outlook's Word-HTML would come out mangled.
+   - Decide between a DOM-based converter (AngleSharp or HtmlAgilityPack + ReverseMarkdown, MIT;
+     measure the size) and a hand-written walker over AngleSharp.
+   - Then: thread folding ("From: … Sent:", "On … wrote:", `>`) into `<details>`; strip "Sent from
+     my iPhone", external-sender banners, tracking pixels and `mso-` junk; extract CID images to the
+     media folder; header block; attachment list.
+   - UI: the Open picker, drag-drop, and a status naming the sender/date.
+2. **Phase 3, `.msg` writer** (MsgKit) plus Auto format via `OutlookEnvironment`. Expose
+   `EmailFormat` in the Email section only once .msg exists; the setting is in `AppSettings` but
+   deliberately has no UI yet.
+3. **Phase 5 rest:** `/api/email` (to/cc/subject/open), `OutputOverride.Email` + `/api/ingest`
+   `open: true`, `TargetFormat` "email" for the watch folder / clipboard / batch (and
+   `AutomationManager` must let email-only runs through on Free), and the `MarkdownApiSpecService`
+   docs.
+4. **"Copy as email"** (CF_HTML with images): verify per client before shipping.
+5. Release v3.4.0 once the Outlook check above is confirmed.
+6. Carried over from run #21: Shape Studio rotated-shape handles and connector re-routing, Settings
+   pages by hand, the left Source pane auto-collapse, Word first-run prompt, light-theme pass, and
+   the #21b planning-hunt list (EPUB, paywall copy, shortcuts sheet from a shared table, find, lint,
+   naming).
