@@ -1300,3 +1300,92 @@ TextBox). Now that rules actually run, consider showing `\n` visibly or dropping
 5. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, light-theme pass (History,
    SmartArt miniature tile, the new side panels), SmartArt click-to-zoom, Diagram Studio canvas fill,
    keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 19:35–20:05 AEST (scheduled routine run #21)
+
+The PC was **unlocked** with 27 GB free, and the user was idle for 16+ minutes, so this run used real
+mouse input (briefly, on the scratch test instance only). The user's own instance was still running, so I
+used a scratch OutDir and a scratch `MARKSMITH_CONFIG_DIR`. Since run #20 the user committed their
+HouseLayout WIP (`bb2fd77`); its 2 `HouseLayoutTests` still fail, as that commit says, and I left them
+alone. The EverythingHttpPlugin changes in the tree are the user's and are not committed. I took the
+top two "Next up" items: the cleanup-rule editor (#1) and Shape Studio by hand (#2). I also cut
+**v3.3.0**, the first release since v3.2.0 on 2026-09-19 and the first to carry this routine's 20 runs
+of polish.
+
+**Shipped (`3dd20dd`):**
+- **Cleanup rules show what they do.** New `Services/CleanupRuleEngine` (Apply / Validate / ToDisplay /
+  FromDisplay). `LlmSourceService.NormalizeStyle` now runs rules through it and can report a
+  `CleanupRuleOutcome` per rule.
+  - The single-line Find/Replace boxes show line breaks and tabs as `\n` / `\t`, and typing those
+    sequences means the character. `TextCleanupRuleItem.FindText` / `ReplaceText` write through
+    without echoing back, so the caret never jumps. Before, the `\n\n\n` example looked like an empty
+    box. Worse, the seeded regex example held a real line break (a mangled `\n` in `AppSettings`,
+    now fixed). The box cut it off at the break, and editing it saved the truncated pattern.
+  - The engine skipped any all-whitespace Find, so the line-break example never ran. Now only empty
+    or spaces-only Finds are ignored.
+  - A bad regex is reported under its row as you type ("Not a valid pattern: Not enough )'s (at
+    character 8)."). A runaway pattern times out after 250 ms and is reported instead of freezing the
+    live preview.
+  - Each row shows what the latest preview pass did: "2 matches in this document" or "No matches in
+    this document". This comes from `PrepareMarkdown(markdown, forPreview: true)`, which is called
+    only from the two live-preview paths, so exports never touch the rows.
+  - A caution strip says "Paused: turn on Fix AI formatting quirks to run these rules" while that
+    toggle is off (VM `NormalizationRulesPaused`).
+  - Removed the 140 px nested ScrollViewer. It hid most rows inside a pane that already scrolls.
+- **Shape Studio canvas editing.** Driving it with real input found that the canvas had **no resize
+  handles**, no cursor feedback, and no marquee. A group dragged into the left edge also squashed into
+  one column, because each shape was clamped on its own.
+  - Eight handles sit on a single unrotated, non-connector shape. They're built in code
+    (`BuildResizeHandles` / `UpdateAdorner`), stay the same size on screen at any zoom (scaled by
+    1/ZoomFactor), and hide the edge handles on tiny shapes. Shift keeps proportions on a corner. The
+    label refits live, and each drag is one undo step. Status: "Resized trapezoid to 594 × 155 · Ctrl+Z
+    to undo". The maths is the VM's static `ResizeRect`, which keeps the opposite edge fixed, enforces
+    an 8 px minimum and never crosses the origin.
+  - Rubber-band selection on empty canvas: `SelectInRect`, where touching a shape counts and Ctrl or
+    Shift adds. Status: "Selected 3 shapes".
+  - Cursors: SizeAll over shapes, Cross while a tool is armed, resize arrows on the handles. Set
+    through reflection on `UIElement.ProtectedCursor` (the `SetCursor` helper).
+  - `NudgeSelection` now clamps the group as one unit and returns the distance it actually moved.
+    Shape drags compare the pointer's total travel with what was applied, so the group stays under the
+    pointer after hitting the edge. `ShapeStudioSelectionTests.Nudge_…` pinned the old squash and was
+    updated.
+- Tests: `CleanupRuleEditorTests` (14) and `ShapeStudioCanvasEditingTests` (10).
+
+**Verified live** (scratch config). Rule editor: `\n\n\n` was visible, "2 matches" showed under a
+`delve` rule, the bad-regex message appeared, and the paused strip wrapped correctly; the first
+screenshot showed it clipped, which I fixed. Shape Studio, with real mouse input: click-select drew the
+frame and handles. A body drag moved 120 px exactly. The corner handle resized 400×75 → 594×155. A
+marquee selected 3 of 4 pyramid tiers. A group drag into the left edge kept the pyramid's shape. Drawing
+an ellipse made exactly 140×110 at the drag rectangle; this was its first real test since run #18.
+Desktop 0 warnings / 0 errors. Full suite: 3538 passed, 1 skipped, 2 failed (the user's HouseLayout
+WIP).
+
+**Lessons for the next run:**
+- **Real input:** `SetCursorPos` moves never reach WinUI's pointer pipeline, so drags silently become
+  clicks. Use `mouse_event(MOUSEEVENTF_MOVE|ABSOLUTE, x*65535/(w-1), …)`. The script is `mouse.ps1` in
+  this run's scratchpad. Check `GetLastInputInfo` first, and only drive input when the user has been
+  idle for minutes.
+- `ReleasePointerCapture` raises `PointerCaptureLost` **synchronously**. Finish the gesture before
+  releasing, or the lost-capture handler cancels it first. This is the bug the marquee hit.
+
+**Not verified:** the cursors (PrintWindow doesn't capture the pointer), Shift-proportional resize by
+hand (covered by tests), the Light theme, and Export / fill flyout by hand. The left Source pane
+collapsed by itself once when I set the editor text through UIA. That might be the auto-collapse
+behaviour, but I haven't looked.
+
+**Release:** tagged `v3.3.0` (the release workflow builds x64 and arm64 installers, the zips and the
+delta feed). `MarksmithBaseVersion` was still 3.2.0 after v3.2.0 shipped, the same trap the props
+comment warns about, so it's now 3.4.0.
+
+**Next up:**
+1. Shape Studio: rotated shapes still have no handles (inspector only), and connectors can't be
+   re-routed by dragging. Look at rotate-aware handles, or at least a hint in the status bar. Check
+   the Fill flyout and the Export dialog by hand.
+2. Settings, remaining pages by hand (carried over): Google Docs sign-in states, the License page
+   with a trial running, plugin install/remove, the house-style .dotx round trip.
+3. The left Source pane collapsing on a programmatic editor change: confirm whether it's intended.
+4. Open a Shape Studio export and a SmartArt export in real Word (needs the user to clear Word's
+   first-run prompt once).
+5. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, a light-theme pass (History,
+   the SmartArt miniature tile, side panels, the new rule rows), SmartArt click-to-zoom, Diagram
+   Studio canvas fill, keyboard focus order, Galaxy obstacle-aware routing.
