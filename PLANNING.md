@@ -1585,8 +1585,7 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
 - **No `<script>`, `<svg>`, `data:` URIs, `<input>`, flex or grid.** Unit-test these as invariants.
 - **Plain-text alternative:** Markdown → readable text (tables as aligned text, links as
   "text (url)").
-- **Optional MarkSmith footer** for the free tier ("Formatted with MarkSmith"), removed by Pro. This
-  matches the existing PDF footer licensing behaviour.
+- **No MarkSmith footer or branding in emails, on any tier.** Email is free (see Licensing).
 
 #### UI (WinUI3, polished to this routine's standard from day one)
 
@@ -1598,7 +1597,7 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
   `MARKSMITH_CONFIG_DIR` redirects it in tests), then `ShellExecute`s it. Status: "Draft opened in
   Outlook · Saved copy" with an Open-folder link (reuse `AnnounceExport` / `StatusOutputPath`). Clean
   the outbox of drafts older than 7 days.
-- **"Copy as email"** (free tier?): puts CF_HTML on the clipboard, with images as file:// temp PNGs
+- **"Copy as email"** (free, like every email feature): puts CF_HTML on the clipboard, with images as file:// temp PNGs
   for classic and data URIs for new Outlook/OWA. **Verify per client in Phase 0**; if unreliable,
   ship only the file paths.
 - **Style & Export:** a new "Email" expander using `Controls/OptionRow` + `PanelToggleStyle`:
@@ -1629,8 +1628,8 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
 #### API and automation (the "AI → inbox" engine)
 
 - `/api/convert` gains `format: "eml" | "msg"` with the right content types (`message/rfc822`,
-  `application/vnd.ms-outlook`) and `filename=<slug>.eml/.msg`. Run it through `LicenseGateError` like
-  docx and pptx.
+  `application/vnd.ms-outlook`) and `filename=<slug>.eml/.msg`. `LicenseGateError` must
+  **pass eml/msg for everyone** (free). Add a test pinning that.
 - `OutputOverride.Email`: `{ to[], cc[], bcc[], subject, attach: ["pdf","docx"], open: bool }`. With
   `open: true` on `/api/ingest`, the desktop app writes to the outbox and `ShellExecute`s it, so a
   browser-extension button "Send to Outlook" is one POST. **Extension work is out of scope for this
@@ -1643,8 +1642,34 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
   AI-generated .md files and get an Outlook draft for each. Update the automation copy from run #20
   (`AutomationFormatNote`).
 - **Batch convert:** a folder of .md → a folder of .eml/.msg.
-- **Licensing:** email export is **Pro**, the same tier as DOCX/PPTX, and counts toward the 3-export
-  trial. **Open question for the user:** is "Copy as email" free, as a hook?
+- **Licensing (decided by the user, 2026-10-07): EVERY email feature is FREE.** In the user's words:
+  "everything to help people not have to deal with work emails should be free". That covers:
+  - Email draft / Open in Outlook, Save as .eml / .msg, Copy as email, and Preview as email.
+  - Import of .eml / .msg.
+  - The Email settings expander.
+  - `/api/email`, `/api/convert` eml/msg, and `/api/ingest` with `output.email`.
+  - Email-targeted automation: auto-drafting after an ingest, and the watch folder or clipboard
+    watcher when their target format is email.
+
+  None of it counts toward or consumes the 3-export trial, and there's no footer or branding.
+  Implementation:
+  - Add `FeatureId.EmailDraft` to `LicenseModels.cs`, with `FeatureClassifier.IsFree` returning true.
+  - Make every email path check that, not `CanAutomate` / `CanExportDocx`.
+  - In `AutomationManager.Apply`, `MainWindow` ~line 1443 (`AutoExportIngestAsync` gate), and
+    `ExportCoordinator` ~line 250, allow the run when the resolved formats are **only** email. A
+    mixed request like `["email","docx"]` still gates the DOCX part, and only that part.
+  - Update the free-tier copy everywhere it lists what's free: the paywall dialog (finding 2), the
+    Free banner, the License page, the Welcome tour, and the `FeatureClassifier` display names. It
+    should read "PDF, HTML, Markdown, EPUB **and email** are free".
+  - **Boundary, my call (the user can override it):** *attaching a DOCX or PPTX copy* to an email
+    still follows the DOCX/PPTX licence; otherwise "email" would be a free back door around the
+    Pro exporters. A **PDF attachment is free**. In the UI, the DOCX-attachment toggle shows the
+    PRO badge and a one-line why, not a silent failure.
+  - Tests: `EmailLicensingTests`. A Free-edition license state (no trial) can run each email path:
+    the composer, the eml/msg writers via the VM commands, `/api/convert` eml → 200 (not 402),
+    `/api/ingest` + `output.email.open` → the draft written (open suppressed in tests), and
+    auto-draft after an ingest. The trial counter stays unchanged. A DOCX attachment on free →
+    excluded, with a status message saying why.
 
 #### Phases (each one ships, commits to main, builds green, has tests)
 
@@ -1675,6 +1700,8 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
 - **Phase 7, polish and release:** a light/dark pass, an Outlook rendering matrix, and the tour /
   Suite Hub copy. Then cut **v3.4.0 "Inbox-ready"**, with release notes leading with the email
   feature.
+- **Phase 1 also adds `FeatureId.EmailDraft` (free)** and the licensing tests, so no email path is
+  ever accidentally gated.
 - **Deferred, the user decides:**
   - (a) Microsoft Graph `POST /me/messages` drafts and `sendMail`. This works without any Outlook
     installed and with OWA, but needs an Entra app registration and OAuth, which is the same consumer
@@ -1716,8 +1743,8 @@ New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and te
    interaction.
 3. A .msg saved from classic Outlook and an .eml dragged out of new Outlook both open in MarkSmith as
    clean Markdown with images and a collapsed quoted history, and export to DOCX/PDF.
-4. Free tier: the paywall (with the trial offer, finding 2) appears consistently in the UI and the
-   API. Pro: no footer.
+4. **Free tier gets the whole email feature**: no paywall, no trial consumption, no footer, through both
+   the UI and the API. Only a DOCX/PPTX *attachment* shows the PRO gate, and it says why.
 5. Desktop 0 warnings, the full suite green (apart from the user's known HouseLayout WIP), and a
    PLANNING.md entry with screenshots-verified results.
 
