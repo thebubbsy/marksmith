@@ -77,37 +77,7 @@ namespace MarkSmith.Core.Preview
             }
             else
             {
-                var sb = new StringBuilder();
-                var (w, h) = family switch
-                {
-                    SmartArtPreviewFamily.Hierarchy => DrawTree(sb, items, horizontal: false),
-                    SmartArtPreviewFamily.HorizontalHierarchy => DrawTree(sb, items, horizontal: true),
-                    SmartArtPreviewFamily.BlockHierarchy => DrawBlockHierarchy(sb, items),
-                    SmartArtPreviewFamily.HierarchyList => DrawHierarchyList(sb, items),
-                    SmartArtPreviewFamily.BlockList => DrawBlockList(sb, items),
-                    SmartArtPreviewFamily.HorizontalList => DrawHorizontalList(sb, items),
-                    SmartArtPreviewFamily.VerticalList => DrawVerticalList(sb, items),
-                    SmartArtPreviewFamily.Process => DrawProcess(sb, items),
-                    SmartArtPreviewFamily.Chevron => DrawChevrons(sb, items),
-                    SmartArtPreviewFamily.VerticalProcess => DrawVerticalProcess(sb, items),
-                    SmartArtPreviewFamily.BendingProcess => DrawBending(sb, items),
-                    SmartArtPreviewFamily.StepsUp => DrawSteps(sb, items, up: true),
-                    SmartArtPreviewFamily.StepsDown => DrawSteps(sb, items, up: false),
-                    SmartArtPreviewFamily.Timeline => DrawTimeline(sb, items),
-                    SmartArtPreviewFamily.Cycle => DrawCycle(sb, items),
-                    SmartArtPreviewFamily.Radial => DrawRadial(sb, items),
-                    SmartArtPreviewFamily.Matrix => DrawMatrix(sb, items),
-                    SmartArtPreviewFamily.Pyramid => DrawPyramid(sb, Flatten(items), inverted: false),
-                    SmartArtPreviewFamily.InvertedPyramid => DrawPyramid(sb, Flatten(items), inverted: true),
-                    SmartArtPreviewFamily.Venn => DrawVenn(sb, items),
-                    SmartArtPreviewFamily.LinearVenn => DrawLinearVenn(sb, items),
-                    SmartArtPreviewFamily.Target => DrawTarget(sb, items),
-                    SmartArtPreviewFamily.Balance => DrawBalance(sb, items),
-                    SmartArtPreviewFamily.Equation => DrawEquation(sb, items),
-                    SmartArtPreviewFamily.Pictures => DrawPictures(sb, items),
-                    _ => DrawBlockList(sb, items),
-                };
-                svg = Svg(w, h, sb.ToString(), out _);
+                svg = DrawUniform(family, items);
             }
 
             // Only append the alias when it adds something (an untitled layout's title *is* its alias).
@@ -122,6 +92,179 @@ namespace MarkSmith.Core.Preview
   <div class=""smartart-caption"" style=""padding: 10px 14px 0; font-size: 12px; font-weight: 600; color: #605e5c; text-align: left;"">Layout: {WebUtility.HtmlEncode(layoutLabel)}</div>
   {svg}
 </div>";
+        }
+
+        // Word syncs the text size across shapes of the same kind, so a row of process boxes never
+        // mixes 15 pt with 9 pt. The drawing runs twice: the first pass records the size every text
+        // slot fits at, the second caps each slot at the smallest size of its group.
+        [ThreadStatic] private static Dictionary<string, double>? _seenSizes;
+        [ThreadStatic] private static Dictionary<string, double>? _sizeCaps;
+
+        private static string DrawUniform(SmartArtPreviewFamily family, List<Item> items)
+        {
+            try
+            {
+                _seenSizes = new Dictionary<string, double>();
+                _sizeCaps = null;
+                DrawFamily(family, items);
+                _sizeCaps = _seenSizes;
+                _seenSizes = null;
+                return DrawFamily(family, items);
+            }
+            finally
+            {
+                _seenSizes = null;
+                _sizeCaps = null;
+            }
+        }
+
+        private const double MinSharedFs = 10;
+
+        private static readonly Dictionary<SmartArtPreviewFamily, string> _thumbnails = new();
+
+        /// <summary>A miniature of the family's drawing for the layout gallery: the real shapes
+        /// drawn from a small sample outline, with the text, tooltips and hover styles removed (the
+        /// gallery renders it through Direct2D's SVG support, which has no text, and words at
+        /// thumbnail size would only be noise). Sized by explicit width/height so an image source can
+        /// rasterize it. Cached per family.</summary>
+        public static string RenderThumbnailSvg(SmartArtPreviewFamily family)
+        {
+            lock (_thumbnails)
+            {
+                if (_thumbnails.TryGetValue(family, out var cached)) return cached;
+                var svg = DrawFamily(family, ThumbnailSample(family));
+                svg = System.Text.RegularExpressions.Regex.Replace(svg,
+                    "<text\\b[^>]*>.*?</text>|<title>.*?</title>|<style>.*?</style>", string.Empty,
+                    System.Text.RegularExpressions.RegexOptions.Singleline);
+                // Picture placeholders are pale grey on white; at thumbnail size on a light tile they
+                // vanished, so the miniature draws them mid-grey with a white glyph.
+                if (family == SmartArtPreviewFamily.Pictures)
+                    svg = svg.Replace("fill=\"#c8c6c4\"/>", "fill=\"#ffffff\"/>").Replace("fill=\"#edebe9\"", "fill=\"#a19f9d\"");
+                // White cards (timeline labels, picture frames, empty matrix cells) disappear on the
+                // light tile; a miniature fills them with their own outline colour instead.
+                svg = System.Text.RegularExpressions.Regex.Replace(svg, "(<rect\\b[^>]*?)fill=\"#ffffff\"([^>]*?)stroke=\"(#[0-9a-fA-F]{6})\"",
+                    m => $"{m.Groups[1].Value}fill=\"{m.Groups[3].Value}\"{m.Groups[2].Value}stroke=\"{m.Groups[3].Value}\"");
+                // Frame the shapes themselves: the drawing's 800-wide page left a three-box process as
+                // a sliver in the middle of the tile.
+                var (x0, y0, x1, y1) = ShapeBounds(svg);
+                double pad = Math.Max(x1 - x0, y1 - y0) * 0.04;
+                x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+                svg = System.Text.RegularExpressions.Regex.Replace(svg, "viewBox=\"[^\"]*\"", $"viewBox=\"{F(x0)} {F(y0)} {F(x1 - x0)} {F(y1 - y0)}\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+                svg = svg.Replace("width=\"100%\" style=\"display:block;width:100%;height:auto\"", $"width=\"{F(x1 - x0)}\" height=\"{F(y1 - y0)}\"");
+                _thumbnails[family] = svg;
+                return svg;
+            }
+        }
+
+        /// <summary>The bounding box of the shapes this renderer emits (rect, circle, polygon, line and
+        /// absolute M/L/H/V/A paths), so a thumbnail can frame them.</summary>
+        internal static (double x0, double y0, double x1, double y1) ShapeBounds(string svg)
+        {
+            double x0 = double.MaxValue, y0 = double.MaxValue, x1 = double.MinValue, y1 = double.MinValue;
+            void Add(double x, double y) { x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y); }
+            static double N(string s) => double.Parse(s, CultureInfo.InvariantCulture);
+            string body = System.Text.RegularExpressions.Regex.Replace(svg, "<defs>.*?</defs>", "", System.Text.RegularExpressions.RegexOptions.Singleline);
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(body, "<(rect|circle|polygon|line|path)\\b([^>]*)>"))
+            {
+                string a = m.Groups[2].Value;
+                string? Attr(string name) { var am = System.Text.RegularExpressions.Regex.Match(a, "\\b" + name + "=\"([^\"]*)\""); return am.Success ? am.Groups[1].Value : null; }
+                switch (m.Groups[1].Value)
+                {
+                    case "rect":
+                        double rx = N(Attr("x") ?? "0"), ry = N(Attr("y") ?? "0");
+                        Add(rx, ry); Add(rx + N(Attr("width") ?? "0"), ry + N(Attr("height") ?? "0"));
+                        break;
+                    case "circle":
+                        double cx = N(Attr("cx") ?? "0"), cy = N(Attr("cy") ?? "0"), r = N(Attr("r") ?? "0");
+                        Add(cx - r, cy - r); Add(cx + r, cy + r);
+                        break;
+                    case "polygon":
+                        foreach (var p in (Attr("points") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var xy = p.Split(',');
+                            if (xy.Length == 2) Add(N(xy[0]), N(xy[1]));
+                        }
+                        break;
+                    case "line":
+                        Add(N(Attr("x1") ?? "0"), N(Attr("y1") ?? "0")); Add(N(Attr("x2") ?? "0"), N(Attr("y2") ?? "0"));
+                        break;
+                    case "path":
+                        double px = 0, py = 0;
+                        foreach (System.Text.RegularExpressions.Match c in System.Text.RegularExpressions.Regex.Matches(Attr("d") ?? "", "([MLHVA])([^MLHVAZz]*)"))
+                        {
+                            var v = c.Groups[2].Value.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries).Select(N).ToArray();
+                            switch (c.Groups[1].Value)
+                            {
+                                case "M": case "L": if (v.Length >= 2) { px = v[0]; py = v[1]; } break;
+                                case "H": if (v.Length >= 1) px = v[0]; break;
+                                case "V": if (v.Length >= 1) py = v[0]; break;
+                                case "A": if (v.Length >= 7) { px = v[5]; py = v[6]; } break;
+                            }
+                            Add(px, py);
+                        }
+                        break;
+                }
+            }
+            return x0 == double.MaxValue ? (0, 0, BaseW, 400) : (x0, y0, x1, y1);
+        }
+
+        /// <summary>The outline a thumbnail draws: enough items to show the family's shape (a bend, a
+        /// ring, a tree with two levels) and no more. Single letters keep every box at its smallest.</summary>
+        private static List<Item> ThumbnailSample(SmartArtPreviewFamily family)
+        {
+            static Item I(string t, params Item[] kids) => new() { Text = t, Children = kids.ToList() };
+            static List<Item> Flat(int n) => Enumerable.Range(0, n).Select(i => I(((char)('A' + i)).ToString())).ToList();
+            return family switch
+            {
+                SmartArtPreviewFamily.Hierarchy or SmartArtPreviewFamily.HorizontalHierarchy or SmartArtPreviewFamily.BlockHierarchy
+                    => new() { I("A", I("B", I("D"), I("E")), I("C", I("F"), I("G"))) },
+                SmartArtPreviewFamily.HierarchyList => new() { I("A", I("a"), I("b")), I("B", I("c"), I("d")), I("C", I("e"), I("f")) },
+                SmartArtPreviewFamily.HorizontalList or SmartArtPreviewFamily.VerticalList
+                    => new() { I("A", I("a")), I("B", I("b")), I("C", I("c")) },
+                SmartArtPreviewFamily.BendingProcess => Flat(6),
+                SmartArtPreviewFamily.Cycle or SmartArtPreviewFamily.Radial => Flat(6),
+                SmartArtPreviewFamily.Matrix or SmartArtPreviewFamily.Pyramid or SmartArtPreviewFamily.InvertedPyramid
+                    or SmartArtPreviewFamily.Target or SmartArtPreviewFamily.BlockList or SmartArtPreviewFamily.Chevron
+                    or SmartArtPreviewFamily.StepsUp or SmartArtPreviewFamily.StepsDown or SmartArtPreviewFamily.Timeline => Flat(4),
+                SmartArtPreviewFamily.Pictures => Flat(2), // two cards stay recognisable at tile size; four were specks
+                SmartArtPreviewFamily.Balance => Flat(3),
+                _ => Flat(3),
+            };
+        }
+
+        private static string DrawFamily(SmartArtPreviewFamily family, List<Item> items)
+        {
+            var sb = new StringBuilder();
+            var (w, h) = family switch
+            {
+                SmartArtPreviewFamily.Hierarchy => DrawTree(sb, items, horizontal: false),
+                SmartArtPreviewFamily.HorizontalHierarchy => DrawTree(sb, items, horizontal: true),
+                SmartArtPreviewFamily.BlockHierarchy => DrawBlockHierarchy(sb, items),
+                SmartArtPreviewFamily.HierarchyList => DrawHierarchyList(sb, items),
+                SmartArtPreviewFamily.BlockList => DrawBlockList(sb, items),
+                SmartArtPreviewFamily.HorizontalList => DrawHorizontalList(sb, items),
+                SmartArtPreviewFamily.VerticalList => DrawVerticalList(sb, items),
+                SmartArtPreviewFamily.Process => DrawProcess(sb, items),
+                SmartArtPreviewFamily.Chevron => DrawChevrons(sb, items),
+                SmartArtPreviewFamily.VerticalProcess => DrawVerticalProcess(sb, items),
+                SmartArtPreviewFamily.BendingProcess => DrawBending(sb, items),
+                SmartArtPreviewFamily.StepsUp => DrawSteps(sb, items, up: true),
+                SmartArtPreviewFamily.StepsDown => DrawSteps(sb, items, up: false),
+                SmartArtPreviewFamily.Timeline => DrawTimeline(sb, items),
+                SmartArtPreviewFamily.Cycle => DrawCycle(sb, items),
+                SmartArtPreviewFamily.Radial => DrawRadial(sb, items),
+                SmartArtPreviewFamily.Matrix => DrawMatrix(sb, items),
+                SmartArtPreviewFamily.Pyramid => DrawPyramid(sb, Flatten(items), inverted: false),
+                SmartArtPreviewFamily.InvertedPyramid => DrawPyramid(sb, Flatten(items), inverted: true),
+                SmartArtPreviewFamily.Venn => DrawVenn(sb, items),
+                SmartArtPreviewFamily.LinearVenn => DrawLinearVenn(sb, items),
+                SmartArtPreviewFamily.Target => DrawTarget(sb, items),
+                SmartArtPreviewFamily.Balance => DrawBalance(sb, items),
+                SmartArtPreviewFamily.Equation => DrawEquation(sb, items),
+                SmartArtPreviewFamily.Pictures => DrawPictures(sb, items),
+                _ => DrawBlockList(sb, items),
+            };
+            return Svg(w, h, sb.ToString(), out _);
         }
 
         // ------------------------------------------------------------------ family resolution
@@ -390,6 +533,20 @@ namespace MarkSmith.Core.Preview
 
         private static readonly string NBSP = ((char)160).ToString();
 
+        /// <summary>A bullet wrapped onto at most two lines, the second hanging under the first word
+        /// rather than back under the bullet mark. No-break spaces carry the indent because SVG
+        /// collapses ordinary leading spaces; "• " is about two and a half of them wide, the
+        /// grandchild "   – " about five and a half (U+202F is the half).</summary>
+        private static List<string> WrapBullet(string bullet, double w, double fs, out bool clean)
+        {
+            bool dash = bullet.StartsWith("–", StringComparison.Ordinal);
+            string hang = dash ? NBSP + NBSP + NBSP + NBSP + NBSP + " " : NBSP + NBSP + " ";
+            double hangW = (dash ? 5.5 : 2.5) * fs * 0.27;
+            var lines = Wrap(Bullet(bullet), Math.Max(20, w - hangW), fs, false, 2, out clean);
+            for (int i = 1; i < lines.Count; i++) lines[i] = hang + lines[i];
+            return lines;
+        }
+
         private sealed record TextFit(double Fs, List<string> Title, double Bfs, List<string> Bullets, double Height);
 
         /// <summary>Largest font (maxFs down to 9) at which the title (≤ 3 lines) and the bullets fit
@@ -405,7 +562,7 @@ namespace MarkSmith.Core.Preview
                 var b = new List<string>();
                 foreach (var bullet in bullets)
                 {
-                    b.AddRange(Wrap(Bullet(bullet), w, bfs, false, 2, out bool bulletClean));
+                    b.AddRange(WrapBullet(bullet, w, bfs, out bool bulletClean));
                     clean &= bulletClean;
                 }
                 double height = t.Count * fs * 1.22 + (b.Count > 0 ? 6 + b.Count * bfs * 1.3 : 0);
@@ -426,25 +583,50 @@ namespace MarkSmith.Core.Preview
             return fit with { Bullets = lines, Height = H() };
         }
 
+        /// <summary>True when the title fits w × h at <paramref name="minFs"/> or larger without a word
+        /// being hyphenated or the text cut short.</summary>
+        private static bool FitsClean(string title, double w, double h, double minFs, int maxLines = 3)
+        {
+            if (w < 12) return false;
+            for (double fs = 14; fs >= minFs; fs -= 1)
+            {
+                var lines = Wrap(title, w, fs, true, maxLines, out bool clean);
+                if (clean && lines.Count * fs * 1.22 <= h) return true;
+            }
+            return false;
+        }
+
         /// <summary>Height the title + bullets need at a comfortable size in a box of width w.</summary>
         private static double Measure(string title, IReadOnlyList<string> bullets, double w, double fs = 14)
         {
             var t = Wrap(title, w, fs, true, 3);
             double bfs = t.Count == 0 ? fs : fs - 2;
-            int b = bullets.Sum(x => Wrap(Bullet(x), w, bfs, false, 2).Count);
+            int b = bullets.Sum(x => WrapBullet(x, w, bfs, out _).Count);
             return t.Count * fs * 1.22 + (b > 0 ? 6 + b * bfs * 1.3 : 0);
         }
 
         /// <summary>Title (bold, centred) and bullets (left-aligned when there's room) inside a box,
         /// centred vertically.</summary>
-        private static void Text(StringBuilder sb, double x, double y, double w, double h, string title, IReadOnlyList<string> bullets, string color, double maxFs = 15, bool alignLeft = false, double inset = 10)
+        /// <param name="group">Text slots in one group share a font size (see <see cref="DrawUniform"/>).
+        /// By default a slot's group is its box size, which matches "shapes of the same kind" for every
+        /// family but the pyramid, whose tiers differ in width and pass a group of their own.</param>
+        /// <param name="halo">Paints a pale outline behind the letters so labels stay legible where
+        /// translucent shapes overlap (Venn).</param>
+        private static void Text(StringBuilder sb, double x, double y, double w, double h, string title, IReadOnlyList<string> bullets, string color, double maxFs = 15, bool alignLeft = false, double inset = 10, string? group = null, bool halo = false)
         {
+            string key = group ?? $"{Math.Round(w)}x{Math.Round(h)}|{F(maxFs)}|{(title.Length == 0 ? "body" : "title")}|{color}";
+            // The shared size never drops below 10 pt for the group's sake: a slot that only fits smaller
+            // (one box crammed with bullets) shrinks on its own rather than taking every sibling with it.
+            if (_sizeCaps != null && _sizeCaps.TryGetValue(key, out var cap)) maxFs = Math.Min(maxFs, Math.Max(cap, MinSharedFs));
             var fit = FitText(title, bullets, Math.Max(20, w - inset * 2), Math.Max(10, h - 8), maxFs);
+            if (_seenSizes != null)
+                _seenSizes[key] = _seenSizes.TryGetValue(key, out var seen) ? Math.Min(seen, fit.Fs) : fit.Fs;
             double top = y + (h - fit.Height) / 2;
             bool left = alignLeft;
             double tx = left ? x + inset : x + w / 2;
             string anchor = left ? "start" : "middle";
-            sb.Append($"<text fill=\"{color}\" font-weight=\"600\" font-size=\"{F(fit.Fs)}\" text-anchor=\"{anchor}\">");
+            string haloAttrs = halo ? " stroke=\"#ffffff\" stroke-opacity=\"0.75\" stroke-width=\"3\" stroke-linejoin=\"round\" paint-order=\"stroke\"" : "";
+            sb.Append($"<text fill=\"{color}\" font-weight=\"600\" font-size=\"{F(fit.Fs)}\" text-anchor=\"{anchor}\"{haloAttrs}>");
             for (int i = 0; i < fit.Title.Count; i++)
                 sb.Append($"<tspan x=\"{F(tx)}\" y=\"{F(top + fit.Fs * (0.95 + i * 1.22))}\">{E(fit.Title[i])}</tspan>");
             sb.Append("</text>");
@@ -454,7 +636,7 @@ namespace MarkSmith.Core.Preview
             double groupW = fit.Bullets.Max(l => l.Length) * CharW(fit.Bfs, false);
             double bx = !bulletsLeft ? x + w / 2 : left ? x + inset : x + Math.Max(inset, (w - groupW) / 2);
             double by = top + fit.Title.Count * fit.Fs * 1.22 + 6;
-            sb.Append($"<text fill=\"{color}\" font-size=\"{F(fit.Bfs)}\" text-anchor=\"{(bulletsLeft ? "start" : "middle")}\" opacity=\"0.92\">");
+            sb.Append($"<text fill=\"{color}\" font-size=\"{F(fit.Bfs)}\" text-anchor=\"{(bulletsLeft ? "start" : "middle")}\" opacity=\"0.92\"{haloAttrs}>");
             for (int i = 0; i < fit.Bullets.Count; i++)
                 sb.Append($"<tspan x=\"{F(bx)}\" y=\"{F(by + fit.Bfs * (0.95 + i * 1.3))}\">{E(fit.Bullets[i])}</tspan>");
             sb.Append("</text>");
@@ -475,10 +657,20 @@ namespace MarkSmith.Core.Preview
         {
             sb.Append("<g class=\"sa-s\">").Append(Tooltip(item));
             sb.Append($"<circle cx=\"{F(cx)}\" cy=\"{F(cy)}\" r=\"{F(r)}\" fill=\"{fill}\" fill-opacity=\"{F(opacity)}\" stroke=\"#ffffff\" stroke-width=\"2\"/>");
-            double side = r * 1.42; // the square inscribed in the circle
-            Text(sb, cx - side / 2, cy - side / 2, side, side, item.Text, withBullets ? item.Bullets : Array.Empty<string>(), textColor ?? "#ffffff", maxFs: 14, inset: 3);
+            // A 1.5r × 1.3r box still sits inside the circle (its corner is at 0.99r) and gives a
+            // line of text more room than the inscribed square did.
+            double tw = r * CircleTextW, th = r * 1.3;
+            Text(sb, cx - tw / 2, cy - th / 2, tw, th, item.Text, withBullets ? item.Bullets : Array.Empty<string>(), textColor ?? "#ffffff", maxFs: 14, inset: 3);
             sb.Append("</g>");
         }
+
+        private const double CircleTextW = 1.5;
+
+        /// <summary>Radius at which the longest word of any label fits a circle on one line at 10 pt,
+        /// so "Internationalisation" grows its circle instead of being cut into "Internati-onalisati-on…".</summary>
+        private static double RadiusForWords(IEnumerable<Item> items) =>
+            (items.SelectMany(i => (i.Text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                  .Select(word => word.Length).DefaultIfEmpty(0).Max() * CharW(10, true) + 10) / CircleTextW;
 
         private static void RightArrow(StringBuilder sb, double x, double cy, double w, double h)
         {
@@ -858,7 +1050,8 @@ namespace MarkSmith.Core.Preview
             double labelH = Math.Min(170, Math.Max(44, items.Max(i => Measure(i.Text, i.Bullets, labelW - 8, 13)) + 10));
             double stem = 26;
             double lineY = Pad + labelH + stem + 8;
-            double h = lineY + 8 + stem + labelH + Pad;
+            // Labels alternate above and below the line; a lone item has nothing below it.
+            double h = n == 1 ? lineY + 12 + Pad : lineY + 8 + stem + labelH + Pad;
             sb.Append($"<line x1=\"{F(Pad)}\" y1=\"{F(lineY)}\" x2=\"{F(BaseW - Pad)}\" y2=\"{F(lineY)}\" stroke=\"#c8c6c4\" stroke-width=\"4\" marker-end=\"url(#sa-arrow)\"/>");
             for (int i = 0; i < n; i++)
             {
@@ -869,8 +1062,10 @@ namespace MarkSmith.Core.Preview
                 sb.Append("<g class=\"sa-s\">").Append(Tooltip(items[i]));
                 sb.Append($"<line x1=\"{F(cx)}\" y1=\"{F(lineY)}\" x2=\"{F(cx)}\" y2=\"{F(above ? ly + labelH : ly)}\" stroke=\"{color}\" stroke-width=\"2\"/>");
                 sb.Append($"<circle cx=\"{F(cx)}\" cy=\"{F(lineY)}\" r=\"9\" fill=\"{color}\" stroke=\"#ffffff\" stroke-width=\"3\"/>");
-                sb.Append($"<rect x=\"{F(cx - labelW / 2)}\" y=\"{F(ly)}\" width=\"{F(labelW)}\" height=\"{F(labelH)}\" rx=\"6\" fill=\"#ffffff\" stroke=\"{Tint(color, 0.5)}\"/>");
-                Text(sb, cx - labelW / 2, ly, labelW, labelH, items[i].Text, items[i].Bullets, Ink, maxFs: 13);
+                // The end labels slide inwards rather than hang past the drawing's edge.
+                double lx = Math.Clamp(cx - labelW / 2, Pad / 2, BaseW - Pad / 2 - labelW);
+                sb.Append($"<rect x=\"{F(lx)}\" y=\"{F(ly)}\" width=\"{F(labelW)}\" height=\"{F(labelH)}\" rx=\"6\" fill=\"#ffffff\" stroke=\"{Tint(color, 0.5)}\"/>");
+                Text(sb, lx, ly, labelW, labelH, items[i].Text, items[i].Bullets, Ink, maxFs: 13);
                 sb.Append("</g>");
             }
             return (BaseW, h);
@@ -883,7 +1078,9 @@ namespace MarkSmith.Core.Preview
             int n = items.Count;
             if (n == 1) { Circle(sb, BaseW / 2, 170, 120, Accent(0), items[0]); return (BaseW, 340); }
             double R = n <= 3 ? 130 : n <= 6 ? 160 : 180;
-            double r = Math.Min(64, R * Math.Sin(Math.PI / n) * 0.82);
+            double s = Math.Sin(Math.PI / n) * 0.82;
+            double r = Math.Max(Math.Min(64, R * s), Math.Min(86, RadiusForWords(items)));
+            R = Math.Max(R, r / s); // a grown circle pushes the ring out rather than into its neighbours
             double cx = BaseW / 2, cy = Pad + R + r;
             double h = cy + R + r + Pad;
             double delta = (r + 10) / R;
@@ -909,12 +1106,14 @@ namespace MarkSmith.Core.Preview
             if (items[0].Children.Count > 0) { center = new Item { Text = items[0].Text }; around = items[0].Children.Concat(items.Skip(1)).ToList(); }
             else { center = items[0]; around = items.Skip(1).ToList(); }
             int n = around.Count;
+            if (n == 0) { Circle(sb, BaseW / 2, 170, 110, Accent(0), center); return (BaseW, 340); }
             double R = n <= 4 ? 150 : 175;
-            double r = n == 0 ? 0 : Math.Min(56, R * Math.Sin(Math.PI / Math.Max(2, n)) * 0.8);
+            double s = Math.Sin(Math.PI / Math.Max(2, n)) * 0.8;
+            double r = Math.Max(Math.Min(56, R * s), Math.Min(80, RadiusForWords(around)));
+            double rc = Math.Max(Math.Min(78, R - r - 12), Math.Min(100, Math.Max(RadiusForWords(new[] { center }), r * 1.1))); // the hub stays the biggest circle
+            R = Math.Max(R, Math.Max(r / s, rc + r + 12));
             double cx = BaseW / 2, cy = Pad + R + r;
             double h = cy + R + r + Pad;
-            if (n == 0) { Circle(sb, cx, 170, 110, Accent(0), center); return (BaseW, 340); }
-            double rc = Math.Min(78, R - r - 12);
             for (int i = 0; i < n; i++)
             {
                 double a = 2 * Math.PI * i / n - Math.PI / 2;
@@ -961,25 +1160,55 @@ namespace MarkSmith.Core.Preview
         private static (double, double) DrawPyramid(StringBuilder sb, List<Item> nodes, bool inverted)
         {
             int n = nodes.Count;
-            double layerH = Math.Max(40, Math.Min(70, 420.0 / n));
+            // Few tiers get taller slices, and the base narrows with the height so a one- or
+            // three-tier pyramid keeps a pyramid's proportions instead of flattening into a wedge.
+            double layerH = Math.Max(40, Math.Min(n <= 2 ? 110 : 70, 420.0 / n));
             double h = Pad * 2 + n * layerH;
             double cx = BaseW / 2;
-            double baseW = Math.Min(640, BaseW - 80), apexW = inverted ? 150 : 0;
+            double baseW = Math.Min(640, Math.Max(260, n * layerH * 2.2)), apexW = inverted ? Math.Min(150, baseW * 0.4) : 0;
+            double WidthAt(double f) => inverted ? baseW - f * (baseW - apexW) : apexW + f * (baseW - apexW);
             for (int i = 0; i < n; i++)
             {
                 double yTop = Pad + i * layerH, yBot = yTop + layerH - 3;
-                double f0 = (double)i / n, f1 = (double)(i + 1) / n;
                 // Normal: the apex is a point and the base is widest. Inverted: wide top, narrow neck.
-                double wTop = inverted ? baseW - f0 * (baseW - apexW) : apexW + f0 * (baseW - apexW);
-                double wBot = inverted ? baseW - f1 * (baseW - apexW) : apexW + f1 * (baseW - apexW);
+                double wTop = WidthAt((double)i / n), wBot = WidthAt((double)(i + 1) / n);
                 string pts = $"{F(cx - wTop / 2)},{F(yTop)} {F(cx + wTop / 2)},{F(yTop)} {F(cx + wBot / 2)},{F(yBot)} {F(cx - wBot / 2)},{F(yBot)}";
                 sb.Append("<g class=\"sa-s\">").Append(Tooltip(nodes[i]));
                 sb.Append($"<polygon points=\"{pts}\" fill=\"{Accent(i)}\" stroke=\"#ffffff\" stroke-width=\"2\"/>");
-                double inner = Math.Min(wTop, wBot);
-                double textW = inner < 150 ? Math.Max(inner, Math.Max(wTop, wBot) * 0.72) : inner - 16;
-                // The apex slice is too thin for text at its top; nudge the label to the wider half.
-                double ty = !inverted && i == 0 ? yTop + layerH * 0.38 : yTop;
-                Text(sb, cx - textW / 2, ty, textW, yBot - ty, nodes[i].Text, Array.Empty<string>(), "#ffffff", maxFs: 14);
+                // A label's width is the slice's width at the label's top line. The apex is a point,
+                // so its label tries ever lower (and wider) spots before giving up on the inside.
+                bool apex = !inverted && i == 0;
+                double[] spots = apex ? new[] { 0.3, 0.5, 0.62 } : new[] { inverted ? 0.0 : 0.15 };
+                double ty = yTop, textW = 0;
+                bool fits = false;
+                // First choice: a spot where the label fits on one line; failing that, any spot.
+                foreach (int lines in new[] { 1, 3 })
+                {
+                    foreach (var spot in spots)
+                    {
+                        ty = yTop + (yBot - yTop) * spot;
+                        textW = wTop + (wBot - wTop) * spot - 12;
+                        if (inverted) textW = Math.Min(textW, wBot - 12 + (wTop - wBot) * 0.2);
+                        if (fits = FitsClean(nodes[i].Text, textW - 8, yBot - ty - 8, 10, lines)) break;
+                    }
+                    if (fits) break;
+                }
+                if (fits)
+                {
+                    // The apex keeps its own size so a tight tip doesn't shrink every tier's text.
+                    Text(sb, cx - textW / 2, ty, textW, yBot - ty, nodes[i].Text, Array.Empty<string>(), "#ffffff", maxFs: 14, inset: 4, group: apex ? "apex" : "tier");
+                }
+                else
+                {
+                    // Too narrow to hold the words at a readable size (the tip of a tall pyramid): a
+                    // leader to a label beside it, clear of the wider slices below.
+                    double midY = (yTop + yBot) / 2;
+                    double clear = inverted ? Math.Max(wTop, wBot) : WidthAt(Math.Min(1, (i + 2.0) / n));
+                    double lx = cx + clear / 2 + 18, lw = BaseW - Pad - lx;
+                    sb.Append($"<path d=\"M{F(cx)} {F(midY)}H{F(lx - 6)}\" fill=\"none\" stroke=\"{Ink}\" stroke-width=\"1\" stroke-opacity=\"0.45\"/>");
+                    sb.Append($"<circle cx=\"{F(cx)}\" cy=\"{F(midY)}\" r=\"3.5\" fill=\"#ffffff\" stroke=\"{Ink}\" stroke-width=\"1\"/>");
+                    Text(sb, lx, midY - 30, lw, 60, nodes[i].Text, Array.Empty<string>(), Ink, maxFs: 13, alignLeft: true, inset: 0, group: "callout");
+                }
                 sb.Append("</g>");
             }
             return (BaseW, h);
@@ -987,10 +1216,12 @@ namespace MarkSmith.Core.Preview
 
         private static (double, double) DrawVenn(StringBuilder sb, List<Item> items)
         {
-            int n = Math.Min(items.Count, 6);
+            // Word's Basic Venn draws every set, so this does too: past six the circles shrink and
+            // spread round a wider ring (each still overlapping its neighbours).
+            int n = Math.Min(items.Count, MaxVennSets);
             double cx = BaseW / 2;
-            double r = n == 1 ? 130 : n == 2 ? 130 : n == 3 ? 115 : 95;
-            double ring = n == 1 ? 0 : n == 2 ? 80 : n == 3 ? 72 : 85;
+            double r = n == 1 ? 130 : n == 2 ? 130 : n == 3 ? 115 : n <= 6 ? 95 : 78;
+            double ring = n == 1 ? 0 : n == 2 ? 80 : n == 3 ? 72 : n <= 6 ? 85 : r / Math.Sin(Math.PI / n) * 0.78;
             var centers = new List<(double x, double y, double a)>();
             for (int i = 0; i < n; i++)
             {
@@ -1011,14 +1242,17 @@ namespace MarkSmith.Core.Preview
             {
                 double push = n == 1 ? 0 : r * 0.42;
                 double lx = centers[i].x + push * Math.Cos(centers[i].a), ly = centers[i].y + push * Math.Sin(centers[i].a);
-                double tw = r * (n == 1 ? 1.4 : 0.95);
-                double th = n == 1 ? r * 1.4 : 80;
-                Text(sb, lx - tw / 2, ly - th / 2, tw, th, items[i].Text, n == 1 ? items[i].Bullets : Array.Empty<string>(), Ink, maxFs: 14);
+                // A label may run past its lobe into the overlaps; the halo keeps it readable there.
+                double tw = r * (n == 1 ? 1.4 : n == 2 ? 0.95 : 1.2);
+                double th = n == 1 ? r * 1.4 : Math.Max(80, r * 0.9);
+                Text(sb, lx - tw / 2, ly - th / 2, tw, th, items[i].Text, n == 1 ? items[i].Bullets : Array.Empty<string>(), Ink, maxFs: 14, inset: n > 2 ? 4 : 10, halo: n > 2);
             }
-            if (items.Count > 6)
-                sb.Append($"<text x=\"{F(cx)}\" y=\"{F(extentBottom + 18)}\" text-anchor=\"middle\" font-size=\"12\" fill=\"#605e5c\">{items.Count - 6} more not shown.</text>");
-            return (BaseW, extentBottom + Pad + (items.Count > 6 ? 16 : 0));
+            if (items.Count > n)
+                sb.Append($"<text x=\"{F(cx)}\" y=\"{F(extentBottom + 18)}\" text-anchor=\"middle\" font-size=\"12\" fill=\"#605e5c\">{items.Count - n} more not shown.</text>");
+            return (BaseW, extentBottom + Pad + (items.Count > n ? 16 : 0));
         }
+
+        private const int MaxVennSets = 12;
 
         private static (double, double) DrawLinearVenn(StringBuilder sb, List<Item> items)
         {
@@ -1058,7 +1292,8 @@ namespace MarkSmith.Core.Preview
                 // The band between this ring's top and the next ring's top (the innermost: its middle).
                 double top = bottom - 2 * R(i);
                 double bandY = i < n - 1 ? top + step : bottom - R(i);
-                double slotH = Math.Max(2 * step, 40);
+                // A lone ring has the whole height to itself (its bullets were cut to "CEO …").
+                double slotH = n == 1 ? 2 * rMax * 0.8 : Math.Max(2 * step, 40);
                 sb.Append("<g class=\"sa-s\">").Append(Tooltip(items[i]));
                 sb.Append($"<path d=\"M{F(cx)} {F(bandY)}H{F(labelX - 8)}\" fill=\"none\" stroke=\"{Ink}\" stroke-width=\"1\" stroke-opacity=\"0.45\"/>");
                 sb.Append($"<circle cx=\"{F(cx)}\" cy=\"{F(bandY)}\" r=\"3.5\" fill=\"#ffffff\" stroke=\"{Ink}\" stroke-width=\"1\"/>");

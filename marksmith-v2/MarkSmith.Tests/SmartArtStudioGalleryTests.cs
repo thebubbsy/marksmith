@@ -52,12 +52,12 @@ public class SmartArtStudioGalleryTests
     }
 
     [Fact]
-    public void Every_gallery_row_has_an_icon_and_a_markdown_hint()
+    public void Every_gallery_row_has_a_miniature_and_a_markdown_hint()
     {
         var vm = new SmartArtDesignStudioViewModel();
         Assert.All(vm.Layouts, l =>
         {
-            Assert.False(string.IsNullOrEmpty(l.Glyph));
+            Assert.StartsWith("<svg", l.ThumbnailSvg);
             Assert.Equal($"Markdown name: {l.Alias}", l.AliasHint);
         });
     }

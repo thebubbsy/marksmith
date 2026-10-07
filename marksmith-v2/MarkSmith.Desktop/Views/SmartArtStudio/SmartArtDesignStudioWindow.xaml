@@ -11,19 +11,30 @@
 
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" KeyDown="OnRootGridKeyDown">
         <Grid.Resources>
-            <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-            <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
-            <conv:SelectedBrushConverter x:Key="SelectedBrushConverter" />
-            <Style x:Key="ToolIconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-                <Setter Property="Width" Value="32" />
-                <Setter Property="Height" Value="32" />
-                <Setter Property="Padding" Value="0" />
-            </Style>
-            <Style x:Key="PaneCaption" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="TextWrapping" Value="Wrap" />
-                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-            </Style>
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="SmartArtThumbTileBrush" Color="#FFF8F9FA" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Dark">
+                        <SolidColorBrush x:Key="SmartArtThumbTileBrush" Color="#FFEDEDF0" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+                <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+                <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
+                <conv:SelectedBrushConverter x:Key="SelectedBrushConverter" />
+                <conv:SvgMarkupToImageSourceConverter x:Key="SvgMarkupToImageSourceConverter" />
+                <Style x:Key="ToolIconButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                    <Setter Property="Width" Value="32" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="Padding" Value="0" />
+                </Style>
+                <Style x:Key="PaneCaption" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="TextWrapping" Value="Wrap" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Style>
+            </ResourceDictionary>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -95,8 +106,14 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="30" Height="30" CornerRadius="6" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                                        <FontIcon Glyph="{Binding Glyph}" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    <!-- A live miniature of the layout's drawing (the same shapes the preview
+                                         draws), on a light tile because the drawing's colours are made
+                                         for a white page. -->
+                                    <Border Width="64" Height="44" CornerRadius="6" Padding="4"
+                                            Background="{ThemeResource SmartArtThumbTileBrush}"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                        <Image Source="{Binding ThumbnailSvg, Converter={StaticResource SvgMarkupToImageSourceConverter}, ConverterParameter=112}"
+                                               Stretch="Uniform" AutomationProperties.AccessibilityView="Raw" />
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}" FontSize="13" TextTrimming="CharacterEllipsis" />

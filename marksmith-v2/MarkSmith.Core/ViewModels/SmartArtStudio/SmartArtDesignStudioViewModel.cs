@@ -22,23 +22,87 @@ public class StudioLayoutItem
     /// ("AlternatingCircleProcess", "arrow1"); split those into words ("Alternating Circle
     /// Process", "Arrow 1") rather than printing the same identifier twice.
     /// </summary>
-    public string DisplayName => string.Equals(Name, Alias, StringComparison.Ordinal) ? Humanize(Alias) : Name;
+    public string DisplayName => !string.Equals(Name, Alias, StringComparison.Ordinal) ? Name
+        : WordNames.TryGetValue(Alias, out var word) ? word : Humanize(ExpandPrefix(Alias));
 
-    /// <summary>Segoe Fluent glyph for the gallery row, one per category (checked against the
-    /// installed font: F003 relationship, E72A forward, E895 sync, E8A9 grid, E879 triangle,
-    /// EA3A circle, EBD2 network, EB9F picture, E8FD bulleted list).</summary>
-    public string Glyph => Category switch
+    /// <summary>The drawing the preview (and the gallery miniature) uses for this layout.</summary>
+    public SmartArtPreviewFamily Family { get; set; }
+
+    /// <summary>The gallery miniature: the family's real shapes as SVG markup (no text).</summary>
+    public string ThumbnailSvg => HtmlPreviewRenderer.RenderThumbnailSvg(Family);
+
+    /// <summary>The names Word's SmartArt gallery shows for its built-in layouts, whose packages
+    /// carry an empty title. Only the layouts whose Word name is certain are listed; the rest fall
+    /// back to <see cref="ExpandPrefix"/> + <see cref="Humanize"/> ("hList7" → "Horizontal List 7")
+    /// rather than risk a wrong name.</summary>
+    internal static readonly IReadOnlyDictionary<string, string> WordNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        "Hierarchy" => "",
-        "Process" => "",
-        "Cycle" => "",
-        "Matrix" => "",
-        "Pyramid" => "",
-        "Venn" => "",
-        "Relationship" => "",
-        "Picture List" => "",
-        _ => "",
+        ["default"] = "Basic Block List",
+        ["vList2"] = "Vertical Bullet List",
+        ["list1"] = "Stacked List",
+        ["hList1"] = "Horizontal Bullet List",
+        ["process1"] = "Basic Process",
+        ["process2"] = "Vertical Process",
+        ["chevron1"] = "Basic Chevron Process",
+        ["chevron2"] = "Vertical Chevron List",
+        ["hChevron3"] = "Closed Chevron Process",
+        ["hProcess3"] = "Continuous Arrow Process",
+        ["hProcess9"] = "Continuous Block Process",
+        ["hProcess11"] = "Basic Timeline",
+        ["arrow2"] = "Upward Arrow",
+        ["equation1"] = "Equation",
+        ["equation2"] = "Vertical Equation",
+        ["funnel1"] = "Funnel",
+        ["gear1"] = "Gear",
+        ["cycle1"] = "Text Cycle",
+        ["cycle2"] = "Basic Cycle",
+        ["cycle3"] = "Continuous Cycle",
+        ["cycle4"] = "Cycle Matrix",
+        ["cycle5"] = "Block Cycle",
+        ["cycle6"] = "Nondirectional Cycle",
+        ["cycle7"] = "Multidirectional Cycle",
+        ["cycle8"] = "Segmented Cycle",
+        ["chart3"] = "Basic Pie",
+        ["orgChart1"] = "Organization Chart",
+        ["hierarchy1"] = "Hierarchy",
+        ["hierarchy2"] = "Horizontal Hierarchy",
+        ["hierarchy3"] = "Hierarchy List",
+        ["hierarchy4"] = "Table Hierarchy",
+        ["hierarchy5"] = "Horizontal Labeled Hierarchy",
+        ["hierarchy6"] = "Labeled Hierarchy",
+        ["radial1"] = "Basic Radial",
+        ["matrix1"] = "Titled Matrix",
+        ["matrix2"] = "Grid Matrix",
+        ["matrix3"] = "Basic Matrix",
+        ["pyramid1"] = "Basic Pyramid",
+        ["pyramid2"] = "Pyramid List",
+        ["pyramid3"] = "Inverted Pyramid",
+        ["pyramid4"] = "Segmented Pyramid",
+        ["venn1"] = "Basic Venn",
+        ["venn2"] = "Stacked Venn",
+        ["venn3"] = "Linear Venn",
+        ["target1"] = "Basic Target",
+        ["target2"] = "Nested Target",
+        ["target3"] = "Target List",
+        ["balance1"] = "Balance",
     };
+
+    /// <summary>Office's short layout ids abbreviate their orientation: h = horizontal, v = vertical,
+    /// b = bending, p = picture, l = list.</summary>
+    internal static string ExpandPrefix(string id)
+    {
+        if (id.Length < 2 || !char.IsLower(id[0]) || !char.IsUpper(id[1])) return id;
+        string? word = id[0] switch
+        {
+            'h' => "Horizontal",
+            'v' => "Vertical",
+            'b' => "Bending",
+            'p' => "Picture",
+            'l' => "List",
+            _ => null,
+        };
+        return word is null ? id : word + id[1..];
+    }
 
     /// <summary>Tooltip: the token used after <c>type=</c> in a <c>:::smartart</c> block.</summary>
     public string AliasHint => $"Markdown name: {Alias}";
@@ -243,6 +307,11 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// the user still picks the exact layout from the 176-layout gallery).</summary>
     public void Preload(string markdown, string layoutAlias)
     {
+        // A preload starts a new design: Ctrl+Z must not bring back the previous one.
+        _undoStack.Clear();
+        _redoStack.Clear();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
         MarkdownText = markdown; // triggers RebuildTree + UpdatePreview
         var item = _allLayouts.FirstOrDefault(l =>
                        string.Equals(l.Alias, layoutAlias, StringComparison.OrdinalIgnoreCase));
@@ -287,9 +356,12 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
             {
                 Name = string.IsNullOrWhiteSpace(pkg.Title) ? alias : pkg.Title,
                 Alias = alias,
-                Category = GuessCategory(alias, pkg)
+                Category = GuessCategory(alias, pkg),
+                Family = HtmlPreviewRenderer.ResolveFamily(pkg.UniqueId),
             });
         }
+        // Alphabetical by the name the row shows ("Basic Block List" sat under "d" for "default").
+        _allLayouts.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.DisplayName, b.DisplayName));
         FilterLayouts();
     }
 
@@ -682,7 +754,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         block.AppendLine(inner);
         block.AppendLine(":::");
         InsertToDocumentRequested?.Invoke(this, block.ToString());
-        StatusMessage = $"✓ Added {pkg.Title} to the document — preview & export it there.";
+        // Built-in packages have an empty title ("✓ Added  to the document"); use the gallery's name.
+        string name = SelectedLayout?.DisplayName ?? (string.IsNullOrWhiteSpace(pkg.Title) ? StudioLayoutItem.Humanize(alias) : pkg.Title);
+        StatusMessage = $"✓ Added {name} to the document — preview & export it there.";
     }
 
     private static string Tail(string urn)

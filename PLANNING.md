@@ -1141,3 +1141,84 @@ not this change, but it's worth a look.
    Shape Studio's sweep found 8 broken layouts, so SmartArt likely has some too.
 5. Carried over: Copy HTML asset URLs, the light-theme pass on History, SmartArt click-to-zoom and
    7+ cycles, Diagram Studio canvas fill, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 11:35–12:25 AEST (scheduled routine run #19)
+
+The PC was **unlocked** with 27 GB free. The user's own instance was running, so I built to a scratch
+OutDir and used a scratch `MARKSMITH_CONFIG_DIR`. The user's `HouseLayout` WIP is still uncommitted
+and untouched. I took run #18's "Next up" #4, the **SmartArt Design Studio sweep**. A scratch console
+app rendered all 25 preview families through 8 outlines (org chart, 3, 6 and 9 items, bullets, long
+labels, a single item, two items), and headless Edge screenshotted each family page. Every family
+had problems.
+
+**Shipped:**
+- **Mixed font sizes in one diagram.** Each shape fitted its own size, so a row of process boxes, a
+  ring of cycle circles or an equation put 15 pt next to 9 pt. The renderer now draws twice. The
+  first pass records the size each text slot fits, and the second caps every slot in a group at
+  the group's smallest. That matches Word, which syncs text size across shapes of the same kind. A
+  group is the box size by default; pyramid tiers pass `group:` explicitly. The shared size never
+  goes below 10 pt (`MinSharedFs`), so one crowded box shrinks alone instead of shrinking every
+  sibling.
+- **Words cut into syllables.** Circles (cycle, radial, venn) and pyramid tips used to render
+  "Internati-onalisati-on…", "Dis-cov-er" and "Customer onboard-ing and…". Circles now size
+  themselves from their longest word (`RadiusForWords`) and push the ring outward to make room. Their
+  text box is 1.5r × 1.3r instead of the inscribed square. A radial hub stays larger than its spokes.
+  A pyramid tip first tries lower and wider spots, preferring one where the label fits on one line.
+  If none fits, the label moves to a callout with a leader line beside the pyramid, clear of the
+  slices below. The tip has its own size group so it can't shrink every tier.
+- **Pyramid proportions:** a one-tier pyramid was a 640 × 67 wedge. The base now scales with the
+  height, and small pyramids get taller slices.
+- **Venn dropped sets.** Past six it showed "3 more not shown". It now draws up to 12 sets on a
+  wider ring. Labels get more of their lobe plus a pale halo, so they stay readable over overlaps.
+- **Wrapped bullets** now hang under their first word instead of returning under the "•"
+  (`WrapBullet`, using no-break spaces because SVG collapses ordinary leading spaces).
+- **Timeline:** the end labels no longer hang past the drawing's edge. A single item no longer
+  reserves an empty lower row. Target: a single ring's bullets were cut to "CEO …".
+- **Gallery miniatures:** every row used to show the same category glyph. Each now shows a live
+  miniature of its family's real drawing. `HtmlPreviewRenderer.RenderThumbnailSvg` renders it
+  without text, cropped to the shapes' bounds (`ShapeBounds`), and draws white cards in their
+  outline colour. The new `SvgMarkupToImageSourceConverter` shows it through WinUI's
+  `SvgImageSource`, cached by markup, on a light tile in both themes. `StudioLayoutItem.Glyph` was
+  removed.
+- **Gallery names:** built-in Office layouts have empty titles, so rows read "H List 7", "B Process
+  2" and "Default". Word's names are now used where I'm certain of them (48 layouts:
+  `StudioLayoutItem.WordNames`). The rest expand Office's prefixes (h/v/b/p/l → Horizontal,
+  Vertical, Bending, Picture, List), so "hList7" reads "Horizontal List 7". I could not get an
+  authoritative id → name table: Word's COM `SmartArtLayouts` only loads with a document open, and
+  opening one hit the first-run "Save new files automatically?" account prompt, which I left
+  unanswered. The table is therefore from memory and deliberately conservative. The gallery now
+  sorts by the name it shows.
+- **Undo leak:** opening the studio from the main window with new content kept the previous
+  design's undo stack, so Ctrl+Z brought the old diagram back. `Preload` now starts a fresh history.
+- **Insert status bug:** it said "✓ Added  to the document" (an empty package title). It now names
+  the layout.
+- **Window:** sized in DIPs (1360×840), with an icon and a 1120×600 minimum. That minimum is the three
+  columns' real floor. Before, the window could be squeezed until the preview vanished.
+- Tests: `SmartArtStudioPolishTests` (shared sizes, long words whole, pyramid callout and proportions,
+  every Venn set drawn, bullet hang, timeline height, text-free sized thumbnails that differ per
+  family, gallery names and order, a fresh undo history after a preload, insert status). One gallery test now checks the miniature instead
+  of the glyph.
+
+**Verified live** (PrintWindow and UIA, scratch config): the gallery's miniatures and names
+("Organization Chart", "Basic Cycle", "Cycle Matrix" with a matrix miniature, "Picture Accent
+Blocks"), and search "cycle" → 8 of 176. I picked Basic Cycle and pasted long labels in the Markdown
+tab: five circles shared one size, with "Internationalisation" whole. Insert reported "✓ Added Basic
+Cycle to the document", and the main preview rendered it the same way. Desktop 0 warnings / 0 errors
+(scratch OutDir). Full suite: 3503 passed, 1 skipped, 2 failed (the user's 2 `HouseLayoutTests`).
+
+**Not verified:** Light theme (the app follows the OS, and it was dark), and the Word export of these
+layouts (this run only changed the preview; the DOCX is native SmartArt that Word lays out itself).
+Circles holding a 20-letter word land at about 11 pt. That's readable, but small in a big circle,
+because a group's size is set by its longest word.
+
+**Next up:**
+1. Shape Studio by hand (carried over from run #18): drag-to-draw, group drag, Ctrl+click, nudge, the
+   fill flyout, the Export dialog, and watching a label refit while resizing.
+2. Open a Shape Studio export and a SmartArt export in real Word (needs the user to answer Word's
+   first-run prompt once, or a document opened another way). Check label size and geometry.
+3. Settings: audit every SettingsCard row (carried over since run #17).
+4. SmartArt Studio's outline editor: keyboard-only pass (Tab order, Enter to add a sibling, Tab or
+   Shift+Tab to demote or promote while renaming?), and check that undo grouping feels right.
+5. Carried over: Copy HTML asset URLs, a light-theme pass on History and the SmartArt miniature tile,
+   SmartArt click-to-zoom in the document preview, Diagram Studio canvas fill, keyboard focus order,
+   Galaxy obstacle-aware routing.
