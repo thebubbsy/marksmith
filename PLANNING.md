@@ -2456,3 +2456,130 @@ it.**
    focus-order pass.
 6. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
    keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
+
+### 2026-10-08 09:00–09:30 AEST (routine run #27: Outlook .msg, both directions; the Draft format setting)
+
+Email Phase 3 had been top of "Next up" for four runs. This run did it. The PC was locked the whole
+run, so everything was checked through tests, an independent .msg reader and UIA on a
+scratch-config instance.
+
+**Half-baked things found and fixed:**
+- **The "Draft format: auto / eml / msg" setting was dead.** It sat in `AppSettings` and the copy
+  constructor, and nothing read it. Drafts were always .eml.
+- **A `.msg` dragged out of classic Outlook couldn't be opened.** That's the most common way a
+  classic Outlook user hands over a mail.
+- **On this PC, Email draft would have opened a "How do you want to open this file?" picker.**
+  `HKCR\.eml` points to classic Outlook, but the new Outlook also registered under
+  `OpenWithProgids` and no default was ever chosen, so `AssocQueryString` resolves to
+  `OpenWith.exe` / "Pick an application". The status line still said "opened in your mail app".
+- **Email task lists came back as `- ☑ Draft` / `- ☐ Send`** on import (.eml too). The export
+  draws ballot boxes because mail has no checkboxes.
+- The API and batch paywall copy said "DOCX export … start the 3-export trial" (carried item #3
+  from run #26). The browser extension shows that text to users.
+
+**What shipped (commit 6026de1):**
+- `Core/Services/Email/MsgWriter`: the [MS-OXMSG] compound file, written by hand on OpenMcdf
+  3.3. MsgKit was ruled out: it needs the full MimeKit, whose `MimeKit.*` types collide with the
+  MimeKitLite we ship. The file holds:
+  - IPM.Note, subject / normalized subject / topic, PR_BODY, PR_HTML (UTF-8, CPID 65001), and
+    native body = HTML.
+  - Recipients with a one-off entry ID, SMTP search key, display To/Cc/Bcc.
+  - Inline pictures as hidden attachments with a content ID (ATT_MHTML_REF), plus regular
+    attachments.
+  - `MSGFLAG_UNSENT` for drafts, which is the .msg twin of `X-Unsent: 1`.
+  - An optional sender. `EmailDocument.From` is new; drafts leave it empty so Outlook fills in
+    the account.
+- `MsgImporter`: MSGReader 6.1.3 → MimeMessage → the existing `EmailImporter`. A .msg therefore
+  gets everything an .eml gets: the header block, the folded thread, the media folder, draft
+  detection (`IsUnsent` reads PR_MESSAGE_FLAGS), embedded forwarded mails kept as .msg, and
+  RTF-only bodies turned into HTML by MSGReader. `PluginFileReader` opens "msg" natively.
+- `MailApps`: classifies the .eml/.msg handlers as classic Outlook, new Outlook, *ask each
+  time*, other, or none.
+  - `Resolve`: a fixed choice wins. Automatic keeps .eml and switches to .msg only when .eml
+    wouldn't reach Outlook but .msg would.
+  - `DescribeAutomatic` puts that reasoning in a sentence under the option.
+  - `Lookup` is swappable, and tests pin it.
+- UI:
+  - Export flyout: "Save as Outlook message (.msg)" (open-envelope glyph E8C3, rendered from the
+    font to check it).
+  - Style & Export ▸ Email: a "Draft format" row (Automatic / Email (.eml) / Outlook (.msg))
+    whose description says what Automatic picks here and why.
+  - .msg added to Import, the drop hint, the Settings history row, the tour line, the shortcut
+    sheet text and the palette ("Save as Outlook message", "Open an email (.eml or .msg)").
+  - The status line names the app: "opened in Outlook (classic)". When Windows will ask, it
+    says "pick Outlook and tick Always".
+- API:
+  - `/api/convert` takes format "msg" (`application/vnd.ms-outlook`, export.msg).
+  - `/api/email` takes `format: eml|msg`, and without one uses the setting. "Open in Outlook"
+    from the extension follows the same setting.
+  - The extension's live settings tab gets the Draft format row through
+    `ExtensionSettingsBridge`.
+- `HtmlToMarkdown`: a list item that starts with ☑ / ☒ / ✅ / ☐ becomes `[x]` / `[ ]`.
+- `ProGate.ApiLine(id, state)`: the gate line for requests from outside the window ("Start the
+  free trial in the MarkSmith app to use it now"). `ApiServer.LicenseGateError` and
+  `BatchConvertService` use it. The CLI still has its own copy (out of scope).
+
+**Verified live** (scratch config, UIA, locked):
+- The export flyout lists Email draft, Save as email (.eml) and Save as Outlook message (.msg).
+- Invoking the .msg item wrote `Launch checklist.msg` (7.7 KB) to the scratch output folder. The
+  status read "Outlook message saved: Launch checklist.msg · in …".
+- Email expander: the "Email draft format" combo showed Automatic, with the description "Windows
+  hasn't been told which app opens .eml files, so it will ask: pick Outlook and tick "Always"."
+  That is true on this PC.
+- Choosing Outlook (.msg) changed the description, and `settings.json` got
+  `"EmailFormat": "msg"`.
+- Relaunching with the .msg as the argument gave the status "Opened email draft · 8 Oct 2026,
+  09:20 · Ctrl+S saves a Markdown copy…", with the heading, bold and table in the editor. That
+  run is also where the ☑/☐ task-list bug showed up; it's now fixed and pinned by a test.
+- Not verified: the .msg opening in real Outlook. Outlook was not launched (the first-run dialog
+  risk from run #19), and drafts were not opened via Email draft, which would pop the app picker
+  on this PC.
+
+**Tests:**
+- New: `Email/MsgTests` (21): MSGReader read-back (Unicode subject with emoji, HTML, To/Cc/Bcc,
+  a hidden inline CID image, a visible PDF, the unsent flag), a sent message with a sender, bad
+  addresses, the composer→.msg→import round trip including the task list, a received .msg with
+  header / pictures / folded thread, the file reader, the Automatic matrix and its wording,
+  association classification, and the VM flows (draft as .msg naming Outlook, the ask-each-time
+  status, Save as Outlook message, setting normalisation).
+- Also new: an `HtmlToMarkdown` ballot-box test and `/api/email` msg cases.
+- `EmailExportFlowTests` now pins `MailApps.Lookup` and `EmailFormat`, so they don't depend on
+  the PC's associations.
+- Full suite (scratch OutDir): 3694 passed. The 20 failures are the same environmental set as
+  runs #25/#26.
+- Desktop: 0 warnings.
+
+**Lessons:**
+- `AssocQueryString` with a null verb returns NO_ASSOCIATION for Outlook's ProgIDs. Pass
+  "open". When two apps share `OpenWithProgids` and there's no UserChoice, the answer is
+  `OpenWith.exe`, and that's a real state users are in.
+- A Core library build to a scratch `-o` doesn't copy NuGet dependencies. For pwsh `Add-Type`
+  probes, copy them from `~/.nuget/packages` or build the test project.
+- Bash heredocs turned `\n` in C# test strings into real newlines again. Use the Write or Edit
+  tool for anything with backslashes, even small patches.
+- A VM with `InputFilePath` set keeps the file open briefly, so `Directory.Delete` in the same
+  test can race it. Use a paste VM for setting-only tests.
+
+**Release:** still held, and the hold is now a broader "open the drafts in Outlook" check. v3.4.0
+has five headline items: Ctrl+B and headings, email (now .eml **and** .msg, both ways), the EPUB
+rewrite, the free plan on PDF with a resuming trial, and preview zoom stops. **One person-run
+check:**
+1. Set a default app for .eml (Settings > Apps > Default apps, or tick "Always" in the picker).
+2. Press Ctrl+Shift+O.
+3. Double-click a "Save as Outlook message" file.
+If both open as editable compose windows in Outlook, ship it.
+
+**Next up:**
+1. Unlocked-run screenshot pass: the Draft format row, the new flyout item, run #26's PRO pill and
+   zoom readout, the trial banner, and the light theme.
+2. The rest of Phase 5: `TargetFormat` "email" for the watch folder / clipboard / batch, with
+   `AutomationManager` letting email-only runs through on Free. Also an end-to-end ApiServer
+   test that parses a real returned .eml/.msg.
+3. Free-tier: Settings "Default output format" defaults to Word for a free user, which sends
+   extension/API exports into a gate. Default to PDF on Free, as the main button does.
+4. "Copy as email" (CF_HTML with images), once per-client behaviour can be checked.
+5. EPUB follow-ups: a title page, metadata from `EpubMetadata`, and one real reader.
+6. Keyboard: root-scoped Ctrl+D and Alt+↑/↓ while another TextBox has focus, and a focus-order
+   pass.
+7. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
+   keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
