@@ -298,17 +298,19 @@ public sealed class LicenseService
         lock (_gate)
         {
             if (State.Edition == Edition.Pro)
-                return (false, "You already have Pro — no trial needed.");
+                return (false, "You already have MarkSmith Pro, so there's no trial to start.");
             if (_stored.TrialExportsRemaining > 0)
-                return (false, $"Your trial is already active — {_stored.TrialExportsRemaining} DOCX export(s) remaining. Spend them, then it's gone.");
+                return (false, _stored.TrialExportsRemaining == 1
+                    ? "Your Pro trial is already running, with 1 Word export left."
+                    : $"Your Pro trial is already running, with {_stored.TrialExportsRemaining} Word exports left.");
             if (_stored.TrialUsed)
-                return (false, "Your trial has already been spent — all 3 DOCX exports are used.");
+                return (false, "Your free trial has already been spent: all 3 Word exports are used. Buy Pro to keep exporting Word.");
 
             _stored.TrialExportsRemaining = 3;
             WriteStored();
             WriteShadow(); // the trial's existence is shadowed too — deleting license.json right after starting must not mint a second one
             Recompute();
-            return (true, "Trial started — full Pro for 3 DOCX exports. Spend them wisely.");
+            return (true, "Pro trial started. Everything in Pro is unlocked until you've made 3 Word exports.");
         }
     }
 
@@ -451,8 +453,8 @@ public sealed class LicenseService
                 Edition = Edition.Trial,
                 TrialExportsRemaining = _stored.TrialExportsRemaining,
                 Status = _stored.TrialExportsRemaining == 1
-                    ? "Trial — 1 DOCX export remaining"
-                    : $"Trial — {_stored.TrialExportsRemaining} DOCX exports remaining",
+                    ? "Pro trial — 1 Word export left"
+                    : $"Pro trial — {_stored.TrialExportsRemaining} Word exports left",
             };
             Changed?.Invoke();
             return;
@@ -465,7 +467,7 @@ public sealed class LicenseService
             Edition = Edition.Free,
             TrialUsed = _stored.TrialUsed,
             Status = _stored.TrialUsed
-                ? "Free — trial used (DOCX export requires Pro)"
+                ? "Free — trial used"
                 : "Free",
         };
         Changed?.Invoke();

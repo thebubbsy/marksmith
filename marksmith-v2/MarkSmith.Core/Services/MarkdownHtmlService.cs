@@ -1620,7 +1620,9 @@ public sealed partial class MarkdownHtmlService
     // marksmith-fit-width
     var canvas = document.getElementById('canvas');
     if (!canvas) return;
-    var PAD = 24, FIT_MIN = 0.25, FIT_MAX = 2.0, ZOOM_MIN = 0.25, ZOOM_MAX = 4.0;
+    // FIT_MAX and the zoom range mirror Services/ZoomSteps (FitMax, Min, Max): fitting a page
+    // into a wide pane stops at a reading size instead of blowing the text up to 170%+.
+    var PAD = 24, FIT_MIN = 0.25, FIT_MAX = 1.25, ZOOM_MIN = 0.25, ZOOM_MAX = 4.0;
     if (window.__msZoom === undefined) window.__msZoom = 'fit';
     var scale = 0;
     var apply = function (anchor) {

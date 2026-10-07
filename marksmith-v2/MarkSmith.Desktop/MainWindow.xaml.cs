@@ -907,56 +907,73 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
 
 
-    // Shows the upgrade banner only when the Pro trial is nearly up (<= 5 days) or has ended.
+    // The licence banner and everything else that depends on the edition: hidden for Pro, a quiet
+    // export counter during the trial, and on Free one informational line with the trial (or Buy)
+    // action. The copy comes from Core ProGate so it matches the upgrade dialog and status bar.
     private void UpdateLicenseBanner()
     {
         var st = App.License.State;
+        UpdateExportButtonForLicense(st);
         if (st.Edition == Models.Edition.Pro) { LicenseBanner.IsOpen = false; return; }
 
-        if (st.Edition == Models.Edition.Trial)
+        var (title, message, action) = Models.ProGate.Banner(st);
+        // Informational, not Warning: being on the free plan isn't something that went wrong, and
+        // a yellow bar on every launch read like an error.
+        LicenseBanner.Severity = InfoBarSeverity.Informational;
+        LicenseBanner.Title = title;
+        LicenseBanner.Message = message;
+        if (LicenseActionButton is not null)
         {
-            // The trial is FULL Pro — never a paywall message, just the remaining export count.
-            LicenseBanner.Severity = InfoBarSeverity.Informational;
-            LicenseBanner.Title = st.TrialExportsRemaining == 1
-                ? "Trial — 1 DOCX export remaining"
-                : $"Trial — {st.TrialExportsRemaining} DOCX exports remaining";
-            LicenseBanner.Message = "Full Pro, capped at 3 DOCX exports — then back to Free.";
-            if (LicenseActionButton is not null) LicenseActionButton.Visibility = Visibility.Collapsed;
-        }
-        else // Free
-        {
-            LicenseBanner.Severity = InfoBarSeverity.Warning;
-            LicenseBanner.Title = "MarkSmith Free";
-            LicenseBanner.Message = App.License.CanStartTrial
-                ? "DOCX/PPTX export and automation are Pro features. Start your 3-export trial or upgrade."
-                : "DOCX/PPTX export and automation are Pro features. Upgrade to Pro to unlock.";
-            if (LicenseActionButton is not null)
+            LicenseActionButton.Click -= OnStartTrialClick;
+            LicenseActionButton.Click -= OnUpgradeClick;
+            if (action is null)
             {
-                LicenseActionButton.Click -= OnStartTrialClick;
-                LicenseActionButton.Click -= OnUpgradeClick;
-                if (App.License.CanStartTrial)
-                {
-                    LicenseActionButton.Content = "Start 3-export trial";
-                    LicenseActionButton.Click += OnStartTrialClick;
-                }
-                else
-                {
-                    LicenseActionButton.Content = "Upgrade to Pro";
-                    LicenseActionButton.Click += OnUpgradeClick;
-                }
+                LicenseActionButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                var trial = action == Models.ProGate.StartTrialLabel;
+                LicenseActionButton.Content = action;
+                LicenseActionButton.Click += trial ? OnStartTrialClick : OnUpgradeClick;
+                ToolTipService.SetToolTip(LicenseActionButton, trial
+                    ? Models.ProGate.TrialSummary
+                    : "Open the MarkSmith Pro purchase page in your browser");
                 LicenseActionButton.Visibility = Visibility.Visible;
             }
         }
         LicenseBanner.IsOpen = true;
     }
 
+    // The main export button runs what the current license can actually do: Word for Pro and the
+    // trial, PDF on Free. The flyout's Pro-only items say "Pro" beside their shortcut, and "Export
+    // all" is hidden on Free, where it could only ever produce the same PDF as the item above it.
+    private void UpdateExportButtonForLicense(Models.LicenseState st)
+    {
+        var word = Models.ProGate.PrimaryExportIsWord(st);
+        PrimaryExportText.Text = Models.ProGate.PrimaryExportLabel(st);
+        PrimaryExportIcon.Glyph = word ? "\uE74E" : "\uE749";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ExportSplitButton, word ? "Generate Word document" : "Generate PDF");
+        ToolTipService.SetToolTip(ExportSplitButton, Models.ProGate.PrimaryExportTip(st));
+
+        ExportWordItem.KeyboardAcceleratorTextOverride =
+            Models.ProGate.MenuTag(Models.FeatureId.DocxExport, st, Shortcuts.KeysFor("export.docx"));
+        ExportPdfItem.KeyboardAcceleratorTextOverride = Shortcuts.KeysFor("export.pdf");
+        ExportPptxItem.KeyboardAcceleratorTextOverride =
+            Models.ProGate.MenuTag(Models.FeatureId.PptxExport, st, Shortcuts.KeysFor("export.pptx"));
+        ExportGoogleDocsItem.KeyboardAcceleratorTextOverride = Models.ProGate.MenuTag(Models.FeatureId.DocxExport, st, "");
+        ExportAllItem.Visibility = st.CanExportDocx || st.CanExportPptx ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // Start the 3-export trial straight from the banner (also the trigger point for testing the
     // free -> trial transition without digging into Settings).
-    private void OnStartTrialClick(object sender, RoutedEventArgs e)
+    private void OnStartTrialClick(object sender, RoutedEventArgs e) => StartTrialFromShell();
+
+    private bool StartTrialFromShell()
     {
         var (ok, message) = App.License.StartTrial();
         ViewModel.StatusText = message;
         ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
+        return ok;
     }
 
     private async void OnUpgradeClick(object sender, RoutedEventArgs e)
@@ -1495,7 +1512,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (App.License.CanAutomate) _ = AutoExportIngestAsync(output);
         else
         {
-            ViewModel.StatusText = "Hands-free auto-convert is a MarkSmith Pro feature. The content is ready — export it manually, or upgrade in Settings ⚙.";
+            ViewModel.StatusText = Models.ProGate.FeatureName(Models.FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature. The content is in the editor, ready to export by hand.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
         }
     }
@@ -1646,46 +1663,62 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Batch: convert every .md in a chosen folder (optionally its subfolders too) to a chosen
     // format — PDF/DOCX/PPTX/EPUB — one by one through the same classify → normalize → render
     // pipeline the watched folder uses. Pro (automation) feature.
-    // Standardized output for a free user attempting a paid feature: one modal, consistent copy,
-    // with the trial + upgrade actions. Returns whether the user is now allowed to proceed.
-    private async Task<bool> ShowProGateAsync(Models.FeatureId feature)
+    // Standardized output for a free user attempting a paid feature: one modal, one set of words
+    // (Core ProGate). The trial is full Pro, so it's offered for every gated feature while it's
+    // unused, and starting it from here carries straight on with what the user was doing.
+    private bool _proGateOpen;
+
+    private async Task ShowProGateAsync(Models.FeatureId feature)
     {
-        var name = Models.FeatureClassifier.DisplayName(feature);
-        var trialUnlocks = feature == Models.FeatureId.DocxExport && App.License.CanStartTrial;
-        var dialog = new ContentDialog
+        // Two gates can fire for one gesture (a toggle that bounces back, then a retry); one dialog
+        // is enough, and a second ShowAsync while one is open would throw.
+        if (_proGateOpen) return;
+        _proGateOpen = true;
+        try
         {
-            Title = name + " is a MarkSmith Pro feature",
-            Content = trialUnlocks
-                ? "Your free plan covers Markdown, PDF and HTML exports. " + name +
-                  " is a Pro feature — start your 3-export trial to try it, or upgrade to unlock it permanently."
-                : "Your free plan covers Markdown, PDF and HTML exports. " + name +
-                  " is a Pro feature — upgrade to unlock it.",
-            PrimaryButtonText = trialUnlocks ? "Start 3-export trial" : "Upgrade to Pro",
-            SecondaryButtonText = trialUnlocks ? "Upgrade to Pro" : string.Empty,
-            CloseButtonText = "Not now",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = RootGrid.XamlRoot,
-        };
-        var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
-        if (result == ContentDialogResult.Primary)
-        {
-            if (trialUnlocks)
+            var st = App.License.State;
+            var trial = Models.ProGate.OffersTrial(st);
+            var store = Services.LicenseService.IsStoreConfigured;
+
+            var body = new StackPanel { Spacing = 12, MaxWidth = 440 };
+            var paragraphs = Models.ProGate.DialogParagraphs(feature, st);
+            for (var i = 0; i < paragraphs.Count; i++)
             {
-                var (ok, message) = App.License.StartTrial();
-                ViewModel.StatusText = message;
-                ViewModel.StatusSeverity = ok ? Models.StatusSeverity.Success : Models.StatusSeverity.Warning;
-                return ok;
+                var last = i == paragraphs.Count - 1;
+                body.Children.Add(new TextBlock
+                {
+                    Text = paragraphs[i],
+                    TextWrapping = TextWrapping.Wrap,
+                    // The free-plan line is reassurance, not the offer: quieter, below the rest.
+                    Style = last ? (Style)Application.Current.Resources["CaptionTextBlockStyle"] : null,
+                    Foreground = last ? (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] : null,
+                });
             }
-            // Go-live fix: the caller fire-and-forgets this method, so the store must open HERE —
-            // the old "return true" never reached any store-launching code.
-            await OpenStoreAsync();
-            return false;
+
+            var dialog = new ContentDialog
+            {
+                Title = Models.ProGate.DialogTitle(feature),
+                Content = body,
+                PrimaryButtonText = trial ? Models.ProGate.StartTrialLabel : store ? Models.ProGate.BuyLabel : string.Empty,
+                SecondaryButtonText = trial && store ? Models.ProGate.BuyLabel : string.Empty,
+                CloseButtonText = Models.ProGate.NotNowLabel,
+                DefaultButton = trial || store ? ContentDialogButton.Primary : ContentDialogButton.Close,
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            var result = await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+            if (result == ContentDialogResult.Primary && trial)
+            {
+                if (StartTrialFromShell()) await ViewModel.ResumeAfterUnlockAsync();
+            }
+            else if (result == ContentDialogResult.Primary || result == ContentDialogResult.Secondary)
+            {
+                await OpenStoreAsync();
+            }
         }
-        if (result == ContentDialogResult.Secondary)
+        finally
         {
-            await OpenStoreAsync();
+            _proGateOpen = false;
         }
-        return false;
     }
 
     // Opens the checkout link; while StoreUrl still carries the placeholder the user gets a status
@@ -1734,9 +1767,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (!App.License.CanAutomate)
         {
-            ViewModel.StatusText = Models.FeatureClassifier.DisplayName(Models.FeatureId.BatchConvert) + " is a MarkSmith Pro feature. Upgrade in Settings.";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
-            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.BatchConvert);
+            ViewModel.NotifyProFeatureAttempted(Models.FeatureId.BatchConvert, () => { OnBatchConvertClick(sender, e); return Task.CompletedTask; });
             return;
         }
 
@@ -1761,7 +1792,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var (fmt, recursive) = await AskBatchFormatAsync(files.Length);
         if (fmt is null) return;
         var docxGated = fmt is "docx" && !App.License.CanExportDocx;
-        if (docxGated) { ViewModel.StatusText = "Word export is a MarkSmith Pro feature."; ViewModel.StatusSeverity = Models.StatusSeverity.Warning; return; }
+        if (docxGated) { ViewModel.NotifyProFeatureAttempted(Models.FeatureId.DocxExport); return; }
 
         if (fmt == "pdf" && !await EnsurePreviewWebViewAsync())
         {
@@ -2380,7 +2411,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (type == "preview-zoom")
             {
                 var delta = root.TryGetProperty("delta", out var dProp) ? dProp.GetDouble() : 0;
-                if (delta != 0) ApplyPreviewZoom(_lastPreviewZoom + (delta < 0 ? PreviewZoomStep : -PreviewZoomStep), cursor: true);
+                if (delta != 0) ApplyPreviewZoom(delta < 0 ? Services.ZoomSteps.Next(_lastPreviewZoom) : Services.ZoomSteps.Previous(_lastPreviewZoom), cursor: true);
                 return;
             }
 
@@ -3505,7 +3536,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // SplitButtonClickEventArgs, so it needs its own handler signature.
     private async void OnPrimaryExportClick(SplitButton sender, SplitButtonClickEventArgs args)
     {
-        await ViewModel.ConvertToDocxAsync();
+        if (Models.ProGate.PrimaryExportIsWord(App.License.State)) await ViewModel.ConvertToDocxAsync();
+        else await ViewModel.ConvertToPdfAsync();
     }
 
     private async void OnExportAllClick(object sender, RoutedEventArgs e)
@@ -4862,13 +4894,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Preview zoom (buttons + Ctrl+wheel) — persisted across sessions ----
 
-    private const double PreviewZoomMin = 0.25;
-    private const double PreviewZoomMax = 4.0;
-    private const double PreviewZoomStep = 0.1;
+    // Buttons and Ctrl+wheel walk the standard stops in Core ZoomSteps (… 90, 100, 110, 125,
+    // 150 …), so a fitted 137% snaps to 150% / 125% rather than drifting by a fixed amount.
+    private static double PreviewZoomMin => Services.ZoomSteps.Min;
+    private static double PreviewZoomMax => Services.ZoomSteps.Max;
 
-    private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom + PreviewZoomStep);
+    private void OnPreviewZoomInClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(Services.ZoomSteps.Next(_lastPreviewZoom));
 
-    private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(_lastPreviewZoom - PreviewZoomStep);
+    private void OnPreviewZoomOutClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(Services.ZoomSteps.Previous(_lastPreviewZoom));
+
+    // Clicking the percentage goes back to 100%, the size the page will print at.
+    private void OnPreviewZoomResetClick(object sender, RoutedEventArgs e) => ApplyPreviewZoom(1.0);
 
     // Fit page width: the page fills the pane and follows it as the window, splitter or drawer
     // changes its width. Turning it off holds the current scale, so nothing jumps.
@@ -4916,9 +4952,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (PreviewZoomText is null) return;
         var percent = (int)Math.Round(scale * 100.0);
         PreviewZoomText.Text = $"{percent}%";
-        ToolTipService.SetToolTip(PreviewZoomText, _previewFit
-            ? $"Preview zoom: {percent}% — fitted to the pane's width (Ctrl+wheel to zoom)"
-            : $"Preview zoom: {percent}% (Ctrl+wheel to zoom)");
+        var tip = _previewFit
+            ? $"Preview zoom: {percent}%, fitted to the pane's width. Click for 100%; Ctrl+wheel zooms."
+            : $"Preview zoom: {percent}%. Click for 100%; Ctrl+wheel zooms.";
+        ToolTipService.SetToolTip(PreviewZoomResetButton, tip);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PreviewZoomResetButton, $"Preview zoom {percent}%, reset to 100%");
+        // The ends of the ladder: a button that can't do anything says so instead of silently
+        // doing nothing.
+        PreviewZoomInButton.IsEnabled = Services.ZoomSteps.CanZoomIn(scale);
+        PreviewZoomOutButton.IsEnabled = Services.ZoomSteps.CanZoomOut(scale);
     }
 
     // The page-side value of window.__msZoom: 'fit' or the absolute scale.

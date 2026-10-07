@@ -249,7 +249,7 @@ public sealed class ExportCoordinator
         if (!vm.WatchFolderAutoConvert) return;
         if (!AppServices.License.CanAutomate)
         {
-            vm.StatusText = "Hands-free watch-folder conversion is a Marksmith Pro feature. Upgrade in Settings ⚙.";
+            vm.StatusText = ProGate.StatusLine(FeatureId.WatchFolder, AppServices.License.State);
             vm.StatusSeverity = StatusSeverity.Warning;
             return;
         }

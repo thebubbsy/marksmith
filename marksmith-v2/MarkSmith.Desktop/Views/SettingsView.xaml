@@ -398,7 +398,7 @@
                     <StackPanel Style="{StaticResource SettingsPageStackStyle}">
                         <TextBlock Text="License" Style="{StaticResource SettingsPageTitleStyle}" />
                         <controls:SettingsCard x:Name="EditionCard" Glyph="&#xE734;" Header="{Binding EditionStatus}"
-                                               Description="MarkSmith Pro unlocks Word export (with editable equations), hands-free automation, and removes the footer from your exports.">
+                                               Description="Pro adds Word and PowerPoint export (with editable equations), batch conversion and hands-free automation, and takes the MarkSmith footer off your exports. PDF, web page, EPUB, Markdown and email stay free.">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button x:Name="DeactivateButton" Content="Remove license" Click="OnDeactivateLicense" Visibility="Collapsed"
                                         ToolTipService.ToolTip="Deactivate this PC — the key can then be used on another machine" />
@@ -409,9 +409,9 @@
                                         <TextBlock Text="Buy Pro" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="StartTrialButton" Content="Start 3-export trial" Click="OnStartTrialClick"
+                                <Button x:Name="StartTrialButton" Content="Start free trial" Click="OnStartTrialClick"
                                         Style="{ThemeResource AccentButtonStyle}"
-                                        ToolTipService.ToolTip="Full Pro for exactly 3 Word exports — then the paywall returns" />
+                                        ToolTipService.ToolTip="The free trial unlocks everything in Pro until you've made 3 Word exports." />
                             </StackPanel>
                         </controls:SettingsCard>
                         <controls:SettingsCard x:Name="KeyEntryRow" Glyph="&#xE8D7;" Header="License key"

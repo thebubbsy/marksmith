@@ -94,8 +94,7 @@
             <!-- Trial / upgrade banner (shown only when the trial is low or ended) -->
             <InfoBar x:Name="LicenseBanner" Margin="16,0,16,0" IsOpen="False" IsClosable="True">
                 <InfoBar.ActionButton>
-                    <Button x:Name="LicenseActionButton" Style="{ThemeResource AccentButtonStyle}"
-                            ToolTipService.ToolTip="Your trial is full Pro for exactly 3 DOCX exports — spend them wisely" />
+                    <Button x:Name="LicenseActionButton" Style="{ThemeResource AccentButtonStyle}" />
                 </InfoBar.ActionButton>
             </InfoBar>
             <!-- Shown once per session when a paste looks like plain text: the browser extension's
@@ -165,6 +164,11 @@
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE74E;" FontSize="12" />
                         <TextBlock Text="Export Word" FontSize="12" />
+                        <!-- Same PRO pill as the Branding section; only while the license can't export Word. -->
+                        <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="4,0"
+                                VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Border>
                     </StackPanel>
                 </Button>
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
@@ -867,12 +871,22 @@
                                                       Click="OnPreviewFitClick">
                                             <FontIcon Glyph="&#xE9A6;" FontSize="11" />
                                         </ToggleButton>
-                                        <Button ToolTipService.ToolTip="Zoom preview out" Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
+                                        <Button x:Name="PreviewZoomOutButton" ToolTipService.ToolTip="Zoom preview out" AutomationProperties.Name="Zoom preview out"
+                                                Width="24" Height="22" Padding="0" Click="OnPreviewZoomOutClick">
                                             <FontIcon Glyph="&#xE738;" FontSize="11" />
                                         </Button>
-                                        <TextBlock x:Name="PreviewZoomText" Text="100%" VerticalAlignment="Center" FontSize="11"
-                                                   Opacity="0.65" MinWidth="40" TextAlignment="Center" ToolTipService.ToolTip="Preview zoom (Ctrl+wheel)" />
-                                        <Button ToolTipService.ToolTip="Zoom preview in" Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
+                                        <!-- The readout is also the reset: click it for 100%. Borderless so it
+                                             still reads as a label; the hover fill shows it's clickable. -->
+                                        <Button x:Name="PreviewZoomResetButton" Height="22" MinWidth="44" Padding="4,0"
+                                                Background="Transparent" BorderThickness="0"
+                                                ToolTipService.ToolTip="Preview zoom. Click for 100%; Ctrl+wheel zooms."
+                                                AutomationProperties.Name="Reset preview zoom to 100%"
+                                                Click="OnPreviewZoomResetClick">
+                                            <TextBlock x:Name="PreviewZoomText" Text="100%" FontSize="11"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" />
+                                        </Button>
+                                        <Button x:Name="PreviewZoomInButton" ToolTipService.ToolTip="Zoom preview in" AutomationProperties.Name="Zoom preview in"
+                                                Width="24" Height="22" Padding="0" Click="OnPreviewZoomInClick">
                                             <FontIcon Glyph="&#xE710;" FontSize="11" />
                                         </Button>
                                     </StackPanel>
@@ -1808,31 +1822,33 @@
 
                     <!-- ISS-016: export actions collapsed into a single SplitButton so the toolbar
                          no longer overflows the window at narrow widths / in Split View. -->
-                    <!-- ISS-019: Word (.docx) is the default export — the primary click generates
-                         a .docx; PDF and the rest live in the chevron flyout. -->
+                    <!-- ISS-019: the primary click runs the main export for the current license:
+                         Word for Pro and trial users, PDF on the free plan (a free user's biggest
+                         button used to open a paywall). UpdateExportButtonForLicense swaps the
+                         label, icon and tooltip, and tags the Pro items in the flyout. -->
                     <SplitButton x:Name="ExportSplitButton" Grid.Column="0" Height="40" HorizontalAlignment="Stretch"
                                  AutomationProperties.Name="Generate Word document"
                                  Click="OnPrimaryExportClick" IsEnabled="{Binding IsNotBusy}"
                                  ToolTipService.ToolTip="Generate a Word document — use the chevron for other formats">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE74E;" FontSize="16" />
-                            <TextBlock Text="Generate Word (.docx)" FontWeight="SemiBold" />
+                            <FontIcon x:Name="PrimaryExportIcon" Glyph="&#xE74E;" FontSize="16" />
+                            <TextBlock x:Name="PrimaryExportText" Text="Generate Word (.docx)" FontWeight="SemiBold" />
                         </StackPanel>
                         <SplitButton.Flyout>
                             <MenuFlyout Placement="Bottom">
-                                <MenuFlyoutItem Text="Export as Word (.docx)" Click="OnConvertDocxClick">
+                                <MenuFlyoutItem x:Name="ExportWordItem" Text="Export as Word (.docx)" Click="OnConvertDocxClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Export as PDF (.pdf)" Click="OnConvertPdfClick">
+                                <MenuFlyoutItem x:Name="ExportPdfItem" Text="Export as PDF (.pdf)" Click="OnConvertPdfClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE749;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Export as PowerPoint (.pptx)" Click="OnConvertPptxClick">
+                                <MenuFlyoutItem x:Name="ExportPptxItem" Text="Export as PowerPoint (.pptx)" Click="OnConvertPptxClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Export as EPUB (.epub)" Click="OnExportEpubClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE82D;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="Export to Google Docs (native)" Click="OnExportGoogleDocsClick"
+                                <MenuFlyoutItem x:Name="ExportGoogleDocsItem" Text="Export to Google Docs (native)" Click="OnExportGoogleDocsClick"
                                                 ToolTipService.ToolTip="Creates a real Google Doc (headings, tables, images) — connect your Google account in Settings → Google first">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE753;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
@@ -1857,7 +1873,7 @@
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE715;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="Export all licensed formats" Click="OnExportAllClick">
+                                <MenuFlyoutItem x:Name="ExportAllItem" Text="Export all licensed formats" Click="OnExportAllClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>

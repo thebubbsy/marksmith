@@ -401,7 +401,7 @@ public class TrialModelTests : IDisposable
         Assert.True(service.CanExportPptx);
         Assert.True(service.CanAutomate);
         Assert.False(service.ShowFooter);
-        Assert.Contains("3 DOCX exports", service.State.Status);
+        Assert.Contains("3 Word exports", service.State.Status);
 
         // Starting it twice is refused — the trial is already active.
         var (ok2, _) = service.StartTrial();

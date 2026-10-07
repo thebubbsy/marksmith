@@ -1088,7 +1088,7 @@ namespace MarkSmith.ViewModels.MindMap
             // exporter builds the package directly, bypassing DocxExportService's chokepoint).
             if (!AppServices.License.CanExportDocx)
             {
-                StatusMessage = "DOCX export is a MarkSmith Pro feature — start the 3-export trial or upgrade in Settings.";
+                StatusMessage = MarkSmith.Models.ProGate.StatusLine(MarkSmith.Models.FeatureId.DocxExport, AppServices.License.State);
                 return;
             }
             SyncAllToModel();

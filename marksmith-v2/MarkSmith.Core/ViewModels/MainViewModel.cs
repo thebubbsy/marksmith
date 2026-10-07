@@ -830,7 +830,29 @@ private readonly MarkdownExportService _mdExport = new();
 
     /// <summary>Shell-side gate notifications (MainWindow) route through here so the event
     /// stays invocable only from the owning class.</summary>
-    public void NotifyProFeatureAttempted(FeatureId id) => ProFeatureAttempted?.Invoke(id);
+    public void NotifyProFeatureAttempted(FeatureId id, Func<Task>? resume = null) => ReportProGate(id, resume);
+
+    // The one way a gate reports a Pro feature: the shared status line (ProGate), then the shell's
+    // upgrade dialog. `resume` is the action the user was trying to run; if they start the trial
+    // from that dialog the shell calls ResumeAfterUnlockAsync and it simply happens, instead of
+    // leaving them to find the button again.
+    private Func<Task>? _resumeAfterUnlock;
+
+    private void ReportProGate(FeatureId id, Func<Task>? resume)
+    {
+        _resumeAfterUnlock = resume;
+        StatusText = ProGate.StatusLine(id, AppServices.License.State);
+        StatusSeverity = StatusSeverity.Warning;
+        ProFeatureAttempted?.Invoke(id);
+    }
+
+    /// <summary>Runs the action that hit the last Pro gate, once, if the license now allows it.</summary>
+    public Task ResumeAfterUnlockAsync()
+    {
+        var resume = _resumeAfterUnlock;
+        _resumeAfterUnlock = null;
+        return resume is null ? Task.CompletedTask : resume();
+    }
 
     // A free user must never START with automation switched on (a persisted Pro-era setting would
     // otherwise leave the toggles looking active while AutomationManager refuses to run them).
@@ -1092,9 +1114,7 @@ private readonly MarkdownExportService _mdExport = new();
             _autoClipboardIngest = false;
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
-            StatusText = FeatureClassifier.DisplayName(FeatureId.ClipboardIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.ClipboardIngest);
+            ReportProGate(FeatureId.ClipboardIngest, () => { AutoClipboardIngest = true; return Task.CompletedTask; });
             return;
         }
         _settingsService.Current.AutoClipboardIngest = value; SaveSettingsDebounced();
@@ -1107,9 +1127,7 @@ private readonly MarkdownExportService _mdExport = new();
             _watchFolderEnabled = false;
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
-            StatusText = FeatureClassifier.DisplayName(FeatureId.WatchFolder) + " is a MarkSmith Pro feature - upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.WatchFolder);
+            ReportProGate(FeatureId.WatchFolder, () => { WatchFolderEnabled = true; return Task.CompletedTask; });
             return;
         }
         _settingsService.Current.WatchFolderEnabled = value; SaveSettingsDebounced();
@@ -1122,9 +1140,7 @@ private readonly MarkdownExportService _mdExport = new();
             _autoConvertIngests = false;
 #pragma warning restore MVVMTK0034
             OnPropertyChanged();
-            StatusText = FeatureClassifier.DisplayName(FeatureId.AutoExportIngest) + " is a MarkSmith Pro feature - upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.AutoExportIngest);
+            ReportProGate(FeatureId.AutoExportIngest, () => { AutoConvertIngests = true; return Task.CompletedTask; });
             return;
         }
         _settingsService.Current.AutoConvertIngests = value; SaveSettingsDebounced();
@@ -1485,9 +1501,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportDocx)
         {
-            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
+            ReportProGate(FeatureId.DocxExport, ConvertToDocxAsync);
             return;
         }
 
@@ -1539,7 +1553,7 @@ private readonly MarkdownExportService _mdExport = new();
             // path). Here we only detect the moment the trial was just SPENT so the status line can
             // say so — the note must never appear while the trial is still active (1st/2nd export).
             var trialSpentNow = wasTrialBefore && AppServices.License.State.Edition == Models.Edition.Free;
-            var trialNote = trialSpentNow ? "  (that was your last trial export - DOCX now requires Pro)" : "";
+            var trialNote = trialSpentNow ? " (that was the last Word export of your trial; Word export now needs Pro)" : "";
             CompleteExport("DOCX", outPath, markdown, ct, layoutNote + trialNote);
         });
     }
@@ -1548,9 +1562,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportPptx)
         {
-            StatusText = FeatureClassifier.DisplayName(FeatureId.PptxExport) + " is a MarkSmith Pro feature - upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.PptxExport);
+            ReportProGate(FeatureId.PptxExport, ConvertToPptxAsync);
             return;
         }
 
@@ -1658,9 +1670,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (!AppServices.License.CanExportDocx)
         {
-            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
+            ReportProGate(FeatureId.DocxExport, ConvertToGoogleDocsAsync);
             return;
         }
 
@@ -1844,7 +1854,8 @@ private readonly MarkdownExportService _mdExport = new();
         RaiseExportCompleted(kind, outPath);
         // File name first: the status bar trims long text from the end, and the old
         // "PDF export done: C:/Users/.../a/long/folder/Report.pdf" lost the one part that mattered.
-        var label = kind == "MD" ? "Markdown" : kind;
+        // People say "Word document", not "DOCX".
+        var label = kind switch { "MD" => "Markdown", "DOCX" => "Word document", "PPTX" => "PowerPoint deck", _ => kind };
         AnnounceExport($"{label} saved: {Path.GetFileName(outPath)}{note} · in {Path.GetDirectoryName(outPath)}", outPath);
     }
 
@@ -1852,9 +1863,7 @@ private readonly MarkdownExportService _mdExport = new();
     {
         if (targetFormat.Equals("docx", StringComparison.OrdinalIgnoreCase) && !AppServices.License.CanExportDocx)
         {
-            StatusText = FeatureClassifier.DisplayName(FeatureId.DocxExport) + " is a MarkSmith Pro feature - start your 3-export trial or upgrade in Settings.";
-            StatusSeverity = StatusSeverity.Warning;
-            ProFeatureAttempted?.Invoke(FeatureId.DocxExport);
+            ReportProGate(FeatureId.DocxExport, () => BatchConvertAsync(sourceDir, outputDir, targetFormat));
             return;
         }
 
