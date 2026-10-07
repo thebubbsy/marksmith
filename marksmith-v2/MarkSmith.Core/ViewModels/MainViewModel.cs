@@ -1574,7 +1574,15 @@ private readonly MarkdownExportService _mdExport = new();
         await RunConversionAsync("EPUB", async ct =>
         {
             var outPath = PrepareOutputPath(sourceLabel, EpubExportService.Extension);
-            await _epubExport.ExportAsync(markdown, outPath, _settingsService.Current);
+            // E-readers run no JavaScript: draw the diagrams here and ship them as images.
+            List<byte[]?>? diagrams = null;
+            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+            {
+                StatusText = "Drawing diagrams for the e-book…";
+                diagrams = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, _settingsService.Current, CurrentTheme);
+                ct.ThrowIfCancellationRequested();
+            }
+            await _epubExport.ExportAsync(markdown, outPath, _settingsService.Current, null, diagrams);
             CompleteExport("EPUB", outPath, markdown, ct);
         });
     }

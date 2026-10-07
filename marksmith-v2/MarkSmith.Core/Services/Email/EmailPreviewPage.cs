@@ -88,7 +88,8 @@ public static class EmailPreviewPage
               mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'strict',
                 themeVariables: { primaryColor: '{{t.Background}}', primaryTextColor: '{{t.Primary}}',
                   primaryBorderColor: '{{t.Line}}', lineColor: '{{t.Line}}', secondaryColor: '{{t.Secondary}}',
-                  tertiaryColor: '{{t.Background}}' },
+                  tertiaryColor: '{{t.Background}}', edgeLabelBackground: '{{t.Background}}' },
+                themeCSS: {{MermaidLabelStyle.ThemeCss(t.Background)}},
                 flowchart: { useMaxWidth: true, htmlLabels: false } });
               for (var i = 0; i < boxes.length; i++) {
                 var src = boxes[i].textContent;

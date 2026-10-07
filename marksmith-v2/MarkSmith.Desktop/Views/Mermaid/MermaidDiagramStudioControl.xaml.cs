@@ -287,6 +287,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             <div id="err"></div>
             <script>
               mermaid.initialize({ startOnLoad:false, theme:'dark', securityLevel:'strict',
+                themeCSS: {{Services.MermaidLabelStyle.ThemeCss("#0D0E14")}},
                 flowchart:{ useMaxWidth:true, htmlLabels:true },
                 maxTextSize:10000000, maxNodes:10000 });
               let __seq = 0;

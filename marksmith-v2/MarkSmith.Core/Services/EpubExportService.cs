@@ -19,17 +19,19 @@ public sealed class EpubExportService
     // Shared AppServices.Themes singleton instead of a private instance (see DocxExportService).
     private static ThemeCatalog Themes => AppServices.Themes;
 
-    // Single alternation covering every HTML void tag, used to self-close them in ONE pass. The
-    // previous form was a string[] VoidTags iterated into 14 sequential Regex.Replace calls (one
-    // per tag) — each allocated a Regex and re-scanned the entire document.
-    private static readonly Regex VoidTagRegex = new(
-        @"<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b((?:[^>""']|""[^""]*""|'[^']*')*?)\s*/?>",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     public Task ExportAsync(string markdown, string epubPath, AppSettings settings) =>
-        ExportAsync(markdown, epubPath, settings, null);
+        ExportAsync(markdown, epubPath, settings, null, null);
 
-    public Task ExportAsync(string markdown, string epubPath, AppSettings settings, EpubMetadata? meta) => Task.Run(() =>
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings, EpubMetadata? meta) =>
+        ExportAsync(markdown, epubPath, settings, meta, null);
+
+    /// <param name="mermaidPngs">
+    /// One rendered PNG per ```mermaid fence, in document order (MermaidHarvestService), or null
+    /// when no renderer is available (CLI, API without a host). Readers have no JavaScript, so
+    /// without a PNG a diagram ships as its labelled source instead.
+    /// </param>
+    public Task ExportAsync(string markdown, string epubPath, AppSettings settings, EpubMetadata? meta,
+                            IReadOnlyList<byte[]?>? mermaidPngs) => Task.Run(() =>
     {
         // Front matter is metadata for the OPF (Dublin Core) — read it before normalization.
         var frontMatter = ExtractFrontMatter(markdown);
@@ -42,8 +44,8 @@ public sealed class EpubExportService
         markdown = FormattingService.Apply(markdown, settings);
 
         var theme = Themes.GetOrDefault(settings.Theme);
-        var bodyHtml = XhtmlSafe(Markdown.ToHtml(markdown, Pipeline));
-        
+        var doc = XhtmlWriter.Parse(Markdown.ToHtml(markdown, Pipeline));
+
         var bookTitle = NonEmpty(meta?.Title)
                         ?? NonEmpty(frontMatter, "title")
                         ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
@@ -107,45 +109,86 @@ public sealed class EpubExportService
         // in a document hit exactly that: the src was written through untouched and nothing was
         // ever embedded. Remote and data: URIs are left alone — the first is the reader's problem
         // and the second needs no manifest entry.
-        var images = new List<(string Id, string File, string Media, byte[] Bytes)>();
-        bodyHtml = ImgSrcRe().Replace(bodyHtml, m =>
+        var images = new List<PackagedImage>();
+        var embedded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var img in doc.QuerySelectorAll("img[src]"))
         {
-            var src = m.Groups["src"].Value;
+            var src = img.GetAttribute("src")!;
             if (src.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || src.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
                 || src.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
-                return m.Value;
+                continue;
             }
 
             var resolved = ResolveImagePath(src);
-            if (resolved is null) return m.Value;   // missing on disk: leave the href as authored
-
+            if (resolved is null) continue;          // missing on disk: leave the src as authored
             var media = MediaTypeFor(resolved);
-            if (media is null) return m.Value;      // not an image type EPUB 3 requires support for
+            if (media is null) continue;             // not an image type EPUB 3 requires support for
 
-            var existing = images.FirstOrDefault(i => string.Equals(i.File, "images/" + Path.GetFileName(resolved), StringComparison.OrdinalIgnoreCase));
-            string file = existing.File ?? $"images/{images.Count + 1:000}{Path.GetExtension(resolved).ToLowerInvariant()}";
-            if (existing.File is null)
+            if (!embedded.TryGetValue(resolved, out var file))
             {
-                try { images.Add(($"img{images.Count + 1:000}", file, media, File.ReadAllBytes(resolved))); }
-                catch { return m.Value; }
+                file = $"images/{images.Count + 1:000}{Path.GetExtension(resolved).ToLowerInvariant()}";
+                try { images.Add(new($"img{images.Count + 1:000}", file, media, File.ReadAllBytes(resolved))); }
+                catch { continue; }
+                embedded[resolved] = file;
             }
-            else file = existing.File;
+            img.SetAttribute("src", file);
+            if (!img.HasAttribute("alt")) img.SetAttribute("alt", "");
+        }
 
-            return m.Value.Replace(m.Groups["src"].Value, file);
-        });
+        // Diagrams and equations. Readers run no JavaScript, so a ```mermaid fence would ship as
+        // raw "flowchart LR" text and math as literal \(E = mc^2\). Diagrams become the PNGs the
+        // app rendered; equations become MathML, which EPUB 3 readers draw natively.
+        var diagrams = doc.QuerySelectorAll("pre.mermaid, div.mermaid").ToList();
+        string? Replace(AngleSharp.Dom.IElement el)
+        {
+            if (el.ClassList.Contains("mermaid") && el.LocalName is "pre" or "div")
+                return DiagramFigure(el.TextContent, diagrams.IndexOf(el), mermaidPngs, images);
+            if (el.ClassList.Contains("math") && el.LocalName is "span" or "div")
+                return LatexToMathMl.Convert(StripMathDelimiters(el.TextContent), display: el.LocalName == "div");
+            return null;
+        }
 
-        // Split into chapters on each <h1>. Content before the first heading becomes its own chapter.
-        var segments = Regex.Split(bodyHtml, @"(?=<h1[ >])")
-                            .Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-        if (segments.Count == 0) segments.Add(bodyHtml.Length == 0 ? "<p></p>" : bodyHtml);
+        // Task lists. The app's own pipeline writes a bare <li><input type="checkbox"> without
+        // Markdig's task-list classes, so the stylesheet couldn't hide the bullet and every task
+        // showed a dot *and* a box. Tag them here, and freeze the boxes: a book can't be ticked.
+        foreach (var box in doc.QuerySelectorAll("li > input[type=checkbox]"))
+        {
+            var li = box.ParentElement!;
+            if (li.FirstElementChild != box) continue;
+            box.SetAttribute("disabled", "disabled");
+            li.ClassList.Add("task-list-item");
+            li.ParentElement?.ClassList.Add("contains-task-list");
+        }
+
+        // Footnotes that readers can show as pop-ups (Apple Books, Kobo, Thorium) instead of a jump
+        // to the end of the book.
+        foreach (var a in doc.QuerySelectorAll("a.footnote-ref"))
+        {
+            a.SetAttribute("epub:type", "noteref");
+            a.SetAttribute("role", "doc-noteref");
+        }
+        foreach (var notes in doc.QuerySelectorAll("div.footnotes"))
+        {
+            notes.SetAttribute("epub:type", "footnotes");
+            foreach (var li in notes.QuerySelectorAll("li[id]"))
+            {
+                li.SetAttribute("epub:type", "footnote");
+                li.SetAttribute("role", "doc-footnote");
+            }
+        }
+
+        // Split into chapters on each top-level <h1>. Content before the first heading is its own chapter.
+        var segments = XhtmlWriter.Chapters(doc, raw: Replace);
+        if (segments.All(string.IsNullOrWhiteSpace)) segments = new() { "<p></p>" };
 
         var chapters = segments.Select((html, i) => new Chapter(
             Id: $"ch{i + 1:000}",
             File: $"ch{i + 1:000}.xhtml",
             Title: FirstHeading(html) ?? (i == 0 ? bookTitle : $"Section {i + 1}"),
             Html: html)).ToList();
+        chapters = RetargetCrossChapterLinks(chapters);
 
         var dir = Path.GetDirectoryName(epubPath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -158,23 +201,116 @@ public sealed class EpubExportService
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
         WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType, images));
-        WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters));
+        WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters, language));
         if (coverFile is not null && coverBytes is not null)
         {
             WriteEntry(zip, $"OEBPS/{coverFile}", coverBytes);
-            WriteEntry(zip, "OEBPS/cover.xhtml", CoverXhtml(coverFile));
+            WriteEntry(zip, "OEBPS/cover.xhtml", CoverXhtml(coverFile, language));
         }
         foreach (var (_, file, _, bytes) in images)
             WriteEntry(zip, $"OEBPS/{file}", bytes);
         foreach (var c in chapters)
-            WriteEntry(zip, $"OEBPS/{c.File}", ChapterXhtml(c));
+            WriteEntry(zip, $"OEBPS/{c.File}", ChapterXhtml(c, language));
     });
 
     private sealed record Chapter(string Id, string File, string Title, string Html);
+    private sealed record PackagedImage(string Id, string File, string Media, byte[] Bytes);
 
-    private static readonly Regex ImgSrc = new(
-        @"<img\b[^>]*?\bsrc=""(?<src>[^""]+)""", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static Regex ImgSrcRe() => ImgSrc;
+    private static readonly Regex IdAttr = new(@"\bid=""([^""]+)""", RegexOptions.Compiled);
+    private static readonly Regex FragmentHref = new(@"\bhref=""#([^""]+)""", RegexOptions.Compiled);
+
+    /// <summary>
+    /// A same-page link ("#fn:1", "#setup") only resolves inside its own file, and chapters are
+    /// separate files: a footnote reference in chapter 1 pointing at a note in chapter 3 went
+    /// nowhere. Point every fragment link whose target lives in another chapter at that chapter.
+    /// </summary>
+    private static List<Chapter> RetargetCrossChapterLinks(List<Chapter> chapters)
+    {
+        if (chapters.Count < 2) return chapters;
+        var home = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var c in chapters)
+            foreach (Match m in IdAttr.Matches(c.Html))
+                home.TryAdd(System.Net.WebUtility.HtmlDecode(m.Groups[1].Value), c.File);
+
+        return chapters.Select(c => c with
+        {
+            Html = FragmentHref.Replace(c.Html, m =>
+                home.TryGetValue(System.Net.WebUtility.HtmlDecode(m.Groups[1].Value), out var file) && file != c.File
+                    ? $"href=\"{file}#{m.Groups[1].Value}\""
+                    : m.Value),
+        }).ToList();
+    }
+
+    /// <summary>
+    /// A diagram as a figure. With a rendered PNG it's an image packaged into the book; without
+    /// one (no renderer, or Mermaid rejected the source) the reader gets the source in a labelled
+    /// block rather than an unexplained run of "A --> B" text.
+    /// </summary>
+    private static string DiagramFigure(string source, int index, IReadOnlyList<byte[]?>? pngs, List<PackagedImage> images)
+    {
+        var label = DiagramLabel(source, index + 1);
+        var png = pngs is not null && index >= 0 && index < pngs.Count ? pngs[index] : null;
+        if (png is { Length: > 0 })
+        {
+            var file = $"images/diagram-{index + 1:000}.png";
+            images.Add(new($"diagram{index + 1:000}", file, "image/png", png));
+            return $"<figure class=\"diagram\"><img src=\"{file}\" alt=\"{XhtmlWriter.Escape(label, attribute: true)}\" /></figure>";
+        }
+        return "<figure class=\"diagram diagram-source\">"
+             + $"<pre><code>{XhtmlWriter.Escape(source.TrimEnd(), attribute: false)}</code></pre>"
+             + $"<figcaption>{XhtmlWriter.Escape(label, attribute: false)} (diagram source; export from the MarkSmith app to draw it)</figcaption>"
+             + "</figure>";
+    }
+
+    /// <summary>Alt text for a diagram: its accTitle/title when it has one, else its kind and number.</summary>
+    internal static string DiagramLabel(string source, int number)
+    {
+        string? kind = null;
+        foreach (var raw in source.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("%%", StringComparison.Ordinal)) continue;
+            foreach (var key in new[] { "accTitle:", "title:", "title " })
+            {
+                if (line.StartsWith(key, StringComparison.OrdinalIgnoreCase) && line.Length > key.Length)
+                    return line[key.Length..].Trim().Trim('"');
+            }
+            if (kind is null)
+            {
+                var word = line.Split(' ', 2)[0];
+                kind = word switch
+                {
+                    "flowchart" or "graph" => "Flowchart",
+                    "sequenceDiagram" => "Sequence diagram",
+                    "classDiagram" => "Class diagram",
+                    "stateDiagram" or "stateDiagram-v2" => "State diagram",
+                    "erDiagram" => "Entity relationship diagram",
+                    "gantt" => "Gantt chart",
+                    "pie" => "Pie chart",
+                    "mindmap" => "Mind map",
+                    "journey" => "User journey",
+                    "gitGraph" => "Git graph",
+                    "timeline" => "Timeline",
+                    "quadrantChart" => "Quadrant chart",
+                    _ => "Diagram",
+                };
+            }
+        }
+        return $"{kind ?? "Diagram"} {number}";
+    }
+
+    /// <summary>Markdig wraps math in \( \) or \[ \]; the converter wants the bare LaTeX.</summary>
+    internal static string StripMathDelimiters(string text)
+    {
+        var t = text.Trim();
+        foreach (var (open, close) in new[] { ("\\(", "\\)"), ("\\[", "\\]"), ("$$", "$$"), ("$", "$") })
+        {
+            if (t.Length >= open.Length + close.Length && t.StartsWith(open, StringComparison.Ordinal)
+                && t.EndsWith(close, StringComparison.Ordinal))
+                return t[open.Length..^close.Length].Trim();
+        }
+        return t;
+    }
 
     /// <summary>
     /// Locates a local image the same way the DOCX exporter does — absolute path, then relative to
@@ -248,9 +384,6 @@ public sealed class EpubExportService
     private static string? NonEmpty(Dictionary<string, string> map, string key) =>
         map.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
-    private static string XhtmlSafe(string html) =>
-        VoidTagRegex.Replace(html, m => $"<{m.Groups[1].Value.ToLowerInvariant()}{m.Groups[2].Value} />");
-
     private static string? FirstHeading(string html)
     {
         var m = Regex.Match(html, @"<h[1-6][^>]*>(.*?)</h[1-6]>", RegexOptions.Singleline);
@@ -275,7 +408,7 @@ public sealed class EpubExportService
     private static string Opf(string title, string author, string language, string? publisher, string? identifier,
                                string? description, string? rights, List<Chapter> chapters,
                                string? coverFile, string? coverMediaType,
-                               IReadOnlyList<(string Id, string File, string Media, byte[] Bytes)> images)
+                               IReadOnlyList<PackagedImage> images)
     {
         var manifest = new StringBuilder();
         // Every embedded image needs its own manifest item, or the package fails validation even
@@ -291,7 +424,9 @@ public sealed class EpubExportService
         }
         foreach (var c in chapters)
         {
-            manifest.Append($"    <item id=\"{c.Id}\" href=\"{c.File}\" media-type=\"application/xhtml+xml\"/>\n");
+            var props = ChapterProperties(c.Html);
+            var propsAttr = props.Length == 0 ? "" : $" properties=\"{props}\"";
+            manifest.Append($"    <item id=\"{c.Id}\" href=\"{c.File}\" media-type=\"application/xhtml+xml\"{propsAttr}/>\n");
             spine.Append($"    <itemref idref=\"{c.Id}\"/>\n");
         }
         var modified = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
@@ -323,10 +458,24 @@ public sealed class EpubExportService
         """;
     }
 
-    private static string CoverXhtml(string coverFile) =>
+    /// <summary>
+    /// EPUB 3 makes a chapter declare what it contains: MathML, inline SVG, and anything loaded
+    /// from the web. A reader may skip its MathML engine for an undeclared chapter, and epubcheck
+    /// fails the book.
+    /// </summary>
+    internal static string ChapterProperties(string html)
+    {
+        var props = new List<string>();
+        if (html.Contains("<math", StringComparison.Ordinal)) props.Add("mathml");
+        if (html.Contains("<svg", StringComparison.Ordinal)) props.Add("svg");
+        if (Regex.IsMatch(html, @"\b(?:src|poster)=""https?://", RegexOptions.IgnoreCase)) props.Add("remote-resources");
+        return string.Join(' ', props);
+    }
+
+    private static string CoverXhtml(string coverFile, string language) =>
         $"""
         <?xml version="1.0" encoding="utf-8"?>
-        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{Esc(language)}" xml:lang="{Esc(language)}">
         <head><title>Cover</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
         <body>
           <section epub:type="cover">
@@ -336,14 +485,14 @@ public sealed class EpubExportService
         </html>
         """;
 
-    private static string Nav(List<Chapter> chapters)
+    private static string Nav(List<Chapter> chapters, string language)
     {
         var items = new StringBuilder();
         foreach (var c in chapters)
             items.Append($"      <li><a href=\"{c.File}\">{Esc(c.Title)}</a></li>\n");
         return $"""
         <?xml version="1.0" encoding="utf-8"?>
-        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{Esc(language)}" xml:lang="{Esc(language)}">
         <head><title>Contents</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
         <body>
           <nav epub:type="toc" id="toc">
@@ -356,11 +505,11 @@ public sealed class EpubExportService
         """;
     }
 
-    private static string ChapterXhtml(Chapter c) =>
+    private static string ChapterXhtml(Chapter c, string language) =>
         $"""
         <?xml version="1.0" encoding="utf-8"?>
-        <html xmlns="http://www.w3.org/1999/xhtml">
-        <head><title>{Esc(c.Title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{Esc(language)}" xml:lang="{Esc(language)}">
+        <head><meta charset="utf-8"/><title>{Esc(c.Title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
         <body>
         {c.Html}
         </body>
@@ -372,12 +521,24 @@ public sealed class EpubExportService
         body { background: {{t.Background}}; color: {{t.Text}}; font-family: Georgia, serif; line-height: 1.6; padding: 1em; }
         h1, h2, h3, h4, h5, h6 { color: {{t.Heading}}; line-height: 1.25; }
         a { color: {{t.Primary}}; }
-        code, pre { font-family: "Cascadia Mono", Consolas, monospace; background: {{t.Secondary}}; color: {{t.Code}}; }
+        code, pre { font-family: "Cascadia Mono", Consolas, monospace; background: {{t.Code}}; color: {{t.Text}}; }
         pre { padding: .8em; border: 1px solid {{t.Border}}; border-radius: 6px; overflow-x: auto; }
         code { padding: .1em .3em; border-radius: 4px; }
         blockquote { border-left: 4px solid {{t.Heading}}; margin: 1em 0; padding: .2em 1em; opacity: .9; }
         table { border-collapse: collapse; } td, th { border: 1px solid {{t.Border}}; padding: .4em .7em; }
         hr { border: none; border-top: 1px solid {{t.Border}}; }
         img { max-width: 100%; }
+        pre code { padding: 0; background: none; }
+        figure.diagram { margin: 1.2em 0; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+        figure.diagram img { max-width: 100%; height: auto; }
+        figure.diagram-source { text-align: left; }
+        figure.diagram-source pre { margin: 0; }
+        figcaption { font-size: .85em; opacity: .75; margin-top: .4em; }
+        math[display="block"] { margin: .8em 0; }
+        ul.contains-task-list { list-style: none; padding-left: 1.2em; }
+        li.task-list-item input { margin-right: .5em; }
+        .footnotes { font-size: .85em; margin-top: 2em; }
+        a.footnote-ref { text-decoration: none; }
+        details > summary { font-weight: bold; }
         """;
 }

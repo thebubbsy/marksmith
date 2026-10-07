@@ -99,11 +99,11 @@ public sealed class ExportCoordinator
             IReadOnlyList<Mermaid.HarvestedDiagram?>? mermaidGeo = null;
             IReadOnlyList<Mermaid.GenericDiagram?>? mermaidGen = null;
 
-            if (formats.Contains("docx") && md.Contains("```mermaid", StringComparison.Ordinal))
+            if ((formats.Contains("docx") || formats.Contains("epub")) && md.Contains("```mermaid", StringComparison.Ordinal))
             {
                 var theme = AppServices.Themes.GetOrDefault(settings.Theme);
                 mermaidImgs = await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, theme);
-                if (settings.MermaidDocxMode == 1)
+                if (formats.Contains("docx") && settings.MermaidDocxMode == 1)
                 {
                     mermaidGeo = await _mermaidHarvest.HarvestMermaidGeometryAsync(host, md, settings, theme);
                     mermaidGen = await _mermaidHarvest.HarvestGenericGeometryAsync(host, md, settings, theme);
@@ -140,7 +140,7 @@ public sealed class ExportCoordinator
                             await _pptxExport.ExportAsync(md, outPath, settings);
                             break;
                         case "epub":
-                            await _epubExport.ExportAsync(md, outPath, settings);
+                            await _epubExport.ExportAsync(md, outPath, settings, null, mermaidImgs);
                             break;
                     }
                     produced.Add(outPath);
@@ -406,7 +406,10 @@ public sealed class ExportCoordinator
             else if (fmt == "epub")
             {
                 var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.epub");
-                await _epubExport.ExportAsync(md, tmp, settings);
+                IReadOnlyList<byte[]?>? diagrams = md.Contains("```mermaid", StringComparison.Ordinal)
+                    ? await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, theme)
+                    : null;
+                await _epubExport.ExportAsync(md, tmp, settings, null, diagrams);
                 var bytes = await File.ReadAllBytesAsync(tmp);
                 File.Delete(tmp);
                 return bytes;
@@ -515,7 +518,10 @@ public sealed class ExportCoordinator
                         await _pptxExport.ExportAsync(md, outPath, settings);
                         break;
                     case "epub":
-                        await _epubExport.ExportAsync(md, outPath, settings);
+                        IReadOnlyList<byte[]?>? diagrams = host is not null && md.Contains("```mermaid", StringComparison.Ordinal)
+                            ? await _mermaidHarvest.RenderMermaidPngsAsync(host, md, settings, batchTheme)
+                            : null;
+                        await _epubExport.ExportAsync(md, outPath, settings, null, diagrams);
                         break;
                 }
                 vm.RecordExport(fmt.ToUpperInvariant(), outPath, md);

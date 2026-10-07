@@ -86,17 +86,14 @@ public class Category1And3FixTests
         Assert.Contains("> End of tip.", result);
     }
 
-    // M1-07: EpubExportService void tag XHTML regex -> quote-aware attribute parsing
+    // M1-07: EPUB void tags with a ">" inside a quoted attribute. The regex this pinned was
+    // replaced by a DOM serializer (XhtmlWriter, 2026-10-08), which escapes the ">" as well.
     [Fact]
     public void M1_07_EpubExportService_Quote_Aware_Void_Tag_Regex()
     {
-        var method = typeof(EpubExportService).GetMethod("XhtmlSafe", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
+        var xhtml = XhtmlWriter.Fragment("<img src=\"foo.png\" alt=\"A > B\">");
 
-        var html = "<img src=\"foo.png\" alt=\"A > B\">";
-        var xhtml = (string)method.Invoke(null, new object[] { html })!;
-
-        Assert.Equal("<img src=\"foo.png\" alt=\"A > B\" />", xhtml);
+        Assert.Equal("<img src=\"foo.png\" alt=\"A &gt; B\" />", xhtml);
     }
 
     // M1-08: DiagramFenceSniffer fence marker length -> dynamic fence length matching

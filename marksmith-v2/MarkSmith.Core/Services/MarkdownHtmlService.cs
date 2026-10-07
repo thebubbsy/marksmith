@@ -499,8 +499,11 @@ public sealed partial class MarkdownHtmlService
                     primaryBorderColor: "{{theme.Line}}",
                     lineColor: "{{theme.Line}}",
                     secondaryColor: "{{theme.Secondary}}",
-                    tertiaryColor: "{{theme.Background}}"
+                    tertiaryColor: "{{theme.Background}}",
+                    edgeLabelBackground: "{{theme.Code}}"
                 },
+                // Diagrams sit on the code-coloured .mermaid card, so labels take that colour.
+                themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Code)}},
                 maxTextSize: 10000000,
                 maxNodes: 10000,
                 // useMaxWidth:true (the default) makes diagrams ELASTIC to the viewport — zooming in
@@ -2676,7 +2679,9 @@ public sealed partial class MarkdownHtmlService
             mermaid.initialize({ startOnLoad: true, theme: "base",
               themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
                 primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
-                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
+                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}",
+                edgeLabelBackground: "{{theme.Background}}" },
+              themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Background)}},
               maxTextSize: 10000000, maxNodes: 10000,
               flowchart: { useMaxWidth: false, htmlLabels: true, curve: "linear" },
               sequence: { useMaxWidth: false }, gantt: { useMaxWidth: false }, class: { useMaxWidth: false },

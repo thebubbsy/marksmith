@@ -62,7 +62,9 @@ public sealed class MermaidHarvestService
             mermaid.initialize({ startOnLoad: false, theme: "base",
               themeVariables: { primaryColor: "{{theme.Background}}", primaryTextColor: "{{theme.Primary}}",
                 primaryBorderColor: "{{theme.Line}}", lineColor: "{{theme.Line}}",
-                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}" },
+                secondaryColor: "{{theme.Secondary}}", tertiaryColor: "{{theme.Background}}",
+                edgeLabelBackground: "{{theme.Background}}" },
+              themeCSS: {{MermaidLabelStyle.ThemeCss(theme.Background)}},
               flowchart: { useMaxWidth: false, htmlLabels: false, curve: "linear" },
               securityLevel: "strict" });
             (async () => {
