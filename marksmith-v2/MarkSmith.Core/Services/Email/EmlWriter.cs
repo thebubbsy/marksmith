@@ -18,6 +18,7 @@ public static class EmlWriter
             // MimeKit's default Message-ID carries the machine's host name; ours doesn't.
             MessageId = MimeUtils.GenerateMessageId("marksmith.local"),
         };
+        if (!string.IsNullOrWhiteSpace(doc.From)) AddAll(msg.From, new[] { doc.From });
         AddAll(msg.To, doc.To);
         AddAll(msg.Cc, doc.Cc);
         AddAll(msg.Bcc, doc.Bcc);

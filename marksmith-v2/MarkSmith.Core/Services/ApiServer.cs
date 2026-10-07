@@ -513,6 +513,12 @@ public sealed class ApiServer : IDisposable
                         ctx.Response.ContentType = "message/rfc822";
                         ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.eml");
                     }
+                    else if (ovr.Format?.Equals("msg", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        // The same draft as an Outlook message (MSGFLAG_UNSENT). Free too.
+                        ctx.Response.ContentType = "application/vnd.ms-outlook";
+                        ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.msg");
+                    }
                     else
                     {
                         ctx.Response.ContentType = "application/pdf";
@@ -528,7 +534,9 @@ public sealed class ApiServer : IDisposable
                     var req = await ReadBodyAsync(ctx);
                     if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
                     var ovr = req.Output ?? new OutputOverride();
-                    ovr.Format = "eml";
+                    // "eml" or "msg" when asked for; otherwise the app's Email format setting.
+                    var requested = (req.Format ?? ovr.Format)?.Trim().ToLowerInvariant();
+                    ovr.Format = requested is "eml" or "msg" ? requested : null;
                     var bad = new[] { ("to", ovr.EmailTo), ("cc", ovr.EmailCc) }
                         .SelectMany(p => Email.EmailComposer.ParseAddresses(p.Item2).Invalid.Select(i => $"{p.Item1}: \"{i}\""))
                         .ToList();
@@ -540,11 +548,13 @@ public sealed class ApiServer : IDisposable
                         await WriteJsonAsync(ctx, 200, new { ok = true, opened = result.Opened, path = result.Path, subject = result.Subject, notes = result.Notes });
                         break;
                     }
-                    var eml = await _convert(md, ovr);
+                    ovr.Format = Email.MailApps.Resolve(ovr.Format ?? AppServices.Settings.Current.EmailFormat);
+                    var draft = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
-                    ctx.Response.ContentType = "message/rfc822";
-                    ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.eml");
-                    await ctx.Response.OutputStream.WriteAsync(eml);
+                    var isMsg = ovr.Format == Email.MailApps.Msg;
+                    ctx.Response.ContentType = isMsg ? "application/vnd.ms-outlook" : "message/rfc822";
+                    ctx.Response.AddHeader("Content-Disposition", isMsg ? "attachment; filename=export.msg" : "attachment; filename=export.eml");
+                    await ctx.Response.OutputStream.WriteAsync(draft);
                     break;
                 }
 
@@ -736,9 +746,9 @@ public sealed class ApiServer : IDisposable
     {
         var license = LicenseSource();
         if (format?.Equals("docx", StringComparison.OrdinalIgnoreCase) == true && !license.CanExportDocx)
-            return "DOCX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in the MarkSmith app.";
+            return ProGate.ApiLine(FeatureId.DocxExport, license.State);
         if (format?.Equals("pptx", StringComparison.OrdinalIgnoreCase) == true && !license.CanExportPptx)
-            return "PPTX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in the MarkSmith app.";
+            return ProGate.ApiLine(FeatureId.PptxExport, license.State);
         return null;
     }
 

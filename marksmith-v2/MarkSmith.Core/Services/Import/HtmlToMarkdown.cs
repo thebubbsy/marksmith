@@ -311,6 +311,11 @@ public static class HtmlToMarkdown
             multiBlock = Regex.IsMatch(parts, @"\n\n(?![ \t]*([-*+]|\d+\.)\s)");
             // Nested lists hang directly under the item without a blank line between.
             parts = Regex.Replace(parts, @"\n\n(?=([-*+]|\d+\.)\s)", "\n");
+            // Mail has no checkboxes, so task lists go out as ballot boxes (MarkSmith's email
+            // export draws ☑ / ☐): bring them back as a task list.
+            var box = Regex.Match(parts, "^([☑☒✅]|☐)[  ]*");
+            if (box.Success && box.Length < parts.Length)
+                parts = (box.Groups[1].Value == "☐" ? "[ ] " : "[x] ") + parts[box.Length..];
             return parts;
         }
 

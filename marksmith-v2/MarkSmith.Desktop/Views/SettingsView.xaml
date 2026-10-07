@@ -152,7 +152,7 @@
 
                         <TextBlock Text="Opening files" Style="{StaticResource SettingsSectionStyle}" />
                         <controls:SettingsCard Glyph="&#xE715;" Header="Earlier messages in an email"
-                                               Description="Opening an .eml: what happens to the quoted thread under the newest message.">
+                                               Description="Opening an email (.eml or .msg): what happens to the quoted thread under the newest message.">
                             <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
                                       AutomationProperties.Name="Earlier messages in an email"
                                       SelectedValue="{Binding EmailImportHistory, Mode=TwoWay}">

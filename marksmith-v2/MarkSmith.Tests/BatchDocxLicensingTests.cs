@@ -57,7 +57,7 @@ public class BatchDocxLicensingTests : IDisposable
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ConvertDirectoryAsync(null, tempSrc, tempOut, "docx", new AppSettings()));
 
-            Assert.Contains("DOCX export is a MarkSmith Pro feature", ex.Message);
+            Assert.Contains("Word export is a MarkSmith Pro feature", ex.Message);
             Assert.False(File.Exists(Path.Combine(tempOut, "test.docx")));
         }
         finally

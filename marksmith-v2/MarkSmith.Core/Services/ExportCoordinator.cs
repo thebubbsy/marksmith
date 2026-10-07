@@ -384,7 +384,7 @@ public sealed class ExportCoordinator
                 File.Delete(tmp);
                 return bytes;
             }
-            else if (fmt is "eml" or "email")
+            else if (fmt is "eml" or "email" or "msg")
             {
                 // Free on every plan (FeatureId.EmailDraft). Diagrams are harvested in the email's
                 // white palette so a dark theme doesn't put a dark slab in a light message.
@@ -401,7 +401,7 @@ public sealed class ExportCoordinator
                     Subject = output?.EmailSubject,
                     MermaidPngs = mermaidImgs,
                 }, settings, theme);
-                return Email.EmlWriter.ToBytes(doc);
+                return fmt == "msg" ? Email.MsgWriter.ToBytes(doc) : Email.EmlWriter.ToBytes(doc);
             }
             else if (fmt == "epub")
             {

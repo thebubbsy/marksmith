@@ -13,6 +13,8 @@ public sealed record EmailAttachment(string FileName, byte[] Bytes, string MimeT
 public sealed class EmailDocument
 {
     public string Subject { get; set; } = "";
+    /// <summary>Who it's from. Drafts leave it empty, so Outlook fills in the account sending it.</summary>
+    public string? From { get; set; }
     public List<string> To { get; } = new();
     public List<string> Cc { get; } = new();
     public List<string> Bcc { get; } = new();

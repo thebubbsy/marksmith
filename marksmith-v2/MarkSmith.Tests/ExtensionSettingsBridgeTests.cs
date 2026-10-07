@@ -52,6 +52,7 @@ public class ExtensionSettingsBridgeTests : IDisposable
         public bool EmailAttachPdf { get; set; }
         public bool EmailAttachDocx { get; set; }
         public string EmailImportHistory { get; set; } = "collapse";
+        public string EmailFormat { get; set; } = "auto";
         public bool MermaidEnabled { get; set; } = true;
         public bool NormalizeLlm { get; set; }
         public bool ShowAttribution { get; set; }
@@ -261,14 +262,23 @@ public class ExtensionSettingsBridgeTests : IDisposable
             Assert.Equal(HttpStatusCode.OK, open.StatusCode);
             Assert.Contains("\"opened\":true", await open.Content.ReadAsStringAsync());
             Assert.Equal("# Plan", openedFor);
-            Assert.Equal("eml", seen!.Format);
+            // No format asked for: the app's Email format setting decides.
+            Assert.Null(seen!.Format);
             Assert.Equal("ann@example.com", seen.EmailTo);
             Assert.Equal("Q3", seen.EmailSubject);
 
-            var file = await Send(port, HttpMethod.Post, "/api/email", "{\"markdown\":\"# Plan\",\"open\":false}", ext);
+            var asMsg = await Send(port, HttpMethod.Post, "/api/email", "{\"markdown\":\"# Plan\",\"format\":\"msg\"}", ext);
+            Assert.Equal(HttpStatusCode.OK, asMsg.StatusCode);
+            Assert.Equal("msg", seen!.Format);
+
+            var file = await Send(port, HttpMethod.Post, "/api/email", "{\"markdown\":\"# Plan\",\"open\":false,\"format\":\"eml\"}", ext);
             Assert.Equal(HttpStatusCode.OK, file.StatusCode);
             Assert.Equal("message/rfc822", file.Content.Headers.ContentType?.MediaType);
             Assert.Equal(emlStub, await file.Content.ReadAsByteArrayAsync());
+
+            var msgFile = await Send(port, HttpMethod.Post, "/api/email", "{\"markdown\":\"# Plan\",\"open\":false,\"format\":\"msg\"}", ext);
+            Assert.Equal("application/vnd.ms-outlook", msgFile.Content.Headers.ContentType?.MediaType);
+            Assert.Equal("export.msg", msgFile.Content.Headers.ContentDisposition?.FileName);
 
             var bad = await Send(port, HttpMethod.Post, "/api/email", "{\"markdown\":\"x\",\"output\":{\"emailTo\":\"bob\"}}", ext);
             Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);

@@ -23,7 +23,7 @@ public static class PluginFileReader
 
     /// <summary>Extensions the app opens natively (without any plugin), lower-case, no dot.</summary>
     public static IReadOnlyList<string> NativeExtensions { get; } =
-        new[] { "md", "markdown", "txt", "docx", "pdf", "html", "htm", "eml" };
+        new[] { "md", "markdown", "txt", "docx", "pdf", "html", "htm", "eml", "msg" };
 
     /// <summary>True when <paramref name="path"/> is something the editor can open: Markdown, a
     /// natively imported format, or one an installed importer plugin claims.</summary>
@@ -122,7 +122,7 @@ public static class PluginFileReader
             return new ImportedDocument(md, "HTML", null);
         }
 
-        if (ext == "eml")
+        if (ext is "eml" or "msg")
         {
             var mode = AppServices.Settings.Current.EmailImportHistory?.ToLowerInvariant() switch
             {
@@ -130,7 +130,9 @@ public static class PluginFileReader
                 "keep" => Services.Email.QuotedHistoryMode.Keep,
                 _ => Services.Email.QuotedHistoryMode.Collapse,
             };
-            var result = await Task.Run(() => Services.Email.EmailImporter.Import(path, mode, MediaDirFor(path)));
+            var result = await Task.Run(() => ext == "msg"
+                ? Services.Email.MsgImporter.Import(path, mode, MediaDirFor(path))
+                : Services.Email.EmailImporter.Import(path, mode, MediaDirFor(path)));
             return new ImportedDocument(result.Markdown, "Email", result.Summary);
         }
 

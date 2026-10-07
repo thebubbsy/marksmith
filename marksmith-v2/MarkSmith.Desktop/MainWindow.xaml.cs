@@ -1914,16 +1914,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         return tcs.Task;
     }
 
-    // POST /api/email with open: true (the extension's "Open in Outlook"): the same .eml the
-    // export writes, saved to the outbox and handed to the default mail app. Free on every plan.
+    // POST /api/email with open: true (the extension's "Open in Outlook"): the same draft the
+    // export writes (.eml or .msg, per the Email format setting), saved to the outbox and handed
+    // to the default mail app. Free on every plan.
     private async Task<Services.ApiServer.EmailDraftResult> OpenEmailDraftForApiAsync(string markdown, Models.OutputOverride? output)
     {
+        output ??= new Models.OutputOverride();
+        var format = Services.Email.MailApps.Resolve(output.Format is "eml" or "msg" ? output.Format : ViewModel.EmailFormat);
+        output.Format = format;
         var bytes = await ConvertForApiAsync(markdown, output);
-        var message = MimeKit.MimeMessage.Load(new MemoryStream(bytes));
-        var subject = message.Subject ?? "";
-        var label = !string.IsNullOrWhiteSpace(subject) ? subject : output?.SourceTitle ?? "Email draft";
+        var subject = format == Services.Email.MailApps.Msg
+            ? Services.Email.MsgImporter.SubjectOf(bytes)
+            : MimeKit.MimeMessage.Load(new MemoryStream(bytes)).Subject ?? "";
+        var label = !string.IsNullOrWhiteSpace(subject) ? subject : output.SourceTitle ?? "Email draft";
         Services.Email.EmailOutbox.Clean();
-        var path = Services.Email.EmailOutbox.PathFor(label, "eml");
+        var path = Services.Email.EmailOutbox.PathFor(label, format);
         await File.WriteAllBytesAsync(path, bytes);
         var opened = Services.Email.EmailOutbox.Open(path);
         await RunOnUiAsync(() =>
@@ -1932,7 +1937,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return Task.CompletedTask;
         });
         var notes = opened ? Array.Empty<string>()
-            : new[] { "Windows has no app set to open .eml files. Pick Outlook under Settings > Apps > Default apps." };
+            : new[] { $"Windows has no app set to open .{format} files. Pick Outlook under Settings > Apps > Default apps." };
         return new Services.ApiServer.EmailDraftResult(opened, path, subject, notes);
     }
 
@@ -3248,14 +3253,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DoAsync("Export EPUB", "Export", () => ViewModel.ConvertToEpubAsync(), keywords: "ebook kindle book"),
             DoAsync("Export HTML", "Export", () => ViewModel.ConvertToHtmlAsync()),
             DoAsync("Email draft (open in Outlook)", "Export", () => ViewModel.CreateEmailDraftAsync(), "export.email", "mail send message"),
-            DoAsync("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync()),
+            DoAsync("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync(), keywords: "eml mail message"),
+            DoAsync("Save as Outlook message (.msg)", "Export", () => ViewModel.SaveOutlookMessageAsync(), keywords: "msg outlook mail message"),
             DoAsync("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
             Do("Copy the rendered HTML", "Export", () => OnCopyHtmlClick(this, click)),
             Do("Print the rendered document", "Export", PrintDocument, "file.print"),
             Do("Recent exports", "Export", () => OnExportHistoryMenuClick(this, click)),
 
             Do("Open a document", "File", () => OnBrowseFileClick(this, click), "file.open"),
-            Do("Open an email (.eml)", "File", () => OnBrowseFileClick(this, click)),
+            Do("Open an email (.eml or .msg)", "File", () => OnBrowseFileClick(this, click), keywords: "outlook message msg eml mail"),
             Do("Import Word, PDF, HTML or email as a new document", "File", () => OnImportDocumentClick(this, click)),
             DoAsync("Save (converted files save as a Markdown copy)", "File", SaveDocumentToFileAsync, "file.save"),
             Do("Version history", "File", () => OnOpenHistoryClick(this, click), keywords: "undo restore backup checkpoint"),
@@ -3522,6 +3528,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnSaveEmailClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.SaveEmailAsync();
+    }
+
+    private async void OnSaveOutlookMessageClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.SaveOutlookMessageAsync();
     }
 
     private void OnEmailDraftAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
@@ -5600,7 +5611,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var picker = new FileOpenPicker();
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".html", ".htm" }) picker.FileTypeFilter.Add(ext);
+        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }) picker.FileTypeFilter.Add(ext);
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
 

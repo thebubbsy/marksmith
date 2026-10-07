@@ -23,6 +23,18 @@ public sealed partial class MainViewModel
     [ObservableProperty] private string _emailImportHistory = "collapse";
     [ObservableProperty] private bool _emailAttachPdf;
     [ObservableProperty] private bool _emailAttachDocx;
+    // "auto" | "eml" | "msg": the file "Email draft" writes. Automatic picks what Outlook opens here.
+    [ObservableProperty] private string _emailFormat = MailApps.Auto;
+
+    /// <summary>Under the format choice: what Automatic picks on this PC and why, or what the
+    /// fixed choice means. Re-read when the Email options come into sight (associations change
+    /// outside the app).</summary>
+    public string EmailFormatDescription => EmailFormat switch
+    {
+        MailApps.Eml => "Every mail app opens .eml files; Outlook opens them as a draft you can send.",
+        MailApps.Msg => "Outlook's own format. Outlook opens it as a draft you can send; most other mail apps can't open it.",
+        _ => MailApps.DescribeAutomatic(),
+    };
 
     /// <summary>"Not an address: bob" under the To box while it holds something that isn't one;
     /// empty when every entry is fine.</summary>
@@ -46,7 +58,11 @@ public sealed partial class MainViewModel
 
     /// <summary>The preview follows the document, which changes on every keystroke; the view calls
     /// this when the Email options come into sight rather than recomputing it per key press.</summary>
-    public void RefreshEmailSubjectPreview() => OnPropertyChanged(nameof(EmailSubjectPreview));
+    public void RefreshEmailSubjectPreview()
+    {
+        OnPropertyChanged(nameof(EmailSubjectPreview));
+        OnPropertyChanged(nameof(EmailFormatDescription));
+    }
 
     // Writes the backing fields on purpose: loading must not run the change handlers, which
     // would save the settings straight back and re-validate on every launch.
@@ -62,6 +78,7 @@ public sealed partial class MainViewModel
         _emailToProblem = DescribeBadAddresses(_emailTo);
         _emailCcProblem = DescribeBadAddresses(_emailCc);
         _emailImportHistory = settings.EmailImportHistory is "remove" or "keep" ? settings.EmailImportHistory : "collapse";
+        _emailFormat = NormalizeEmailFormat(settings.EmailFormat);
     }
 #pragma warning restore MVVMTK0034
 
@@ -93,6 +110,18 @@ public sealed partial class MainViewModel
     partial void OnEmailAttachPdfChanged(bool value) { _settingsService.Current.EmailAttachPdf = value; SaveSettingsDebounced(); }
     partial void OnEmailAttachDocxChanged(bool value) { _settingsService.Current.EmailAttachDocx = value; SaveSettingsDebounced(); }
 
+    partial void OnEmailFormatChanged(string value)
+    {
+        var normalized = NormalizeEmailFormat(value);
+        if (normalized != value) { EmailFormat = normalized; return; }
+        _settingsService.Current.EmailFormat = value;
+        OnPropertyChanged(nameof(EmailFormatDescription));
+        SaveSettingsDebounced();
+    }
+
+    internal static string NormalizeEmailFormat(string? value) =>
+        value?.Trim().ToLowerInvariant() is MailApps.Eml or MailApps.Msg ? value.Trim().ToLowerInvariant() : MailApps.Auto;
+
     partial void OnEmailImportHistoryChanged(string value)
     {
         _settingsService.Current.EmailImportHistory = value;
@@ -107,10 +136,24 @@ public sealed partial class MainViewModel
     public void AnnounceEmailFromApi(string subject, string path, bool opened)
     {
         var name = subject.Length > 0 ? $"\"{subject}\"" : Path.GetFileName(path);
+        var ext = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
         AnnounceExport(opened
-            ? $"Email draft {name} from the browser extension opened in your mail app"
-            : $"Saved the email draft {name} from the browser extension, but Windows has no app set to open .eml files", path);
+            ? DraftOpenedMessage($"Email draft {name} from the browser extension", ext)
+            : $"Saved the email draft {name} from the browser extension, but Windows has no app set to open .{ext} files", path);
         StatusSeverity = opened ? StatusSeverity.Success : StatusSeverity.Warning;
+    }
+
+    /// <summary>"Email draft "Plan" opened in Outlook (classic)", naming the app Windows hands
+    /// the file to; when Windows will ask which app to use, it says what to pick.</summary>
+    internal static string DraftOpenedMessage(string what, string format)
+    {
+        var handler = MailApps.Lookup("." + format);
+        return handler.Kind switch
+        {
+            MailAppKind.AskEachTime => $"{what} is ready. Windows is asking which app opens .{format} files: pick Outlook and tick \"Always\"",
+            MailAppKind.None => $"{what} opened in your mail app",
+            _ => $"{what} opened in {handler.Name}",
+        };
     }
 
     [RelayCommand]
@@ -174,17 +217,21 @@ public sealed partial class MainViewModel
     public Task CreateEmailDraftAsync() => ExportEmailAsync(openInMailApp: true);
 
     /// <summary>Saves the document as an .eml draft next to the other exports.</summary>
-    public Task SaveEmailAsync() => ExportEmailAsync(openInMailApp: false);
+    public Task SaveEmailAsync() => ExportEmailAsync(openInMailApp: false, MailApps.Eml);
 
-    private async Task ExportEmailAsync(bool openInMailApp)
+    /// <summary>Saves the document as an Outlook message (.msg) draft next to the other exports.</summary>
+    public Task SaveOutlookMessageAsync() => ExportEmailAsync(openInMailApp: false, MailApps.Msg);
+
+    private async Task ExportEmailAsync(bool openInMailApp, string? format = null)
     {
+        var fmt = format ?? MailApps.Resolve(EmailFormat);
         var (markdown, sourceLabel) = ResolveSource();
         if (markdown is null) return;
 
-        await RunConversionAsync(openInMailApp ? "an email draft" : "an email", async ct =>
+        await RunConversionAsync(openInMailApp ? "an email draft" : fmt == MailApps.Msg ? "an Outlook message" : "an email", async ct =>
         {
             var settings = _settingsService.Current;
-            var outPath = openInMailApp ? EmailOutbox.PathFor(sourceLabel, "eml") : PrepareOutputPath(sourceLabel, "eml");
+            var outPath = openInMailApp ? EmailOutbox.PathFor(sourceLabel, fmt) : PrepareOutputPath(sourceLabel, fmt);
             if (openInMailApp) EmailOutbox.Clean();
 
             var palette = EmailPalette.From(CurrentTheme);
@@ -213,10 +260,11 @@ public sealed partial class MainViewModel
                 notes.Add($"This email is {doc.PayloadBytes / (1024.0 * 1024):0.#} MB; many mail servers refuse messages over 20 MB.");
 
             ct.ThrowIfCancellationRequested();
-            EmlWriter.Write(doc, outPath);
+            if (fmt == MailApps.Msg) MsgWriter.Write(doc, outPath);
+            else EmlWriter.Write(doc, outPath);
             LastOutputPath = outPath;
             if (!UsePasteSource) TrackRecent(InputFilePath);
-            RecordExport(openInMailApp ? "Email draft" : "Email", outPath, markdown);
+            RecordExport(openInMailApp ? "Email draft" : fmt == MailApps.Msg ? "Outlook message" : "Email", outPath, markdown);
 
             var subject = doc.Subject.Length > 0 ? $"\"{doc.Subject}\"" : Path.GetFileName(outPath);
             // Caveats go before the folder: the status bar trims from the end, and a long path
@@ -227,16 +275,17 @@ public sealed partial class MainViewModel
             string message;
             if (!openInMailApp)
             {
-                RaiseExportCompleted("Email", outPath);
-                message = $"Email saved: {Path.GetFileName(outPath)}{caveat} · in {Path.GetDirectoryName(outPath)}";
+                var kind = fmt == MailApps.Msg ? "Outlook message" : "Email";
+                RaiseExportCompleted(kind, outPath);
+                message = $"{kind} saved: {Path.GetFileName(outPath)}{caveat} · in {Path.GetDirectoryName(outPath)}";
             }
             else if (EmailOutbox.Open(outPath))
             {
-                message = $"Email draft {subject} opened in your mail app{caveat}";
+                message = DraftOpenedMessage($"Email draft {subject}", fmt) + caveat;
             }
             else
             {
-                message = $"Saved the email draft {subject}, but Windows has no app set to open .eml files. Pick Outlook under Settings > Apps > Default apps";
+                message = $"Saved the email draft {subject}, but Windows has no app set to open .{fmt} files. Pick Outlook under Settings > Apps > Default apps";
                 StatusSeverityOverride = StatusSeverity.Warning;
             }
             AnnounceExport(message, outPath);

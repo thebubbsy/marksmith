@@ -87,7 +87,7 @@ public static class KeyboardShortcuts
 
     public static IReadOnlyList<KeyboardShortcut> All { get; } = new KeyboardShortcut[]
     {
-        new("file.open", FileSection, "Open a document: Markdown, Word, PDF, HTML or email (.eml)", new[] { Ctrl("O") }),
+        new("file.open", FileSection, "Open a document: Markdown, Word, PDF, HTML or email (.eml, .msg)", new[] { Ctrl("O") }),
         new("file.save", FileSection, "Save (Word, PDF, HTML and email files save as a Markdown copy)", new[] { Ctrl("S") }),
         new("export.pdf", FileSection, "Export PDF", new[] { Ctrl("E"), CtrlShift("P") }),
         new("export.docx", FileSection, "Export Word (.docx)", new[] { CtrlShift("D"), CtrlShift("E") }),

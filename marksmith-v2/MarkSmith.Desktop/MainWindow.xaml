@@ -173,7 +173,7 @@
                 </Button>
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml) file as a new Markdown document">
+                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml, .msg) file as a new Markdown document">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8B5;" FontSize="12" />
                         <TextBlock Text="Import" FontSize="12" />
@@ -279,7 +279,7 @@
                                 <StackPanel Spacing="8" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE896;" FontSize="26" Opacity="0.6" HorizontalAlignment="Center" />
                                     <TextBlock Text="Drop a document here" HorizontalAlignment="Center" Opacity="0.75" />
-                                    <TextBlock Text="Markdown, Word, PDF, HTML or email (.eml)" HorizontalAlignment="Center"
+                                    <TextBlock Text="Markdown, Word, PDF, HTML or email (.eml, .msg)" HorizontalAlignment="Center"
                                                Opacity="0.55" TextAlignment="Center" TextWrapping="WrapWholeWords"
                                                Style="{StaticResource CaptionTextBlockStyle}" />
                                     <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
@@ -1501,6 +1501,16 @@
                                                      Description="An editable .docx of the document. Attaching Word files is a Pro feature; on the free plan the email still goes, without the copy.">
                                 <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding EmailAttachDocx, Mode=TwoWay}" />
                             </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Draft format"
+                                                     Description="{Binding EmailFormatDescription}">
+                                <ComboBox MinWidth="140" SelectedValuePath="Tag"
+                                          AutomationProperties.Name="Email draft format"
+                                          SelectedValue="{Binding EmailFormat, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Automatic" Tag="auto" />
+                                    <ComboBoxItem Content="Email (.eml)" Tag="eml" />
+                                    <ComboBoxItem Content="Outlook (.msg)" Tag="msg" />
+                                </ComboBox>
+                            </localcontrols:OptionRow>
                             <localcontrols:OptionRow Header="Saved drafts"
                                                      Description="Each email draft is kept in MarkSmith's outbox for 7 days, then deleted.">
                                 <Button Content="Clear now" Command="{Binding ClearEmailOutboxCommand}"
@@ -1869,8 +1879,12 @@
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE724;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="Save as email (.eml)" Click="OnSaveEmailClick"
-                                                ToolTipService.ToolTip="Saves an .eml draft beside your other exports. Double-click it to open it in Outlook as a message you can send.">
+                                                ToolTipService.ToolTip="Saves an .eml draft beside your other exports. Every mail app opens it; Outlook opens it as a message you can send.">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE715;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Save as Outlook message (.msg)" Click="OnSaveOutlookMessageClick"
+                                                ToolTipService.ToolTip="Saves an Outlook .msg draft beside your other exports, for people who file or share mail as .msg. Double-click it to open it in Outlook as a message you can send.">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C3;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem x:Name="ExportAllItem" Text="Export all licensed formats" Click="OnExportAllClick">

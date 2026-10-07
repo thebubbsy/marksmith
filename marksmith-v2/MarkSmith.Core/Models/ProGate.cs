@@ -61,6 +61,12 @@ public static class ProGate
         $"{FeatureName(id)} is a MarkSmith Pro feature. " +
         (OffersTrial(state) ? "Start the free trial to use it now." : "Upgrade to MarkSmith Pro to use it.");
 
+    /// <summary>The same line for a request that didn't come from the app window (the browser
+    /// extension, the local API, a batch run), so it says where the trial or upgrade is.</summary>
+    public static string ApiLine(FeatureId id, LicenseState state) =>
+        $"{FeatureName(id)} is a MarkSmith Pro feature. " +
+        (OffersTrial(state) ? "Start the free trial in the MarkSmith app to use it now." : "Upgrade to MarkSmith Pro in the MarkSmith app to use it.");
+
     public static string DialogTitle(FeatureId id) => $"{FeatureName(id)} is part of MarkSmith Pro";
 
     /// <summary>The dialog's paragraphs, in order: the pitch, the offer, what stays free.</summary>

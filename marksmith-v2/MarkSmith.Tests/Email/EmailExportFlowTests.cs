@@ -33,6 +33,7 @@ public class EmailExportFlowTests
             EmailSubjectTemplate = "{title}",
             EmailAttachPdf = false,
             EmailAttachDocx = false,
+            EmailFormat = "eml",
         };
         return (vm, dir);
     }
@@ -41,9 +42,12 @@ public class EmailExportFlowTests
     {
         var opened = new List<string>();
         var previous = EmailOutbox.Open;
+        var lookup = MailApps.Lookup;
         EmailOutbox.Open = p => { opened.Add(p); return succeeds; };
+        // Whatever this PC has set for .eml files: the status line names the app.
+        MailApps.Lookup = _ => new MailHandler(MailAppKind.None, "");
         try { return (opened, await run()); }
-        finally { EmailOutbox.Open = previous; }
+        finally { EmailOutbox.Open = previous; MailApps.Lookup = lookup; }
     }
 
     [Fact]

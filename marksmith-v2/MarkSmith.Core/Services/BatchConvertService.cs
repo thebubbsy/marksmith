@@ -30,7 +30,7 @@ public sealed class BatchConvertService
             throw new ArgumentException("Target format must be 'pdf' or 'docx'");
 
         if (isDocx && !AppServices.License.CanExportDocx)
-            throw new InvalidOperationException("DOCX export is a MarkSmith Pro feature. Activate Pro or start the 3-export trial in Settings.");
+            throw new InvalidOperationException(Models.ProGate.ApiLine(Models.FeatureId.DocxExport, AppServices.License.State));
 
         Directory.CreateDirectory(outputDir);
 

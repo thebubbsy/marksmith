@@ -57,6 +57,14 @@ public class HtmlToMarkdownTests
     }
 
     [Fact]
+    public void Ballot_Box_Items_From_An_Email_Come_Back_As_A_Task_List()
+    {
+        // MarkSmith's email export draws task boxes as ☑ / ☐ (mail has no checkboxes).
+        var md = Md("<ul><li><span>☑</span>&#160;Draft</li><li><span>☐</span>&#160;Send</li><li>☐</li></ul>");
+        Assert.Equal("- [x] Draft\n- [ ] Send\n- ☐", md);
+    }
+
+    [Fact]
     public void Word_List_Paragraphs_Become_Real_Nested_Lists()
     {
         var html = "<p class=MsoListParagraphCxSpFirst style='mso-list:l0 level1 lfo1'><![if !supportLists]><span>1.<span>&nbsp;&nbsp;</span></span><![endif]>First</p>"

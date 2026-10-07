@@ -91,7 +91,7 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ConvertDirectoryAsync(null, tempSrc, tempOut, format, new AppSettings()));
 
-            Assert.Contains("DOCX export is a MarkSmith Pro feature", ex.Message);
+            Assert.Contains("Word export is a MarkSmith Pro feature", ex.Message);
             Assert.False(Directory.Exists(tempOut), "Output directory should not be created if blocked at entry.");
         }
         finally
@@ -304,7 +304,7 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ConvertDirectoryAsync(null, tempSrc, tempOut, "docx", new AppSettings()));
 
-            Assert.Contains("DOCX export is a MarkSmith Pro feature", ex.Message);
+            Assert.Contains("Word export is a MarkSmith Pro feature", ex.Message);
             Assert.False(Directory.Exists(tempOut));
         }
         finally
@@ -583,7 +583,7 @@ public class BatchLicensingEmpiricalChallengerTests : IDisposable
             // Batch 4 (0 credits -> throws InvalidOperationException)
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ConvertDirectoryAsync(null, tempSrc4, tempOut4, "docx", new AppSettings()));
-            Assert.Contains("DOCX export is a MarkSmith Pro feature", ex.Message);
+            Assert.Contains("Word export is a MarkSmith Pro feature", ex.Message);
             Assert.False(File.Exists(Path.Combine(tempOut4, "batch4.docx")));
         }
         finally

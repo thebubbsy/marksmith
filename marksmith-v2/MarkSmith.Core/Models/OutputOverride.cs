@@ -61,7 +61,7 @@ public sealed class OutputOverride
     public string? OutputFolder { get; set; }
 
     // Which file(s) to produce: any of "pdf", "docx", "pptx", "epub", comma-separated, or "both"
-    // (= pdf,docx). Null/blank = pdf. /api/convert also takes "eml" (an Outlook draft, free).
+    // (= pdf,docx). Null/blank = pdf. /api/convert also takes "eml" or "msg" (an Outlook draft, free).
     public string? Format { get; set; }
 
     // Email drafts (format "eml" and POST /api/email). Recipients replace the Email settings' To/Cc
