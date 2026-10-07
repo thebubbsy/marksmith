@@ -90,9 +90,6 @@ public sealed class ExtensionSettingsBridge
             new Field("connectorArrowhead", "ConnectorArrowhead", "Connector arrowheads", "Used for connectors whose diagram source doesn't pick one.", "choice",
                 new[] { new Choice("default", "Default (from the diagram)"), new Choice("triangle", "Triangle"), new Choice("open", "Open arrow"), new Choice("diamond", "Diamond"),
                         new Choice("oval", "Oval"), new Choice("stealth", "Stealth"), new Choice("none", "None") }),
-            // The desktop shows this as one switch over two of OversizedDiagramMode's values.
-            new Field("shrinkWideDiagrams", "OversizedDiagramMode", "Shrink wide diagrams to fit", "Scale diagrams wider than the page down to fit inside its margins.", "toggle",
-                Read: v => v is int mode ? mode != 1 : true, Write: v => (bool)v! ? 4 : 1),
         }),
         new Group("email", "Email", "Outlook drafts. Every email feature is free.", new[]
         {

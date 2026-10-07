@@ -52,7 +52,6 @@
             <conv:BoolToInverseConverter x:Key="BoolToInverseConverter" />
             <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
             <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
-            <conv:OversizedDiagramModeConverter x:Key="OversizedDiagramModeConverter" />
         </Grid.Resources>
 
         <Grid.RowDefinitions>
@@ -490,16 +489,18 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+                <!-- Two columns, not one shared cell: when the side panes leave the centre narrow,
+                     the title trims with an ellipsis instead of sliding under the toggles. -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                         <Border Style="{StaticResource StepBadgeStyle}">
                             <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Editor / Preview" Style="{StaticResource StepTitleStyle}" />
-                            <TextBlock Text="Looking Glass Layer" Style="{StaticResource StepCaptionStyle}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Editor / Preview" Style="{StaticResource StepTitleStyle}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="Looking Glass Layer" Style="{StaticResource StepCaptionStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
                     
                     <!-- Decluttered header: Copy HTML / Print moved to the pane's bottom bar, the
                          portal shape + size dials moved to the portal bar (shown while portal mode
@@ -507,7 +508,7 @@
                          moved to the status bar. Only the portal toggle + view switcher remain, so
                          this row can no longer overflow into the step title on the left at the
                          default 1220×800 launch size. -->
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <ToggleButton x:Name="LookingGlassToggle" ToolTipService.ToolTip="Looking Glass portal mode — click the preview to reveal the editable Markdown behind it"
                                       Height="32" Width="32" Padding="0" VerticalAlignment="Center"
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">
@@ -1345,11 +1346,9 @@
                                     </ComboBox>
                                 </localcontrols:OptionRow.Details>
                             </localcontrols:OptionRow>
-                            <localcontrols:OptionRow Header="Shrink wide diagrams to fit"
-                                                     Description="Scale diagrams wider than the page down to fit inside its margins.">
-                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}"
-                                              IsOn="{Binding OversizedDiagramMode, Mode=TwoWay, Converter={StaticResource OversizedDiagramModeConverter}}" />
-                            </localcontrols:OptionRow>
+                            <!-- "Shrink wide diagrams to fit" lived here. DocxExportService forces
+                                 OversizedDiagramMode 4 (shrink to one page) on every export by product
+                                 decision, so the switch changed nothing; wide diagrams always fit. -->
 
                                     </StackPanel>
                                 </Expander>

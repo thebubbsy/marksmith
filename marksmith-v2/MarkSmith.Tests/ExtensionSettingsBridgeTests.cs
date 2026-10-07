@@ -45,7 +45,6 @@ public class ExtensionSettingsBridgeTests : IDisposable
         public int MermaidDocxMode { get; set; } = 1;
         public bool SmartConnectors { get; set; } = true;
         public string ConnectorArrowhead { get; set; } = "default";
-        public int OversizedDiagramMode { get; set; } = 4;
         public string EmailTo { get; set; } = "";
         public string EmailCc { get; set; } = "";
         public string EmailSubjectTemplate { get; set; } = "{title}";
@@ -110,14 +109,13 @@ public class ExtensionSettingsBridgeTests : IDisposable
     {
         AppServices.License.Load();
         AppServices.License.ResetToFree();
-        var vm = new FakeVm { IncludeToc = true, OversizedDiagramMode = 1, DashMode = 2 };
+        var vm = new FakeVm { IncludeToc = true, DashMode = 2 };
         var json = JsonSerializer.Serialize(await Bridge(vm).DescribeAsync(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         using var doc = JsonDocument.Parse(json);
         var fields = doc.RootElement.GetProperty("groups").EnumerateArray()
             .SelectMany(g => g.GetProperty("fields").EnumerateArray())
             .ToDictionary(f => f.GetProperty("key").GetString()!);
         Assert.True(fields["includeToc"].GetProperty("value").GetBoolean());
-        Assert.False(fields["shrinkWideDiagrams"].GetProperty("value").GetBoolean());
         Assert.Equal("2", fields["dashMode"].GetProperty("value").GetString());
         Assert.Equal(2, fields["theme"].GetProperty("choices").GetArrayLength());
         Assert.True(fields["autoClipboardIngest"].GetProperty("locked").GetBoolean());
@@ -130,16 +128,15 @@ public class ExtensionSettingsBridgeTests : IDisposable
         var vm = new FakeVm();
         var result = await Bridge(vm).ApplyAsync(Changes(
             "{\"theme\":\"Dracula\",\"includeToc\":true,\"contentWidth\":1000,\"dashMode\":\"3\",\"dashCustom\":\" / \"," +
-            "\"shrinkWideDiagrams\":false,\"emailTo\":\"ann@example.com\",\"targetFormat\":\"docx\",\"mermaidDocxMode\":0}"));
+            "\"emailTo\":\"ann@example.com\",\"targetFormat\":\"docx\",\"mermaidDocxMode\":0}"));
 
         Assert.Empty(result.Rejected);
-        Assert.Equal(9, result.Applied.Count);
+        Assert.Equal(8, result.Applied.Count);
         Assert.Equal("Dracula", vm.SelectedThemeName);
         Assert.True(vm.IncludeToc);
         Assert.Equal(1000, vm.ContentWidth);
         Assert.Equal(3, vm.DashMode);
         Assert.Equal(" / ", vm.DashCustom);
-        Assert.Equal(1, vm.OversizedDiagramMode);
         Assert.Equal("ann@example.com", vm.EmailTo);
         Assert.Equal("docx", vm.TargetFormat);
         Assert.Equal(0, vm.MermaidDocxMode);

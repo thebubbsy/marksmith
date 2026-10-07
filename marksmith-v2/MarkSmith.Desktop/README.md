@@ -120,10 +120,24 @@ heading becomes the subject, the default recipients come from Style & Export ▸
 code and diagrams are drawn in Outlook-safe HTML with inline PNGs. Double-click the file to open it
 in Outlook ready to send. Email output is free on every plan; DOCX and PPTX need Pro.
 
-### 2. Ingest Extension Report & DLP Scan
+### 2. Open an Outlook draft (free)
+`POST /api/email` with `{ "markdown": "...", "output": { "emailTo": "ann@example.com", "emailCc": "", "emailSubject": "Q3" }, "open": true }`
+
+With `open: true` (the default) MarkSmith writes the draft to its outbox and opens it in the
+default mail app, returning `{ ok, opened, path, subject, notes }`. With `open: false` it returns
+the `.eml` bytes. Addresses that aren't email addresses are a 400 naming them.
+
+### 3. Read and change MarkSmith's settings (browser extension)
+`GET /api/extension/settings` returns every user-facing option (group, label, help text, kind,
+choices, range, Pro flag, current value) plus the licence state. `POST` the same path with
+`{ "changes": { "includeToc": true, "theme": "Dracula" } }` to apply them through the app's UI,
+which updates at once; refusals come back with a readable reason. Only the browser extension and
+local scripts may call it, and it never exposes passwords, licence details or folder paths.
+
+### 4. Ingest Extension Report & DLP Scan
 `POST /api/governance/report`
 
-### 3. Get Governance Audit Summary
+### 5. Get Governance Audit Summary
 `GET /api/governance/summary`
 
 ---
