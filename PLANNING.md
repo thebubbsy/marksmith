@@ -2356,3 +2356,103 @@ Ctrl+Shift+O draft in Outlook, then it should ship.**
 6. Carried over: Shape Studio rotated handles and connector re-routing, the light-theme pass,
    the SmartArt outline keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt
    exports in real Word.
+
+### 2026-10-08 08:00–08:25 AEST (routine run #26: the free plan, the paywall and preview zoom)
+
+Run #25's list put email Phase 3 (`.msg`) first. This run took #21b finding 2 (free-tier export
+path and paywall) and finding 10 (preview zoom) instead. Both are things every free user meets in
+the first minute, and the paywall is where the money comes from. The PC was locked the whole run.
+Everything was verified through UIA on a scratch-config instance.
+
+**Broken or misleading things fixed:**
+- **A free user's biggest button opened a paywall.** "Generate Word (.docx)" was the primary export
+  for everyone.
+- **The trial was only offered for Word.** It is full Pro, but PowerPoint, batch and automation
+  gates offered only "Upgrade to Pro". A free user who reached PowerPoint first was told to pay for
+  something the trial would have unlocked.
+- **Starting the trial didn't do the thing.** You clicked Word, then "Start trial", and got a
+  status line. Then you had to find the button again.
+- **The dialog said the free plan covers "Markdown, PDF and HTML".** EPUB and email are free too.
+- Nine hand-written variants of the gate message existed, including " - upgrade in Settings." with
+  a hyphen, "Marksmith", and "DOCX export" where people say Word. The free banner was a yellow
+  **warning** on every launch. Trial copy said "Spend them wisely".
+- **Preview-only view fitted to ~171%** in a wide pane, and zoom moved by a fixed 10% from odd
+  numbers (171, 161, 151 …).
+
+**What shipped (commit 817c8de):**
+- `Core/Models/ProGate` is the single source for everything the app says at a gate: `StatusLine`,
+  `DialogTitle` / `DialogParagraphs` (pitch, then the offer, then `FreePlanIncludes`), `Banner`,
+  `MenuTag` ("Pro · Ctrl+Shift+D"), `PrimaryExportIsWord` / `Label` / `Tip`, and `FeatureName`
+  ("Word export", "PowerPoint export").
+- VM `ReportProGate(id, resume)` replaces all seven VM gate blocks. The shell's
+  `NotifyProFeatureAttempted(id, resume)` routes through it too. `ResumeAfterUnlockAsync()` runs
+  the stored action once. The dialog calls it after a successful `StartTrial`. Resumes are wired
+  for Word, PowerPoint, Google Docs, batch (VM and shell) and the three automation toggles.
+- Upgrade dialog: the trial is offered for every gated feature while it's unused. Buy Pro is hidden
+  while `IsStoreConfigured` is false, so there's no dead button. A `_proGateOpen` guard stops a
+  second dialog.
+- Main export SplitButton: "Generate PDF (.pdf)" on Free, "Generate Word (.docx)" for trial and
+  Pro. The label, icon, UIA name and tooltip update live on license change
+  (`UpdateExportButtonForLicense`, called from `UpdateLicenseBanner`). Flyout items show their
+  shortcut from `KeyboardShortcuts`, prefixed "Pro" while gated. "Export all licensed formats" is
+  hidden on Free. The title-bar Export Word button has the same PRO pill as Branding
+  (`ShowProBadge`).
+- Banners: Free is Informational, with "Start free trial" or "Buy Pro". Trial reads "Pro trial ·
+  2 Word exports left" with no button. The `LicenseService` status and `StartTrial` messages were
+  rewritten, and Settings → License copy now lists what Pro adds and what stays free.
+- Export status says "Word document saved" / "PowerPoint deck saved", not "DOCX saved".
+- `Core/Services/ZoomSteps`: standard stops (25 … 90, 100, 110, 125, 150, 175, 200 … 400%),
+  `Next` / `Previous` snap off-ladder fitted scales, and `FitMax = 1.25`. The preview script's
+  `FIT_MAX` is now 1.25 (a test pins it to `ZoomSteps`). Buttons and Ctrl+wheel use the stops. The
+  percentage is now a borderless button that resets to 100%, and the +/− buttons disable at the
+  ends.
+
+**Verified live** (scratch config, UIA, PC locked):
+- On Free, the split button is named "Generate PDF". The banner reads "PDF, web page, EPUB and
+  email exports are free. Word, PowerPoint and automation are Pro." with "Start free trial".
+- Flyout accelerator text: Word `Pro · Ctrl+Shift+D`, PDF `Ctrl+E`, PowerPoint
+  `Pro · Ctrl+Shift+T`, Google Docs `Pro`.
+- Export as Word opens "Word export is part of MarkSmith Pro", with Start free trial / Not now and
+  no Buy (store unconfigured).
+- Start free trial → **"Word document saved" status** (the export ran by itself). The banner turned
+  into "Pro trial · 2 Word exports left" and the button became "Generate Word document". The test
+  .docx in OneDrive\Documents was deleted.
+- Preview zoom from fit 81%: + gave 90, 100, 110, 125, 150; − gave 125; the readout gave 100. At a
+  2400 px window, fit stopped at 125%.
+- Not seen: pixels (PrintWindow is black while locked). The new PRO pill and the borderless zoom
+  readout need a look on an unlocked run.
+
+**Tests:** new `ProGateTests.cs` (21): copy rules, the trial offered for all gated features, the
+free-plan line, no hyphen dashes, the primary export per edition, menu tags, the banner, zoom
+stops (including 171 → 150), the FIT_MAX pin, and VM resume being one-shot. `LicensingTests` now
+pins "3 Word exports". Full suite with a scratch OutDir: 3669 passed and the same 20 environmental
+failures as run #25. Two CORS tests flaked once on the port under parallel load and pass alone.
+
+**Lessons:**
+- `sed -i` in Git Bash flipped `MainWindow.xaml` from CRLF to LF again. Use Python byte edits and
+  re-check endings before committing. `MainWindow.xaml.cs` and `SettingsView.xaml` are LF in the
+  working tree; the others are CRLF.
+- UIA exposes a MenuFlyoutItem's `KeyboardAcceleratorTextOverride` as `AcceleratorKey`. That's how
+  to read menu tags while locked.
+- A paste-mode trial export lands in the real `OneDrive\Documents`, so check its timestamp and
+  delete it.
+
+**Release:** still held for the Outlook compose-window check (run #22). v3.4.0 now has four
+headline items: Ctrl+B and headings, email, the EPUB rewrite, and a free plan that starts on PDF
+with a trial that resumes your export. **One person-run Ctrl+Shift+O check in Outlook, then ship
+it.**
+
+**Next up:**
+1. Unlocked-run screenshot pass over this run's UI (the PRO pill in the title bar, the zoom
+   readout button, the dialog layout and the trial banner), plus the light theme.
+2. Email Phase 3 (`.msg` writer and import), then the rest of Phase 5. Carried over.
+3. Other free-tier surfaces: Settings "Default output format" defaults to Word for a free user,
+   who then sends extension/API exports into a gate. Consider defaulting to PDF on Free, the same
+   rule as the main button. Also the `ApiServer` / `BatchConvertService` messages still say "DOCX
+   export … 3-export trial" (non-desktop copy, but the extension shows it).
+4. EPUB follow-ups from #25: a generated title page, metadata from `EpubMetadata`, and one real
+   reader.
+5. Keyboard follow-ups: root-scoped Ctrl+D and Alt+↑/↓ while another TextBox has focus, and a
+   focus-order pass.
+6. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
+   keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
