@@ -1389,3 +1389,97 @@ comment warns about, so it's now 3.4.0.
 5. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, a light-theme pass (History,
    the SmartArt miniature tile, side panels, the new rule rows), SmartArt click-to-zoom, Diagram
    Studio canvas fill, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 20:05–20:20 AEST (run #21b: planning hunt, requested by the user)
+
+The user asked for an hour spent hunting for new backlog. Nothing was fixed in this pass: it's findings
+only. Release v3.3.0 had finished green (x64 and arm64 installers, zips, checksums, delta feed), and its
+notes now open with a "What's new in 3.3.0" section. Method: code sweeps (TODO / NotImplemented / raw
+`ShowAsync` / windows without HoverPolish / three-dot ellipses all came back clean, so earlier runs
+did their job). Then a UIA + PrintWindow tour of the surfaces PLANNING.md had barely mentioned, with
+a rich sample document (task list, table, Mermaid, code, math, footnote).
+
+**Findings, roughly by how much a user would feel them:**
+
+1. **EPUB export is broken for any document with a task list.** The chapter writes
+   `<input type="checkbox" … checked />`, a bare attribute that isn't well-formed XML (`[xml]` parse:
+   "'/' is an unexpected token … line 11"). Strict readers (Apple Books, epubcheck) reject the
+   chapter. In the same export, **Mermaid diagrams ship as raw `flowchart LR …` source text** in a
+   `<div class="mermaid">` (e-readers have no JS), and **math ships as literal `\(E = mc^2\)`**. The
+   DOCX path already harvests Mermaid snapshots, so reuse those as images; render math to MathML or
+   SVG. Add an XHTML well-formedness test over the EPUB writer.
+2. **Paywall dialog vs. banner vs. reality.** The PPTX paywall says the free plan covers "Markdown, PDF
+   and HTML", but EPUB exported fine on free. It offers only "Upgrade to Pro / Not now", with **no
+   "Start 3-export trial"**, although that's the most natural conversion moment and the banner offers
+   it. A free user's **main export button is "Generate Word (.docx)"**, a Pro feature, so the
+   biggest button in the app leads to a paywall. Pick a free-tier default (PDF) until Pro or a trial
+   is active. The status-bar copy "Pro feature - upgrade in Settings." uses a hyphen and greyed text.
+3. **The shortcuts cheat sheet (F1 / More ▸ Keyboard shortcuts) is incomplete and misleading.** It omits
+   Ctrl+K (command palette, which has no visible entry point at all), Ctrl+Shift+M (Diagram Studio),
+   Alt+↑/↓ (move line), F11 (focus mode), F1 itself and Ctrl+, (Settings). It also lists
+   Ctrl+E "Generate PDF" vs Ctrl+Shift+P "Instant PDF export", and Ctrl+Shift+E "Instant DOCX export"
+   vs Ctrl+Shift+D "Export DOCX", as if they were different actions; each pair calls the same handler.
+   Generate the sheet from one table shared with the accelerators and the palette.
+4. **Ctrl+B / Ctrl+I do nothing.** The editor has Bold and Italic buttons but no accelerators. That's
+   table stakes for a Markdown editor. Also check Ctrl+K-for-link expectations (Ctrl+K is the
+   palette, which is fine, but say so in the tooltips) and give the B / I / heading tooltips their
+   shortcuts.
+5. **Find & replace can't be found.** It's reachable only by Ctrl+F / Ctrl+H. It isn't in Tools, the
+   toolbar or the wide editor bar. Ctrl+F in **Preview** view opens the bar in the hidden editor
+   column (`ShowFindBar` doesn't switch views; needs a live check). It doesn't prefill from the
+   editor selection.
+6. **Lint false positive:** "3+ consecutive blank lines" fires on a document with two code blocks and
+   one blank line around each. `MarkdownLintService.Analyze` `continue`s on fence and in-fence lines
+   *before* resetting `blankRun`, so blanks on either side of separate code blocks accumulate. Reset
+   the run on any non-blank line, fences included. Add a test.
+7. **Insert menu ("More to insert") needs an organisation and naming pass.** Everything is Title Case
+   ("Code Block", "Rich Components", "Multi-column Section") while the rest of the app is sentence
+   case. It contains non-insertions ("Version History…", "Table to Excel…"). "Wave Function
+   Collapse…" ("Procedural WFC Grid") is unexplained jargon next to Tab group / Chart. Link, Image
+   and Table duplicate the toolbar buttons beside it.
+8. **One name per studio, everywhere.** Diagram Studio is also "Visual Diagram Studio" (Insert menu)
+   and "Mermaid Studio" (code). Shape Studio is "Vector Shapes" on its Suite Hub card. The Galaxy is
+   "Document Galaxy & Knowledge Graph" (Insert), "Open Document Galaxy Mind Map" (palette) and Mind
+   Map (code). Suite Hub is "Open Platform Suite & Integrations Hub" in the palette. Choose:
+   Diagram Studio, Shape Studio, SmartArt Studio, Document Galaxy, Suite Hub. Sweep the XAML, the
+   palette, the tooltips, the window titles and the tour.
+9. **Command palette (Ctrl+K) coverage.** It has exports, studios, themes and recents, but no Find,
+   Replace, Save, Import, Code/Split/Preview, Clean up document, lint, zoom or insert items. Its
+   names also follow item 8. Give it a visible entry point (a search-box affordance in the title bar,
+   or a More-menu item showing "Ctrl+K").
+10. **Preview-only view opens at ~171%.** Fit-to-width on a wide pane turns an A4 page into giant
+    text, and the page-width readout jumps from "692 px" to "1404 px". Each zoom click moves about 4%
+    (five clicks: 171 → 151%). Cap fit-zoom for reading (≤ 125%?) and use standard stops (10% / 25%).
+11. **Mermaid edge labels have no background** in the preview ("yes" / "no" sit on the connector and the
+    line strikes through them). Give the edge label a page-coloured background in the preview theme
+    CSS; check the PDF and DOCX snapshots too.
+12. **Google Docs export asks every user to create their own Google Cloud OAuth client ID and
+    secret.** That's fine for a developer and a wall for a paying consumer. **Product decision for
+    the user:** ship a verified MarkSmith OAuth client, or label the integration "advanced".
+
+**Resolved, not a bug:** the left Source pane collapsing after a programmatic edit is the documented
+`AutoCollapseLeftPane` rule (it tucks away once the editor has content and the hover tab brings it
+back). Dropped from Next up.
+
+**Tool note:** in `ui.ps1`, `invoke -Name "Close"` or `"Restore"` index 0 hits the **title-bar caption
+buttons** (they're named Close / Restore / Minimize), so the first such call closed the test instance.
+Target dialog buttons by index 1 or by AutomationId (`CloseButton` / `PrimaryButton`).
+
+**Next up (supersedes run #21's list; carried items folded in):**
+1. EPUB export: well-formed XHTML, Mermaid as images, math rendered (finding 1).
+2. Free-tier export path and paywall copy, including the trial offer (finding 2).
+3. Keyboard: Ctrl+B / Ctrl+I, a complete generated shortcut sheet, palette discoverability and
+   coverage (findings 3, 4, 9).
+4. Find & replace discoverability and the Preview-view behaviour; lint blank-run fix
+   (findings 5, 6).
+5. Insert menu and app-wide naming pass (findings 7, 8).
+6. Preview zoom defaults and steps; Mermaid edge-label backgrounds (findings 10, 11).
+7. Shape Studio: rotate-aware handles (or a hint), the fill flyout and the Export dialog by hand
+   (from run #21).
+8. Settings by hand with a trial running, plugin install/remove, the .dotx round trip; Google Docs
+   decision (finding 12).
+9. Open Shape Studio and SmartArt exports in real Word (needs the user to clear Word's first-run
+   prompt once).
+10. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, a light-theme pass (History,
+    the SmartArt tile, side panels, the rule rows), SmartArt click-to-zoom, Diagram Studio canvas
+    fill, keyboard focus order, Galaxy obstacle-aware routing.
