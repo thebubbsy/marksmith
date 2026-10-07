@@ -40,6 +40,12 @@ public sealed class HouseLayout
     /// <summary>Template's default footer part XML, verbatim (w:ftr root).</summary>
     public string? FooterXml { get; set; }
 
+    /// <summary>The template document's own title (its first Title/Heading 1 paragraph) at the
+    /// time it was learned. A template that is itself an exported document usually repeats its
+    /// title in the running header; export swaps that text for the current document's title
+    /// instead of stamping the template's title onto every document.</summary>
+    public string? TemplateTitle { get; set; }
+
     public bool HasPageLayout => PageWidthTwips is > 0 && PageHeightTwips is > 0;
     public bool HasMargins => MarginTop is not null;
     public bool HasColumns => ColumnCount is > 1;
@@ -48,6 +54,22 @@ public sealed class HouseLayout
 
     /// <summary>Nothing inherited — export should fall back to its default page setup.</summary>
     public bool IsEmpty => !HasPageLayout && !HasMargins && !HasColumns && !HasHeader && !HasFooter;
+
+    /// <summary>Replaces every header/footer text node whose whole text is
+    /// <paramref name="templateTitle"/> with <paramref name="documentTitle"/>. Other text (company
+    /// name, "CONFIDENTIAL", page fields) is left untouched.</summary>
+    public static string RetitleRunningText(string partXml, string? templateTitle, string? documentTitle)
+    {
+        if (string.IsNullOrWhiteSpace(templateTitle) || string.IsNullOrWhiteSpace(documentTitle)) return partXml;
+        // OuterXml escapes only &, < and > inside text nodes, so match/emit the same way.
+        static string Esc(string t) => t.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        var from = Esc(templateTitle.Trim());
+        var to = Esc(documentTitle.Trim());
+        if (from == to) return partXml;
+        return System.Text.RegularExpressions.Regex.Replace(partXml,
+            @"(<w:t(?:\s[^>]*)?>)\s*" + System.Text.RegularExpressions.Regex.Escape(from) + @"\s*(</w:t>)",
+            m => m.Groups[1].Value + to + m.Groups[2].Value);
+    }
 
     public HouseLayout Clone() => (HouseLayout)MemberwiseClone();
 

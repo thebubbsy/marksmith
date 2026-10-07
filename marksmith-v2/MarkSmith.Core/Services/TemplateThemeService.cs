@@ -114,6 +114,7 @@ public static partial class TemplateThemeService
         var main = doc.MainDocumentPart ?? throw new InvalidDataException("Not a valid .dotx/.docx (no main part).");
         var body = main.Document.Body;
         if (body is null) return layout;
+        layout.TemplateTitle = FindTemplateTitle(body);
 
         // The body-level trailing sectPr is the document's default section.
         var sectPr = body.Elements<W.SectionProperties>().FirstOrDefault();
@@ -159,6 +160,35 @@ public static partial class TemplateThemeService
             layout.FooterXml = fp.Footer?.OuterXml;
 
         return layout;
+    }
+
+    /// <summary>The template's own title: the text of its first Title or Heading 1 paragraph
+    /// (the same rule export uses to title a document). Null when the template has neither or the
+    /// file can't be read.</summary>
+    public static string? ReadTemplateTitle(string? templatePath)
+    {
+        if (string.IsNullOrWhiteSpace(templatePath) || !File.Exists(templatePath)) return null;
+        try
+        {
+            using var doc = WordprocessingDocument.Open(templatePath, false);
+            return doc.MainDocumentPart?.Document.Body is { } body ? FindTemplateTitle(body) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? FindTemplateTitle(W.Body body)
+    {
+        foreach (var p in body.Descendants<W.Paragraph>())
+        {
+            var style = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+            if (style is not ("Title" or "Heading1")) continue;
+            var text = string.Concat(p.Descendants<W.Text>().Select(t => t.Text)).Trim();
+            if (text.Length > 0) return text;
+        }
+        return null;
     }
 
     private const string WNs = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";

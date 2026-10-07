@@ -173,4 +173,56 @@ public class HouseLayoutTests
         }
         finally { if (File.Exists(docx)) File.Delete(docx); }
     }
+
+    [Fact]
+    public void RetitleRunningText_swaps_only_whole_title_text_nodes()
+    {
+        const string xml = "<w:hdr xmlns:w=\"" + WNs + "\"><w:p><w:r><w:t xml:space=\"preserve\">R&amp;D's Plan</w:t></w:r>"
+            + "<w:r><w:t>CONFIDENTIAL</w:t></w:r><w:r><w:t>R&amp;D's Plan appendix</w:t></w:r></w:p></w:hdr>";
+
+        var result = HouseLayout.RetitleRunningText(xml, "R&D's Plan", "Q3 <Draft>");
+
+        Assert.Contains("<w:t xml:space=\"preserve\">Q3 &lt;Draft&gt;</w:t>", result);
+        Assert.Contains("CONFIDENTIAL", result);
+        Assert.Contains("R&amp;D's Plan appendix", result);
+        Assert.Equal(xml, HouseLayout.RetitleRunningText(xml, null, "Anything"));
+    }
+
+    [Theory]
+    [InlineData(true)]   // layout learned with TemplateTitle captured
+    [InlineData(false)]  // layout saved before TemplateTitle existed: read from the template file
+    public async System.Threading.Tasks.Task Export_using_an_exported_doc_as_template_retitles_its_header(bool capturedTitle)
+    {
+        string template = Path.Combine(Path.GetTempPath(), $"house-{Guid.NewGuid():N}.docx");
+        string docx = Path.Combine(Path.GetTempPath(), $"house-{Guid.NewGuid():N}.docx");
+        try
+        {
+            var plain = new AppSettings { Theme = "GitHub Light", ShowAttribution = false };
+            await new DocxExportService().ExportAsync("# Linear Algebra Cheatsheet\n\nVectors.", template, plain);
+
+            var layout = TemplateThemeService.ParseLayout(template);
+            Assert.Equal("Linear Algebra Cheatsheet", layout.TemplateTitle);
+            Assert.Contains("Linear Algebra Cheatsheet", layout.HeaderXml);
+            if (!capturedTitle) layout.TemplateTitle = null;
+
+            var settings = new AppSettings
+            {
+                Theme = "GitHub Light",
+                ShowAttribution = false,
+                BrandTemplatePath = template,
+                BrandLayout = layout,
+            };
+            await new DocxExportService().ExportAsync("# Payments Service Spec\n\nBody.", docx, settings);
+
+            using var doc = WordprocessingDocument.Open(docx, false);
+            var headerXml = doc.MainDocumentPart!.HeaderParts.Single().Header!.OuterXml;
+            Assert.Contains("Payments Service Spec", headerXml);
+            Assert.DoesNotContain("Linear Algebra", headerXml);
+        }
+        finally
+        {
+            if (File.Exists(template)) File.Delete(template);
+            if (File.Exists(docx)) File.Delete(docx);
+        }
+    }
 }

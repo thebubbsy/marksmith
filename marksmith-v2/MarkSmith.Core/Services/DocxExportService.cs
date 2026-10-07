@@ -5383,6 +5383,8 @@ public sealed partial class DocxExportService
 
 
         var layout = settings.BrandLayout;
+        // Template-learned layouts captured before TemplateTitle existed: read it from the file.
+        var templateTitle = layout?.TemplateTitle ?? TemplateThemeService.ReadTemplateTitle(settings.BrandTemplatePath);
 
 
         // ---- header: the template's own running header when the house style provides one ----
@@ -5390,7 +5392,7 @@ public sealed partial class DocxExportService
         if (layout is { HasHeader: true } && layout.HeaderXml is { } hdrXml)
         {
             var headerPart = main.AddNewPart<HeaderPart>();
-            headerPart.Header = new W.Header(hdrXml);
+            headerPart.Header = new W.Header(HouseLayout.RetitleRunningText(hdrXml, templateTitle, title));
             if (ctx.Watermark is { } wm)
             {
                 headerPart.Header.Append(BuildWatermarkParagraph(wm));
@@ -5429,7 +5431,7 @@ public sealed partial class DocxExportService
         if (layout is { HasFooter: true } && layout.FooterXml is { } ftrXml)
         {
             var footerPart = main.AddNewPart<FooterPart>();
-            footerPart.Footer = new W.Footer(ftrXml);
+            footerPart.Footer = new W.Footer(HouseLayout.RetitleRunningText(ftrXml, templateTitle, title));
             CopyHeaderFooterImages(footerPart, settings.BrandTemplatePath, footer: true);
             footerRef = new W.FooterReference { Type = W.HeaderFooterValues.Default, Id = main.GetIdOfPart(footerPart) };
         }
