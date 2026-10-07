@@ -51,6 +51,7 @@ public class ExtensionSettingsBridgeTests : IDisposable
         public bool EmailRepeatTitleInBody { get; set; }
         public bool EmailAttachPdf { get; set; }
         public bool EmailAttachDocx { get; set; }
+        public string EmailImportHistory { get; set; } = "collapse";
         public bool MermaidEnabled { get; set; } = true;
         public bool NormalizeLlm { get; set; }
         public bool ShowAttribution { get; set; }

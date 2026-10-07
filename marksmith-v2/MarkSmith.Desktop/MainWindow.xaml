@@ -150,7 +150,7 @@
                 </Button>
                 <Button Height="30" Padding="8,0" Background="Transparent" BorderThickness="0"
                         Click="OnImportDocumentClick" IsEnabled="{Binding IsNotBusy}"
-                        ToolTipService.ToolTip="Import a DOCX or PDF document into Markdown">
+                        ToolTipService.ToolTip="Import a Word, PDF, HTML or email (.eml) file as a new Markdown document">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE8B5;" FontSize="12" />
                         <TextBlock Text="Import" FontSize="12" />
@@ -255,11 +255,14 @@
                                     BorderThickness="1" CornerRadius="8" Padding="16,24">
                                 <StackPanel Spacing="8" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE896;" FontSize="26" Opacity="0.6" HorizontalAlignment="Center" />
-                                    <TextBlock Text="Drop a .md file here" HorizontalAlignment="Center" Opacity="0.75" />
+                                    <TextBlock Text="Drop a document here" HorizontalAlignment="Center" Opacity="0.75" />
+                                    <TextBlock Text="Markdown, Word, PDF, HTML or email (.eml)" HorizontalAlignment="Center"
+                                               Opacity="0.55" TextAlignment="Center" TextWrapping="WrapWholeWords"
+                                               Style="{StaticResource CaptionTextBlockStyle}" />
                                     <TextBlock Text="or" HorizontalAlignment="Center" Opacity="0.4"
                                                Style="{StaticResource CaptionTextBlockStyle}" />
                                     <Button Content="Browse files" Click="OnBrowseFileClick" HorizontalAlignment="Center"
-                                            ToolTipService.ToolTip="Browse for a Markdown file to open" />
+                                            ToolTipService.ToolTip="Open Markdown, or a Word, PDF, HTML or email file as Markdown (Ctrl+O)" />
                                 </StackPanel>
                             </Border>
 

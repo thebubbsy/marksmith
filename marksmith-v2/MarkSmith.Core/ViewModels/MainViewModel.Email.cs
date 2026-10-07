@@ -19,6 +19,8 @@ public sealed partial class MainViewModel
     [ObservableProperty] private string _emailCc = "";
     [ObservableProperty] private string _emailSubjectTemplate = EmailComposer.DefaultSubjectTemplate;
     [ObservableProperty] private bool _emailRepeatTitleInBody;
+    // Opening an .eml: "collapse" | "remove" | "keep" the quoted earlier messages.
+    [ObservableProperty] private string _emailImportHistory = "collapse";
     [ObservableProperty] private bool _emailAttachPdf;
     [ObservableProperty] private bool _emailAttachDocx;
 
@@ -46,6 +48,9 @@ public sealed partial class MainViewModel
     /// this when the Email options come into sight rather than recomputing it per key press.</summary>
     public void RefreshEmailSubjectPreview() => OnPropertyChanged(nameof(EmailSubjectPreview));
 
+    // Writes the backing fields on purpose: loading must not run the change handlers, which
+    // would save the settings straight back and re-validate on every launch.
+#pragma warning disable MVVMTK0034
     private void LoadEmailSettings(AppSettings settings)
     {
         _emailTo = settings.EmailTo ?? "";
@@ -56,7 +61,9 @@ public sealed partial class MainViewModel
         _emailAttachDocx = settings.EmailAttachDocx;
         _emailToProblem = DescribeBadAddresses(_emailTo);
         _emailCcProblem = DescribeBadAddresses(_emailCc);
+        _emailImportHistory = settings.EmailImportHistory is "remove" or "keep" ? settings.EmailImportHistory : "collapse";
     }
+#pragma warning restore MVVMTK0034
 
     partial void OnEmailToChanged(string value)
     {
@@ -85,6 +92,15 @@ public sealed partial class MainViewModel
     partial void OnEmailRepeatTitleInBodyChanged(bool value) { _settingsService.Current.EmailRepeatTitleInBody = value; SaveSettingsDebounced(); }
     partial void OnEmailAttachPdfChanged(bool value) { _settingsService.Current.EmailAttachPdf = value; SaveSettingsDebounced(); }
     partial void OnEmailAttachDocxChanged(bool value) { _settingsService.Current.EmailAttachDocx = value; SaveSettingsDebounced(); }
+
+    partial void OnEmailImportHistoryChanged(string value)
+    {
+        _settingsService.Current.EmailImportHistory = value;
+        SaveSettingsDebounced();
+        // An email that is open and unedited re-imports at once, so the choice shows immediately.
+        Plugins.PluginFileReader.InvalidateCache();
+        if (!UsePasteSource && SourceImportKind == "Email" && HasInputFile) OnInputFilePathChanged(InputFilePath);
+    }
 
     /// <summary>Status line for a draft the browser extension asked for (POST /api/email), so the
     /// app says what just appeared in Outlook and links the saved copy.</summary>

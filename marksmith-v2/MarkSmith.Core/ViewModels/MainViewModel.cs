@@ -434,42 +434,59 @@ private readonly MarkdownExportService _mdExport = new();
         }
     }
 
+    // What the open file was converted from ("Word", "PDF", "HTML", "Email", an importer plugin's
+    // name), or null when it is Markdown/text. A converted source is never written back to:
+    // Ctrl+S saves a Markdown copy beside it instead (see MainWindow.SaveDocumentToFileAsync).
+    [ObservableProperty]
+    private string? _sourceImportKind;
+
     private async Task ReadInputFileAsync(string value, CancellationToken token, SynchronizationContext? syncContext)
     {
         try
         {
-            var text = await File.ReadAllTextAsync(value, token);
+            // Through the importers, not a raw read: a .docx, .pdf, .html or .eml opens as the
+            // Markdown it converts to, never as bytes in the editor.
+            var imported = await Plugins.PluginFileReader.ImportAsync(value);
+            token.ThrowIfCancellationRequested();
+            var text = imported.Markdown;
             if (!token.IsCancellationRequested)
             {
                 CaptureVersionSafe(value, text, "opened");
                 _cachedFileMarkdown = text;
                 _editorUndo.Seed(value, text);
-                if (syncContext != null)
+                void Apply()
                 {
-                    syncContext.Post(_ =>
-                    {
-                        if (!token.IsCancellationRequested)
-                        {
-                            PastedMarkdown = text;
-                            OnPropertyChanged(nameof(CurrentMarkdown));
-                        }
-                    }, null);
-                }
-                else
-                {
+                    if (token.IsCancellationRequested) return;
+                    SourceImportKind = imported.Kind;
                     PastedMarkdown = text;
                     OnPropertyChanged(nameof(CurrentMarkdown));
+                    if (imported.IsConverted)
+                    {
+                        var lead = imported.Summary ?? $"Opened {Path.GetFileName(value)} as Markdown (converted from {imported.Kind})";
+                        StatusText = lead + " · Ctrl+S saves a Markdown copy; the original file is never changed.";
+                        StatusSeverity = StatusSeverity.Success;
+                    }
                 }
+                if (syncContext != null) syncContext.Post(_ => Apply(), null);
+                else Apply();
             }
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception ex)
         {
             if (!token.IsCancellationRequested)
             {
                 _editorUndo.SetDocument(value);
                 _cachedFileMarkdown = string.Empty;
-                OnPropertyChanged(nameof(CurrentMarkdown));
+                void Fail()
+                {
+                    SourceImportKind = null;
+                    OnPropertyChanged(nameof(CurrentMarkdown));
+                    StatusText = $"Couldn't open {Path.GetFileName(value)}: {ex.Message}";
+                    StatusSeverity = StatusSeverity.Error;
+                }
+                if (syncContext != null) syncContext.Post(_ => Fail(), null);
+                else Fail();
             }
         }
     }
@@ -1930,7 +1947,11 @@ private readonly MarkdownExportService _mdExport = new();
             return (null, string.Empty);
         }
 
-        return (PrepareMarkdown(File.ReadAllText(InputFilePath)), Path.GetFileNameWithoutExtension(InputFilePath));
+        // A converted source (Word, PDF, HTML, email) exports the Markdown it opened as, not its bytes.
+        var source = Plugins.PluginFileReader.IsMarkdownFile(InputFilePath) || string.IsNullOrEmpty(_cachedFileMarkdown)
+            ? File.ReadAllText(InputFilePath)
+            : _cachedFileMarkdown;
+        return (PrepareMarkdown(source), Path.GetFileNameWithoutExtension(InputFilePath));
     }
 
     public string ResolveOutputPath(string sourceLabel, string extension)

@@ -448,6 +448,7 @@ public sealed class AppSettings
         EmailAttachPdf = other.EmailAttachPdf;
         EmailAttachDocx = other.EmailAttachDocx;
         EmailFormat = other.EmailFormat;
+        EmailImportHistory = other.EmailImportHistory;
     }
 
     // Email (Outlook .eml / .msg drafts). Every email feature is free on every plan.
@@ -461,6 +462,9 @@ public sealed class AppSettings
     public bool EmailAttachDocx { get; set; }
     // "auto", "eml" or "msg".
     public string EmailFormat { get; set; } = "auto";
+    // Opening an .eml: what happens to the quoted earlier messages below the reply.
+    // "collapse" folds them into a <details> block, "remove" drops them, "keep" leaves them inline.
+    public string EmailImportHistory { get; set; } = "collapse";
 
     public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
     public bool AutoRestartAfterUpdate { get; set; } = true;

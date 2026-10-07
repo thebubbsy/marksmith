@@ -1928,7 +1928,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             e.AcceptedOperation = DataPackageOperation.Copy;
             if (e.DragUIOverride is not null)
             {
-                e.DragUIOverride.Caption = "Drop to load";
+                e.DragUIOverride.Caption = "Drop to open";
             }
         }
     }
@@ -1938,13 +1938,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
 
         var items = await e.DataView.GetStorageItemsAsync();
-        // Importer plugins (e.g. Pandoc) widen what "a droppable document" means — see
-        // MarkSmith.Core/Plugins/PluginFileReader for where the conversion happens on read.
-        var importerExts = App.Plugins.AllImporterExtensions;
-        var docs = items.OfType<StorageFile>()
-            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
-                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
-            .ToList();
+        // Markdown, plus everything the importers turn into Markdown (Word, PDF, HTML, email and
+        // any importer plugin's formats) — the same list the Open picker offers.
+        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 0) return;
 
         // Single file: load it into the editor exactly as before.
@@ -1988,7 +1984,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             e.AcceptedOperation = DataPackageOperation.Copy;
             if (e.DragUIOverride is not null)
             {
-                e.DragUIOverride.Caption = "Drop to load document";
+                e.DragUIOverride.Caption = "Drop to open";
             }
         }
     }
@@ -1997,11 +1993,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
         var items = await e.DataView.GetStorageItemsAsync();
-        var importerExts = App.Plugins.AllImporterExtensions;
-        var docs = items.OfType<StorageFile>()
-            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
-                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
-            .ToList();
+        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 0) return;
 
         if (docs.Count == 1)
@@ -2032,11 +2024,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var items = await e.DataView.GetStorageItemsAsync();
 
         // 1. Check for documents first (Markdown or supported text formats)
-        var importerExts = App.Plugins.AllImporterExtensions;
-        var docs = items.OfType<StorageFile>()
-            .Where(f => f.FileType is ".md" or ".markdown" or ".txt"
-                || importerExts.Contains(f.FileType.TrimStart('.').ToLowerInvariant()))
-            .ToList();
+        var docs = items.OfType<StorageFile>().Where(f => Plugins.PluginFileReader.CanOpen(f.Path)).ToList();
         if (docs.Count == 1)
         {
             ViewModel.InputFilePath = docs[0].Path;
@@ -2103,14 +2091,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var picker = new FileOpenPicker();
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add(".md");
-        picker.FileTypeFilter.Add(".markdown");
-        picker.FileTypeFilter.Add(".docx");
-        picker.FileTypeFilter.Add(".pdf");
-        picker.FileTypeFilter.Add(".txt");
-        picker.FileTypeFilter.Add(".html");
-        picker.FileTypeFilter.Add(".htm");
-        foreach (var ext in App.Plugins.AllImporterExtensions) picker.FileTypeFilter.Add("." + ext);
+        foreach (var ext in Plugins.PluginFileReader.NativeExtensions) picker.FileTypeFilter.Add("." + ext);
+        foreach (var ext in App.Plugins.AllImporterExtensions)
+            if (!Plugins.PluginFileReader.NativeExtensions.Contains(ext)) picker.FileTypeFilter.Add("." + ext);
         var file = await picker.PickSingleFileAsync();
         if (file is not null)
         {
@@ -3020,6 +3003,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
+        if (!Plugins.PluginFileReader.IsMarkdownFile(path))
+        {
+            await SaveConvertedSourceAsMarkdownAsync(path);
+            return;
+        }
         try
         {
             // Restore any stashed %% position metadata so the saved file keeps studio layouts.
@@ -3032,6 +3020,33 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         catch (Exception ex)
         {
             ViewModel.StatusText = $"Save failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+    }
+
+    // The open file is a Word/PDF/HTML/email document shown as Markdown. Writing Markdown over it
+    // would destroy it, so Ctrl+S writes "<name>.md" beside it (Services.Import.MarkdownCopy) and
+    // carries on editing that file.
+    private async Task SaveConvertedSourceAsMarkdownAsync(string sourcePath)
+    {
+        try
+        {
+            var fallbackDir = !string.IsNullOrWhiteSpace(ViewModel.OutputFolder) ? ViewModel.OutputFolder
+                : !string.IsNullOrWhiteSpace(App.Settings.Current.OutputFolder) ? App.Settings.Current.OutputFolder
+                : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var toSave = Mermaid.Sync.MermaidSpatialMetadataService.Reinject(
+                ViewModel.CurrentMarkdown ?? "", _mermaidSpatialStash);
+            var target = await Task.Run(() => Services.Import.MarkdownCopy.Save(sourcePath, toSave, fallbackDir));
+
+            ViewModel.InputFilePath = target;
+            ViewModel.UsePasteSource = false;
+            ViewModel.StatusText = $"Saved as Markdown: {Path.GetFileName(target)} · {Path.GetFileName(sourcePath)} is unchanged. Ctrl+S now saves to the .md.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            ViewModel.StatusOutputPath = target;
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Couldn't save a Markdown copy: {ex.Message}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
@@ -3056,8 +3071,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             ("File & export", new[]
             {
-                ("Ctrl + O", "Open a Markdown file"),
-                ("Ctrl + S", "Save edits back to the source file"),
+                ("Ctrl + O", "Open a document: Markdown, Word, PDF, HTML or email (.eml)"),
+                ("Ctrl + S", "Save edits (Word, PDF, HTML and email files are saved as a Markdown copy)"),
                 ("Ctrl + E", "Generate PDF"),
                 ("Ctrl + Shift + P", "Instant PDF export"),
                 ("Ctrl + Shift + E", "Instant DOCX export"),
@@ -3154,7 +3169,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             new("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync()),
             new("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
             new("Print the rendered document", "Export", () => { PrintDocument(); return Task.CompletedTask; }, "Ctrl+P"),
-            new("Open a Markdown file", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+O"),
+            new("Open a document", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }, "Ctrl+O"),
+            new("Open an email (.eml)", "File", () => { OnBrowseFileClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
+            new("Save (converted files save as a Markdown copy)", "File", SaveDocumentToFileAsync, "Ctrl+S"),
             new("Open version history", "File", () => { OnOpenHistoryClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Platform Suite & Integrations Hub", "Studio", () => { OnSuiteHubClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
             new("Open Document Galaxy Mind Map", "Studio", () => { OnOpenMindMapGalaxyClick(this, new RoutedEventArgs()); return Task.CompletedTask; }),
@@ -5334,41 +5351,56 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var picker = new FileOpenPicker();
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add(".docx");
-        picker.FileTypeFilter.Add(".pdf");
+        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".html", ".htm" }) picker.FileTypeFilter.Add(ext);
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
 
         try
         {
-            var importer = new Services.ReverseImportService();
-            Services.ReverseImportResult result;
             var ext = Path.GetExtension(file.Path).ToLowerInvariant();
-
-            if (ext == ".pdf")
-                result = await importer.ImportFromPdfAsync(file.Path);
-            else
-                result = await importer.ImportFromDocxAsync(file.Path);
-
-            if (string.IsNullOrWhiteSpace(result.Markdown))
+            if (ext is ".docx" or ".pdf")
             {
-                ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
+                // Word/PDF keep their own result: the tier and the "edited after export" warning.
+                var importer = new Services.ReverseImportService();
+                var result = ext == ".pdf"
+                    ? await importer.ImportFromPdfAsync(file.Path)
+                    : await importer.ImportFromDocxAsync(file.Path);
+
+                if (string.IsNullOrWhiteSpace(result.Markdown))
+                {
+                    ViewModel.StatusText = result.Warning ?? "No content could be extracted from that document.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
+
+                // Load the extracted Markdown into the editor as a new document.
+                ViewModel.PastedMarkdown = result.Markdown;
+                ViewModel.UsePasteSource = true;
+                ViewModel.StatusText = $"Imported {Path.GetFileName(file.Path)} ({result.Tier})";
+                ViewModel.StatusSeverity = result.IsStale
+                    ? Models.StatusSeverity.Warning
+                    : Models.StatusSeverity.Success;
+                if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
+                    ViewModel.StatusText += " — edited after export; source may lag the visible content";
                 return;
             }
 
-            // Load the extracted Markdown into the editor.
-            ViewModel.PastedMarkdown = result.Markdown;
+            var imported = await Plugins.PluginFileReader.ImportAsync(file.Path);
+            if (string.IsNullOrWhiteSpace(imported.Markdown))
+            {
+                ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(file.Path)}: it has no readable content.";
+                ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                return;
+            }
+            ViewModel.PastedMarkdown = imported.Markdown;
             ViewModel.UsePasteSource = true;
-            ViewModel.StatusText = $"Imported {Path.GetFileName(file.Path)} ({result.Tier})";
-            ViewModel.StatusSeverity = result.IsStale
-                ? Models.StatusSeverity.Warning
-                : Models.StatusSeverity.Success;
-            if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))
-                ViewModel.StatusText += " — edited after export; source may lag the visible content";
+            ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(file.Path)}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
         {
             ViewModel.StatusText = $"Import failed: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
         }
     }
 

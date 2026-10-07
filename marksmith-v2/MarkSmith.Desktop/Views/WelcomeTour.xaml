@@ -139,7 +139,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE77F;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Paste Markdown straight in, or drop / browse a .md file." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Paste Markdown straight in, or drop / browse a file: Markdown, or a Word, PDF, HTML or Outlook email (.eml) file, which opens as clean Markdown." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>

@@ -99,6 +99,8 @@ public sealed class ExtensionSettingsBridge
             new Field("emailRepeatTitleInBody", "EmailRepeatTitleInBody", "Keep the title in the message", "The opening heading becomes the subject. Turn this on to repeat it as a heading at the top of the message too.", "toggle"),
             new Field("emailAttachPdf", "EmailAttachPdf", "Attach a PDF copy", "The same document as a PDF, for readers who want to print or file it.", "toggle"),
             new Field("emailAttachDocx", "EmailAttachDocx", "Attach a Word copy", "An editable .docx of the document. Attaching Word files is a Pro feature; on the free plan the email still goes, without the copy.", "toggle", Pro: "info"),
+            new Field("emailImportHistory", "EmailImportHistory", "Earlier messages in an opened email", "Opening an .eml in MarkSmith: what happens to the quoted thread under the newest message.", "choice",
+                new[] { new Choice("collapse", "Fold them away"), new Choice("remove", "Leave them out"), new Choice("keep", "Keep them inline") }),
         }),
         new Group("content", "Content & cleanup", "What happens to AI text on the way in.", new[]
         {

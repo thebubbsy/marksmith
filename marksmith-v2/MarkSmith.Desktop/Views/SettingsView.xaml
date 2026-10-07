@@ -150,6 +150,18 @@
                              stub that returns null and has no callers, so all three choices behaved
                              identically. Removed until that resolver exists. -->
 
+                        <TextBlock Text="Opening files" Style="{StaticResource SettingsSectionStyle}" />
+                        <controls:SettingsCard Glyph="&#xE715;" Header="Earlier messages in an email"
+                                               Description="Opening an .eml: what happens to the quoted thread under the newest message.">
+                            <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
+                                      AutomationProperties.Name="Earlier messages in an email"
+                                      SelectedValue="{Binding EmailImportHistory, Mode=TwoWay}">
+                                <ComboBoxItem Content="Fold them away" Tag="collapse" />
+                                <ComboBoxItem Content="Leave them out" Tag="remove" />
+                                <ComboBoxItem Content="Keep them inline" Tag="keep" />
+                            </ComboBox>
+                        </controls:SettingsCard>
+
                         <TextBlock Text="Performance" Style="{StaticResource SettingsSectionStyle}" />
                         <controls:SettingsCard Glyph="&#xE950;" Header="Hardware acceleration"
                                                Description="Render the live preview on the GPU. Turn off to work around graphics-driver problems (black preview, flicker, crashes). Takes effect after a restart.">
