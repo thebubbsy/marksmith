@@ -2117,3 +2117,131 @@ anything that isn't Markdown" path rather than bolting `.eml` onto it.
 4. Carried over: the Outlook check, then v3.4.0; Shape Studio rotated handles and connector
    re-routing; the light-theme pass; the #21b list (EPUB, paywall copy, shortcut sheet from a
    shared table, find, lint, naming).
+
+### 2026-10-08 06:00–06:30 AEST (routine run #24: keyboard and discoverability overhaul)
+
+Run #23's "Next up" was all email (Phase 3 `.msg`, Phase 5). This run took the long-waiting #21b
+polish list instead: items 3, 4, 5 and 6 (keyboard, palette, find, lint) plus most of 7 and 8
+(Insert menu and studio naming). The email phases stay next in line. The PC was locked the whole
+run, so everything was verified through UIA on a scratch-config instance.
+
+**Broken things fixed** (they existed and didn't work):
+- **Ctrl+B / Ctrl+I did nothing**, although the Bold/Italic tooltips said "(Ctrl+B)".
+- **Headings and list buttons inserted the marker at the caret.** H1 with the caret at the end of
+  "Hello" gave "Hello# ". Pressing H2 on an H1 line gave "## # Title". Bullets → numbers stacked
+  both markers. Pressing a marker again never removed it.
+- **The F1 sheet was hand-written and wrong**: it was missing Ctrl+K, Ctrl+Shift+M, Alt+↑/↓, F11,
+  F1 and Ctrl+, and listed the two PDF and two DOCX chords as four different actions.
+- **Ctrl+F in Preview view opened the find bar in the hidden editor column.**
+- **Pressing Enter in the find box moved focus into the editor**, so a second Enter typed a line
+  break over the selected match. The match count also went stale while you edited.
+- **Lint false positive:** a blank line around each of two code blocks was flagged as "3+
+  consecutive blank lines" (fence lines `continue`d before resetting the run).
+
+**What shipped:**
+- `Core/Services/KeyboardShortcuts`: the single shortcut table (id, section, action, chords,
+  editor-only / hidden / handled-in-code flags, `KeysFor`, `Tip`, `Sheet()`).
+  - `KeyboardShortcutsTests` parses `MainWindow.xaml`, found via `[CallerFilePath]` so it works
+    with a scratch OutDir. It checks every listed chord is registered at the right scope (RootGrid
+    or PasteTextBox), every registered accelerator is listed, and no chord is used twice.
+  - **Adding a shortcut now means: XAML accelerator + one row in `KeyboardShortcuts.All`.** The
+    sheet, palette and tooltips pick it up; the test fails if either side is missing.
+- New editor-scoped accelerators: Ctrl+B, Ctrl+I, Ctrl+1–4 (`OnFormatAcceleratorInvoked`). Menu
+  items and wide-bar tooltips show them.
+- `Core/Services/LineFormatting` (`Heading`, `Toggle(LineMarker)`, returns a `LineEdit` range):
+  - It acts on the caret line or every selected line (a selection ending at a line start doesn't
+    pull in the next line), and handles bare-`\r` breaks.
+  - Pressing the same marker again removes it. H2→H3 and bullets↔numbers↔tasks replace the old
+    marker. The caret stays on the same character.
+  - The desktop applies it via `ApplyLineEdit`, which replaces only the range, so the scroll
+    position is kept and the change is one undo step. The Looking Glass portal path is unchanged
+    (`__portalApplyEdit`).
+- F1 sheet, generated from the table:
+  - Each key is a keycap (Ctrl + Shift + P), and alternative chords stack.
+  - A "These work while the editor has focus" note sits under Formatting, with a Ctrl+K hint at
+    the bottom.
+- Command palette:
+  - ~70 commands: find/replace, every formatting and insert action, Code/Split/Preview, Looking
+    Glass, email preview, outline, all studios, Copy HTML, Recent exports, Import.
+  - Shortcuts come from the table and render as keycaps.
+  - `Core/Services/CommandSearch` ranks results: exact, prefix, word prefix, substring, all words
+    in any order, keywords ("mermaid" → Diagram Studio, "search" → Find), category, then
+    subsequence. Arrow keys scroll the selection into view.
+  - **Visible entry point:** a "Search commands Ctrl+K" pill at the start of the title-bar
+    actions. Its label collapses when the drag region is tight, with hysteresis so it can't
+    flicker.
+- Find bar:
+  - Ctrl+F shows only the find row; Ctrl+H or the chevron shows the replace row.
+  - From Preview it switches to Split (`EnsureEditorVisible`, also used by palette edit commands).
+  - A one-line selection prefills the query, and typing searches from the caret.
+  - Focus stays in the find box. The editor shows the match through
+    `SelectionHighlightColorWhenNotFocused` (accent at 40%).
+  - The count reads "3 of 12", "12 matches" or "No results" (critical colour), and Prev/Next/
+    Replace disable when nothing matches. Matches follow edits (`keepPosition`).
+  - Replace is case-aware and is its own undo step. Replace all reports the count and "Ctrl+Z
+    undoes it".
+  - Every control has an automation name. The "Aa" checkbox became a toggle button.
+- Find is visible in the UI: a magnifier button at the front of the editor strip, and Find / Find
+  and replace at the top of the Tools menu, which the wide bar shares.
+- Naming (finding 8): Diagram Studio, Shape Studio, SmartArt Studio, Document Galaxy and Suite Hub
+  are now the same in window titles, studio headers, the Insert menu, tooltips, the palette, the
+  Suite Hub dialog title (was "MarkSmith Platform Suite & Integrations") and status lines.
+- Insert menu (finding 7):
+  - Everything is in sentence case; "Native Chart" is now "Chart" and "Multi-column Section" is
+    "Columns".
+  - "Wave Function Collapse…" is now "Random tile map…" with a tooltip.
+  - "Table to Excel…" moved to Tools as "Copy a table to Excel…".
+  - "Version History…" left Insert; it's still in ⋯ and the palette.
+  - Tooltips use "Name: details" instead of em dashes.
+- Editor strip tooltips are plainer, and the fold menu is in sentence case.
+
+**Verified live** (scratch config, UIA, locked):
+- H1 on "Hello" gave "# Hello", then H3 gave "### Hello", then H3 again gave "Hello".
+- Select-all + Bullet list gave `- one\r- two\r- three`, and Numbered list gave `1. … 3. …`.
+- Quote at the caret affected line 1 only.
+- Find:
+  - "beta" prefilled from the selection; typing "alpha" showed "2 of 3" from the caret, and Next
+    showed "3 of 3".
+  - "zzz" showed "No results" with Next disabled.
+  - The chevron revealed the replace row (name "Hide replace"); Replace all → `omega beta omega
+    gamma omega`.
+- Palette ranking: "find" → Find, Find and replace; "pdf export" → Export PDF; "mermaid" → Open
+  Diagram Studio; "heading 2" → Heading 2 (Ctrl+2).
+- The F1 sheet read through UIA was complete and in order.
+- Not verified live: the keyboard chords themselves (no input while locked). Their registration is
+  pinned by the XAML test, and the handlers call the same code the buttons use.
+
+**Tests:**
+- New: `KeyboardShortcutsTests` (7), `LineFormattingTests` (11), `CommandSearchTests` (6), and 3
+  new lint tests.
+- Full suite with a scratch OutDir: 3625 passed, 20 failed, all environmental. That's the known
+  ~15 path-based failures, the user's 2 HouseLayout WIP, and 3 `MarkdownCopyTests` /
+  `HtmlToMarkdownTests`. Those 3 fail only because the scratch OutDir sits under `%TEMP%`, which
+  `PluginFileReader.IsTransient` treats as transient, so the copy goes to the fallback folder.
+
+**Lessons for the next run:**
+- A `Grid` has no automation peer, so `AutomationProperties.Name` on it is invisible to UIA and
+  screen readers. Put names on controls, or rely on the TextBlocks.
+- `ContentDialog` content is capped at about 500 px wide (548 max minus padding). Size dialog
+  content to fit.
+- A UIA `ControlViewWalker` DFS with a stack lists siblings in reverse. Reverse the result before
+  reading text in order.
+- `cat > file` with no stdin in a Bash command hangs the tool until timeout. Write files with the
+  Write tool.
+
+**Release:** still held on the Outlook compose-window check (run #22). This run is a good v3.4.0
+line too: Ctrl+B and working headings are things every user will feel.
+
+**Next up:**
+1. Email Phase 3 (`.msg` writer and import, MSGReader), then Phase 5 rest. Carried from run #23.
+2. #21b finding 1: EPUB well-formed XHTML (task-list checkboxes), Mermaid as images, math
+   rendered.
+3. #21b finding 2: free-tier export path and paywall copy, with a trial offer in the paywall.
+4. #21b finding 10/11: Preview-only zoom cap and standard zoom steps; Mermaid edge-label
+   backgrounds.
+5. Keyboard follow-ups: Ctrl+D / Alt+↑↓ are root-scoped. Check they don't act on the editor while
+   focus is in another TextBox (e.g. the find box). Also do a keyboard focus-order pass over the
+   main window.
+6. Carried over: Shape Studio rotated handles and connector re-routing, the light-theme pass,
+   SmartArt outline keyboard pass, Google Docs OAuth decision, open Shape/SmartArt exports in real
+   Word.
