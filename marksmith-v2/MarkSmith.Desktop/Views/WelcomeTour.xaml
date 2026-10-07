@@ -113,7 +113,7 @@
                         </StackPanel>
                     </Button>
                     <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" Opacity="0.45" VerticalAlignment="Center" />
-                    <Button Grid.Column="4" Tag="4" Click="OnStepCard" Style="{StaticResource TourStepCard}"
+                    <Button Grid.Column="4" Tag="3" Click="OnStepCard" Style="{StaticResource TourStepCard}"
                             AutomationProperties.Name="Preview and Export — go to step 3"
                             ToolTipService.ToolTip="Jump to step 3 · Preview &amp; Export">
                         <StackPanel Spacing="4">
@@ -316,7 +316,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE897;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Opacity="0.75" Text="Replay this anytime from the ? button next to Settings." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Opacity="0.75" Text="Replay this anytime: ⋯ menu (top right of Style &amp; Export) → Take a quick tour." />
                     </Grid>
                 </StackPanel>
             </StackPanel>

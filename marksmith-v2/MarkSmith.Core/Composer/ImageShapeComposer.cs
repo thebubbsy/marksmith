@@ -428,6 +428,12 @@ namespace MarkSmith.Core.Composer
         {
             double x = s.X * 96, y = s.Y * 96, w = s.W * 96, h = s.H * 96;
             double cx = x + w / 2, cy = y + h / 2;
+            // Lay the label out in the shape's own text area (what Word uses), not the whole box.
+            // A label kept level on an upside-down shape sees that area turned half a circle.
+            var ins = PresetGeometry.TextInsets(s.Prst, w, h);
+            if (ShapeComposerDocxWriter.IsMostlyUpsideDown(s.Rot)) ins = new[] { ins[2], ins[3], ins[0], ins[1] };
+            double boxW = Math.Max(8, w - ins[0] - ins[2]), boxH = Math.Max(8, h - ins[1] - ins[3]);
+            double textCx = x + ins[0] + boxW / 2, textCy = y + ins[1] + boxH / 2;
             string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
                 s.TextColor ?? "121212", "#" + s.Fill);
             // Labels go level once the shape turns past a quarter-turn (matches the DOCX writer's
@@ -435,61 +441,23 @@ namespace MarkSmith.Core.Composer
             double labelRot = ShapeComposerDocxWriter.IsMostlyUpsideDown(s.Rot) ? 0 : s.Rot;
             string transform = labelRot % 360 != 0 ? $" transform=\"rotate({labelRot} {cx} {cy})\"" : "";
 
-            // Wrap and shrink to fit. The label used to be emitted as one unwrapped <text> sized
-            // only by the shape's smaller side, so anything longer than a word or two ran straight
-            // out of its box — and a long label on a short shape rendered entirely outside it.
-            // Word wraps text inside a shape; the preview has to agree or the two do not match.
-            // Explicit newlines in a label were ignored for the same reason.
-            var paragraphs = ShapeMarkdownCodec.NormalizeLineBreaks(s.Text!).Split('\n');
-            double fontSize = Math.Clamp(Math.Min(w, h) * 0.30, 7, 96);
-            List<string> lines;
-            while (true)
-            {
-                lines = WrapToWidth(paragraphs, w * 0.88, fontSize);
-                if (lines.Count * fontSize * 1.18 <= h * 0.90 || fontSize <= 7) break;
-                fontSize -= 0.5;
-            }
-
-            double lineHeight = fontSize * 1.18;
-            double top = cy - (lines.Count - 1) * lineHeight / 2;
+            // Wrapped and sized by the same rule the Word export and the canvas use, so the preview
+            // shows the label at the size and line breaks the document will have. (Sizing from the
+            // shape's height drew a lane header's label at 24 pt, breaking words mid-way.)
+            var (pt, lines) = PresetGeometry.FitLabel(s.Text!, s.Prst, w, h);
+            double fontSize = pt * 96 / 72;
+            double lineHeight = fontSize * PresetGeometry.LineSpacing;
+            double top = textCy - (lines.Count - 1) * lineHeight / 2;
             var sb = new StringBuilder();
-            sb.Append($"<text x=\"{cx:F1}\" y=\"{top:F1}\" text-anchor=\"middle\" dominant-baseline=\"central\" ")
+            sb.Append($"<text x=\"{textCx:F1}\" y=\"{top:F1}\" text-anchor=\"middle\" dominant-baseline=\"central\" ")
               .Append($"fill=\"#{guarded}\" font-family=\"Segoe UI, Arial, sans-serif\" font-size=\"{fontSize:F1}\"")
               .Append($"{transform} data-guarded=\"shape\">");
             for (int i = 0; i < lines.Count; i++)
             {
                 string esc = lines[i].Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-                sb.Append($"<tspan x=\"{cx:F1}\" dy=\"{(i == 0 ? 0 : lineHeight):F1}\">{esc}</tspan>");
+                sb.Append($"<tspan x=\"{textCx:F1}\" dy=\"{(i == 0 ? 0 : lineHeight):F1}\">{esc}</tspan>");
             }
             return sb.Append("</text>").ToString();
-        }
-
-        /// <summary>
-        /// Greedy word wrap against an estimated advance width. Segoe UI averages roughly 0.55em
-        /// per character across mixed-case text, which is close enough to keep a label inside its
-        /// shape without shipping a font-metrics table.
-        /// </summary>
-        private static List<string> WrapToWidth(IEnumerable<string> paragraphs, double maxWidth, double fontSize)
-        {
-            double charWidth = fontSize * 0.55;
-            int maxChars = Math.Max(4, (int)(maxWidth / Math.Max(1, charWidth)));
-            var outLines = new List<string>();
-
-            foreach (var paragraph in paragraphs)
-            {
-                var words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (words.Length == 0) { outLines.Add(""); continue; }
-
-                var current = new StringBuilder();
-                foreach (var word in words)
-                {
-                    if (current.Length == 0) current.Append(word);
-                    else if (current.Length + 1 + word.Length <= maxChars) current.Append(' ').Append(word);
-                    else { outLines.Add(current.ToString()); current.Clear().Append(word); }
-                }
-                if (current.Length > 0) outLines.Add(current.ToString());
-            }
-            return outLines;
         }
 
         private static string SvgShape(ComposedShape s)
@@ -502,21 +470,20 @@ namespace MarkSmith.Core.Composer
             // Custom-geometry curved strokes (sketch mode): polyline in 0..100 space.
             if (s.PathPoints is { Count: >= 2 })
             {
+                // Points mapped to absolute coordinates so the stroke is drawn at its real width in
+                // every direction. Scaling a 0..100 path by (w/100, h/100) stretched the stroke
+                // non-uniformly: an elbow connector's vertical leg came out at w/h times the width of
+                // its horizontal one.
                 var d = new StringBuilder("M");
                 foreach (var p in s.PathPoints)
                 {
-                    d.Append(' ').Append(p.X.ToString("F1", CultureInfo.InvariantCulture))
-                     .Append(' ').Append(p.Y.ToString("F1", CultureInfo.InvariantCulture));
+                    d.Append(' ').Append((x + p.X * w / 100).ToString("F1", CultureInfo.InvariantCulture))
+                     .Append(' ').Append((y + p.Y * h / 100).ToString("F1", CultureInfo.InvariantCulture));
                 }
-                // stroke-width must be expressed in PATH space: the transform scales the path by
-                // (w/100, h/100), and stroke thickness is perpendicular to the line, so it scales
-                // by h/100 — NOT w/100. swPath·(h/100) must equal StrokeWidthPt in px, hence the
-                // divisor is h. For traced lines H = StrokeWidthPt/72" so swPath lands at exactly
-                // 100 — the stroke fills the box, matching Word's absolute a:ln width.
-                double swPath = (s.StrokeWidthPt * 96 / 72.0) * 100.0 / Math.Max(1, h);
+                double sw = s.StrokeWidthPt * 96 / 72.0;
                 // Straight traced lines use butt caps so adjacent runs never bleed into each other.
                 string cap = s.PathPoints.Count == 2 ? "butt" : "round";
-                return $"<path d=\"{d}\" transform=\"translate({x:F1},{y:F1}) scale({w / 100:F4},{h / 100:F4}){transform}\" fill=\"none\" stroke=\"{fill}\" stroke-width=\"{swPath:F2}\" stroke-linecap=\"{cap}\"/>";
+                return $"<path d=\"{d}\"{transform} fill=\"none\" stroke=\"{fill}\" stroke-width=\"{sw:F2}\" stroke-linecap=\"{cap}\" stroke-linejoin=\"round\"/>";
             }
             if (s.Prst == "line")
             {
@@ -541,19 +508,25 @@ namespace MarkSmith.Core.Composer
                     return $"<g{transform}><ellipse cx=\"{cx:F1}\" cy=\"{y + h * 0.55:F1}\" rx=\"{w * 0.42:F1}\" ry=\"{h * 0.34:F1}\" fill=\"{fill}\"/><circle cx=\"{x + w * 0.30:F1}\" cy=\"{y + h * 0.40:F1}\" r=\"{h * 0.26:F1}\" fill=\"{fill}\"/><circle cx=\"{x + w * 0.70:F1}\" cy=\"{y + h * 0.40:F1}\" r=\"{h * 0.26:F1}\" fill=\"{fill}\"/></g>";
             }
 
+            double capR = PresetGeometry.CylinderCapRadius(w, h);
             return s.Prst switch
             {
                 "ellipse" or "circle" => $"<ellipse cx=\"{cx:F1}\" cy=\"{cy:F1}\" rx=\"{w / 2:F1}\" ry=\"{h / 2:F1}\" fill=\"{fill}\"{transform}/>",
-                "roundrect" => $"<rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{w:F1}\" height=\"{h:F1}\" rx=\"{(w * 0.16):F1}\" fill=\"{fill}\"{transform}/>",
-                "trapezoid" => $"<polygon points=\"{x + w * 0.20:F1},{y:F1} {x + w * 0.80:F1},{y:F1} {x + w:F1},{y + h:F1} {x:F1},{y + h:F1}\" fill=\"{fill}\"{transform}/>",
-                "cylinder" or "can" => $"<g{transform}><path d=\"M {x:F1} {y + h * 0.15:F1} A {w / 2:F1} {h * 0.15:F1} 0 0 0 {x + w:F1} {y + h * 0.15:F1} L {x + w:F1} {y + h * 0.85:F1} A {w / 2:F1} {h * 0.15:F1} 0 0 1 {x:F1} {y + h * 0.85:F1} Z\" fill=\"{fill}\"/><ellipse cx=\"{cx:F1}\" cy=\"{y + h * 0.15:F1}\" rx=\"{w / 2:F1}\" ry=\"{h * 0.15:F1}\" fill=\"{fill}\" opacity=\"0.9\"/></g>",
+                "roundrect" => $"<rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{w:F1}\" height=\"{h:F1}\" rx=\"{PresetGeometry.RoundRectRadius(w, h):F1}\" fill=\"{fill}\"{transform}/>",
+                "trapezoid" or "chevron" or "hexagon" or "homeplate" or "homePlate" => SvgPolygon(s.Prst, x, y, w, h, fill, transform),
+                "cylinder" or "can" => $"<g{transform}><path d=\"M {x:F1} {y + capR:F1} A {w / 2:F1} {capR:F1} 0 0 0 {x + w:F1} {y + capR:F1} L {x + w:F1} {y + h - capR:F1} A {w / 2:F1} {capR:F1} 0 0 1 {x:F1} {y + h - capR:F1} Z\" fill=\"{fill}\"/><ellipse cx=\"{cx:F1}\" cy=\"{y + capR:F1}\" rx=\"{w / 2:F1}\" ry=\"{capR:F1}\" fill=\"{fill}\" opacity=\"0.9\"/></g>",
                 "diamond" => $"<polygon points=\"{cx:F1},{y:F1} {x + w:F1},{cy:F1} {cx:F1},{y + h:F1} {x:F1},{cy:F1}\" fill=\"{fill}\"{transform}/>",
                 "triangle" => $"<polygon points=\"{cx:F1},{y:F1} {x + w:F1},{y + h:F1} {x:F1},{y + h:F1}\" fill=\"{fill}\"{transform}/>",
-                "hexagon" => $"<polygon points=\"{x + w * 0.25:F1},{y:F1} {x + w * 0.75:F1},{y:F1} {x + w:F1},{cy:F1} {x + w * 0.75:F1},{y + h:F1} {x + w * 0.25:F1},{y + h:F1} {x:F1},{cy:F1}\" fill=\"{fill}\"{transform}/>",
                 "parallelogram" => $"<polygon points=\"{x + w * 0.25:F1},{y:F1} {x + w:F1},{y:F1} {x + w * 0.75:F1},{y + h:F1} {x:F1},{y + h:F1}\" fill=\"{fill}\"{transform}/>",
-                "chevron" => $"<polygon points=\"{x:F1},{y:F1} {x + w * 0.65:F1},{y:F1} {x + w:F1},{cy:F1} {x + w * 0.65:F1},{y + h:F1} {x:F1},{y + h:F1} {x + w * 0.35:F1},{cy:F1}\" fill=\"{fill}\"{transform}/>",
                 _ => $"<rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{w:F1}\" height=\"{h:F1}\" fill=\"{fill}\"{transform}/>"
             };
+        }
+
+        private static string SvgPolygon(string prst, double x, double y, double w, double h, string fill, string transform)
+        {
+            var points = string.Join(" ", PresetGeometry.Outline(prst, w, h)!.Select(p =>
+                (x + p.X).ToString("F1", CultureInfo.InvariantCulture) + "," + (y + p.Y).ToString("F1", CultureInfo.InvariantCulture)));
+            return $"<polygon points=\"{points}\" fill=\"{fill}\"{transform}/>";
         }
     }
 }

@@ -27,7 +27,9 @@ public sealed partial class WelcomeTour : UserControl
     public WelcomeTour()
     {
         InitializeComponent();
-        _pages = new[] { Page0, Page1, Page2, Page3, Page4, Page5, Page6 };
+        // Page4 (3 · Preview & Export) runs before Page3 (Diagrams & math) so the numbered
+        // pipeline reads 1, 2, 3 in order and the unnumbered extras follow it.
+        _pages = new[] { Page0, Page1, Page2, Page4, Page3, Page5, Page6 };
         foreach (var page in _pages) page.RenderTransform = new TranslateTransform();
         Show(0);
         HoverPolish.Track(this);

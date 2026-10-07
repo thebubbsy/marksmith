@@ -17,22 +17,6 @@ public class DiagramPreset
     public string Icon { get; set; } = "📐";
     public string Description { get; set; } = "";
     public Action<ShapeDesignStudioViewModel> Generate { get; set; } = _ => { };
-
-    /// <summary>Segoe Fluent glyph for the preset list, one per category. The per-preset emoji in
-    /// <see cref="Icon"/> rendered as a mismatched set of colour emoji beside Fluent chrome.</summary>
-    public string Glyph => Category switch
-    {
-        "Hierarchy & Structure" => "",   // Relationship
-        "Process & Workflow" => "",      // Forward
-        "Cycles & Loops" => "",          // Sync
-        "Matrices & Strategy" => "",     // ViewAll (2×2 grid)
-        "Relationships & Venns" => "",   // CircleRing
-        "Roadmaps & Timelines" => "",    // Calendar
-        "Architecture & Cloud" => "",    // Cloud
-        "Funnels & Pipelines" => "",     // Filter
-        "Lists & Dashboards" => "",      // BulletedList
-        _ => "",                         // Document
-    };
 }
 
 public partial class ShapeCanvasItemViewModel : ObservableObject
@@ -41,6 +25,8 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     private string _id = Guid.NewGuid().ToString("N")[..8];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LabelInsets))]
+    [NotifyPropertyChangedFor(nameof(LabelFontSize))]
     private string _prst = "ellipse";
 
     [ObservableProperty]
@@ -53,9 +39,13 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     private double _y = 100;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LabelInsets))]
+    [NotifyPropertyChangedFor(nameof(LabelFontSize))]
     private double _width = 90;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LabelInsets))]
+    [NotifyPropertyChangedFor(nameof(LabelFontSize))]
     private double _height = 60;
 
     [ObservableProperty]
@@ -65,6 +55,7 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
     public string? TextColor { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LabelFontSize))]
     private string _text = "";
 
     [ObservableProperty]
@@ -179,6 +170,18 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
         var spaced = System.Text.RegularExpressions.Regex.Replace(prst.Trim(), "(?<=[a-z])(?=[A-Z0-9])", " ").ToLowerInvariant();
         return char.ToUpperInvariant(spaced[0]) + spaced[1..];
     }
+
+    /// <summary>
+    /// Where the label sits inside the shape, as left/top/right/bottom insets in canvas px — the
+    /// same text box Word gives the preset geometry, so the canvas shows the label where the
+    /// exported document will. Centring every label on the bounding box put a triangle's text in
+    /// its narrow apex, spilling over the edges ("1 · Vision &amp; Strategy" on the pyramid preset).
+    /// </summary>
+    public double[] LabelInsets => PresetGeometry.TextInsets(Prst, Width, Height);
+
+    /// <summary>Label size in canvas px: the size the Word export will use (PresetGeometry.FitLabel),
+    /// so the canvas no longer shows a label at a third of its exported size.</summary>
+    public double LabelFontSize => PresetGeometry.FitLabel(Text ?? "", Prst, Width, Height).Pt * 96 / 72;
 
     /// <summary>Label colour guaranteed to contrast with THIS shape's fill (the CONTRAST RULE for
     /// font on top of shapes): WCAG 4.5:1 vs the fill — never against the page background.</summary>
@@ -638,12 +641,32 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             ? colors
             : ColorPalettes["Office Blue"];
 
-    public ShapeDesignStudioViewModel()
+    public ShapeDesignStudioViewModel() : this(registerPresets: true)
     {
-        RegisterPresets();
-        UpdateFilteredPresets();
+    }
+
+    private ShapeDesignStudioViewModel(bool registerPresets)
+    {
+        if (registerPresets)
+        {
+            RegisterPresets();
+            UpdateFilteredPresets();
+        }
         // The initial collection is assigned to the field, so OnShapesChanged never saw it.
         Shapes.CollectionChanged += OnShapesCollectionChanged;
+    }
+
+    /// <summary>The shapes <paramref name="preset"/> builds in <paramref name="paletteName"/>,
+    /// generated on a throwaway studio so the live canvas, its undo history and its status line
+    /// are untouched. The preset gallery draws its miniatures from these.</summary>
+    public static IReadOnlyList<ShapeCanvasItemViewModel> PreviewPreset(DiagramPreset preset, string? paletteName)
+    {
+        var scratch = new ShapeDesignStudioViewModel(registerPresets: false)
+        {
+            SelectedPaletteName = string.IsNullOrWhiteSpace(paletteName) ? "Office Blue" : paletteName,
+        };
+        preset.Generate(scratch);
+        return scratch.Shapes.ToList();
     }
 
     public ShapeCanvasItemViewModel AddShapeAt(string prst, double x, double y, double width = 120, double height = 70, string? fill = null, string text = "", int rot = 0)
@@ -716,6 +739,63 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         };
         Shapes.Add(item);
         return item;
+    }
+
+    /// <summary>An open polyline through absolute canvas points (elbow connectors, curves), stored
+    /// like any connector: a bounding box plus 0..100 local points.</summary>
+    public ShapeCanvasItemViewModel AddPolylinePath(IReadOnlyList<(double X, double Y)> points, string color = "8E9297", double strokeWidthPt = 2.0)
+    {
+        double minX = points.Min(p => p.X), minY = points.Min(p => p.Y);
+        double w = Math.Max(2.0, points.Max(p => p.X) - minX);
+        double h = Math.Max(2.0, points.Max(p => p.Y) - minY);
+        var item = new ShapeCanvasItemViewModel
+        {
+            Prst = "line",
+            Name = "Connector",
+            X = minX,
+            Y = minY,
+            Width = w,
+            Height = h,
+            Fill = color,
+            PathPoints = points.Select(p => ((p.X - minX) / w * 100, (p.Y - minY) / h * 100)).ToList(),
+            StrokeWidthPt = strokeWidthPt,
+            IsSelected = false
+        };
+        Shapes.Add(item);
+        return item;
+    }
+
+    /// <summary>
+    /// Concentric rings (outermost first) with one labelled callout per ring to the right, joined
+    /// by a leader line from the ring's own band. A label centred in a ring sits under the rings
+    /// inside it, so the bullseye and onion presets used to hide every label but the centre's.
+    /// </summary>
+    private void AddRingsWithCallouts(double cx, double cy, double[] radii, double aspect, string[] labels)
+    {
+        var colors = GetPaletteColors();
+        int n = radii.Length;
+        for (int i = 0; i < n; i++)
+        {
+            double rx = radii[i], ry = radii[i] * aspect;
+            AddShapeAt("ellipse", cx - rx, cy - ry, rx * 2, ry * 2, colors[i % colors.Length]);
+        }
+
+        const double calloutW = 230, calloutH = 56, gap = 14;
+        double calloutX = cx + radii[0] + 70;
+        double top = cy - (n * calloutH + (n - 1) * gap) / 2;
+        for (int i = 0; i < n; i++)
+        {
+            // Anchor in the middle of the ring's visible band, fanning from upper right to lower right.
+            double band = i < n - 1 ? (radii[i] + radii[i + 1]) / 2 : radii[i] * 0.45;
+            double angle = (n == 1 ? 0 : -50 + 80.0 * i / (n - 1)) * Math.PI / 180;
+            double ax = cx + band * Math.Cos(angle), ay = cy + band * aspect * Math.Sin(angle);
+            double ty = top + i * (calloutH + gap) + calloutH / 2;
+            AddPolylinePath(new[] { (ax, ay), (calloutX - 24, ty), (calloutX, ty) }, "8E9297", 1.5);
+        }
+        for (int i = 0; i < n; i++)
+        {
+            AddShapeAt("roundrect", calloutX, top + i * (calloutH + gap), calloutW, calloutH, colors[i % colors.Length], labels[i]);
+        }
     }
 
     /// <summary>Duplicates every selected shape (offset 20 px) and selects the copies.</summary>
@@ -803,17 +883,56 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         if (Shapes.Count == 0) return;
         RecordUndo();
         var colors = GetPaletteColors();
-        int idx = 0;
-        foreach (var s in Shapes)
+        // Swap colour for colour: a shape in the old scheme's k-th colour (or its lane tint) takes
+        // the new scheme's k-th. Recolouring by position used to scramble every preset whose
+        // colours mean something — white swimlane cards turned blue, RACI and risk cells shuffled,
+        // ring callouts stopped matching their rings.
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (ColorPalettes.TryGetValue(_previousPaletteName, out var old))
         {
-            if (s.PathPoints is not { Count: >= 2 })
+            for (int k = 0; k < old.Length; k++)
             {
-                s.Fill = colors[idx % colors.Length];
-                idx++;
+                map.TryAdd(old[k], colors[k % colors.Length]);
+                map.TryAdd(Tint(old[k], LaneTint), Tint(colors[k % colors.Length], LaneTint));
             }
         }
-        StatusMessage = $"✓ Applied '{SelectedPaletteName}' theme across {Shapes.Count} shapes.";
+        int changed = 0;
+        foreach (var s in Shapes)
+        {
+            if (s.PathPoints is { Count: >= 2 }) continue;
+            if (map.TryGetValue((s.Fill ?? "").TrimStart('#'), out var fill)) { s.Fill = fill; changed++; }
+        }
+        if (changed == 0)
+        {
+            // Nothing came from the previous scheme (an imported or hand-coloured diagram): paint
+            // the shapes in order, as before.
+            int idx = 0;
+            foreach (var s in Shapes)
+            {
+                if (s.PathPoints is { Count: >= 2 }) continue;
+                s.Fill = colors[idx++ % colors.Length];
+            }
+        }
+        _previousPaletteName = SelectedPaletteName ?? "Office Blue";
+        StatusMessage = $"✓ Applied '{SelectedPaletteName}' colours across {Shapes.Count} shapes · Ctrl+Z to undo";
         CanvasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // The scheme the canvas was last painted in — ApplyPaletteTheme maps from it.
+    private string _previousPaletteName = "Office Blue";
+
+    partial void OnSelectedPaletteNameChanging(string value) => _previousPaletteName = SelectedPaletteName ?? "Office Blue";
+
+    /// <summary>How far toward white a swimlane body is lightened from its lane colour.</summary>
+    private const double LaneTint = 0.8;
+
+    /// <summary><paramref name="hex"/> blended <paramref name="toWhite"/> (0..1) of the way to white.</summary>
+    public static string Tint(string hex, double toWhite)
+    {
+        hex = (hex ?? "").TrimStart('#');
+        if (hex.Length != 6 || !int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out int rgb)) return hex;
+        int Mix(int c) => (int)Math.Round(c + (255 - c) * toWhite);
+        return $"{Mix((rgb >> 16) & 255):X2}{Mix((rgb >> 8) & 255):X2}{Mix(rgb & 255):X2}";
     }
 
     // =========================================================================
@@ -1171,11 +1290,14 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("hexagon", 30, 140, 120, 110, colors[0 % colors.Length], "1 · EMPATHIZE\nUser Needs");
-        AddShapeAt("hexagon", 160, 140, 120, 110, colors[1 % colors.Length], "2 · DEFINE\nProblem Frame");
-        AddShapeAt("hexagon", 290, 140, 120, 110, colors[2 % colors.Length], "3 · IDEATE\nBrainstorm");
-        AddShapeAt("hexagon", 420, 140, 120, 110, colors[3 % colors.Length], "4 · PROTOTYPE\nMockups & Code");
-        AddShapeAt("hexagon", 550, 140, 120, 110, colors[4 % colors.Length], "5 · TEST\nUser Feedback");
+        // Interlocking hexagons stepping up and down, each wide enough for its two-line label.
+        const double w = 140, h = 110, gap = 6;
+        double dx = w - Math.Min(w, h) / 4 + gap;
+        string[] phases = { "1 · EMPATHIZE\nUser needs", "2 · DEFINE\nProblem frame", "3 · IDEATE\nBrainstorm", "4 · PROTOTYPE\nMockups & code", "5 · TEST\nUser feedback" };
+        for (int i = 0; i < phases.Length; i++)
+        {
+            AddShapeAt("hexagon", 30 + i * dx, i % 2 == 0 ? 120 : 120 + (h + gap) / 2, w, h, colors[i % colors.Length], phases[i]);
+        }
         StatusMessage = "✓ Generated Design Thinking 5-Phase Cycle";
     }
 
@@ -1184,13 +1306,25 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("roundrect", 80, 60, 140, 55, colors[0 % colors.Length], "1. PLAN");
-        AddShapeAt("roundrect", 40, 160, 140, 55, colors[1 % colors.Length], "2. CODE");
-        AddShapeAt("roundrect", 80, 260, 140, 55, colors[2 % colors.Length], "3. BUILD");
-        AddShapeAt("roundrect", 270, 160, 160, 55, colors[3 % colors.Length], "4. TEST & STAGE");
-        AddShapeAt("roundrect", 480, 60, 140, 55, colors[4 % colors.Length], "5. RELEASE");
-        AddShapeAt("roundrect", 520, 160, 140, 55, colors[5 % colors.Length], "6. DEPLOY");
-        AddShapeAt("roundrect", 480, 260, 140, 55, colors[0 % colors.Length], "7. MONITOR");
+        // A real figure-eight (lemniscate of Bernoulli) with the stages riding the curve: Dev loop
+        // on the left, Ops on the right. The old layout was seven loose boxes with no loop at all.
+        const double cx = 370, cy = 200, a = 260, stretch = 1.4;
+        (double X, double Y) At(double t)
+        {
+            double d = 1 + Math.Sin(t) * Math.Sin(t);
+            return (cx + a * Math.Cos(t) / d, cy + stretch * a * Math.Sin(t) * Math.Cos(t) / d);
+        }
+        var curve = Enumerable.Range(0, 97).Select(i => At(Math.PI / 2 + i * 2 * Math.PI / 96)).ToList();
+        AddPolylinePath(curve, "8E9297", 4.0);
+        AddShapeAt("ellipse", cx - a * 0.62 - 38, cy - 22, 76, 44, colors[5 % colors.Length], "DEV");
+        AddShapeAt("ellipse", cx + a * 0.62 - 38, cy - 22, 76, 44, colors[4 % colors.Length], "OPS");
+        string[] stages = { "1 · PLAN", "2 · CODE", "3 · BUILD", "4 · TEST", "5 · RELEASE", "6 · DEPLOY", "7 · OPERATE", "8 · MONITOR" };
+        double[] turns = { 0.65, 0.88, 1.12, 1.35, 1.65, 1.88, 2.12, 2.35 };
+        for (int i = 0; i < stages.Length; i++)
+        {
+            var (x, y) = At(turns[i] * Math.PI);
+            AddShapeAt("roundrect", x - 54, y - 20, 108, 40, colors[i % 4], stages[i]);
+        }
         StatusMessage = "✓ Generated DevOps Infinity Delivery Loop";
     }
 
@@ -1198,12 +1332,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public void GenerateFeedbackSpiralTemplate()
     {
         ClearAll();
-        var colors = GetPaletteColors();
-        AddShapeAt("ellipse", 160, 60, 380, 280, colors[0 % colors.Length], "");
-        AddShapeAt("ellipse", 210, 100, 280, 200, colors[1 % colors.Length], "");
-        AddShapeAt("ellipse", 260, 140, 180, 120, colors[2 % colors.Length], "CORE INSIGHT\nImmediate Signal");
-        AddShapeAt("chevron", 50, 175, 140, 50, colors[3 % colors.Length], "Outer Loop");
-        AddShapeAt("chevron", 510, 175, 140, 50, colors[4 % colors.Length], "Fast Pivot");
+        AddRingsWithCallouts(220, 200, new[] { 170d, 112d, 56d }, 0.82, new[]
+        {
+            "OUTER LOOP\nQuarterly strategy review",
+            "MIDDLE LOOP\nSprint retrospectives",
+            "CORE INSIGHT\nImmediate customer signal",
+        });
         StatusMessage = "✓ Generated Continuous Feedback Spiral";
     }
 
@@ -1212,10 +1346,10 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("chevron", 40, 150, 155, 85, colors[0 % colors.Length], "PHASE 1\nDiscovery");
-        AddShapeAt("chevron", 205, 150, 155, 85, colors[1 % colors.Length], "PHASE 2\nPrototype");
-        AddShapeAt("chevron", 370, 150, 155, 85, colors[2 % colors.Length], "PHASE 3\nBeta Launch");
-        AddShapeAt("chevron", 535, 150, 155, 85, colors[4 % colors.Length], "PHASE 4\nScale Out");
+        AddShapeAt("chevron", 40, 160, 180, 60, colors[0 % colors.Length], "PHASE 1\nDiscovery");
+        AddShapeAt("chevron", 196, 160, 180, 60, colors[1 % colors.Length], "PHASE 2\nPrototype");
+        AddShapeAt("chevron", 352, 160, 180, 60, colors[2 % colors.Length], "PHASE 3\nBeta Launch");
+        AddShapeAt("chevron", 508, 160, 180, 60, colors[4 % colors.Length], "PHASE 4\nScale Out");
         StatusMessage = "✓ Generated 4-Phase Roadmap Timeline";
     }
 
@@ -1224,11 +1358,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("chevron", 30, 150, 125, 85, colors[0 % colors.Length], "STAGE 1\nIntake");
-        AddShapeAt("chevron", 160, 150, 125, 85, colors[1 % colors.Length], "STAGE 2\nTriage");
-        AddShapeAt("chevron", 290, 150, 125, 85, colors[2 % colors.Length], "STAGE 3\nDesign");
-        AddShapeAt("chevron", 420, 150, 125, 85, colors[3 % colors.Length], "STAGE 4\nVerify");
-        AddShapeAt("chevron", 550, 150, 125, 85, colors[4 % colors.Length], "STAGE 5\nDeliver");
+        AddShapeAt("chevron", 30, 160, 150, 60, colors[0 % colors.Length], "STAGE 1\nIntake");
+        AddShapeAt("chevron", 156, 160, 150, 60, colors[1 % colors.Length], "STAGE 2\nTriage");
+        AddShapeAt("chevron", 282, 160, 150, 60, colors[2 % colors.Length], "STAGE 3\nDesign");
+        AddShapeAt("chevron", 408, 160, 150, 60, colors[3 % colors.Length], "STAGE 4\nVerify");
+        AddShapeAt("chevron", 534, 160, 150, 60, colors[4 % colors.Length], "STAGE 5\nDeliver");
         StatusMessage = "✓ Generated 5-Stage Pipeline Process";
     }
 
@@ -1253,11 +1387,15 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("roundrect", 40, 150, 140, 75, colors[0 % colors.Length], "Phase 1: Concept");
-        AddShapeAt("diamond", 200, 145, 90, 85, colors[2 % colors.Length], "Gate 1");
-        AddShapeAt("roundrect", 310, 150, 140, 75, colors[1 % colors.Length], "Phase 2: Build");
-        AddShapeAt("diamond", 470, 145, 90, 85, colors[2 % colors.Length], "Gate 2");
-        AddShapeAt("roundrect", 580, 150, 120, 75, colors[4 % colors.Length], "Phase 3: Launch");
+        // Phases and gates joined by connectors along one centre line; the gates are large enough
+        // for their label to fit the diamond's text area on one line.
+        const double cy = 187.5;
+        AddConnectorLine(160, cy, 590, cy, "8E9297", 2.0);
+        AddShapeAt("roundrect", 30, cy - 37.5, 130, 75, colors[0 % colors.Length], "Phase 1\nConcept");
+        AddShapeAt("diamond", 180, cy - 50, 110, 100, colors[2 % colors.Length], "Gate 1");
+        AddShapeAt("roundrect", 310, cy - 37.5, 130, 75, colors[1 % colors.Length], "Phase 2\nBuild");
+        AddShapeAt("diamond", 460, cy - 50, 110, 100, colors[2 % colors.Length], "Gate 2");
+        AddShapeAt("roundrect", 590, cy - 37.5, 130, 75, colors[4 % colors.Length], "Phase 3\nLaunch");
         StatusMessage = "✓ Generated Stage-Gate Decision Process";
     }
 
@@ -1379,13 +1517,27 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("rect", 40, 40, 640, 80, colors[0 % colors.Length], "LANE 1 · PRODUCT MANAGEMENT");
-        AddShapeAt("rect", 40, 135, 640, 80, colors[1 % colors.Length], "LANE 2 · ENGINEERING & QA");
-        AddShapeAt("rect", 40, 230, 640, 80, colors[2 % colors.Length], "LANE 3 · OPERATIONS & SECURITY");
-
-        AddShapeAt("roundrect", 60, 50, 140, 60, "FFFFFF", "User Stories");
-        AddShapeAt("roundrect", 250, 145, 140, 60, "FFFFFF", "Build & Test");
-        AddShapeAt("roundrect", 450, 240, 140, 60, "FFFFFF", "Release & Monitor");
+        // Each lane: a solid header with its name, a tinted body, and its step card in the lane colour.
+        // The lane names used to sit in the middle of the lane, under the white step cards.
+        string[] lanes = { "PRODUCT\nMANAGEMENT", "ENGINEERING\n& QA", "OPERATIONS\n& SECURITY" };
+        string[] steps = { "User Stories", "Build & Test", "Release & Monitor" };
+        double[] cardX = { 220, 380, 540 };
+        for (int i = 0; i < 3; i++)
+        {
+            double y = 40 + i * 100;
+            AddShapeAt("rect", 40, y, 150, 90, colors[i % colors.Length], lanes[i]);
+            AddShapeAt("rect", 190, y, 520, 90, Tint(colors[i % colors.Length], LaneTint));
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            // Elbow from the bottom of one step to the side of the next.
+            double fromX = cardX[i] + 70, fromY = 40 + i * 100 + 73, toY = 40 + (i + 1) * 100 + 45;
+            AddPolylinePath(new[] { (fromX, fromY), (fromX, toY), (cardX[i + 1], toY) }, "595959", 2.0);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            AddShapeAt("roundrect", cardX[i], 40 + i * 100 + 17, 140, 56, colors[i % colors.Length], steps[i]);
+        }
         StatusMessage = "✓ Generated Swimlane Workflow";
     }
 
@@ -1405,9 +1557,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("ellipse", 140, 70, 260, 260, colors[0 % colors.Length], "STRATEGY\n\nMarket Reach &\nPositioning");
-        AddShapeAt("ellipse", 300, 70, 260, 260, colors[1 % colors.Length], "EXECUTION\n\nAgile Velocity &\nQuality");
-        AddShapeAt("roundrect", 260, 160, 180, 80, colors[2 % colors.Length], "CORE OVERLAP\nCompetitive Moat");
+        // The overlap is narrow enough that each set's label stays clear of the other circle, and the
+        // overlap is called out below the lens. A box laid over the middle hid both set labels.
+        AddShapeAt("ellipse", 100, 50, 260, 260, colors[0 % colors.Length], "STRATEGY\nMarket reach &\npositioning");
+        AddShapeAt("ellipse", 300, 50, 260, 260, colors[1 % colors.Length], "EXECUTION\nDelivery speed &\nquality");
+        AddConnectorLine(330, 230, 330, 345, "8E9297", 1.5);
+        AddShapeAt("roundrect", 245, 345, 170, 52, colors[2 % colors.Length], "CORE OVERLAP\nCompetitive moat");
         StatusMessage = "✓ Generated 2-Set Core Overlap Venn";
     }
 
@@ -1415,10 +1570,12 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public void GenerateBullseyeTargetTemplate()
     {
         ClearAll();
-        var colors = GetPaletteColors();
-        AddShapeAt("ellipse", 160, 30, 380, 340, colors[0 % colors.Length], "OUTER RING · Long-term Frontier Vision");
-        AddShapeAt("ellipse", 220, 80, 260, 240, colors[1 % colors.Length], "MIDDLE RING · Mid-term Growth Drivers");
-        AddShapeAt("ellipse", 280, 130, 140, 140, colors[2 % colors.Length], "BULLSEYE\nCore Focus");
+        AddRingsWithCallouts(220, 200, new[] { 170d, 112d, 56d }, 1.0, new[]
+        {
+            "OUTER RING\nLong-term frontier vision",
+            "MIDDLE RING\nMid-term growth drivers",
+            "BULLSEYE\nCore focus",
+        });
         StatusMessage = "✓ Generated Concentric Bullseye Strategy Target";
     }
 
@@ -1449,11 +1606,13 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     public void GenerateOnionSecurityTemplate()
     {
         ClearAll();
-        var colors = GetPaletteColors();
-        AddShapeAt("ellipse", 110, 20, 480, 360, colors[0 % colors.Length], "Layer 1 · Perimeter Firewalls & Cloud WAF");
-        AddShapeAt("ellipse", 160, 60, 380, 280, colors[1 % colors.Length], "Layer 2 · Zero Trust Network Access");
-        AddShapeAt("ellipse", 210, 100, 280, 200, colors[2 % colors.Length], "Layer 3 · Identity & Access Management");
-        AddShapeAt("ellipse", 260, 140, 180, 120, colors[3 % colors.Length], "Layer 4 · DATA\nEncrypted at Rest");
+        AddRingsWithCallouts(250, 200, new[] { 200d, 150d, 100d, 50d }, 0.78, new[]
+        {
+            "LAYER 1 · PERIMETER\nFirewalls & cloud WAF",
+            "LAYER 2 · NETWORK\nZero-trust access",
+            "LAYER 3 · IDENTITY\nAccess management",
+            "LAYER 4 · DATA\nEncrypted at rest",
+        });
         StatusMessage = "✓ Generated Onion Layer Security Model";
     }
 
@@ -1574,11 +1733,11 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("chevron", 40, 150, 120, 85, colors[0 % colors.Length], "1. EXTRACT\nRaw Sources");
-        AddShapeAt("chevron", 165, 150, 120, 85, colors[1 % colors.Length], "2. INGEST\nKafka Queue");
-        AddShapeAt("chevron", 290, 150, 120, 85, colors[2 % colors.Length], "3. TRANSFORM\nSpark Engine");
-        AddShapeAt("chevron", 415, 150, 120, 85, colors[3 % colors.Length], "4. STORE\nIceberg Lake");
-        AddShapeAt("chevron", 540, 150, 120, 85, colors[4 % colors.Length], "5. SERVE\nBI Dashboard");
+        AddShapeAt("chevron", 30, 162, 154, 56, colors[0 % colors.Length], "1. EXTRACT\nRaw Sources");
+        AddShapeAt("chevron", 162, 162, 154, 56, colors[1 % colors.Length], "2. INGEST\nKafka Queue");
+        AddShapeAt("chevron", 294, 162, 154, 56, colors[2 % colors.Length], "3. TRANSFORM\nSpark Engine");
+        AddShapeAt("chevron", 426, 162, 154, 56, colors[3 % colors.Length], "4. STORE\nIceberg Lake");
+        AddShapeAt("chevron", 558, 162, 154, 56, colors[4 % colors.Length], "5. SERVE\nBI Dashboard");
         StatusMessage = "✓ Generated Data Engineering ETL Pipeline";
     }
 
@@ -1612,10 +1771,13 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("trapezoid", 100, 40, 500, 65, colors[0 % colors.Length], "ACQUISITION · Inbound Leads");
-        AddShapeAt("trapezoid", 180, 115, 340, 65, colors[1 % colors.Length], "ACTIVATION · Onboarding Users");
-        AddShapeAt("triangle", 250, 190, 200, 60, colors[2 % colors.Length], "RETENTION · Core Power Users");
-        AddShapeAt("trapezoid", 140, 260, 420, 65, colors[3 % colors.Length], "EXPANSION & REFERRALS · Enterprise Champions");
+        // Narrows to a retention neck, then widens again. The neck used to be a small triangle with
+        // a label three times its width.
+        AddShapeAt("trapezoid", 100, 40, 500, 60, colors[0 % colors.Length], "ACQUISITION · Inbound leads", 180);
+        AddShapeAt("trapezoid", 170, 106, 360, 60, colors[1 % colors.Length], "ACTIVATION · Onboarded users", 180);
+        AddShapeAt("roundrect", 235, 172, 230, 50, colors[2 % colors.Length], "RETENTION · Core power users");
+        AddShapeAt("trapezoid", 170, 228, 360, 60, colors[3 % colors.Length], "REFERRALS · Word of mouth");
+        AddShapeAt("trapezoid", 100, 294, 500, 60, colors[4 % colors.Length], "EXPANSION · Enterprise champions");
         StatusMessage = "✓ Generated Hourglass Growth Funnel";
     }
 
@@ -1647,13 +1809,24 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     {
         ClearAll();
         var colors = GetPaletteColors();
-        AddShapeAt("hexagon", 280, 140, 140, 120, colors[0 % colors.Length], "CORE\nENGINE");
-        AddShapeAt("hexagon", 190, 60, 140, 120, colors[1 % colors.Length], "Security");
-        AddShapeAt("hexagon", 370, 60, 140, 120, colors[2 % colors.Length], "Speed");
-        AddShapeAt("hexagon", 100, 140, 140, 120, colors[3 % colors.Length], "InterOp");
-        AddShapeAt("hexagon", 460, 140, 140, 120, colors[4 % colors.Length], "Vector");
-        AddShapeAt("hexagon", 190, 220, 140, 120, colors[5 % colors.Length], "SmartArt");
-        AddShapeAt("hexagon", 370, 220, 140, 120, colors[0 % colors.Length], "Export");
+        // A true flat-top hexagon tiling: neighbours sit (w - x1 + gap) across and half a cell up or
+        // down, so the cells interlock with an even gutter instead of overlapping one another.
+        const double w = 140, h = 120, gap = 6, cx = 300, cy = 160;
+        double dx = w - Math.Min(w, h) / 4 + gap, dy = h + gap;
+        (double X, double Y, string Label)[] cells =
+        {
+            (0, 0, "CORE\nENGINE"),
+            (0, -dy, "Security"),
+            (dx, -dy / 2, "Speed"),
+            (dx, dy / 2, "Vector"),
+            (0, dy, "Export"),
+            (-dx, dy / 2, "SmartArt"),
+            (-dx, -dy / 2, "InterOp"),
+        };
+        for (int i = 0; i < cells.Length; i++)
+        {
+            AddShapeAt("hexagon", cx + cells[i].X, cy + cells[i].Y, w, h, colors[i % colors.Length], cells[i].Label);
+        }
         StatusMessage = "✓ Generated Hexagonal Honeycomb Matrix";
     }
 

@@ -951,7 +951,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton AutomationProperties.Name="Insert" ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
+                            <DropDownButton x:Name="InsertClusterButton" AutomationProperties.Name="Insert" ToolTipService.ToolTip="Insert — links, media, tables, rich components, diagrams" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="14" />
                                     <TextBlock Text="Insert" FontSize="12" VerticalAlignment="Center" />
@@ -1035,7 +1035,7 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <DropDownButton AutomationProperties.Name="Tools" ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
+                            <DropDownButton x:Name="ToolsClusterButton" AutomationProperties.Name="Tools" ToolTipService.ToolTip="Tools — transform selected text, sort lines, clean up the document" Height="32" Padding="8,0">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE90F;" FontSize="14" />
                                     <TextBlock Text="Tools" FontSize="12" VerticalAlignment="Center" />

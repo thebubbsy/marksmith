@@ -15,6 +15,7 @@
             <conv:FillBrushConverter x:Key="FillBrushConverter" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <conv:EmptyStringToVisibilityConverter x:Key="EmptyToVis" />
+            <conv:InsetsToThicknessConverter x:Key="InsetsToMargin" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
             <conv:PresetDisplayNameConverter x:Key="PresetName" />
             <conv:UprightLabelAngleConverter x:Key="UprightLabel" />
@@ -105,9 +106,9 @@
         <!-- Body -->
         <Grid Grid.Row="1" ColumnSpacing="10" Padding="12,10,12,10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="280" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="280" />
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: Presets | Shapes | Picture. One section at a time, each with the full pane
@@ -152,9 +153,16 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="32" Height="32" CornerRadius="6" VerticalAlignment="Top"
+                                        <!-- A live miniature of the diagram in the current colour scheme
+                                             (filled in code-behind), so the list can be scanned by
+                                             eye instead of by name: every preset in a category used
+                                             to share one icon. -->
+                                        <Border Width="64" Height="46" CornerRadius="6" VerticalAlignment="Center" Padding="5"
                                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                                            <FontIcon Glyph="{Binding Glyph}" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                            <Viewbox Stretch="Uniform">
+                                                <Canvas Loaded="OnPresetThumbLoaded" Unloaded="OnPresetThumbUnloaded"
+                                                        DataContextChanged="OnPresetThumbDataContextChanged" />
+                                            </Viewbox>
                                         </Border>
                                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
@@ -318,12 +326,13 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Padding="8,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0">
+                    <Grid Grid.Row="0" Padding="8,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" CornerRadius="8,8,0,0"
+                          SizeChanged="OnToolbarSizeChanged">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <StackPanel x:Name="ToolStrip" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                             <Button Style="{StaticResource ToolIconButton}" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" ToolTipService.ToolTip="Undo (Ctrl+Z)">
                                 <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                             </Button>
@@ -355,7 +364,7 @@
                                         ToolTipService.ToolTip="Colour scheme for presets and new shapes">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <StackPanel x:Name="PaletteButtonSwatches" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding SelectedPaletteName}" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="PaletteNameText" Text="{Binding SelectedPaletteName}" FontSize="12" VerticalAlignment="Center" />
                             </StackPanel>
                             <DropDownButton.Flyout>
                                 <Flyout x:Name="PaletteFlyout" Placement="BottomEdgeAlignedRight">
@@ -397,6 +406,7 @@
 
                     <!-- editable canvas -->
                     <ScrollViewer x:Name="CanvasScroller" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ZoomMode="Enabled"
+                                  MinZoomFactor="0.2" MaxZoomFactor="4" ViewChanged="OnCanvasViewChanged"
                                   IsTabStop="True" UseSystemFocusVisuals="False" AutomationProperties.Name="Canvas"
                                   Visibility="{Binding IsDense, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
                         <Grid Width="2200" Height="1800">
@@ -434,10 +444,11 @@
                                                 <!-- Text on top of the shape -->
                                                 <TextBlock Text="{Binding Text}"
                                                            Foreground="{Binding TextForegroundHex, Converter={StaticResource FillBrushConverter}}"
-                                                           FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
+                                                           FontSize="{Binding LabelFontSize}" FontWeight="SemiBold" TextAlignment="Center"
                                                            TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            MaxWidth="{Binding Width}" MaxHeight="{Binding Height}"
-                                                           Padding="6,4" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False"
+                                                           Margin="{Binding LabelInsets, Converter={StaticResource InsetsToMargin}}"
+                                                           Padding="1.5,0.5" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False"
                                                            Visibility="{Binding Text, Converter={StaticResource EmptyToVis}}">
                                                     <TextBlock.RenderTransform>
                                                         <RotateTransform Angle="{Binding Rotation, Converter={StaticResource UprightLabel}}" />
@@ -640,9 +651,32 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+            <!-- Zoom: Ctrl+scroll and pinch always worked but nothing showed the level or offered
+                 a way back. Presets now open fitted to the canvas. -->
+            <DropDownButton x:Name="ZoomButton" Grid.Column="2" Padding="8,0" Height="24" MinWidth="70" FontSize="12"
+                            Margin="0,-4" AutomationProperties.Name="Zoom"
+                            ToolTipService.ToolTip="Zoom — Ctrl+scroll to zoom, Ctrl+0 to fit the diagram">
+                <TextBlock x:Name="ZoomText" Text="100%" FontSize="12" />
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="TopEdgeAlignedRight">
+                        <MenuFlyoutItem Text="Fit diagram" Click="OnZoomFitClick" KeyboardAcceleratorTextOverride="Ctrl+0">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE9A6;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Actual size" Click="OnZoomActualClick" KeyboardAcceleratorTextOverride="Ctrl+1" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Zoom in" Click="OnZoomInClick" KeyboardAcceleratorTextOverride="Ctrl+=">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8A3;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Zoom out" Click="OnZoomOutClick" KeyboardAcceleratorTextOverride="Ctrl+−">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71F;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
         </Grid>
     </Grid>
 </Window>

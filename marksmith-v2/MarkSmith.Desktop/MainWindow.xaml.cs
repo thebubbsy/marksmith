@@ -686,15 +686,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             EditingExpandedPanel.Children.Add(button);
             if (i is 2 or 6 or 10) // band ends: text styles, headings, lists
             {
-                EditingExpandedPanel.Children.Add(new Border
-                {
-                    Width = 1,
-                    Height = 16,
-                    Background = ResolveDividerBrush(EditingExpandedPanel.ActualTheme),
-                    Margin = new Thickness(4, 0, 4, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
+                EditingExpandedPanel.Children.Add(Divider());
             }
+        }
+
+        // Everything else the Insert and Tools clusters hold — rich components, Diagram & Galaxy
+        // (Shape Studio, SmartArt, Diagram Studio), version history, references, and the case /
+        // sort / clean-up tools — was unreachable while the bar was expanded, which is the default
+        // at normal width in Code mode. The same flyouts hang off two compact dropdowns instead.
+        EditingExpandedPanel.Children.Add(Divider());
+        EditingExpandedPanel.Children.Add(MenuButton("", "More to insert",
+            "More to insert — rich components, diagrams, Shape Studio, references", InsertClusterButton.Flyout));
+        EditingExpandedPanel.Children.Add(MenuButton("", "Tools",
+            "Tools — transform selected text, sort lines, clean up the document", ToolsClusterButton.Flyout));
+
+        Border Divider() => new()
+        {
+            Width = 1,
+            Height = 16,
+            Background = ResolveDividerBrush(EditingExpandedPanel.ActualTheme),
+            Margin = new Thickness(4, 0, 4, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        static DropDownButton MenuButton(string glyph, string name, string tip, Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase flyout)
+        {
+            var button = new DropDownButton
+            {
+                Content = Glyph(glyph),
+                Height = 32,
+                Padding = new Thickness(7, 0, 5, 0),
+                Flyout = flyout,
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, name);
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, tip);
+            return button;
         }
     }
 
@@ -1115,7 +1141,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // relocated tour / shortcuts / settings / tip jar.
             ShowMoreMenuTip(
                 "Everything else lives here",
-                "Export history, the tour, keyboard shortcuts, Settings — and a ☕ tip jar if MarkSmith saves your day.");
+                "Version history, recent exports, the tour, keyboard shortcuts, Settings — and a ☕ tip jar if MarkSmith saves your day.");
         }
 
         if (tour?.LoadSampleRequested == true) LoadSampleDocument();

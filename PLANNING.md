@@ -1064,3 +1064,80 @@ config), light theme, and keyboard F2/Del in the timeline.
    arrow-key/dots navigation, and that "Skip" and finishing both stick.
 5. Carried over: Shape Studio by hand, SmartArt click-to-zoom and 7+ cycles, Diagram Studio canvas
    fill, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 10:50–11:35 AEST (scheduled routine run #18)
+
+The PC was **unlocked** with 26 GB free, and the user was at the machine (they changed a connector
+colour in the test instance by hand mid-run). The tree held finished but uncommitted work from an
+earlier run: Shape Studio `LabelInsets`, the canvas label placed in the shape's own text area. I
+reviewed it and shipped it as part of this run. The user's `HouseLayout` WIP is still uncommitted
+and untouched. I took the oldest carry-over, **Shape Studio by hand** (open since run #12), and drove
+all 50 presets through UIA with a screenshot of each. That exposed problems well beyond rough edges.
+
+**Shipped:**
+- **Canvas and Word disagreed on geometry.** The canvas stretched fixed 100×100 outlines, so a wide
+  chevron's notch, a trapezoid's slope and a hexagon's points came out up to twice what Word draws.
+  The new `Composer/PresetGeometry` holds Word's real formulas (default adj, presetShapeDefinitions)
+  and the per-shape text area. The canvas, the document-preview SVG and label placement all use it.
+- **Label size was three different things.** Word sized labels from shape height only (about 24 pt
+  on a lane header, breaking "MANAGEMENT" mid-word). The preview did roughly the same. The canvas
+  used a fixed 8 pt. `PresetGeometry.FitLabel` is now the single rule for all three: at most 10 pt,
+  shrinking until the longest word fits the text area, with per-character width estimates since
+  capitals are wide. The canvas TextBlock binds `LabelFontSize`.
+- **Eight presets had broken layouts.** Bullseye, Onion and Feedback Spiral hid every ring's label
+  under the inner rings; they now use callouts with leader lines (`AddRingsWithCallouts`). In
+  Swimlane, step cards covered the lane names; it now has headers, tinted bodies and elbow
+  connectors. In 2-set Venn, the overlap box hid both set labels. DevOps had no loop at all; it is
+  now a real lemniscate with 8 stages. In Honeycomb the hexes overlapped; it is now a true tiling.
+  In Hourglass the neck label was three times wider than its triangle. Chevron flows, ETL, stage-gate
+  and design thinking were resized so labels fit (Word's real notch is h/2). New helper:
+  `AddPolylinePath`.
+- **Changing the colour scheme scrambled presets.** It recoloured by position, which turned white
+  cards blue and shuffled RACI and risk colours. It now maps colour for colour from the previous
+  scheme (lane tints included). Canvases drawn by hand still recolour in order.
+- **Preset gallery:** every preset in a category shared one icon. Each now shows a live miniature
+  in the current colour scheme, cached per preset and scheme, and recolours when the scheme
+  changes. `DiagramPreset.Glyph` was removed.
+- **Fit and zoom:** presets opened with their right side cut off on narrower windows. Presets,
+  pasted `:::shapes` and picture conversions now open fitted. A status-bar zoom button shows the
+  % and offers Fit (Ctrl+0), Actual size (Ctrl+1), and zoom in and out (Ctrl+= and Ctrl+-).
+- **Window:** sized in DIPs (1440×880) with an icon and a 1180×620 minimum. It had no minimum and
+  could be squeezed until the canvas vanished. Side panes are now 280 wide. On a narrow toolbar the
+  colour-scheme button drops to swatches only; it used to slide over Duplicate and Delete.
+- **Preview SVG:** polyline strokes were scaled non-uniformly, so an elbow's vertical leg drew at
+  w/h times the width. Points are now absolute and the stroke is real. Cylinders use Word's cap.
+- **Main window, a reachability bug:** the wide ("expanded") editor bar, which is the default at
+  normal width in Code mode, had **no** Insert extras and **no** Tools menu. That hid Shape Studio,
+  SmartArt and Diagram Studio, rich components, version history, references, and case, sort and
+  clean-up. Two compact dropdowns (+ and wrench) now share the cluster flyouts.
+- **Welcome tour:** it said "Replay from the ? button next to Settings", but no such button exists;
+  it now points to ⋯ → Take a quick tour. The pages now run 1 → 2 → 3, with Diagrams & math after
+  Export. The first-run tip now says "Version history, recent exports…".
+- Tests: `ShapeStudioPolishTests` (geometry, text areas, every preset label fitting above 6 pt
+  with none buried under a later shape, colour mapping, Word `w:sz` matching the canvas, SVG
+  strokes). One old test that pinned the path-space stroke formula was updated.
+
+**Verified:** Desktop 0 warnings / 0 errors (scratch OutDir). The live UIA sweep covered all 50
+presets, then a second pass on the retuned ones. Sunset Coral recoloured the swimlane by meaning, at
+minimum width there was no toolbar overlap, and zoom in reached 125%. The inserted diagram's
+document preview showed caption-size labels with no broken words, and the expanded bar's + menu
+listed Rich Components and Diagram & Galaxy. Full suite: 3408 passed, 1 skipped, 17 failed. The
+failures are the 15 known scratch-OutDir path tests plus the user's 2 `HouseLayoutTests`.
+
+**Not verified:** the exported .docx opened in real Word. The `w:sz` value and geometry are
+unit-tested, but nobody has looked at it with eyes. Light theme for the miniatures. Hand drag and
+draw on the canvas (the user was at the machine, so I kept real mouse input out of it). With
+SetWindowPos, both windows refused heights under 1100 px. That looks like a harness or WinUI quirk,
+not this change, but it's worth a look.
+
+**Next up:**
+1. Open a Shape Studio export in Word: check label size, chevron and hexagon proportions, the
+   upside-down funnel labels and the elbow connectors. Fix any drift in `PresetGeometry`.
+2. Shape Studio by hand, still: drag-to-draw, group drag, Ctrl+click, nudge, the fill flyout, the
+   Export dialog. Also the inspector with the new `LabelFontSize` (resize a shape and watch the
+   label refit).
+3. Settings: audit every SettingsCard row (carried over from run #17).
+4. SmartArt Design Studio: the same 50-preset style sweep (labels, geometry, scheme changes).
+   Shape Studio's sweep found 8 broken layouts, so SmartArt likely has some too.
+5. Carried over: Copy HTML asset URLs, the light-theme pass on History, SmartArt click-to-zoom and
+   7+ cycles, Diagram Studio canvas fill, keyboard focus order, Galaxy obstacle-aware routing.

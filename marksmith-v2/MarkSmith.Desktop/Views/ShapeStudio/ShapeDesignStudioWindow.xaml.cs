@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Foundation;
 using Windows.System;
+using MarkSmith.Core.Composer;
 using MarkSmith.Services;
 using MarkSmith.ViewModels.ShapeStudio;
 
@@ -43,6 +44,9 @@ namespace MarkSmith.Views.ShapeStudio
         public ShapeDesignStudioWindow()
         {
             this.InitializeComponent();
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (System.IO.File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
+            SizeForDisplay();
             ViewModel = new ShapeDesignStudioViewModel();
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
@@ -57,6 +61,168 @@ namespace MarkSmith.Views.ShapeStudio
             // Open with the canvas focused (no focus ring) so Ctrl+Z / Del work at once and the
             // first title-bar button doesn't come up wearing a keyboard-focus rectangle.
             this.RootGrid.Loaded += (_, _) => CanvasScroller.Focus(FocusState.Programmatic);
+        }
+
+        // Sized in DIPs (AppWindow sizes are physical pixels, so the default opened cramped on a
+        // scaled display) with a floor that keeps the toolbar, both side panes and a usable canvas
+        // on screen. Without one the window could be squeezed until the canvas vanished.
+        private void SizeForDisplay()
+        {
+            try
+            {
+                var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
+                if (scale <= 0) scale = 1;
+                var work = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(AppWindow.Id,
+                    Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(
+                    Math.Min((int)(1440 * scale), work.Width), Math.Min((int)(880 * scale), work.Height)));
+                if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                {
+                    presenter.PreferredMinimumWidth = Math.Min((int)(1180 * scale), work.Width);
+                    presenter.PreferredMinimumHeight = Math.Min((int)(620 * scale), work.Height);
+                }
+            }
+            catch { /* best effort: the default size still works */ }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        // The colour-scheme button drops its name when the toolbar is too narrow for it; it used to
+        // slide over the Duplicate and Delete buttons instead.
+        private void OnToolbarSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ToolStrip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            bool roomy = e.NewSize.Width - 16 >= ToolStrip.DesiredSize.Width + 180;
+            PaletteNameText.Visibility = roomy ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // ---- zoom ----
+
+        private static readonly double[] ZoomSteps = { 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 3, 4 };
+
+        private void OnCanvasViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) =>
+            ZoomText.Text = $"{Math.Round(CanvasScroller.ZoomFactor * 100)}%";
+
+        /// <summary>Shows the whole diagram: zooms out (never in past 100%) until it fits the view.
+        /// Presets are laid out up to ~720 px wide, so on a narrower canvas their right side used to
+        /// open cut off with nothing on screen to say so.</summary>
+        private void FitCanvasToContent()
+        {
+            double vw = CanvasScroller.ViewportWidth, vh = CanvasScroller.ViewportHeight;
+            if (vw <= 0 || vh <= 0) return;
+            if (ViewModel.Shapes.Count == 0 || ViewModel.IsDense)
+            {
+                CanvasScroller.ChangeView(0, 0, 1f);
+                return;
+            }
+            double right = ViewModel.Shapes.Max(s => s.X + s.Width) + 24;
+            double bottom = ViewModel.Shapes.Max(s => s.Y + s.Height) + 24;
+            double zoom = Math.Clamp(Math.Min(vw / right, vh / bottom), CanvasScroller.MinZoomFactor, 1.0);
+            CanvasScroller.ChangeView(0, 0, (float)zoom);
+        }
+
+        private void FitCanvasAfterLayout() => DispatcherQueue.TryEnqueue(FitCanvasToContent);
+
+        private void ZoomTo(double factor)
+        {
+            double vw = CanvasScroller.ViewportWidth, vh = CanvasScroller.ViewportHeight, z = CanvasScroller.ZoomFactor;
+            factor = Math.Clamp(factor, CanvasScroller.MinZoomFactor, CanvasScroller.MaxZoomFactor);
+            // Keep the middle of the view where it is.
+            double cx = (CanvasScroller.HorizontalOffset + vw / 2) / z, cy = (CanvasScroller.VerticalOffset + vh / 2) / z;
+            CanvasScroller.ChangeView(Math.Max(0, cx * factor - vw / 2), Math.Max(0, cy * factor - vh / 2), (float)factor);
+        }
+
+        private void ZoomStep(int direction)
+        {
+            double z = CanvasScroller.ZoomFactor;
+            double next = direction > 0
+                ? ZoomSteps.FirstOrDefault(f => f > z + 0.001, ZoomSteps[^1])
+                : ZoomSteps.LastOrDefault(f => f < z - 0.001, ZoomSteps[0]);
+            ZoomTo(next);
+        }
+
+        private void OnZoomFitClick(object sender, RoutedEventArgs e) => FitCanvasToContent();
+        private void OnZoomActualClick(object sender, RoutedEventArgs e) => ZoomTo(1);
+        private void OnZoomInClick(object sender, RoutedEventArgs e) => ZoomStep(+1);
+        private void OnZoomOutClick(object sender, RoutedEventArgs e) => ZoomStep(-1);
+
+        // ---- preset miniatures ----
+
+        // Built once per preset and colour scheme on a throwaway studio; the list virtualises, so
+        // only the rows scrolled into view ever pay for it.
+        private static readonly Dictionary<string, IReadOnlyList<ShapeCanvasItemViewModel>> ThumbCache = new();
+        private readonly HashSet<Canvas> _presetThumbs = new();
+
+        private void OnPresetThumbLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Canvas c) return;
+            _presetThumbs.Add(c);
+            RenderPresetThumb(c);
+        }
+
+        private void OnPresetThumbUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Canvas c) _presetThumbs.Remove(c);
+        }
+
+        private void OnPresetThumbDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
+        {
+            if (sender is Canvas c) RenderPresetThumb(c);
+        }
+
+        private void RenderPresetThumb(Canvas c)
+        {
+            if (c.DataContext is not DiagramPreset preset || ViewModel is null) return;
+            string palette = ViewModel.SelectedPaletteName ?? "Office Blue";
+            string key = preset.Name + "|" + palette;
+            if (c.Tag as string == key) return;
+            c.Tag = key;
+            c.Children.Clear();
+            if (!ThumbCache.TryGetValue(key, out var shapes))
+            {
+                try { shapes = ShapeDesignStudioViewModel.PreviewPreset(preset, palette); }
+                catch { shapes = Array.Empty<ShapeCanvasItemViewModel>(); }
+                ThumbCache[key] = shapes;
+            }
+            if (shapes.Count == 0) return;
+
+            double minX = shapes.Min(s => s.X), minY = shapes.Min(s => s.Y);
+            double width = Math.Max(1, shapes.Max(s => s.X + s.Width) - minX);
+            double height = Math.Max(1, shapes.Max(s => s.Y + s.Height) - minY);
+            c.Width = width;
+            c.Height = height;
+            // The miniature is drawn at roughly 1/12 scale; a connector's real 2 pt stroke would vanish.
+            double hairline = Math.Max(width / 54, height / 36);
+            foreach (var s in shapes)
+            {
+                var p = new Microsoft.UI.Xaml.Shapes.Path { Width = Math.Max(1, s.Width), Height = Math.Max(1, s.Height), IsHitTestVisible = false };
+                if (s.PathPoints is { Count: >= 2 })
+                {
+                    p.Stretch = Stretch.None;
+                    p.Data = BuildPolylineGeometry(s.PathPoints, s.Width, s.Height);
+                    p.Stroke = BrushFromHex(s.Fill);
+                    p.StrokeThickness = Math.Max(s.StrokeWidthPt, hairline);
+                }
+                else
+                {
+                    var outline = PresetGeometry.Outline(s.Prst, s.Width, s.Height);
+                    bool roundRect = string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
+                    p.Stretch = outline is not null || roundRect ? Stretch.None : Stretch.Fill;
+                    p.Data = outline is not null ? MakePolygonGeometry(outline)
+                           : roundRect ? BuildRoundRectGeometry(s.Width, s.Height)
+                           : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
+                    p.Fill = BrushFromHex(s.Fill);
+                }
+                if (s.Rotation != 0)
+                {
+                    p.RenderTransformOrigin = new Point(0.5, 0.5);
+                    p.RenderTransform = new RotateTransform { Angle = s.Rotation };
+                }
+                Canvas.SetLeft(p, s.X - minX);
+                Canvas.SetTop(p, s.Y - minY);
+                c.Children.Add(p);
+            }
         }
 
         // ---- left pane tabs ----
@@ -132,6 +298,22 @@ namespace MarkSmith.Views.ShapeStudio
                     ViewModel.UndoCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case VirtualKey.Number0 or VirtualKey.NumberPad0 when ctrl:
+                    FitCanvasToContent();
+                    e.Handled = true;
+                    return;
+                case VirtualKey.Number1 or VirtualKey.NumberPad1 when ctrl:
+                    ZoomTo(1);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)187 or VirtualKey.Add when ctrl: // '=' and '+'
+                    ZoomStep(+1);
+                    e.Handled = true;
+                    return;
+                case (VirtualKey)189 or VirtualKey.Subtract when ctrl: // '-'
+                    ZoomStep(-1);
+                    e.Handled = true;
+                    return;
                 case VirtualKey.A when ctrl:
                     ViewModel.SelectAllCommand.Execute(null);
                     e.Handled = true;
@@ -191,6 +373,7 @@ namespace MarkSmith.Views.ShapeStudio
                     return;
                 case nameof(ShapeDesignStudioViewModel.SelectedPaletteName):
                     SyncPaletteUi();
+                    foreach (var thumb in _presetThumbs) RenderPresetThumb(thumb);
                     return;
                 case nameof(ShapeDesignStudioViewModel.ArmedTool):
                     if (ViewModel.ArmedTool is { } tool)
@@ -455,6 +638,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             bool isLine = s.PathPoints is { Count: >= 2 };
             bool isRoundRect = string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
+            var outline = isLine ? null : PresetGeometry.Outline(s.Prst, s.Width, s.Height);
             try
             {
                 // Lines are drawn at their real pixel size with no stretch. Stretch="Fill" scales the
@@ -464,9 +648,13 @@ namespace MarkSmith.Views.ShapeStudio
                 // Rounded rectangles are also built at real size: stretching a 100×100 template
                 // squashed the corners into a pillow on any wide shape. Word's roundRect corner is
                 // 1/6 of the shorter side, so that is what the canvas draws too.
-                p.Stretch = isLine || isRoundRect ? Stretch.None : Stretch.Fill;
+                // Chevrons, trapezoids and hexagons are built at real size too, with Word's own
+                // proportions (PresetGeometry): a stretched template gave a wide chevron a notch twice
+                // as deep as the exported one, so the canvas and the document disagreed.
+                p.Stretch = isLine || isRoundRect || outline is not null ? Stretch.None : Stretch.Fill;
                 p.Data = isLine ? BuildPolylineGeometry(s.PathPoints!, s.Width, s.Height)
                        : isRoundRect ? BuildRoundRectGeometry(s.Width, s.Height)
+                       : outline is not null ? MakePolygonGeometry(outline)
                        : MarkSmith.Converters.ShapeGeometries.For(s.Prst);
             }
             catch { }
@@ -502,7 +690,8 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (sender is not ShapeCanvasItemViewModel s) return;
             bool sized = e.PropertyName == nameof(s.Width) || e.PropertyName == nameof(s.Height);
-            bool realSizeGeometry = s.PathPoints is { Count: >= 2 } || string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase);
+            bool realSizeGeometry = s.PathPoints is { Count: >= 2 } || string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase)
+                || PresetGeometry.Outline(s.Prst, 1, 1) is not null;
             if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst) ||
                  e.PropertyName == nameof(s.IsSelected) || (sized && realSizeGeometry)) &&
                 _shapePaths.TryGetValue(s, out var path))
@@ -514,7 +703,7 @@ namespace MarkSmith.Views.ShapeStudio
         private static Geometry BuildRoundRectGeometry(double width, double height)
         {
             double w = Math.Max(1, width), h = Math.Max(1, height);
-            double r = Math.Min(w, h) / 6.0;
+            double r = PresetGeometry.RoundRectRadius(w, h);
             var fig = new PathFigure { StartPoint = new Point(r, 0), IsClosed = true, IsFilled = true };
             fig.Segments.Add(new LineSegment { Point = new Point(w - r, 0) });
             fig.Segments.Add(new ArcSegment { Point = new Point(w, r), Size = new Size(r, r), SweepDirection = SweepDirection.Clockwise });
@@ -526,6 +715,15 @@ namespace MarkSmith.Views.ShapeStudio
             fig.Segments.Add(new ArcSegment { Point = new Point(r, 0), Size = new Size(r, r), SweepDirection = SweepDirection.Clockwise });
             var geo = new PathGeometry();
             geo.Figures.Add(fig);
+            return geo;
+        }
+
+        private static PathGeometry MakePolygonGeometry(IReadOnlyList<(double X, double Y)> pts)
+        {
+            var figure = new PathFigure { StartPoint = new Point(pts[0].X, pts[0].Y), IsClosed = true, IsFilled = true };
+            for (int i = 1; i < pts.Count; i++) figure.Segments.Add(new LineSegment { Point = new Point(pts[i].X, pts[i].Y) });
+            var geo = new PathGeometry();
+            geo.Figures.Add(figure);
             return geo;
         }
 
@@ -668,6 +866,7 @@ namespace MarkSmith.Views.ShapeStudio
                     // against the clipboard's own async completion.
                     var text = await dpv.GetTextAsync();
                     await ViewModel.LoadMarkdownAsync(text);
+                    FitCanvasAfterLayout();
                 }
                 else
                 {
@@ -696,6 +895,7 @@ namespace MarkSmith.Views.ShapeStudio
             if (e.ClickedItem is DiagramPreset preset)
             {
                 ViewModel.ApplyPreset(preset);
+                FitCanvasAfterLayout();
             }
         }
 
@@ -773,6 +973,7 @@ namespace MarkSmith.Views.ShapeStudio
                 FuseMonochrome.IsChecked ?? true,
                 (int)FuseEdgeSensitivity.Value,
                 FuseStrokeWidth.Value);
+            FitCanvasAfterLayout();
         }
     }
 }

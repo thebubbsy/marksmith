@@ -91,6 +91,16 @@ namespace MarkSmith.Converters
             => throw new NotSupportedException();
     }
 
+    /// <summary>A shape's <c>LabelInsets</c> (left, top, right, bottom px) as a Margin.</summary>
+    public class InsetsToThicknessConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language) =>
+            value is double[] { Length: 4 } d ? new Microsoft.UI.Xaml.Thickness(d[0], d[1], d[2], d[3]) : new Microsoft.UI.Xaml.Thickness(0);
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+            throw new NotImplementedException();
+    }
+
     /// <summary>Empty/null string → Collapsed (hides the shape label), anything else → Visible.</summary>
     public class EmptyStringToVisibilityConverter : IValueConverter
     {

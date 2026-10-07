@@ -179,7 +179,9 @@ namespace MarkSmith.Core.Composer
                 // tcolor is honoured only when it already passes WCAG 4.5:1 vs the fill.
                 string guarded = MarkSmith.Services.ContrastGuard.EnsureLegibleText(
                     s.TextColor ?? "121212", "#" + s.Fill);
-                int sz = Math.Clamp((int)Math.Round(s.H * 72 * 2 * 0.35), 16, 96); // half-points
+                // Half-points, from the label-fit rule the canvas and the preview share (the size
+                // used to follow the shape's height alone: ~24 pt on a 90 px lane header).
+                int sz = (int)Math.Round(PresetGeometry.FitLabel(s.Text, s.Prst, s.W * 96, s.H * 96).Pt * 2);
                 string rpr = $"<w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\" w:cs=\"Calibri\"/>" +
                              $"<w:color w:val=\"{guarded}\"/><w:sz w:val=\"{sz}\"/><w:szCs w:val=\"{sz}\"/>";
                 textXml =

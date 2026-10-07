@@ -165,16 +165,18 @@ public class ImageLineTracerTests
     [Fact]
     public void TracedLine_SvgStrokeWidth_TracksBoxHeightNotWidth()
     {
-        // A traced line has H = StrokeWidthPt/72". Its SVG stroke-width lives in path space and is
-        // scaled by h/100 (perpendicular to the line) — so it must render at exactly StrokeWidthPt.
-        // Regression: the old code divided by the run width w, making dense previews ghost-thin.
+        // A traced line has H = StrokeWidthPt/72" and must render at exactly StrokeWidthPt.
+        // Regression: an older version divided by the run width w, making dense previews
+        // ghost-thin. The path is now drawn in absolute coordinates, so the stroke is simply
+        // StrokeWidthPt in px (1.5 pt = 2 px) whatever the box's proportions.
         var line = new ComposedShape
         {
             Prst = "sketch", X = 0, Y = 0, W = 1.0, H = 1.5 / 72.0, Fill = "000000",
             StrokeWidthPt = 1.5, PathPoints = new() { (0, 50), (100, 50) }
         };
         string svg = ImageShapeComposer.RenderSvg(new List<ComposedShape> { line }, 1.0, 1.5 / 72.0);
-        Assert.Contains("stroke-width=\"100.00\"", svg); // (1.5*96/72)*100 / (1.5/72*96) = 100
+        Assert.Contains("stroke-width=\"2.00\"", svg); // 1.5 * 96 / 72
+        Assert.Contains("M 0.0 1.0 96.0 1.0", svg);  // centred in the 2 px-tall box
     }
 
     [Fact]
