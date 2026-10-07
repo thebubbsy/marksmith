@@ -1483,3 +1483,255 @@ Target dialog buttons by index 1 or by AutomationId (`CloseButton` / `PrimaryBut
 10. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, a light-theme pass (History,
     the SmartArt tile, side panels, the rule rows), SmartArt click-to-zoom, Diagram Studio canvas
     fill, keyboard focus order, Galaxy obstacle-aware routing.
+
+### 2026-10-07 20:35 AEST: FEATURE PLAN, Email support (Outlook .eml / .msg export and import)
+
+**Mandate exception, approved by the user in chat on 2026-10-07.** The routine is otherwise
+polish-only, but this feature was explicitly requested: "add support for … msg … new and classic
+outlook export import email file support … do a massive plan … for next run to start coding". The
+next run starts coding it at **Phase 0 → Phase 1** below. Polish items from run #21b stay queued
+behind it. EPUB (finding 1) is worth doing in the same run, because the email renderer reuses the
+same "Mermaid → image, math → image, well-formed markup" work.
+
+#### The pitch (why this is worth money)
+
+Companies pay for Copilot / Claude seats largely so that AI output lands in Outlook as a clean,
+send-ready email. MarkSmith already sits between any AI chat and the user's documents: the browser
+extension and `/api/ingest` capture ChatGPT / Gemini / Claude replies, the AI-quirks cleanup fixes
+them, and the themes make them look professional. **The missing last hop is email.** With it, the
+flow becomes:
+
+> paste or send an AI reply → MarkSmith cleans and styles it → **an Outlook draft opens, ready to Send**
+> (subject from the title, tables, code and diagrams intact, optional PDF/DOCX attached)
+
+That works with the free ChatGPT tier, needs no Copilot licence and no AI subscription inside
+Outlook, and works in **both** classic Outlook and new Outlook. The reverse direction (open an
+email or thread → Markdown → a polished report / DOCX / PDF) makes MarkSmith the "email ↔ document"
+bridge. Market it as **"Inbox-ready"**.
+
+#### Facts the design rests on (checked 2026-10-07)
+
+- **New Outlook for Windows opens .eml, .msg and .oft files** (since Microsoft 365 message MC713893,
+  March 2024): double-click once it's the default app, Open With, or drag onto the reading pane.
+  It needs an internet connection; .msg and .oft have a 14 MB limit. Dragging a mail out of new
+  Outlook produces **.eml**; classic produces **.msg**. Both can "Save as EML / MSG".
+- **New Outlook has no COM / VBA object model**, so `Outlook.Application` automation reaches classic
+  only. The way to drive **both** without sign-in is: write a draft file, then `ShellExecute` it, so
+  the user's default mail app opens it.
+- **`X-Unsent: 1`** in an .eml makes classic Outlook open it as an editable, sendable draft (compose
+  window) instead of a received message. **Unverified for new Outlook: Phase 0 must test it.** A .msg
+  written with the draft/unsent flag (MsgKit `Email(..., draft: true)`) opens as a compose window in
+  classic. New Outlook behaviour is also unverified.
+- **Libraries** (verify licences and transitive size in Phase 0):
+  - MimeKit (MIT). Prefer **MimeKitLite**: no BouncyCastle, much smaller, and S/MIME isn't needed.
+  - MsgKit 3.x (Sicos1977), writes Outlook .msg (e-mail, appointments…). Targets .NET Standard
+    2.0, so it loads on net8.
+  - MSGReader 6.x (same author), reads .msg **and** .eml and supports .NET 8. Writing is limited,
+    which is why MsgKit does the writing.
+- Classic Outlook renders HTML mail with **Word's engine**: no flexbox or grid, weak `max-width`, no
+  `border-radius`, no background images, no SVG, no data-URI images. Layout must be tables plus
+  inline styles, and images must be **CID inline attachments (PNG)**. New Outlook, OWA, Gmail and
+  Apple Mail are WebView / browser-based and forgiving. Design for the Word engine and everything
+  else follows.
+- `mailto:` can't carry an HTML body or attachments, so it's useless for this beyond prefilling
+  recipients.
+
+#### Architecture
+
+New folder `MarkSmith.Core/Services/Email/` (Core, so the API, automation and tests all use it):
+
+| File | Responsibility |
+|---|---|
+| `EmailDocument.cs` | Model: `Subject`, `To/Cc/Bcc` (lists), `HtmlBody`, `TextBody`, `InlineImages` (cid, bytes, mime, filename), `Attachments` (name, bytes, mime), `IsDraft`, `Importance`, `SourceLabel`. |
+| `EmailHtmlRenderer.cs` | Markdown → **email-safe HTML**. This is the heart; see below. |
+| `EmailComposer.cs` | Orchestrates: prepared markdown (`PrepareMarkdown`, so AI cleanup and custom rules apply) → subject (first H1 / title, then `EmailSubjectTemplate`, then the file name) → renderer → optional attachments (PDF / DOCX of the same doc via the existing exporters) → `EmailDocument`. |
+| `EmlWriter.cs` | `EmailDocument` → .eml via MimeKitLite: `multipart/mixed` [ `multipart/related` [ `multipart/alternative` [text, html], inline PNGs by Content-ID ], attachments ], `X-Unsent: 1` when draft, `Date`, a `Message-ID` with the MarkSmith domain, UTF-8 subject encoding. |
+| `MsgWriter.cs` | `EmailDocument` → .msg via MsgKit (draft flag, HTML body, inline attachments with ContentId + `isInline`, regular attachments, recipients). |
+| `EmailImportService.cs` | .eml / .msg → Markdown. MSGReader for .msg, MimeKitLite for .eml. Picks the HTML part (else text, else RTF via MSGReader). HTML → Markdown goes through the **existing HTML import path** (find what `PluginFileReader` / `ReverseImportService` uses for .html; reuse, don't duplicate). Inline CID images are extracted to the media dir and relinked. A header block (From / To / Date / Subject as a small table or front matter). Attachments are listed with save links. **Thread cleanup:** fold quoted history ("From: … Sent: …", "On … wrote:", `>` quotes) into a collapsed `<details>` block or drop it per setting; strip "Sent from my iPhone", the Outlook "external sender" banners, tracking pixels and `mso-` junk. |
+| `OutlookEnvironment.cs` (Desktop or Core with an OS guard) | Detects classic Outlook (`HKCR\Outlook.Application\CurVer` / `HKLM\SOFTWARE\Microsoft\Office\ClickToRun\…\outlook.exe` path), new Outlook (the AppX package `Microsoft.OutlookForWindows` / `olk.exe`), and the default handler for `.eml` / `.msg` (`AssocQueryString`). It drives the "Auto" format choice and the UI hints. |
+
+**`EmailHtmlRenderer` rules (the polish that sells it):**
+- **Pipeline:** Markdig with the same extensions as the preview → a **post-processor** over the HTML
+  (AngleSharp is already transitively present? check; otherwise a light, careful string/regex pass
+  over our own known output, since we control the markup).
+- **Inline every style.** Generate per-element styles from the selected theme's tokens (font, colours,
+  heading sizes, table borders). Don't ship a `<style>` block that Word may drop. *Option:*
+  PreMailer.Net (MIT) as a CSS inliner. Evaluate its size against a hand-written mapper from our own
+  theme tokens; the mapper is probably cleaner.
+- **Light theme always.** Use an email-specific light palette derived from the theme: dark themes are
+  unreadable when mail clients force dark-mode inversion. Add
+  `<meta name="color-scheme" content="light dark">` with mid-contrast colours that survive inversion.
+- Wrap the body in a single **600–680 px centred table** with `width` attributes (Word ignores
+  `max-width` on divs).
+- **Tables:** `border-collapse`, cell padding, header shading, and alignment kept from Markdown
+  (`text-align` per cell as attributes **and** inline style).
+- **Code blocks:** highlight with **ColorCode's inline-style HTML formatter** (the package is already
+  referenced) inside a `<table>` cell with a monospace stack (`Consolas, 'Courier New', monospace`)
+  and a light background. `pre` whitespace only, no wrapping CSS that Word ignores.
+- **Inline code:** a span with a background colour and monospace.
+- **Mermaid:** PNG at 2× via the **same snapshot harvest DOCX uses**
+  (`ExportCoordinator` `md.Contains("```mermaid")` path), attached as CID with
+  `width` = display width, and the source text as `alt`.
+- **SmartArt / shapes blocks:** same, via their existing raster paths.
+- **Math:** KaTeX → PNG through the WebView harvest; fall back to the TeX in `<code>`.
+- **Task lists:** ☑ / ☐ characters, never `<input>` (also the EPUB bug).
+- **Images:** local and relative images are embedded as CID; remote ones are kept as links (opt-in
+  "embed remote images").
+- **Footnotes:** a numbered list at the end with ↩ links. Anchors work in Outlook.
+- **Headings:** the H1 becomes the subject and is omitted from the body by default
+  (`EmailRepeatTitleInBody`).
+- **Callouts / admonitions / tabs / multi-column / charts:** degrade to bordered tables; charts go
+  through the existing raster path.
+- **No `<script>`, `<svg>`, `data:` URIs, `<input>`, flex or grid.** Unit-test these as invariants.
+- **Plain-text alternative:** Markdown → readable text (tables as aligned text, links as
+  "text (url)").
+- **Optional MarkSmith footer** for the free tier ("Formatted with MarkSmith"), removed by Pro. This
+  matches the existing PDF footer licensing behaviour.
+
+#### UI (WinUI3, polished to this routine's standard from day one)
+
+- **Export split-button:** add "Email draft (opens in Outlook)", "Save as email (.eml)" and "Save as
+  Outlook message (.msg)". Use the same flyout, icons from the Segoe Fluent table (Mail E715; verify
+  by rendering the glyph), and `HoverPolish.Track`.
+- **"Open in Outlook"** writes the draft (.eml or .msg per Auto detection: .msg if classic is the
+  default .msg handler, else .eml) to `%LOCALAPPDATA%\MarkSmith\outbox\` (via `AppPaths`, so
+  `MARKSMITH_CONFIG_DIR` redirects it in tests), then `ShellExecute`s it. Status: "Draft opened in
+  Outlook · Saved copy" with an Open-folder link (reuse `AnnounceExport` / `StatusOutputPath`). Clean
+  the outbox of drafts older than 7 days.
+- **"Copy as email"** (free tier?): puts CF_HTML on the clipboard, with images as file:// temp PNGs
+  for classic and data URIs for new Outlook/OWA. **Verify per client in Phase 0**; if unreliable,
+  ship only the file paths.
+- **Style & Export:** a new "Email" expander using `Controls/OptionRow` + `PanelToggleStyle`:
+  - Default recipients (To/Cc), with a text box per field; validate addresses inline, the way the
+    cleanup rules validate patterns.
+  - Subject template (`{title}`, `{date}`, `{source}`).
+  - Attach a PDF and/or DOCX copy (multi-toggle).
+  - Format: Auto / .eml / .msg.
+  - "Keep the title in the body".
+  - "Embed remote images".
+  - Email theme (Match document / Clean light).
+  - Every option must reach the code that reads it. Add preview-affecting ones to
+    `PreviewAffectingProperties` if an email preview exists.
+- **Email preview:** a "Preview as email" toggle on the Preview tab that renders the *email* HTML in
+  the WebView inside a 640 px frame with a mock header (From / To / Subject). Users must see exactly
+  what lands in Outlook.
+- **Import:**
+  - Add .eml and .msg to the Open picker (`MainWindow.xaml.cs` ~line 2043) and the drop target
+    (drag a mail from new Outlook → .eml; from classic → a .msg file on disk).
+  - Add a status line naming the sender and date.
+  - A dialog or setting for "Keep quoted history: Collapse / Remove / Keep".
+- **Command palette:** "Email draft", "Save as .eml", "Save as .msg", "Copy as email" and "Open an
+  email…".
+- **Keyboard:** Ctrl+Shift+O for the email draft (verify it's free).
+- **Shortcut sheet:** generate it from the shared table (finding 3).
+- **Welcome tour / Suite Hub:** one line each ("Send it as an email"). Keep the copy honest.
+
+#### API and automation (the "AI → inbox" engine)
+
+- `/api/convert` gains `format: "eml" | "msg"` with the right content types (`message/rfc822`,
+  `application/vnd.ms-outlook`) and `filename=<slug>.eml/.msg`. Run it through `LicenseGateError` like
+  docx and pptx.
+- `OutputOverride.Email`: `{ to[], cc[], bcc[], subject, attach: ["pdf","docx"], open: bool }`. With
+  `open: true` on `/api/ingest`, the desktop app writes to the outbox and `ShellExecute`s it, so a
+  browser-extension button "Send to Outlook" is one POST. **Extension work is out of scope for this
+  routine.** Document the contract in `MarkdownApiSpecService` / the API docs so the extension side
+  can wire it.
+- New `POST /api/email`: `{ markdown, to, cc, subject, attach, format, open }`. It returns the file
+  bytes, or `{ ok, path }` when `open`.
+- **Automation:** `TargetFormat` gains "email" (Settings ▸ General default format list + `TargetFormatLabel`).
+  Clipboard ingest and the watch folder can then emit drafts automatically: watch a folder of
+  AI-generated .md files and get an Outlook draft for each. Update the automation copy from run #20
+  (`AutomationFormatNote`).
+- **Batch convert:** a folder of .md → a folder of .eml/.msg.
+- **Licensing:** email export is **Pro**, the same tier as DOCX/PPTX, and counts toward the 3-export
+  trial. **Open question for the user:** is "Copy as email" free, as a hook?
+
+#### Phases (each one ships, commits to main, builds green, has tests)
+
+- **Phase 0, spike and decisions (run start, ≤ 45 min):**
+  - Add MimeKitLite, MsgKit and MSGReader to a scratch console app. Record licences, assembly sizes
+    and the transitive dependencies (MsgKit pulls OpenMcdf and possibly RtfPipe, MimeKit…). Check
+    self-contained publish size growth for x64 and arm64. Confirm everything is AnyCPU / arm64-safe.
+  - Generate one .eml (X-Unsent) and one .msg (draft) with an HTML body + 1 CID PNG. Open each with
+    `ShellExecute` on this PC. Which Outlook is installed? `Get-AppxPackage Microsoft.OutlookForWindows`
+    and the classic registry key. Screenshot the result (PrintWindow).
+  - **Record whether new Outlook opens X-Unsent .eml as a draft or as a read-only message.** If it's
+    read-only, the "Auto" choice for new Outlook must prefer whichever format opens editable, and
+    the status text must be honest: "Opened in Outlook. Choose Forward/Edit to send".
+  - Mind the Word/Outlook first-run account prompt from run #19: if Outlook shows a first-run
+    dialog, don't answer it; ask the user to clear it once.
+- **Phase 1, Core:** `EmailDocument`, `EmailHtmlRenderer`, `EmailComposer`, `EmlWriter`, and tests
+  (below). No UI yet.
+- **Phase 2, desktop export:** the split-button items, Open in Outlook, outbox, the status-bar links,
+  the license gate and the palette entries. Live-verify by opening the produced drafts in Outlook.
+- **Phase 3, `MsgWriter`, Auto format and `OutlookEnvironment`:** live-verify the .msg in classic
+  (if installed) and new Outlook.
+- **Phase 4, settings expander and email preview mode.**
+- **Phase 5, API and automation:** `/api/convert` formats, `/api/email`, `OutputOverride.Email`,
+  `TargetFormat` "email", watch-folder/batch, and the API spec docs. Add an end-to-end test that
+  POSTs to a test `ApiServer` and parses the returned .eml.
+- **Phase 6, import:** `EmailImportService`, the picker, drag-drop, thread cleanup, attachments and
+  the media extraction.
+- **Phase 7, polish and release:** a light/dark pass, an Outlook rendering matrix, and the tour /
+  Suite Hub copy. Then cut **v3.4.0 "Inbox-ready"**, with release notes leading with the email
+  feature.
+- **Deferred, the user decides:**
+  - (a) Microsoft Graph `POST /me/messages` drafts and `sendMail`. This works without any Outlook
+    installed and with OWA, but needs an Entra app registration and OAuth, which is the same consumer
+    barrier as the Google Docs finding 12.
+  - (b) Classic-only COM `MailItem.Display()` for a "real compose window". It isn't needed if
+    X-Unsent works.
+  - (c) .oft (Outlook template) export, if MsgKit supports it; check in Phase 0.
+
+#### Tests (new files under `MarkSmith.Tests/Email/`)
+
+- `EmailHtmlRendererTests`. Invariants on the rendered HTML of a kitchen-sink document (headings,
+  task list, table with alignment, code, Mermaid, math, footnote, image, callout):
+  - No `<script>`, `<svg>`, `<input>`, `data:`, `display:flex` or `display:grid`.
+  - Every `img` has a `cid:` src, `width` and `alt`.
+  - The body is wrapped in one 600–680 px table.
+  - Table alignment is kept.
+  - The well-formedness of the XHTML body is parsed.
+- `EmlWriterTests`: parse with MimeKitLite. Check the subject (including Unicode/emoji),
+  `X-Unsent` only when a draft, the multipart structure, every `cid:` in the HTML resolving to a
+  part, the attachments' names and mime types, and the recipients.
+- `MsgWriterTests`: round-trip through MSGReader (subject, HTML contains the headings, inline
+  attachments with ContentId, recipients).
+- `EmailComposerTests`: the subject from H1 / template / file name; AI cleanup and custom rules
+  applied; title omission; attach-PDF/DOCX producing non-empty attachments (DOCX in-process; PDF may
+  need the render host, so mark it integration or skip it).
+- `EmailImportTests`: a fixture .eml and .msg (create them with our own writers plus a hand-made
+  Outlook-style quoted thread) → Markdown that has the header block, folds the quoted history,
+  extracts CID images and lists the attachments.
+- `ApiEmailTests`: `/api/convert` eml/msg content types, the 402 for a free licence, and
+  `/api/email` validation errors (a bad address → 400 with a readable message).
+
+#### Acceptance (definition of done for the feature)
+
+1. A messy ChatGPT reply pasted into MarkSmith → "Email draft" → an Outlook compose window opens
+   within ~3 s with the subject set, the AI artefacts gone, tables and code readable, the Mermaid
+   diagram visible as an image, and no broken images. It works in **new Outlook** (and in classic
+   if installed).
+2. The same through `POST /api/ingest` with `output.format = "email", open: true`, with no UI
+   interaction.
+3. A .msg saved from classic Outlook and an .eml dragged out of new Outlook both open in MarkSmith as
+   clean Markdown with images and a collapsed quoted history, and export to DOCX/PDF.
+4. Free tier: the paywall (with the trial offer, finding 2) appears consistently in the UI and the
+   API. Pro: no footer.
+5. Desktop 0 warnings, the full suite green (apart from the user's known HouseLayout WIP), and a
+   PLANNING.md entry with screenshots-verified results.
+
+#### Risks and mitigations
+
+- **New Outlook may open X-Unsent .eml read-only.** Phase 0 finds out. The fallbacks are .msg
+  draft, "Copy as email", and later Graph.
+- **Dependency size and arm64:** use MimeKitLite, and measure the publish delta in Phase 0. If MsgKit
+  is heavy or fragile, ship .eml first and put .msg behind Phase 3.
+- **Word-engine rendering quirks:** table layout plus inline styles plus PNG-only images. Keep a
+  fixture .eml for manual visual checks in classic Outlook.
+- **Huge AI replies:** the 14 MB .msg cap in new Outlook. Downscale large diagram PNGs and warn when
+  over 10 MB.
+- **Security:** imported mail is untrusted HTML, so sanitise it through the existing sanitizer
+  (`SanitizerTests` covers the preview) before rendering. Never auto-load remote images on import.
+- **Privacy:** outbox drafts contain user content. Keep them under the app data dir, auto-clean them
+  after 7 days, and add a "Clear outbox" button in Settings.
