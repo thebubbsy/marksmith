@@ -28,6 +28,9 @@ public sealed class EmailComposeRequest
     public IReadOnlyList<EmailAttachment>? Attachments { get; init; }
     public bool IsDraft { get; init; } = true;
     public DateTime? Now { get; init; }
+
+    /// <summary>Preview only (see <see cref="EmailRenderOptions.LiveMermaidPlaceholders"/>).</summary>
+    public bool LiveMermaidPlaceholders { get; init; }
 }
 
 /// <summary>Markdown → <see cref="EmailDocument"/>: the subject, the recipients, the email-safe
@@ -45,6 +48,7 @@ public static class EmailComposer
             RepeatTitleInBody = settings.EmailRepeatTitleInBody,
             BaseDirectory = request.BaseDirectory,
             MermaidPngs = request.MermaidPngs,
+            LiveMermaidPlaceholders = request.LiveMermaidPlaceholders,
         });
         var rendered = renderer.Render(request.Markdown ?? "");
 

@@ -25,6 +25,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.UsePasteSource),
         nameof(ViewModels.MainViewModel.SelectedThemeName),
         nameof(ViewModels.MainViewModel.ThemeLightInfluence),
+        // Preview as email: the toggle, and the Email options its header and body show.
+        nameof(ViewModels.MainViewModel.PreviewAsEmail),
+        nameof(ViewModels.MainViewModel.EmailTo),
+        nameof(ViewModels.MainViewModel.EmailCc),
+        nameof(ViewModels.MainViewModel.EmailSubjectTemplate),
+        nameof(ViewModels.MainViewModel.EmailRepeatTitleInBody),
+        nameof(ViewModels.MainViewModel.EmailAttachPdf),
+        nameof(ViewModels.MainViewModel.EmailAttachDocx),
         nameof(ViewModels.MainViewModel.ContentWidth),
         nameof(ViewModels.MainViewModel.A4FixedWidth),
         nameof(ViewModels.MainViewModel.UnlimitedHeight),
@@ -2746,7 +2754,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var vm = ViewModel;
         var markdown = await ResolvePreviewMarkdownAsync();
 
-        var html = vm.BuildPreviewHtml(vm.PrepareMarkdown(markdown, forPreview: true), interactive: true);
+        var prepared = vm.PrepareMarkdown(markdown, forPreview: true);
+        var html = vm.PreviewAsEmail ? vm.BuildEmailPreviewHtml(prepared) : vm.BuildPreviewHtml(prepared, interactive: true);
 
         // Essential refresh check: skip re-navigating WebView2 if content is identical and not heavy
         if (!heavy && markdown == _lastLiveCanvasMd && _lastRenderedHtml != null && html == _lastRenderedHtml)
@@ -3316,6 +3325,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await ViewModel.ConvertToHtmlAsync();
     }
 
+    // Preview as email has nothing to show in Code view, so turning it on brings the preview up.
+    // Looking Glass reveals the Markdown behind the themed page; the email preview has no such
+    // layer, so the portal is switched off while it shows.
+    private void OnEmailPreviewToggled(object sender, RoutedEventArgs e)
+    {
+        var on = EmailPreviewToggle.IsChecked == true;
+        if (on)
+        {
+            if (LookingGlassToggle.IsChecked == true) LookingGlassToggle.IsChecked = false;
+            if (ViewCodeTab.IsSelected) ViewSplitTab.IsSelected = true;
+        }
+        LookingGlassToggle.IsEnabled = !on;
+        PreviewWidthContainer.Visibility = !on && _viewMode != ViewMode.Code ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private async void OnEmailDraftClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.CreateEmailDraftAsync();
@@ -3430,7 +3454,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         if (PastePanel != null) PastePanel.Visibility = showEditor ? Visibility.Visible : Visibility.Collapsed;
         if (PreviewCard != null) PreviewCard.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
-        if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = showPreview ? Visibility.Visible : Visibility.Collapsed;
+        // The width ruler and zoom act on the themed page; the email preview is a fixed 680 px
+        // message, so they'd be dead controls there.
+        if (PreviewWidthContainer != null) PreviewWidthContainer.Visibility = showPreview && !ViewModel.PreviewAsEmail ? Visibility.Visible : Visibility.Collapsed;
         if (SplitViewSplitter != null) SplitViewSplitter.Visibility = mode == ViewMode.Split ? Visibility.Visible : Visibility.Collapsed;
 
         // Column widths: give all the space to the visible pane(s); split shares it.

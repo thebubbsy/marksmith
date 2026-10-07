@@ -513,6 +513,15 @@
                                       Checked="OnLookingGlassToggled" Unchecked="OnLookingGlassToggled">
                             <FontIcon Glyph="&#xE7B3;" FontSize="13" />
                         </ToggleButton>
+                        <!-- Preview as email: the preview shows the Outlook draft (header, recipients,
+                             email-safe body) instead of the themed page. -->
+                        <ToggleButton x:Name="EmailPreviewToggle" Height="32" Width="32" Padding="0" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Preview as email"
+                                      ToolTipService.ToolTip="Preview as email: see the document exactly as the Outlook draft will show it"
+                                      IsChecked="{Binding PreviewAsEmail, Mode=TwoWay}"
+                                      Checked="OnEmailPreviewToggled" Unchecked="OnEmailPreviewToggled">
+                            <FontIcon Glyph="&#xE715;" FontSize="13" />
+                        </ToggleButton>
                         <SelectorBar x:Name="CenterViewSelector" SelectionChanged="OnCenterViewSelectorChanged">
                             <SelectorBarItem x:Name="ViewCodeTab" Text="Code" IsSelected="True"
                                              ToolTipService.ToolTip="Markdown editor only" />

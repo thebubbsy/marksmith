@@ -33,6 +33,11 @@ public sealed class EmailRenderOptions
     /// (null where a diagram failed). Rendered by the desktop app's web host; without it each
     /// diagram's source is shown as code instead.</summary>
     public IReadOnlyList<byte[]?>? MermaidPngs { get; init; }
+
+    /// <summary>Preview only: write each diagram without a PNG as a placeholder the preview page
+    /// draws live with mermaid.js (the export harvests real PNGs instead). Never set for a file
+    /// that leaves the app — the placeholder relies on script.</summary>
+    public bool LiveMermaidPlaceholders { get; init; }
 }
 
 public sealed class EmailRenderResult
@@ -300,6 +305,12 @@ public sealed class EmailHtmlRenderer
         if (png is { Length: > 0 } && AddImage(png, "image/png", $"diagram-{index + 1}.png", 2.0, out var img))
         {
             WriteFigureImage(sb, img, $"Diagram: {firstLine}");
+            return;
+        }
+        if (_options.LiveMermaidPlaceholders)
+        {
+            sb.Append("<div data-ms-mermaid=\"1\" style=\"margin:0 0 16px 0;\"><pre style=\"display:none;\">")
+              .Append(Enc(source)).Append("</pre></div>\n");
             return;
         }
         _missingDiagrams++;

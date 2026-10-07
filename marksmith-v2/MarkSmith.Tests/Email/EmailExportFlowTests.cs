@@ -155,6 +155,54 @@ public class EmailExportFlowTests
     }
 
     [Fact]
+    public void Preview_as_email_shows_the_message_the_export_writes()
+    {
+        var (vm, dir) = FileBackedVm("# Report\n\nBody text.\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\n:::smartart type=\"process\"\n- Plan\n- Ship\n:::\n");
+        try
+        {
+            vm.EmailTo = "ann@example.com";
+            vm.EmailAttachPdf = true;
+            var page = vm.BuildEmailPreviewHtml(vm.PrepareMarkdown(File.ReadAllText(vm.InputFilePath)));
+
+            Assert.Contains("<div class=\"subject\">Report</div>", page);
+            Assert.Contains("ann@example.com", page);
+            Assert.Contains("Report.pdf", page); // the attachment chip
+            // The body is the email HTML, isolated in a frame, with pictures inlined for the preview.
+            Assert.Contains("<iframe id=\"mailbody\"", page);
+            Assert.Contains("data:image/png;base64,", page);
+            Assert.DoesNotContain("cid:", page);
+            // Diagrams are drawn live, not reported as missing.
+            Assert.Contains("data-ms-mermaid", page);
+            Assert.Contains(MarkSmith.Services.WebAssets.Mermaid, page);
+            Assert.DoesNotContain("couldn't be drawn", page);
+        }
+        finally
+        {
+            vm.EmailTo = "";
+            vm.EmailAttachPdf = false;
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Live_diagram_placeholders_never_reach_an_exported_email()
+    {
+        var doc = EmailComposer.Compose(new EmailComposeRequest { Markdown = "```mermaid\nflowchart LR\n  A --> B\n```" },
+            new AppSettings(), new ThemeDefinition("Light", "#ffffff", "#222222", "#0b3d91", "#f5f5f5", "#dddddd", "#0b5cad", "#eeeeee", "#333333"));
+        Assert.DoesNotContain("data-ms-mermaid", doc.HtmlBody);
+        Assert.Contains("flowchart LR", doc.HtmlBody);
+    }
+
+    [Fact]
+    public void Preview_without_recipients_says_where_to_add_them()
+    {
+        var doc = new EmailDocument { Subject = "Hi", HtmlBody = "<html><head></head><body><p>x</p></body></html>" };
+        var page = EmailPreviewPage.Build(doc, EmailPalette.Clean);
+        Assert.Contains("No recipients yet", page);
+        Assert.DoesNotContain("mermaid", page);
+    }
+
+    [Fact]
     public void Outbox_names_never_collide_and_old_drafts_are_cleared()
     {
         var first = EmailOutbox.PathFor("Plan: Q3?", "eml");

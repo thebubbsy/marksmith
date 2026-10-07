@@ -113,6 +113,35 @@ public sealed partial class MainViewModel
     private string? EmailSourceLabel() =>
         !UsePasteSource && !string.IsNullOrWhiteSpace(InputFilePath) ? Path.GetFileNameWithoutExtension(InputFilePath) : null;
 
+    /// <summary>Preview tab shows the document as the email Outlook will open (header, recipients,
+    /// attachments, the email-safe body) instead of the themed page.</summary>
+    [ObservableProperty] private bool _previewAsEmail;
+
+    /// <summary>The "Preview as email" page for <paramref name="preparedMarkdown"/> (already through
+    /// <see cref="PrepareMarkdown"/>). Built from the same composer as the export, so the preview
+    /// can't drift from the file; only the diagrams are drawn live instead of harvested.</summary>
+    public string BuildEmailPreviewHtml(string preparedMarkdown)
+    {
+        var settings = _settingsService.Current;
+        var doc = EmailComposer.Compose(new EmailComposeRequest
+        {
+            Markdown = preparedMarkdown ?? "",
+            SourceLabel = EmailSourceLabel(),
+            BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+            LiveMermaidPlaceholders = true,
+        }, settings, CurrentTheme);
+
+        var stem = EmailOutbox.SafeStem(EmailSourceLabel() ?? SanitizeFileName(HistoryEntry.ExtractTitle(preparedMarkdown ?? "")));
+        var attachments = new List<string>();
+        if (settings.EmailAttachPdf) attachments.Add(stem + ".pdf");
+        if (settings.EmailAttachDocx)
+        {
+            if (AppServices.License.CanExportDocx) attachments.Add(stem + ".docx");
+            else doc.Notes.Add("The Word copy will be left off: attaching a .docx is a Pro feature (the email itself is free).");
+        }
+        return EmailPreviewPage.Build(doc, EmailPalette.From(CurrentTheme), attachments);
+    }
+
     /// <summary>Writes the document as an Outlook draft to the outbox and opens it in the default
     /// mail app (classic or new Outlook, or whatever handles .eml), ready to edit and Send.</summary>
     public Task CreateEmailDraftAsync() => ExportEmailAsync(openInMailApp: true);

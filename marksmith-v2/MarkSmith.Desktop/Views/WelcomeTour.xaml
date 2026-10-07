@@ -119,7 +119,7 @@
                         <StackPanel Spacing="4">
                             <FontIcon Glyph="&#xEDE1;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
                             <TextBlock Text="3 · Preview &amp; Export" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Text="PDF, Word, slides, EPUB" Style="{StaticResource TourStepCaption}" />
+                            <TextBlock Text="PDF, Word, slides, EPUB, email" Style="{StaticResource TourStepCaption}" />
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -254,7 +254,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE786;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Also exports PowerPoint (PPTX) and EPUB." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Also exports PowerPoint (PPTX) and EPUB, and opens any document as a ready-to-send Outlook email (Ctrl+Shift+O)." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -295,7 +295,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE734;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF. MarkSmith Pro adds Word export, automation and branding — with a 3-DOCX-export trial." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF, HTML, Markdown, EPUB and email. MarkSmith Pro adds Word and PowerPoint export, automation and branding — with a 3-DOCX-export trial." />
                     </Grid>
                 </StackPanel>
             </StackPanel>
