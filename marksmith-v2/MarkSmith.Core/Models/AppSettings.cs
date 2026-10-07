@@ -334,6 +334,8 @@ public sealed class AppSettings
         if (!string.IsNullOrWhiteSpace(o.FontPreset)) s.FontPreset = o.FontPreset;
         if (!string.IsNullOrWhiteSpace(o.FileNameTemplate)) s.FileNameTemplate = o.FileNameTemplate;
         if (!string.IsNullOrWhiteSpace(o.OutputFolder)) s.OutputFolder = o.OutputFolder;
+        if (o.EmailTo is not null) s.EmailTo = o.EmailTo;
+        if (o.EmailCc is not null) s.EmailCc = o.EmailCc;
         if (!string.IsNullOrWhiteSpace(o.SourceFontFamily)) s.BrandFontFamily = o.SourceFontFamily;
         if (!string.IsNullOrWhiteSpace(o.SourceLanguage)) s.ContentLanguage = o.SourceLanguage;
         if (!string.IsNullOrWhiteSpace(o.SourceDirection)) s.ContentDirection = o.SourceDirection;

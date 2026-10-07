@@ -398,6 +398,7 @@ public sealed class ExportCoordinator
                 {
                     Markdown = md,
                     SourceLabel = output?.SourceTitle,
+                    Subject = output?.EmailSubject,
                     MermaidPngs = mermaidImgs,
                 }, settings, theme);
                 return Email.EmlWriter.ToBytes(doc);

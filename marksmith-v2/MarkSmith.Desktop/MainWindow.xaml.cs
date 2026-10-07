@@ -440,6 +440,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             () => App.Settings.Current,
             settings => { App.Settings.Current.UpdateFrom(settings); App.Settings.Save(); },
             BatchConvertForApiAsync);
+        // The browser extension's "Live app settings" page reads and changes these through the
+        // view model, on this thread, so the panels update the moment the extension saves.
+        _automationManager.ApiServer.ExtensionSettings = new Services.ExtensionSettingsBridge(
+            ViewModel, () => ViewModel.ThemeNames.ToList(), RunOnUiAsync);
+        _automationManager.ApiServer.OpenEmailDraft = OpenEmailDraftForApiAsync;
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         WireStreamingApi();
@@ -1839,6 +1844,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             }
         });
         return await tcs.Task;
+    }
+
+    private Task RunOnUiAsync(Func<Task> work)
+    {
+        if (DispatcherQueue.HasThreadAccess) return work();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!DispatcherQueue.TryEnqueue(async () =>
+            {
+                try { await work(); tcs.SetResult(); }
+                catch (Exception ex) { tcs.TrySetException(ex); }
+            }))
+            tcs.TrySetException(new InvalidOperationException("MarkSmith is closing."));
+        return tcs.Task;
+    }
+
+    // POST /api/email with open: true (the extension's "Open in Outlook"): the same .eml the
+    // export writes, saved to the outbox and handed to the default mail app. Free on every plan.
+    private async Task<Services.ApiServer.EmailDraftResult> OpenEmailDraftForApiAsync(string markdown, Models.OutputOverride? output)
+    {
+        var bytes = await ConvertForApiAsync(markdown, output);
+        var message = MimeKit.MimeMessage.Load(new MemoryStream(bytes));
+        var subject = message.Subject ?? "";
+        var label = !string.IsNullOrWhiteSpace(subject) ? subject : output?.SourceTitle ?? "Email draft";
+        Services.Email.EmailOutbox.Clean();
+        var path = Services.Email.EmailOutbox.PathFor(label, "eml");
+        await File.WriteAllBytesAsync(path, bytes);
+        var opened = Services.Email.EmailOutbox.Open(path);
+        await RunOnUiAsync(() =>
+        {
+            ViewModel.AnnounceEmailFromApi(subject, path, opened);
+            return Task.CompletedTask;
+        });
+        var notes = opened ? Array.Empty<string>()
+            : new[] { "Windows has no app set to open .eml files. Pick Outlook under Settings > Apps > Default apps." };
+        return new Services.ApiServer.EmailDraftResult(opened, path, subject, notes);
     }
 
     private async Task<object> BatchConvertForApiAsync(string folderPath, string format, Models.OutputOverride? ovr)

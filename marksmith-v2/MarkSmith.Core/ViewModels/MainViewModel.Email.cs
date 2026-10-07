@@ -86,6 +86,17 @@ public sealed partial class MainViewModel
     partial void OnEmailAttachPdfChanged(bool value) { _settingsService.Current.EmailAttachPdf = value; SaveSettingsDebounced(); }
     partial void OnEmailAttachDocxChanged(bool value) { _settingsService.Current.EmailAttachDocx = value; SaveSettingsDebounced(); }
 
+    /// <summary>Status line for a draft the browser extension asked for (POST /api/email), so the
+    /// app says what just appeared in Outlook and links the saved copy.</summary>
+    public void AnnounceEmailFromApi(string subject, string path, bool opened)
+    {
+        var name = subject.Length > 0 ? $"\"{subject}\"" : Path.GetFileName(path);
+        AnnounceExport(opened
+            ? $"Email draft {name} from the browser extension opened in your mail app"
+            : $"Saved the email draft {name} from the browser extension, but Windows has no app set to open .eml files", path);
+        StatusSeverity = opened ? StatusSeverity.Success : StatusSeverity.Warning;
+    }
+
     [RelayCommand]
     private void ClearEmailOutbox()
     {

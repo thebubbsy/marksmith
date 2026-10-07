@@ -226,7 +226,27 @@ public sealed class ApiServer : IDisposable
 
     // `output` carries the full output profile (extension/automation). `theme`/`normalize` are kept
     // as shorthand for simple /api/convert calls and folded into the override when `output` is absent.
-    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output, string? Folder);
+    private sealed record ApiRequest(string? Markdown, string? Theme, bool? Normalize, string? Format, OutputOverride? Output, string? Folder, bool? Open = null);
+
+    /// <summary>The app's options as the browser extension may read and change them (GET/POST
+    /// /api/extension/settings). Set by the desktop shell; null in hosts without a UI.</summary>
+    public ExtensionSettingsBridge? ExtensionSettings { get; set; }
+
+    /// <summary>Writes an Outlook draft for (markdown, profile) to the app's outbox and opens it in
+    /// the default mail app (POST /api/email with open: true). Set by the desktop shell.</summary>
+    public Func<string, OutputOverride?, Task<EmailDraftResult>>? OpenEmailDraft { get; set; }
+
+    public sealed record EmailDraftResult(bool Opened, string Path, string Subject, IReadOnlyList<string> Notes);
+
+    private sealed record ExtensionSettingsRequest(Dictionary<string, JsonElement>? Changes);
+
+    // The extension (or a local script) — never a web page. Settings are the user's, and even a
+    // loopback-hosted page shouldn't be able to flip them.
+    private static bool IsExtensionOrLocalClient(string? origin) =>
+        string.IsNullOrEmpty(origin) ||
+        origin.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase) ||
+        origin.StartsWith("moz-extension://", StringComparison.OrdinalIgnoreCase) ||
+        origin.StartsWith("safari-web-extension://", StringComparison.OrdinalIgnoreCase);
 
     // Governance report from a managed extension. 
     private sealed record GovDlpMatch(string? Category, string? Masked, string? Remediation);
@@ -404,7 +424,7 @@ public sealed class ApiServer : IDisposable
                     {
                         status = "ok",
                         app = "Marksmith",
-                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary", "GET /api/settings", "POST /api/settings", "POST /api/batch", "GET /api/stream (WebSocket)" },
+                        endpoints = new[] { "GET /api/health", "GET /api/themes", "POST /api/classify", "POST /api/ingest", "POST /api/convert", "POST /api/email", "GET /api/extension/settings", "POST /api/extension/settings", "POST /api/governance/report", "GET /api/governance/events", "GET /api/governance/summary", "GET /api/settings", "POST /api/settings", "POST /api/batch", "GET /api/stream (WebSocket)" },
                     });
                     break;
 
@@ -499,6 +519,58 @@ public sealed class ApiServer : IDisposable
                         ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.pdf");
                     }
                     await ctx.Response.OutputStream.WriteAsync(bytes);
+                    break;
+                }
+
+                case ("POST", "/api/email"):
+                {
+                    // Every email path is free (FeatureId.EmailDraft): no licence gate here.
+                    var req = await ReadBodyAsync(ctx);
+                    if (req?.Markdown is not { Length: > 0 } md) { await WriteJsonAsync(ctx, 400, new { error = "markdown is required" }); break; }
+                    var ovr = req.Output ?? new OutputOverride();
+                    ovr.Format = "eml";
+                    var bad = new[] { ("to", ovr.EmailTo), ("cc", ovr.EmailCc) }
+                        .SelectMany(p => Email.EmailComposer.ParseAddresses(p.Item2).Invalid.Select(i => $"{p.Item1}: \"{i}\""))
+                        .ToList();
+                    if (bad.Count > 0) { await WriteJsonAsync(ctx, 400, new { error = "Not email addresses: " + string.Join(", ", bad) }); break; }
+                    if (req.Open != false)
+                    {
+                        if (OpenEmailDraft is null) { await WriteJsonAsync(ctx, 503, new { error = "Open MarkSmith to create drafts in Outlook." }); break; }
+                        var result = await OpenEmailDraft(md, ovr);
+                        await WriteJsonAsync(ctx, 200, new { ok = true, opened = result.Opened, path = result.Path, subject = result.Subject, notes = result.Notes });
+                        break;
+                    }
+                    var eml = await _convert(md, ovr);
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "message/rfc822";
+                    ctx.Response.AddHeader("Content-Disposition", "attachment; filename=export.eml");
+                    await ctx.Response.OutputStream.WriteAsync(eml);
+                    break;
+                }
+
+                case ("GET", "/api/extension/settings"):
+                    if (!IsExtensionOrLocalClient(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings are only available to the MarkSmith extension" }); break; }
+                    if (ExtensionSettings is null) { await WriteJsonAsync(ctx, 503, new { error = "Open MarkSmith to change its settings." }); break; }
+                    await WriteJsonAsync(ctx, 200, await ExtensionSettings.DescribeAsync());
+                    break;
+
+                case ("POST", "/api/extension/settings"):
+                {
+                    if (!IsExtensionOrLocalClient(origin)) { await WriteJsonAsync(ctx, 403, new { error = "settings are only available to the MarkSmith extension" }); break; }
+                    if (ExtensionSettings is null) { await WriteJsonAsync(ctx, 503, new { error = "Open MarkSmith to change its settings." }); break; }
+                    var body = await ReadBoundedBodyAsync(ctx);
+                    ExtensionSettingsRequest? req;
+                    try { req = string.IsNullOrWhiteSpace(body) ? null : JsonSerializer.Deserialize<ExtensionSettingsRequest>(body, JsonOpts); }
+                    catch (JsonException) { req = null; }
+                    if (req?.Changes is not { Count: > 0 } changes) { await WriteJsonAsync(ctx, 400, new { error = "send { \"changes\": { \"key\": value } }" }); break; }
+                    var applied = await ExtensionSettings.ApplyAsync(changes);
+                    await WriteJsonAsync(ctx, 200, new
+                    {
+                        ok = applied.Rejected.Count == 0,
+                        applied = applied.Applied,
+                        rejected = applied.Rejected.Select(r => new { key = r.Key, reason = r.Reason }),
+                        settings = await ExtensionSettings.DescribeAsync(),
+                    });
                     break;
                 }
 

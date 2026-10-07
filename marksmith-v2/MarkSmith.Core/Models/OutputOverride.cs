@@ -64,6 +64,12 @@ public sealed class OutputOverride
     // (= pdf,docx). Null/blank = pdf. /api/convert also takes "eml" (an Outlook draft, free).
     public string? Format { get; set; }
 
+    // Email drafts (format "eml" and POST /api/email). Recipients replace the Email settings' To/Cc
+    // for this one draft; Subject replaces the subject template. All free on every plan.
+    public string? EmailTo { get; set; }
+    public string? EmailCc { get; set; }
+    public string? EmailSubject { get; set; }
+
     // ---- Source metadata captured from the originating AI-chat page ----------------------------
     // All optional. Carried two ways, both landing here: the browser extension's API sends them as
     // JSON fields inside `output`; the "Copy as Markdown" button embeds the same fields in a hidden
