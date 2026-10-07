@@ -2583,3 +2583,148 @@ If both open as editable compose windows in Outlook, ship it.
    pass.
 7. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
    keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
+
+### 2026-10-08 10:00–10:35 AEST (routine run #28: automation, done properly; email Phase 5)
+
+Reviewed run #27's "Next up". Item 2 (Phase 5: email as an automation target) led into a full
+audit of every unattended path: the clipboard watcher, auto-export of ingests, the watch folder,
+the Batch convert button, multi-file drop, `/api/convert` and `/api/batch`. Each had its own copy
+of the export switch, each with a different subset of formats, and several were broken. The PC
+was locked all run, so checks were done with tests, UIA on a scratch-config instance and the
+real file system.
+
+**Half-baked or broken, found and fixed:**
+- **Watch folder:** a PowerPoint or EPUB default silently produced a **PDF**, and Word output had
+  no diagrams (no Mermaid harvest). It also re-ingested any watched file you were editing in
+  MarkSmith on every Ctrl+S, re-running AI clean-up over your edits, and the burst of Changed
+  events from one save re-exported the same content.
+- **Multi-file drop:** copied the files to a temp folder that was never deleted. Only `.md`
+  converted (a dropped .docx/.html/.eml was silently skipped and the run still said
+  "finished"), PowerPoint/EPUB defaults threw "Target format must be 'pdf' or 'docx'", there
+  was no count, failure reason or Open button, and on the free plan it was an ungated Pro
+  feature.
+- **Folder batch:** an unknown format got no case in the switch but still counted as "done",
+  with a history row pointing at a file that didn't exist. Failures were swallowed into
+  `Debug.WriteLine`. Every batched file's history row said "pasted", and it was **saved as a
+  version of whatever document was open**, which polluted that document's version history with
+  other files.
+- **API:** `/api/batch` checked only the Word/PowerPoint gates, so a free install could batch
+  PDFs. `/api/convert` without a format labelled the bytes `export.pdf` / application/pdf even
+  when the default format was Word. A free Word default also skipped the gate there.
+- **Clipboard watcher:** copying more than 120 characters of your own document from
+  MarkSmith's editor came straight back as an "ingest" and **replaced the whole document with
+  the selection**. It also kept running after a licence lapsed.
+- History rows for saved emails / Outlook messages refused to open ("Blocked opening untrusted
+  file type: .eml"). The automation toast said "PDF ready" for a Word file or an email.
+
+**What shipped (commit 6aa257e):**
+- Core `Models/OutputFormats`: the one table of automation formats (pdf, docx, pptx, epub, eml,
+  msg). It holds `Normalize` ("email" → eml), sentence `Label`, history/toast `Kind`,
+  `KindForPath`, `ProFeature` and `NeedsRenderHost`.
+- Core `AutomationPolicy`: automation is Pro, **except automation that only writes email drafts,
+  which is free on every plan** (owner's rule from the email plan). `EmailIsFreeHint` is the
+  free way in, appended to every automation gate line.
+- Core `Services/AutomationExportService` (`AppServices.AutomationExport`) is the only
+  unattended exporter. `ExportAsync(job)` covers every format: diagrams per format (email ones
+  drawn in the email palette), running-document append, the locked-file check, and starting the
+  preview engine only for PDF or diagrams. `ExportToBytesAsync` serves the API.
+  `ConvertFilesAsync` is the batch, and:
+  - keeps going past a bad file and records "name: reason";
+  - supports cancel;
+  - never overwrites a source or another result (" (converted)", " (converted 2)");
+  - skips the Word Pro gate per file.
+
+  `FindBatchSources` picks up every document the editor opens (md/txt/docx/html/eml/msg/…).
+  It skips `~$` lock files and the output folder when that's inside the source.
+  `BatchConvertResult.Summary()` is the status line. Its `Lock` is the one preview-engine lock
+  (`ExportCoordinator.ConvertLock` now points at it).
+- `BatchConvertService` is a thin wrapper: the up-front Word licence check plus the clean-up
+  every batch gets.
+- `ExportCoordinator`: auto-export, watch folder, `/api/convert` and `/api/batch` all use the
+  service, and cloud publish is shared (the watch folder now publishes too).
+  - Watch folder: skips the open document (`vm.IsOpenDocument`) and unchanged content (per-path
+    last text).
+  - Auto-export names files after the conversation title when the extension sends one.
+- VM:
+  - `RecordExport(..., sourcePath:)` sets the history label and version key from the source
+    file.
+  - `BatchConvertFilesAsync` / `BatchConvertAsync` run with progress ("Batch: Converting 3 of
+    12: name…"), cancel, gates and `AnnounceBatch` (the summary plus Open on the last file).
+  - The automation toggles and the sanitizer use `AutomationAllowed`. Changing the default
+    format away from email on Free switches automation off and says why.
+- Desktop:
+  - Batch convert dialog: names the folder, counts documents (top level vs with subfolders;
+    "Include subfolders" is pre-ticked when the top level is empty), starts on the default
+    format, offers all six formats with "· Pro" on the gated ones, and shows the output folder.
+  - Drop batch reads files in place.
+  - `ShowAutomationToast` names the format.
+  - .eml/.msg history rows open.
+  - The clipboard watcher ignores copies owned by this process (`GetClipboardOwner`) and text
+    already in the document.
+  - `AutomationManager` follows the policy and stops the clipboard watcher when it no longer
+    may run. TargetFormat changes re-apply automation.
+- Settings "Default output format" gains Email draft (.eml) and Outlook message (.msg).
+  The same goes for the extension bridge (`automationAllowed`, locks judged on the new format
+  when a request changes both, the format applied first). The extension's live tab refreshes
+  lock hints and explains the free email path. ProGate banner / FreePlanIncludes mention email
+  automation.
+
+**Verified live** (scratch config, free plan, locked, UIA + file system):
+- **The first launch caught a real bug:** the VM constructor ran the licence sanitizer before
+  it had read `TargetFormat`, so a free user's email watch folder was switched off at every
+  start. It was fixed with a regression test.
+- After the fix: dropping `Team standup.md` into the watch folder wrote `Team standup.eml`
+  (X-Unsent: 1, table in the text part). The status read "Watch folder: Team standup.md → Team
+  standup.eml · in …".
+- Settings ▸ Default output format lists all six formats, with Email draft selected and the
+  new description.
+- Selecting PDF gave "Automation is off: on the free plan it only runs for email drafts, and the
+  default format is now PDF.", and settings.json showed `WatchFolderEnabled: false`. A file
+  dropped afterwards was not picked up.
+- Not verified live: the batch dialog and drag-drop (needs real input on an unlocked desktop),
+  and the clipboard self-copy filter (needs a real copy). Both are covered by code reading, and
+  the batch by tests.
+
+**Tests:**
+- New: `AutomationExportTests.cs` (35): formats/policy/summary, every non-PDF format written
+  headless, the email draft, PDF without the engine, unknown formats refused, source discovery,
+  no-overwrite naming, failure isolation, cancel, the free email batch + history labels, the
+  free PDF batch gate, toggles following the format, the restart regression, the watch-folder
+  dedupe / open-document skip / free gate, and the API batch gate / unknown format / convert
+  labelling.
+- Updated to the new rules:
+  - The origin-matrix API tests now batch "eml" (they test origins, not the paywall).
+  - The nested trial test: readme.txt is now a document.
+  - The free headless PDF batch now fails per file with a reason.
+  - Headless Word batch runs as Pro.
+- Full suite (scratch OutDir): 3728 passed. The 20 failures are the same environmental set as
+  runs #25–#27 (scratch-path assets/governance docs, MarkdownCopy/HtmlToMarkdown IsTransient,
+  the user's HouseLayout WIP). Desktop: 0 warnings. Extension: 59/59, `node --check` clean.
+
+**Lessons:**
+- **Constructor order matters for derived gates.** Any `Sanitize…` in the VM constructor must
+  run after every field it reads is loaded. Unit tests that build the VM after setting
+  properties don't catch this; a relaunch with a seeded settings.json does.
+- `ApiServer.LicenseSource` is a static other test classes swap. Tests that rely on the shared
+  licence must set it and restore it in Dispose.
+- Bash heredocs collapsed `\\\\` in a C# JSON string again (`"C:\docs"` gives a 500 from the
+  JSON parser). Use forward slashes in test paths, or the Write/Edit tools.
+- The Write tool trims trailing spaces in scripts, so an exact-match replace of a source line
+  that ends in a space fails. Build such strings with `chr(10)` / explicit spaces.
+
+**Release:** still held for the person-run Outlook check (run #27's three steps). v3.4.0 now
+has six headline items: add "automation that works in every format, free for email drafts".
+
+**Next up:**
+1. Unlocked-run screenshot pass. The new batch dialog (counts, "· Pro" tags, subfolder toggle),
+   drag-dropping several files, a clipboard copy from the editor not re-ingesting, plus run
+   #27's leftovers (Draft format row, PRO pill, zoom readout, trial banner, light theme).
+2. Email automation attachments: `EmailAttachPdf/Docx` are honoured by Email draft but not by
+   automation emails (they carry none). Decide and implement, reusing
+   `BuildEmailAttachmentsAsync`.
+3. "Copy as email" (CF_HTML with images), once per-client behaviour can be checked.
+4. EPUB follow-ups: a title page, metadata from `EpubMetadata`, and one real reader.
+5. Keyboard: root-scoped Ctrl+D and Alt+↑/↓ while another TextBox has focus, and a focus-order
+   pass.
+6. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
+   keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
