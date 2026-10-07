@@ -48,6 +48,7 @@
             <conv:StatusSeverityConverter x:Key="StatusSeverityConverter" />
             <conv:StatusSeverityToBrushConverter x:Key="StatusSeverityToBrushConverter" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <conv:BoolToInverseConverter x:Key="BoolToInverseConverter" />
             <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
             <conv:LevelToIndentConverter x:Key="LevelToIndentConverter" />
             <conv:OversizedDiagramModeConverter x:Key="OversizedDiagramModeConverter" />
@@ -329,127 +330,127 @@
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE945;" FontSize="14" />
-                                    <TextBlock Text="Automation" />
+                                    <TextBlock Text="Automation" FontWeight="SemiBold" />
+                                    <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
+                                            VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </Border>
                                 </StackPanel>
                             </Expander.Header>
+                            <!-- Same rhythm as Style & Export: OptionRows under short section labels. It was three
+                                 nested boxes of stacked "Header / switch / Watching / caption" blocks, and every
+                                 label said PDF while the exports actually follow the default format. -->
                             <StackPanel Spacing="12">
-                                
-                                <!-- Box 1: Extension & AI Chats -->
-                                <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="4" Padding="12">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Browser Extension &amp; AI Chats" FontWeight="SemiBold" />
-                                        
-                                        <ToggleSwitch Header="Auto-ingest AI chats from clipboard"
-                                                      OnContent="Watching" OffContent="Off"
-                                                      IsOn="{Binding AutoClipboardIngest, Mode=TwoWay}" />
-                                        <TextBlock Text="Copy a reply in ChatGPT / Gemini / Claude and it lands here, detected and cleaned."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
+                                <TextBlock Text="{Binding AutomationFormatNote}" Style="{StaticResource StepCaptionStyle}" />
 
-                                        <ToggleSwitch Header="Auto-generate PDF from AI-chat ingests"
-                                                      OnContent="On" OffContent="Off"
-                                                      IsOn="{Binding AutoConvertIngests, Mode=TwoWay}" />
-                                        <TextBlock Text="Every chat sent here (clipboard, API, or the extension at end of conversation) is exported to a PDF automatically."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
-
-                                        <ToggleSwitch Header="Append DOCX ingests to a running document"
-                                                      OnContent="On" OffContent="Off"
-                                                      IsOn="{Binding AppendToRunningDoc, Mode=TwoWay}" />
-                                        <TextBlock Text="When a DOCX is auto-generated, add it as a dated section to one growing .docx instead of a new file — a living compendium of your AI work."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
-                                        <Grid ColumnSpacing="8">
+                                <TextBlock Text="AI chats" Style="{StaticResource OptionSectionStyle}" />
+                                <localcontrols:OptionRow Header="Watch the clipboard"
+                                                         Description="Copy a reply in ChatGPT, Gemini or Claude and it lands here, detected and cleaned.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding AutoClipboardIngest, Mode=TwoWay}" />
+                                </localcontrols:OptionRow>
+                                <localcontrols:OptionRow Header="Export every ingest"
+                                                         Description="Each chat that arrives (clipboard, API or the browser extension) is exported straight away.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding AutoConvertIngests, Mode=TwoWay}" />
+                                </localcontrols:OptionRow>
+                                <localcontrols:OptionRow Header="Append to a running document"
+                                                         Description="When the default format is Word, add each export as a dated section of one growing .docx instead of a new file.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding AppendToRunningDoc, Mode=TwoWay}" />
+                                    <localcontrols:OptionRow.Details>
+                                        <Grid ColumnSpacing="8" Visibility="{Binding AppendToRunningDoc, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox Grid.Column="0" Text="{Binding RunningDocPath, Mode=TwoWay}"
+                                                     AutomationProperties.Name="Running document file"
                                                      PlaceholderText="e.g. C:\Docs\AI-notebook.docx" IsSpellCheckEnabled="False" />
-                                            <Button Grid.Column="1" Click="OnBrowseRunningDocClick"
-                                                    ToolTipService.ToolTip="Choose the running .docx document">
+                                            <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseRunningDocClick"
+                                                    ToolTipService.ToolTip="Choose the running .docx document"
+                                                    AutomationProperties.Name="Choose the running document">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
-                                    </StackPanel>
-                                </Border>
+                                    </localcontrols:OptionRow.Details>
+                                </localcontrols:OptionRow>
 
-                                <!-- Box 2: Local Folder Watcher & Batch -->
-                                <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="4" Padding="12">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Folder Watcher &amp; Batching" FontWeight="SemiBold" />
-                                        
-                                        <ToggleSwitch Header="Watch a folder for Markdown exports"
-                                                      OnContent="Watching" OffContent="Off"
-                                                      IsOn="{Binding WatchFolderEnabled, Mode=TwoWay}" />
-                                        <ToggleSwitch Header="Auto-convert watched files to PDF"
-                                                      OnContent="Hands-free" OffContent="Ingest only"
-                                                      IsOn="{Binding WatchFolderAutoConvert, Mode=TwoWay}" />
-                                        <TextBlock Text="New .md files become PDFs in your output folder automatically, with a toast when done."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
-                                        <Grid ColumnSpacing="8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
-                                                     PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
-                                            <Button Grid.Column="1" Click="OnBrowseWatchFolderClick"
-                                                    ToolTipService.ToolTip="Choose the folder to watch">
-                                                <FontIcon Glyph="&#xE8B7;" FontSize="14" />
-                                            </Button>
-                                        </Grid>
-
-                                        <!-- ISS-011: one-click presets for the folders local AI agents
-                                             (Gemini CLI, Ollama, Claude Desktop, …) export to. -->
-                                        <ComboBox x:Name="WatchFolderPresets" HorizontalAlignment="Stretch"
-                                                  PlaceholderText="Quick pick an AI agent folder…"
-                                                  ToolTipService.ToolTip="Pre-configured export folders for local AI agents and CLIs"
-                                                  SelectionChanged="OnWatchFolderPresetSelected">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Spacing="1">
-                                                        <TextBlock Text="{Binding Name}" FontSize="12" />
-                                                        <TextBlock Text="{Binding Path}" FontSize="10" Opacity="0.6" />
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-
-                                        <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                                ToolTipService.ToolTip="Pick a folder — every .md file inside becomes a themed PDF">
+                                <TextBlock Text="Folders" Style="{StaticResource OptionSectionStyle}" />
+                                <localcontrols:OptionRow Header="Watch a folder"
+                                                         Description="New Markdown files saved to the folder are picked up as they appear.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding WatchFolderEnabled, Mode=TwoWay}" />
+                                    <localcontrols:OptionRow.Details>
+                                        <StackPanel Spacing="8">
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding WatchFolder, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Watched folder"
+                                                         PlaceholderText="e.g. your Downloads folder" IsSpellCheckEnabled="False" />
+                                                <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseWatchFolderClick"
+                                                        ToolTipService.ToolTip="Choose the folder to watch"
+                                                        AutomationProperties.Name="Choose the folder to watch">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                                </Button>
+                                            </Grid>
+                                            <!-- ISS-011: one-click presets for the folders local AI agents
+                                                 (Gemini CLI, Ollama, Claude Desktop, …) export to. -->
+                                            <ComboBox x:Name="WatchFolderPresets" HorizontalAlignment="Stretch"
+                                                      PlaceholderText="Quick pick an AI agent folder…"
+                                                      AutomationProperties.Name="AI agent folder presets"
+                                                      ToolTipService.ToolTip="Pre-configured export folders for local AI agents and CLIs"
+                                                      SelectionChanged="OnWatchFolderPresetSelected">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Spacing="1">
+                                                            <TextBlock Text="{Binding Name}" />
+                                                            <TextBlock Text="{Binding Path}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </localcontrols:OptionRow.Details>
+                                </localcontrols:OptionRow>
+                                <!-- Only meaningful while the folder is being watched. -->
+                                <localcontrols:OptionRow Header="Export watched files"
+                                                         Description="Hands-free: each new file is exported to your output folder, with a notification when it's done. Off: files are only opened here."
+                                                         IsEnabled="{Binding WatchFolderEnabled}">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding WatchFolderAutoConvert, Mode=TwoWay}" />
+                                </localcontrols:OptionRow>
+                                <localcontrols:OptionRow Header="Batch convert"
+                                                         Description="Pick a folder: every .md file inside is cleaned up and exported to your output folder.">
+                                    <localcontrols:OptionRow.Details>
+                                        <Button Click="OnBatchConvertClick" HorizontalAlignment="Stretch"
+                                                ToolTipService.ToolTip="Pick a folder and export every .md file inside it">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
-                                                <TextBlock Text="Batch convert a folder to PDF…" />
+                                                <TextBlock Text="Convert a folder…" />
                                             </StackPanel>
                                         </Button>
-                                        <TextBlock Text="Every .md file in the folder becomes a themed PDF in your output folder — detection and cleanup applied to each."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-6,0,0" />
-                                    </StackPanel>
-                                </Border>
+                                    </localcontrols:OptionRow.Details>
+                                </localcontrols:OptionRow>
 
-                                <!-- Box 3: System Services -->
-                                <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" CornerRadius="4" Padding="12">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="System Services" FontWeight="SemiBold" />
-
-                                        <ToggleSwitch Header="Local REST API" OnContent="Running" OffContent="Off"
-                                                      IsOn="{Binding ApiEnabled, Mode=TwoWay}" />
-                                        <Grid ColumnSpacing="8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="130" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <NumberBox Grid.Column="0" Header="Port" Value="{Binding ApiPort, Mode=TwoWay}"
-                                                       Minimum="1024" Maximum="65535" />
-                                            <TextBlock x:Name="ApiUrlText" Grid.Column="1" VerticalAlignment="Bottom" Margin="0,0,0,6"
-                                                       Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"
-                                                       IsTextSelectionEnabled="True" />
+                                <TextBlock Text="Background" Style="{StaticResource OptionSectionStyle}" />
+                                <localcontrols:OptionRow Header="Local REST API"
+                                                         Description="For your own scripts and the browser extension. Port and pairing are in Settings ▸ Automation.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding ApiEnabled, Mode=TwoWay}" />
+                                    <localcontrols:OptionRow.Details>
+                                        <Grid>
+                                            <TextBlock Text="{Binding ApiStatusText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                                       Visibility="{Binding ApiStatusIsError, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                            <TextBlock Text="{Binding ApiStatusText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                                       Visibility="{Binding ApiStatusIsError, Converter={StaticResource BoolToVisibilityConverter}}" />
                                         </Grid>
-
-                                        <ToggleSwitch Header="Keep running in system tray when closed"
-                                                      OnContent="Tray mode" OffContent="Off"
-                                                      IsOn="{Binding MinimizeToTray, Mode=TwoWay}" Margin="0,8,0,0" />
-                                    </StackPanel>
-                                </Border>
-
+                                    </localcontrols:OptionRow.Details>
+                                </localcontrols:OptionRow>
+                                <localcontrols:OptionRow Header="Keep running in the tray"
+                                                         Description="Closing the window hides MarkSmith to the notification area, so the watchers and API keep working.">
+                                    <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding MinimizeToTray, Mode=TwoWay}" />
+                                </localcontrols:OptionRow>
                             </StackPanel>
                         </Expander>
                     </Grid>
@@ -1245,10 +1246,10 @@
                                 </Button>
                             </Grid>
 
-                            <ToggleSwitch Header="Light Theme Influence"
-                                          IsOn="{Binding ThemeLightInfluence, Mode=TwoWay}" />
-                            <TextBlock Text="When enabled, the page uses a light center gradient with theme colors on the margins, automatically adjusting text for readability."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <localcontrols:OptionRow Header="Light theme influence"
+                                                     Description="A light centre panel with the theme's colours on the margins; text colours adjust to stay readable.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding ThemeLightInfluence, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
 
                                     </StackPanel>
                                 </Expander>
@@ -1262,15 +1263,26 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
-                            <NumberBox Header="Page width (px)" Value="{Binding ContentWidth, Mode=TwoWay}"
-                                       SpinButtonPlacementMode="Inline" Minimum="400" Maximum="2400" SmallChange="50" />
-                            <ToggleSwitch Header="Lock to A4 width" IsOn="{Binding A4FixedWidth, Mode=TwoWay}" />
-                            <ToggleSwitch Header="Single continuous page (no page breaks)"
-                                          OnContent="On · PDF only" OffContent="Off"
-                                          IsOn="{Binding UnlimitedHeight, Mode=TwoWay}" />
-                            <TextBlock Text="A PDF-only layout. In DOCX there's no page-less print mode, so Word opens the file in Web Layout view instead — one continuous flow, not meant for printing."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ToggleSwitch Header="Table of contents" IsOn="{Binding IncludeToc, Mode=TwoWay}" />
+                            <localcontrols:OptionRow Header="Lock to A4 width"
+                                                     Description="Pins the page to A4 width (794 px), so PDFs come out true A4 and Word uses A4 paper. Off: the width below sets the page, and Word uses Letter.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding A4FixedWidth, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <!-- Width only means something while A4 isn't locking it. -->
+                            <localcontrols:OptionRow Header="Page width"
+                                                     Description="400–2400 px. Sets the preview and PDF page width while the A4 lock is off."
+                                                     IsEnabled="{Binding A4FixedWidth, Converter={StaticResource BoolToInverseConverter}}">
+                                <NumberBox Value="{Binding ContentWidth, Mode=TwoWay}" Width="116"
+                                           AutomationProperties.Name="Page width in pixels"
+                                           SpinButtonPlacementMode="Compact" Minimum="400" Maximum="2400" SmallChange="50" LargeChange="200" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Single continuous page"
+                                                     Description="PDF only: one long page with no page breaks. Word has no page-less print mode, so a DOCX opens in Web Layout instead.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding UnlimitedHeight, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Table of contents"
+                                                     Description="A linked contents list built from the document's headings, at the top of the preview and every export.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding IncludeToc, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
 
                                     </StackPanel>
                                 </Expander>
@@ -1284,40 +1296,50 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
-                            <ToggleSwitch Header="Page border" IsOn="{Binding PageBorder, Mode=TwoWay}" />
-                            <TextBlock Text="Draws a decorative full-page frame around the content in Word exports."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ToggleSwitch Header="Track Changes" IsOn="{Binding TrackChanges, Mode=TwoWay}" />
-                            <TextBlock Text="Turns on Word revision tracking in the exported file so edits are visible."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ComboBox Header="Diagrams in Word exports" HorizontalAlignment="Stretch"
-                                      SelectedIndex="{Binding MermaidDocxMode, Mode=TwoWay}">
-                                <x:String>Snapshot — picture of the diagram</x:String>
-                                <x:String>ShapeForge™ — editable Word shapes</x:String>
-                            </ComboBox>
-                            <TextBlock Text="ShapeForge rebuilds Mermaid diagrams from Word's own shapes — flowcharts, sequence, class/ER, pie, gantt, mindmap, timeline, quadrant — every box and arrow editable. Anything it can't parse falls back to the snapshot."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <ToggleSwitch Header="Smart Connectors (Glued Edges)"
-                                          IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
-                            <TextBlock Text="When enabled, lines stay glued to shapes when dragged in Word."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
-                            <!-- Tag is the stored value (DrawingML arrow names); Content is what people read. -->
-                            <ComboBox Header="Connector arrowheads" HorizontalAlignment="Stretch"
-                                      SelectedValuePath="Tag"
-                                      SelectedValue="{Binding ConnectorArrowhead, Mode=TwoWay}">
-                                <ComboBoxItem Content="Default (from the diagram)" Tag="default" />
-                                <ComboBoxItem Content="Triangle" Tag="triangle" />
-                                <ComboBoxItem Content="Open arrow" Tag="open" />
-                                <ComboBoxItem Content="Diamond" Tag="diamond" />
-                                <ComboBoxItem Content="Oval" Tag="oval" />
-                                <ComboBoxItem Content="Stealth" Tag="stealth" />
-                                <ComboBoxItem Content="None" Tag="none" />
-                            </ComboBox>
-                            <TextBlock Text="Fallback arrowhead style for connectors that don't specify one in the diagram source."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
-                            <CheckBox Content="Auto-fit oversized diagrams to page width"
-                                      IsChecked="{Binding OversizedDiagramMode, Mode=TwoWay, Converter={StaticResource OversizedDiagramModeConverter}}"
-                                      ToolTipService.ToolTip="Automatically scale oversized diagrams to fit within page margins on export" />
+                            <localcontrols:OptionRow Header="Page border"
+                                                     Description="A decorative frame around every page.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding PageBorder, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Track changes"
+                                                     Description="The document opens with Word's revision tracking on, so every later edit shows.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding TrackChanges, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Diagrams"
+                                                     Description="ShapeForge rebuilds Mermaid diagrams (flowchart, sequence, class/ER, pie, gantt, mind map, timeline, quadrant) from Word's own shapes, every box and arrow editable. Anything it can't parse falls back to a picture.">
+                                <localcontrols:OptionRow.Details>
+                                    <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Diagrams in Word exports"
+                                              SelectedIndex="{Binding MermaidDocxMode, Mode=TwoWay}">
+                                        <x:String>Picture of the diagram</x:String>
+                                        <x:String>ShapeForge™ editable shapes</x:String>
+                                    </ComboBox>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Glued connectors"
+                                                     Description="Lines stay attached to their shapes when you drag them in Word.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Connector arrowheads"
+                                                     Description="Used for connectors whose diagram source doesn't pick one.">
+                                <localcontrols:OptionRow.Details>
+                                    <!-- Tag is the stored value (DrawingML arrow names); Content is what people read. -->
+                                    <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Connector arrowheads"
+                                              SelectedValuePath="Tag"
+                                              SelectedValue="{Binding ConnectorArrowhead, Mode=TwoWay}">
+                                        <ComboBoxItem Content="Default (from the diagram)" Tag="default" />
+                                        <ComboBoxItem Content="Triangle" Tag="triangle" />
+                                        <ComboBoxItem Content="Open arrow" Tag="open" />
+                                        <ComboBoxItem Content="Diamond" Tag="diamond" />
+                                        <ComboBoxItem Content="Oval" Tag="oval" />
+                                        <ComboBoxItem Content="Stealth" Tag="stealth" />
+                                        <ComboBoxItem Content="None" Tag="none" />
+                                    </ComboBox>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Shrink wide diagrams to fit"
+                                                     Description="Scale diagrams wider than the page down to fit inside its margins.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}"
+                                              IsOn="{Binding OversizedDiagramMode, Mode=TwoWay, Converter={StaticResource OversizedDiagramModeConverter}}" />
+                            </localcontrols:OptionRow>
 
                                     </StackPanel>
                                 </Expander>
@@ -1331,9 +1353,10 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
-                            <ToggleSwitch Header="Render Mermaid diagrams" IsOn="{Binding MermaidEnabled, Mode=TwoWay}" />
-                            <TextBlock Text="When off, mermaid code fences are shown as plain code blocks instead of rendered diagrams."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" TextWrapping="Wrap" />
+                            <localcontrols:OptionRow Header="Render Mermaid diagrams"
+                                                     Description="Off: Mermaid code blocks stay as plain code in the preview and every export.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding MermaidEnabled, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
                             <!-- Collapsed as well as closed: a closed InfoBar still took the panel's
                                  spacing plus its own margin, leaving a gap under the caption. -->
                             <InfoBar IsOpen="{Binding HasMermaidDiagram}"
@@ -1363,15 +1386,17 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
-                            <ToggleSwitch Header="Normalize AI formatting quirks"
-                                          IsOn="{Binding NormalizeLlm, Mode=TwoWay}" />
-                            <TextBlock Text="Fixes ChatGPT LaTeX + citation pips, Gemini pseudo-headings, Claude tag remnants."
-                                       Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
-                            <TextBlock Text="Custom cleanup rules" FontWeight="SemiBold" Margin="0,4,0,0" />
-                            <TextBlock Text="Strip your pet-peeve AI phrases (e.g. 'In conclusion', 'delve') on top of the built-in fixes. Regex rules use $1 captures; blank Find is ignored."
-                                       Style="{StaticResource StepCaptionStyle}" />
+                            <localcontrols:OptionRow Header="Fix AI formatting quirks"
+                                                     Description="ChatGPT's LaTeX and citation pips, Gemini's pseudo-headings, Claude's leftover tags.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding NormalizeLlm, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Custom cleanup rules"
+                                                     Description="Strip your pet-peeve AI phrases (e.g. 'In conclusion', 'delve'). Applied after the fixes above, while they're on. Regex rules can use $1 captures; a blank Find is ignored.">
+                                <localcontrols:OptionRow.Details>
+                                <StackPanel Spacing="8">
                             <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                    CornerRadius="4" Padding="6" Margin="0,0,0,4">
+                                    CornerRadius="4" Padding="6"
+                                    Visibility="{Binding HasNormalizationRules, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
                                     <StackPanel Spacing="4">
                                         <ItemsControl ItemsSource="{Binding NormalizationRules}">
@@ -1412,14 +1437,19 @@
                                 </ScrollViewer>
                             </Border>
                             <Button FontSize="12" Padding="10,4"
-                                    Command="{Binding AddNormalizationRuleCommand}" HorizontalAlignment="Left" Margin="0,0,0,4">
+                                    Command="{Binding AddNormalizationRuleCommand}" HorizontalAlignment="Left">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <FontIcon Glyph="&#xE710;" FontSize="12" />
                                     <TextBlock Text="Add rule" />
                                 </StackPanel>
                             </Button>
-                            <ToggleSwitch Header="Source attribution strip in export"
-                                          IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
+                                </StackPanel>
+                                </localcontrols:OptionRow.Details>
+                            </localcontrols:OptionRow>
+                            <localcontrols:OptionRow Header="Source attribution"
+                                                     Description="A strip at the top naming the AI the text came from and how many fixes were applied. Only shown when the source is recognised.">
+                                <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding ShowAttribution, Mode=TwoWay}" />
+                            </localcontrols:OptionRow>
 
                                     </StackPanel>
                                 </Expander>
@@ -1433,40 +1463,52 @@
                                         </StackPanel>
                                     </Expander.Header>
                                     <StackPanel Spacing="12">
-                                        <CheckBox Content="No emoji mode" IsChecked="{Binding NoEmoji, Mode=TwoWay}" />
-                                        <TextBlock Text="Strips every emoji from the document — whatever the input — in preview, PDF and DOCX."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                        <localcontrols:OptionRow Header="No emoji"
+                                                                 Description="Strips every emoji, whatever the input, from the preview and every export.">
+                                            <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding NoEmoji, Mode=TwoWay}" />
+                                        </localcontrols:OptionRow>
 
-                                        <ComboBox Header="Em dashes (—)" HorizontalAlignment="Stretch"
-                                                  SelectedIndex="{Binding DashMode, Mode=TwoWay}">
-                                            <x:String>Keep as-is</x:String>
-                                            <x:String>Replace with hyphen (-)</x:String>
-                                            <x:String>Replace with spaced ( - )</x:String>
-                                            <x:String>Custom…</x:String>
-                                        </ComboBox>
-                                        <TextBox PlaceholderText="Replace each em dash with…" AutomationProperties.Name="Custom em dash replacement"
-                                                 Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Visibility="{Binding IsDashCustom, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                 IsSpellCheckEnabled="False" />
-                                        <TextBlock Text="Swaps AI-style em-dashes throughout preview, PDF and DOCX. Code blocks are left untouched."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                        <localcontrols:OptionRow Header="Em dashes (—)"
+                                                                 Description="Swap AI-style em dashes everywhere except code blocks.">
+                                            <localcontrols:OptionRow.Details>
+                                                <StackPanel Spacing="8">
+                                                    <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Em dashes"
+                                                              SelectedIndex="{Binding DashMode, Mode=TwoWay}">
+                                                        <x:String>Keep as-is</x:String>
+                                                        <x:String>Replace with hyphen (-)</x:String>
+                                                        <x:String>Replace with spaced ( - )</x:String>
+                                                        <x:String>Custom…</x:String>
+                                                    </ComboBox>
+                                                    <TextBox PlaceholderText="Replace each em dash with…" AutomationProperties.Name="Custom em dash replacement"
+                                                             Text="{Binding DashCustom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             Visibility="{Binding IsDashCustom, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                             IsSpellCheckEnabled="False" />
+                                                </StackPanel>
+                                            </localcontrols:OptionRow.Details>
+                                        </localcontrols:OptionRow>
 
-                                        <NumberBox Header="Heading level shift" Value="{Binding HeadingShift, Mode=TwoWay}"
-                                                   SpinButtonPlacementMode="Inline" Minimum="-5" Maximum="5" SmallChange="1" />
-                                        <TextBlock Text="Promote (−) or demote (+) every heading, e.g. +1 turns # into ##. Clamped to 1–6."
-                                                   Style="{StaticResource StepCaptionStyle}" Margin="0,-8,0,0" />
+                                        <localcontrols:OptionRow Header="Heading level shift"
+                                                                 Description="Promote (−) or demote (+) every heading: +1 turns # into ##. Levels stay within 1–6.">
+                                            <NumberBox Value="{Binding HeadingShift, Mode=TwoWay}" Width="96"
+                                                       AutomationProperties.Name="Heading level shift"
+                                                       SpinButtonPlacementMode="Compact" Minimum="-5" Maximum="5" SmallChange="1" />
+                                        </localcontrols:OptionRow>
 
-                                        <ComboBox Header="Bold" HorizontalAlignment="Stretch"
-                                                  SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
-                                            <x:String>Keep</x:String>
-                                            <x:String>Remove (plain text)</x:String>
-                                            <x:String>Convert to italic</x:String>
-                                        </ComboBox>
-                                        <ComboBox Header="Italic" HorizontalAlignment="Stretch"
-                                                  SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
-                                            <x:String>Keep</x:String>
-                                            <x:String>Remove (plain text)</x:String>
-                                        </ComboBox>
+                                        <localcontrols:OptionRow Header="Bold text">
+                                            <ComboBox Width="150" AutomationProperties.Name="Bold text"
+                                                      SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
+                                                <x:String>Keep</x:String>
+                                                <x:String>Plain text</x:String>
+                                                <x:String>Make italic</x:String>
+                                            </ComboBox>
+                                        </localcontrols:OptionRow>
+                                        <localcontrols:OptionRow Header="Italic text">
+                                            <ComboBox Width="150" AutomationProperties.Name="Italic text"
+                                                      SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
+                                                <x:String>Keep</x:String>
+                                                <x:String>Plain text</x:String>
+                                            </ComboBox>
+                                        </localcontrols:OptionRow>
                                     </StackPanel>
                                 </Expander>
 
@@ -1475,50 +1517,70 @@
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8D4;" FontSize="14" />
-                                        <TextBlock Text="Branding" />
+                                        <TextBlock Text="Branding" FontWeight="SemiBold" />
                                         <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
                                                 VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                                         </Border>
                                     </StackPanel>
                                 </Expander.Header>
-                                <StackPanel Spacing="14">
-                                    <TextBlock Text="Turn a converted chat into a client-ready deliverable — cover page, your logo, your typeface (Word exports)."
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="Turn a converted chat into a client-ready deliverable: a cover page, your logo and your typeface."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
-                                    <ToggleSwitch Header="Cover page (title, logo, date)"
-                                                  IsOn="{Binding BrandCoverPage, Mode=TwoWay}" />
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" Header="Company Logo (PNG/JPEG)"
-                                                 Text="{Binding BrandLogoPath, Mode=TwoWay}"
-                                                 PlaceholderText="Select logo image…" IsSpellCheckEnabled="False" />
-                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseLogoClick"
-                                                ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)">
-                                            <FontIcon Glyph="&#xE8B7;" FontSize="14" />
-                                        </Button>
-                                    </Grid>
-                                    <TextBox Header="Custom Document Font Family"
-                                             Text="{Binding BrandFontFamily, Mode=TwoWay}"
-                                             PlaceholderText="e.g. Segoe UI, Inter (leave blank for default)" IsSpellCheckEnabled="False" />
-                                    <TextBox Header="Author name (document metadata)"
-                                             Text="{Binding AuthorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             PlaceholderText="Shown as the document's author in Word/PDF properties" IsSpellCheckEnabled="False" />
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" Header="Custom font file (TTF/OTF)"
-                                                 Text="{Binding CustomFontPath, Mode=TwoWay}"
-                                                 PlaceholderText="Embed a font that isn't installed system-wide" IsSpellCheckEnabled="False" />
-                                        <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnBrowseFontClick"
-                                                ToolTipService.ToolTip="Choose a .ttf or .otf font file">
-                                            <FontIcon Glyph="&#xE8D4;" FontSize="14" />
-                                        </Button>
-                                    </Grid>
+                                    <localcontrols:OptionRow Header="Cover page"
+                                                             Description="A Word title page with the document's title, your logo and today's date.">
+                                        <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding BrandCoverPage, Mode=TwoWay}" />
+                                    </localcontrols:OptionRow>
+                                    <localcontrols:OptionRow Header="Company logo"
+                                                             Description="PNG or JPEG, placed on the Word cover page and used as an e-book's cover.">
+                                        <localcontrols:OptionRow.Details>
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Text="{Binding BrandLogoPath, Mode=TwoWay}" AutomationProperties.Name="Company logo file"
+                                                         PlaceholderText="No logo chosen" IsSpellCheckEnabled="False" />
+                                                <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseLogoClick"
+                                                        ToolTipService.ToolTip="Choose a logo image (PNG/JPEG)"
+                                                        AutomationProperties.Name="Choose a logo image">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                                </Button>
+                                            </Grid>
+                                        </localcontrols:OptionRow.Details>
+                                    </localcontrols:OptionRow>
+                                    <localcontrols:OptionRow Header="Document font"
+                                                             Description="Any installed typeface, used for the body in the preview and every export. Blank: the fallback font from Settings.">
+                                        <localcontrols:OptionRow.Details>
+                                            <TextBox Text="{Binding BrandFontFamily, Mode=TwoWay}" AutomationProperties.Name="Document font family"
+                                                     PlaceholderText="e.g. Inter, Georgia" IsSpellCheckEnabled="False" />
+                                        </localcontrols:OptionRow.Details>
+                                    </localcontrols:OptionRow>
+                                    <localcontrols:OptionRow Header="Embedded font file"
+                                                             Description="A .ttf or .otf that isn't installed on this PC, embedded so the document looks the same anywhere.">
+                                        <localcontrols:OptionRow.Details>
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Text="{Binding CustomFontPath, Mode=TwoWay}" AutomationProperties.Name="Embedded font file"
+                                                         PlaceholderText="No font file chosen" IsSpellCheckEnabled="False" />
+                                                <Button Grid.Column="1" VerticalAlignment="Stretch" Click="OnBrowseFontClick"
+                                                        ToolTipService.ToolTip="Choose a .ttf or .otf font file"
+                                                        AutomationProperties.Name="Choose a font file">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                                </Button>
+                                            </Grid>
+                                        </localcontrols:OptionRow.Details>
+                                    </localcontrols:OptionRow>
+                                    <localcontrols:OptionRow Header="Author"
+                                                             Description="Written into the file's properties as its author, in Word, PDF and PowerPoint.">
+                                        <localcontrols:OptionRow.Details>
+                                            <TextBox Text="{Binding AuthorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Author name"
+                                                     PlaceholderText="Your name or company" IsSpellCheckEnabled="False" />
+                                        </localcontrols:OptionRow.Details>
+                                    </localcontrols:OptionRow>
                                 </StackPanel>
                                 </Expander>
                         </StackPanel>

@@ -81,6 +81,16 @@ public sealed class AutomationManager : IDisposable
             var statusText = _apiServer.IsRunning ? $"http://127.0.0.1:{_apiServer.Port}/api/health" : "";
             onApiStatusChanged?.Invoke(statusText);
         }
+        catch (System.Net.HttpListenerException ex) when (ex.ErrorCode is 32 or 183)
+        {
+            // Raw text is "The process cannot access the file because it is being used by another
+            // process", which says nothing about ports. Name the actual problem and the fix.
+            onApiStatusChanged?.Invoke($"API failed to start: port {vm.ApiPort} is already in use by another program. Pick a different port.");
+        }
+        catch (System.Net.HttpListenerException ex) when (ex.ErrorCode == 5)
+        {
+            onApiStatusChanged?.Invoke($"API failed to start: Windows refused access to port {vm.ApiPort}. Pick a different port.");
+        }
         catch (Exception ex)
         {
             onApiStatusChanged?.Invoke($"API failed to start: {ex.Message}");

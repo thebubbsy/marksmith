@@ -64,6 +64,33 @@
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
 
+            <!-- Toggle inside a Settings row or a side-panel OptionRow. Stock ToggleSwitch has
+                 MinWidth 154, which parked the switch mid-row with a dead gap after "Off"; a fixed
+                 width, right-aligned, puts every track at the same x and stops the knob shifting
+                 between On and Off. -->
+            <Style x:Key="OptionToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Width" Value="84" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Margin" Value="0,-2,0,-2" />
+            </Style>
+
+            <!-- The side panels' version: the bare switch, no On/Off text. The panels are ~300px
+                 wide, and the 84px text column wrapped every description to four lines; the
+                 track's own fill already says on or off. -->
+            <Style x:Key="PanelToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="OnContent" Value="" />
+                <Setter Property="OffContent" Value="" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Margin" Value="0,-2,-10,-2" />
+            </Style>
+
+            <!-- Section label inside a side-panel expander (e.g. Automation's "Folder watcher"). -->
+            <Style x:Key="OptionSectionStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+                <Setter Property="Margin" Value="0,6,0,-4" />
+            </Style>
+
             <!-- Chevron between pipeline stages -->
             <Style x:Key="FlowChevronStyle" TargetType="FontIcon">
                 <Setter Property="Glyph" Value="&#xE76C;" />

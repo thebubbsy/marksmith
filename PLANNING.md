@@ -1222,3 +1222,81 @@ because a group's size is set by its longest word.
 5. Carried over: Copy HTML asset URLs, a light-theme pass on History and the SmartArt miniature tile,
    SmartArt click-to-zoom in the document preview, Diagram Studio canvas fill, keyboard focus order,
    Galaxy obstacle-aware routing.
+
+### 2026-10-07 13:40–14:05 AEST (scheduled routine run #20)
+
+The PC was **unlocked** with 28 GB free. The user's own instance (PID 24328) was running, so I used a
+scratch OutDir and a scratch `MARKSMITH_CONFIG_DIR`. The user's `HouseLayout` / `DocxExportService` /
+`TemplateThemeService` WIP is still uncommitted and untouched. I took the oldest carry-over, **audit every
+Settings row** (open since run #17). For each Settings row, I traced the setting to the code that reads it,
+then screenshotted every page. The audit soon widened: the main window's **Style & Export** pane (7
+expanders) and the left **Automation** expander are settings surfaces too, and they were the roughest
+part of the app.
+
+**Shipped:**
+- **Custom cleanup rules did nothing.** The rule editor (Content & cleanup) saved its rules, but no
+  caller ever passed them to `LlmSourceService.NormalizeStyle`, so a rule had no effect in the
+  preview or any export. The preview (`PrepareMarkdown`), ingest, `ExportCoordinator` and
+  `BatchConvertService` now pass `settings.CustomNormalizationRules`. The CLI and Express callers are
+  out of scope and unchanged. Editing a rule raises `HasNormalizationRules`, which re-renders the
+  preview and hides the empty list box.
+- **Automation said "PDF" everywhere and meant the default format.** Clipboard ingest, the watch
+  folder, batch convert and the local API all export in `TargetFormat`. The section now opens with
+  `AutomationFormatNote` ("Automatic exports use your default format (Word document), set in Settings ▸
+  General"). The labels are format-neutral ("Export every ingest", "Export watched files", "Convert a
+  folder…"). New VM `TargetFormatLabel`.
+- **The API toggle had no status.** A port held by another program failed silently, and the side panel
+  showed only a bare URL. New VM `ApiStatusText` / `ApiStatusIsError`, set by `MainWindow.OnApiStatusChanged`,
+  is shown under the API toggle in both Settings ▸ Automation and the side panel ("Listening on
+  http://127.0.0.1:47911", "Off", or a red "Couldn't start: port 47821 is already in use by another
+  program. Pick a different port."). `AutomationManager` now maps `HttpListenerException` 32/183/5 to
+  plain words. This happened for real: the user's own instance holds 47821.
+- **Five settings didn't refresh the preview** until the next keystroke: reading-time pill, fallback
+  font, Mermaid on/off, AI cleanup, and the embedded font file. They are now in
+  `PreviewAffectingProperties`, along with the rules.
+- **Side panels rebuilt on a new `Controls/OptionRow`.** It's `SettingsCard`'s shape without the card:
+  title and description on the left, switch on the right, wide controls underneath. It names unnamed
+  inner controls for UIA. Before, the panels stacked "Header / switch / On / caption" with negative
+  margins, mixed check boxes in with toggles (No emoji, Auto-fit diagrams), and wrote labels in three
+  cases ("Light Theme Influence", "Smart Connectors (Glued Edges)", "Company Logo (PNG/JPEG)"). Now
+  every option is a sentence-case row with an accurate one-line description, and those descriptions
+  were checked against the code. For example: A4 lock also picks A4 vs Letter paper in Word; the
+  logo is the EPUB cover too; author metadata goes into PowerPoint too. Branding's header is now
+  SemiBold like its siblings. Automation got a PRO badge like Branding, and its three nested boxes
+  became "AI chats / Folders / Background" sections. Page width is disabled while the A4 lock owns it.
+  "Export watched files" is disabled while no folder is watched, and the running-document path only
+  shows while appending is on. Bold and Italic are compact right-aligned combos.
+- **Toggle styles moved to App.xaml:** `OptionToggleStyle` (84 px with On/Off text, used by Settings)
+  and `PanelToggleStyle` (bare switch, for the ~300 px side panels; with On/Off text, every
+  description wrapped to four lines). Section labels use `OptionSectionStyle`.
+- **Settings copy:** "Pro mode" described only images, but it covers 14 insert dialogs (links, code,
+  tables, tabs, columns, timelines, charts…). "Default output format" listed a "quick-export
+  shortcuts" feature that doesn't exist.
+- Tests: `SidePanelPolishTests` (rules reach the preview and follow the toggle, the rule list
+  raises its change, the format label and note for all 4 formats, API status default, the friendly
+  port-in-use message against a real blocked port).
+
+**Verified live** (scratch config, PrintWindow and UIA, maximized 1936×1048): every Style & Export
+expander and the whole Automation section, scrolled top to bottom. Every UIA row group is named. In
+Settings ▸ Automation, the port-in-use error showed red; setting the port to 47911 flipped both
+status lines to "Listening on http://127.0.0.1:47911". Desktop 0 warnings / 0 errors. Full suite: 3512
+passed, 1 skipped, 2 failed (the user's 2 `HouseLayoutTests`).
+
+**Not verified:** watching the preview change when a cleanup rule is typed. That's covered by the VM
+test plus the existing debounce path, but nobody looked at it with eyes. Light theme. The default
+seeded rule `"\n\n\n" → "\n\n"` renders as an apparently empty Find box (newlines in a single-line
+TextBox). Now that rules actually run, consider showing `\n` visibly or dropping that example.
+
+**Next up:**
+1. Cleanup-rule editor polish: newline-only rules look empty, there's no feedback that a regex is
+   invalid (the service skips it silently), and nothing shows how many matches a rule made (the
+   attribution strip counts them).
+2. Shape Studio by hand (carried over from run #18): drag-to-draw, group drag, Ctrl+click, nudge, the
+   fill flyout, the Export dialog, a label refitting while resizing.
+3. Settings, remaining pages, by hand: Google Docs sign-in states, the License page with a
+   trial running, plugin install/remove, and the house-style .dotx import round trip.
+4. Open a Shape Studio export and a SmartArt export in real Word (needs the user to clear Word's
+   first-run prompt once).
+5. Carried over: SmartArt outline keyboard pass, Copy HTML asset URLs, light-theme pass (History,
+   SmartArt miniature tile, the new side panels), SmartArt click-to-zoom, Diagram Studio canvas fill,
+   keyboard focus order, Galaxy obstacle-aware routing.

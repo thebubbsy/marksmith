@@ -31,7 +31,33 @@ private readonly MarkdownExportService _mdExport = new();
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdfFormat))]
     [NotifyPropertyChangedFor(nameof(IsDocxFormat))]
+    [NotifyPropertyChangedFor(nameof(TargetFormatLabel))]
+    [NotifyPropertyChangedFor(nameof(AutomationFormatNote))]
     private string _targetFormat = "pdf";
+
+    /// <summary>
+    /// What the default output format is called in sentences ("Auto-export ingests as a PDF"). The
+    /// automation options used to say "PDF" whatever the setting, while the watch folder, clipboard
+    /// ingest and batch convert all export in <see cref="TargetFormat"/>.
+    /// </summary>
+    public string TargetFormatLabel => (TargetFormat ?? "pdf").ToLowerInvariant() switch
+    {
+        "docx" => "Word document",
+        "pptx" => "PowerPoint deck",
+        "epub" => "EPUB e-book",
+        _ => "PDF",
+    };
+
+    public string AutomationFormatNote =>
+        $"Automatic exports use your default format ({TargetFormatLabel}), set in Settings ▸ General.";
+
+    /// <summary>
+    /// The local API server's state in words, set by the shell after every start/stop attempt:
+    /// "Listening on http://127.0.0.1:47821", "Off", or why it failed to start. Settings and the
+    /// side panel's Automation section both show it, so the toggle is never the only clue.
+    /// </summary>
+    [ObservableProperty] private string _apiStatusText = "Off";
+    [ObservableProperty] private bool _apiStatusIsError;
     public bool IsPdfFormat => TargetFormat == "pdf";
     public bool IsDocxFormat => TargetFormat == "docx";
     public int TargetFormatIndex
@@ -597,7 +623,12 @@ private readonly MarkdownExportService _mdExport = new();
         _settingsService.Current.CustomNormalizationRules =
             NormalizationRules.Select(r => new TextCleanupRule { Find = r.Find, Replace = r.Replace, IsRegex = r.IsRegex }).ToList();
         SaveSettingsDebounced();
+        // Raised on every add, remove and edit: the side panel hides the empty list box by it, and
+        // the shell re-renders the preview so a rule's effect shows as you type it.
+        OnPropertyChanged(nameof(HasNormalizationRules));
     }
+
+    public bool HasNormalizationRules => NormalizationRules.Count > 0;
 
     // Document outline (Task 17): H1–H6 entries extracted from CurrentMarkdown. The anchors are the
     // exact Markdig AutoIdentifier ids the preview renders, so the outline flyout can click-to-scroll.
@@ -1248,7 +1279,7 @@ private readonly MarkdownExportService _mdExport = new();
         // all, and each is a no-op when its pattern doesn't match, so running on Generic text is safe.
         (markdown, _) = AppServices.LlmSource.RepairArtifacts(markdown, classification);
         if (NormalizeLlm)
-            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification);
+            (markdown, _) = AppServices.LlmSource.NormalizeStyle(markdown, classification, _settingsService.Current.CustomNormalizationRules);
 
         // The source badge, though, only makes sense for a recognized vendor.
         if (classification.Source == LlmSource.Generic) return markdown;
@@ -1319,7 +1350,7 @@ private readonly MarkdownExportService _mdExport = new();
         // Correctness repairs always run; stylistic cleanup only when the toggle is on.
         (text, _) = AppServices.LlmSource.RepairArtifacts(text, classification);
         if (NormalizeLlm)
-            (text, _) = AppServices.LlmSource.NormalizeStyle(text, classification);
+            (text, _) = AppServices.LlmSource.NormalizeStyle(text, classification, _settingsService.Current.CustomNormalizationRules);
 
         LastClassification = classification;
         DetectedSourceText = classification.Source == LlmSource.Generic

@@ -63,7 +63,7 @@ public sealed class BatchConvertService
                 (mdContent, _) = AppServices.LlmSource.RepairArtifacts(mdContent, classification);
                 if (settings.NormalizeLlm)
                 {
-                    (mdContent, _) = AppServices.LlmSource.NormalizeStyle(mdContent, classification);
+                    (mdContent, _) = AppServices.LlmSource.NormalizeStyle(mdContent, classification, settings.CustomNormalizationRules);
                 }
 
                 if (isPdf)

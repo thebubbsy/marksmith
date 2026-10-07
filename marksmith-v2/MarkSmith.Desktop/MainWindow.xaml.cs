@@ -37,6 +37,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         nameof(ViewModels.MainViewModel.BoldMode),
         nameof(ViewModels.MainViewModel.ItalicMode),
         nameof(ViewModels.MainViewModel.BrandFontFamily),
+        // These change the rendered page too; without them the preview kept the old look until
+        // the next keystroke (the reading-time pill, the fallback font, Mermaid on/off, the AI
+        // cleanup and its custom rules, an embedded font file).
+        nameof(ViewModels.MainViewModel.ShowWordCount),
+        nameof(ViewModels.MainViewModel.FontPreset),
+        nameof(ViewModels.MainViewModel.MermaidEnabled),
+        nameof(ViewModels.MainViewModel.NormalizeLlm),
+        nameof(ViewModels.MainViewModel.HasNormalizationRules),
+        nameof(ViewModels.MainViewModel.CustomFontPath),
     };
 
     private static readonly HashSet<string> AutomationProperties = new()
@@ -1371,7 +1380,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             folder => _folderIngest.Start(folder),
             () => _folderIngest.Stop(),
             _folderIngest.IsRunning,
-            status => ApiUrlText.Text = status);
+            OnApiStatusChanged);
+    }
+
+    // AutomationManager reports the health URL while listening, "" when stopped, and
+    // "API failed to start: …" on failure. Settings and the side panel both show the VM's words.
+    private void OnApiStatusChanged(string status)
+    {
+        const string failed = "API failed to start: ";
+        ViewModel.ApiStatusIsError = status.StartsWith(failed, StringComparison.Ordinal);
+        ViewModel.ApiStatusText =
+            ViewModel.ApiStatusIsError ? "Couldn't start: " + status[failed.Length..]
+            : string.IsNullOrEmpty(status) ? "Off"
+            : "Listening on " + status.Replace("/api/health", "", StringComparison.Ordinal);
     }
 
     // Tray icon is created in code, not markup — the WASDK 1.6 XAML compiler crashes on

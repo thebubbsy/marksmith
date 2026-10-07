@@ -11,15 +11,8 @@
         <conv:BoolToVisibilityConverter x:Key="SettingsBoolToVisibilityConverter" />
         <conv:BoolToInverseConverter x:Key="SettingsBoolInverseConverter" />
 
-        <!-- Stock ToggleSwitch has MinWidth 154, which parked every switch in the middle of its
-             card with a dead gap after "Off". A fixed width, right-aligned, puts every switch's
-             track at the same x on every row and stops the knob shifting between On and Off. -->
-        <Style x:Key="SettingsToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
-            <Setter Property="MinWidth" Value="0" />
-            <Setter Property="Width" Value="84" />
-            <Setter Property="HorizontalAlignment" Value="Right" />
-            <Setter Property="Margin" Value="0,-2,0,-2" />
-        </Style>
+        <!-- Shared with the main window's side panels (App.xaml OptionToggleStyle). -->
+        <Style x:Key="SettingsToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource OptionToggleStyle}" />
 
         <Style x:Key="SettingsComboStyle" TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
             <Setter Property="Width" Value="220" />
@@ -102,7 +95,7 @@
 
                         <TextBlock Text="Editor" Style="{StaticResource SettingsSectionStyle}" Margin="1,0,0,4" />
                         <controls:SettingsCard Glyph="&#xE945;" Header="Pro mode"
-                                               Description="Skip the interactive pickers: Insert ▸ Image drops a markdown placeholder straight into the editor instead of opening the image dialog.">
+                                               Description="Skip the insert dialogs: links, images, code blocks, tabs, columns, timelines and the other components drop a ready-to-edit Markdown template straight into the editor.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Pro mode"
                                           IsOn="{Binding ProMode, Mode=TwoWay}" />
                         </controls:SettingsCard>
@@ -119,7 +112,7 @@
 
                         <TextBlock Text="Export" Style="{StaticResource SettingsSectionStyle}" />
                         <controls:SettingsCard Glyph="&#xE8A5;" Header="Default output format"
-                                               Description="Used by the browser extension, the watch folder and the quick-export shortcuts.">
+                                               Description="What the browser extension, clipboard and folder automation, batch convert and the local API export to.">
                             <!-- Tag carries the stored setting value; Content is what people read. -->
                             <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
                                       AutomationProperties.Name="Default output format"
@@ -237,6 +230,16 @@
                                                Description="Listens on 127.0.0.1 only, for conversion requests from your own scripts and the browser extension.">
                             <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Local REST API server"
                                           IsOn="{Binding ApiEnabled, Mode=TwoWay}" />
+                            <controls:SettingsCard.Details>
+                                <!-- Live state from the shell: listening address, Off, or why it failed (port in use). -->
+                                <Grid>
+                                    <TextBlock Text="{Binding ApiStatusText}" Style="{StaticResource SettingsHintStyle}" IsTextSelectionEnabled="True"
+                                               Visibility="{Binding ApiStatusIsError, Converter={StaticResource SettingsBoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                    <TextBlock Text="{Binding ApiStatusText}" Style="{StaticResource SettingsHintStyle}" IsTextSelectionEnabled="True"
+                                               Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                               Visibility="{Binding ApiStatusIsError, Converter={StaticResource SettingsBoolToVisibilityConverter}}" />
+                                </Grid>
+                            </controls:SettingsCard.Details>
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE7F4;" Header="Port"
                                                Description="1024–65535. The server restarts on the new port straight away.">

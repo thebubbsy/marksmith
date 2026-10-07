@@ -339,7 +339,7 @@ public sealed class ExportCoordinator
             var classification = AppServices.LlmSource.Classify(md);
             (md, _) = AppServices.LlmSource.RepairArtifacts(md, classification);
             if (settings.NormalizeLlm)
-                (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification);
+                (md, _) = AppServices.LlmSource.NormalizeStyle(md, classification, settings.CustomNormalizationRules);
             var theme = AppServices.Themes.GetOrDefault(settings.Theme);
             var html = AppServices.MarkdownHtml.Render(md, settings, theme, classification);
             var fmt = settings.TargetFormat.ToLowerInvariant();
