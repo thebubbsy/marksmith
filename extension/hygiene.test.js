@@ -9,6 +9,10 @@ const t = (name, cond) => { if (cond) { pass++; console.log("ok  -", name); } el
 const stripped = h.stripCitationPips("Line one.【7†source】\n\nLine two 【8†source】more.\n\nTrailing 【7source】.");
 t("pips stripped", !/【/.test(stripped));
 t("content preserved", stripped.includes("Line one.") && stripped.includes("Trailing"));
+t("no double space where a pip was", h.stripCitationPips("Body 【7†source】 text.") === "Body text.");
+t("no space before punctuation", h.stripCitationPips("A claim 【7†source】.") === "A claim.");
+t("words either side stay apart", h.stripCitationPips("two 【8†source】more") === "two more");
+t("glued pip just goes", h.stripCitationPips("fact【1†source】, next") === "fact, next");
 
 // 2) DLP scan
 const dlp1 = h.scanDlp("Call 555-123-4567 or email bob@example.com. sk-abcdefghijklmnopqrstuvwxyz1234");

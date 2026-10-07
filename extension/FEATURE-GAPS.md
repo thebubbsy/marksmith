@@ -131,7 +131,7 @@ Fully in-browser. Offline-capable. No desktop app, no local server, **free**.
 | 14 | In-browser preview before download | 🕓 staged — needs WASM renderer |
 | 15 | Batch conversion | 🕓 staged |
 | 16 | Smart output naming | ✅ **new** — `Title 2026-08-10.docx` (+ uniquify dedupe) |
-| 17 | One-click cloud delivery | 🕓 staged — needs desktop API param |
+| 17 | One-click cloud delivery | ✅ **email** — reply → Outlook draft (`/api/email`, free); cloud drives still staged |
 | 18 | Print directly | 🕓 staged |
 | 19 | Template / house-style library | 🕓 staged |
 | 20 | `.dotx` import in-extension | 🕓 staged — needs API endpoint |
@@ -141,7 +141,8 @@ Fully in-browser. Offline-capable. No desktop app, no local server, **free**.
 | 24 | DLP / governance in-extension | ✅ **new** — PII scan + popup warning (Options toggle) |
 | 25 | Fully offline operation | 🔧 WASM pivot (same as 12) |
 | 26 | Cross-machine sync | ✅ already existed (`storage.sync` for port + profile) |
-| 27 | Auto-open output | 🕓 staged — desktop-side behavior |
+| 27 | Auto-open output | ✅ for email — the draft opens in the default mail app |
+| 28 | Control the app's settings from the browser | ✅ **new** — Options ▸ *MarkSmith app · live* (`/api/extension/settings`) |
 
 **Legend:** ✅ done · 🕓 staged (next tranche) · 🔧 architectural pivot (WASM).
 

@@ -2,7 +2,9 @@
 // Talks to the background service worker (which owns extraction + the local API), and shows:
 //   • live connection status (GET /api/health)
 //   • what's detected on the active tab (source, model, char count, AI-classification, math)
-//   • one-click Send-to-app, direct in-browser downloads (PDF/DOCX/PPTX/EPUB), and Copy-as-Markdown.
+//   • one-click Send-to-app, Email (an Outlook draft), direct in-browser downloads
+//     (PDF/DOCX/PPTX/EPUB/EML), and Copy-as-Markdown.
+//   • PRO marks on the Pro formats when the app reports a Free licence.
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,7 +36,7 @@ function ask(msg) {
 // ── toast ───────────────────────────────────────────────────────────────────
 function toast(text, kind = "dim") {
     const el = $("toast");
-    el.className = kind;
+    el.className = ["ok", "err", "dim"].includes(kind) ? kind : "dim";
     el.textContent = text;
 }
 
@@ -52,6 +54,7 @@ async function checkHealth() {
     if (connected) {
         setConn("ok", "Connected");
         $("helpCard").classList.add("hidden");
+        loadAppInfo();
     } else {
         setConn("err", "Offline");
         $("helpCard").classList.remove("hidden");
@@ -85,6 +88,7 @@ async function inspect() {
     hasContent = true;
     currentMarkdown = r.markdown || "";
     currentMeta = r.meta || null;
+    if ($("emailSubject")) $("emailSubject").placeholder = currentMeta?.title || "From the reply's title";
 
     const meta = currentMeta;
     $("srcName").textContent = prettySource(meta?.source);
@@ -129,8 +133,51 @@ function prettySource(id) {
 function refreshButtons() {
     const ready = connected && hasContent;
     $("sendBtn").disabled = !ready;
+    if ($("emailBtn")) $("emailBtn").disabled = !ready || emailBusy;
     $("copyBtn").disabled = !hasContent;
     for (const b of dlButtons) b.disabled = !ready;
+}
+
+// What the app's licence and Email settings say, for the PRO marks and the To placeholder.
+async function loadAppInfo() {
+    const r = await ask({ type: "app-info" });
+    if (!r.ok) return;
+    const free = r.license && !r.license.canExportDocx;
+    for (const b of dlButtons) {
+        b.querySelector(".pro")?.remove();
+        if (free && (b.dataset.format === "docx" || b.dataset.format === "pptx")) {
+            const tag = document.createElement("span");
+            tag.className = "pro";
+            tag.textContent = "PRO";
+            b.appendChild(tag);
+            b.title = `${b.dataset.format.toUpperCase()} is a MarkSmith Pro feature. Start the trial or upgrade in the app.`;
+        }
+    }
+    const to = (r.email && r.email.emailTo || "").trim();
+    if ($("emailTo")) $("emailTo").placeholder = to ? `Default: ${to}` : "Recipients (or leave blank)";
+}
+
+let emailBusy = false;
+async function doEmail() {
+    emailBusy = true;
+    refreshButtons();
+    $("emailTxt").textContent = "Opening in Outlook…";
+    const r = await ask({
+        type: "email-draft",
+        mode,
+        draft: { to: $("emailTo").value, subject: $("emailSubject").value },
+    });
+    emailBusy = false;
+    $("emailTxt").textContent = "Open as Outlook draft";
+    if (r.ok) {
+        toast(r.opened
+            ? `Draft${r.subject ? ` "${r.subject}"` : ""} opened in your mail app ✓`
+            : "Draft saved, but Windows has no app set to open .eml files.", r.opened ? "ok" : "err");
+        renderHistory();
+    } else {
+        toast(r.error || "Couldn't make the email draft.", "err");
+    }
+    refreshButtons();
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
@@ -207,7 +254,7 @@ async function renderHistory() {
         m.textContent = `${(e.text || "").length.toLocaleString()}c · ${when}`;
         const btns = document.createElement("span");
         btns.className = "hist-btns";
-        for (const f of ["pdf", "docx"]) {
+        for (const f of ["pdf", "docx", "eml"]) {
             const b = document.createElement("button");
             b.className = "mini";
             b.textContent = f.toUpperCase();
@@ -226,17 +273,21 @@ async function renderHistory() {
 
 // ── wiring ──────────────────────────────────────────────────────────────────
 $("sendBtn").addEventListener("click", doSend);
+$("emailBtn")?.addEventListener("click", doEmail);
+for (const id of ["emailTo", "emailSubject"]) {
+    $(id)?.addEventListener("keydown", (e) => { if (e.key === "Enter" && $("emailBtn") && !$("emailBtn").disabled) doEmail(); });
+}
 $("copyBtn").addEventListener("click", doCopy);
 if ($("batchTabsBtn")) {
     $("batchTabsBtn").addEventListener("click", async () => {
         const btn = $("batchTabsBtn");
         btn.disabled = true;
-        toast("Ingesting all open AI chat tabs…", "busy");
+        toast("Collecting every open AI chat…", "dim");
         const r = await ask({ type: "batch-ingest-ai-tabs" });
         if (r.ok) {
-            toast(`Ingested ${r.count} AI tab(s) into Marksmith ✓`, "ok");
+            toast(`Sent ${r.count} conversation${r.count === 1 ? "" : "s"} to Marksmith as one document ✓`, "ok");
         } else {
-            toast(r.error || "Failed to batch ingest AI tabs.", "err");
+            toast(r.error || "Couldn't send the open AI chats.", "err");
         }
         btn.disabled = false;
     });
@@ -263,6 +314,10 @@ for (const b of modeButtons) {
 $("openOptions").addEventListener("click", (e) => {
     e.preventDefault();
     chrome.runtime.openOptionsPage();
+});
+$("openAppSettings")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL("options.html#app") });
 });
 
 $("extId").addEventListener("click", () => {

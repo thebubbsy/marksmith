@@ -41,5 +41,12 @@ jobs:
         run: node -e "require('./extension/manifest.json'); require('./extension/managed_schema.json'); console.log('JSON OK')"
 
       - name: Syntax-check scripts
+        # Fail on ANY bad file: the loop's status used to be the last file's alone, so a
+        # broken copybutton.js in the middle shipped green.
         run: |
-          for f in extension/*.js; do node --check "$f" && echo "ok: $f"; done
+          for f in extension/*.js; do node --check "$f" || exit 1; echo "ok: $f"; done
+
+      - name: Extension tests
+        run: |
+          npm install --prefix extension/tests
+          npm test --prefix extension/tests

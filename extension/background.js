@@ -5,7 +5,8 @@ importScripts("hygiene.js");
 // Marksmith Connector — grabs assistant replies from AI chat sites, converts them to
 // Markdown, and drives the Marksmith desktop app's local API. Two paths:
 //   • /api/ingest  — push the reply into the running app's preview ("Send to Marksmith")
-//   • /api/convert — get finished PDF/DOCX/PPTX/EPUB bytes back and download them in-browser
+//   • /api/convert — get finished PDF/DOCX/PPTX/EPUB/EML bytes back and download them in-browser
+//   • /api/email   — open the reply as a ready-to-send Outlook draft (free on every plan)
 // Also powers the popup control center (health / inspect / send / download messages) and a
 // toolbar badge that flags when the app can't be reached.
 
@@ -17,6 +18,7 @@ const MIME = {
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     epub: "application/epub+zip",
+    eml: "message/rfc822",
 };
 
 // The AI-chat sites we can pull a reply from (used to scope the page context-menus).
@@ -52,6 +54,24 @@ chrome.runtime.onInstalled.addListener(() => {
         contexts: ["page"],
         documentUrlPatterns: CHAT_URLS,
     });
+    chrome.contextMenus.create({
+        id: "marksmith-email-latest",
+        title: "Email latest reply as an Outlook draft",
+        contexts: ["page"],
+        documentUrlPatterns: CHAT_URLS,
+    });
+    chrome.contextMenus.create({
+        id: "marksmith-email-selection",
+        title: "Email selection as an Outlook draft",
+        contexts: ["selection"],
+    });
+});
+
+// Keyboard: Alt+Shift+E (change it at chrome://extensions/shortcuts) emails the latest reply.
+chrome.commands?.onCommand.addListener(async (command) => {
+    if (command !== "email-latest-reply") return;
+    const tab = await activeTab();
+    if (tab?.id) emailFromTab(tab, "latest", {}, { notify: true });
 });
 
 // ── toolbar badge: a quiet "!" when the app is unreachable ──────────────────
@@ -64,7 +84,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "command-poll") pollCommands();
 });
 chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "sync" && changes.port) refreshBadge();
+    if ((area === "sync" || area === "managed") && changes.port) refreshBadge();
 });
 refreshBadge();
 
@@ -188,6 +208,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         downloadFromTab(tab, "latest", "pdf", { notify: true });
     } else if (info.menuItemId === "marksmith-dl-docx") {
         downloadFromTab(tab, "latest", "docx", { notify: true });
+    } else if (info.menuItemId === "marksmith-email-latest") {
+        emailFromTab(tab, "latest", {}, { notify: true });
+    } else if (info.menuItemId === "marksmith-email-selection") {
+        emailFromTab(tab, "selection", {}, { notify: true, selectionText: info.selectionText });
     }
 });
 
@@ -252,12 +276,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 const results = [];
                 for (const tab of tabs) {
                     try {
-                        const extracted = await extractFromTab(tab.id, "conversation");
-                        if (extracted?.text && extracted.text.trim().length > 0) {
+                        // extractMarkdown returns { ok, markdown, meta }; this used to read `.text`,
+                        // so every tab looked empty and the button always reported nothing found.
+                        const extracted = await extractFromTab(tab.id, "all");
+                        const md = (extracted?.ok && extracted.markdown || "").trim();
+                        if (md) {
                             results.push({
-                                title: tab.title || "AI Conversation",
+                                title: extracted.meta?.title || tab.title || "AI Conversation",
                                 url: tab.url,
-                                text: extracted.text.trim()
+                                text: md,
                             });
                         }
                     } catch {
@@ -270,11 +297,40 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
 
                 const chapters = results.map((r, i) => `# Chapter ${i + 1}: ${r.title}\n\n> Source: ${r.url}\n\n${r.text}`).join("\n\n---\n\n");
-                const res = await sendDirectMarkdown(chapters, { source: "batch-ai-tabs", count: results.length });
+                const res = await sendDirectMarkdown(chapters, { title: `${results.length} AI conversations` }, { notify: false });
                 sendResponse({ ok: res.ok, count: results.length, error: res.error });
             } catch (e) {
                 sendResponse({ ok: false, error: e.message });
             }
+        })();
+        return true;
+    }
+
+    // Email: from a reply's "Email" button / the selection bar (text + meta), or from the popup
+    // (mode + optional to/subject for this one draft).
+    if (msg?.type === "email-draft") {
+        (async () => {
+            if (typeof msg.text === "string") {
+                return sendResponse(await emailMarkdown(msg.text, msg.meta || {}, msg.draft || {}, { notify: false }));
+            }
+            const tab = await activeTab();
+            if (!tab?.id) return sendResponse({ ok: false, error: "No active tab.", short: "No active tab" });
+            sendResponse(await emailFromTab(tab, msg.mode || "latest", msg.draft || {}, { notify: false }));
+        })();
+        return true;
+    }
+
+    if (msg?.type === "app-info") {
+        (async () => {
+            try {
+                const port = await getPort();
+                const resp = await fetch(`http://127.0.0.1:${port}/api/extension/settings`);
+                if (!resp.ok) return sendResponse({ ok: false });
+                const j = await resp.json();
+                const email = {};
+                for (const g of j.groups || []) for (const f of g.fields || []) if (f.key === "emailTo" || f.key === "emailCc") email[f.key] = f.value;
+                sendResponse({ ok: true, license: j.license || null, email });
+            } catch { sendResponse({ ok: false }); }
         })();
         return true;
     }
@@ -305,9 +361,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // ── small shared helpers ────────────────────────────────────────────────────
+// The user's settings (chrome.storage.sync), with any value your organisation set by policy
+// (chrome.storage.managed, see managed_schema.json) taking precedence.
+async function getConfig(defaults) {
+    let cfg = { ...defaults };
+    try { cfg = await chrome.storage.sync.get(defaults); } catch { /* storage unavailable */ }
+    try {
+        const managed = await chrome.storage.managed.get(Object.keys(defaults));
+        for (const [k, v] of Object.entries(managed || {})) if (v !== undefined && v !== null) cfg[k] = v;
+    } catch { /* no policy on this machine */ }
+    return cfg;
+}
+
 async function getPort() {
-    const { port } = await chrome.storage.sync.get({ port: DEFAULT_PORT });
+    const { port } = await getConfig({ port: DEFAULT_PORT });
     return port;
+}
+
+// The saved output profile (sparse overrides) plus what the page told us about the reply.
+function profileWithMeta(output, meta) {
+    const m = meta || {};
+    const merged = {
+        ...(output || {}),
+        sourceFontFamily: m.font || undefined,
+        sourceId: m.source || undefined,
+        sourceModel: m.model || undefined,
+        sourceTitle: m.title || undefined,
+        sourceLanguage: m.lang || undefined,
+        sourceDirection: m.dir || undefined,
+        sourceAccentColor: m.accent || undefined,
+    };
+    return Object.values(merged).some((v) => v !== undefined && v !== null) ? merged : undefined;
 }
 
 async function activeTab() {
@@ -388,23 +472,11 @@ async function sendDirectMarkdown(markdown, meta = {}, opts = {}) {
     await pushHistory({ markdown, meta });
 
     try {
-        const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
-        const m = meta || {};
-        const merged = {
-            ...(output || {}),
-            sourceFontFamily: m.font || undefined,
-            sourceId: m.source || undefined,
-            sourceModel: m.model || undefined,
-            sourceTitle: m.title || undefined,
-            sourceLanguage: m.lang || undefined,
-            sourceDirection: m.dir || undefined,
-            sourceAccentColor: m.accent || undefined,
-        };
-        const hasAny = Object.values(merged).some((v) => v !== undefined && v !== null);
+        const { port, output } = await getConfig({ port: DEFAULT_PORT, output: {} });
         const resp = await fetch(`http://127.0.0.1:${port}/api/ingest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ markdown, output: hasAny ? merged : undefined }),
+            body: JSON.stringify({ markdown, output: profileWithMeta(output, meta) }),
         });
         if (!resp.ok) throw new Error(`API returned HTTP ${resp.status}`);
         if (showNotify) notify("Sent to Marksmith ✓", `${markdown.length.toLocaleString()} chars ingested — check the preview.`);
@@ -508,10 +580,10 @@ async function convertAndDownload(markdown, format, meta) {
     if (cfg.stripPips) markdown = stripCitationPips(markdown);
     await pushHistory({ markdown, meta });
 
-    const { port, output } = await chrome.storage.sync.get({ port: DEFAULT_PORT, output: {} });
+    const { port, output } = await getConfig({ port: DEFAULT_PORT, output: {} });
     // Honor the saved output profile (theme, width, diagram mode, …) but force the format
     // the user just asked for — a profile set to "pdf" must not block a DOCX download.
-    const ovr = { ...(output || {}), format };
+    const ovr = { ...(profileWithMeta(output, meta) || {}), format };
 
     const resp = await fetch(`http://127.0.0.1:${port}/api/convert`, {
         method: "POST",
@@ -520,7 +592,7 @@ async function convertAndDownload(markdown, format, meta) {
     });
     if (!resp.ok) {
         if (resp.status === 402) {
-            let msg = "MarkSmith Pro Required: DOCX export is a Pro feature. Start your trial or upgrade in MarkSmith.";
+            let msg = `MarkSmith Pro Required: ${format.toUpperCase()} export is a Pro feature. Start your trial or upgrade in MarkSmith.`;
             try {
                 const errData = await resp.json();
                 if (errData && (errData.message || errData.error)) {
@@ -544,6 +616,76 @@ async function convertAndDownload(markdown, format, meta) {
         conflictAction: "uniquify",
     });
     return filename;
+}
+
+// ── Outlook drafts (/api/email) ─────────────────────────────────────────────
+// The app writes the draft (subject from the title, tables, code and diagrams in Outlook-safe
+// HTML) to its outbox and opens it in the default mail app. Free on every plan.
+async function emailFromTab(tab, mode, draft = {}, opts = {}) {
+    const showNotify = opts.notify !== false;
+    let extracted;
+    try {
+        extracted = await extractFromTab(tab.id, mode);
+    } catch (e) {
+        if (opts.selectionText) extracted = { ok: true, markdown: opts.selectionText, meta: { title: tab?.title || "" } };
+        else {
+            if (showNotify) notify("Cannot read this page", e.message);
+            return { ok: false, error: "Cannot read this page — " + e.message, short: "Can't read this page" };
+        }
+    }
+    if (!extracted?.ok) {
+        if (opts.selectionText) extracted = { ok: true, markdown: opts.selectionText, meta: { title: tab?.title || "" } };
+        else {
+            const err = extracted?.error || "Could not find assistant content on this page.";
+            if (showNotify) notify("Nothing to email", err);
+            return { ok: false, error: err, short: "Nothing to email" };
+        }
+    }
+    return emailMarkdown(extracted.markdown, extracted.meta, draft, opts);
+}
+
+async function emailMarkdown(markdown, meta, draft = {}, opts = {}) {
+    const showNotify = opts.notify !== false;
+    if (!markdown || !markdown.trim()) return { ok: false, error: "Empty content.", short: "Nothing to email" };
+
+    const cfg = await getConfig({ stripPips: true, port: DEFAULT_PORT, output: {} });
+    if (cfg.stripPips) markdown = stripCitationPips(markdown);
+    await pushHistory({ markdown, meta });
+
+    const output = { ...(profileWithMeta(cfg.output, meta) || {}) };
+    if (draft.to && draft.to.trim()) output.emailTo = draft.to.trim();
+    if (draft.cc && draft.cc.trim()) output.emailCc = draft.cc.trim();
+    if (draft.subject && draft.subject.trim()) output.emailSubject = draft.subject.trim();
+
+    let resp;
+    try {
+        resp = await fetch(`http://127.0.0.1:${cfg.port}/api/email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ markdown, output, open: true }),
+        });
+    } catch {
+        const err = "MarkSmith isn't running. Open it (with Automation → Local REST API on) and try again.";
+        if (showNotify) notify("Marksmith unreachable", err);
+        return { ok: false, error: err, short: "MarkSmith isn't running" };
+    }
+    let body = {};
+    try { body = await resp.json(); } catch { /* empty */ }
+    if (!resp.ok) {
+        const err = resp.status === 404
+            ? "This version of MarkSmith can't make email drafts yet. Update the app."
+            : (body.error || `MarkSmith returned HTTP ${resp.status}.`);
+        const short = resp.status === 400 ? "Check the address" : resp.status === 404 ? "Update MarkSmith" : "Email failed";
+        if (showNotify) notify("Email draft failed", err);
+        return { ok: false, error: err, short };
+    }
+    if (showNotify) {
+        notify(body.opened === false ? "Email draft saved" : "Email draft opened ✓",
+            body.opened === false
+                ? "Windows has no app set to open .eml files. Pick Outlook under Settings › Apps › Default apps."
+                : `"${body.subject || "Untitled"}" is open in your mail app, ready to send.`);
+    }
+    return { ok: true, opened: body.opened !== false, subject: body.subject || "", path: body.path || "" };
 }
 
 // MV3 service workers have no URL.createObjectURL, so we base64-encode the bytes into a

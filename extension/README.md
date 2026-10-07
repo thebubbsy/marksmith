@@ -5,13 +5,16 @@ documents — by talking to the Marksmith desktop app's local REST API. Two ways
 
 - **Send to Marksmith** — push the reply into the running app's preview (`/api/ingest`),
   classified, normalized, and badged with its source on arrival.
-- **Download directly** — get finished **PDF / DOCX / PPTX / EPUB** bytes back from the app
+- **Download directly** — get finished **PDF / DOCX / PPTX / EPUB / EML** bytes back from the app
   (`/api/convert`) and save them straight to your browser's Downloads folder. *No need to
   open Marksmith at all.*
+- **Email it** — open the reply as a **ready-to-send Outlook draft** (`/api/email`): the title
+  becomes the subject, your default recipients are filled in, and tables, code and diagrams come
+  through in Outlook-safe HTML. **Free on every plan.**
 
-It also adds a **"Copy as Markdown"** button beneath every assistant reply on those sites —
-styled to match each site so it feels native. One click copies the reply with headings,
-tables, and code fences intact. If the Marksmith app spots a plain-text paste, it asks the
+It also adds **"Email"** and **"Copy as Markdown"** buttons beneath every assistant reply on those
+sites — styled to match each site so they feel native. One click opens that reply in Outlook, or
+copies it with headings, tables, and code fences intact. If the Marksmith app spots a plain-text paste, it asks the
 extension to **pulse the button** in your browser so you know it's there.
 
 ## Install (30 seconds, one time)
@@ -35,13 +38,18 @@ Click the toolbar **M** button on any chat page. The popup shows, at a glance:
 | **Classification** | The app's AI-source confidence (`POST /api/classify`) + a *Σ math* chip when formulas are present |
 | **Scope toggle** | *Latest reply* vs *Full conversation* |
 
-…and gives you four actions:
+…and gives you these actions:
 
 - **Send to Marksmith** — ingest into the app preview (same as before, now with confirmation).
-- **Download PDF / DOCX / PPTX / EPUB** — convert via the app and save the file in-browser.
+- **Email it → Open as Outlook draft** — optional *To* and *Subject* for this one draft (blank
+  uses MarkSmith's Email settings and the reply's title). Enter in either box sends it.
+- **Download PDF / DOCX / PPTX / EPUB / EML** — convert via the app and save the file in-browser.
   Uses your saved **output profile** (theme, width, diagram mode…) with the format forced to
-  whichever button you pressed.
-- **Copy as Markdown** — the raw Markdown of the current scope, to your clipboard.
+  whichever button you pressed. On a Free MarkSmith, DOCX and PPTX wear a **PRO** mark.
+- **MD** — the raw Markdown of the current scope, to your clipboard.
+- **Send all open AI chats** — every open ChatGPT / Gemini / Claude / Copilot tab, as one
+  document with a chapter per conversation.
+- **App settings** (footer) — MarkSmith's own settings, live (see below).
 
 If the app can't be reached, the popup shows a short checklist and your **extension ID**
 (click to copy) so you can pair it in one step.
@@ -56,14 +64,32 @@ minute), so you know before you click.
 | *Send full conversation to Marksmith* | Sends **every assistant reply**, separated by rules |
 | *Download latest reply as PDF* | Converts the newest reply and saves a `.pdf` |
 | *Download latest reply as DOCX* | Converts the newest reply and saves a `.docx` |
+| *Email latest reply as an Outlook draft* | Opens the newest reply as a new Outlook message |
 | *Send selection to MarkSmith* (any site) | Converts the selected fragment to Markdown (headings, bold, lists, code fences…) — falls back to raw text when there's nothing to format |
+| *Email selection as an Outlook draft* (any site) | The selected fragment as a new Outlook message |
 
-A Windows notification confirms each send/download.
+A Windows notification confirms each send/download/draft. **Alt+Shift+E** emails the latest reply
+from the keyboard (change it at `chrome://extensions/shortcuts`). Selecting text on a chat page
+also shows a small bar with *Send*, *Email*, *Copy MD* and *Lens* (a Markdown preview; Esc closes it).
 
-## Options — auto-send & output profile
+## Options — two tabs
 
 Open the extension's **Options** page (right-click the toolbar icon → *Options*, or via the
-popup's *⚙ Options* link). Two things live there:
+popup's *⚙ Options* link).
+
+### MarkSmith app · live
+
+MarkSmith's **own** settings, drawn from the running app (`GET /api/extension/settings`) with the
+app's labels, help text and choices: Appearance, Layout & PDF, Word export, Email, Content &
+cleanup, Formatting, Branding, Export and Automation. Every change applies to the app **the moment
+you make it** — the desktop panels update while you watch — and each row says *Saved to MarkSmith*
+or why the app refused (a page width outside 400–2400, say). Rows marked **PRO** need MarkSmith Pro
+or the trial; on a Free install the automation switches are locked. Passwords, licence details and
+folder paths are never exposed to the browser. The popup's *App settings* link opens this tab.
+
+### This extension
+
+Your capture options and the per-capture output profile:
 
 **Auto-send at the end of a conversation.** Turn on **Auto-send when I stop interacting**
 and set an idle delay (seconds). When you stop typing/clicking in a chat for that long, the
@@ -83,14 +109,14 @@ overriding, and **Reset to app defaults** clears them all in one click.
 | **Theme** | Any of the app's themes (the list auto-populates from the running app) |
 | **Output format** | Format for auto-sends (PDF, DOCX, PDF + DOCX, PowerPoint, EPUB). Popup downloads always use the button you pressed. |
 | **Page width / A4 lock / single continuous page** | Layout of the exported document |
-| **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture) |
-| **Oversized diagrams** | All 8 strategies from the app: Ask me each time, Keep Original Size, Gentle Shrink (max 75%), Slice Vertically, Aggressive Shrink, and the Compress family (Gaps / Nodes / Both) |
+| **Diagrams in Word** | **ShapeForge™** (rebuild as editable Word shapes) or **Snapshot** (embed a picture). Diagrams wider than the page are always shrunk to fit. |
+| **Email drafts: To / Cc** | Recipients for drafts from the extension, overriding MarkSmith's Email settings |
 | **Render Mermaid diagrams** | Force diagram rendering on/off for every capture |
 | **Smart connectors / line routing / line arrowheads** | ShapeForge connector styles — routing (straight / elbow / curved) and all 7 arrowheads including diamond & oval |
 | **Font preset / PDF page numbers / file name template / author name** | Typography, export chrome, and DOCX creator metadata |
 | **PDF header / footer templates** | Per-page chrome with `{title}` `{page}` `{pages}` `{date}` tokens |
 | **PDF security** | Password protection (user + owner) and allow printing / copying / modifying for PDF exports |
-| **Table of contents / word count / source attribution / cover page** | Document extras |
+| **Table of contents / reading-time pill / source attribution / cover page** | Document extras |
 | **Normalize AI quirks / no-emoji / em-dash handling** | Cleanup applied on the way in |
 | **Heading shift / bold / italic** | Formatting personalization |
 | **Page border / Track Changes** | DOCX page chrome |
@@ -103,6 +129,9 @@ title, language & accent color) are still captured automatically on every send.
 ## Notes
 
 - Talks only to `http://127.0.0.1:<port>` — nothing leaves your machine.
+- **Organisation policy:** the port and auto-send settings can be set by policy (see
+  `managed_schema.json`); policy values win and show as *Set by your organisation* in Options.
+- Auto-send works on ChatGPT, Gemini, Claude **and Copilot**.
 - Change the port via the extension's **Options** page if you changed it in the app.
 - Chat sites redesign their DOM occasionally; if "latest reply" extraction misses,
   the selection method always works.

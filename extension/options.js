@@ -12,7 +12,8 @@ const THEMES_FALLBACK = ["GitHub Light", "GitHub Dark", "Solarized Light", "Sola
 // Types: "str" = pass through, "int" = Number(), "bool" = tri-state select ("1"/"0"/"").
 const FIELD_TYPES = {
     theme: "str", contentWidth: "int", dashMode: "int", dashCustom: "str",
-    headingShift: "int", format: "str", mermaidDocxMode: "int", oversizedDiagramMode: "int",
+    headingShift: "int", format: "str", mermaidDocxMode: "int",
+    emailTo: "str", emailCc: "str",
     mermaidEnabled: "bool", connectorRouting: "str", connectorArrowhead: "str",
     fontPreset: "str", pdfPageNumberPosition: "str", fileNameTemplate: "str",
     boldMode: "int", italicMode: "int", authorName: "str", outputFolder: "str",
@@ -89,6 +90,10 @@ async function init() {
     } catch {
         s = await chrome.storage.local.get(DEFAULTS);
     }
+    // Values your organisation set by policy (managed_schema.json) win; show them locked.
+    let managed = {};
+    try { managed = await chrome.storage.managed.get(["port", "autoSendIdle", "idleSeconds"]); } catch { /* no policy */ }
+    for (const [k, v] of Object.entries(managed || {})) if (v !== undefined && v !== null) s[k] = v;
 
     if ($("port")) $("port").value = s.port || 47821;
     if ($("autoSendIdle")) $("autoSendIdle").checked = !!s.autoSendIdle;
@@ -97,6 +102,7 @@ async function init() {
     if ($("stripPips")) $("stripPips").checked = s.stripPips !== false;
     if ($("dlpScan")) $("dlpScan").checked = s.dlpScan !== false;
     if ($("autoSendMinChars")) $("autoSendMinChars").value = s.autoSendMinChars || 60;
+    for (const k of Object.keys(managed || {})) lockByPolicy(k);
     const siteSet = new Set(Array.isArray(s.autoSendSites) ? s.autoSendSites : []);
     document.querySelectorAll("#autoSendSites input").forEach((cb) => {
         cb.checked = siteSet.size === 0 ? true : siteSet.has(cb.value);
@@ -119,6 +125,53 @@ async function init() {
 
     // Show how many fields are currently overridden, so the model is visible at a glance.
     updateOverrideCount(out);
+    appPort = s.port || 47821;
+    showTab(location.hash === "#app" ? "app" : "ext");
+}
+
+function lockByPolicy(key) {
+    const el = $(key);
+    if (!el) return;
+    el.disabled = true;
+    const note = document.createElement("div");
+    note.className = "hint policy";
+    note.textContent = "Set by your organisation.";
+    (el.closest(".field") || el.parentElement).appendChild(note);
+}
+
+// ── tabs: this extension's options | MarkSmith's live settings ─────────────
+let appPort = 47821;
+let appStarted = false;
+
+function showTab(which) {
+    const app = which === "app";
+    $("tabExt").setAttribute("aria-selected", String(!app));
+    $("tabApp").setAttribute("aria-selected", String(app));
+    $("extPanel").hidden = app;
+    $("appPanel").hidden = !app;
+    $("extActions").hidden = app;
+    $("appActions").hidden = !app;
+    $("overrideCount").hidden = app;
+    $("appStatus").hidden = !app;
+    $("extPanel").style.display = app ? "none" : "";
+    history.replaceState(null, "", app ? "#app" : location.pathname);
+    if (app && !appStarted) {
+        appStarted = true;
+        window.MarksmithAppSettings?.init(appPort);
+    }
+}
+
+$("tabExt")?.addEventListener("click", () => showTab("ext"));
+$("tabApp")?.addEventListener("click", () => showTab("app"));
+$("appReload")?.addEventListener("click", () => window.MarksmithAppSettings?.reload());
+for (const id of ["tabExt", "tabApp"]) {
+    $(id)?.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            const next = id === "tabExt" ? "tabApp" : "tabExt";
+            showTab(next === "tabApp" ? "app" : "ext");
+            $(next).focus();
+        }
+    });
 }
 
 function updateOverrideCount(out) {

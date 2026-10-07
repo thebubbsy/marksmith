@@ -4,9 +4,9 @@
     "version": "1.0.0",
     "description": "DOM fixture tests for extension/selectors.js drift detection",
     "scripts": {
-        "test": "node selector-drift.test.js && node adversarial-extension.test.js"
+        "test": "node selector-drift.test.js && node adversarial-extension.test.js && node appsettings.test.js && node copybutton.test.js && node ../hygiene.test.js"
     },
     "dependencies": {
         "jsdom": "^24.0.0"
     }
-}
+}

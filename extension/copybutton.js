@@ -2,7 +2,8 @@
 // supported AI chat sites (ChatGPT, Gemini, Claude, Copilot). The button adopts each site's own
 // text color, font, and corner radius so it reads as part of the host UI. Clicking converts that
 // reply's HTML to Markdown and puts it on the clipboard — so even users who skip the automation
-// never paste plain text again.
+// never paste plain text again. An "Email" button beside it opens that reply as a ready-to-send
+// Outlook draft through the Marksmith app (free on every plan).
 //
 // The Marksmith desktop app can also ask for attention: when it detects a plain-text paste it bumps
 // /api/attention, and the button pulses to teach the user it exists (polled via the service worker,
@@ -62,7 +63,7 @@
     // ---------- styling (inherits the host page's font; colors derive from the message text) ----------
     const style = document.createElement("style");
     style.textContent = `
-        .${WRAP_CLASS} { display: flex; justify-content: flex-end; margin-top: 2px; }
+        .${WRAP_CLASS} { display: flex; justify-content: flex-end; gap: 6px; margin-top: 2px; }
         .${BTN_CLASS} {
             display: inline-flex; align-items: center; gap: 5px;
             font: inherit; font-size: 12px; line-height: 1;
@@ -74,6 +75,9 @@
         }
         .${BTN_CLASS}:hover { opacity: 1; background: color-mix(in srgb, currentColor 8%, transparent); }
         .${BTN_CLASS}.mk-copied { opacity: 1; }
+        .${BTN_CLASS}:focus-visible { opacity: 1; outline: 2px solid rgba(139,109,255,.7); outline-offset: 1px; }
+        .${BTN_CLASS}.mk-busy { opacity: 1; cursor: progress; }
+        .${BTN_CLASS}.mk-error { opacity: 1; color: #f85149; border-color: rgba(248,81,73,.45); }
         .${BTN_CLASS}.mk-flash { animation: mk-pulse 1s ease-in-out 4; opacity: 1; }
         @keyframes mk-pulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(139, 109, 255, 0); }
@@ -379,6 +383,7 @@
     function makeButton(root) {
         const wrap = document.createElement("div");
         wrap.className = WRAP_CLASS;
+        wrap.appendChild(makeEmailButton(root));
         const btn = document.createElement("button");
         btn.className = BTN_CLASS;
         btn.type = "button";
@@ -401,12 +406,61 @@
         return wrap;
     }
 
-    function flashText(btn, text) {
+    // "Email": the reply as an Outlook draft, opened by the Marksmith app (POST /api/email).
+    function makeEmailButton(root) {
+        const btn = document.createElement("button");
+        btn.className = BTN_CLASS;
+        btn.type = "button";
+        btn.title = "Open this reply as a new Outlook email, ready to address and send (Marksmith, free)";
+        btn.innerHTML = mailIcon() + "<span>Email</span>";
+        btn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.classList.contains("mk-busy")) return;
+            await recoverMermaid(root);
+            const md = toMarkdown(root);
+            if (!md) return flashText(btn, "Nothing to email");
+            btn.classList.add("mk-busy");
+            btn.querySelector("span").textContent = "Opening in Outlook…";
+            emailDraft(md, collectMeta(root), (resp) => {
+                btn.classList.remove("mk-busy");
+                btn.querySelector("span").textContent = "Email";
+                if (resp?.ok) flashText(btn, resp.opened === false ? "Saved — no mail app set" : "✓ Draft opened");
+                else flashText(btn, resp?.short || "MarkSmith isn't running", true);
+                if (!resp?.ok && resp?.error) btn.title = resp.error;
+            });
+        });
+        return btn;
+    }
+
+    function emailDraft(markdown, meta, done) {
+        try {
+            chrome.runtime.sendMessage({ type: "email-draft", text: markdown, meta }, (resp) => {
+                void chrome.runtime.lastError;
+                done(resp || { ok: false });
+            });
+        } catch {
+            done({ ok: false, short: "Reload the page" }); // extension was updated under this tab
+        }
+    }
+
+    function flashText(btn, text, isError = false) {
         const span = btn.querySelector("span");
-        const old = span.textContent;
+        const old = btn.dataset.mkLabel || span.textContent;
+        btn.dataset.mkLabel = old;
         span.textContent = text;
-        btn.classList.add("mk-copied");
-        setTimeout(() => { span.textContent = old; btn.classList.remove("mk-copied"); }, 1600);
+        btn.classList.add(isError ? "mk-error" : "mk-copied");
+        clearTimeout(btn._mkFlash);
+        btn._mkFlash = setTimeout(() => {
+            span.textContent = old;
+            btn.classList.remove("mk-copied", "mk-error");
+            delete btn.dataset.mkLabel;
+        }, isError ? 2600 : 1600);
+    }
+
+    function mailIcon() {
+        return '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' +
+            '<rect x="1.75" y="3.25" width="12.5" height="9.5" rx="1.5"/><path d="M2.25 4.25 8 8.5l5.75-4.25"/></svg>';
     }
 
     function svgIcon() {
@@ -438,8 +492,12 @@
     // ---------- Floating selection action bar ----------
     const floatBar = document.createElement("div");
     floatBar.id = "mk-sel-floating-bar";
+    floatBar.innerHTML = `
         <button type="button" class="mk-sel-btn mk-primary" id="mk-sel-send-btn">
             <span>⚡ Send to Marksmith</span>
+        </button>
+        <button type="button" class="mk-sel-btn" id="mk-sel-email-btn" title="Open the selection as a new Outlook email">
+            <span>✉ Email</span>
         </button>
         <button type="button" class="mk-sel-btn" id="mk-sel-copy-btn">
             <span>📋 Copy MD</span>
@@ -477,7 +535,7 @@
             chrome.runtime.sendMessage({
                 type: "send-text",
                 text: md,
-                meta: { title: document.title, source: site.id }
+                meta: collectMeta(document.body)
             }, (resp) => {
                 if (resp?.ok) {
                     sendBtn.firstElementChild.textContent = "✓ Ingested";
@@ -508,6 +566,32 @@
                 floatBar.style.display = "none";
                 copyMdBtn.firstElementChild.textContent = origText;
             }, 1200);
+        } catch {
+            copyMdBtn.firstElementChild.textContent = "Error";
+            setTimeout(() => { copyMdBtn.firstElementChild.textContent = origText; }, 1500);
+        }
+    });
+
+    const emailSelBtn = floatBar.querySelector("#mk-sel-email-btn");
+    emailSelBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const md = getSelectionMarkdown();
+        if (!md) return;
+        const label = emailSelBtn.firstElementChild;
+        const origText = label.textContent;
+        label.textContent = "Opening…";
+        const anchor = window.getSelection()?.anchorNode;
+        const root = anchor?.nodeType === 1 ? anchor : anchor?.parentElement;
+        emailDraft(md, collectMeta(root || document.body), (resp) => {
+            label.textContent = resp?.ok ? "✓ Opened" : (resp?.short || "Error");
+            setTimeout(() => {
+                if (resp?.ok) floatBar.style.display = "none";
+                label.textContent = origText;
+            }, resp?.ok ? 1200 : 2200);
+        });
+    });
+
     const lensBtn = floatBar.querySelector("#mk-sel-lens-btn");
 
     lensBtn?.addEventListener("mousedown", (e) => {
@@ -532,9 +616,16 @@
             <pre style="overflow:auto;flex:1;background:#0d0d15;padding:12px;border-radius:6px;margin:0;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">${md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
         `;
         lensModal.style.display = "flex";
-        lensModal.querySelector("#mk-lens-close")?.addEventListener("click", () => {
+        const closeLens = () => {
             lensModal.style.display = "none";
-        });
+            document.removeEventListener("keydown", onLensKey, true);
+            document.removeEventListener("mousedown", onLensOutside, true);
+        };
+        const onLensKey = (ev) => { if (ev.key === "Escape") closeLens(); };
+        const onLensOutside = (ev) => { if (!lensModal.contains(ev.target)) closeLens(); };
+        document.addEventListener("keydown", onLensKey, true);
+        setTimeout(() => document.addEventListener("mousedown", onLensOutside, true), 0);
+        lensModal.querySelector("#mk-lens-close")?.addEventListener("click", closeLens);
     });
 
     document.addEventListener("mouseup", (e) => {
@@ -553,7 +644,7 @@
                     return;
                 }
                 const top = Math.max(10, window.scrollY + rect.top - 42);
-                const left = Math.max(10, Math.min(window.scrollX + rect.left, window.innerWidth - 240));
+                const left = Math.max(10, Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - 330));
                 floatBar.style.top = `${top}px`;
                 floatBar.style.left = `${left}px`;
                 floatBar.style.display = "flex";

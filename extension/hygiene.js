@@ -9,10 +9,16 @@
 const PIP_RE = /【[^】]*(?:†|‡|\u2020)[^】]*】/g; // 【7†source】 / unicode dagger variants
 const PIP_ALT_RE = /【\s*\d+\s*source】/gi;      // 【7source】 variants
 
+// A pip and the spaces around it go as one, leaving a single space between words and none
+// before punctuation: "claim 【7†source】 more" -> "claim more", "claim 【7†source】." -> "claim.".
+const PIP_SPACED_RE = /[ \t]*(?:【[^】]*(?:†|‡|†)[^】]*】|【\s*\d+\s*source】)[ \t]*(?=([\s\S]?))/gi;
+
 function stripCitationPips(md) {
     return (md || "")
-        .replace(PIP_RE, "")
-        .replace(PIP_ALT_RE, "")
+        .replace(PIP_SPACED_RE, (match, next) => {
+            if (!/[ \t]/.test(match)) return "";
+            return next === "" || /[\n.,;:!?)\]]/.test(next) ? "" : " ";
+        })
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 }

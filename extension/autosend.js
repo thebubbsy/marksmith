@@ -10,6 +10,11 @@
 
 (async () => {
   const cfg = await chrome.storage.sync.get({ autoSendIdle: false, idleSeconds: 20, port: 47821, output: {}, autoSendSites: null, autoSendMinChars: 60 });
+  // Values your organisation set by policy (managed_schema.json) win over the user's own.
+  try {
+    const managed = await chrome.storage.managed.get(["autoSendIdle", "idleSeconds", "port"]);
+    for (const [k, v] of Object.entries(managed || {})) if (v !== undefined && v !== null) cfg[k] = v;
+  } catch { /* no policy */ }
   if (!cfg.autoSendIdle) return;
 
   // Per-site rule (Options → Automation & Capture): only fire on the checked sites. An empty
@@ -55,6 +60,11 @@
       if (!roots.length) roots = [...document.querySelectorAll("message-content, model-response")];
     } else if (host.includes("claude.ai"))
       roots = [...document.querySelectorAll('[data-testid="assistant-message"], .font-claude-message')];
+    else if (host.includes("copilot.microsoft.com")) {
+      // Same selectors as the toolbar capture; Copilot's DOM churns, so data attributes first.
+      roots = [...document.querySelectorAll('[data-content="ai-message"], [data-testid="ai-message"]')];
+      if (!roots.length) roots = [...document.querySelectorAll('[class*="ai-message"]')];
+    }
     if (!roots.length) return "";
     recoverMermaid(roots);
     return roots.map(conv).join("\n\n---\n\n").replace(/\n{3,}/g, "\n\n").trim();

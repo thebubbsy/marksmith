@@ -67,9 +67,24 @@
     .btn.ghost { background: #14141d; border: 1px solid var(--line); color: var(--text); }
     .btn.ghost:hover:not(:disabled) { background: #1e1e2c; border-color: var(--accent); }
 
-    .dl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .dl-grid .btn { padding: 8px 0; font-size: 12px; }
+    .dl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .dl-grid .btn { padding: 8px 0; font-size: 12px; position: relative; }
     .fmt { font-weight: 700; }
+    .pro { position: absolute; top: -6px; right: -4px; font-size: 8.5px; font-weight: 800; letter-spacing: .4px;
+           padding: 1px 5px; border-radius: 6px; background: var(--accent); color: #fff; pointer-events: none; }
+    .btn:focus-visible, .seg button:focus-visible, .mini:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+
+    /* ── email card ─────────────────────────────────────── */
+    .card h2 .free { float: right; text-transform: none; letter-spacing: 0; font-size: 10px; font-weight: 700;
+                     color: var(--ok); border: 1px solid #3fb95066; border-radius: 10px; padding: 0 7px; }
+    .fld { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .fld label { width: 52px; flex: none; font-size: 11.5px; color: var(--dim); }
+    .fld input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; font-size: 12px; color: var(--text);
+                 background: #14141d; border: 1px solid var(--line); border-radius: 7px; outline: none; transition: .15s; }
+    .fld input:hover { border-color: #3a3a52; }
+    .fld input:focus { border-color: var(--accent-hi); box-shadow: 0 0 0 3px rgba(91, 80, 230, .22); }
+    .fld input::placeholder { color: #6c6c84; }
+    #emailBtn { margin-top: 3px; }
 
     /* ── capture preview / DLP / history ────────────────── */
     pre { background: #14141d; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
@@ -149,20 +164,36 @@
         <span id="sendIco">&#10148;</span><span id="sendTxt">Send to Marksmith</span>
     </button>
 
+    <!-- Email: an Outlook draft opened by the app (free on every plan) -->
+    <div class="card" id="emailCard" style="margin-top:10px">
+        <h2>Email it <span class="free" title="Every email feature is free">FREE</span></h2>
+        <div class="fld">
+            <label for="emailTo">To</label>
+            <input type="text" id="emailTo" autocomplete="email" spellcheck="false" placeholder="Your default recipients">
+        </div>
+        <div class="fld">
+            <label for="emailSubject">Subject</label>
+            <input type="text" id="emailSubject" spellcheck="true" placeholder="From the reply's title">
+        </div>
+        <button class="btn" id="emailBtn" disabled title="Opens a new Outlook message with this reply in it, ready to send (Alt+Shift+E)">
+            <span>&#9993;</span><span id="emailTxt">Open as Outlook draft</span>
+        </button>
+    </div>
+
     <!-- Direct downloads -->
-    <div class="card" style="margin-top:10px">
+    <div class="card">
         <h2>Download straight to your browser</h2>
         <div class="dl-grid">
             <button class="btn ghost dl" data-format="pdf"  disabled><span class="fmt">PDF</span></button>
             <button class="btn ghost dl" data-format="docx" disabled><span class="fmt">DOCX</span></button>
             <button class="btn ghost dl" data-format="pptx" disabled><span class="fmt">PPTX</span></button>
             <button class="btn ghost dl" data-format="epub" disabled><span class="fmt">EPUB</span></button>
+            <button class="btn ghost dl" data-format="eml" disabled title="An .eml email draft: double-click it to open in Outlook"><span class="fmt">EML</span></button>
+            <button class="btn ghost" id="copyBtn" disabled title="Copy the capture as Markdown"><span class="fmt">&#10697; MD</span></button>
         </div>
     </div>
 
-    <!-- Copy markdown -->
-    <button class="btn ghost" id="copyBtn" disabled>&#10697; Copy as Markdown</button>
-    <button class="btn ghost" id="batchTabsBtn" style="margin-top:6px" title="Ingest all open AI chat tabs into a multi-chapter Marksmith document">&#8862; Ingest All AI Tabs</button>
+    <button class="btn ghost" id="batchTabsBtn" style="margin-bottom:10px" title="Send every open AI chat tab to Marksmith as one document, a chapter per conversation">&#8862; Send all open AI chats</button>
 
     <!-- Capture preview -->
     <div class="card hidden" id="previewCard">
@@ -198,7 +229,7 @@
 
     <footer>
         <a href="#" id="openOptions">&#9881; Options</a>
-        <a href="http://127.0.0.1:47821" target="_blank" title="Open MarkSmith Suite Hub" id="openHub">&#9673; Suite Hub</a>
+        <a href="#" id="openAppSettings" title="Change MarkSmith's own settings from the browser">&#9673; App settings</a>
         <span class="help" id="verTxt"></span>
     </footer>
 </div>
