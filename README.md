@@ -12,7 +12,7 @@ real tables. Not a screenshot. Not an HTML-in-a-Word-wrapper approximation. The 
 would have written itself.
 
 [![CI](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml/badge.svg)](https://github.com/thebubbsy/marksmith/actions/workflows/ci.yml)
-![version](https://img.shields.io/badge/version-3.1.0-2ea44f)
+![version](https://img.shields.io/badge/version-3.4.0-2ea44f)
 ![platform](https://img.shields.io/badge/platform-Windows%2010%2B-0078D6?logo=windows)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![WinUI 3](https://img.shields.io/badge/WinUI-3-purple)
@@ -117,8 +117,8 @@ surround blur without leaving the keyboard).
 
 ### 4. Export
 
-**PDF**, **DOCX**, **PPTX**, **EPUB**, **HTML** or a high-DPI **PNG** snapshot — from the title bar,
-the command palette (`Ctrl+K`), a keyboard shortcut, or the CLI.
+**PDF**, **DOCX**, **PPTX**, **EPUB**, **HTML**, **Email (.eml / .msg)** or a high-DPI **PNG** snapshot — from the title bar,
+the command palette (`Ctrl+K`), a keyboard shortcut, or the CLI. You can also preview drafts directly as Outlook-safe email or one-click copy formatted emails to the clipboard.
 
 ---
 
@@ -201,6 +201,38 @@ Marksmith is purpose-built for next-generation reasoning and research models:
 - **Search Grounding & Citation Synthesis**: Detects Google Search Grounding citation chips (`[cite: ...]`, `[1]`) and converts them into **bidirectional Word hyperlinks and footnotes** (`_fnref_n` $\leftrightarrow$ `_fn_n`).
 - **Code Interpreter Output Fences**: Distinguishes between executable source code and console execution outputs (````output ````, ````result ````), applying dedicated terminal-card styling with accent left borders.
 - **Deep Research Synthesis**: Formats executive research summaries, multi-column comparison tables, and formal reference lists into publication-grade whitepapers.
+
+---
+
+## 📄 Rebuilt PDF Import & Multi-Engine OCR
+
+PDF import in Marksmith reconstructs structured Markdown from raw PDFs rather than dumping unstructured text.
+- **Structural Text Extraction**: Using PdfPig, Marksmith parses native vector text layers and accurately reconstructs hierarchical headings, body paragraphs, bullet/numbered lists, complex tables, hyperlinks, code snippets, and embedded figures.
+- **Four Integrated OCR Engines**: Scanned documents and image-only PDF pages seamlessly route through OCR, configurable in Settings:
+  1. **MarkSmith OCR**: A pure C# convolutional neural network (CNN) letter classifier, segmenter, touching letter splitter, and SCOWL dictionary corrector running in-process with zero external dependencies.
+  2. **PaddleOCR PP-OCRv5**: High-accuracy mobile detection and Latin/English recognition models powered by Microsoft ONNX Runtime.
+  3. **Windows Media OCR**: Native, hardware-accelerated Windows OCR API (`Windows.Media.Ocr`).
+  4. **Tesseract 5**: Industrial-grade LSTM engine via `tessdata_best`.
+  5. **Automatic Mode**: Automatically selects the optimal engine based on host hardware and document language.
+
+---
+
+## ✉️ Email Workflow & Outlook Integration (Free on Every Plan)
+
+Craft publication-grade emails directly from Markdown without losing formatting across mail clients:
+- **Outlook .msg & .eml Generation**: Export drafts directly into native Microsoft Outlook `.msg` files or standard RFC-822 `.eml` format.
+- **Live Email Preview**: Preview your message as it will appear in recipient inboxes before launching Outlook.
+- **Clipboard & API Support**: One-click "Copy as Email" generates multipart HTML and plaintext payloads. The local API supports `POST /api/convert` with `format: "eml"`.
+- **Bidirectional Email Import**: Open or drag-and-drop `.msg` and `.eml` messages to instantly convert them into clean Markdown while preserving attachments and headers.
+
+---
+
+## 🎨 Diagram Studio & Vector Visuals
+
+- **Mermaid Sequence Diagrams**: Render sequence diagrams with true participant lifelines, dedicated message rows, self-call loops, note boxes, activation bars, and structured block frames (`loop`, `alt`, `opt`, `par`, `critical`, `break`, `rect`) — fully preserved in written order across edits and saves.
+- **Subgraphs & Grouped Layouts**: Diagram Studio preserves subgraph hierarchies, styles, two-way arrows, and cycle-safe ranking using DFS back-edge topological sorting.
+- **Shape Studio & SmartArt Studio**: Design custom vector diagrams with interactive rotation handles, theme-contrasting labels, and keyboard-driven outline editing.
+- **Interactive Canvas (`:::canvas`)**: Embed interactive vector canvases with live HTML preview sanitization and high-fidelity PDF/DOCX rendering.
 
 ---
 
@@ -380,10 +412,12 @@ Free for PDF, HTML and Markdown. Word, PowerPoint and automation need a one-time
 | | **Free** | **Pro** — A$39 one-time |
 |---|:---:|:---:|
 | Markdown → PDF / HTML / Markdown | ✅ | ✅ |
+| **Markdown → Email (.eml / .msg)** | ✅ | ✅ |
+| **PDF Import & Multi-Engine OCR** | ✅ | ✅ |
 | Live preview with 20+ themes | ✅ | ✅ |
 | Mermaid, LaTeX math, SmartArt, shapes | ✅ | ✅ |
 | Diagram Studio and Shape Studio | ✅ | ✅ |
-| Mind Map Galaxy | ✅ | ✅ |
+| Mind Map Galaxy & Interactive Canvas | ✅ | ✅ |
 | CLI (`render-image`, `batch --format html`) | ✅ | ✅ |
 | **Markdown → Word (.docx)** | 3-export trial | ✅ Unlimited |
 | **Markdown → PowerPoint (.pptx)** | — | ✅ |
