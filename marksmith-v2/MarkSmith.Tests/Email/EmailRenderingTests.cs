@@ -315,4 +315,39 @@ public class EmailRenderingTests
         Assert.True(FeatureClassifier.IsFree(FeatureId.EmailDraft));
         Assert.True(FeatureClassifier.LicenseAllows(FeatureId.EmailDraft, new LicenseState()));
     }
+    [Fact]
+    public void A_tag_mentioned_in_prose_doesnt_empty_the_rest_of_the_email()
+    {
+        var r = Render("Use a <select> element for the picker.\n\nSecond paragraph.\n\n## Later\n\nThird.");
+        Assert.Contains("Second paragraph.", r.Html);
+        Assert.Contains("Third.", r.Html);
+        Assert.Contains("&lt;select&gt;", r.Html);
+    }
+
+    [Fact]
+    public void A_closed_style_is_still_hidden_in_both_the_html_and_the_text_part()
+    {
+        var r = Render("Before <style>p{color:red}</style> after.");
+        Assert.DoesNotContain("color:red", r.Html);
+        Assert.DoesNotContain("color:red", r.Text);
+        Assert.Contains("after.", r.Text);
+    }
+
+    [Theory]
+    [InlineData("```mermaid\ngraph TD\nA-->B\n```")]
+    [InlineData("~~~mermaid\ngraph TD\nA-->B\n~~~")]
+    [InlineData("``` mermaid\ngraph TD\nA-->B\n```")]
+    public void Every_mermaid_fence_style_counts_as_a_diagram(string md)
+    {
+        Assert.True(EmailHtmlRenderer.HasMermaid(md));
+        Assert.False(EmailHtmlRenderer.HasMermaid("```bash\n# not mermaid\n```"));
+    }
+
+    [Fact]
+    public void The_subject_preview_uses_the_same_title_as_the_draft()
+    {
+        Assert.Null(EmailHtmlRenderer.TitleOf("## Weekly update\n\nBody", new AppSettings(), Light));
+        Assert.Null(EmailHtmlRenderer.TitleOf("```bash\n# a comment\n```", new AppSettings(), Light));
+        Assert.Equal("Plan", EmailHtmlRenderer.TitleOf("# Plan\n\nBody", new AppSettings(), Light));
+    }
 }

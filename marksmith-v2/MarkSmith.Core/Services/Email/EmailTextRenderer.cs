@@ -196,8 +196,23 @@ internal static class EmailTextRenderer
                 if (html.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase)) sb.Append('\n');
                 return;
             case ContainerInline c:
-                foreach (var child in c) Inline(sb, child);
+            {
+                // What the HTML body hides (inside <style>, <script>, <textarea>…, when closed in
+                // the same run) is left out of the text part too.
+                var children = c.ToList();
+                for (int i = 0; i < children.Count; i++)
+                {
+                    if (children[i] is HtmlInline open && EmailHtmlRenderer.OpeningTagName(open.Tag) is { } name
+                        && EmailHtmlRenderer.SkippedContentTags.Contains(name)
+                        && children.Skip(i + 1).FirstOrDefault(x => x is HtmlInline h && EmailHtmlRenderer.IsClosingTag(h.Tag, name)) is { } close)
+                    {
+                        i = children.IndexOf(close);
+                        continue;
+                    }
+                    Inline(sb, children[i]);
+                }
                 return;
+            }
             default:
                 sb.Append(inline.ToString());
                 return;

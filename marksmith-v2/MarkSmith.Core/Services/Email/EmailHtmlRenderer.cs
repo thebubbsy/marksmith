@@ -104,6 +104,21 @@ public sealed class EmailHtmlRenderer
     public static string Prepare(string markdown, AppSettings settings, ThemeDefinition theme) =>
         MarkdownHtmlService.PrepareForEmail(markdown, settings, theme, out _);
 
+    /// <summary>The title the email's subject is made from (front matter or the first H1), the
+    /// same one <see cref="Render"/> finds, so the Settings preview matches the real subject.</summary>
+    public static string? TitleOf(string markdown, AppSettings settings, ThemeDefinition theme)
+    {
+        var prepared = MarkdownHtmlService.PrepareForEmail(markdown, settings, theme, out _);
+        return FindTitle(Markdig.Markdown.Parse(prepared, Pipeline), out _);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex MermaidFence =
+        new(@"^[ \t]*(```|~~~)[ \t]*mermaid\b", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Whether the document has a Mermaid diagram to draw: ```mermaid, ~~~mermaid or
+    /// ``` mermaid, as the renderer and the diagram harvest both accept.</summary>
+    public static bool HasMermaid(string? markdown) => markdown is not null && MermaidFence.IsMatch(markdown);
+
     public EmailRenderResult Render(string markdown)
     {
         var prepared = MarkdownHtmlService.PrepareForEmail(markdown, _settings, _theme, out _figures);
@@ -585,10 +600,31 @@ public sealed class EmailHtmlRenderer
 
     // ── inlines ───────────────────────────────────────────────────────────────
 
+    private int _inlineDepth;
+    private List<HtmlInline> _blockHtml = new();
+
     private void WriteInlines(StringBuilder sb, ContainerInline? container)
     {
         if (container is null) return;
-        foreach (var inline in container) WriteInline(sb, inline);
+        // A block's inlines start here: note its HTML tags, so a <select> or <textarea> only
+        // hides what follows when it's really closed in the same block. ("Use a <select>
+        // element" in prose used to empty every paragraph after it, to the end of the email.)
+        bool top = _inlineDepth++ == 0;
+        if (top) _blockHtml = container.Descendants<HtmlInline>().ToList();
+        try
+        {
+            foreach (var inline in container) WriteInline(sb, inline);
+        }
+        finally
+        {
+            if (--_inlineDepth == 0) _skipUntilTag = null;
+        }
+    }
+
+    private bool ClosedLater(HtmlInline open, string tag)
+    {
+        int i = _blockHtml.IndexOf(open);
+        return i >= 0 && _blockHtml.Skip(i + 1).Any(h => IsClosingTag(h.Tag, tag));
     }
 
     private void WriteInline(StringBuilder sb, Inline inline)
@@ -655,6 +691,8 @@ public sealed class EmailHtmlRenderer
                 if (OpeningTagName(html.Tag) is { } opened && SkippedContentTags.Contains(opened)
                     && !html.Tag.TrimEnd().EndsWith("/>", StringComparison.Ordinal))
                 {
+                    // Never closed: it's prose about a tag, so show it as written.
+                    if (!ClosedLater(html, opened)) { sb.Append(Enc(html.Tag)); return; }
                     _skipUntilTag = opened;
                     return;
                 }
@@ -692,18 +730,18 @@ public sealed class EmailHtmlRenderer
     private static readonly HashSet<string> InlineTagsKept = new(StringComparer.OrdinalIgnoreCase)
         { "sub", "sup", "kbd", "u", "b", "i", "strong", "em", "s", "del", "ins", "mark", "small", "abbr", "span" };
 
-    private static readonly HashSet<string> SkippedContentTags = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> SkippedContentTags = new(StringComparer.OrdinalIgnoreCase)
         { "script", "style", "iframe", "object", "noscript", "template", "textarea", "select" };
 
     private string? _skipUntilTag;
 
-    private static string? OpeningTagName(string tag)
+    internal static string? OpeningTagName(string tag)
     {
         var m = System.Text.RegularExpressions.Regex.Match(tag, @"^<\s*([a-zA-Z][a-zA-Z0-9]*)");
         return m.Success ? m.Groups[1].Value : null;
     }
 
-    private static bool IsClosingTag(string tag, string name) =>
+    internal static bool IsClosingTag(string tag, string name) =>
         System.Text.RegularExpressions.Regex.IsMatch(tag, @"^<\s*/\s*" + name + @"\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static void WriteHtmlInline(StringBuilder sb, string tag)
