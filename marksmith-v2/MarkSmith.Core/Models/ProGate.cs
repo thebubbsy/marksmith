@@ -105,6 +105,17 @@ public static class ProGate
         return shortcut.Length == 0 ? "Pro" : "Pro · " + shortcut;
     }
 
+    /// <summary>The short plan name shown in badges (Suite Hub): "MarkSmith Pro", "Pro trial · 2 Word
+    /// exports left" or "Free plan". It used to read "Pro Entitled" or "Free / Trial", which was
+    /// wrong for a trial and meaningless to anyone who isn't a developer.</summary>
+    public static string PlanBadge(LicenseState state)
+    {
+        if (state.IsPro) return "MarkSmith Pro";
+        if (state.IsTrial)
+            return state.TrialExportsRemaining == 1 ? "Pro trial · 1 Word export left" : $"Pro trial · {state.TrialExportsRemaining} Word exports left";
+        return "Free plan";
+    }
+
     /// <summary>The licence banner: title, message and action label (null = no action button).</summary>
     public static (string Title, string Message, string? Action) Banner(LicenseState state)
     {

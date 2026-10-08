@@ -1398,7 +1398,17 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnSuiteHubClick(object sender, RoutedEventArgs e)
     {
         var suiteHubView = new Views.SuiteHubView(_automationManager.IsApiRunning,
-            _automationManager.IsApiRunning ? _automationManager.ApiPort : ViewModel.ApiPort);
+            _automationManager.IsApiRunning ? _automationManager.ApiPort : ViewModel.ApiPort,
+            turnOnApi: async () =>
+            {
+                // Same setting as Settings › Automation › Local API; the property hook re-applies
+                // automation synchronously.
+                ViewModel.ApiEnabled = true;
+                await System.Threading.Tasks.Task.Delay(150);
+                bool running = _automationManager.IsApiRunning;
+                return (running, running ? _automationManager.ApiPort : ViewModel.ApiPort,
+                        running ? null : $"Couldn't turn on the connection: port {ViewModel.ApiPort} may be in use by another program. Pick a different port in Settings › Automation.");
+            });
         ContentDialog? dialog = null;
 
         suiteHubView.OpenMermaidStudioRequested += () =>
@@ -5373,7 +5383,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnCodeBlockClick(object sender, RoutedEventArgs e)
     {
-        // Pro mode: the classic bare fence straight into the editor, no modal.
+        // Quick insert: the classic bare fence straight into the editor, no modal.
         if (App.Settings.Current.ProMode)
         {
             InsertMarkdown("\n```\n", "\n```\n");
@@ -5625,7 +5635,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnImageClick(object sender, RoutedEventArgs e)
     {
-        // Pro mode (Settings ▸ General): the classic one-keystroke placeholder, no modal.
+        // Quick insert (Settings ▸ General): the classic one-keystroke placeholder, no modal.
         if (App.Settings.Current.ProMode)
         {
             InsertMarkdown("![", "](image.png)");

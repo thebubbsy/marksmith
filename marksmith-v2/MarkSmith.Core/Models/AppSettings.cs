@@ -251,8 +251,10 @@ public sealed class AppSettings
     public bool SkipLaunchVideo { get; set; }
     public int ApiPort { get; set; } = 47821;
 
-    // Pro mode skips the interactive pickers: Insert ▸ Image drops the raw markdown placeholder
-    // directly (the classic one-keystroke behavior) instead of opening the drag & drop / URL modal.
+    // "Quick insert" in Settings. The stored key stays ProMode so existing settings carry over; it
+    // has nothing to do with the paid MarkSmith Pro plan. It skips the interactive pickers: Insert ▸
+    // Image drops the raw markdown placeholder directly (the classic one-keystroke behavior) instead
+    // of opening the drag & drop / URL modal.
     public bool ProMode { get; set; }
 
     // Security: Specific extension ID allowed to call the local API (resolves SAST warning)

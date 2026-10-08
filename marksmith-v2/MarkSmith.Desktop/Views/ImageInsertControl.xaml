@@ -5,7 +5,7 @@
 
     <!-- Interactive image picker shown by Insert ▸ Image (default experience). Three ways in:
          drag & drop a file onto the zone, browse with the file picker, or paste a URL.
-         Pro mode (Settings ▸ General) bypasses this dialog entirely. -->
+         Quick insert (Settings ▸ General) bypasses this dialog entirely. -->
     <StackPanel Width="420" Spacing="12">
 
         <!-- Drop zone: highlights while an image file hovers over it. -->

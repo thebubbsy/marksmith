@@ -94,9 +94,9 @@
                         <TextBlock Text="General" Style="{StaticResource SettingsPageTitleStyle}" />
 
                         <TextBlock Text="Editor" Style="{StaticResource SettingsSectionStyle}" Margin="1,0,0,4" />
-                        <controls:SettingsCard Glyph="&#xE945;" Header="Pro mode"
-                                               Description="Skip the insert dialogs: links, images, code blocks, tabs, columns, timelines and the other components drop a ready-to-edit Markdown template straight into the editor.">
-                            <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Pro mode"
+                        <controls:SettingsCard Glyph="&#xE945;" Header="Quick insert"
+                                               Description="Skip the insert dialogs. Links, images, code blocks, tabs, columns, timelines and the other components drop a ready-to-edit Markdown template straight into the editor.">
+                            <ToggleSwitch Style="{StaticResource SettingsToggleStyle}" AutomationProperties.Name="Quick insert"
                                           IsOn="{Binding ProMode, Mode=TwoWay}" />
                         </controls:SettingsCard>
                         <controls:SettingsCard Glyph="&#xE740;" Header="Focus mode in Split view"

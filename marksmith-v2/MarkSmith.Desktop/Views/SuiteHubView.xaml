@@ -24,24 +24,24 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="Suite Hub" FontSize="16" FontWeight="SemiBold" />
                             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
-                                <TextBlock x:Name="VersionText" Text="v3.0.0 · x64" FontSize="10.5" Opacity="0.8" />
+                                <TextBlock x:Name="VersionText" Text="Version 3.0.0" FontSize="10.5" Opacity="0.8" />
                             </Border>
                             <Border x:Name="LicenseBadge" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
-                                <TextBlock x:Name="LicenseText" Text="Pro Entitled" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
+                                <TextBlock x:Name="LicenseText" Text="Free plan" FontSize="10.5" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </StackPanel>
                         <!-- Wraps rather than clipping: this sits between a fixed-width icon and the
                              Config Folder button, so the space it gets depends on the dialog width. -->
-                        <TextBlock Text="Unified ecosystem for authoring, compiling, AI tool-calling, and document visualization."
+                        <TextBlock Text="Everything that works with MarkSmith: the drawing studios, your AI assistant, the browser extension, the command line and the web companion."
                                    FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
                     <Button Grid.Column="2" Click="OnOpenConfigFolderClick" VerticalAlignment="Center" Padding="10,6"
-                            ToolTipService.ToolTip="Open the shared configuration directory">
+                            ToolTipService.ToolTip="Open the folder where MarkSmith keeps your settings, version history and templates">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8B7;" FontSize="12" />
-                            <TextBlock Text="Config Folder" FontSize="12" />
+                            <TextBlock Text="Settings folder" FontSize="12" />
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -73,13 +73,13 @@
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE7F4;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Desktop Engine" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="Drawing studios" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Active" FontSize="10" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="Built in" FontSize="10" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="Native WinUI 3 editor, Looking Glass live preview, SAX streaming OpenXML O(1) compiler, OMML math, and CriticMarkup."
+                        <TextBlock Grid.Row="1" Text="Draw flowcharts, sequence and state diagrams, or Word-ready shapes, then drop them straight into your document."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button Click="OnOpenMermaidStudioClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open Diagram Studio (Ctrl+Shift+M)">
@@ -110,32 +110,35 @@
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE945;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="AI &amp; MCP Server" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="AI assistants" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Any MCP client" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="MCP" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="marksmith-mcp stdio server exposing 10 document tools, 3-block cycle governance, and lossless OpenXML patching."
+                        <TextBlock Grid.Row="1" Text="Let Claude, Cursor, Gemini or any MCP app read, write and export your documents. Copy the setup for your app and paste it into its settings."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy a ready-made MCP server entry for your client">
+                            <Button Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy a ready-made MarkSmith entry for your AI app's settings">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8C8;" FontSize="11" />
-                                    <TextBlock Text="Copy MCP Config" />
+                                    <TextBlock Text="Copy setup" />
                                     <FontIcon Glyph="&#xE70D;" FontSize="9" Margin="2,1,0,0" />
                                 </StackPanel>
                                 <Button.Flyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="Claude Desktop (claude_desktop_config.json)" Click="OnCopyClaudeConfigClick" />
-                                        <MenuFlyoutItem Text="Gemini / Antigravity / Cursor (.mcp.json)" Click="OnCopyGeminiConfigClick" />
+                                        <MenuFlyoutItem Text="For Claude Desktop" Click="OnCopyClaudeConfigClick"
+                                                        ToolTipService.ToolTip="Paste into claude_desktop_config.json" />
+                                        <MenuFlyoutItem Text="For Cursor, Gemini and other apps" Click="OnCopyGeminiConfigClick"
+                                                        ToolTipService.ToolTip="Paste into the app's .mcp.json" />
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
-                            <Button Click="OnCopyMcpPathClick" Padding="8,4" FontSize="11">
+                            <Button Click="OnCopyMcpPathClick" Padding="8,4" FontSize="11"
+                                    ToolTipService.ToolTip="Copy the full path of the MarkSmith MCP server, for apps that ask for a command">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE756;" FontSize="11" />
-                                    <TextBlock Text="Copy Server Path" />
+                                    <TextBlock Text="Copy server path" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -154,25 +157,37 @@
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE774;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Browser Companion" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="Browser extension" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border x:Name="ApiBadge" HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock x:Name="ApiStatusText" Text="API off" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
+                                <TextBlock x:Name="ApiStatusText" Text="Not connected" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="Chrome &amp; Edge extension for 1-click capture from ChatGPT, Claude, Gemini, and Copilot straight into MarkSmith."
+                        <TextBlock Grid.Row="1" Text="Send any ChatGPT, Claude, Gemini or Copilot answer to MarkSmith in one click, from Chrome or Edge."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy the local REST API address">
+                            <!-- Shown while the connection is off: "API off" used to be a dead end that
+                                 didn't say where to go. One click turns it on (same setting as
+                                 Settings > Automation > Local API). -->
+                            <Button x:Name="TurnOnApiButton" Click="OnTurnOnApiClick" Padding="8,4" FontSize="11"
+                                    Style="{ThemeResource AccentButtonStyle}"
+                                    ToolTipService.ToolTip="Let the browser extension reach MarkSmith on this PC (Settings › Automation › Local API)">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <FontIcon Glyph="&#xE71B;" FontSize="11" />
-                                    <TextBlock Text="Copy API URL" />
+                                    <FontIcon Glyph="&#xE7E8;" FontSize="11" />
+                                    <TextBlock Text="Turn on" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="How to install and connect the browser extension">
+                            <Button x:Name="CopyApiUrlButton" Click="OnCopyApiUrlClick" Padding="8,4" FontSize="11"
+                                    ToolTipService.ToolTip="Copy the address the extension connects to, if it asks for one">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon Glyph="&#xE71B;" FontSize="11" />
+                                    <TextBlock Text="Copy address" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnOpenExtensionDocsClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="How to install the extension and connect it to MarkSmith">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE897;" FontSize="11" />
-                                    <TextBlock Text="Extension Guide" />
+                                    <TextBlock Text="Get the extension" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -191,25 +206,33 @@
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE756;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="CLI Toolchain" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="Command line" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
                                 <TextBlock x:Name="CliStatusText" Text="CLI" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="Single-binary headless compiler, batch file watcher, high-res image snapshot rasterizer (render-image), and vector tracer."
+                        <TextBlock Grid.Row="1" Text="Convert a file or a whole folder from PowerShell or a script, with the same styles and output as the app."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
-                            <Button Click="OnCopyCliCommandClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy an example CLI command">
+                            <Button Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy a ready-to-edit command">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE756;" FontSize="11" />
-                                    <TextBlock Text="Copy CLI Syntax" />
+                                    <TextBlock Text="Copy a command" />
+                                    <FontIcon Glyph="&#xE70D;" FontSize="9" Margin="2,1,0,0" />
                                 </StackPanel>
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Convert a file to Word" Tag="file" Click="OnCopyCliCommandClick" />
+                                        <MenuFlyoutItem Text="Convert every file in a folder" Tag="batch" Click="OnCopyCliCommandClick" />
+                                        <MenuFlyoutItem Text="Check the installation" Tag="doctor" Click="OnCopyCliCommandClick" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
                             </Button>
                             <Button x:Name="CopyCliPathButton" Click="OnCopyCliPathClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Copy the full path of marksmith.exe">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8C8;" FontSize="11" />
-                                    <TextBlock Text="Copy Path" />
+                                    <TextBlock Text="Copy path" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -228,19 +251,19 @@
                         <Grid Grid.Row="0">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <FontIcon Glyph="&#xE968;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="Express Web Companion" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="Web companion" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Port 5000" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="localhost:5000" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="Zero-dependency loopback web interface and conversion service for local network and lightweight browser workflows."
+                        <TextBlock Grid.Row="1" Text="Use MarkSmith from a browser tab on this PC: paste Markdown, pick a style and download the document."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button Click="OnLaunchExpressClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Start MarkSmith Express if needed and open it in your browser">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE774;" FontSize="11" />
-                                    <TextBlock Text="Open in Browser" />
+                                    <TextBlock Text="Open in browser" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -262,16 +285,16 @@
                                 <TextBlock Text="Document Galaxy" FontWeight="SemiBold" FontSize="13" />
                             </StackPanel>
                             <Border HorizontalAlignment="Right" Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="5,1">
-                                <TextBlock Text="Visual graph" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Library map" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Border>
                         </Grid>
-                        <TextBlock Grid.Row="1" Text="Interconnected document vault library with radial, tree, and force layouts, relationship inference, and time machine history."
+                        <TextBlock Grid.Row="1" Text="See your documents as a map: which ones link to each other, how they are grouped and what changed over time."
                                    FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                             <Button Click="OnOpenGalaxyClick" Padding="8,4" FontSize="11" ToolTipService.ToolTip="Open the Document Galaxy window">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xEC26;" FontSize="11" />
-                                    <TextBlock Text="Launch Galaxy" />
+                                    <TextBlock Text="Open Galaxy" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>

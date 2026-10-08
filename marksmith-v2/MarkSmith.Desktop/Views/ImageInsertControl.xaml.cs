@@ -14,7 +14,7 @@ namespace MarkSmith.Views;
 
 // Interactive image picker behind Insert ▸ Image: drag & drop a file onto the zone, browse with
 // the native file picker, or paste a web URL. Raises ImagePicked with the chosen source (a local
-// path or a URL) and the host closes the dialog + inserts the markdown. Pro mode never shows this.
+// path or a URL) and the host closes the dialog + inserts the markdown. Quick insert never shows this.
 public sealed partial class ImageInsertControl : UserControl
 {
     public event Action<string>? ImagePicked;

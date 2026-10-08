@@ -18,6 +18,17 @@ public class ProGateCopyTests
         .Where(id => !FeatureClassifier.IsFree(id) && id != FeatureId.AdvancedStyling).ToArray();
 
     [Fact]
+    public void The_Plan_Badge_Names_The_Plan_In_Plain_Words()
+    {
+        // Suite Hub used to say "Pro Entitled" or "Free / Trial" (wrong for a trial).
+        Assert.Equal("MarkSmith Pro", ProGate.PlanBadge(Pro));
+        Assert.Equal("Pro trial · 2 Word exports left", ProGate.PlanBadge(Trial));
+        Assert.Equal("Pro trial · 1 Word export left", ProGate.PlanBadge(new LicenseState { Edition = Edition.Trial, TrialExportsRemaining = 1 }));
+        Assert.Equal("Free plan", ProGate.PlanBadge(FreshFree));
+        Assert.Equal("Free plan", ProGate.PlanBadge(SpentFree));
+    }
+
+    [Fact]
     public void The_Trial_Is_Offered_For_Every_Gated_Feature_Not_Just_Word()
     {
         // The trial is full Pro. The old dialog offered it for Word only, so a free user who

@@ -22,22 +22,24 @@ public sealed partial class SuiteHubView : UserControl
     // copy) — the same page the main window's "Get the extension" tip opens.
     private const string ExtensionPageUrl = "https://github.com/thebubbsy/MarkSmith/tree/main/extension";
 
-    private readonly int _apiPort;
+    private int _apiPort;
+    private readonly Func<System.Threading.Tasks.Task<(bool Running, int Port, string? Error)>>? _turnOnApi;
     private readonly DispatcherTimer _notificationTimer = new() { Interval = TimeSpan.FromSeconds(6) };
     private Storyboard? _notificationFade;
 
     // apiRunning/apiPort come from the live AutomationManager: the Browser Companion badge used to
     // say "REST API Listening" in green whether or not the API was enabled, and the copied URL
     // ignored a custom port.
-    public SuiteHubView(bool apiRunning = false, int apiPort = 47821)
+    // turnOnApi switches the local API on (the Settings › Automation setting) and reports whether it
+    // came up, so "Not connected" is one click from fixed instead of a dead end.
+    public SuiteHubView(bool apiRunning = false, int apiPort = 47821,
+        Func<System.Threading.Tasks.Task<(bool Running, int Port, string? Error)>>? turnOnApi = null)
     {
         InitializeComponent();
         _apiPort = apiPort > 0 ? apiPort : 47821;
+        _turnOnApi = turnOnApi;
         PopulateMetadata();
-        SetBadge(ApiStatusText, apiRunning ? $"API on :{_apiPort}" : "API off", apiRunning);
-        ToolTipService.SetToolTip(ApiBadge, apiRunning
-            ? $"The local REST API is listening on http://127.0.0.1:{_apiPort} — the extension can reach MarkSmith."
-            : "The local REST API is off. Turn it on under Automation so the browser extension can send chats here.");
+        ShowApiState(apiRunning);
 
         // "CLI Installed" was hard-coded too. The CLI ships beside the app; say so only if it's there.
         var cliPresent = File.Exists(CliPath);
@@ -53,6 +55,34 @@ public sealed partial class SuiteHubView : UserControl
 
     private static string CliPath => Path.Combine(AppContext.BaseDirectory, "marksmith.exe");
 
+    private void ShowApiState(bool running)
+    {
+        SetBadge(ApiStatusText, running ? "Connected" : "Not connected", running);
+        ToolTipService.SetToolTip(ApiBadge, running
+            ? $"MarkSmith is listening on http://127.0.0.1:{_apiPort}, so the extension can send chats here."
+            : "The extension can't reach MarkSmith until the local connection is on.");
+        TurnOnApiButton.Visibility = running || _turnOnApi is null ? Visibility.Collapsed : Visibility.Visible;
+        CopyApiUrlButton.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void OnTurnOnApiClick(object sender, RoutedEventArgs e)
+    {
+        if (_turnOnApi is null) return;
+        TurnOnApiButton.IsEnabled = false;
+        try
+        {
+            var (running, port, error) = await _turnOnApi();
+            if (port > 0) _apiPort = port;
+            ShowApiState(running);
+            if (running) SetNotification("Connected. The browser extension can now send chats to MarkSmith.");
+            else SetNotification(error ?? "MarkSmith couldn't open its local connection. Check Settings › Automation.", success: false);
+        }
+        finally
+        {
+            TurnOnApiButton.IsEnabled = true;
+        }
+    }
+
     private static void SetBadge(TextBlock badge, string text, bool positive)
     {
         badge.Text = text;
@@ -66,18 +96,10 @@ public sealed partial class SuiteHubView : UserControl
         {
             var asm = Assembly.GetExecutingAssembly();
             var ver = asm.GetName().Version?.ToString(3) ?? "3.0.0";
-            var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
-            VersionText.Text = $"v{ver} · {arch} · .NET 8";
+            VersionText.Text = $"Version {ver}";
 
             AppServices.License.Load();
-            if (AppServices.License.CanExportDocx)
-            {
-                LicenseText.Text = "Pro Entitled";
-            }
-            else
-            {
-                LicenseText.Text = "Free / Trial";
-            }
+            LicenseText.Text = MarkSmith.Models.ProGate.PlanBadge(AppServices.License.State);
         }
         catch { }
     }
@@ -248,9 +270,18 @@ public sealed partial class SuiteHubView : UserControl
         }
     }
 
+    // Real, runnable commands (the old button copied "marksmith suite", which isn't on PATH and
+    // only prints a status report). The bundled exe is quoted in full so a paste just works.
     private void OnCopyCliCommandClick(object sender, RoutedEventArgs e)
     {
-        CopyToClipboard("marksmith suite", "Copied 'marksmith suite' — run it in PowerShell or Terminal.");
+        var exe = File.Exists(CliPath) ? $"& \"{CliPath}\"" : "marksmith";
+        var (command, message) = ((sender as FrameworkElement)?.Tag as string) switch
+        {
+            "batch" => ($"{exe} batch \"C:\\path\\to\\folder\" --format docx", "Copied a folder conversion. Paste it into PowerShell and change the folder."),
+            "doctor" => ($"{exe} doctor", "Copied the installation check. Paste it into PowerShell."),
+            _ => ($"{exe} \"report.md\" \"report.docx\"", "Copied a file conversion. Paste it into PowerShell and change the file names."),
+        };
+        CopyToClipboard(command, message);
     }
 
     private void OnCopyCliPathClick(object sender, RoutedEventArgs e)

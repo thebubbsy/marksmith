@@ -11,7 +11,7 @@ namespace MarkSmith.Views;
 // Small parameterized user controls hosted inside the Insert-menu ContentDialogs (the default,
 // ProMode-off experience). Each control collects values and builds its own Markdown via
 // Services.InsertSnippetBuilder; the host inserts InsertDialogBody.Snippet after the user confirms.
-// Pro mode bypasses every one of these — see the On*Click handlers in MainWindow.xaml.cs.
+// Quick insert (the ProMode setting) bypasses every one of these — see the On*Click handlers in MainWindow.xaml.cs.
 // They are built in code (no .xaml) because they are parameterized — constructor arguments don't
 // compose with XAML user controls — and they only stack standard WinUI primitives.
 
