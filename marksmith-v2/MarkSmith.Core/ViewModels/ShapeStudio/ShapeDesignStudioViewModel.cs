@@ -542,11 +542,72 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         return (Math.Round(left, 1), Math.Round(top, 1), Math.Round(right - left, 1), Math.Round(bottom - top, 1));
     }
 
-    /// <summary>Applies a handle drag to <paramref name="shape"/> from its starting rectangle.</summary>
+    /// <summary>
+    /// <see cref="ResizeRect"/> for a shape turned by <paramref name="rotation"/> degrees about its
+    /// centre. The pointer's drag is read in the shape's own (turned) frame, so dragging the right
+    /// handle of a 90°-turned shape downwards widens it; and the handle opposite the one dragged
+    /// stays where it is on screen, as in Word and PowerPoint. Unrotated shapes take the
+    /// <see cref="ResizeRect"/> path unchanged.
+    /// </summary>
+    public static (double X, double Y, double W, double H) ResizeRotatedRect(
+        double x, double y, double w, double h, double rotation, ResizeEdges edges, double dx, double dy, bool keepAspect)
+    {
+        double turn = ((rotation % 360) + 360) % 360;
+        if (turn == 0) return ResizeRect(x, y, w, h, edges, dx, dy, keepAspect);
+
+        double rad = turn * Math.PI / 180, cos = Math.Cos(rad), sin = Math.Sin(rad);
+        // The drag in the shape's frame (rotate the screen delta back by the shape's angle).
+        double ldx = dx * cos + dy * sin, ldy = -dx * sin + dy * cos;
+
+        double left = -w / 2, top = -h / 2, right = w / 2, bottom = h / 2;
+        if (edges.HasFlag(ResizeEdges.Left)) left = Math.Min(right - MinShapeSize, left + ldx);
+        if (edges.HasFlag(ResizeEdges.Right)) right = Math.Max(left + MinShapeSize, right + ldx);
+        if (edges.HasFlag(ResizeEdges.Top)) top = Math.Min(bottom - MinShapeSize, top + ldy);
+        if (edges.HasFlag(ResizeEdges.Bottom)) bottom = Math.Max(top + MinShapeSize, bottom + ldy);
+
+        bool corner = (edges & (ResizeEdges.Left | ResizeEdges.Right)) != 0 && (edges & (ResizeEdges.Top | ResizeEdges.Bottom)) != 0;
+        if (keepAspect && corner && w > 0 && h > 0)
+        {
+            double nw = right - left, nh = bottom - top, ratio = w / h;
+            if (nw / w >= nh / h) nh = nw / ratio; else nw = nh * ratio;
+            if (edges.HasFlag(ResizeEdges.Left)) left = right - nw; else right = left + nw;
+            if (edges.HasFlag(ResizeEdges.Top)) top = bottom - nh; else bottom = top + nh;
+        }
+
+        // The new box's centre, in the shape's frame, turned back onto the canvas.
+        double lcx = (left + right) / 2, lcy = (top + bottom) / 2;
+        double cx = x + w / 2 + lcx * cos - lcy * sin, cy = y + h / 2 + lcx * sin + lcy * cos;
+        double nwFinal = right - left, nhFinal = bottom - top;
+        return (Math.Round(cx - nwFinal / 2, 1), Math.Round(cy - nhFinal / 2, 1), Math.Round(nwFinal, 1), Math.Round(nhFinal, 1));
+    }
+
+    /// <summary>Where the handle for <paramref name="edges"/> sits on the canvas for a shape turned
+    /// by <paramref name="rotation"/> degrees about its centre.</summary>
+    public static (double X, double Y) HandlePosition(double x, double y, double w, double h, double rotation, ResizeEdges edges)
+    {
+        double lx = edges.HasFlag(ResizeEdges.Left) ? -w / 2 : edges.HasFlag(ResizeEdges.Right) ? w / 2 : 0;
+        double ly = edges.HasFlag(ResizeEdges.Top) ? -h / 2 : edges.HasFlag(ResizeEdges.Bottom) ? h / 2 : 0;
+        double rad = rotation * Math.PI / 180, cos = Math.Cos(rad), sin = Math.Sin(rad);
+        return (x + w / 2 + lx * cos - ly * sin, y + h / 2 + lx * sin + ly * cos);
+    }
+
+    /// <summary>The resize cursor that matches a handle's direction once the shape is turned:
+    /// 0 = west-east, 1 = northwest-southeast, 2 = north-south, 3 = northeast-southwest.</summary>
+    public static int HandleCursorAxis(ResizeEdges edges, double rotation)
+    {
+        double lx = edges.HasFlag(ResizeEdges.Left) ? -1 : edges.HasFlag(ResizeEdges.Right) ? 1 : 0;
+        double ly = edges.HasFlag(ResizeEdges.Top) ? -1 : edges.HasFlag(ResizeEdges.Bottom) ? 1 : 0;
+        double angle = Math.Atan2(ly, lx) * 180 / Math.PI + rotation;      // screen y points down
+        double axis = ((angle % 180) + 180) % 180;                          // a handle and its opposite share a cursor
+        return (int)Math.Round(axis / 45) % 4;
+    }
+
+    /// <summary>Applies a handle drag to <paramref name="shape"/> from its starting rectangle,
+    /// in the shape's own frame when it is turned.</summary>
     public void ResizeShape(ShapeCanvasItemViewModel shape, (double X, double Y, double W, double H) start,
         ResizeEdges edges, double dx, double dy, bool keepAspect)
     {
-        var r = ResizeRect(start.X, start.Y, start.W, start.H, edges, dx, dy, keepAspect);
+        var r = ResizeRotatedRect(start.X, start.Y, start.W, start.H, shape.Rotation, edges, dx, dy, keepAspect);
         shape.X = r.X;
         shape.Y = r.Y;
         shape.Width = r.W;

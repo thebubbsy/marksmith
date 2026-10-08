@@ -3219,3 +3219,43 @@ Cloud run (see #31). Took #27's free-tier items.
 
 **Tests:** `AutomationExportTests`: a free user who never had a trial is not told it ran out.
 Automation/Batch filter: 92/92.
+
+### 2026-10-08 17:35–18:05 AEST (routine run #37, cloud: rotated-shape handles; Diagram Studio colours per theme)
+
+Cloud run (see #31). Took #30's carried "participant header colours" and the long-carried
+"Shape Studio rotated handles".
+
+**Found:**
+- Shape Studio showed resize handles only on unrotated shapes, so the Funnel and any turned
+  arrow could only be resized from the inspector.
+- Diagram Studio box colours, measured for every bundled theme against the dark canvas, all
+  read, with one exception. Cyberpunk's `#FF003C` box gave its label 4.47:1, just under
+  WCAG AA. GitHub Light falls back to a white box (label 17.7:1): stark, but legible.
+
+**What shipped:**
+- VM, static and tested:
+  - `ResizeRotatedRect` reads the drag in the shape's own frame, keeps the opposite handle
+    fixed on screen, and holds the minimum size and Shift proportions;
+  - `HandlePosition` places handles around the turned shape;
+  - `HandleCursorAxis` picks the resize cursor that matches each handle's turned direction.
+  - `ResizeShape` uses the shape's rotation, so the window's drag code is unchanged.
+- Window `UpdateAdorner`:
+  - handles show on turned shapes (connectors still excluded);
+  - the frame and each handle rotate with the shape;
+  - cursors follow the turn.
+- `DiagramNodeViewModel.ReadableLabelOn`: when neither studio tone reaches 4.5:1, it uses pure
+  black or white.
+
+**Tests:**
+- New `ShapeStudioRotatedResizeTests` (16): unrotated unchanged, the quarter-turn drag
+  direction, the anchor staying fixed at five angles, the handle following the pointer,
+  min/aspect, cursors.
+- New `DiagramStudioThemeContrastTests` (one per bundled theme). It failed on Cyberpunk until
+  the label fix.
+- Mermaid + Shape Studio filters: 494/494.
+
+**Check on the PC (Shape Studio):** load Funnel, select a turned trapezoid, and check:
+- the frame and handles sit on the shape;
+- dragging a corner grows it away from the opposite corner;
+- the cursors point along the handles;
+- Ctrl+Z undoes it.

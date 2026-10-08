@@ -913,8 +913,10 @@ namespace MarkSmith.Views.ShapeStudio
         private void UpdateAdorner()
         {
             var s = _adornedShape;
+            // Turned shapes get handles too: the frame and handles turn with the shape, and a drag
+            // is read in the shape's own frame (ShapeDesignStudioViewModel.ResizeRotatedRect).
             bool show = s is not null && !ViewModel.IsDense && !ViewModel.IsPlacing && ViewModel.SelectionCount == 1
-                        && s.Rotation % 360 == 0 && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
+                        && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
             SelectionAdorner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             if (!show || s is null) return;
 
@@ -925,13 +927,21 @@ namespace MarkSmith.Views.ShapeStudio
             SelectionFrame.Width = Math.Max(0, s.Width);
             SelectionFrame.Height = Math.Max(0, s.Height);
             SelectionFrame.StrokeThickness = 1 / z;
+            SelectionFrame.RenderTransformOrigin = new Point(0.5, 0.5);
+            SelectionFrame.RenderTransform = s.Rotation % 360 == 0 ? null : new RotateTransform { Angle = s.Rotation };
             foreach (var (h, edges) in _handles)
             {
-                double x = edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Left) ? s.X
-                         : edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Right) ? s.X + s.Width : s.X + s.Width / 2;
-                double y = edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Top) ? s.Y
-                         : edges.HasFlag(ShapeDesignStudioViewModel.ResizeEdges.Bottom) ? s.Y + s.Height : s.Y + s.Height / 2;
+                var (x, y) = ShapeDesignStudioViewModel.HandlePosition(s.X, s.Y, s.Width, s.Height, s.Rotation, edges);
                 h.Width = h.Height = size;
+                h.RenderTransformOrigin = new Point(0.5, 0.5);
+                h.RenderTransform = s.Rotation % 360 == 0 ? null : new RotateTransform { Angle = s.Rotation };
+                SetCursor(h, ShapeDesignStudioViewModel.HandleCursorAxis(edges, s.Rotation) switch
+                {
+                    0 => Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast,
+                    1 => Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast,
+                    2 => Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth,
+                    _ => Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest,
+                });
                 h.StrokeThickness = 1.25 / z;
                 // Edge handles hide on a shape too small to tell them from the corners.
                 bool edge = edges is ShapeDesignStudioViewModel.ResizeEdges.Left or ShapeDesignStudioViewModel.ResizeEdges.Right
