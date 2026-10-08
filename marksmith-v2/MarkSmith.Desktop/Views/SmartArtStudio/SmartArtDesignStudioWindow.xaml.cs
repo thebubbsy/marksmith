@@ -148,8 +148,36 @@ namespace MarkSmith.Views.SmartArtStudio
             if (sender is FrameworkElement fe && fe.DataContext is StudioNodeViewModel node)
             {
                 ViewModel.Select(node);
+                // The outline takes keyboard focus, so its keys (↑/↓, Tab, Enter…) work next.
+                OutlineScroll.Focus(FocusState.Pointer);
                 e.Handled = true;
             }
+        }
+
+        // The outline's keys, only while it has focus (Tab elsewhere still moves focus). The model
+        // is the VM's HandleOutlineKey; this maps the keys and re-focuses the rename box it opens.
+        private void OnOutlineKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            // Only when the outline itself has focus: a row's own buttons keep Tab for moving on.
+            if (!ReferenceEquals(FocusManager.GetFocusedElement(), OutlineScroll)) return;
+            bool Down(VirtualKey k) => (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(k)
+                                        & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+            SmartArtDesignStudioViewModel.OutlineKey? key = e.Key switch
+            {
+                VirtualKey.Up => SmartArtDesignStudioViewModel.OutlineKey.Up,
+                VirtualKey.Down => SmartArtDesignStudioViewModel.OutlineKey.Down,
+                VirtualKey.Home => SmartArtDesignStudioViewModel.OutlineKey.Home,
+                VirtualKey.End => SmartArtDesignStudioViewModel.OutlineKey.End,
+                VirtualKey.Tab => SmartArtDesignStudioViewModel.OutlineKey.Tab,
+                VirtualKey.Enter => SmartArtDesignStudioViewModel.OutlineKey.Enter,
+                VirtualKey.Insert => SmartArtDesignStudioViewModel.OutlineKey.Insert,
+                _ => null,
+            };
+            if (key is not { } k) return;
+            if (!ViewModel.HandleOutlineKey(k, shift: Down(VirtualKey.Shift), alt: Down(VirtualKey.Menu))) return;
+            e.Handled = true;
+            if (k is SmartArtDesignStudioViewModel.OutlineKey.Enter or SmartArtDesignStudioViewModel.OutlineKey.Insert)
+                BeginRenameAndFocus(ViewModel.SelectedNode);
         }
 
         private void OnRowPointerEntered(object sender, PointerRoutedEventArgs e)
@@ -242,8 +270,10 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRenameKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (e.Key == VirtualKey.Enter) { ViewModel.CommitRename(); e.Handled = true; }
-            else if (e.Key == VirtualKey.Escape) { ViewModel.CancelRename(); e.Handled = true; }
+            // Back to the outline after either, so typing carries on from the keyboard (the box
+            // collapses, and focus used to be left on nothing).
+            if (e.Key == VirtualKey.Enter) { ViewModel.CommitRename(); e.Handled = true; OutlineScroll.Focus(FocusState.Keyboard); }
+            else if (e.Key == VirtualKey.Escape) { ViewModel.CancelRename(); e.Handled = true; OutlineScroll.Focus(FocusState.Keyboard); }
         }
 
         private void OnRenameLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitRename();

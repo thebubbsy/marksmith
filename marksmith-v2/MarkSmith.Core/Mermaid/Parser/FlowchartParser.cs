@@ -80,6 +80,12 @@ public static class FlowchartParser
                 continue;
             }
 
+            if (FlowchartDiagramAst.IsStyleLine(line))
+            {
+                ast.StyleLines.Add(line);
+                continue;
+            }
+
             // Parse edge or standalone node line
             ParseLine(line, ast, currentSubgraphs.Count > 0 ? currentSubgraphs.Peek() : null);
         }

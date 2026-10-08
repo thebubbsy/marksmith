@@ -9,7 +9,10 @@ public static class SequenceParser
     private static readonly Regex MessageRegex = new(@"^([^\s\-><+x\\]+)\s*(->>|-->>|->|-->|-x|-\\)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
     private static readonly Regex ReverseMessageRegex = new(@"^([^\s\-><+x\\]+)\s*(<<--|<<-|<--|<-)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
     private static readonly Regex NoteRegex = new(@"^Note\s+(left of|right of|over)\s+([^\s:]+(?:\s*,\s*[^\s:]+)*)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
-    private static readonly Regex BlockStartRegex = new(@"^(loop|alt|opt|par|critical)\s*(.*)$", RegexOptions.IgnoreCase);
+    // Word boundary after the keyword: "parse x" is not a par block, nor "options" an option.
+    private static readonly Regex BlockStartRegex = new(@"^(loop|alt|opt|par_over|par|critical|break|rect)(?:\s+(.*))?$", RegexOptions.IgnoreCase);
+    private static readonly Regex DividerRegex = new(@"^(else|and|option)(?:\s+(.*))?$", RegexOptions.IgnoreCase);
+    private static readonly Regex ActivationRegex = new(@"^(activate|deactivate)\s+(\S+)$", RegexOptions.IgnoreCase);
 
     public static SequenceDiagramAst Parse(string code)
     {
@@ -19,7 +22,10 @@ public static class SequenceParser
                         .Where(l => !string.IsNullOrEmpty(l))
                         .ToList();
 
-        Stack<SequenceBlock> blockStack = new();
+        // Every body line lands in ast.Statements in the order it was written; Messages, Blocks
+        // and Notes are derived from that at the end, so nesting and order survive a round trip.
+        int depth = 0;
+        SequenceBox? box = null;
 
         foreach (var line in lines)
         {
@@ -36,7 +42,9 @@ public static class SequenceParser
             if (lower == "sequencediagram")
                 continue;
 
-            if (lower == "autonumber")
+            // Before any message, "autonumber" is the diagram-wide flag; after one, it switches
+            // numbering back on from that row, so it stays in place as a statement.
+            if (lower == "autonumber" && !ast.Statements.Any(s => s.Kind == SequenceStatementKind.Message))
             {
                 ast.AutoNumber = true;
                 continue;
@@ -45,6 +53,15 @@ public static class SequenceParser
             if (lower.StartsWith("title "))
             {
                 ast.Title = line.Substring(6).Trim();
+                continue;
+            }
+
+            // A participant box groups the participant declarations up to its "end" (which must
+            // not close a real block).
+            if (depth == 0 && box is null && (lower == "box" || lower.StartsWith("box ")))
+            {
+                box = new SequenceBox { Header = line.Length > 3 ? line.Substring(3).Trim() : string.Empty };
+                ast.Boxes.Add(box);
                 continue;
             }
 
@@ -60,6 +77,7 @@ public static class SequenceParser
                 if (!ast.Participants.Any(p => p.Id.Equals(pId, StringComparison.OrdinalIgnoreCase)))
                 {
                     ast.Participants.Add(new SequenceParticipant { Id = pId, Alias = alias, Type = pType });
+                    box?.ParticipantIds.Add(pId);
                 }
                 continue;
             }
@@ -86,7 +104,7 @@ public static class SequenceParser
                     _ => SequenceMessageType.SolidArrow
                 };
 
-                var msg = new SequenceMessage
+                ast.Statements.Add(SequenceStatement.ForMessage(new SequenceMessage
                 {
                     FromId = fromId,
                     ToId = toId,
@@ -94,24 +112,7 @@ public static class SequenceParser
                     MessageType = msgType,
                     ActivateTarget = actFlag == "+",
                     DeactivateTarget = actFlag == "-"
-                };
-
-                if (blockStack.Count > 0)
-                {
-                    var currentBlock = blockStack.Peek();
-                    if (currentBlock.ElseBranches.Count > 0)
-                    {
-                        currentBlock.ElseBranches[^1].Messages.Add(msg);
-                    }
-                    else
-                    {
-                        currentBlock.Messages.Add(msg);
-                    }
-                }
-                else
-                {
-                    ast.Messages.Add(msg);
-                }
+                }));
                 continue;
             }
 
@@ -136,7 +137,7 @@ public static class SequenceParser
                     _ => SequenceMessageType.SolidArrow
                 };
 
-                var msg = new SequenceMessage
+                ast.Statements.Add(SequenceStatement.ForMessage(new SequenceMessage
                 {
                     FromId = rightId,
                     ToId = leftId,
@@ -144,24 +145,7 @@ public static class SequenceParser
                     MessageType = msgType,
                     ActivateTarget = actFlag == "+",
                     DeactivateTarget = actFlag == "-"
-                };
-
-                if (blockStack.Count > 0)
-                {
-                    var currentBlock = blockStack.Peek();
-                    if (currentBlock.ElseBranches.Count > 0)
-                    {
-                        currentBlock.ElseBranches[^1].Messages.Add(msg);
-                    }
-                    else
-                    {
-                        currentBlock.Messages.Add(msg);
-                    }
-                }
-                else
-                {
-                    ast.Messages.Add(msg);
-                }
+                }));
                 continue;
             }
 
@@ -191,52 +175,90 @@ public static class SequenceParser
                     Text = noteText
                 };
                 note.TargetParticipantIds.AddRange(targets);
-                ast.Notes.Add(note);
+                ast.Statements.Add(SequenceStatement.ForNote(note));
+                continue;
+            }
+
+            var actMatch = ActivationRegex.Match(line);
+            if (actMatch.Success)
+            {
+                string who = actMatch.Groups[2].Value;
+                EnsureParticipant(ast, who);
+                bool on = actMatch.Groups[1].Value.Equals("activate", StringComparison.OrdinalIgnoreCase);
+                ast.Statements.Add(new SequenceStatement { Kind = on ? SequenceStatementKind.Activate : SequenceStatementKind.Deactivate, ParticipantId = who });
                 continue;
             }
 
             var blockStartMatch = BlockStartRegex.Match(line);
             if (blockStartMatch.Success)
             {
-                string bTypeStr = blockStartMatch.Groups[1].Value.ToLowerInvariant();
-                string header = blockStartMatch.Groups[2].Value.Trim();
-
-                var bType = bTypeStr switch
+                string keyword = blockStartMatch.Groups[1].Value.ToLowerInvariant();
+                var bType = keyword switch
                 {
-                    "loop" => SequenceBlockType.Loop,
                     "alt" => SequenceBlockType.Alt,
                     "opt" => SequenceBlockType.Opt,
-                    "par" => SequenceBlockType.Par,
+                    "par" or "par_over" => SequenceBlockType.Par,
                     "critical" => SequenceBlockType.Critical,
+                    "break" => SequenceBlockType.Break,
+                    "rect" => SequenceBlockType.Rect,
                     _ => SequenceBlockType.Loop
                 };
-
-                var block = new SequenceBlock { BlockType = bType, HeaderText = header };
-                ast.Blocks.Add(block);
-                blockStack.Push(block);
+                ast.Statements.Add(new SequenceStatement
+                {
+                    Kind = SequenceStatementKind.BlockStart,
+                    BlockType = bType,
+                    Keyword = keyword,
+                    Text = blockStartMatch.Groups[2].Value.Trim()
+                });
+                depth++;
                 continue;
             }
 
-            if (lower.StartsWith("else"))
+            var dividerMatch = DividerRegex.Match(line);
+            if (dividerMatch.Success && depth > 0)
             {
-                if (blockStack.Count > 0)
+                ast.Statements.Add(new SequenceStatement
                 {
-                    string cond = line.Length > 4 ? line.Substring(4).Trim() : string.Empty;
-                    blockStack.Peek().ElseBranches.Add((cond, new List<SequenceMessage>()));
-                }
+                    Kind = SequenceStatementKind.BlockDivider,
+                    Keyword = dividerMatch.Groups[1].Value.ToLowerInvariant(),
+                    Text = dividerMatch.Groups[2].Value.Trim()
+                });
                 continue;
             }
 
             if (lower == "end")
             {
-                if (blockStack.Count > 0)
+                if (depth > 0)
                 {
-                    blockStack.Pop();
+                    ast.Statements.Add(new SequenceStatement { Kind = SequenceStatementKind.BlockEnd, Keyword = "end" });
+                    depth--;
+                }
+                else if (box is not null)
+                {
+                    box = null;
                 }
                 continue;
             }
+
+            // Anything else Mermaid accepts that isn't modelled here (create/destroy, links,
+            // "autonumber 10 5", ...) is kept verbatim in place instead of silently vanishing.
+            // A participant line the regex couldn't read is still dropped: re-emitting it after
+            // the messages would declare the participant a second time.
+            if (!lower.StartsWith("participant ") && !lower.StartsWith("actor "))
+                ast.Statements.Add(new SequenceStatement { Kind = SequenceStatementKind.Raw, Text = line });
         }
 
+        // Close blocks the author left open so the generated code always balances.
+        for (; depth > 0; depth--)
+            ast.Statements.Add(new SequenceStatement { Kind = SequenceStatementKind.BlockEnd, Keyword = "end" });
+
+        // A participant a "create" line introduces is declared by that line, not up front.
+        foreach (var st in ast.Statements)
+            if (st.Kind == SequenceStatementKind.Raw && SequenceCreateLine.IsCreate(st.Text)
+                && ast.Participants.FirstOrDefault(p => p.Id.Equals(SequenceCreateLine.Target(st.Text), StringComparison.OrdinalIgnoreCase)) is { } created)
+                created.CreatedInline = true;
+
+        ast.RebuildIndexes();
         return ast;
     }
 

@@ -120,6 +120,10 @@ public static class MermaidCodeGenerator
             string op = FormatEdgeOperator(edge);
             sb.AppendLine($"{indent}{fromOutput} {op} {toOutput}");
         }
+
+        // Styling after the nodes and edges it refers to (linkStyle counts edges in order).
+        foreach (var line in ast.StyleLines)
+            sb.AppendLine($"{indent}{line.Trim()}");
     }
 
     private static void GenerateSubgraph(FlowSubgraph sg, StringBuilder sb, string indent, int level, FlowchartDiagramAst ast, HashSet<string> emittedNodes)
@@ -198,17 +202,35 @@ public static class MermaidCodeGenerator
         if (ast.AutoNumber) sb.AppendLine($"{indent}autonumber");
         if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
+        // Boxed participants are written together inside their box, where the first of them
+        // was declared; Mermaid requires a box's participants to be declared inside it.
+        var boxOf = new Dictionary<string, SequenceBox>(StringComparer.OrdinalIgnoreCase);
+        foreach (var b in ast.Boxes)
+            foreach (var id in b.ParticipantIds)
+                boxOf.TryAdd(id, b);
+        var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in ast.Participants)
         {
-            string keyword = p.Type == SequenceParticipantType.Actor ? "actor" : "participant";
-            if (p.Alias != p.Id && !string.IsNullOrEmpty(p.Alias))
+            if (written.Contains(p.Id) || p.CreatedInline) continue;
+            if (boxOf.TryGetValue(p.Id, out var box))
             {
-                sb.AppendLine($"{indent}{keyword} {p.Id} as {ToBreakTags(p.Alias)}");
+                sb.AppendLine($"{indent}box {OneLine(box.Header)}".TrimEnd());
+                foreach (var member in ast.Participants.Where(q => boxOf.TryGetValue(q.Id, out var qb) && ReferenceEquals(qb, box)))
+                {
+                    sb.AppendLine($"{indent}{indent}{FormatParticipant(member)}");
+                    written.Add(member.Id);
+                }
+                sb.AppendLine($"{indent}end");
+                continue;
             }
-            else
-            {
-                sb.AppendLine($"{indent}{keyword} {p.Id}");
-            }
+            sb.AppendLine($"{indent}{FormatParticipant(p)}");
+            written.Add(p.Id);
+        }
+
+        if (ast.Statements.Count > 0)
+        {
+            GenerateSequenceStatements(ast.Statements, sb, indent);
+            return;
         }
 
         foreach (var note in ast.Notes)
@@ -247,6 +269,66 @@ public static class MermaidCodeGenerator
         }
     }
 
+    /// <summary>Writes the body in its original order, indenting inside blocks. Dividers sit at
+    /// their block's own depth, as Mermaid's docs write them.</summary>
+    private static void GenerateSequenceStatements(IReadOnlyList<SequenceStatement> statements, StringBuilder sb, string indent)
+    {
+        int depth = 1;
+        string Pad(int d) => string.Concat(Enumerable.Repeat(indent, Math.Max(1, d)));
+        foreach (var st in statements)
+        {
+            switch (st.Kind)
+            {
+                case SequenceStatementKind.Message when st.Message is not null:
+                    sb.AppendLine($"{Pad(depth)}{FormatSequenceMessage(st.Message)}");
+                    break;
+                case SequenceStatementKind.Note when st.Note is not null:
+                    sb.AppendLine($"{Pad(depth)}{FormatSequenceNote(st.Note)}");
+                    break;
+                case SequenceStatementKind.Activate:
+                    sb.AppendLine($"{Pad(depth)}activate {st.ParticipantId}");
+                    break;
+                case SequenceStatementKind.Deactivate:
+                    sb.AppendLine($"{Pad(depth)}deactivate {st.ParticipantId}");
+                    break;
+                case SequenceStatementKind.BlockStart:
+                    string keyword = string.IsNullOrEmpty(st.Keyword) ? st.BlockType.ToString().ToLowerInvariant() : st.Keyword;
+                    sb.AppendLine($"{Pad(depth)}{keyword} {OneLine(st.Text)}".TrimEnd());
+                    depth++;
+                    break;
+                case SequenceStatementKind.BlockDivider:
+                    sb.AppendLine($"{Pad(depth - 1)}{(string.IsNullOrEmpty(st.Keyword) ? "else" : st.Keyword)} {OneLine(st.Text)}".TrimEnd());
+                    break;
+                case SequenceStatementKind.BlockEnd:
+                    if (depth > 1) depth--;
+                    sb.AppendLine($"{Pad(depth)}end");
+                    break;
+                case SequenceStatementKind.Raw when !string.IsNullOrWhiteSpace(st.Text):
+                    sb.AppendLine($"{Pad(depth)}{st.Text.Trim()}");
+                    break;
+            }
+        }
+    }
+
+    private static string FormatParticipant(SequenceParticipant p)
+    {
+        string keyword = p.Type == SequenceParticipantType.Actor ? "actor" : "participant";
+        return p.Alias != p.Id && !string.IsNullOrEmpty(p.Alias)
+            ? $"{keyword} {p.Id} as {ToBreakTags(p.Alias)}"
+            : $"{keyword} {p.Id}";
+    }
+
+    private static string FormatSequenceNote(SequenceNote note)
+    {
+        string placement = note.Placement switch
+        {
+            NotePlacement.LeftOf => "left of",
+            NotePlacement.RightOf => "right of",
+            _ => "over"
+        };
+        return $"Note {placement} {string.Join(",", note.TargetParticipantIds)}: {ToBreakTags(note.Text)}";
+    }
+
     private static string FormatSequenceMessage(SequenceMessage msg)
     {
         string arrow = msg.MessageType switch
@@ -278,23 +360,12 @@ public static class MermaidCodeGenerator
                 sb.AppendLine($"{indent}{indent}{cls.Annotation}");
             }
 
+            // (A whole-line Trim() here used to strip the indent off every member.)
             foreach (var attr in cls.Attributes)
-            {
-                string vis = FormatVisibility(attr.Visibility);
-                string staticFlag = attr.IsStatic ? "$" : string.Empty;
-                string abstractFlag = attr.IsAbstract ? "*" : string.Empty;
-                sb.AppendLine($"{indent}{indent}{vis}{attr.Type} {attr.Name}{staticFlag}{abstractFlag}".Trim());
-            }
+                sb.AppendLine($"{indent}{indent}{FormatClassMember(attr)}");
 
             foreach (var m in cls.Methods)
-            {
-                string vis = FormatVisibility(m.Visibility);
-                string paramsStr = string.Join(", ", m.Parameters);
-                string returnStr = !string.IsNullOrEmpty(m.Type) ? $" {m.Type}" : string.Empty;
-                string staticFlag = m.IsStatic ? "$" : string.Empty;
-                string abstractFlag = m.IsAbstract ? "*" : string.Empty;
-                sb.AppendLine($"{indent}{indent}{vis}{m.Name}({paramsStr}){returnStr}{staticFlag}{abstractFlag}".Trim());
-            }
+                sb.AppendLine($"{indent}{indent}{FormatClassMember(m)}");
 
             sb.AppendLine($"{indent}}}");
         }
@@ -317,6 +388,9 @@ public static class MermaidCodeGenerator
 
             sb.AppendLine($"{indent}{rel.FromClass} {fromCard}{op}{toCard} {rel.ToClass}{label}");
         }
+
+        foreach (var note in ast.NoteLines)
+            sb.AppendLine($"{indent}{note.Trim()}");
     }
 
     private static string FormatVisibility(ClassVisibility vis) => vis switch
@@ -327,6 +401,20 @@ public static class MermaidCodeGenerator
         ClassVisibility.Internal => "~",
         _ => string.Empty
     };
+
+    /// <summary>One class member as Mermaid writes it inside a class body: <c>+String name</c>,
+    /// <c>-save(int id) bool$</c>. Diagram Studio shows members in its boxes the same way.</summary>
+    public static string FormatClassMember(ClassMember m)
+    {
+        string vis = FormatVisibility(m.Visibility);
+        string flags = (m.IsStatic ? "$" : string.Empty) + (m.IsAbstract ? "*" : string.Empty);
+        if (m.IsMethod)
+        {
+            string returnStr = !string.IsNullOrEmpty(m.Type) ? $" {m.Type}" : string.Empty;
+            return $"{vis}{m.Name}({string.Join(", ", m.Parameters)}){returnStr}{flags}".Trim();
+        }
+        return $"{vis}{m.Type} {m.Name}{flags}".Replace(vis + " ", vis).Trim();
+    }
 
     private static void GenerateState(StateDiagramAst ast, StringBuilder sb, string indent)
     {
@@ -342,6 +430,16 @@ public static class MermaidCodeGenerator
         {
             string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {OneLine(trans.EventLabel)}" : string.Empty;
             sb.AppendLine($"{indent}{trans.FromId} --> {trans.ToId}{evt}");
+        }
+
+        foreach (var note in ast.Notes)
+        {
+            var noteLines = note.Split('\n');
+            for (int i = 0; i < noteLines.Length; i++)
+            {
+                bool body = noteLines.Length > 1 && i > 0 && i < noteLines.Length - 1;
+                sb.AppendLine($"{indent}{(body ? indent : string.Empty)}{noteLines[i].Trim()}");
+            }
         }
     }
 
@@ -449,8 +547,10 @@ public static class MermaidCodeGenerator
         {
             ErCardinality.ExactlyOne => "||",
             ErCardinality.ZeroOrOne => isLeft ? "|o" : "o|",
-            ErCardinality.ZeroOrMore => isLeft ? "}o" : "o}",
-            ErCardinality.OneOrMore => isLeft ? "}|" : "|}",
+            // Mermaid's right-hand "many" ends open with "{": o{ and |{ ("o}" / "|}" there is
+            // not Mermaid, and was read back as a different relationship).
+            ErCardinality.ZeroOrMore => isLeft ? "}o" : "o{",
+            ErCardinality.OneOrMore => isLeft ? "}|" : "|{",
             _ => "||"
         };
     }

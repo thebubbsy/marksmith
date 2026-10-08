@@ -157,18 +157,63 @@ public class EpubCoverAndMetadataTests
 
         var opf = ReadEntry(epub, "OEBPS/content.opf");
         Assert.Contains("<dc:language>fr</dc:language>", opf);
-        Assert.Contains("<dc:creator>Marksmith</dc:creator>", opf); // no author in front matter
+        Assert.DoesNotContain("<dc:creator>", opf); // no author anywhere: no creator, never "Marksmith"
     }
 
     [Fact]
-    public void Defaults_Are_English_And_Marksmith_With_No_Metadata()
+    public void Defaults_Are_English_And_No_Creator_With_No_Metadata()
     {
         var epub = Export("# Plain\n\nBody.");
 
         var opf = ReadEntry(epub, "OEBPS/content.opf");
         Assert.Contains("<dc:language>en</dc:language>", opf);
-        Assert.Contains("<dc:creator>Marksmith</dc:creator>", opf);
+        Assert.DoesNotContain("<dc:creator>", opf);
         Assert.Contains("<dc:title>Plain</dc:title>", opf); // title still from the document
+    }
+
+    [Fact]
+    public void The_settings_author_name_is_the_creator_when_the_document_names_none()
+    {
+        var opf = ReadEntry(Export("# Plain\n\nBody.", new AppSettings { AuthorName = "Grace Hopper" }), "OEBPS/content.opf");
+        Assert.Contains("<dc:creator>Grace Hopper</dc:creator>", opf);
+        var fm = ReadEntry(Export("---\nauthor: Ada\n---\n# Plain", new AppSettings { AuthorName = "Grace Hopper" }), "OEBPS/content.opf");
+        Assert.Contains("<dc:creator>Ada</dc:creator>", fm);
+    }
+
+    [Fact]
+    public void Re_exporting_the_same_book_keeps_its_identifier_and_a_different_book_gets_another()
+    {
+        static string Id(string opf) => System.Text.RegularExpressions.Regex.Match(opf, "<dc:identifier id=\"bookid\">([^<]+)<").Groups[1].Value;
+        var a1 = Id(ReadEntry(Export("# Field Notes\n\nOne."), "OEBPS/content.opf"));
+        var a2 = Id(ReadEntry(Export("# Field Notes\n\nOne, edited."), "OEBPS/content.opf"));
+        var b = Id(ReadEntry(Export("# Other Book\n\nTwo."), "OEBPS/content.opf"));
+        Assert.Matches("^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", a1);
+        Assert.Equal(a1, a2);
+        Assert.NotEqual(a1, b);
+    }
+
+    [Fact]
+    public void A_coverless_book_of_several_chapters_opens_on_a_title_page()
+    {
+        var epub = Export("---\nauthor: Ada Lovelace\n---\n# Part One\n\nA.\n\n# Part Two\n\nB.");
+        var opf = ReadEntry(epub, "OEBPS/content.opf");
+        var title = ReadEntry(epub, "OEBPS/title.xhtml");
+        Assert.Contains("epub:type=\"titlepage\"", title);
+        Assert.Contains("Part One", title); // the book title: first heading
+        Assert.Contains("Ada Lovelace", title);
+        Assert.Contains("<item id=\"titlepage\" href=\"title.xhtml\"", opf);
+        Assert.True(opf.IndexOf("idref=\"titlepage\"", StringComparison.Ordinal) < opf.IndexOf("idref=\"ch001\"", StringComparison.Ordinal), "title page comes first");
+    }
+
+    [Fact]
+    public void A_single_chapter_or_a_book_with_a_cover_gets_no_title_page_unless_asked()
+    {
+        using (var zip = ZipFile.OpenRead(Export("# Plain\n\nBody.")))
+            Assert.Null(zip.GetEntry("OEBPS/title.xhtml"));
+        using (var zip = ZipFile.OpenRead(Export("# A\n\n1\n\n# B\n\n2", new AppSettings { BrandCoverPage = true }, logo: TinyPng)))
+            Assert.Null(zip.GetEntry("OEBPS/title.xhtml"));
+        using (var zip = ZipFile.OpenRead(Export("# Plain\n\nBody.", new AppSettings { BrandCoverPage = true })))
+            Assert.NotNull(zip.GetEntry("OEBPS/title.xhtml"));
     }
 
     [Fact]

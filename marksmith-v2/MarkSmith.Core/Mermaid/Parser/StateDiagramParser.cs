@@ -19,9 +19,28 @@ public static class StateDiagramParser
                         .ToList();
 
         Stack<StateNode> compositeStack = new();
+        List<string>? openNote = null; // the lines of a multi-line note, until "end note"
 
         foreach (var line in lines)
         {
+            // Notes are kept verbatim. A multi-line note's body used to be read as states.
+            if (openNote is not null)
+            {
+                openNote.Add(line);
+                if (line.Equals("end note", StringComparison.OrdinalIgnoreCase))
+                {
+                    ast.Notes.Add(string.Join("\n", openNote));
+                    openNote = null;
+                }
+                continue;
+            }
+            if (line.StartsWith("note ", StringComparison.OrdinalIgnoreCase))
+            {
+                if (line.Contains(':')) ast.Notes.Add(line);
+                else openNote = new List<string> { line };
+                continue;
+            }
+
             if (line.StartsWith("%%"))
             {
                 if (line.StartsWith("%%{"))
@@ -134,6 +153,7 @@ public static class StateDiagramParser
             }
         }
 
+        if (openNote is not null) ast.Notes.Add(string.Join("\n", openNote.Append("end note")));
         return ast;
     }
 

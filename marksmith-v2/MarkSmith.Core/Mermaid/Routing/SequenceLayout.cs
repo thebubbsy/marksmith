@@ -1,3 +1,5 @@
+using MarkSmith.Mermaid.Ast;
+
 namespace MarkSmith.Core.Mermaid.Routing;
 
 /// <summary>A participant as the sequence layout sees it: its header box on the canvas.</summary>
@@ -12,11 +14,53 @@ public readonly record struct SequenceMessageSpec(string FromId, string ToId, st
 
 /// <summary>Where one message is drawn: its polyline, the centre of its label (which sits just
 /// above the line, as Mermaid draws it, instead of on top of it), and whether it is a self-call.</summary>
-public sealed record SequenceMessageRoute(IReadOnlyList<Point> Points, double LabelX, double LabelY, bool IsSelf);
+public sealed record SequenceMessageRoute(IReadOnlyList<Point> Points, double LabelX, double LabelY, bool IsSelf)
+{
+    /// <summary>The autonumber shown at the message's start, when numbering is on.</summary>
+    public int? Number { get; init; }
+}
 
-/// <summary>The whole drawing: one route per message (null when an end is missing) and how far
-/// each participant's lifeline runs below its header.</summary>
-public sealed record SequenceDrawing(IReadOnlyList<SequenceMessageRoute?> Routes, IReadOnlyDictionary<string, double> LifelineLengths);
+/// <summary>The whole drawing: one route per message (null when an end is missing), how far
+/// each participant's lifeline runs below its header, and the notes, block frames and activation
+/// bars drawn around the messages.</summary>
+public sealed record SequenceDrawing(IReadOnlyList<SequenceMessageRoute?> Routes, IReadOnlyDictionary<string, double> LifelineLengths)
+{
+    public IReadOnlyList<SequenceNoteBox> Notes { get; init; } = Array.Empty<SequenceNoteBox>();
+    /// <summary>Outermost first, so drawing in order puts nested frames on top.</summary>
+    public IReadOnlyList<SequenceFrame> Frames { get; init; } = Array.Empty<SequenceFrame>();
+    public IReadOnlyList<SequenceActivationBar> Activations { get; init; } = Array.Empty<SequenceActivationBar>();
+    public IReadOnlyList<SequenceGroupBox> Boxes { get; init; } = Array.Empty<SequenceGroupBox>();
+}
+
+/// <summary>A participant box (<c>box Aqua Team</c>): a tinted panel behind its participants'
+/// headers and lifelines, labelled at the top. <see cref="Fill"/> is an #AARRGGBB string.</summary>
+public sealed record SequenceGroupBox(double X, double Y, double Width, double Height, string Label, string Fill);
+
+/// <summary>A note: its box and text.</summary>
+public sealed record SequenceNoteBox(double X, double Y, double Width, double Height, string Text)
+{
+    /// <summary>The text as drawn: Mermaid &lt;br/&gt; tags become line breaks.</summary>
+    public string DisplayText => global::MarkSmith.Mermaid.Generator.MermaidCodeGenerator.FromBreakTags(Text);
+}
+
+/// <summary>A dashed divider across a frame (alt's else, par's and, critical's option).</summary>
+public sealed record SequenceFrameDivider(double X, double Y, double Width, string Text)
+{
+    public double Right => X + Width;
+    public string Caption => string.IsNullOrWhiteSpace(Text) ? string.Empty : $"[{Text}]";
+}
+
+/// <summary>A loop/alt/opt/par/critical/break block drawn as a labelled frame, or a rect block
+/// drawn as a tinted band (<see cref="IsHighlight"/>, no label).</summary>
+public sealed record SequenceFrame(double X, double Y, double Width, double Height, string Keyword, string Header,
+    IReadOnlyList<SequenceFrameDivider> Dividers, int Depth, bool IsHighlight)
+{
+    public string Caption => string.IsNullOrWhiteSpace(Header) ? string.Empty : $"[{Header}]";
+}
+
+/// <summary>An activation bar on a lifeline; stacked activations step right by
+/// <see cref="SequenceLayout.ActivationStep"/>.</summary>
+public sealed record SequenceActivationBar(string ParticipantId, double X, double Y, double Width, double Height);
 
 /// <summary>
 /// Draws a sequence diagram the way Mermaid does: participants across the top, a dashed lifeline
@@ -37,59 +81,338 @@ public static class SequenceLayout
     /// <summary>Lifeline run-out below the last message.</summary>
     public const double Tail = 36;
 
-    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceMessageSpec> messages)
+    /// <summary>Height of a frame's header band (keyword tab and condition).</summary>
+    public const double FrameHeader = 34;
+    /// <summary>Frame padding around what it contains, per side.</summary>
+    public const double FramePad = 22;
+    /// <summary>Gap between a note and the lifeline it sits beside.</summary>
+    public const double NoteGap = 10;
+    /// <summary>Activation bar width, and how far each stacked activation steps right.</summary>
+    public const double ActivationWidth = 10, ActivationStep = 5;
+
+    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceMessageSpec> messages) =>
+        Layout(participants, messages.Select(m => SequenceStatement.ForMessage(new SequenceMessage { FromId = m.FromId, ToId = m.ToId, Text = m.Label ?? string.Empty })).ToList());
+
+    /// <summary>
+    /// Lays out a whole sequence script in order: every message on its row, notes on rows of their
+    /// own, a frame around each block (with a header band, and a dashed divider per else/and/option),
+    /// and activation bars from <c>activate</c>/<c>+</c> to <c>deactivate</c>/<c>-</c>. Mermaid's
+    /// <c>-</c> shorthand (<c>B-->>-A</c>) ends the sender's activation.
+    /// </summary>
+    /// <summary>Space above the headers for a participant box's label.</summary>
+    public const double BoxLabelBand = 26;
+
+    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceStatement> script, bool autoNumber = false, IReadOnlyList<SequenceBox>? boxes = null)
     {
-        var routes = new List<SequenceMessageRoute?>(messages.Count);
+        var routes = new List<SequenceMessageRoute?>();
         var lengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        if (participants.Count == 0) return new SequenceDrawing(routes, lengths);
+        if (participants.Count == 0)
+        {
+            foreach (var st in script) if (st.Kind == SequenceStatementKind.Message) routes.Add(null);
+            return new SequenceDrawing(routes, lengths);
+        }
 
         var byId = new Dictionary<string, SequenceParticipantBox>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in participants) byId.TryAdd(p.Id, p);
 
+        var notes = new List<SequenceNoteBox>();
+        var frames = new List<(SequenceFrame Frame, int Order)>();
+        var bars = new List<SequenceActivationBar>();
+        var openFrames = new Stack<OpenFrame>();
+        var openBars = new Dictionary<string, Stack<double>>(StringComparer.OrdinalIgnoreCase);
+        double minX = participants.Min(p => p.X), maxX = participants.Max(p => p.X + p.Width);
+
         double headerBottom = participants.Max(p => p.Bottom);
         double y = headerBottom + FirstRowGap;
         double lastRow = headerBottom;
+        int frameOrder = 0;
 
-        foreach (var m in messages)
+        void Extend(double left, double right)
         {
-            int lines = LabelLines(m.Label);
-            int extraLines = lines - 1;
-            double labelHalfHeight = (lines * LabelLineHeight + 8) / 2;
-            y += extraLines * LabelLineHeight; // room above the line for a taller label
+            if (openFrames.Count == 0) return;
+            var f = openFrames.Peek();
+            f.Left = Math.Min(f.Left, left);
+            f.Right = Math.Max(f.Right, right);
+        }
 
-            if (!byId.TryGetValue(m.FromId, out var from) || !byId.TryGetValue(m.ToId, out var to))
+        void Activate(string id, double at)
+        {
+            if (!byId.ContainsKey(id)) return;
+            if (!openBars.TryGetValue(id, out var s)) openBars[id] = s = new Stack<double>();
+            s.Push(at);
+        }
+        void Deactivate(string id, double at)
+        {
+            if (!byId.TryGetValue(id, out var p) || !openBars.TryGetValue(id, out var s) || s.Count == 0) return;
+            double top = s.Pop();
+            double x = p.CenterX - ActivationWidth / 2 + s.Count * ActivationStep;
+            bars.Add(new SequenceActivationBar(p.Id, x, top, ActivationWidth, Math.Max(12, at - top)));
+        }
+
+        // Where a message leaves or meets a lifeline: its centre, or the outer edge of the
+        // innermost open activation bar on the side facing the other end.
+        double BarEdge(SequenceParticipantBox p, bool towardRight)
+        {
+            int d = openBars.TryGetValue(p.Id, out var s) ? s.Count : 0;
+            if (d == 0) return p.CenterX;
+            double barLeft = p.CenterX - ActivationWidth / 2 + (d - 1) * ActivationStep;
+            return towardRight ? barLeft + ActivationWidth : barLeft;
+        }
+
+        // Mermaid numbering: a bare "autonumber" counts 1, 2, 3...; "autonumber 10 5" restarts at
+        // 10 in steps of 5 from that point on; "autonumber off" stops it.
+        bool numbering = autoNumber;
+        int nextNumber = 1, numberStep = 1;
+
+        foreach (var st in script)
+        {
+            if (st.Kind == SequenceStatementKind.Raw && TryReadAutoNumber(st.Text, out bool on, out int? start, out int? step))
             {
-                routes.Add(null);
+                numbering = on;
+                if (start is { } s0) nextNumber = s0;
+                if (step is { } s1) numberStep = s1;
                 continue;
             }
 
-            double x1 = from.CenterX, x2 = to.CenterX;
-            if (string.Equals(from.Id, to.Id, StringComparison.OrdinalIgnoreCase))
+            switch (st.Kind)
             {
-                var pts = new List<Point>
+                case SequenceStatementKind.Message:
                 {
-                    new(x1, y),
-                    new(x1 + SelfLoopWidth, y),
-                    new(x1 + SelfLoopWidth, y + SelfLoopHeight),
-                    new(x1, y + SelfLoopHeight),
-                };
-                // The label reads to the right of the loop, clear of the lifeline.
-                routes.Add(new SequenceMessageRoute(pts, x1 + SelfLoopWidth + 6 + LabelWidth(m.Label) / 2, y + SelfLoopHeight / 2, IsSelf: true));
-                lastRow = y + SelfLoopHeight;
-                y += RowStep + SelfLoopHeight;
-            }
-            else
-            {
-                routes.Add(new SequenceMessageRoute(new List<Point> { new(x1, y), new(x2, y) }, (x1 + x2) / 2, y - 3 - labelHalfHeight, IsSelf: false));
-                lastRow = y;
-                y += RowStep;
+                    var m = st.Message!;
+                    int? number = null;
+                    if (numbering) { number = nextNumber; nextNumber += numberStep; }
+                    int lines = LabelLines(m.Text);
+                    double labelHalfHeight = (lines * LabelLineHeight + 8) / 2;
+                    y += (lines - 1) * LabelLineHeight; // room above the line for a taller label
+
+                    if (!byId.TryGetValue(m.FromId, out var from) || !byId.TryGetValue(m.ToId, out var to))
+                    {
+                        routes.Add(null);
+                        continue;
+                    }
+
+                    double rowY = y;
+                    // "+" starts the receiver's bar on this row and "-" ends the sender's after it,
+                    // so both arrows meet the bar's edge, as Mermaid draws them.
+                    if (m.ActivateTarget) Activate(to.Id, rowY);
+                    double x1 = from.CenterX, x2 = to.CenterX;
+                    if (!string.Equals(from.Id, to.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        x1 = BarEdge(from, towardRight: x2 > x1);
+                        x2 = BarEdge(to, towardRight: x1 > x2);
+                    }
+                    if (string.Equals(from.Id, to.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var pts = new List<Point>
+                        {
+                            new(x1, y),
+                            new(x1 + SelfLoopWidth, y),
+                            new(x1 + SelfLoopWidth, y + SelfLoopHeight),
+                            new(x1, y + SelfLoopHeight),
+                        };
+                        // The label reads to the right of the loop, clear of the lifeline.
+                        double labelX = x1 + SelfLoopWidth + 6 + LabelWidth(m.Text) / 2;
+                        routes.Add(new SequenceMessageRoute(pts, labelX, y + SelfLoopHeight / 2, IsSelf: true) { Number = number });
+                        Extend(x1 - 10, labelX + LabelWidth(m.Text) / 2);
+                        lastRow = y + SelfLoopHeight;
+                        y += RowStep + SelfLoopHeight;
+                    }
+                    else
+                    {
+                        routes.Add(new SequenceMessageRoute(new List<Point> { new(x1, y), new(x2, y) }, (x1 + x2) / 2, y - 3 - labelHalfHeight, IsSelf: false) { Number = number });
+                        double half = LabelWidth(m.Text) / 2;
+                        Extend(Math.Min(Math.Min(x1, x2), (x1 + x2) / 2 - half), Math.Max(Math.Max(x1, x2), (x1 + x2) / 2 + half));
+                        lastRow = y;
+                        y += RowStep;
+                    }
+
+                    if (m.DeactivateTarget) Deactivate(from.Id, rowY);
+                    break;
+                }
+
+                case SequenceStatementKind.Note:
+                {
+                    var n = st.Note!;
+                    var targets = n.TargetParticipantIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+                    if (targets.Count == 0) break;
+                    string noteText = global::MarkSmith.Mermaid.Generator.MermaidCodeGenerator.FromBreakTags(n.Text);
+                    int lines = LabelLines(noteText);
+                    double height = lines * LabelLineHeight + 14;
+                    double width = Math.Max(90, LabelWidth(noteText));
+                    double left;
+                    switch (n.Placement)
+                    {
+                        case NotePlacement.LeftOf:
+                            left = targets.Min(t => t.CenterX) - NoteGap - ActivationWidth / 2 - width;
+                            break;
+                        case NotePlacement.RightOf:
+                            left = targets.Max(t => t.CenterX) + NoteGap + ActivationWidth / 2;
+                            break;
+                        default:
+                            double l = targets.Min(t => t.CenterX), r = targets.Max(t => t.CenterX);
+                            if (targets.Count > 1) width = Math.Max(width, r - l + 50);
+                            left = (l + r) / 2 - width / 2;
+                            break;
+                    }
+                    double top = y - LabelLineHeight;
+                    notes.Add(new SequenceNoteBox(left, top, width, height, n.Text));
+                    Extend(left, left + width);
+                    lastRow = top + height;
+                    y = top + height + FirstRowGap - 6;
+                    break;
+                }
+
+                case SequenceStatementKind.Activate:
+                    Activate(st.ParticipantId, lastRow > headerBottom ? lastRow : y - RowStep / 2);
+                    break;
+
+                case SequenceStatementKind.Deactivate:
+                    Deactivate(st.ParticipantId, lastRow > headerBottom ? lastRow : y - RowStep / 2);
+                    break;
+
+                case SequenceStatementKind.BlockStart:
+                {
+                    bool highlight = st.BlockType == SequenceBlockType.Rect;
+                    var f = new OpenFrame
+                    {
+                        Top = y - FirstRowGap / 2,
+                        Keyword = string.IsNullOrEmpty(st.Keyword) ? st.BlockType.ToString().ToLowerInvariant() : st.Keyword,
+                        Header = highlight ? string.Empty : st.Text,
+                        IsHighlight = highlight,
+                        Depth = openFrames.Count,
+                        Order = frameOrder++,
+                        // An empty frame still spans its header text.
+                        Left = double.MaxValue,
+                        Right = double.MinValue,
+                        HeaderWidth = highlight ? 0 : LabelWidth(st.Keyword) + LabelWidth($"[{st.Text}]") + 20,
+                    };
+                    openFrames.Push(f);
+                    y += highlight ? 10 : FrameHeader;
+                    break;
+                }
+
+                case SequenceStatementKind.BlockDivider:
+                    if (openFrames.Count == 0) break;
+                    openFrames.Peek().Dividers.Add((y - FirstRowGap / 2 + 4, st.Text));
+                    openFrames.Peek().HeaderWidth = Math.Max(openFrames.Peek().HeaderWidth, LabelWidth($"[{st.Text}]") + 20);
+                    y += FrameHeader - 4;
+                    break;
+
+                case SequenceStatementKind.BlockEnd:
+                {
+                    if (openFrames.Count == 0) break;
+                    var f = openFrames.Pop();
+                    double bottom = Math.Max(lastRow, f.Top + FrameHeader) + 16;
+                    if (f.Left > f.Right) { f.Left = minX; f.Right = maxX; } // nothing inside: span the diagram
+                    double left = f.Left - FramePad, right = Math.Max(f.Right + FramePad, left + f.HeaderWidth);
+                    frames.Add((new SequenceFrame(left, f.Top, right - left, bottom - f.Top, f.Keyword, f.Header,
+                        f.Dividers.Select(d => new SequenceFrameDivider(left, d.Y, right - left, d.Text)).ToList(), f.Depth, f.IsHighlight), f.Order));
+                    lastRow = bottom;
+                    y = bottom + FirstRowGap - 4;
+                    // The parent frame encloses this one.
+                    Extend(left - 4, right + 4);
+                    break;
+                }
             }
         }
+
+        // Activations still open at the end run to the last row.
+        foreach (var (id, stack) in openBars.ToList())
+            while (stack.Count > 0) Deactivate(id, lastRow + 12);
 
         foreach (var p in participants)
             lengths[p.Id] = Math.Max(Tail, lastRow + Tail - p.Bottom);
 
-        return new SequenceDrawing(routes, lengths);
+        var groupBoxes = new List<SequenceGroupBox>();
+        foreach (var b in boxes ?? Array.Empty<SequenceBox>())
+        {
+            var members = b.ParticipantIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+            if (members.Count == 0) continue;
+            var (fill, label) = ReadBoxHeader(b.Header);
+            double left = members.Min(m => m.X) - 12, right = members.Max(m => m.X + m.Width) + 12;
+            double top = members.Min(m => m.Y) - BoxLabelBand;
+            double bottom = members.Max(m => m.Bottom + lengths[m.Id]) + 10;
+            groupBoxes.Add(new SequenceGroupBox(left, top, right - left, bottom - top, label, fill));
+        }
+
+        return new SequenceDrawing(routes, lengths)
+        {
+            Boxes = groupBoxes,
+            Notes = notes,
+            Frames = frames.OrderBy(f => f.Order).Select(f => f.Frame).ToList(),
+            Activations = bars,
+        };
+    }
+
+    private static readonly Dictionary<string, string> NamedColors = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["aqua"] = "00FFFF", ["cyan"] = "00FFFF", ["blue"] = "0000FF", ["navy"] = "000080", ["teal"] = "008080",
+        ["green"] = "008000", ["lime"] = "00FF00", ["olive"] = "808000", ["yellow"] = "FFFF00", ["gold"] = "FFD700",
+        ["orange"] = "FFA500", ["red"] = "FF0000", ["maroon"] = "800000", ["pink"] = "FFC0CB", ["purple"] = "800080",
+        ["fuchsia"] = "FF00FF", ["magenta"] = "FF00FF", ["violet"] = "EE82EE", ["indigo"] = "4B0082", ["brown"] = "A52A2A",
+        ["gray"] = "808080", ["grey"] = "808080", ["silver"] = "C0C0C0", ["white"] = "FFFFFF", ["black"] = "000000",
+        ["lightblue"] = "ADD8E6", ["lightgreen"] = "90EE90", ["lightyellow"] = "FFFFE0", ["lightgrey"] = "D3D3D3",
+        ["lightgray"] = "D3D3D3", ["skyblue"] = "87CEEB", ["salmon"] = "FA8072", ["coral"] = "FF7F50", ["tomato"] = "FF6347",
+        ["khaki"] = "F0E68C", ["beige"] = "F5F5DC", ["lavender"] = "E6E6FA", ["turquoise"] = "40E0D0", ["tan"] = "D2B48C",
+    };
+
+    /// <summary>The neutral panel used for "transparent" and colourless boxes on the dark canvas.</summary>
+    public const string DefaultBoxFill = "#14FFFFFF";
+
+    /// <summary>
+    /// Splits a box header into its fill and label, the way Mermaid reads it: a leading colour
+    /// (a CSS name, <c>#rgb</c>/<c>#rrggbb</c>, <c>rgb(…)</c>/<c>rgba(…)</c> or <c>transparent</c>)
+    /// and the rest as the label. Fills are made translucent so text stays readable on the dark
+    /// canvas.
+    /// </summary>
+    public static (string Fill, string Label) ReadBoxHeader(string? header)
+    {
+        string h = (header ?? string.Empty).Trim();
+        if (h.Length == 0) return (DefaultBoxFill, string.Empty);
+
+        var fn = System.Text.RegularExpressions.Regex.Match(h, @"^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)\s*(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (fn.Success)
+        {
+            string hex = string.Concat(fn.Groups[1].Value, ",", fn.Groups[2].Value, ",", fn.Groups[3].Value)
+                .Split(',').Select(v => Math.Clamp(int.Parse(v, System.Globalization.CultureInfo.InvariantCulture), 0, 255).ToString("X2")).Aggregate(string.Concat);
+            return ("#33" + hex, fn.Groups[4].Value.Trim());
+        }
+
+        int space = h.IndexOf(' ');
+        string first = space < 0 ? h : h[..space];
+        string rest = space < 0 ? string.Empty : h[(space + 1)..].Trim();
+        if (first.Equals("transparent", StringComparison.OrdinalIgnoreCase)) return (DefaultBoxFill, rest);
+        if (NamedColors.TryGetValue(first, out var named)) return ("#33" + named, rest);
+        var hexMatch = System.Text.RegularExpressions.Regex.Match(first, "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$");
+        if (hexMatch.Success)
+        {
+            string v = hexMatch.Groups[1].Value;
+            if (v.Length == 3) v = string.Concat(v.Select(c => new string(c, 2)));
+            return ("#33" + v.ToUpperInvariant(), rest);
+        }
+        return (DefaultBoxFill, h);
+    }
+
+    /// <summary>Reads an "autonumber" line: bare, with a start and optional step, or "off".</summary>
+    public static bool TryReadAutoNumber(string? line, out bool on, out int? start, out int? step)
+    {
+        on = false; start = null; step = null;
+        var parts = (line ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || !parts[0].Equals("autonumber", StringComparison.OrdinalIgnoreCase)) return false;
+        if (parts.Length > 1 && parts[1].Equals("off", StringComparison.OrdinalIgnoreCase)) return true;
+        on = true;
+        if (parts.Length > 1 && int.TryParse(parts[1], out int a)) start = a;
+        if (parts.Length > 2 && int.TryParse(parts[2], out int b)) step = b;
+        return true;
+    }
+
+    private sealed class OpenFrame
+    {
+        public double Top, Left, Right, HeaderWidth;
+        public string Keyword = string.Empty, Header = string.Empty;
+        public bool IsHighlight;
+        public int Depth, Order;
+        public List<(double Y, string Text)> Dividers { get; } = new();
     }
 
     /// <summary>Horizontal space a message label needs (11 px UI font, padded).</summary>

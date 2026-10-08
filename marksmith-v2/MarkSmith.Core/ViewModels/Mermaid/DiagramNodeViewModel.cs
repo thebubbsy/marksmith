@@ -117,7 +117,12 @@ public partial class DiagramNodeViewModel : ObservableObject
     public static string ReadableLabelOn(string fillHex)
     {
         const string light = "#EDF2F4", dark = "#111827";
-        return ContrastGuard.GetContrastRatio(light, fillHex) >= ContrastGuard.GetContrastRatio(dark, fillHex) ? light : dark;
+        double lightRatio = ContrastGuard.GetContrastRatio(light, fillHex), darkRatio = ContrastGuard.GetContrastRatio(dark, fillHex);
+        string best = lightRatio >= darkRatio ? light : dark;
+        if (Math.Max(lightRatio, darkRatio) >= 4.5) return best;
+        // Saturated mid-tone fills (Cyberpunk's #FF003C) miss AA with both studio tones by a
+        // hair; pure black or white is the most a label can get.
+        return best == light ? "#FFFFFF" : "#000000";
     }
 
     [ObservableProperty]

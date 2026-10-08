@@ -2987,3 +2987,387 @@ change was checked on a scratch-config instance (UIA + PrintWindow).
    - root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, the SmartArt outline keyboard pass;
    - the Google Docs OAuth decision;
    - Shape/SmartArt exports in real Word.
+
+### 2026-10-08 15:00–15:55 AEST (routine run #31, cloud: sequence notes, blocks and activations, drawn and kept in order)
+
+**This run was in a Linux cloud container, not on the PC.** The standing rules couldn't all be
+met:
+- The WinUI3 Desktop project can't build or launch on Linux, so there was no smoke launch and
+  no UIA/PrintWindow check.
+- The `.NET 8` SDK was installed into the container. `MarkSmith.Core` and `MarkSmith.Tests`
+  built and ran there.
+- The one Desktop file changed is XAML (`MermaidCanvasControl.xaml`). PR CI's Windows job
+  ("Build Marksmith v2 (Windows)") is its build check.
+- The work went to branch `claude/cool-maxwell-4r338u` as a PR, not straight to `main` (cloud
+  sessions push to their assigned branch).
+
+Reviewed run #30's "Next up" and took item 1 (notes, `loop/alt/opt` blocks, activations).
+
+**Found:**
+- **The sequence AST lost order.** Messages, notes and blocks sat in three separate lists, so a
+  parse→generate round trip, **and every Diagram Studio save**, rewrote a diagram:
+  - all notes first;
+  - then every block;
+  - then every plain message.
+- Other parser and Studio losses:
+  - Nested blocks were flattened (the inner block was written again at top level).
+  - `activate`/`deactivate`, `break`, `rect`, par's `and` and critical's `option` were dropped.
+  - Any other unrecognised line vanished.
+  - `par` matched any line starting with "par".
+  - A participant `box`'s `end` could close a real block.
+- Messages inside blocks never reached the canvas. Notes, frames and activation bars were never
+  drawn.
+
+**What shipped:**
+- Core `SequenceDiagramAst.Statements` is the body in written order:
+  - message, note, activate/deactivate, block start, divider (`else`/`and`/`option`), end, and
+    Raw (verbatim) for anything not modelled;
+  - `Messages`/`Blocks`/`Notes` are now derived from it (`RebuildIndexes`), with the same shape
+    as before;
+  - the generator writes `Statements` in order, indented by depth;
+  - unclosed blocks are closed.
+- Diagram Studio:
+  - loads every message, including the ones in blocks;
+  - keeps the script, and `CanvasToAst` refills its message slots from the canvas in row order;
+  - edited labels land in place, and `+`/`-` stay with their message;
+  - deleted participants take their notes and activations with them;
+  - new messages go at the end.
+- Core `SequenceLayout.Layout(participants, script)` lays out the whole script:
+  - notes get their own row (left of / right of / over one or two participants);
+  - frames have a keyword tab and a `[condition]` caption, nest, enclose their rows and
+    labels, and draw a dashed divider per `else`/`and`/`option`;
+  - `rect` is a tinted band;
+  - activation bars run from `+`/`activate` to `-`/`deactivate`, step right when stacked,
+    close at the last row if left open, and arrows meet the bar's edge, as Mermaid draws them.
+- VM `SequenceFrames`/`SequenceNotes`/`SequenceActivations`, which Fit (`GetContentBounds`)
+  includes. Canvas layers in `MermaidCanvasControl.xaml`, from the bottom: frames, lifelines,
+  activation bars, notes, connectors.
+
+**Tests:**
+- New `Mermaid/SequenceScriptTests.cs` (21) covers:
+  - round-trip order, nesting and indentation, stability;
+  - activations, break, rect, par/and, critical/option, raw lines, box `end`;
+  - the derived indexes;
+  - block messages on the canvas;
+  - Studio save order, in-place label edit, participant delete, new message appended;
+  - frames enclosing their rows and nesting, divider placement;
+  - note rows and left/over placement, Fit;
+  - activation bars, stacking and edge-meeting arrows, unclosed bars;
+  - rect bands, decorations cleared for other types.
+- Full suite on Linux: 3797 passed, 25 failed. The same 25 fail without this change: governance
+  docs, scratch-path assets, environment. It needs `SkiaSharp.NativeAssets.Linux.NoDependencies`
+  added temporarily to run; that change wasn't committed.
+
+**Not verified:** nothing was looked at. Next time on the PC, open both sequence templates and
+a diagram with nested `loop`/`alt`, notes and `+`/`-`, and check:
+- the frames/notes/bars colours on the always-dark canvas;
+- that the keyword tab doesn't collide with the caption on narrow frames.
+
+**Lessons:**
+- Linux cloud runs can do Core and VM work and tests, not WinUI. Pick items whose logic lives
+  in `MarkSmith.Core`, and keep XAML changes to bindings in the existing layer pattern.
+- Mermaid's `-` shorthand (`B-->>-A`) ends the **sender's** activation. The AST still calls it
+  `DeactivateTarget`.
+
+**Next up:**
+1. Check this run's drawing live on the PC (above). Then: drag a message up or down to
+   reorder it (`BuildSequenceScript` already refills slots in canvas order, so only the
+   gesture is missing).
+2. Participant `box` grouping is still dropped (as it always was): keep it and draw it.
+3. Carried over from #30: participant header colours on the dark canvas for every bundled
+   theme; the hover halo/dwell real-mouse check; and #28/#29's list (batch dialog / drag-drop /
+   clipboard self-copy, email automation attachments, Copy as email, EPUB follow-ups,
+   root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, SmartArt outline keyboard pass,
+   Google Docs OAuth decision, Shape/SmartArt exports in real Word).
+
+### 2026-10-08 16:00–16:25 AEST (routine run #32, cloud: reorder sequence messages; autonumber drawn)
+
+Cloud run, like #31: Core and tests built and ran on Linux; the Desktop build is PR CI's
+Windows job. Run #31's Windows build passed, so its XAML compiles. Same branch and PR as #31.
+
+**Found:**
+- There was no way to change a sequence message's order on the canvas.
+- `autonumber` was kept in the code but never drawn.
+- A bare `autonumber` after the first message was treated as the diagram-wide flag, so it was
+  written back at the top and numbering began at the first message.
+
+**What shipped:**
+- VM `MoveSelectedMessage(±1)`. With a sequence message selected (and no nodes), ↑/↓ — the
+  existing nudge accelerators — move it a row instead of nudging pixels:
+  - it swaps with its neighbour's slot in the script, so it can move into or out of a
+    `loop`/`alt`;
+  - it is undoable, and the status bar says what moved or "Already the first/last message.".
+- New messages drawn on the canvas take a script slot when they're added, so they reorder
+  like loaded ones.
+- Core `SequenceLayout` numbers messages: bare `autonumber`, `autonumber <start> <step>` and
+  `autonumber off` behave as in Mermaid. Connector VM `SequenceNumber`/`HasSequenceNumber`.
+  Canvas: a numbered cyan dot at the message's start.
+- Parser: a bare `autonumber` after the first message stays in place as a statement.
+
+**Tests:** new `Mermaid/SequenceReorderTests.cs` (8). Mermaid filter: 246/246.
+
+**Check on the PC:**
+- Select a message, then press ↑/↓: the row moves and the status bar text is right.
+- The autonumber dot is legible and doesn't hide the arrow's start or an activation bar.
+- Mouse drag-to-reorder is still not there (keyboard only).
+
+### 2026-10-08 16:25–16:45 AEST (routine run #33, cloud: participant boxes kept and drawn)
+
+Cloud run (see #31). Took #31's "Next up" 2.
+
+**Found:** `box … end` participant groups were thrown away by the parser, so every Diagram
+Studio save ungrouped them.
+
+**What shipped:**
+- AST `SequenceBox` (`Header` kept verbatim, plus participant ids).
+- Parser: participants declared inside a box join it. A box is only recognised outside
+  blocks, and its `end` closes only the box.
+- Generator: writes each box with all its members inside, where its first member was declared.
+- Studio: keeps boxes. Deleting a participant removes it from its box, and a box left empty is
+  dropped.
+- Core `SequenceLayout.ReadBoxHeader` reads the colour as Mermaid does: CSS name, `#rgb`/
+  `#rrggbb`, `rgb()`/`rgba()`, or `transparent`. The rest of the header is the label. Fills are
+  20% alpha so text stays readable on the dark canvas.
+- Layout gives a `SequenceGroupBox` panel from 26 px above the headers (the label band) to the
+  bottom of the lifelines. Canvas: the bottom-most layer. Fit includes it.
+
+**Tests:** new `Mermaid/SequenceBoxTests.cs` (11). Mermaid filter: 257/257.
+
+**Check on the PC:** load a diagram with `box Aqua …` and `box rgb(…) …`:
+- each panel's label clears the participant headers;
+- the tint reads on the dark canvas;
+- the panels don't cover the arrows.
+
+### 2026-10-08 16:45–17:05 AEST (routine run #34, cloud: automation emails carry the PDF/Word copies)
+
+Cloud run (see #31). Took #28's carried item "email automation attachments".
+
+**Found:** Settings › Email "Attach a PDF copy" / "Attach a Word copy" were honoured by Email
+draft but not by automation. Every email from the watch folder, clipboard, batch or the local
+API went out with no attachments.
+
+**Decision:** automation follows the same settings as Email draft, and a copy that can't be
+made is left off rather than failing the export:
+- the PDF copy needs the preview engine, which automation has whenever the app is running;
+- the Word copy is Pro, as the setting's own description says;
+- the email itself stays free.
+
+**What shipped:**
+- `AutomationExportService` email branch: `BuildEmailAttachmentsAsync` makes `<source>.pdf`
+  and `<source>.docx` in a temp folder (deleted afterwards) and passes them to `EmailComposer`.
+  It covers both `.eml` and `.msg`.
+- The preview engine is now started for an email when a PDF copy is wanted.
+
+**Tests:** `AutomationExportTests`:
+- the Word copy is attached on Pro (eml and msg);
+- on Free, the Word copy (and the PDF, with no engine) is left off and the email still goes;
+- no attachments unless asked for.
+
+Full suite on Linux: 3820 passed. The same 25 fail before and after.
+
+**Check on the PC:** turn on "Attach a PDF copy", drop a file in the watched folder (format:
+email), then open the draft in Outlook. The PDF should be attached and open.
+
+### 2026-10-08 17:05–17:25 AEST (routine run #35, cloud: EPUB follow-ups — author, stable identity, title page)
+
+Cloud run (see #31). Took the carried "EPUB follow-ups".
+
+**Found:**
+- With no author in front matter, `dc:creator` was "Marksmith". Readers file books by creator,
+  so every exported book was listed as written by the app.
+- With no ISBN, `dc:identifier` was a fresh random UUID per export. Readers key their library
+  on it, so re-exporting a book added a duplicate instead of updating it.
+- A coverless book opened straight into chapter text.
+- `EpubMetadata` is still never passed by the desktop (no UI collects it). Front matter
+  (`title/author/language/publisher/isbn/description/rights/cover`) is the working path, so no
+  dialog was built.
+
+**What shipped (`EpubExportService`):**
+- **Creator:** front matter author, then Settings `AuthorName` (the one Word exports stamp),
+  otherwise no `dc:creator` at all. EPUB doesn't require one.
+- **Identifier:** without an ISBN/identifier, a name-based UUID v5 from title + author, stable
+  across re-exports.
+- **Title page** (`title.xhtml`, `epub:type="titlepage"`, first in the spine): only when there
+  is no cover, and the book has more than one chapter or Branding's cover page switch is on.
+  It shows the title, the author, and the publisher (unless that's the default Marksmith tag).
+
+**Tests:** `EpubCoverAndMetadataTests`:
+- two tests that asserted the "Marksmith" creator now assert no creator;
+- new: settings author, stable/distinct identifiers, title page, and when there is none.
+
+EPUB filter: 48/48.
+
+**Check on the PC:** open a two-chapter export in a real reader (Calibre, Apple Books, Thorium):
+- the title page centres and breaks to the next page;
+- re-exporting replaces the library entry instead of adding a second one.
+
+### 2026-10-08 17:25–17:35 AEST (routine run #36, cloud: free-plan batch message)
+
+Cloud run (see #31). Took #27's free-tier items.
+
+**Found:**
+- "Default output format defaults to Word on Free" was already fixed: the default is `pdf`.
+- The batch path (`AutomationExportService.ConvertFilesAsync`, used by the batch dialog and the
+  API) told **every** free user "DOCX export trial quota exhausted", including one who had never
+  started a trial.
+
+**What shipped:**
+- That phrase is now used only when the trial was actually used (`LicenseState.TrialUsed`).
+- Otherwise the line is `ProGate.ApiLine` alone: "Word export is a MarkSmith Pro feature.
+  Start the free trial…".
+- The existing trial-exhausted tests still pin the original wording for that case.
+
+**Tests:** `AutomationExportTests`: a free user who never had a trial is not told it ran out.
+Automation/Batch filter: 92/92.
+
+### 2026-10-08 17:35–18:05 AEST (routine run #37, cloud: rotated-shape handles; Diagram Studio colours per theme)
+
+Cloud run (see #31). Took #30's carried "participant header colours" and the long-carried
+"Shape Studio rotated handles".
+
+**Found:**
+- Shape Studio showed resize handles only on unrotated shapes, so the Funnel and any turned
+  arrow could only be resized from the inspector.
+- Diagram Studio box colours, measured for every bundled theme against the dark canvas, all
+  read, with one exception. Cyberpunk's `#FF003C` box gave its label 4.47:1, just under
+  WCAG AA. GitHub Light falls back to a white box (label 17.7:1): stark, but legible.
+
+**What shipped:**
+- VM, static and tested:
+  - `ResizeRotatedRect` reads the drag in the shape's own frame, keeps the opposite handle
+    fixed on screen, and holds the minimum size and Shift proportions;
+  - `HandlePosition` places handles around the turned shape;
+  - `HandleCursorAxis` picks the resize cursor that matches each handle's turned direction.
+  - `ResizeShape` uses the shape's rotation, so the window's drag code is unchanged.
+- Window `UpdateAdorner`:
+  - handles show on turned shapes (connectors still excluded);
+  - the frame and each handle rotate with the shape;
+  - cursors follow the turn.
+- `DiagramNodeViewModel.ReadableLabelOn`: when neither studio tone reaches 4.5:1, it uses pure
+  black or white.
+
+**Tests:**
+- New `ShapeStudioRotatedResizeTests` (16): unrotated unchanged, the quarter-turn drag
+  direction, the anchor staying fixed at five angles, the handle following the pointer,
+  min/aspect, cursors.
+- New `DiagramStudioThemeContrastTests` (one per bundled theme). It failed on Cyberpunk until
+  the label fix.
+- Mermaid + Shape Studio filters: 494/494.
+
+**Check on the PC (Shape Studio):** load Funnel, select a turned trapezoid, and check:
+- the frame and handles sit on the shape;
+- dragging a corner grows it away from the opposite corner;
+- the cursors point along the handles;
+- Ctrl+Z undoes it.
+
+### 2026-10-08 18:05–18:30 AEST (routine run #38, cloud: SmartArt outline keyboard pass)
+
+Cloud run (see #31). Took the long-carried "SmartArt outline keyboard pass".
+
+**Found:**
+- The outline answered only Delete, F2 and Ctrl+Z/Y. Selecting, reordering, indenting and
+  adding items all needed the mouse.
+- The rows aren't focusable, so nothing in the outline held keyboard focus.
+- After Enter or Esc in the rename box, focus was left on the collapsed box.
+
+**What shipped:**
+- VM `HandleOutlineKey(OutlineKey, shift, alt)`, the outline's keyboard model:
+
+  | Keys | Action |
+  |---|---|
+  | ↑/↓, Home/End | Select |
+  | Alt+↑/↓ | Move among siblings |
+  | Tab / Shift+Tab | Indent / outdent |
+  | Enter | Add a sibling, ready to type |
+  | Insert | Add a child, ready to type |
+  | Delete, F2 | Delete, rename |
+
+  It returns false for a key that did nothing, so Tab with no selection still moves focus.
+  Enter or Insert on an empty outline starts it.
+- Window:
+  - `OutlineScroll` is a tab stop with `OnOutlineKeyDown`. It acts only while the outline
+    itself has focus, so a row's own buttons keep Tab.
+  - Clicking a row focuses the outline.
+  - Enter/Esc in the rename box return focus to the outline.
+  - The keys are listed in the outline's `AutomationProperties.HelpText`.
+
+**Tests:** new `SmartArtOutlineKeyboardTests` (7). SmartArt filter: 218/218. It needs the
+Linux Skia native added temporarily, or the run aborts.
+
+**Check on the PC:** in SmartArt Studio, click a row, then build a three-level tree using only
+the keyboard. Check the selection highlight is visible, typing starts in the new row after
+Enter, and Tab out of the outline still works when nothing is selected.
+
+### 2026-10-08 18:30–19:00 AEST (routine run #39, cloud: flowcharts survive a Diagram Studio save)
+
+Cloud run (see #31). New finding, from round-tripping one sample of each diagram type through
+the Studio (load, then save).
+
+**Found (flowchart):**
+- `classDef`, `class`, `style`, `click` and `linkStyle` lines were parsed as **nodes**, labelled
+  with the whole line. The output was **invalid Mermaid**: `classDef hot fill:#f96["classDef …"]`.
+- The parser kept subgraphs, but the Studio dropped them on save.
+- The Studio never loaded or saved an edge's start head, so `A <--> B` came back as `A --> B`.
+- **Found for run #40:**
+  - State: composite state contents and notes are lost.
+  - Class: methods and notes are lost.
+  - ER: `||--o{` is written back as `||--o}`, which changes the cardinality.
+
+**What shipped:**
+- `FlowchartDiagramAst.StyleLines`: those five statements are kept verbatim, in order. The
+  generator writes them after the edges.
+- Studio:
+  - keeps the loaded subgraphs and writes them back with the nodes still on the canvas (empty
+    ones are dropped, nesting is kept);
+  - keeps the style lines, with these rules, because Mermaid re-creates any node a `style` or
+    `class` line names and rejects a `linkStyle` past the last edge:
+    - `style`/`click` for a deleted node are dropped;
+    - `class` lists lose deleted ids;
+    - `linkStyle` numbers follow their edge (renumbered after deletes, dropped with the edge).
+  - loads and saves edge start heads.
+
+**Tests:** new `Mermaid/FlowchartStudioSaveTests` (5). Mermaid filter: 267/267.
+- Two of my own expectations were wrong (`linkStyle` is 0-based; a subgraph with a surviving
+  node stays). They were fixed in the tests, not the code.
+- **Lesson:** `FlowchartRoundtripTests.cs` already exists, and a new file differing only in
+  case compiled twice on Linux (CS2002) and would clash on Windows. The new file is
+  `FlowchartStudioSaveTests.cs`.
+
+**Check on the PC:** open a styled flowchart in Diagram Studio, move a node, save, and check
+the preview still renders the colours and the subgraph box.
+
+### 2026-10-08 19:00–19:35 AEST (routine run #40, cloud: state, class and ER diagrams survive a save)
+
+Cloud run (see #31). Finished what run #39 found.
+
+**Found:**
+- **State:** a Studio save emptied composite states (`state Running { … }` came back empty).
+  The parser dropped notes, and a multi-line note's body was read as **states**.
+- **Class:**
+  - The Studio box showed only attributes (always as `+name: type`), so methods and visibility
+    were lost on save.
+  - Notes were dropped.
+  - The generator's whole-line `.Trim()` stripped the indent off every member.
+- **ER:** the right-hand "many" ends were written `o}` / `|}`. Mermaid writes them `o{` / `|{`,
+  so `||--o{` came back as a different relationship.
+
+**What shipped:**
+- `StateDiagramAst.Notes`: single-line and multi-line notes, kept verbatim. The Studio keeps
+  them while their state exists (searched through composites too). The Studio also keeps a
+  composite's sub-states and transitions.
+- `ClassDiagramAst.NoteLines`: a `note for X` goes with X, and a free-standing note stays.
+- Public `MermaidCodeGenerator.FormatClassMember` / `ClassDiagramParser.ParseClassMember`:
+  - the Studio box shows the class exactly as Mermaid writes it (name, annotation, attributes,
+    methods);
+  - saving reads it back with the real parser;
+  - the Studio's own looser member parser is deleted.
+- The ER generator writes `o{` / `|{` on the right.
+
+**Tests:** new `Mermaid/StudioSaveKeepsDiagramTests` (10). Full suite on Linux: 3874 passed.
+The same 25 fail as before this session's work.
+
+**Not done:** composite sub-states are kept, but they're still not drawn on the canvas (the
+composite is one box), and neither are notes. That's the next Diagram Studio drawing item.
+
+**Check on the PC:** load a state diagram with a composite and a note, move a state, save, and
+check the preview still nests and shows the note. Then do the same for a class with methods.
