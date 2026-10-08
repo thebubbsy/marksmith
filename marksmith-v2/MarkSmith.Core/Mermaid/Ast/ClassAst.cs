@@ -46,4 +46,6 @@ public sealed class ClassDiagramAst : MermaidDiagramAst
     public override MermaidDiagramType DiagramType => MermaidDiagramType.Class;
     public Dictionary<string, ClassNode> Classes { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<ClassRelationship> Relationships { get; } = new();
+    /// <summary>Notes (<c>note for X "…"</c>, <c>note "…"</c>), kept verbatim.</summary>
+    public List<string> NoteLines { get; } = new();
 }

@@ -3335,3 +3335,39 @@ the Studio (load, then save).
 
 **Check on the PC:** open a styled flowchart in Diagram Studio, move a node, save, and check
 the preview still renders the colours and the subgraph box.
+
+### 2026-10-08 19:00–19:35 AEST (routine run #40, cloud: state, class and ER diagrams survive a save)
+
+Cloud run (see #31). Finished what run #39 found.
+
+**Found:**
+- **State:** a Studio save emptied composite states (`state Running { … }` came back empty).
+  The parser dropped notes, and a multi-line note's body was read as **states**.
+- **Class:**
+  - The Studio box showed only attributes (always as `+name: type`), so methods and visibility
+    were lost on save.
+  - Notes were dropped.
+  - The generator's whole-line `.Trim()` stripped the indent off every member.
+- **ER:** the right-hand "many" ends were written `o}` / `|}`. Mermaid writes them `o{` / `|{`,
+  so `||--o{` came back as a different relationship.
+
+**What shipped:**
+- `StateDiagramAst.Notes`: single-line and multi-line notes, kept verbatim. The Studio keeps
+  them while their state exists (searched through composites too). The Studio also keeps a
+  composite's sub-states and transitions.
+- `ClassDiagramAst.NoteLines`: a `note for X` goes with X, and a free-standing note stays.
+- Public `MermaidCodeGenerator.FormatClassMember` / `ClassDiagramParser.ParseClassMember`:
+  - the Studio box shows the class exactly as Mermaid writes it (name, annotation, attributes,
+    methods);
+  - saving reads it back with the real parser;
+  - the Studio's own looser member parser is deleted.
+- The ER generator writes `o{` / `|{` on the right.
+
+**Tests:** new `Mermaid/StudioSaveKeepsDiagramTests` (10). Full suite on Linux: 3874 passed.
+The same 25 fail as before this session's work.
+
+**Not done:** composite sub-states are kept, but they're still not drawn on the canvas (the
+composite is one box), and neither are notes. That's the next Diagram Studio drawing item.
+
+**Check on the PC:** load a state diagram with a composite and a note, move a state, save, and
+check the preview still nests and shows the note. Then do the same for a class with methods.

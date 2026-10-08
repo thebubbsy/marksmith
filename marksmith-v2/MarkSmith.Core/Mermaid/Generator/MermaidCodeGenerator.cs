@@ -360,23 +360,12 @@ public static class MermaidCodeGenerator
                 sb.AppendLine($"{indent}{indent}{cls.Annotation}");
             }
 
+            // (A whole-line Trim() here used to strip the indent off every member.)
             foreach (var attr in cls.Attributes)
-            {
-                string vis = FormatVisibility(attr.Visibility);
-                string staticFlag = attr.IsStatic ? "$" : string.Empty;
-                string abstractFlag = attr.IsAbstract ? "*" : string.Empty;
-                sb.AppendLine($"{indent}{indent}{vis}{attr.Type} {attr.Name}{staticFlag}{abstractFlag}".Trim());
-            }
+                sb.AppendLine($"{indent}{indent}{FormatClassMember(attr)}");
 
             foreach (var m in cls.Methods)
-            {
-                string vis = FormatVisibility(m.Visibility);
-                string paramsStr = string.Join(", ", m.Parameters);
-                string returnStr = !string.IsNullOrEmpty(m.Type) ? $" {m.Type}" : string.Empty;
-                string staticFlag = m.IsStatic ? "$" : string.Empty;
-                string abstractFlag = m.IsAbstract ? "*" : string.Empty;
-                sb.AppendLine($"{indent}{indent}{vis}{m.Name}({paramsStr}){returnStr}{staticFlag}{abstractFlag}".Trim());
-            }
+                sb.AppendLine($"{indent}{indent}{FormatClassMember(m)}");
 
             sb.AppendLine($"{indent}}}");
         }
@@ -399,6 +388,9 @@ public static class MermaidCodeGenerator
 
             sb.AppendLine($"{indent}{rel.FromClass} {fromCard}{op}{toCard} {rel.ToClass}{label}");
         }
+
+        foreach (var note in ast.NoteLines)
+            sb.AppendLine($"{indent}{note.Trim()}");
     }
 
     private static string FormatVisibility(ClassVisibility vis) => vis switch
@@ -409,6 +401,20 @@ public static class MermaidCodeGenerator
         ClassVisibility.Internal => "~",
         _ => string.Empty
     };
+
+    /// <summary>One class member as Mermaid writes it inside a class body: <c>+String name</c>,
+    /// <c>-save(int id) bool$</c>. Diagram Studio shows members in its boxes the same way.</summary>
+    public static string FormatClassMember(ClassMember m)
+    {
+        string vis = FormatVisibility(m.Visibility);
+        string flags = (m.IsStatic ? "$" : string.Empty) + (m.IsAbstract ? "*" : string.Empty);
+        if (m.IsMethod)
+        {
+            string returnStr = !string.IsNullOrEmpty(m.Type) ? $" {m.Type}" : string.Empty;
+            return $"{vis}{m.Name}({string.Join(", ", m.Parameters)}){returnStr}{flags}".Trim();
+        }
+        return $"{vis}{m.Type} {m.Name}{flags}".Replace(vis + " ", vis).Trim();
+    }
 
     private static void GenerateState(StateDiagramAst ast, StringBuilder sb, string indent)
     {
@@ -424,6 +430,16 @@ public static class MermaidCodeGenerator
         {
             string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {OneLine(trans.EventLabel)}" : string.Empty;
             sb.AppendLine($"{indent}{trans.FromId} --> {trans.ToId}{evt}");
+        }
+
+        foreach (var note in ast.Notes)
+        {
+            var noteLines = note.Split('\n');
+            for (int i = 0; i < noteLines.Length; i++)
+            {
+                bool body = noteLines.Length > 1 && i > 0 && i < noteLines.Length - 1;
+                sb.AppendLine($"{indent}{(body ? indent : string.Empty)}{noteLines[i].Trim()}");
+            }
         }
     }
 
@@ -531,8 +547,10 @@ public static class MermaidCodeGenerator
         {
             ErCardinality.ExactlyOne => "||",
             ErCardinality.ZeroOrOne => isLeft ? "|o" : "o|",
-            ErCardinality.ZeroOrMore => isLeft ? "}o" : "o}",
-            ErCardinality.OneOrMore => isLeft ? "}|" : "|}",
+            // Mermaid's right-hand "many" ends open with "{": o{ and |{ ("o}" / "|}" there is
+            // not Mermaid, and was read back as a different relationship).
+            ErCardinality.ZeroOrMore => isLeft ? "}o" : "o{",
+            ErCardinality.OneOrMore => isLeft ? "}|" : "|{",
             _ => "||"
         };
     }

@@ -40,6 +40,12 @@ public static class ClassDiagramParser
                 continue;
             }
 
+            if (currentClass is null && (lower.StartsWith("note ") || lower.StartsWith("note\"")))
+            {
+                ast.NoteLines.Add(line);
+                continue;
+            }
+
             if (line.StartsWith("class", StringComparison.OrdinalIgnoreCase) && line.EndsWith("{") && !line.Contains("-->") && !line.Contains("<|--"))
             {
                 string className = line.Substring(5, line.Length - 6).Trim();
@@ -175,7 +181,9 @@ public static class ClassDiagramParser
         return node;
     }
 
-    private static void ParseClassMember(string memberLine, ClassNode classNode)
+    /// <summary>Reads one member line (<c>+String name</c>, <c>-save(int id) bool$</c>) into the
+    /// class's attributes or methods. Diagram Studio reads its box text back with this too.</summary>
+    public static void ParseClassMember(string memberLine, ClassNode classNode)
     {
         memberLine = memberLine.Trim();
         if (string.IsNullOrEmpty(memberLine)) return;

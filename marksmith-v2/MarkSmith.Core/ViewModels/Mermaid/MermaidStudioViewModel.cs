@@ -518,9 +518,13 @@ public partial class MermaidStudioViewModel : ObservableObject
                 foreach (var kvp in cls.Classes)
                 {
                     var c = kvp.Value;
-                    string label = c.Name;
-                    if (c.Attributes.Count > 0)
-                        label += "\n" + string.Join("\n", c.Attributes.Select(a => $"+{a.Name}: {a.Type}"));
+                    // The box shows the class as Mermaid writes it: name, annotation, then every
+                    // attribute and method in Mermaid's own member syntax, so saving reads it back
+                    // with the real parser (methods and visibility used to be lost here).
+                    var lines = new List<string> { c.Name };
+                    if (!string.IsNullOrEmpty(c.Annotation)) lines.Add(c.Annotation);
+                    lines.AddRange(c.Attributes.Concat(c.Methods).Select(MermaidCodeGenerator.FormatClassMember));
+                    string label = string.Join("\n", lines);
                     Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = c.Name,
@@ -1959,7 +1963,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                                 classNode.Annotation = line;
                                 continue;
                             }
-                            ParseClassMember(line, classNode);
+                            ClassDiagramParser.ParseClassMember(line, classNode);
                         }
                     }
                     else if (existingCls != null && existingCls.Classes.TryGetValue(n.Id, out var exClass))
@@ -1974,7 +1978,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                         var line = n.LabelText.Trim();
                         if (line.Contains("+") || line.Contains("-") || line.Contains("#") || line.Contains("~"))
                         {
-                            ParseClassMember(line, classNode);
+                            ClassDiagramParser.ParseClassMember(line, classNode);
                         }
                     }
                     cls.Classes[n.Id] = classNode;
@@ -1994,6 +1998,13 @@ public partial class MermaidStudioViewModel : ObservableObject
                         RelationshipType = relType
                     });
                 }
+                // Notes go with their class ("note for X"); a free-standing note always stays.
+                if (existingCls is not null)
+                    foreach (var note in existingCls.NoteLines)
+                    {
+                        var target = System.Text.RegularExpressions.Regex.Match(note, @"^note\s+for\s+(\S+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        if (!target.Success || cls.Classes.ContainsKey(target.Groups[1].Value)) cls.NoteLines.Add(note);
+                    }
                 return cls;
 
             case MermaidDiagramType.State:
@@ -2035,7 +2046,16 @@ public partial class MermaidStudioViewModel : ObservableObject
                     string cleanLabel = n.LabelText.Replace("<<choice>>", "").Replace("<<fork>>", "").Replace("<<join>>", "").Trim();
                     if (string.IsNullOrEmpty(cleanLabel)) cleanLabel = n.Id;
 
-                    state.States[n.Id] = new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
+                    var stateNode = new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
+                    // A composite state is one box on the canvas; what's inside it isn't drawn yet,
+                    // but it is kept (it used to be emptied by every save).
+                    if (type == StateNodeType.Composite && CurrentAst is StateDiagramAst loadedState
+                        && loadedState.States.TryGetValue(n.Id, out var loadedComposite))
+                    {
+                        stateNode.SubStates.AddRange(loadedComposite.SubStates);
+                        stateNode.SubTransitions.AddRange(loadedComposite.SubTransitions);
+                    }
+                    state.States[n.Id] = stateNode;
                 }
                 foreach (var c in Connectors)
                 {
@@ -2048,7 +2068,15 @@ public partial class MermaidStudioViewModel : ObservableObject
                 }
                 if (pseudoIds.Count > 0 && !state.States.ContainsKey(StatePseudoId))
                     state.States[StatePseudoId] = new StateNode { Id = StatePseudoId, Label = StatePseudoId, Type = StateNodeType.Start };
+                // Notes go with the state they're attached to, wherever it sits.
+                if (CurrentAst is StateDiagramAst loadedNotes)
+                    foreach (var note in loadedNotes.Notes)
+                        if (StateDiagramAst.NoteTarget(note) is not { } target || HasState(state.States.Values, target))
+                            state.Notes.Add(note);
                 return state;
+
+                static bool HasState(IEnumerable<StateNode> nodes, string id) =>
+                    nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase) || HasState(n.SubStates, id));
 
             case MermaidDiagramType.Gantt:
                 var gantt = new GanttChartAst();
@@ -2266,81 +2294,6 @@ public partial class MermaidStudioViewModel : ObservableObject
                     BuildMindmapTree(childNode, nodeMap, childrenMap, visited);
                 }
             }
-        }
-    }
-
-    private static void ParseClassMember(string line, ClassNode classNode)
-    {
-        ClassVisibility vis = ClassVisibility.Public;
-        if (line.StartsWith("+")) { vis = ClassVisibility.Public; line = line[1..].Trim(); }
-        else if (line.StartsWith("-")) { vis = ClassVisibility.Private; line = line[1..].Trim(); }
-        else if (line.StartsWith("#")) { vis = ClassVisibility.Protected; line = line[1..].Trim(); }
-        else if (line.StartsWith("~")) { vis = ClassVisibility.Internal; line = line[1..].Trim(); }
-
-        if (line.Contains("("))
-        {
-            int openParen = line.IndexOf('(');
-            int closeParen = line.LastIndexOf(')');
-            string beforeParen = openParen >= 0 ? line[..openParen].Trim() : line;
-            string insideParen = (openParen >= 0 && closeParen > openParen) ? line.Substring(openParen + 1, closeParen - openParen - 1).Trim() : string.Empty;
-            string afterParen = closeParen >= 0 && closeParen < line.Length - 1 ? line[(closeParen + 1)..].Trim() : string.Empty;
-
-            string methodName = beforeParen;
-            string returnType = afterParen;
-
-            if (beforeParen.Contains(" "))
-            {
-                var parts = beforeParen.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2)
-                {
-                    returnType = parts[0];
-                    methodName = parts[1];
-                }
-            }
-
-            var method = new ClassMember
-            {
-                Name = methodName,
-                Type = returnType,
-                Visibility = vis,
-                IsMethod = true
-            };
-
-            if (!string.IsNullOrEmpty(insideParen))
-            {
-                var paramList = insideParen.Split(',');
-                foreach (var p in paramList) method.Parameters.Add(p.Trim());
-            }
-
-            classNode.Methods.Add(method);
-        }
-        else
-        {
-            string type = "String";
-            string name = line;
-            if (line.Contains(":"))
-            {
-                var parts = line.Split(':');
-                name = parts[0].Trim();
-                type = parts[1].Trim();
-            }
-            else if (line.Contains(" "))
-            {
-                var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2)
-                {
-                    type = parts[0].Trim();
-                    name = parts[1].Trim();
-                }
-            }
-
-            classNode.Attributes.Add(new ClassMember
-            {
-                Name = name,
-                Type = type,
-                Visibility = vis,
-                IsMethod = false
-            });
         }
     }
 
