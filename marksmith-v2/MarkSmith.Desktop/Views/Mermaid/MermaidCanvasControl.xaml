@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:conv="using:MarkSmith.Converters"
     xmlns:vm="using:MarkSmith.ViewModels.Mermaid"
+    xmlns:routing="using:MarkSmith.Core.Mermaid.Routing"
     xmlns:local="using:MarkSmith.Views.Mermaid"
     mc:Ignorable="d">
 
@@ -39,6 +40,66 @@
                 <!-- Layer 1: Background Grid Pattern -->
                 <Canvas x:Name="GridPatternCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
+                <!-- Layer 1a: sequence block frames (loop/alt/opt/par/critical/break) and rect
+                     bands, outermost first. Laid out by Core SequenceLayout; under everything so
+                     the messages they enclose stay on top. -->
+                <ItemsControl x:Name="SequenceFramesItemsControl" ItemsSource="{Binding SequenceFrames}" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="routing:SequenceFrame">
+                            <Canvas>
+                                <!-- rect: a tinted band, no outline or label -->
+                                <Rectangle Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                           Width="{Binding Width}" Height="{Binding Height}"
+                                           Fill="#1A89B4FA" RadiusX="4" RadiusY="4"
+                                           Visibility="{Binding IsHighlight, Converter={StaticResource BoolToVisConverter}}" />
+                                <Canvas Visibility="{Binding IsHighlight, Converter={StaticResource BoolToVisConverter}, ConverterParameter=Invert}">
+                                    <Rectangle Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                               Width="{Binding Width}" Height="{Binding Height}"
+                                               Stroke="#7F8CA8" StrokeThickness="1.2" Fill="#0AFFFFFF" />
+                                    <!-- Keyword tab in the top-left corner, Mermaid style -->
+                                    <Border Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                            Background="#3A3F5C" BorderBrush="#7F8CA8" BorderThickness="0,0,1.2,1.2"
+                                            CornerRadius="0,0,6,0" Padding="8,3,10,3">
+                                        <TextBlock Text="{Binding Keyword}" FontSize="11" FontWeight="SemiBold" Foreground="#CDD6F4" />
+                                    </Border>
+                                    <Grid Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}" Width="{Binding Width}" Height="24">
+                                        <TextBlock Text="{Binding Caption}" FontSize="11" FontStyle="Italic" Foreground="#CDD6F4"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" Margin="60,0,12,0" />
+                                    </Grid>
+                                    <!-- else / and / option dividers -->
+                                    <ItemsControl ItemsSource="{Binding Dividers}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="routing:SequenceFrameDivider">
+                                                <Canvas>
+                                                    <Line X1="{Binding X}" Y1="{Binding Y}" Y2="{Binding Y}"
+                                                          X2="{Binding Right}"
+                                                          Stroke="#7F8CA8" StrokeThickness="1" StrokeDashArray="5,4" />
+                                                    <Grid Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}" Width="{Binding Width}" Height="22">
+                                                        <TextBlock Text="{Binding Caption}" FontSize="11" FontStyle="Italic" Foreground="#CDD6F4"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis" Margin="12,0" />
+                                                    </Grid>
+                                                </Canvas>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Canvas>
+                            </Canvas>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <!-- Layer 1b: sequence lifelines. Under the messages, so an arrow is never
                      crossed out by the dashed line it starts from. Only participants of a
                      sequence diagram have one (LifelineLength > 0). -->
@@ -57,6 +118,47 @@
                                   StrokeDashArray="5,4"
                                   Opacity="0.75"
                                   Visibility="{Binding HasLifeline, Converter={StaticResource BoolToVisConverter}}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Layer 1c: activation bars, over the lifeline they sit on. -->
+                <ItemsControl x:Name="SequenceActivationsItemsControl" ItemsSource="{Binding SequenceActivations}" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="routing:SequenceActivationBar">
+                            <Canvas>
+                                <Rectangle Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                           Width="{Binding Width}" Height="{Binding Height}"
+                                           Fill="#3A3F5C" Stroke="#9AA5CE" StrokeThickness="1" />
+                            </Canvas>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Layer 1d: sequence notes. -->
+                <ItemsControl x:Name="SequenceNotesItemsControl" ItemsSource="{Binding SequenceNotes}" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="routing:SequenceNoteBox">
+                            <Canvas>
+                                <Border Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                        Width="{Binding Width}" Height="{Binding Height}"
+                                        Background="#4A4530" BorderBrush="#C9B458" BorderThickness="1"
+                                        CornerRadius="3" Padding="8,4">
+                                    <TextBlock Text="{Binding DisplayText}" FontSize="11" Foreground="#F2E9B8"
+                                               TextWrapping="NoWrap" TextAlignment="Center"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Canvas>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

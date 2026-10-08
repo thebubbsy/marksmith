@@ -223,6 +223,11 @@ public partial class MermaidStudioViewModel : ObservableObject
     private bool IsSequence => SelectedDiagramType == MermaidDiagramType.Sequence;
     private bool _suspendSequenceLayout;
 
+    /// <summary>The loaded sequence diagram's body as written (messages, notes, blocks,
+    /// activations), and which statement each loaded message connector came from.</summary>
+    private List<SequenceStatement> _sequenceScript = new();
+    private readonly Dictionary<DiagramConnectorViewModel, SequenceStatement> _sequenceMessageOf = new(ReferenceEqualityComparer.Instance);
+
     public void InitializePalette()
     {
         PaletteItems.Clear();
@@ -362,6 +367,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         FlowchartDirection = FlowDirection.TD; // the sample is laid out top-down
         Nodes.Clear();
         Connectors.Clear();
+        ClearSequenceDecorations();
+        _sequenceScript = new List<SequenceStatement>();
+        _sequenceMessageOf.Clear();
 
         var nodeA = new DiagramNodeViewModel { Id = "A", LabelText = "Start Process", Shape = "RoundedRectangle", X = 200, Y = 150, Width = 150, Height = 60, HasCustomPosition = true };
         var nodeB = new DiagramNodeViewModel { Id = "B", LabelText = "Check Conditions", Shape = "Rhombus", X = 200, Y = 280, Width = 160, Height = 80, HasCustomPosition = true };
@@ -394,6 +402,9 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         Nodes.Clear();
         Connectors.Clear();
+        ClearSequenceDecorations();
+        _sequenceScript = new List<SequenceStatement>();
+        _sequenceMessageOf.Clear();
 
         switch (ast)
         {
@@ -443,9 +454,16 @@ public partial class MermaidStudioViewModel : ObservableObject
                         Category = "Sequence"
                     });
                 }
-                foreach (var msg in seq.Messages)
+                // Every message becomes a row, including the ones inside loop/alt/opt blocks (they
+                // used to be left off the canvas). The written script is kept so notes, blocks and
+                // activations go back exactly where they were (see CanvasToAst).
+                _sequenceScript = seq.Statements.Count > 0
+                    ? seq.Statements.ToList()
+                    : seq.Messages.Select(SequenceStatement.ForMessage).ToList();
+                foreach (var st in _sequenceScript)
                 {
-                    Connectors.Add(new DiagramConnectorViewModel
+                    if (st.Kind != SequenceStatementKind.Message || st.Message is not { } msg) continue;
+                    var conn = new DiagramConnectorViewModel
                     {
                         SourceNodeId = msg.FromId,
                         SourceAnchor = "Right",
@@ -453,7 +471,9 @@ public partial class MermaidStudioViewModel : ObservableObject
                         TargetAnchor = "Left",
                         Label = MermaidCodeGenerator.FromBreakTags(msg.Text),
                         LineStyle = msg.MessageType.ToString()
-                    });
+                    };
+                    _sequenceMessageOf[conn] = st;
+                    Connectors.Add(conn);
                 }
                 break;
 
@@ -878,9 +898,76 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         if (IsSequence) { LayoutSequence(); return; }
         foreach (var node in Nodes) node.LifelineLength = 0;
+        ClearSequenceDecorations();
         foreach (var conn in Connectors)
         {
             UpdateConnectorGeometry(conn);
+        }
+    }
+
+    /// <summary>
+    /// The sequence body to write back: the loaded script with every message slot refilled from
+    /// the canvas in row order (so an edited, deleted or reordered message lands where the script
+    /// had one), notes and activations whose participant was deleted left out, and messages drawn
+    /// since loading appended at the end. Blocks keep their place even if emptied.
+    /// </summary>
+    private List<SequenceStatement> BuildSequenceScript() => BuildSequenceScriptWithRows().Script;
+
+    /// <summary><see cref="BuildSequenceScript"/>, plus the connector behind each message
+    /// statement in script order (row i of the layout is drawn by connector i).</summary>
+    private (List<SequenceStatement> Script, List<DiagramConnectorViewModel> Rows) BuildSequenceScriptWithRows()
+    {
+        var rows = new List<DiagramConnectorViewModel>();
+        var ids = new HashSet<string>(Nodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+        var loaded = new Queue<DiagramConnectorViewModel>(Connectors.Where(c => _sequenceMessageOf.ContainsKey(c)));
+        var surviving = new HashSet<SequenceStatement>(loaded.Select(c => _sequenceMessageOf[c]), ReferenceEqualityComparer.Instance);
+        var script = new List<SequenceStatement>();
+
+        foreach (var st in _sequenceScript)
+        {
+            switch (st.Kind)
+            {
+                case SequenceStatementKind.Message:
+                    if (surviving.Contains(st) && loaded.Count > 0)
+                    {
+                        var c = loaded.Dequeue();
+                        script.Add(SequenceStatement.ForMessage(MessageFrom(c, _sequenceMessageOf[c].Message)));
+                        rows.Add(c);
+                    }
+                    break;
+                case SequenceStatementKind.Note:
+                    if (st.Note is { } note && note.TargetParticipantIds.All(ids.Contains)) script.Add(st);
+                    break;
+                case SequenceStatementKind.Activate:
+                case SequenceStatementKind.Deactivate:
+                    if (ids.Contains(st.ParticipantId)) script.Add(st);
+                    break;
+                default:
+                    script.Add(st);
+                    break;
+            }
+        }
+
+        foreach (var c in Connectors.Where(c => !_sequenceMessageOf.ContainsKey(c)))
+        {
+            script.Add(SequenceStatement.ForMessage(MessageFrom(c, null)));
+            rows.Add(c);
+        }
+        return (script, rows);
+
+        static SequenceMessage MessageFrom(DiagramConnectorViewModel c, SequenceMessage? original)
+        {
+            Enum.TryParse<SequenceMessageType>(c.LineStyle, true, out var msgType);
+            return new SequenceMessage
+            {
+                FromId = c.SourceNodeId,
+                ToId = c.TargetNodeId,
+                Text = c.Label ?? string.Empty,
+                MessageType = msgType,
+                // +/- activation shorthand travels with its message.
+                ActivateTarget = original?.ActivateTarget ?? false,
+                DeactivateTarget = original?.DeactivateTarget ?? false
+            };
         }
     }
 
@@ -891,16 +978,42 @@ public partial class MermaidStudioViewModel : ObservableObject
     public void LayoutSequence()
     {
         var boxes = Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.SequenceParticipantBox(n.Id, n.X, n.Y, n.Width, n.Height)).ToList();
-        var messages = Connectors.Select(c => new MarkSmith.Core.Mermaid.Routing.SequenceMessageSpec(c.SourceNodeId, c.TargetNodeId, c.Label)).ToList();
-        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, messages);
+        var (script, rowConnectors) = BuildSequenceScriptWithRows();
+        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, script);
 
-        for (int i = 0; i < Connectors.Count; i++)
+        for (int i = 0; i < rowConnectors.Count && i < drawing.Routes.Count; i++)
         {
             if (drawing.Routes[i] is { } route)
-                Connectors[i].SetRoute(route.Points, route.LabelX, route.LabelY);
+                rowConnectors[i].SetRoute(route.Points, route.LabelX, route.LabelY);
         }
         foreach (var node in Nodes)
             node.LifelineLength = drawing.LifelineLengths.TryGetValue(node.Id, out var len) ? len : 0;
+
+        Replace(SequenceFrames, drawing.Frames);
+        Replace(SequenceNotes, drawing.Notes);
+        Replace(SequenceActivations, drawing.Activations);
+
+        static void Replace<T>(ObservableCollection<T> target, IReadOnlyList<T> items)
+        {
+            if (target.SequenceEqual(items)) return; // records compare by value: nothing moved
+            target.Clear();
+            foreach (var item in items) target.Add(item);
+        }
+    }
+
+    /// <summary>Sequence block frames (loop/alt/opt/par/critical/break, and rect bands), outermost
+    /// first. Empty for other diagram types.</summary>
+    public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceFrame> SequenceFrames { get; } = new();
+    /// <summary>Sequence notes (left of / right of / over).</summary>
+    public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceNoteBox> SequenceNotes { get; } = new();
+    /// <summary>Activation bars on sequence lifelines.</summary>
+    public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceActivationBar> SequenceActivations { get; } = new();
+
+    private void ClearSequenceDecorations()
+    {
+        if (SequenceFrames.Count > 0) SequenceFrames.Clear();
+        if (SequenceNotes.Count > 0) SequenceNotes.Clear();
+        if (SequenceActivations.Count > 0) SequenceActivations.Clear();
     }
 
     /// <summary>
@@ -923,6 +1036,15 @@ public partial class MermaidStudioViewModel : ObservableObject
             // Self-call loops reach right of their lifeline, and their labels further still.
             foreach (var c in Connectors.Where(c => c.SourceNodeId.Equals(c.TargetNodeId, StringComparison.OrdinalIgnoreCase)))
                 maxX = Math.Max(maxX, c.MidpointX + MarkSmith.Core.Mermaid.Routing.SequenceLayout.LabelWidth(c.Label) / 2);
+            // Notes and block frames can sit outside the outermost lifelines.
+            foreach (var r in SequenceFrames.Select(f => (f.X, f.Y, f.Width, f.Height))
+                         .Concat(SequenceNotes.Select(n => (n.X, n.Y, n.Width, n.Height))))
+            {
+                minX = Math.Min(minX, r.X);
+                minY = Math.Min(minY, r.Y);
+                maxX = Math.Max(maxX, r.X + r.Width);
+                maxY = Math.Max(maxY, r.Y + r.Height);
+            }
         }
         return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
@@ -1666,23 +1788,9 @@ public partial class MermaidStudioViewModel : ObservableObject
                         Type = string.Equals(n.Shape, "Actor", StringComparison.OrdinalIgnoreCase) ? SequenceParticipantType.Actor : SequenceParticipantType.Participant
                     });
                 }
-                foreach (var c in Connectors)
-                {
-                    Enum.TryParse<SequenceMessageType>(c.LineStyle, true, out var msgType);
-                    seq.Messages.Add(new SequenceMessage
-                    {
-                        FromId = c.SourceNodeId,
-                        ToId = c.TargetNodeId,
-                        Text = c.Label ?? string.Empty,
-                        MessageType = msgType
-                    });
-                }
-                if (existingSeq != null)
-                {
-                    foreach (var block in existingSeq.Blocks) seq.Blocks.Add(block);
-                    foreach (var note in existingSeq.Notes) seq.Notes.Add(note);
-                    seq.AutoNumber = existingSeq.AutoNumber;
-                }
+                seq.Statements.AddRange(BuildSequenceScript());
+                seq.RebuildIndexes();
+                if (existingSeq != null) seq.AutoNumber = existingSeq.AutoNumber;
                 return seq;
 
             case MermaidDiagramType.Class:

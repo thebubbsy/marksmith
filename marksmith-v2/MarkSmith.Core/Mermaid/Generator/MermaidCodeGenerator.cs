@@ -211,6 +211,12 @@ public static class MermaidCodeGenerator
             }
         }
 
+        if (ast.Statements.Count > 0)
+        {
+            GenerateSequenceStatements(ast.Statements, sb, indent);
+            return;
+        }
+
         foreach (var note in ast.Notes)
         {
             string targets = string.Join(",", note.TargetParticipantIds);
@@ -245,6 +251,58 @@ public static class MermaidCodeGenerator
         {
             sb.AppendLine($"{indent}{FormatSequenceMessage(msg)}");
         }
+    }
+
+    /// <summary>Writes the body in its original order, indenting inside blocks. Dividers sit at
+    /// their block's own depth, as Mermaid's docs write them.</summary>
+    private static void GenerateSequenceStatements(IReadOnlyList<SequenceStatement> statements, StringBuilder sb, string indent)
+    {
+        int depth = 1;
+        string Pad(int d) => string.Concat(Enumerable.Repeat(indent, Math.Max(1, d)));
+        foreach (var st in statements)
+        {
+            switch (st.Kind)
+            {
+                case SequenceStatementKind.Message when st.Message is not null:
+                    sb.AppendLine($"{Pad(depth)}{FormatSequenceMessage(st.Message)}");
+                    break;
+                case SequenceStatementKind.Note when st.Note is not null:
+                    sb.AppendLine($"{Pad(depth)}{FormatSequenceNote(st.Note)}");
+                    break;
+                case SequenceStatementKind.Activate:
+                    sb.AppendLine($"{Pad(depth)}activate {st.ParticipantId}");
+                    break;
+                case SequenceStatementKind.Deactivate:
+                    sb.AppendLine($"{Pad(depth)}deactivate {st.ParticipantId}");
+                    break;
+                case SequenceStatementKind.BlockStart:
+                    string keyword = string.IsNullOrEmpty(st.Keyword) ? st.BlockType.ToString().ToLowerInvariant() : st.Keyword;
+                    sb.AppendLine($"{Pad(depth)}{keyword} {OneLine(st.Text)}".TrimEnd());
+                    depth++;
+                    break;
+                case SequenceStatementKind.BlockDivider:
+                    sb.AppendLine($"{Pad(depth - 1)}{(string.IsNullOrEmpty(st.Keyword) ? "else" : st.Keyword)} {OneLine(st.Text)}".TrimEnd());
+                    break;
+                case SequenceStatementKind.BlockEnd:
+                    if (depth > 1) depth--;
+                    sb.AppendLine($"{Pad(depth)}end");
+                    break;
+                case SequenceStatementKind.Raw when !string.IsNullOrWhiteSpace(st.Text):
+                    sb.AppendLine($"{Pad(depth)}{st.Text.Trim()}");
+                    break;
+            }
+        }
+    }
+
+    private static string FormatSequenceNote(SequenceNote note)
+    {
+        string placement = note.Placement switch
+        {
+            NotePlacement.LeftOf => "left of",
+            NotePlacement.RightOf => "right of",
+            _ => "over"
+        };
+        return $"Note {placement} {string.Join(",", note.TargetParticipantIds)}: {ToBreakTags(note.Text)}";
     }
 
     private static string FormatSequenceMessage(SequenceMessage msg)
