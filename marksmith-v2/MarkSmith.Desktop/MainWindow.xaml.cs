@@ -4730,20 +4730,31 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Line operations (Alt+Up/Down to move, Ctrl+D to duplicate) ----
 
+    // These accelerators sit on the window's root, so they fire wherever focus is. They edit the
+    // document's lines, so they act only while the editor itself has focus: Ctrl+D in the find
+    // box or a Settings field used to duplicate an editor line unseen, and Alt+Down in a combo
+    // box is how it opens. Anywhere else the key is left to the focused control.
+    private bool EditorHasFocus() =>
+        Content?.XamlRoot is { } root
+        && ReferenceEquals(Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root), PasteTextBox);
+
     private void OnMoveLineUpAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (!EditorHasFocus()) return;
         MoveSelectedLines(-1);
         args.Handled = true;
     }
 
     private void OnMoveLineDownAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (!EditorHasFocus()) return;
         MoveSelectedLines(1);
         args.Handled = true;
     }
 
     private void OnDuplicateLineAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
+        if (!EditorHasFocus()) return;
         DuplicateCurrentLines();
         args.Handled = true;
     }
