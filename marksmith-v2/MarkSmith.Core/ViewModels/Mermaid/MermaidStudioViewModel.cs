@@ -243,6 +243,13 @@ public partial class MermaidStudioViewModel : ObservableObject
     private bool _sequenceAutoNumber;
     private List<SequenceBox> _sequenceBoxes = new();
     private List<FlowSubgraph> _flowSubgraphs = new();
+    /// <summary>The loaded diagram's notes, drawn beside the state or class they're for (state:
+    /// <c>note right of X</c>; class: <c>note for X</c>). Kept on save by CanvasToAst.</summary>
+    private List<string> _stateNotes = new();
+    private List<string> _classNotes = new();
+    /// <summary>Where each group's header (a composite state's own box) was when the frames were
+    /// last fitted, so dragging a composite carries what's inside it.</summary>
+    private readonly Dictionary<string, (double X, double Y)> _groupHeaderAt = new(StringComparer.OrdinalIgnoreCase);
     private List<string> _flowStyleLines = new();
     /// <summary>The loaded flowchart's edges in source order: linkStyle's numbers point at them.</summary>
     private List<DiagramConnectorViewModel> _flowEdgesAtLoad = new();
@@ -393,6 +400,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceAutoNumber = false;
         _sequenceBoxes = new List<SequenceBox>();
         _flowSubgraphs = new List<FlowSubgraph>();
+        _stateNotes = new List<string>();
+        _classNotes = new List<string>();
+        _groupHeaderAt.Clear();
         _flowStyleLines = new List<string>();
         _flowEdgesAtLoad = new List<DiagramConnectorViewModel>();
 
@@ -433,6 +443,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceAutoNumber = false;
         _sequenceBoxes = new List<SequenceBox>();
         _flowSubgraphs = new List<FlowSubgraph>();
+        _stateNotes = new List<string>();
+        _classNotes = new List<string>();
+        _groupHeaderAt.Clear();
         _flowStyleLines = new List<string>();
         _flowEdgesAtLoad = new List<DiagramConnectorViewModel>();
 
@@ -476,6 +489,15 @@ public partial class MermaidStudioViewModel : ObservableObject
                     });
                 }
                 _flowEdgesAtLoad = Connectors.ToList();
+                // Each node goes in the innermost subgraph that lists it, so its frame encloses it.
+                void Tag(FlowSubgraph sg)
+                {
+                    foreach (var id in sg.NodeIds)
+                        if (Nodes.FirstOrDefault(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) is { } member)
+                            member.ParentId = sg.Id;
+                    foreach (var nested in sg.NestedSubgraphs) Tag(nested);
+                }
+                foreach (var sg in _flowSubgraphs) Tag(sg);
                 break;
 
             case SequenceDiagramAst seq:
@@ -515,6 +537,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 break;
 
             case ClassDiagramAst cls:
+                _classNotes = cls.NoteLines.ToList();
                 foreach (var kvp in cls.Classes)
                 {
                     var c = kvp.Value;
@@ -548,39 +571,10 @@ public partial class MermaidStudioViewModel : ObservableObject
                 break;
 
             case StateDiagramAst st:
-                // Mermaid writes both the start and the end point as [*], but draws two: a dot that
-                // transitions leave and a bullseye they arrive at. One shared node used to pull
-                // the first and last states together and tangle every diagram.
-                bool hasStart = st.Transitions.Any(t => t.FromId == StatePseudoId);
-                bool hasEnd = st.Transitions.Any(t => t.ToId == StatePseudoId);
-                foreach (var kvp in st.States)
-                {
-                    var s = kvp.Value;
-                    if (s.Id == StatePseudoId)
-                    {
-                        if (hasStart || !hasEnd) Nodes.Add(PseudoStateNode(StatePseudoId, "Start"));
-                        if (hasEnd) Nodes.Add(PseudoStateNode(StateEndNodeId, "End"));
-                        continue;
-                    }
-                    Nodes.Add(new DiagramNodeViewModel
-                    {
-                        Id = s.Id,
-                        LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : MermaidCodeGenerator.FromBreakTags(s.Label),
-                        Shape = s.Type.ToString(),
-                        Category = "State"
-                    });
-                }
-                foreach (var tr in st.Transitions)
-                {
-                    Connectors.Add(new DiagramConnectorViewModel
-                    {
-                        SourceNodeId = tr.FromId,
-                        SourceAnchor = "Right",
-                        TargetNodeId = tr.ToId == StatePseudoId ? StateEndNodeId : tr.ToId,
-                        TargetAnchor = "Left",
-                        Label = tr.EventLabel
-                    });
-                }
+                // A composite's states and transitions go on the canvas too, inside the
+                // composite's frame (each tagged with it), so they can be seen and edited.
+                AddStates(st.States.Values, st.Transitions, null);
+                _stateNotes = st.Notes.ToList();
                 break;
 
             case GanttChartAst gantt:
@@ -657,6 +651,58 @@ public partial class MermaidStudioViewModel : ObservableObject
         ApplyAutoLayout();
     }
 
+    // One level of a state diagram: the top level (parent null) or a composite's inside.
+    // Mermaid writes both the start and the end point as [*], but draws two: a dot that
+    // transitions leave and a bullseye they arrive at. One shared node used to pull the first and
+    // last states together and tangle every diagram. Inside a composite they're that composite's
+    // own start and end ("Running/[*]"), written back as [*] inside it.
+    private void AddStates(IEnumerable<StateNode> states, IEnumerable<StateTransition> transitions, string? parent)
+    {
+        var trs = transitions.ToList();
+        string start = PseudoIdIn(parent, StatePseudoId), end = PseudoIdIn(parent, StateEndNodeId);
+        bool hasStart = trs.Any(t => t.FromId == StatePseudoId);
+        bool hasEnd = trs.Any(t => t.ToId == StatePseudoId);
+        bool pseudoAdded = false;
+        void AddPseudo()
+        {
+            if (pseudoAdded) return;
+            pseudoAdded = true;
+            if (hasStart || !hasEnd) Nodes.Add(PseudoStateNode(start, "Start", parent));
+            if (hasEnd) Nodes.Add(PseudoStateNode(end, "End", parent));
+        }
+        foreach (var s in states)
+        {
+            if (s.Id == StatePseudoId) { AddPseudo(); continue; }
+            Nodes.Add(new DiagramNodeViewModel
+            {
+                Id = s.Id,
+                LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : MermaidCodeGenerator.FromBreakTags(s.Label),
+                Shape = s.Type.ToString(),
+                Category = "State",
+                ParentId = parent,
+            });
+            if (s.SubStates.Count > 0 || s.SubTransitions.Count > 0)
+                AddStates(s.SubStates, s.SubTransitions, s.Id);
+        }
+        // A level's [*] may only appear in its transitions.
+        if (!pseudoAdded && (hasStart || hasEnd)) AddPseudo();
+        foreach (var tr in trs)
+        {
+            Connectors.Add(new DiagramConnectorViewModel
+            {
+                SourceNodeId = tr.FromId == StatePseudoId ? start : tr.FromId,
+                SourceAnchor = "Right",
+                TargetNodeId = tr.ToId == StatePseudoId ? end : tr.ToId,
+                TargetAnchor = "Left",
+                Label = tr.EventLabel
+            });
+        }
+    }
+
+    /// <summary>The canvas id of a start or end point inside composite <paramref name="parent"/>
+    /// (the top level's are plain [*] and [*]end).</summary>
+    public static string PseudoIdIn(string? parent, string id) => parent is null ? id : parent + "/" + id;
+
     /// <summary>Mermaid's id for a state diagram's start and end points.</summary>
     public const string StatePseudoId = "[*]";
 
@@ -664,7 +710,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     public const string StateEndNodeId = "[*]end";
 
     // [*] is a UML start dot / end bullseye, not a box with "[*]" written in it.
-    private static DiagramNodeViewModel PseudoStateNode(string id, string shape) => new()
+    private static DiagramNodeViewModel PseudoStateNode(string id, string shape, string? parent = null) => new()
     {
         Id = id,
         LabelText = shape == "Start" ? "Start" : "End",
@@ -672,6 +718,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         Category = "State",
         Width = 28,
         Height = 28,
+        ParentId = parent,
     };
 
     private void TraverseMindmap(MindmapNode node, string? parentId)
@@ -699,6 +746,110 @@ public partial class MermaidStudioViewModel : ObservableObject
         {
             TraverseMindmap(child, node.Id);
         }
+    }
+
+    /// <summary>
+    /// The canvas as a state diagram. Nodes inside a composite (<see cref="DiagramNodeViewModel.ParentId"/>)
+    /// become its sub-states, and transitions between two of them its sub-transitions; a
+    /// composite's own start and end points are written as [*] inside it.
+    /// </summary>
+    private StateDiagramAst CanvasToStateAst()
+    {
+        var state = new StateDiagramAst();
+        var byId = Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        // A node whose composite was deleted moves up to the level that still exists.
+        string? ParentOf(DiagramNodeViewModel n)
+        {
+            var p = n.ParentId;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (p is not null && (!byId.TryGetValue(p, out var pn) || pn.IsPseudoState) && seen.Add(p))
+                p = byId.TryGetValue(p, out var gone) ? gone.ParentId : null;
+            return p is not null && byId.ContainsKey(p) ? p : null;
+        }
+        var parentOf = Nodes.ToDictionary(n => n, ParentOf);
+        var hasChildren = new HashSet<string>(parentOf.Values.Where(p => p is not null)!, StringComparer.OrdinalIgnoreCase);
+
+        StateNode? Loaded(string id) => CurrentAst is StateDiagramAst loaded ? Find(loaded.States.Values, id) : null;
+        static StateNode? Find(IEnumerable<StateNode> nodes, string id)
+        {
+            foreach (var n in nodes)
+            {
+                if (n.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) return n;
+                if (Find(n.SubStates, id) is { } inner) return inner;
+            }
+            return null;
+        }
+
+        var made = new Dictionary<string, StateNode>(StringComparer.OrdinalIgnoreCase);
+        StateNode Make(DiagramNodeViewModel n)
+        {
+            StateNodeType type = StateNodeType.Normal;
+            if (string.Equals(n.Shape, "ChoiceState", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(n.Shape, "Choice", StringComparison.OrdinalIgnoreCase) ||
+                n.LabelText.Contains("<<choice>>", StringComparison.OrdinalIgnoreCase))
+                type = StateNodeType.Choice;
+            else if (string.Equals(n.Shape, "Fork", StringComparison.OrdinalIgnoreCase) || n.LabelText.Contains("<<fork>>", StringComparison.OrdinalIgnoreCase))
+                type = StateNodeType.Fork;
+            else if (string.Equals(n.Shape, "Join", StringComparison.OrdinalIgnoreCase) || n.LabelText.Contains("<<join>>", StringComparison.OrdinalIgnoreCase))
+                type = StateNodeType.Join;
+            else if (hasChildren.Contains(n.Id))
+                type = StateNodeType.Composite;
+            else if (Loaded(n.Id) is { } ex)
+                type = ex.Type;
+
+            string cleanLabel = n.LabelText.Replace("<<choice>>", "").Replace("<<fork>>", "").Replace("<<join>>", "").Trim();
+            if (string.IsNullOrEmpty(cleanLabel)) cleanLabel = n.Id;
+            var node = new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
+            // A composite loaded with states the canvas doesn't hold (an older save) keeps them.
+            if (type == StateNodeType.Composite && !hasChildren.Contains(n.Id) && Loaded(n.Id) is { } loadedComposite)
+            {
+                node.SubStates.AddRange(loadedComposite.SubStates);
+                node.SubTransitions.AddRange(loadedComposite.SubTransitions);
+            }
+            return node;
+        }
+
+        foreach (var n in Nodes.Where(n => !n.IsPseudoState)) made[n.Id] = Make(n);
+        foreach (var n in Nodes.Where(n => !n.IsPseudoState))
+        {
+            var p = parentOf[n];
+            if (p is null) state.States[n.Id] = made[n.Id];
+            else made[p].SubStates.Add(made[n.Id]);
+        }
+
+        // Start and end points (however many each level has) are all [*] in Mermaid.
+        string? LevelOf(string id) => byId.TryGetValue(id, out var n) ? parentOf[n] : null;
+        string MermaidId(string id) => byId.TryGetValue(id, out var n) && n.IsPseudoState ? StatePseudoId : id;
+        bool topPseudo = false;
+        foreach (var c in Connectors)
+        {
+            var from = LevelOf(c.SourceNodeId);
+            var to = LevelOf(c.TargetNodeId);
+            var tr = new StateTransition { FromId = MermaidId(c.SourceNodeId), ToId = MermaidId(c.TargetNodeId), EventLabel = c.Label };
+            // Both ends inside the same composite: it's that composite's transition.
+            if (from is not null && string.Equals(from, to, StringComparison.OrdinalIgnoreCase) && made.TryGetValue(from, out var comp))
+            {
+                comp.SubTransitions.Add(tr);
+                if ((tr.FromId == StatePseudoId || tr.ToId == StatePseudoId) && !comp.SubStates.Any(x => x.Id == StatePseudoId))
+                    comp.SubStates.Insert(0, new StateNode { Id = StatePseudoId, Label = StatePseudoId, Type = StateNodeType.Start });
+            }
+            else
+            {
+                state.Transitions.Add(tr);
+                if (tr.FromId == StatePseudoId || tr.ToId == StatePseudoId) topPseudo = true;
+            }
+        }
+        if ((topPseudo || Nodes.Any(n => n.IsPseudoState && parentOf[n] is null)) && !state.States.ContainsKey(StatePseudoId))
+            state.States[StatePseudoId] = new StateNode { Id = StatePseudoId, Label = StatePseudoId, Type = StateNodeType.Start };
+
+        // Notes go with the state they're attached to, wherever it sits.
+        foreach (var note in _stateNotes)
+            if (StateDiagramAst.NoteTarget(note) is not { } target || HasState(state.States.Values, target))
+                state.Notes.Add(note);
+        return state;
+
+        static bool HasState(IEnumerable<StateNode> nodes, string id) =>
+            nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase) || HasState(n.SubStates, id));
     }
 
     public void ApplyAutoLayout(bool force = false)
@@ -879,6 +1030,24 @@ public partial class MermaidStudioViewModel : ObservableObject
             double PrimarySize(DiagramNodeViewModel n) => vertical ? n.Height : n.Width;
             double CrossSize(DiagramNodeViewModel n) => vertical ? n.Width : n.Height;
 
+            // Subgraphs and composite states: each group is laid out as one block, so its
+            // members stay together inside their frame.
+            var groups = CanvasGroups();
+            if (groups.Count > 0)
+            {
+                var grouped = MarkSmith.Core.Mermaid.Routing.GroupedLayout.Compute(
+                    Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.GroupedLayoutNode(n.Id, n.Width, n.Height, n.ParentId)).ToList(),
+                    groups,
+                    Connectors.Select(c => (c.SourceNodeId, c.TargetNodeId)).ToList(),
+                    new MarkSmith.Core.Mermaid.Routing.GroupedLayout.Options(vertical, reversePrimary, primaryGap, crossGap, primaryOrigin, crossCenter));
+                foreach (var node in Nodes)
+                    if (!node.HasCustomPosition && grouped.Positions.TryGetValue(node.Id, out var at))
+                        (node.X, node.Y) = at;
+                _groupHeaderAt.Clear();
+                UpdateAllConnectors();
+                return;
+            }
+
             var orderedRanks = layers.Keys.OrderBy(k => k).ToList();
             if (reversePrimary) orderedRanks.Reverse();
             var depth = layers.ToDictionary(l => l.Key, l => l.Value.Max(PrimarySize));
@@ -933,6 +1102,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 UpdateConnectorGeometry(conn);
             }
         }
+        LayoutGroupDecorations();
     }
 
     public void UpdateAllConnectors()
@@ -945,6 +1115,162 @@ public partial class MermaidStudioViewModel : ObservableObject
             conn.SequenceNumber = null;
             UpdateConnectorGeometry(conn);
         }
+        LayoutGroupDecorations();
+    }
+
+    /// <summary>
+    /// The groups on the canvas: each composite state with something inside it (its own box is
+    /// the group's header), and each flowchart subgraph that still has a member.
+    /// </summary>
+    public List<MarkSmith.Core.Mermaid.Routing.GroupedLayoutGroup> CanvasGroups()
+    {
+        var groups = new List<MarkSmith.Core.Mermaid.Routing.GroupedLayoutGroup>();
+        if (SelectedDiagramType == MermaidDiagramType.State)
+        {
+            var ids = new HashSet<string>(Nodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+            var parents = new HashSet<string>(Nodes.Where(n => n.ParentId is not null && ids.Contains(n.ParentId)).Select(n => n.ParentId!), StringComparer.OrdinalIgnoreCase);
+            foreach (var n in Nodes.Where(n => parents.Contains(n.Id)))
+                groups.Add(new(n.Id, n.ParentId is not null && ids.Contains(n.ParentId) ? n.ParentId : null, n.Id, ""));
+        }
+        else if (SelectedDiagramType == MermaidDiagramType.Flowchart && _flowSubgraphs.Count > 0)
+        {
+            var onCanvas = new HashSet<string>(Nodes.Select(n => n.ParentId).Where(p => p is not null)!, StringComparer.OrdinalIgnoreCase);
+            void Add(FlowSubgraph sg, string? parent)
+            {
+                // A subgraph is kept while it, or one nested in it, still has a member.
+                bool Live(FlowSubgraph g) => onCanvas.Contains(g.Id) || g.NestedSubgraphs.Any(Live);
+                if (!Live(sg)) return;
+                groups.Add(new(sg.Id, parent, null, string.IsNullOrWhiteSpace(sg.Title) ? sg.Id : sg.Title));
+                foreach (var nested in sg.NestedSubgraphs) Add(nested, sg.Id);
+            }
+            foreach (var sg in _flowSubgraphs) Add(sg, null);
+        }
+        return groups;
+    }
+
+    /// <summary>
+    /// Frames around subgraphs and composite states, and state/class notes beside what they're
+    /// for, fitted to where the nodes are now. Moving a composite's own box carries everything
+    /// inside it. Reuses the sequence decoration layers (group boxes, note boxes).
+    /// </summary>
+    private void LayoutGroupDecorations()
+    {
+        if (IsSequence) return;
+        var groups = CanvasGroups();
+        var byId = Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        // A composite's box moved (dragged or nudged): what's inside it follows, unless it was
+        // moved too (part of the same selection).
+        foreach (var g in groups.Where(g => g.HeaderNodeId is not null))
+        {
+            if (!byId.TryGetValue(g.HeaderNodeId!, out var header)) continue;
+            if (_groupHeaderAt.TryGetValue(g.Id, out var was) && (was.X != header.X || was.Y != header.Y))
+            {
+                double dx = header.X - was.X, dy = header.Y - was.Y;
+                foreach (var member in Nodes.Where(n => IsInside(n, g.Id, byId) && !n.IsSelected))
+                {
+                    member.X += dx;
+                    member.Y += dy;
+                    // A nested composite moved with it: don't carry its contents twice.
+                    if (_groupHeaderAt.TryGetValue(member.Id, out var inner)) _groupHeaderAt[member.Id] = (inner.X + dx, inner.Y + dy);
+                }
+                foreach (var conn in Connectors) UpdateConnectorGeometry(conn);
+            }
+        }
+        foreach (var g in groups.Where(g => g.HeaderNodeId is not null))
+            if (byId.TryGetValue(g.HeaderNodeId!, out var header)) _groupHeaderAt[g.Id] = (header.X, header.Y);
+
+        var boxes = new List<MarkSmith.Core.Mermaid.Routing.SequenceGroupBox>();
+        if (groups.Count > 0)
+        {
+            var frames = MarkSmith.Core.Mermaid.Routing.GroupedLayout.Fit(
+                Nodes.Select(n => (n.Id, n.X, n.Y, n.Width, n.Height)).ToList(),
+                Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.GroupedLayoutNode(n.Id, n.Width, n.Height, n.ParentId)).ToList(),
+                groups);
+            // Deeper frames a shade lighter, so nesting reads.
+            foreach (var f in frames)
+                boxes.Add(new(f.X, f.Y, f.Width, f.Height, f.Title, f.Depth % 2 == 0 ? "#1489B4FA" : "#1ACBA6F7"));
+        }
+        var notes = DiagramNotes(byId);
+        ReplaceAll(SequenceBoxes, boxes);
+        ReplaceAll(SequenceNotes, notes);
+
+        static void ReplaceAll<T>(ObservableCollection<T> target, IReadOnlyList<T> items)
+        {
+            if (target.SequenceEqual(items)) return;
+            target.Clear();
+            foreach (var item in items) target.Add(item);
+        }
+    }
+
+    private static bool IsInside(DiagramNodeViewModel n, string groupId, Dictionary<string, DiagramNodeViewModel> byId)
+    {
+        var p = n.ParentId;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (p is not null && seen.Add(p))
+        {
+            if (p.Equals(groupId, StringComparison.OrdinalIgnoreCase)) return true;
+            p = byId.TryGetValue(p, out var up) ? up.ParentId : null;
+        }
+        return false;
+    }
+
+    /// <summary>State and class notes as boxes beside the node they're for (left or right as
+    /// written; class notes on the right). A free-standing class note sits above the diagram.</summary>
+    private List<MarkSmith.Core.Mermaid.Routing.SequenceNoteBox> DiagramNotes(Dictionary<string, DiagramNodeViewModel> byId)
+    {
+        var result = new List<MarkSmith.Core.Mermaid.Routing.SequenceNoteBox>();
+        var parsed = new List<(string? Target, bool Left, string Text)>();
+        if (SelectedDiagramType == MermaidDiagramType.State)
+            foreach (var note in _stateNotes) if (ParseStateNote(note) is { } p) parsed.Add(p);
+        if (SelectedDiagramType == MermaidDiagramType.Class)
+            foreach (var note in _classNotes) if (ParseClassNote(note) is { } p) parsed.Add(p);
+        if (parsed.Count == 0 || Nodes.Count == 0) return result;
+
+        const double gap = 24;
+        var stacked = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        double freeX = Nodes.Min(n => n.X), freeY = Nodes.Min(n => n.Y);
+        foreach (var (target, left, text) in parsed)
+        {
+            var display = MermaidCodeGenerator.FromBreakTags(text);
+            var lines = display.Split('\n');
+            double w = Math.Clamp(lines.Max(l => l.Length) * 6.6 + 20, 60, 260);
+            double h = lines.Length * 15 + 12;
+            if (target is null || !byId.TryGetValue(target, out var node))
+            {
+                if (target is not null) continue; // its node was deleted: the save drops it too
+                result.Add(new(freeX, freeY - h - gap, w, h, text));
+                freeX += w + gap;
+                continue;
+            }
+            var key = node.Id + (left ? "<" : ">");
+            double y = stacked.TryGetValue(key, out var below) ? below : node.Y + (node.Height - h) / 2;
+            double x = left ? node.X - gap - w : node.X + node.Width + gap;
+            result.Add(new(x, y, w, h, text));
+            stacked[key] = y + h + 8;
+        }
+        return result;
+    }
+
+    /// <summary>"note right of X : text", or a multi-line note (opening line, body, "end note").</summary>
+    public static (string? Target, bool Left, string Text)? ParseStateNote(string note)
+    {
+        var lines = note.Replace("\r", "").Split('\n');
+        var head = System.Text.RegularExpressions.Regex.Match(lines[0].Trim(), @"^note\s+(left|right)\s+of\s+([^\s:]+)\s*(?::\s*(.*))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!head.Success) return null;
+        bool left = head.Groups[1].Value.Equals("left", StringComparison.OrdinalIgnoreCase);
+        string text = head.Groups[3].Success && head.Groups[3].Value.Length > 0
+            ? head.Groups[3].Value.Trim()
+            : string.Join("\n", lines.Skip(1).Where(l => !l.Trim().Equals("end note", StringComparison.OrdinalIgnoreCase)).Select(l => l.Trim()));
+        return (head.Groups[2].Value, left, text);
+    }
+
+    /// <summary><c>note for X "text"</c> or a free-standing <c>note "text"</c>.</summary>
+    public static (string? Target, bool Left, string Text)? ParseClassNote(string note)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(note.Trim(), "^note\\s+(?:for\\s+(\\S+)\\s+)?\"(.*)\"\\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (!m.Success) return null;
+        return (m.Groups[1].Success ? m.Groups[1].Value : null, false, m.Groups[2].Value.Replace("\\n", "\n"));
     }
 
     /// <summary>A loaded subgraph with only the nodes still on the canvas (each tagged with it),
@@ -1166,16 +1492,16 @@ public partial class MermaidStudioViewModel : ObservableObject
             // Self-call loops reach right of their lifeline, and their labels further still.
             foreach (var c in Connectors.Where(c => c.SourceNodeId.Equals(c.TargetNodeId, StringComparison.OrdinalIgnoreCase)))
                 maxX = Math.Max(maxX, c.MidpointX + MarkSmith.Core.Mermaid.Routing.SequenceLayout.LabelWidth(c.Label) / 2);
-            // Notes and block frames can sit outside the outermost lifelines.
-            foreach (var r in SequenceFrames.Select(f => (f.X, f.Y, f.Width, f.Height))
-                         .Concat(SequenceBoxes.Select(b => (b.X, b.Y, b.Width, b.Height)))
-                         .Concat(SequenceNotes.Select(n => (n.X, n.Y, n.Width, n.Height))))
-            {
-                minX = Math.Min(minX, r.X);
-                minY = Math.Min(minY, r.Y);
-                maxX = Math.Max(maxX, r.X + r.Width);
-                maxY = Math.Max(maxY, r.Y + r.Height);
-            }
+        }
+        // Notes, block frames, group frames can sit outside the outermost nodes.
+        foreach (var r in SequenceFrames.Select(f => (f.X, f.Y, f.Width, f.Height))
+                     .Concat(SequenceBoxes.Select(b => (b.X, b.Y, b.Width, b.Height)))
+                     .Concat(SequenceNotes.Select(n => (n.X, n.Y, n.Width, n.Height))))
+        {
+            minX = Math.Min(minX, r.X);
+            minY = Math.Min(minY, r.Y);
+            maxX = Math.Max(maxX, r.X + r.Width);
+            maxY = Math.Max(maxY, r.Y + r.Height);
         }
         return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
@@ -1266,6 +1592,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 UpdateConnectorGeometry(conn);
             }
         }
+        LayoutGroupDecorations();
     }
 
     public DiagramNodeViewModel QuickAddNode(DiagramNodeViewModel sourceNode, string direction)
@@ -2014,75 +2341,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 return cls;
 
             case MermaidDiagramType.State:
-                var state = new StateDiagramAst();
-                // Start and end points (however many the canvas has) are all [*] in Mermaid.
-                var pseudoIds = new HashSet<string>(Nodes.Where(n => n.IsPseudoState).Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
-                string MermaidStateId(string id) => pseudoIds.Contains(id) ? StatePseudoId : id;
-                foreach (var n in Nodes)
-                {
-                    if (n.IsPseudoState) continue;
-                    StateNodeType type = StateNodeType.Normal;
-                    if (string.Equals(n.Shape, "ChoiceState", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(n.Shape, "Choice", StringComparison.OrdinalIgnoreCase) ||
-                        n.LabelText.Contains("<<choice>>", StringComparison.OrdinalIgnoreCase))
-                    {
-                        type = StateNodeType.Choice;
-                    }
-                    else if (string.Equals(n.Shape, "Fork", StringComparison.OrdinalIgnoreCase) || n.LabelText.Contains("<<fork>>", StringComparison.OrdinalIgnoreCase))
-                    {
-                        type = StateNodeType.Fork;
-                    }
-                    else if (string.Equals(n.Shape, "Join", StringComparison.OrdinalIgnoreCase) || n.LabelText.Contains("<<join>>", StringComparison.OrdinalIgnoreCase))
-                    {
-                        type = StateNodeType.Join;
-                    }
-                    else if (string.Equals(n.Shape, "Start", StringComparison.OrdinalIgnoreCase) || n.Id == "[*]")
-                    {
-                        type = StateNodeType.Start;
-                    }
-                    else if (string.Equals(n.Shape, "End", StringComparison.OrdinalIgnoreCase))
-                    {
-                        type = StateNodeType.End;
-                    }
-                    else if (CurrentAst is StateDiagramAst existingState && existingState.States.TryGetValue(n.Id, out var exNode))
-                    {
-                        type = exNode.Type;
-                    }
-
-                    string cleanLabel = n.LabelText.Replace("<<choice>>", "").Replace("<<fork>>", "").Replace("<<join>>", "").Trim();
-                    if (string.IsNullOrEmpty(cleanLabel)) cleanLabel = n.Id;
-
-                    var stateNode = new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
-                    // A composite state is one box on the canvas; what's inside it isn't drawn yet,
-                    // but it is kept (it used to be emptied by every save).
-                    if (type == StateNodeType.Composite && CurrentAst is StateDiagramAst loadedState
-                        && loadedState.States.TryGetValue(n.Id, out var loadedComposite))
-                    {
-                        stateNode.SubStates.AddRange(loadedComposite.SubStates);
-                        stateNode.SubTransitions.AddRange(loadedComposite.SubTransitions);
-                    }
-                    state.States[n.Id] = stateNode;
-                }
-                foreach (var c in Connectors)
-                {
-                    state.Transitions.Add(new StateTransition
-                    {
-                        FromId = MermaidStateId(c.SourceNodeId),
-                        ToId = MermaidStateId(c.TargetNodeId),
-                        EventLabel = c.Label
-                    });
-                }
-                if (pseudoIds.Count > 0 && !state.States.ContainsKey(StatePseudoId))
-                    state.States[StatePseudoId] = new StateNode { Id = StatePseudoId, Label = StatePseudoId, Type = StateNodeType.Start };
-                // Notes go with the state they're attached to, wherever it sits.
-                if (CurrentAst is StateDiagramAst loadedNotes)
-                    foreach (var note in loadedNotes.Notes)
-                        if (StateDiagramAst.NoteTarget(note) is not { } target || HasState(state.States.Values, target))
-                            state.Notes.Add(note);
-                return state;
-
-                static bool HasState(IEnumerable<StateNode> nodes, string id) =>
-                    nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase) || HasState(n.SubStates, id));
+                return CanvasToStateAst();
 
             case MermaidDiagramType.Gantt:
                 var gantt = new GanttChartAst();
