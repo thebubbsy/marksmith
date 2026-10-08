@@ -1,0 +1,36 @@
+<Project>
+  <!--
+    OCR model files (third-party, Apache-2.0) are downloaded once at build time instead of living in
+    git: PaddleOCR PP-OCRv5 (text detection + English/Latin recognition, ONNX) and Tesseract's best
+    English LSTM data. Each is checked against a pinned SHA-256, cached under
+    marksmith-v2/.ocr-models (gitignored), and copied next to the app as ocr-models/.
+    MarkSmith OCR's own weights live in the repo (MarkSmith.Core/Ocr/MarkSmith/) and need no download.
+    Set MarkSmithSkipOcrModels=true to build without them (the engines then report "not installed").
+  -->
+  <PropertyGroup>
+    <OcrModelCache>$(MSBuildThisFileDirectory)..\.ocr-models\</OcrModelCache>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <OcrModel Include="paddle-det.onnx" Url="https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/main/inference.onnx" Sha256="a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d" />
+    <OcrModel Include="paddle-rec-en.onnx" Url="https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.onnx" Sha256="b5f833dfc5d0eb71da397b4efa06ebeee9b431b690a47d6af40d77d8eabc557f" />
+    <OcrModel Include="paddle-rec-en.yml" Url="https://huggingface.co/PaddlePaddle/en_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.yml" Sha256="27e91d0582f40168aa218303c76e184bc78fa7a5d105aad0cfbad8458b441067" />
+    <OcrModel Include="paddle-rec-latin.onnx" Url="https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.onnx" Sha256="7888113072263cb471b93f66dd5e2ad70548dc526fa1ace760d0d973dd121498" />
+    <OcrModel Include="paddle-rec-latin.yml" Url="https://huggingface.co/PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx/resolve/main/inference.yml" Sha256="0bbe984570f597af3638e50bdf2e8276f3ab26a61966096538b3b0d1849f5c84" />
+    <OcrModel Include="tessdata/eng.traineddata" Url="https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata" Sha256="8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba" />
+  </ItemGroup>
+
+  <Target Name="FetchOcrModels" BeforeTargets="PrepareForBuild" Condition="'$(MarkSmithSkipOcrModels)' != 'true'">
+    <MakeDir Directories="$(OcrModelCache);$(OcrModelCache)tessdata" />
+    <DownloadFile SourceUrl="%(OcrModel.Url)" DestinationFolder="$(OcrModelCache)$([System.IO.Path]::GetDirectoryName('%(OcrModel.Identity)'))"
+                  DestinationFileName="$([System.IO.Path]::GetFileName('%(OcrModel.Identity)'))"
+                  Condition="!Exists('$(OcrModelCache)%(OcrModel.Identity)')" Retries="3" RetryDelayMilliseconds="2000" />
+    <VerifyFileHash File="$(OcrModelCache)%(OcrModel.Identity)" Hash="%(OcrModel.Sha256)" Algorithm="SHA256" />
+    <!-- A separate item type, so the qualified metadata below batches over the model files only
+         (unqualified %(Filename) inside a target batches over every None item in the project). -->
+    <ItemGroup>
+      <_OcrModelFile Include="$(OcrModelCache)**\*" />
+      <None Include="@(_OcrModelFile)" Link="ocr-models\%(_OcrModelFile.RecursiveDir)%(_OcrModelFile.Filename)%(_OcrModelFile.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -64,6 +64,11 @@ public partial class App : Application
 
             License.Load(); // resolve Free / Trial / Pro before any UI reads entitlements
 
+            // OCR on Windows: the built-in Windows.Media.Ocr engine is one of the four choices, and
+            // Windows' own PDF renderer draws pages that are neither text nor a single scan.
+            MarkSmith.Ocr.OcrEngines.WindowsFactory = () => new MarkSmith.Services.WindowsOcrProvider();
+            MarkSmith.Services.ReverseImportService.PdfPageRenderer = MarkSmith.Services.WindowsPdfRenderer.Render;
+
             // Re-check an online (Lemon Squeezy) license in the background. Deliberately not
             // awaited: entitlements are already resolved from disk above, so this only ever
             // corrects them, and blocking a cold start on a network round trip would make every

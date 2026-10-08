@@ -451,6 +451,7 @@ public sealed class AppSettings
         EmailAttachDocx = other.EmailAttachDocx;
         EmailFormat = other.EmailFormat;
         EmailImportHistory = other.EmailImportHistory;
+        OcrEngine = other.OcrEngine;
     }
 
     // Email (Outlook .eml / .msg drafts). Every email feature is free on every plan.
@@ -467,6 +468,10 @@ public sealed class AppSettings
     // Opening an .eml: what happens to the quoted earlier messages below the reply.
     // "collapse" folds them into a <details> block, "remove" drops them, "keep" leaves them inline.
     public string EmailImportHistory { get; set; } = "collapse";
+
+    /// <summary>Which OCR engine reads scanned pages and pictures of text: "auto" (PaddleOCR when its
+    /// models are installed, otherwise MarkSmith OCR), "marksmith", "paddle", "windows" or "tesseract".</summary>
+    public string OcrEngine { get; set; } = "auto";
 
     public bool AutoInstallUpdatesOnLaunch { get; set; } = true;
     public bool AutoRestartAfterUpdate { get; set; } = true;

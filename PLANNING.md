@@ -3371,3 +3371,66 @@ composite is one box), and neither are notes. That's the next Diagram Studio dra
 
 **Check on the PC:** load a state diagram with a composite and a note, move a state, save, and
 check the preview still nests and shows the note. Then do the same for a class with methods.
+
+### 2026-10-08 (cloud: PDF import rebuilt; OCR with a choice of four engines, one of them our own)
+
+**Found:** PDF import scanned raw content streams with regexes. Compressed pages (nearly every
+real PDF), CID fonts and hex strings came back empty or as garbage, and scanned pages gave
+"try OCR". Images couldn't be imported at all.
+
+**What shipped:**
+- **`Services/Import/PdfMarkdownImporter` (PdfPig, Apache-2.0).** Reads the text layer with
+  real word and reading-order analysis and rebuilds structure:
+  - headings ranked by size among heading-like blocks, and bold one-line headings;
+  - paragraphs with hyphenation mended; **bold**, *italic*, `code` and links;
+  - bullet and numbered lists; tables; monospace code blocks with their indent;
+  - pictures saved as `pageN-pictureK.png` beside the document and linked where they sit;
+  - running headers, footers and page numbers left out.
+
+  A page with no usable text layer goes to OCR: its scan image, or the page rendered by Windows
+  at 300 dpi. `ReverseImportService` still tries the embedded MarkSmith source first.
+- **OCR engines (`MarkSmith.Core/Ocr`), chosen in Settings → Opening files → OCR engine:**
+  - **Automatic:** PaddleOCR if its models are present, else MarkSmith OCR.
+  - **PaddleOCR PP-OCRv5** through ONNX Runtime. It's the strongest free, open-source OCR
+    today. Models are fetched and hash-checked at build time by `build/OcrModels.targets`.
+  - **Windows OCR** (Windows.Media.Ocr, desktop only).
+  - **Tesseract 5** (LSTM, `tessdata_best`) through its C API.
+  - **MarkSmith OCR:** pure C#, written from scratch here.
+    - Pipeline: background flattening, Sauvola threshold, deskew, ink blobs, XY-cut blocks,
+      lines.
+    - Recognition: a small CNN on each letter image plus line-geometry features, with a
+      "not one letter" class.
+    - Touching letters are split where the ink is thinnest.
+    - Word spaces come from the line's own gap pattern (Otsu).
+    - Words are corrected against a SCOWL dictionary using the network's runner-up guesses.
+    - The network is trained by `tools/MarkSmith.OcrTrainer` on rendered lines that go through
+      the real segmenter, so it learns what the segmenter actually hands it.
+
+  All engines share the deskew step, so a skewed scan works with every engine.
+- **Import Document** now accepts images (PNG, JPEG, BMP, GIF, WebP) and reads them with
+  the chosen engine. PDF import reports progress and says which pages needed OCR, and with
+  which engine.
+
+**Benchmark** (`Ocr/OcrBenchmarkTests`, 20 synthetic scans): serif, sans, Calibri/Cambria
+metrics, code, bold headings, italic, 8 pt, 200 dpi, 120 dpi, 3° skew, photocopy, JPEG with
+shading, numbers, two columns, large heading, contacts, low contrast, and two held-out fonts
+the network never saw (FreeSerif, Courier 10 Pitch).
+- Each case asserts MarkSmith OCR reaches ≥ 90 % of the best other engine's character accuracy.
+- Final results:
+  - MarkSmith OCR: 100 % on 15 cases; lowest 95.4 % (typewriter), 97.6 % (code), 98.7 % (numbers).
+  - PaddleOCR: 100 % on all 20.
+  - Tesseract: 99.4–100 %.
+
+**Tests:** `Ocr/OcrBenchmarkTests` (20) and `Ocr/PdfImportTests` (8). The PDF tests build real
+PDFs with PdfPig's writer and cover headings, lists, hyphenation, links, code, headers and
+footers, pictures, a scanned page, mixed pages, and the app path.
+
+**Not done / next:**
+- MarkSmith OCR is about 2× slower than PaddleOCR and English/Latin only.
+- l / I / 1 and O / 0 are still settled by the dictionary rather than by sight.
+- Handwriting isn't attempted by any engine.
+
+**Check on the PC:**
+- Settings shows the OCR engine picker.
+- Import a text PDF, a scanned PDF and a PNG with each engine.
+- Windows OCR needs an English OCR language pack installed. Tesseract needs the VC++ runtime.

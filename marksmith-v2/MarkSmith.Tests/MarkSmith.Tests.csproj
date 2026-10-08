@@ -31,4 +31,6 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The OCR benchmark compares MarkSmith OCR with PaddleOCR and Tesseract: their models. -->
+  <Import Project="..\build\OcrModels.targets" />
 </Project>
