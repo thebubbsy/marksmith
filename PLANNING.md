@@ -2728,3 +2728,144 @@ has six headline items: add "automation that works in every format, free for ema
    pass.
 6. Carried over: Shape Studio rotated handles and connector re-routing, the SmartArt outline
    keyboard pass, the Google Docs OAuth decision, and opening Shape/SmartArt exports in real Word.
+
+### 2026-10-08 11:00–11:40 AEST (routine run #29: Diagram Studio connectors and canvas; the Source drawer)
+
+Reviewed run #28's "Next up". The PC was **unlocked** (no LogonUI; user idle), so this run did
+item 1, the screenshot pass, on a scratch-config instance. It started from a fresh first run
+(Welcome tour → load sample → every view mode → Suite Hub → Settings → Diagram Studio). Two
+surfaces were clearly half-baked and got the run.
+
+**Found by screenshot:**
+- **Diagram Studio connectors were bare lines.**
+  - No arrowheads anywhere, although every connector stores `EndHead` / `LineStyle`.
+  - Dashed and thick lines were ignored.
+  - A selected connector looked like any other (`IsSelected` was never set).
+  - Every edge drew an **empty label box**, offset 30 px left of the midpoint.
+  - A 2 px line was the only click target.
+  - The inspector showed internal ids (`n1 → n2`), and its Line / Arrow combos were blank for
+    sequence and class connectors (wrong vocabulary).
+- **Diagram Studio canvas:**
+  - Loading a template never fitted the view (the state template landed fully off-screen).
+  - Fit zoomed a 3-node diagram to 400%.
+  - At any fit below 100% the diagram landed off-screen: `ChangeView` takes zoomed-pixel
+    offsets and the canvas passed canvas units. The minimap already did it right.
+  - Class boxes loaded at 140x60 and clipped every member after the second.
+  - The layered layout used fixed 200/160 px steps, so grown boxes butted together and labels
+    covered markers.
+  - State `[*]` was a white box reading "[*]".
+  - The sequence actor's label was clipped.
+- **Source drawer** (the 28 px strip the Source pane collapses to once a document loads):
+  - It reacted to hover only: no click, no keyboard, no automation peer, so it was invisible to
+    Narrator.
+  - It snapped open and shut, reflowing editor and preview, and opened on any brush of the
+    window edge.
+  - **Focus mode broke it:** leaving F11 restored the column MinWidth to 250 (the saved value
+    was 0), so a collapsed drawer came back as a squeezed pane with the tab drawn over it.
+- Welcome tour told users to "Turn on Advanced mode in Settings", a setting that no longer
+  exists (the heading/bold controls are always in Style & Export ▸ Formatting & text).
+
+**What shipped:**
+- `04a3ea8` Diagram Studio:
+  - Core `Mermaid/Routing/ConnectorAppearance` is the one map from the three grammars'
+    stored strings to dash, weight and per-end `ConnectorMarker`.
+    - Flowchart: LineStyle + EndHead.
+    - Sequence: the message type in LineStyle.
+    - Class: the relationship in EndHead, with the UML marker on the **source** end (the
+      generator's canonical `<|--` form).
+    - `Shape(...)` builds marker geometry from the route's real end direction.
+  - `DiagramConnectorViewModel`:
+    - derives `StartMarkerData`/`EndMarkerData`/fills, `IsDashed`, `DisplayStrokeWidth`,
+      `DisplayStroke` (selection colour #4CC9F0), `HaloOpacity` (hover/selection) and
+      `HasLabel`;
+    - rebuilds them on any style change and after moves.
+  - `SelectedConnector` drives `IsSelected`.
+  - The canvas template has:
+    - a halo with an opacity transition;
+    - a 14 px transparent hit path;
+    - solid and dashed paths;
+    - the two markers;
+    - a centred label shown only when set;
+    - a hand cursor on hover.
+  - Inspector:
+    - shows From/To by node label;
+    - shows only the current type's vocabulary: Line + Arrow head (flowchart), Message
+      (sequence: call/reply/async/lost/solid/dashed line) or Relationship (class: the six UML
+      kinds);
+    - state/ER have no style choices.
+  - New connectors start in the type's vocabulary. ER links have no arrow, and non-identifying
+    ones are dashed.
+  - VM `DiagramLoaded` event (whole loads only, not live code sync). The studio fits after
+    every load, after Auto layout, and on first open.
+  - Fit:
+    - capped at 100%;
+    - keeps clear of the minimap;
+    - offsets × zoom.
+  - `DiagramNodeViewModel.GrowToFitLabel` runs on load (a saved size still wins).
+  - The layered layout spaces ranks/nodes by real size (same steps as before for 140x60 nodes).
+  - State `[*]` is a 28 px dot/bullseye (`IsPseudoState`).
+  - Actor icon 26 px.
+- `53c5516` Source drawer:
+  - `LeftDrawerTab` is a Button ("Show the Source panel", chevron + "Source" up the spine; a
+    Canvas, because a Grid clips the unrotated text).
+  - Click opens it at once. Keyboard **and Narrator/UIA invokes** (anything but a pointer
+    click) move focus into the pane, and it tucks away when focus leaves for the rest of the
+    window (not for flyouts/pickers).
+  - Hover opens after a 220 ms dwell.
+  - 170 ms ease-out width tween with the pane held at full width (clipped, not re-wrapped).
+    Reversible mid-slide. Off when Windows animations are off.
+  - Focus mode restores the exact MinWidth and the collapsed state, and the drawer never
+    collapses during focus mode.
+
+**Verified live** (scratch config, unlocked, UIA + PrintWindow):
+- Every template family (flowchart, sequence, class, state, ER) loads fitted:
+  - arrowheads face into their targets;
+  - class members are all visible, with markers clear of labels;
+  - ER is arrow-free;
+  - state shows a bullseye.
+- Drawer:
+  - collapsed tab reads "Source";
+  - invoke opens it with focus on the first control;
+  - moving focus to Export PDF tucks it away;
+  - an F11 round trip leaves it a tab.
+- Not verified live (would need real mouse input): the hover halo/cursor and the dwell. Code
+  and tests cover the halo values; the dwell is a plain DispatcherTimer.
+
+**Tests:**
+- New: `Mermaid/DiagramConnectorAppearanceTests.cs` (33): every grammar's mapping, marker
+  direction/fill/stroke-only flags, invariant numbers under de-DE, marker follow on move,
+  restyle without new geometry, `HasLabel`, selection/hover colours, per-type defaults for new
+  connectors, ER no-arrow/dashed, class box growth, state pseudo-state size, `DiagramLoaded`
+  only for whole loads.
+- Full suite (scratch OutDir): 3761 passed. The 20 failures are the same environmental set as
+  runs #25–#28 (scratch-path assets/governance docs/gauntlet, MarkdownCopy/HtmlToMarkdown
+  IsTransient, the user's HouseLayout WIP). Desktop build: 0 warnings.
+
+**Lessons:**
+- `ScrollViewer.ChangeView` offsets are in **zoomed** pixels; any code computing them from
+  canvas coordinates must multiply by the target zoom.
+- A Grid clips a RenderTransform-rotated child to its unrotated layout slot. Use a Canvas for
+  vertical text.
+- A UIA Invoke doesn't give the button keyboard FocusState. Branch on `!= Pointer` when the
+  keyboard path is the accessible one.
+- In PowerShell, `sc` is the service-control exe, not Set-Content. And again: a menu name
+  can also match a palette chip or a `MenuFlyoutSubItem` (needs `expand`, not `invoke`).
+
+**Release:** still held for the person-run Outlook check (run #27's three steps). v3.4.0
+gains "Diagram Studio connectors and canvas, done properly".
+
+**Next up:**
+1. Diagram Studio, continued:
+   - The **state layout** is tangled: one `[*]` node serves as both start and end (Mermaid
+     draws two), and back-edges cross.
+   - **Sequence** is drawn as boxes in a row, so A→B and B→A messages overlap on one line.
+     It needs lifelines and message rows.
+   - Hover halo/dwell need a real-mouse check.
+2. Suite Hub copy is developer jargon ("SAX streaming OpenXML O(1) compiler", "3-block cycle
+   governance") and the "API off" badge doesn't say what to do. Rewrite for a paying user.
+3. Settings "Pro mode" (skip insert dialogs) collides with the paid "MarkSmith Pro" name.
+   Rename it (e.g. "Quick insert") everywhere: settings key label, palette and tooltips.
+4. Carried over from #28: batch dialog / drag-drop / clipboard self-copy check with real input,
+   email automation attachments, Copy as email, EPUB follow-ups, root-scoped Ctrl+D/Alt+↑↓,
+   Shape Studio rotated handles, the SmartArt outline keyboard pass, the Google Docs OAuth
+   decision, Shape/SmartArt exports in real Word.
