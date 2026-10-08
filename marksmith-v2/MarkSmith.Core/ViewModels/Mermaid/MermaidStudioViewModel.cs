@@ -1343,12 +1343,66 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
 
         SnapshotForUndo();
-        // Rows fill the script's message slots in Connectors order, so swapping the two connectors
-        // in the collection swaps their rows.
-        int a = Connectors.IndexOf(conn), b = Connectors.IndexOf(rows[target]);
+        SwapRows(conn, rows[target]);
+        StatusText = $"Moved \"{(string.IsNullOrEmpty(conn.Label) ? "message" : conn.Label)}\" {(direction < 0 ? "up" : "down")}.";
+        return true;
+    }
+
+    // Rows fill the script's message slots in Connectors order, so swapping the two connectors
+    // in the collection swaps their rows.
+    private void SwapRows(DiagramConnectorViewModel conn, DiagramConnectorViewModel other)
+    {
+        int a = Connectors.IndexOf(conn), b = Connectors.IndexOf(other);
         Connectors.Move(a, b);
         if (Math.Abs(a - b) > 1) Connectors.Move(a < b ? b - 1 : b + 1, a);
-        StatusText = $"Moved \"{(string.IsNullOrEmpty(conn.Label) ? "message" : conn.Label)}\" {(direction < 0 ? "up" : "down")}.";
+    }
+
+    /// <summary>True for a sequence diagram, where messages can be dragged to another row.</summary>
+    public bool IsSequenceDiagram => IsSequence;
+
+    /// <summary>The message row nearest <paramref name="y"/> (canvas units), or -1 with none.</summary>
+    public int SequenceRowAt(double y)
+    {
+        if (!IsSequence) return -1;
+        var (_, rows) = BuildSequenceScriptWithRows();
+        int best = -1;
+        double bestDist = double.MaxValue;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            double d = Math.Abs(rows[i].SourceY - y);
+            if (d < bestDist) { bestDist = d; best = i; }
+        }
+        return best;
+    }
+
+    /// <summary>Where row <paramref name="row"/> is drawn (its arrow's height), for the drop line.</summary>
+    public double? SequenceRowY(int row)
+    {
+        if (!IsSequence) return null;
+        var (_, rows) = BuildSequenceScriptWithRows();
+        return row >= 0 && row < rows.Count ? rows[row].SourceY : null;
+    }
+
+    /// <summary>
+    /// Drag-to-reorder: moves a sequence message to row <paramref name="targetRow"/>, one row at a
+    /// time as ↑/↓ does (so it moves into and out of blocks the same way), as one undo step.
+    /// </summary>
+    public bool MoveMessageToRow(DiagramConnectorViewModel conn, int targetRow)
+    {
+        if (!IsSequence) return false;
+        var (_, rows) = BuildSequenceScriptWithRows();
+        int row = rows.IndexOf(conn);
+        if (row < 0 || targetRow < 0 || targetRow >= rows.Count || targetRow == row) return false;
+        SnapshotForUndo();
+        int step = Math.Sign(targetRow - row);
+        for (int guard = rows.Count; row != targetRow && row >= 0 && guard > 0; guard--)
+        {
+            SwapRows(conn, rows[row + step]);
+            (_, rows) = BuildSequenceScriptWithRows();
+            row = rows.IndexOf(conn);
+        }
+        SelectedConnector = conn;
+        StatusText = $"Moved \"{(string.IsNullOrEmpty(conn.Label) ? "message" : conn.Label)}\" to row {targetRow + 1}.";
         return true;
     }
 
