@@ -252,6 +252,12 @@ public static class SequenceParser
         for (; depth > 0; depth--)
             ast.Statements.Add(new SequenceStatement { Kind = SequenceStatementKind.BlockEnd, Keyword = "end" });
 
+        // A participant a "create" line introduces is declared by that line, not up front.
+        foreach (var st in ast.Statements)
+            if (st.Kind == SequenceStatementKind.Raw && SequenceCreateLine.IsCreate(st.Text)
+                && ast.Participants.FirstOrDefault(p => p.Id.Equals(SequenceCreateLine.Target(st.Text), StringComparison.OrdinalIgnoreCase)) is { } created)
+                created.CreatedInline = true;
+
         ast.RebuildIndexes();
         return ast;
     }

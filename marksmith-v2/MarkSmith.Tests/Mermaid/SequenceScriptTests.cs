@@ -118,6 +118,26 @@ public class SequenceScriptTests
     }
 
     [Fact]
+    public void A_created_participant_is_declared_once_by_its_create_line()
+    {
+        const string code = "sequenceDiagram\n    participant A\n    A->>B: hi\n    create participant C\n    A->>C: make\n    destroy C\n    C-->>A: bye\n";
+        var outCode = RoundTrip(code);
+        Assert.DoesNotContain("    participant C\n", outCode.Replace("\r\n", "\n"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(outCode, @"participant C\b"));
+
+        var vm = Load(code);
+        Assert.Contains(vm.Nodes, n => n.Id == "C"); // still drawn
+        var saved = vm.GenerateMermaidCode();
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(saved, @"participant C\b"));
+
+        vm.SelectNode(vm.Nodes.Single(n => n.Id == "C"));
+        vm.DeleteSelected();
+        saved = vm.GenerateMermaidCode();
+        Assert.DoesNotContain("create participant C", saved);
+        Assert.DoesNotContain("destroy C", saved);
+    }
+
+    [Fact]
     public void A_participant_box_end_does_not_close_a_block_and_par_needs_a_word_boundary()
     {
         var ast = Assert.IsType<SequenceDiagramAst>(MermaidParser.Parse(

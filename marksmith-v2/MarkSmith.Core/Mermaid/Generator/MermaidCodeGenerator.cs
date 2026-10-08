@@ -211,7 +211,7 @@ public static class MermaidCodeGenerator
         var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in ast.Participants)
         {
-            if (written.Contains(p.Id)) continue;
+            if (written.Contains(p.Id) || p.CreatedInline) continue;
             if (boxOf.TryGetValue(p.Id, out var box))
             {
                 sb.AppendLine($"{indent}box {OneLine(box.Header)}".TrimEnd());

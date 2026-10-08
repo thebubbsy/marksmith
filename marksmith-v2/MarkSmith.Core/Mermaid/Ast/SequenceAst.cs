@@ -7,6 +7,10 @@ public sealed class SequenceParticipant
     public string Id { get; set; } = string.Empty;
     public string Alias { get; set; } = string.Empty;
     public SequenceParticipantType Type { get; set; } = SequenceParticipantType.Participant;
+    /// <summary>Introduced mid-conversation by a <c>create participant/actor</c> line (kept as a
+    /// statement), so the generator must not declare it again up front: Mermaid rejects a
+    /// participant declared twice.</summary>
+    public bool CreatedInline { get; set; }
 }
 
 public enum SequenceMessageType { SolidArrow, DashedArrow, SolidOpen, DashedOpen, CrossArrow, PointArrow }
@@ -105,6 +109,23 @@ public sealed class SequenceDiagramAst : MermaidDiagramAst
             }
         }
     }
+}
+
+public static class SequenceCreateLine
+{
+    private static readonly System.Text.RegularExpressions.Regex Rx =
+        new(@"^(?:create|destroy)\s+(?:(?:participant|actor)\s+)?(?:""([^""]+)""|([^\s]+))", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>The participant a <c>create …</c> / <c>destroy …</c> line names, or null.</summary>
+    public static string? Target(string? line)
+    {
+        var m = Rx.Match((line ?? string.Empty).Trim());
+        if (!m.Success) return null;
+        return m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+    }
+
+    public static bool IsCreate(string? line) =>
+        (line ?? string.Empty).TrimStart().StartsWith("create ", StringComparison.OrdinalIgnoreCase) && Target(line) is not null;
 }
 
 public enum SequenceStatementKind { Message, Note, Activate, Deactivate, BlockStart, BlockDivider, BlockEnd, Raw }

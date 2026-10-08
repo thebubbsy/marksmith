@@ -1063,6 +1063,10 @@ public partial class MermaidStudioViewModel : ObservableObject
                 case SequenceStatementKind.Deactivate:
                     if (ids.Contains(st.ParticipantId)) script.Add(st);
                     break;
+                case SequenceStatementKind.Raw when SequenceCreateLine.Target(st.Text) is { } who:
+                    // create/destroy for a deleted participant would bring it back.
+                    if (ids.Contains(who)) script.Add(st);
+                    break;
                 default:
                     script.Add(st);
                     break;
@@ -1925,7 +1929,9 @@ public partial class MermaidStudioViewModel : ObservableObject
                     {
                         Id = n.Id,
                         Alias = n.LabelText,
-                        Type = string.Equals(n.Shape, "Actor", StringComparison.OrdinalIgnoreCase) ? SequenceParticipantType.Actor : SequenceParticipantType.Participant
+                        Type = string.Equals(n.Shape, "Actor", StringComparison.OrdinalIgnoreCase) ? SequenceParticipantType.Actor : SequenceParticipantType.Participant,
+                        CreatedInline = _sequenceScript.Any(st => st.Kind == SequenceStatementKind.Raw && SequenceCreateLine.IsCreate(st.Text)
+                                                              && string.Equals(SequenceCreateLine.Target(st.Text), n.Id, StringComparison.OrdinalIgnoreCase))
                     });
                 }
                 // Boxes keep their surviving participants; one left empty is dropped.
