@@ -132,6 +132,23 @@ public partial class DiagramNodeViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasCustomPosition;
 
+    /// <summary>How far a sequence participant's dashed lifeline runs below its header box (0 = none).
+    /// Set by the studio's sequence layout; UI only, never saved.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLifeline))]
+    [NotifyPropertyChangedFor(nameof(LifelineBottom))]
+    private double _lifelineLength;
+
+    public bool HasLifeline => LifelineLength > 0;
+    public double LifelineX => X + Width / 2;
+    public double LifelineTop => Y + Height;
+    public double LifelineBottom => Y + Height + LifelineLength;
+
+    partial void OnXChanged(double value) => OnPropertyChanged(nameof(LifelineX));
+    partial void OnWidthChanged(double value) => OnPropertyChanged(nameof(LifelineX));
+    partial void OnYChanged(double value) { OnPropertyChanged(nameof(LifelineTop)); OnPropertyChanged(nameof(LifelineBottom)); }
+    partial void OnHeightChanged(double value) { OnPropertyChanged(nameof(LifelineTop)); OnPropertyChanged(nameof(LifelineBottom)); }
+
     // Computed Anchor Points
     public Point AnchorTop => new(X + Width / 2, Y);
     public Point AnchorRight => new(X + Width, Y + Height / 2);

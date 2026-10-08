@@ -39,6 +39,28 @@
                 <!-- Layer 1: Background Grid Pattern -->
                 <Canvas x:Name="GridPatternCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
+                <!-- Layer 1b: sequence lifelines. Under the messages, so an arrow is never
+                     crossed out by the dashed line it starts from. Only participants of a
+                     sequence diagram have one (LifelineLength > 0). -->
+                <ItemsControl x:Name="LifelinesItemsControl" ItemsSource="{Binding Nodes}" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DiagramNodeViewModel">
+                            <Line X1="{Binding LifelineX}" X2="{Binding LifelineX}"
+                                  Y1="{Binding LifelineTop}" Y2="{Binding LifelineBottom}"
+                                  Stroke="{Binding StrokeColor}"
+                                  StrokeThickness="1.5"
+                                  StrokeDashArray="5,4"
+                                  Opacity="0.75"
+                                  Visibility="{Binding HasLifeline, Converter={StaticResource BoolToVisConverter}}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <!-- Layer 2: Connector Lines Layer -->
                 <ItemsControl x:Name="ConnectorsItemsControl" ItemsSource="{Binding Connectors}">
                     <ItemsControl.ItemsPanel>

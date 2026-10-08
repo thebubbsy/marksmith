@@ -208,15 +208,9 @@ public sealed partial class MermaidCanvasControl : UserControl
         // True fit-to-content: compute the bounding box of every node, derive the zoom
         // that fits it into the current viewport (with a comfort margin), and center it.
         const double pad = 60;
-        double minX = double.MaxValue, minY = double.MaxValue;
-        double maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var n in vm.Nodes)
-        {
-            minX = Math.Min(minX, n.X);
-            minY = Math.Min(minY, n.Y);
-            maxX = Math.Max(maxX, n.X + n.Width);
-            maxY = Math.Max(maxY, n.Y + n.Height);
-        }
+        // Nodes plus what hangs off them (sequence lifelines, self-call loops).
+        var bounds = vm.GetContentBounds()!.Value;
+        double minX = bounds.Left, minY = bounds.Top, maxX = bounds.Right, maxY = bounds.Bottom;
 
         double contentW = maxX - minX + pad * 2;
         double contentH = maxY - minY + pad * 2;

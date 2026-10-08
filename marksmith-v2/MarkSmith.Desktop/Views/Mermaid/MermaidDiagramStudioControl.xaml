@@ -12,6 +12,7 @@
         <!-- Inspector color converters (hex string <-> Color / Brush) -->
         <conv:HexStringToColorConverter x:Key="HexToColor" />
         <conv:HexStringToBrushConverter x:Key="HexToBrush" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter" />
 
         <!-- The Studio is always dark with a cyan accent, regardless of the user's Windows
              accent color (otherwise default-styled buttons/toggles bleed through purple or
@@ -185,6 +186,7 @@
                               SelectedIndex="{Binding FlowchartDirectionIndex, Mode=TwoWay}"
                               ToolTipService.ToolTip="Flowchart layout direction"
                               AutomationProperties.Name="Layout direction"
+                              Visibility="{Binding ShowsDirectionPicker, Converter={StaticResource BoolToVisConverter}}"
                               Width="132" Margin="4,0,0,0" VerticalAlignment="Center">
                         <ComboBoxItem Content="Top-Down" />
                         <ComboBoxItem Content="Left-Right" />
@@ -197,6 +199,7 @@
                               SelectedIndex="{Binding ConnectorRoutingIndex, Mode=TwoWay}"
                               ToolTipService.ToolTip="Connector routing (elbow, straight, curved)"
                               AutomationProperties.Name="Connector routing"
+                              Visibility="{Binding ShowsRoutingPicker, Converter={StaticResource BoolToVisConverter}}"
                               Width="132" Margin="4,0,0,0" VerticalAlignment="Center">
                         <ComboBoxItem Content="Elbow (90°)" />
                         <ComboBoxItem Content="Straight" />

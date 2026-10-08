@@ -23,7 +23,16 @@ public partial class MermaidStudioViewModel : ObservableObject
     private ObservableCollection<MermaidPaletteItem> _paletteItems = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsDirectionPicker))]
+    [NotifyPropertyChangedFor(nameof(ShowsRoutingPicker))]
     private MermaidDiagramType _selectedDiagramType = MermaidDiagramType.Flowchart;
+
+    /// <summary>Layout direction only means something for a flowchart (`flowchart TD|LR|…`).</summary>
+    public bool ShowsDirectionPicker => SelectedDiagramType == MermaidDiagramType.Flowchart;
+
+    /// <summary>Sequence messages always run straight across between lifelines, and a Gantt chart has
+    /// no connectors, so the routing choice is hidden there rather than offered and ignored.</summary>
+    public bool ShowsRoutingPicker => SelectedDiagramType is not (MermaidDiagramType.Sequence or MermaidDiagramType.Gantt);
 
     [ObservableProperty]
     private DiagramNodeViewModel? _selectedNode;
@@ -205,7 +214,14 @@ public partial class MermaidStudioViewModel : ObservableObject
     public MermaidStudioViewModel()
     {
         InitializePalette();
+        // A sequence diagram's rows depend on every message and participant, so any add/remove
+        // re-lays the whole conversation (cheap: one pass over the messages).
+        Connectors.CollectionChanged += (_, _) => { if (IsSequence && !_suspendSequenceLayout) LayoutSequence(); };
+        Nodes.CollectionChanged += (_, _) => { if (IsSequence && !_suspendSequenceLayout) LayoutSequence(); };
     }
+
+    private bool IsSequence => SelectedDiagramType == MermaidDiagramType.Sequence;
+    private bool _suspendSequenceLayout;
 
     public void InitializePalette()
     {
@@ -232,6 +248,8 @@ public partial class MermaidStudioViewModel : ObservableObject
         // 4. State Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "State Node", ShapeType = "NormalState", DefaultText = "Idle", IconGlyph = "\uE739" });
         PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "Choice State", ShapeType = "ChoiceState", DefaultText = "Choice", IconGlyph = "\uF178" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "Start Point", ShapeType = "Start", DefaultText = "Start", IconGlyph = "\uEA3B" });
+        PaletteItems.Add(new MermaidPaletteItem { Category = "State", DisplayName = "End Point", ShapeType = "End", DefaultText = "End", IconGlyph = "\uECCB" });
 
         // 5. Gantt Primitives
         PaletteItems.Add(new MermaidPaletteItem { Category = "Gantt", DisplayName = "Task Bar", ShapeType = "TaskBar", DefaultText = "Design Phase", IconGlyph = "\uE787" });
@@ -367,6 +385,13 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void AstToCanvas(MermaidDiagramAst ast)
     {
+        _suspendSequenceLayout = true;
+        try { AstToCanvasCore(ast); }
+        finally { _suspendSequenceLayout = false; }
+    }
+
+    private void AstToCanvasCore(MermaidDiagramAst ast)
+    {
         Nodes.Clear();
         Connectors.Clear();
 
@@ -462,19 +487,27 @@ public partial class MermaidStudioViewModel : ObservableObject
                 break;
 
             case StateDiagramAst st:
+                // Mermaid writes both the start and the end point as [*], but draws two: a dot that
+                // transitions leave and a bullseye they arrive at. One shared node used to pull
+                // the first and last states together and tangle every diagram.
+                bool hasStart = st.Transitions.Any(t => t.FromId == StatePseudoId);
+                bool hasEnd = st.Transitions.Any(t => t.ToId == StatePseudoId);
                 foreach (var kvp in st.States)
                 {
                     var s = kvp.Value;
-                    var stateNode = new DiagramNodeViewModel
+                    if (s.Id == StatePseudoId)
+                    {
+                        if (hasStart || !hasEnd) Nodes.Add(PseudoStateNode(StatePseudoId, "Start"));
+                        if (hasEnd) Nodes.Add(PseudoStateNode(StateEndNodeId, "End"));
+                        continue;
+                    }
+                    Nodes.Add(new DiagramNodeViewModel
                     {
                         Id = s.Id,
                         LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : MermaidCodeGenerator.FromBreakTags(s.Label),
                         Shape = s.Type.ToString(),
                         Category = "State"
-                    };
-                    // [*] is a UML start/end dot, not a box with "[*]" written in it.
-                    if (stateNode.IsPseudoState) stateNode.Width = stateNode.Height = 28;
-                    Nodes.Add(stateNode);
+                    });
                 }
                 foreach (var tr in st.Transitions)
                 {
@@ -482,7 +515,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                     {
                         SourceNodeId = tr.FromId,
                         SourceAnchor = "Right",
-                        TargetNodeId = tr.ToId,
+                        TargetNodeId = tr.ToId == StatePseudoId ? StateEndNodeId : tr.ToId,
                         TargetAnchor = "Left",
                         Label = tr.EventLabel
                     });
@@ -562,6 +595,23 @@ public partial class MermaidStudioViewModel : ObservableObject
 
         ApplyAutoLayout();
     }
+
+    /// <summary>Mermaid's id for a state diagram's start and end points.</summary>
+    public const string StatePseudoId = "[*]";
+
+    /// <summary>The canvas id of the end point when a diagram has both (written back as [*]).</summary>
+    public const string StateEndNodeId = "[*]end";
+
+    // [*] is a UML start dot / end bullseye, not a box with "[*]" written in it.
+    private static DiagramNodeViewModel PseudoStateNode(string id, string shape) => new()
+    {
+        Id = id,
+        LabelText = shape == "Start" ? "Start" : "End",
+        Shape = shape,
+        Category = "State",
+        Width = 28,
+        Height = 28,
+    };
 
     private void TraverseMindmap(MindmapNode node, string? parentId)
     {
@@ -685,20 +735,44 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
         else if (SelectedDiagramType == MermaidDiagramType.Sequence)
         {
-            double startX = 120;
-            double startY = 100;
-            double spacingX = 220;
-
+            // Participants across the top in declaration order, each column wide enough for its
+            // header and for the longest message label crossing to its neighbour (Mermaid does the
+            // same). Header boxes keep their label-fitted width; they used to be forced to 140x50,
+            // which clipped longer names.
+            const double startY = 100;
+            double centerX = 0;
             for (int i = 0; i < Nodes.Count; i++)
             {
-                if (!Nodes[i].HasCustomPosition)
+                var n = Nodes[i];
+                if (!n.HasCustomPosition)
                 {
-                    Nodes[i].X = startX + i * spacingX;
-                    Nodes[i].Y = startY;
-                    Nodes[i].Width = 140;
-                    Nodes[i].Height = 50;
+                    n.Width = Math.Max(n.Width, 120);
+                    n.Height = string.Equals(n.Shape, "Actor", StringComparison.OrdinalIgnoreCase) ? 64 : 50;
+                }
+
+                if (i == 0)
+                {
+                    centerX = 120 + n.Width / 2;
+                }
+                else
+                {
+                    var prev = Nodes[i - 1];
+                    double widest = Connectors
+                        .Where(c => (Same(c.SourceNodeId, prev.Id) && Same(c.TargetNodeId, n.Id)) ||
+                                    (Same(c.SourceNodeId, n.Id) && Same(c.TargetNodeId, prev.Id)))
+                        .Select(c => MarkSmith.Core.Mermaid.Routing.SequenceLayout.LabelWidth(c.Label))
+                        .DefaultIfEmpty(0).Max();
+                    centerX += MarkSmith.Core.Mermaid.Routing.SequenceLayout.ColumnSpacing(prev.Width, n.Width, widest);
+                }
+
+                if (!n.HasCustomPosition)
+                {
+                    n.X = centerX - n.Width / 2;
+                    n.Y = startY;
                 }
             }
+
+            static bool Same(string a, string b) => a.Equals(b, StringComparison.OrdinalIgnoreCase);
         }
         else if (SelectedDiagramType == MermaidDiagramType.Gantt)
         {
@@ -717,63 +791,16 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
         else
         {
-            var inDegree = Nodes.ToDictionary(n => n.Id, _ => 0, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var c in Connectors)
-            {
-                if (inDegree.ContainsKey(c.TargetNodeId))
-                {
-                    inDegree[c.TargetNodeId]++;
-                }
-            }
-
-            var ranks = Nodes.ToDictionary(n => n.Id, _ => 0, StringComparer.OrdinalIgnoreCase);
-            var queue = new Queue<string>();
-
-            foreach (var kvp in inDegree)
-            {
-                if (kvp.Value == 0) queue.Enqueue(kvp.Key);
-            }
-
-            if (queue.Count == 0 && Nodes.Count > 0) queue.Enqueue(Nodes[0].Id);
-
-            int ops = 0;
-            while (queue.Count > 0 && ops < 10000)
-            {
-                ops++;
-                var u = queue.Dequeue();
-                int currentRank = ranks[u];
-                
-                // Prevent infinite loop if the diagram contains cycles
-                if (currentRank > Nodes.Count + 5)
-                {
-                    continue;
-                }
-                
-                var outgoing = Connectors.Where(c => c.SourceNodeId.Equals(u, StringComparison.OrdinalIgnoreCase)).ToList();
-                foreach (var edge in outgoing)
-                {
-                    if (ranks.ContainsKey(edge.TargetNodeId))
-                    {
-                        if (ranks[edge.TargetNodeId] < currentRank + 1)
-                        {
-                            ranks[edge.TargetNodeId] = currentRank + 1;
-                            queue.Enqueue(edge.TargetNodeId);
-                        }
-                    }
-                }
-            }
-
+            // Ranks and in-layer order: cycles broken, crossings reduced (Core LayeredLayout).
+            var layered = MarkSmith.Core.Mermaid.Routing.LayeredLayout.Compute(
+                Nodes.Select(n => n.Id).ToList(),
+                Connectors.Select(c => (c.SourceNodeId, c.TargetNodeId)).ToList());
+            var byId = Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             var layers = new Dictionary<int, List<DiagramNodeViewModel>>();
-            foreach (var n in Nodes)
+            for (int r = 0; r < layered.Layers.Count; r++)
             {
-                int r = ranks[n.Id];
-                if (!layers.TryGetValue(r, out var list))
-                {
-                    list = new List<DiagramNodeViewModel>();
-                    layers[r] = list;
-                }
-                list.Add(n);
+                var list = layered.Layers[r].Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+                if (list.Count > 0) layers[r] = list;
             }
 
             bool isFlowchart = SelectedDiagramType == MermaidDiagramType.Flowchart;
@@ -836,6 +863,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void UpdateConnectedConnectors(DiagramNodeViewModel node)
     {
+        if (IsSequence) { LayoutSequence(); return; }
         foreach (var conn in Connectors)
         {
             if (conn.SourceNodeId.Equals(node.Id, StringComparison.OrdinalIgnoreCase) ||
@@ -848,10 +876,55 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void UpdateAllConnectors()
     {
+        if (IsSequence) { LayoutSequence(); return; }
+        foreach (var node in Nodes) node.LifelineLength = 0;
         foreach (var conn in Connectors)
         {
             UpdateConnectorGeometry(conn);
         }
+    }
+
+    /// <summary>
+    /// Draws the sequence diagram: a lifeline under every participant and each message on its own
+    /// row, in order, lifeline to lifeline (Core <see cref="MarkSmith.Core.Mermaid.Routing.SequenceLayout"/>).
+    /// </summary>
+    public void LayoutSequence()
+    {
+        var boxes = Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.SequenceParticipantBox(n.Id, n.X, n.Y, n.Width, n.Height)).ToList();
+        var messages = Connectors.Select(c => new MarkSmith.Core.Mermaid.Routing.SequenceMessageSpec(c.SourceNodeId, c.TargetNodeId, c.Label)).ToList();
+        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, messages);
+
+        for (int i = 0; i < Connectors.Count; i++)
+        {
+            if (drawing.Routes[i] is { } route)
+                Connectors[i].SetRoute(route.Points, route.LabelX, route.LabelY);
+        }
+        foreach (var node in Nodes)
+            node.LifelineLength = drawing.LifelineLengths.TryGetValue(node.Id, out var len) ? len : 0;
+    }
+
+    /// <summary>
+    /// Everything the canvas draws, for Fit and the minimap: node boxes plus sequence lifelines and
+    /// self-call loops that hang below or beside them. Null when the canvas is empty.
+    /// </summary>
+    public Rect? GetContentBounds()
+    {
+        if (Nodes.Count == 0) return null;
+        double minX = Nodes.Min(n => n.X), minY = Nodes.Min(n => n.Y);
+        double maxX = Nodes.Max(n => n.X + n.Width), maxY = Nodes.Max(n => n.LifelineBottom);
+        foreach (var c in Connectors.Where(c => !string.IsNullOrEmpty(c.PathData)))
+        {
+            minX = Math.Min(minX, Math.Min(c.SourceX, c.TargetX));
+            maxX = Math.Max(maxX, Math.Max(c.SourceX, c.TargetX));
+            maxY = Math.Max(maxY, Math.Max(c.SourceY, c.TargetY));
+        }
+        if (IsSequence)
+        {
+            // Self-call loops reach right of their lifeline, and their labels further still.
+            foreach (var c in Connectors.Where(c => c.SourceNodeId.Equals(c.TargetNodeId, StringComparison.OrdinalIgnoreCase)))
+                maxX = Math.Max(maxX, c.MidpointX + MarkSmith.Core.Mermaid.Routing.SequenceLayout.LabelWidth(c.Label) / 2);
+        }
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     public void SelectNode(DiagramNodeViewModel node, bool isMultiSelect = false)
@@ -922,6 +995,8 @@ public partial class MermaidStudioViewModel : ObservableObject
             node.X = Math.Max(10, node.X + deltaX);
             node.Y = Math.Max(10, node.Y + deltaY);
         }
+
+        if (IsSequence) { LayoutSequence(); return; }
 
         foreach (var conn in Connectors)
         {
@@ -1044,6 +1119,9 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     public void UpdateConnectorGeometry(DiagramConnectorViewModel conn)
     {
+        // Sequence messages are laid out as a whole (row order matters); a connector not yet in
+        // the list is drawn by the re-layout that adding it triggers.
+        if (IsSequence) { LayoutSequence(); return; }
         var srcNode = Nodes.FirstOrDefault(n => n.Id.Equals(conn.SourceNodeId, StringComparison.OrdinalIgnoreCase));
         var tgtNode = Nodes.FirstOrDefault(n => n.Id.Equals(conn.TargetNodeId, StringComparison.OrdinalIgnoreCase));
 
@@ -1106,6 +1184,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             Width = item.ShapeType == "TaskBar" ? 260 : 140,
             Height = 60
         };
+        if (node.IsPseudoState) node.Width = node.Height = 28;
 
         Nodes.Add(node);
         SelectNode(node, false);
@@ -1668,8 +1747,12 @@ public partial class MermaidStudioViewModel : ObservableObject
 
             case MermaidDiagramType.State:
                 var state = new StateDiagramAst();
+                // Start and end points (however many the canvas has) are all [*] in Mermaid.
+                var pseudoIds = new HashSet<string>(Nodes.Where(n => n.IsPseudoState).Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
+                string MermaidStateId(string id) => pseudoIds.Contains(id) ? StatePseudoId : id;
                 foreach (var n in Nodes)
                 {
+                    if (n.IsPseudoState) continue;
                     StateNodeType type = StateNodeType.Normal;
                     if (string.Equals(n.Shape, "ChoiceState", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(n.Shape, "Choice", StringComparison.OrdinalIgnoreCase) ||
@@ -1707,11 +1790,13 @@ public partial class MermaidStudioViewModel : ObservableObject
                 {
                     state.Transitions.Add(new StateTransition
                     {
-                        FromId = c.SourceNodeId,
-                        ToId = c.TargetNodeId,
+                        FromId = MermaidStateId(c.SourceNodeId),
+                        ToId = MermaidStateId(c.TargetNodeId),
                         EventLabel = c.Label
                     });
                 }
+                if (pseudoIds.Count > 0 && !state.States.ContainsKey(StatePseudoId))
+                    state.States[StatePseudoId] = new StateNode { Id = StatePseudoId, Label = StatePseudoId, Type = StateNodeType.Start };
                 return state;
 
             case MermaidDiagramType.Gantt:

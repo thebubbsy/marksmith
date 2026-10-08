@@ -105,7 +105,20 @@ public sealed class MermaidMinimapControl : UserControl
 
         if (ViewModel is { } vm)
         {
-            // Connectors first so nodes sit on top.
+            // Sequence lifelines, then connectors, so nodes sit on top.
+            foreach (var n in vm.Nodes)
+            {
+                if (!n.HasLifeline) continue;
+                _mapCanvas.Children.Add(new Line
+                {
+                    X1 = MapX(n.LifelineX), Y1 = MapY(n.LifelineTop),
+                    X2 = MapX(n.LifelineX), Y2 = MapY(n.LifelineBottom),
+                    Stroke = ConnectorBrush,
+                    StrokeThickness = 1,
+                    Opacity = 0.6,
+                    IsHitTestVisible = false,
+                });
+            }
             foreach (var c in vm.Connectors)
             {
                 _mapCanvas.Children.Add(new Line
@@ -157,7 +170,7 @@ public sealed class MermaidMinimapControl : UserControl
             maxX = Math.Max(maxX, x + w); maxY = Math.Max(maxY, y + h);
         }
         if (ViewModel is { } vm)
-            foreach (var n in vm.Nodes) Include(n.X - Pad, n.Y - Pad, n.Width + 2 * Pad, n.Height + 2 * Pad);
+            if (vm.GetContentBounds() is { } b) Include(b.X - Pad, b.Y - Pad, b.Width + 2 * Pad, b.Height + 2 * Pad);
         if (TargetScrollViewer is { } sv && sv.ViewportWidth > 0)
         {
             var v = VisibleWorld(sv);

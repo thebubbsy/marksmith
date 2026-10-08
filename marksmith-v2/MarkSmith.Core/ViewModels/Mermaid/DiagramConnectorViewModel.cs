@@ -257,6 +257,26 @@ public partial class DiagramConnectorViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Draws the connector along a route someone else worked out (a sequence message runs
+    /// lifeline to lifeline on its own row; see <see cref="MarkSmith.Core.Mermaid.Routing.SequenceLayout"/>),
+    /// with its label centred on (<paramref name="labelX"/>, <paramref name="labelY"/>).
+    /// </summary>
+    public void SetRoute(IReadOnlyList<MarkSmith.Core.Mermaid.Routing.Point> points, double labelX, double labelY)
+    {
+        if (points.Count < 2) return;
+        SourceX = points[0].X;
+        SourceY = points[0].Y;
+        TargetX = points[^1].X;
+        TargetY = points[^1].Y;
+        MidpointX = labelX;
+        MidpointY = labelY;
+        PathData = points.Count == 2
+            ? System.FormattableString.Invariant($"M {SourceX:F1},{SourceY:F1} L {TargetX:F1},{TargetY:F1}")
+            : MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(points.ToList(), 6.0);
+        SetEnds(points);
+    }
+
     public void TranslateGeometry(double deltaX, double deltaY)
     {
         SourceX += deltaX;
