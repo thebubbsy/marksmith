@@ -42,7 +42,9 @@ public static class SequenceParser
             if (lower == "sequencediagram")
                 continue;
 
-            if (lower == "autonumber")
+            // Before any message, "autonumber" is the diagram-wide flag; after one, it switches
+            // numbering back on from that row, so it stays in place as a statement.
+            if (lower == "autonumber" && !ast.Statements.Any(s => s.Kind == SequenceStatementKind.Message))
             {
                 ast.AutoNumber = true;
                 continue;

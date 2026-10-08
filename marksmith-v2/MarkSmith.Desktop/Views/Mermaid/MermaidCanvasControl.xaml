@@ -244,6 +244,16 @@
                                                    Foreground="#EDF2F4" />
                                     </Border>
                                 </Grid>
+
+                                <!-- Sequence autonumber: a numbered dot where the message starts -->
+                                <Grid Canvas.Left="{Binding SourceX}" Canvas.Top="{Binding SourceY}"
+                                      Width="20" Height="20" Margin="-10,-10,0,0"
+                                      IsHitTestVisible="False"
+                                      Visibility="{Binding HasSequenceNumber, Converter={StaticResource BoolToVisConverter}}">
+                                    <Ellipse Fill="#4CC9F0" Stroke="#1E1E2E" StrokeThickness="1.5" />
+                                    <TextBlock Text="{Binding SequenceNumber}" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="#1E1E2E" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
                             </Canvas>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

@@ -71,6 +71,14 @@ public partial class DiagramConnectorViewModel : ObservableObject
     [ObservableProperty]
     private double _strokeWidth = 2.0;
 
+    /// <summary>Sequence autonumber drawn at the message's start; null when numbering is off
+    /// (layout output only, never saved: "autonumber" lives in the code).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSequenceNumber))]
+    private string? _sequenceNumber;
+
+    public bool HasSequenceNumber => !string.IsNullOrEmpty(SequenceNumber);
+
     /// <summary>Pointer is over the connector (UI state only; never saved or synced).</summary>
     [ObservableProperty]
     private bool _isHovered;

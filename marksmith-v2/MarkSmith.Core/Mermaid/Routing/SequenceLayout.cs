@@ -14,7 +14,11 @@ public readonly record struct SequenceMessageSpec(string FromId, string ToId, st
 
 /// <summary>Where one message is drawn: its polyline, the centre of its label (which sits just
 /// above the line, as Mermaid draws it, instead of on top of it), and whether it is a self-call.</summary>
-public sealed record SequenceMessageRoute(IReadOnlyList<Point> Points, double LabelX, double LabelY, bool IsSelf);
+public sealed record SequenceMessageRoute(IReadOnlyList<Point> Points, double LabelX, double LabelY, bool IsSelf)
+{
+    /// <summary>The autonumber shown at the message's start, when numbering is on.</summary>
+    public int? Number { get; init; }
+}
 
 /// <summary>The whole drawing: one route per message (null when an end is missing), how far
 /// each participant's lifeline runs below its header, and the notes, block frames and activation
@@ -90,7 +94,7 @@ public static class SequenceLayout
     /// and activation bars from <c>activate</c>/<c>+</c> to <c>deactivate</c>/<c>-</c>. Mermaid's
     /// <c>-</c> shorthand (<c>B-->>-A</c>) ends the sender's activation.
     /// </summary>
-    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceStatement> script)
+    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceStatement> script, bool autoNumber = false)
     {
         var routes = new List<SequenceMessageRoute?>();
         var lengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -147,13 +151,28 @@ public static class SequenceLayout
             return towardRight ? barLeft + ActivationWidth : barLeft;
         }
 
+        // Mermaid numbering: a bare "autonumber" counts 1, 2, 3...; "autonumber 10 5" restarts at
+        // 10 in steps of 5 from that point on; "autonumber off" stops it.
+        bool numbering = autoNumber;
+        int nextNumber = 1, numberStep = 1;
+
         foreach (var st in script)
         {
+            if (st.Kind == SequenceStatementKind.Raw && TryReadAutoNumber(st.Text, out bool on, out int? start, out int? step))
+            {
+                numbering = on;
+                if (start is { } s0) nextNumber = s0;
+                if (step is { } s1) numberStep = s1;
+                continue;
+            }
+
             switch (st.Kind)
             {
                 case SequenceStatementKind.Message:
                 {
                     var m = st.Message!;
+                    int? number = null;
+                    if (numbering) { number = nextNumber; nextNumber += numberStep; }
                     int lines = LabelLines(m.Text);
                     double labelHalfHeight = (lines * LabelLineHeight + 8) / 2;
                     y += (lines - 1) * LabelLineHeight; // room above the line for a taller label
@@ -185,14 +204,14 @@ public static class SequenceLayout
                         };
                         // The label reads to the right of the loop, clear of the lifeline.
                         double labelX = x1 + SelfLoopWidth + 6 + LabelWidth(m.Text) / 2;
-                        routes.Add(new SequenceMessageRoute(pts, labelX, y + SelfLoopHeight / 2, IsSelf: true));
+                        routes.Add(new SequenceMessageRoute(pts, labelX, y + SelfLoopHeight / 2, IsSelf: true) { Number = number });
                         Extend(x1 - 10, labelX + LabelWidth(m.Text) / 2);
                         lastRow = y + SelfLoopHeight;
                         y += RowStep + SelfLoopHeight;
                     }
                     else
                     {
-                        routes.Add(new SequenceMessageRoute(new List<Point> { new(x1, y), new(x2, y) }, (x1 + x2) / 2, y - 3 - labelHalfHeight, IsSelf: false));
+                        routes.Add(new SequenceMessageRoute(new List<Point> { new(x1, y), new(x2, y) }, (x1 + x2) / 2, y - 3 - labelHalfHeight, IsSelf: false) { Number = number });
                         double half = LabelWidth(m.Text) / 2;
                         Extend(Math.Min(Math.Min(x1, x2), (x1 + x2) / 2 - half), Math.Max(Math.Max(x1, x2), (x1 + x2) / 2 + half));
                         lastRow = y;
@@ -302,6 +321,19 @@ public static class SequenceLayout
             Frames = frames.OrderBy(f => f.Order).Select(f => f.Frame).ToList(),
             Activations = bars,
         };
+    }
+
+    /// <summary>Reads an "autonumber" line: bare, with a start and optional step, or "off".</summary>
+    public static bool TryReadAutoNumber(string? line, out bool on, out int? start, out int? step)
+    {
+        on = false; start = null; step = null;
+        var parts = (line ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || !parts[0].Equals("autonumber", StringComparison.OrdinalIgnoreCase)) return false;
+        if (parts.Length > 1 && parts[1].Equals("off", StringComparison.OrdinalIgnoreCase)) return true;
+        on = true;
+        if (parts.Length > 1 && int.TryParse(parts[1], out int a)) start = a;
+        if (parts.Length > 2 && int.TryParse(parts[2], out int b)) step = b;
+        return true;
     }
 
     private sealed class OpenFrame

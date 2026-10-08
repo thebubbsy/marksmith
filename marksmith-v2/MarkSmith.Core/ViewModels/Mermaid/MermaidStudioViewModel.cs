@@ -216,7 +216,21 @@ public partial class MermaidStudioViewModel : ObservableObject
         InitializePalette();
         // A sequence diagram's rows depend on every message and participant, so any add/remove
         // re-lays the whole conversation (cheap: one pass over the messages).
-        Connectors.CollectionChanged += (_, _) => { if (IsSequence && !_suspendSequenceLayout) LayoutSequence(); };
+        Connectors.CollectionChanged += (_, e) =>
+        {
+            if (!IsSequence || _suspendSequenceLayout) return;
+            // A message drawn (or pasted) on the canvas takes a slot at the end of the script, so
+            // from then on it reorders like any loaded message.
+            if (e.NewItems is { } added)
+                foreach (DiagramConnectorViewModel c in added)
+                    if (!_sequenceMessageOf.ContainsKey(c))
+                    {
+                        var st = SequenceStatement.ForMessage(new SequenceMessage { FromId = c.SourceNodeId, ToId = c.TargetNodeId });
+                        _sequenceScript.Add(st);
+                        _sequenceMessageOf[c] = st;
+                    }
+            LayoutSequence();
+        };
         Nodes.CollectionChanged += (_, _) => { if (IsSequence && !_suspendSequenceLayout) LayoutSequence(); };
     }
 
@@ -226,6 +240,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     /// <summary>The loaded sequence diagram's body as written (messages, notes, blocks,
     /// activations), and which statement each loaded message connector came from.</summary>
     private List<SequenceStatement> _sequenceScript = new();
+    private bool _sequenceAutoNumber;
     private readonly Dictionary<DiagramConnectorViewModel, SequenceStatement> _sequenceMessageOf = new(ReferenceEqualityComparer.Instance);
 
     public void InitializePalette()
@@ -370,6 +385,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         ClearSequenceDecorations();
         _sequenceScript = new List<SequenceStatement>();
         _sequenceMessageOf.Clear();
+        _sequenceAutoNumber = false;
 
         var nodeA = new DiagramNodeViewModel { Id = "A", LabelText = "Start Process", Shape = "RoundedRectangle", X = 200, Y = 150, Width = 150, Height = 60, HasCustomPosition = true };
         var nodeB = new DiagramNodeViewModel { Id = "B", LabelText = "Check Conditions", Shape = "Rhombus", X = 200, Y = 280, Width = 160, Height = 80, HasCustomPosition = true };
@@ -405,6 +421,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         ClearSequenceDecorations();
         _sequenceScript = new List<SequenceStatement>();
         _sequenceMessageOf.Clear();
+        _sequenceAutoNumber = false;
 
         switch (ast)
         {
@@ -457,6 +474,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 // Every message becomes a row, including the ones inside loop/alt/opt blocks (they
                 // used to be left off the canvas). The written script is kept so notes, blocks and
                 // activations go back exactly where they were (see CanvasToAst).
+                _sequenceAutoNumber = seq.AutoNumber;
                 _sequenceScript = seq.Statements.Count > 0
                     ? seq.Statements.ToList()
                     : seq.Messages.Select(SequenceStatement.ForMessage).ToList();
@@ -901,8 +919,36 @@ public partial class MermaidStudioViewModel : ObservableObject
         ClearSequenceDecorations();
         foreach (var conn in Connectors)
         {
+            conn.SequenceNumber = null;
             UpdateConnectorGeometry(conn);
         }
+    }
+
+    /// <summary>
+    /// Moves the selected sequence message one row up (-1) or down (+1). It swaps places with its
+    /// neighbour in the script, so it can move into or out of a loop/alt block. Returns false at
+    /// either end or when nothing movable is selected.
+    /// </summary>
+    public bool MoveSelectedMessage(int direction)
+    {
+        if (!IsSequence || SelectedConnector is not { } conn) return false;
+        var (_, rows) = BuildSequenceScriptWithRows();
+        int row = rows.IndexOf(conn);
+        int target = row + Math.Sign(direction);
+        if (row < 0 || direction == 0 || target < 0 || target >= rows.Count)
+        {
+            StatusText = row < 0 ? StatusText : direction < 0 ? "Already the first message." : "Already the last message.";
+            return false;
+        }
+
+        SnapshotForUndo();
+        // Rows fill the script's message slots in Connectors order, so swapping the two connectors
+        // in the collection swaps their rows.
+        int a = Connectors.IndexOf(conn), b = Connectors.IndexOf(rows[target]);
+        Connectors.Move(a, b);
+        if (Math.Abs(a - b) > 1) Connectors.Move(a < b ? b - 1 : b + 1, a);
+        StatusText = $"Moved \"{(string.IsNullOrEmpty(conn.Label) ? "message" : conn.Label)}\" {(direction < 0 ? "up" : "down")}.";
+        return true;
     }
 
     /// <summary>
@@ -979,12 +1025,13 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         var boxes = Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.SequenceParticipantBox(n.Id, n.X, n.Y, n.Width, n.Height)).ToList();
         var (script, rowConnectors) = BuildSequenceScriptWithRows();
-        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, script);
+        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, script, _sequenceAutoNumber);
 
         for (int i = 0; i < rowConnectors.Count && i < drawing.Routes.Count; i++)
         {
             if (drawing.Routes[i] is { } route)
                 rowConnectors[i].SetRoute(route.Points, route.LabelX, route.LabelY);
+            rowConnectors[i].SequenceNumber = drawing.Routes[i]?.Number?.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
         foreach (var node in Nodes)
             node.LifelineLength = drawing.LifelineLengths.TryGetValue(node.Id, out var len) ? len : 0;
@@ -1414,6 +1461,13 @@ public partial class MermaidStudioViewModel : ObservableObject
     // (coarse). Each press is its own undo step so a user can walk a node back.
     public void NudgeSelected(double deltaX, double deltaY, bool coarse)
     {
+        // In a sequence diagram ↑/↓ on a selected message moves it a row (its position is its
+        // order; nudging it by pixels means nothing).
+        if (IsSequence && SelectedNodes.Count == 0 && SelectedConnector is not null && deltaX == 0 && deltaY != 0)
+        {
+            MoveSelectedMessage(deltaY < 0 ? -1 : 1);
+            return;
+        }
         if (SelectedNodes.Count == 0) return;
         double step = coarse ? Math.Max(GridSnapSize, 10) : 1;
         SnapshotForUndo();
@@ -1790,7 +1844,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 }
                 seq.Statements.AddRange(BuildSequenceScript());
                 seq.RebuildIndexes();
-                if (existingSeq != null) seq.AutoNumber = existingSeq.AutoNumber;
+                seq.AutoNumber = existingSeq?.AutoNumber ?? _sequenceAutoNumber;
                 return seq;
 
             case MermaidDiagramType.Class:

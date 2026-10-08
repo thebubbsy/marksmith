@@ -3079,3 +3079,34 @@ a diagram with nested `loop`/`alt`, notes and `+`/`-`, and check:
    clipboard self-copy, email automation attachments, Copy as email, EPUB follow-ups,
    root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, SmartArt outline keyboard pass,
    Google Docs OAuth decision, Shape/SmartArt exports in real Word).
+
+### 2026-10-08 16:00–16:25 AEST (routine run #32, cloud: reorder sequence messages; autonumber drawn)
+
+Cloud run, like #31: Core and tests built and ran on Linux; the Desktop build is PR CI's
+Windows job. Run #31's Windows build passed, so its XAML compiles. Same branch and PR as #31.
+
+**Found:**
+- There was no way to change a sequence message's order on the canvas.
+- `autonumber` was kept in the code but never drawn.
+- A bare `autonumber` after the first message was treated as the diagram-wide flag, so it was
+  written back at the top and numbering began at the first message.
+
+**What shipped:**
+- VM `MoveSelectedMessage(±1)`. With a sequence message selected (and no nodes), ↑/↓ — the
+  existing nudge accelerators — move it a row instead of nudging pixels:
+  - it swaps with its neighbour's slot in the script, so it can move into or out of a
+    `loop`/`alt`;
+  - it is undoable, and the status bar says what moved or "Already the first/last message.".
+- New messages drawn on the canvas take a script slot when they're added, so they reorder
+  like loaded ones.
+- Core `SequenceLayout` numbers messages: bare `autonumber`, `autonumber <start> <step>` and
+  `autonumber off` behave as in Mermaid. Connector VM `SequenceNumber`/`HasSequenceNumber`.
+  Canvas: a numbered cyan dot at the message's start.
+- Parser: a bare `autonumber` after the first message stays in place as a statement.
+
+**Tests:** new `Mermaid/SequenceReorderTests.cs` (8). Mermaid filter: 246/246.
+
+**Check on the PC:**
+- Select a message, then press ↑/↓: the row moves and the status bar text is right.
+- The autonumber dot is legible and doesn't hide the arrow's start or an activation bar.
+- Mouse drag-to-reorder is still not there (keyboard only).
