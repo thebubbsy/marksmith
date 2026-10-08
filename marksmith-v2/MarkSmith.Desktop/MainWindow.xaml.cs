@@ -10,7 +10,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.Storage.Pickers;
 using WinRT.Interop;
 using MarkSmith.Mermaid.Sync;
 using Shortcuts = MarkSmith.Services.KeyboardShortcuts;
@@ -1662,12 +1661,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FolderPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add("*");
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder is not null) ViewModel.WatchFolder = folder.Path;
+        var folder = await Services.NativeFilePicker.PickFolderAsync(this, "Select Watch Folder");
+        if (!string.IsNullOrEmpty(folder)) ViewModel.WatchFolder = folder;
     }
+
 
     // Preset directory selector for standard AI pipeline output locations.
     private void OnWatchFolderPresetSelected(object sender, SelectionChangedEventArgs e)
@@ -1790,23 +1787,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         // Batch is Pro, except a batch that only writes email drafts (AutomationPolicy). The format
         // is picked in the dialog, so a free user still gets the dialog with the email formats.
-        var picker = new FolderPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add("*");
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder is null) return;
+        var folderPath = await Services.NativeFilePicker.PickFolderAsync(this, "Select Batch Folder");
+        if (string.IsNullOrEmpty(folderPath)) return;
+
+        var folderName = System.IO.Path.GetFileName(folderPath);
+        if (string.IsNullOrEmpty(folderName)) folderName = folderPath;
 
         var outFolder = App.Settings.Current.OutputFolder;
-        var all = Services.AutomationExportService.FindBatchSources(folder.Path, recursive: true, outFolder);
-        var top = Services.AutomationExportService.FindBatchSources(folder.Path, recursive: false, outFolder);
+        var all = Services.AutomationExportService.FindBatchSources(folderPath, recursive: true, outFolder);
+        var top = Services.AutomationExportService.FindBatchSources(folderPath, recursive: false, outFolder);
         if (all.Length == 0)
         {
-            ViewModel.StatusText = $"Nothing to convert in {folder.Name}: no Markdown, text, Word, web page or email files there or in its subfolders.";
+            ViewModel.StatusText = $"Nothing to convert in {folderName}: no Markdown, text, Word, web page or email files there or in its subfolders.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
             return;
         }
 
-        var (fmt, recursive) = await AskBatchFormatAsync(folder.Name, top.Length, all.Length);
+        var (fmt, recursive) = await AskBatchFormatAsync(folderName, top.Length, all.Length);
         if (fmt is null) return;
         if (fmt == Models.OutputFormats.Docx && !App.License.CanExportDocx)
         {
@@ -1831,7 +1828,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             var result = await _exportCoordinator.BatchConvertForApiAsync(
                 ViewModel,
-                folder.Path,
+                folderPath,
                 fmt,
                 null,
                 this,
@@ -1911,22 +1908,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FileOpenPicker();
-        picker.FileTypeFilter.Add(".png");
-        picker.FileTypeFilter.Add(".jpg");
-        picker.FileTypeFilter.Add(".jpeg");
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null) ViewModel.BrandLogoPath = file.Path;
+        var file = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Select Brand Logo",
+            ("Image Files (*.png;*.jpg;*.jpeg)", "*.png;*.jpg;*.jpeg"),
+            ("PNG Images (*.png)", "*.png"),
+            ("JPEG Images (*.jpg;*.jpeg)", "*.jpg;*.jpeg"));
+        if (!string.IsNullOrEmpty(file)) ViewModel.BrandLogoPath = file;
     }
 
     private async void OnBrowseRunningDocClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = "AI-notebook" };
-        picker.FileTypeChoices.Add("Word document", new List<string> { ".docx" });
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        var file = await picker.PickSaveFileAsync();
-        if (file is not null) ViewModel.RunningDocPath = file.Path;
+        var file = await Services.NativeFilePicker.PickSaveFileAsync(
+            this,
+            "Save AI Notebook",
+            "AI-notebook.docx",
+            ("Word document (*.docx)", "*.docx"));
+        if (!string.IsNullOrEmpty(file)) ViewModel.RunningDocPath = file;
     }
 
     private async Task<byte[]> ConvertForApiAsync(string markdown, Models.OutputOverride? output)
@@ -2186,15 +2184,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFileClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        foreach (var ext in Plugins.PluginFileReader.NativeExtensions) picker.FileTypeFilter.Add("." + ext);
-        foreach (var ext in App.Plugins.AllImporterExtensions)
-            if (!Plugins.PluginFileReader.NativeExtensions.Contains(ext)) picker.FileTypeFilter.Add("." + ext);
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null)
+        var allExts = Plugins.PluginFileReader.NativeExtensions
+            .Concat(App.Plugins.AllImporterExtensions)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(ext => ext.TrimStart('.'))
+            .ToList();
+        var filterPattern = string.Join(";", allExts.Select(ext => "*." + ext));
+        var file = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Open Document",
+            ("Supported Documents", filterPattern),
+            ("Markdown (*.md;*.markdown)", "*.md;*.markdown"),
+            ("All Files (*.*)", "*.*"));
+        if (!string.IsNullOrEmpty(file))
         {
-            ViewModel.InputFilePath = file.Path;
+            ViewModel.InputFilePath = file;
             AutoCollapseLeftPane();
             ViewModel.UsePasteSource = false;
         }
@@ -2202,28 +2206,31 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseLogoClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add(".png");
-        picker.FileTypeFilter.Add(".jpg");
-        picker.FileTypeFilter.Add(".jpeg");
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null)
+        var file = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Select Logo",
+            ("Image Files (*.png;*.jpg;*.jpeg)", "*.png;*.jpg;*.jpeg"),
+            ("PNG Images (*.png)", "*.png"),
+            ("JPEG Images (*.jpg;*.jpeg)", "*.jpg;*.jpeg"),
+            ("All Files (*.*)", "*.*"));
+        if (!string.IsNullOrEmpty(file))
         {
-            ViewModel.BrandLogoPath = file.Path;
+            ViewModel.BrandLogoPath = file;
         }
     }
 
     private async void OnBrowseFontClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add(".ttf");
-        picker.FileTypeFilter.Add(".otf");
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null)
+        var file = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Select Font",
+            ("Font Files (*.ttf;*.otf)", "*.ttf;*.otf"),
+            ("TrueType Font (*.ttf)", "*.ttf"),
+            ("OpenType Font (*.otf)", "*.otf"),
+            ("All Files (*.*)", "*.*"));
+        if (!string.IsNullOrEmpty(file))
         {
-            ViewModel.CustomFontPath = file.Path;
+            ViewModel.CustomFontPath = file;
         }
     }
 
@@ -2309,11 +2316,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFolderClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FolderPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add("*");
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder is not null) ViewModel.OutputFolder = folder.Path;
+        var folder = await Services.NativeFilePicker.PickFolderAsync(this, "Select Output Folder");
+        if (!string.IsNullOrEmpty(folder)) ViewModel.OutputFolder = folder;
     }
 
     // The "call to user" for a page-dominating diagram: keep mermaid's exact layout (Web Layout view)
@@ -2553,20 +2557,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var format = root.GetProperty("format").GetString() ?? "png";
             var data = root.GetProperty("data").GetString() ?? "";
 
-            var picker = new FileSavePicker { SuggestedFileName = "diagram" };
-            picker.FileTypeChoices.Add(format.ToUpperInvariant() + " image", new List<string> { "." + format });
-            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-            var file = await picker.PickSaveFileAsync();
-            if (file is null) return;
+            var ext = format.ToLowerInvariant();
+            var file = await Services.NativeFilePicker.PickSaveFileAsync(
+                this,
+                "Export Diagram",
+                $"diagram.{ext}",
+                ($"{format.ToUpperInvariant()} image (*.{ext})", $"*.{ext}"),
+                ("All Files (*.*)", "*.*"));
+            if (string.IsNullOrEmpty(file)) return;
 
             if (format == "svg")
-                await File.WriteAllTextAsync(file.Path, data);
+                await File.WriteAllTextAsync(file, data);
             else
             {
                 var b64 = data.Contains(',') ? data[(data.IndexOf(',') + 1)..] : data;
-                await File.WriteAllBytesAsync(file.Path, Convert.FromBase64String(b64));
+                await File.WriteAllBytesAsync(file, Convert.FromBase64String(b64));
             }
-            ViewModel.StatusText = $"Diagram saved: {file.Path}";
+            ViewModel.StatusText = $"Diagram saved: {file}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
@@ -5776,21 +5783,29 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnImportDocumentClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions)) picker.FileTypeFilter.Add(ext);
-        var file = await picker.PickSingleFileAsync();
-        if (file is null) return;
+        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions).ToList();
+        var filterPattern = string.Join(";", supportedExts.Select(x => "*" + x));
+        var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Import Document",
+            ("Supported Documents", filterPattern),
+            ("Word Documents (*.docx)", "*.docx"),
+            ("PDF Documents (*.pdf)", "*.pdf"),
+            ("Email Files (*.eml;*.msg)", "*.eml;*.msg"),
+            ("HTML Files (*.html;*.htm)", "*.html;*.htm"),
+            ("Images", string.Join(";", Ocr.OcrImport.ImageExtensions.Select(x => "*" + x))),
+            ("All Files (*.*)", "*.*"));
+        if (string.IsNullOrEmpty(filePath)) return;
 
         try
         {
-            var ext = Path.GetExtension(file.Path).ToLowerInvariant();
-            var name = Path.GetFileName(file.Path);
-            if (Ocr.OcrImport.IsImage(file.Path))
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            var name = Path.GetFileName(filePath);
+            if (Ocr.OcrImport.IsImage(filePath))
             {
                 // A picture of a page: read it with the OCR engine Settings picked.
                 ViewModel.StatusText = $"Reading the text in {name}…";
-                var read = await Ocr.OcrImport.ImageToMarkdownAsync(file.Path);
+                var read = await Ocr.OcrImport.ImageToMarkdownAsync(filePath);
                 if (string.IsNullOrWhiteSpace(read.Markdown))
                 {
                     ViewModel.StatusText = $"No text found in {name}.";
@@ -5809,15 +5824,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var importer = new Services.ReverseImportService();
                 ViewModel.StatusText = $"Importing {name}…";
                 var result = ext == ".pdf"
-                    ? await importer.ImportFromPdfAsync(file.Path, new Services.Import.PdfImportOptions
+                    ? await importer.ImportFromPdfAsync(filePath, new Services.Import.PdfImportOptions
                     {
-                        MediaDirectory = Plugins.PluginFileReader.MediaDirFor(file.Path),
-                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(file.Path, Plugins.PluginFileReader.MediaDirFor(file.Path)),
-                        RenderPage = n => Services.WindowsPdfRenderer.Render(file.Path, n),
+                        MediaDirectory = Plugins.PluginFileReader.MediaDirFor(filePath),
+                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(filePath, Plugins.PluginFileReader.MediaDirFor(filePath)),
+                        RenderPage = n => Services.WindowsPdfRenderer.Render(filePath, n),
                         // Scanned pages take a moment each: say which one is being read.
                         Progress = new Progress<string>(s => ViewModel.StatusText = s),
                     })
-                    : await importer.ImportFromDocxAsync(file.Path);
+                    : await importer.ImportFromDocxAsync(filePath);
                 Services.WindowsPdfRenderer.Release();
 
                 if (string.IsNullOrWhiteSpace(result.Markdown))
@@ -5847,16 +5862,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
             }
 
-            var imported = await Plugins.PluginFileReader.ImportAsync(file.Path);
+            var imported = await Plugins.PluginFileReader.ImportAsync(filePath);
             if (string.IsNullOrWhiteSpace(imported.Markdown))
             {
-                ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(file.Path)}: it has no readable content.";
+                ViewModel.StatusText = $"Nothing to import from {Path.GetFileName(filePath)}: it has no readable content.";
                 ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
                 return;
             }
             ViewModel.PastedMarkdown = imported.Markdown;
             ViewModel.UsePasteSource = true;
-            ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(file.Path)}";
+            ViewModel.StatusText = imported.Summary ?? $"Imported {Path.GetFileName(filePath)}";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
@@ -5870,21 +5885,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnInsertSpreadsheetClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.FileTypeFilter.Add(".csv");
-        picker.FileTypeFilter.Add(".xlsx");
-        var file = await picker.PickSingleFileAsync();
-        if (file is null) return;
+        var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
+            this,
+            "Insert Spreadsheet or CSV",
+            ("Spreadsheets and CSV (*.csv;*.xlsx)", "*.csv;*.xlsx"),
+            ("CSV files (*.csv)", "*.csv"),
+            ("Excel workbooks (*.xlsx)", "*.xlsx"),
+            ("All Files (*.*)", "*.*"));
+        if (string.IsNullOrEmpty(filePath)) return;
 
         try
         {
             Services.TableModel model;
-            var ext = Path.GetExtension(file.Path).ToLowerInvariant();
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
             if (ext == ".xlsx")
             {
-                using var stream = await file.OpenStreamForReadAsync();
+                using var stream = File.OpenRead(filePath);
                 var sheets = Services.SpreadsheetService.ReadXlsx(stream);
                 if (sheets.Count == 0)
                 {
@@ -5922,7 +5939,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             else
             {
                 // CSV (or .tsv / .txt treated as CSV with auto-delimiter detection)
-                var text = await File.ReadAllTextAsync(file.Path);
+                var text = await File.ReadAllTextAsync(filePath);
                 model = Services.SpreadsheetService.ParseCsv(text);
             }
 
@@ -5939,7 +5956,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             var truncated = model.Rows.Count >= Services.SpreadsheetService.MaxImportRows;
             ViewModel.StatusText = truncated
                 ? $"Imported {model.Rows.Count} rows (truncated at {Services.SpreadsheetService.MaxImportRows})."
-                : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(file.Path)}.";
+                : $"Imported {model.Rows.Count + 1} rows × {model.ColumnCount} columns from {Path.GetFileName(filePath)}.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)
@@ -5983,29 +6000,30 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             exports = all.Select((t, i) => (t.NearestHeading ?? $"Table{i + 1}", t.Model)).ToList();
         }
 
-        var picker = new FileSavePicker { SuggestedFileName = "table" };
-        picker.FileTypeChoices.Add("Excel workbook", new List<string> { ".xlsx" });
-        picker.FileTypeChoices.Add("CSV (single table)", new List<string> { ".csv" });
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        var file = await picker.PickSaveFileAsync();
-        if (file is null) return;
+        var filePath = await Services.NativeFilePicker.PickSaveFileAsync(
+            this,
+            "Export Table",
+            "table.xlsx",
+            ("Excel workbook (*.xlsx)", "*.xlsx"),
+            ("CSV (single table) (*.csv)", "*.csv"));
+        if (string.IsNullOrEmpty(filePath)) return;
 
         try
         {
-            var outExt = Path.GetExtension(file.Path).ToLowerInvariant();
+            var outExt = Path.GetExtension(filePath).ToLowerInvariant();
             if (outExt == ".csv")
             {
                 // CSV: write only the first table (CSV is single-table by nature).
                 var csv = Services.SpreadsheetService.WriteCsv(exports[0].Model);
-                await File.WriteAllTextAsync(file.Path, csv);
+                await File.WriteAllTextAsync(filePath, csv);
             }
             else
             {
-                using var stream = await file.OpenStreamForWriteAsync();
+                using var stream = File.Create(filePath);
                 Services.SpreadsheetService.WriteXlsx(exports, stream);
             }
 
-            ViewModel.StatusText = $"Exported {exports.Count} table{(exports.Count == 1 ? "" : "s")} to {Path.GetFileName(file.Path)}.";
+            ViewModel.StatusText = $"Exported {exports.Count} table{(exports.Count == 1 ? "" : "s")} to {Path.GetFileName(filePath)}.";
             ViewModel.StatusSeverity = Models.StatusSeverity.Success;
         }
         catch (Exception ex)

@@ -629,15 +629,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         if (ViewModel is null) return;
         string svg = BuildSvg();
 
-        var picker = new FileSavePicker { SuggestedFileName = "diagram" };
-        picker.FileTypeChoices.Add("SVG image", new List<string> { ".svg" });
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+        var filters = new[] { ("SVG image (*.svg)", "*.svg") };
+        var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(App.MainAppWindow, "Export SVG", "diagram", filters, ".svg");
+        if (string.IsNullOrEmpty(path)) return; // user cancelled
 
-        var file = await picker.PickSaveFileAsync();
-        if (file is null) return; // user cancelled
-
-        await FileIO.WriteTextAsync(file, svg);
-        ViewModel.StatusText = $"SVG exported to {file.Name}.";
+        await System.IO.File.WriteAllTextAsync(path, svg);
+        ViewModel.StatusText = $"SVG exported to {System.IO.Path.GetFileName(path)}.";
     }
 
     private void OnCopySvgClick(object sender, RoutedEventArgs e)

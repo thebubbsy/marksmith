@@ -1175,17 +1175,14 @@ namespace MarkSmith.Views.ShapeStudio
             if (!ViewModel.HasShapes) return;
             try
             {
-                var picker = new Windows.Storage.Pickers.FileSavePicker
-                {
-                    SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(ShapeDesignStudioViewModel.SuggestedExportName(template)),
-                    SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
-                };
-                if (template) picker.FileTypeChoices.Add("Word template", new List<string> { ".dotx" });
-                else picker.FileTypeChoices.Add("Word document", new List<string> { ".docx" });
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
-                var file = await picker.PickSaveFileAsync();
-                if (file == null) return;
-                await ViewModel.ExportToWordAsync(template, file.Path);
+                var suggestedName = System.IO.Path.GetFileNameWithoutExtension(ShapeDesignStudioViewModel.SuggestedExportName(template));
+                var filter = template
+                    ? new[] { ("Word template (*.dotx)", "*.dotx") }
+                    : new[] { ("Word document (*.docx)", "*.docx") };
+                var defaultExt = template ? ".dotx" : ".docx";
+                var path = await NativeFilePicker.PickSaveFileAsync(this, "Export", suggestedName, filter, defaultExt);
+                if (string.IsNullOrEmpty(path)) return;
+                await ViewModel.ExportToWordAsync(template, path);
             }
             catch (Exception ex)
             {
@@ -1266,26 +1263,24 @@ namespace MarkSmith.Views.ShapeStudio
 
         private async void OnPickImageClick(object sender, RoutedEventArgs e)
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Add(".png");
-            picker.FileTypeFilter.Add(".jpg");
-            picker.FileTypeFilter.Add(".jpeg");
-            picker.FileTypeFilter.Add(".bmp");
-            picker.FileTypeFilter.Add(".gif");
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
-            var file = await picker.PickSingleFileAsync();
-            if (file == null) return;
-            _composeImagePath = file.Path;
-            FuseImageLabel.Text = System.IO.Path.GetFileName(file.Path);
-            ToolTipService.SetToolTip(FuseImageLabel, file.Path);
+            var filters = new[]
+            {
+                ("Image files (*.png, *.jpg, *.jpeg, *.bmp, *.gif)", "*.png;*.jpg;*.jpeg;*.bmp;*.gif"),
+                ("All files (*.*)", "*.*")
+            };
+            var path = await NativeFilePicker.PickOpenFileAsync(this, "Select Picture", filters);
+            if (string.IsNullOrEmpty(path)) return;
+            _composeImagePath = path;
+            FuseImageLabel.Text = System.IO.Path.GetFileName(path);
+            ToolTipService.SetToolTip(FuseImageLabel, path);
             PickImageButton.Content = "Change…";
             ViewModel.HasImage = true;
             try
             {
-                FuseThumb.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(file.Path));
+                FuseThumb.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(path));
             }
             catch { }
-            ViewModel.StatusMessage = $"Picture ready: {System.IO.Path.GetFileName(file.Path)} — adjust the layers, then Convert.";
+            ViewModel.StatusMessage = $"Picture ready: {System.IO.Path.GetFileName(path)} — adjust the layers, then Convert.";
         }
 
         private async void OnFuseImageClick(object sender, RoutedEventArgs e)

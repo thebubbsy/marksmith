@@ -1288,37 +1288,25 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnSaveAsClick(object sender, RoutedEventArgs e)
         {
-            var picker = new FileSavePicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
-            picker.FileTypeChoices.Add("MarkSmith Galaxy Map", new List<string> { ".msmap" });
-            picker.SuggestedFileName = SanitizeFileName(ViewModel.Title);
-            InitializePicker(picker);
-
-            var file = await picker.PickSaveFileAsync();
-            if (file != null) await ViewModel.SaveAsync(file.Path);
+            var filters = new[] { ("MarkSmith Galaxy Map (*.msmap)", "*.msmap") };
+            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(this, "Save Galaxy Map", SanitizeFileName(ViewModel.Title), filters, ".msmap");
+            if (!string.IsNullOrEmpty(path)) await ViewModel.SaveAsync(path);
         }
 
         private async void OnImportFolderClick(object sender, RoutedEventArgs e)
         {
-            var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
-            picker.FileTypeFilter.Add("*");
-            InitializePicker(picker);
+            var path = await MarkSmith.Services.NativeFilePicker.PickFolderAsync(this, "Import Vault or Directory");
+            if (string.IsNullOrEmpty(path)) return;
 
-            var folder = await picker.PickSingleFolderAsync();
-            if (folder == null) return;
-
-            await ViewModel.ImportDirectoryAsync(folder.Path);
+            await ViewModel.ImportDirectoryAsync(path);
             FitToWindow();
         }
 
         private async void OnExportDocxClick(object sender, RoutedEventArgs e)
         {
-            var picker = new FileSavePicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
-            picker.FileTypeChoices.Add("Word Document", new List<string> { ".docx" });
-            picker.SuggestedFileName = SanitizeFileName(ViewModel.Title);
-            InitializePicker(picker);
-
-            var file = await picker.PickSaveFileAsync();
-            if (file != null) ViewModel.ExportToDocx(file.Path);
+            var filters = new[] { ("Word Document (*.docx)", "*.docx") };
+            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(this, "Export Word Document", SanitizeFileName(ViewModel.Title), filters, ".docx");
+            if (!string.IsNullOrEmpty(path)) ViewModel.ExportToDocx(path);
         }
 
         private void OnCopyMermaidFlowchartClick(object sender, RoutedEventArgs e)
@@ -1510,21 +1498,19 @@ namespace MarkSmith.Views.MindMap
             var node = ViewModel.SelectedNode;
             if (node == null) return;
 
-            var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
-            foreach (string ext in new[] { ".md", ".markdown", ".txt", ".docx", ".pdf", ".pptx", ".epub" })
+            var filters = new[]
             {
-                picker.FileTypeFilter.Add(ext);
-            }
-            InitializePicker(picker);
-
-            var file = await picker.PickSingleFileAsync();
-            if (file == null) return;
+                ("Supported Documents (*.md, *.markdown, *.txt, *.docx, *.pdf, *.pptx, *.epub)", "*.md;*.markdown;*.txt;*.docx;*.pdf;*.pptx;*.epub"),
+                ("All files (*.*)", "*.*")
+            };
+            var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(this, "Attach File to Node", filters);
+            if (string.IsNullOrEmpty(path)) return;
 
             ViewModel.PushUndo("Attach file to node");
-            node.FilePath = file.Path;
+            node.FilePath = path;
             if (string.IsNullOrWhiteSpace(node.Title) || node.Title.StartsWith("New ", StringComparison.Ordinal))
             {
-                node.Title = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                node.Title = System.IO.Path.GetFileNameWithoutExtension(path);
             }
             node.SyncToModel();
             ViewModel.IsDirty = true;

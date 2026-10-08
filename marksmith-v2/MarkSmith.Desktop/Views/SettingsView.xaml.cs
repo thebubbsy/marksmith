@@ -420,16 +420,17 @@ public sealed partial class SettingsView : UserControl
 
     private async void OnImportDotxClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FileOpenPicker();        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainAppWindow);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        picker.FileTypeFilter.Add(".dotx");
-        picker.FileTypeFilter.Add(".docx");
-        var file = await picker.PickSingleFileAsync();
-        if (file is null) return;
+        var filters = new[]
+        {
+            ("Word Templates and Documents (*.dotx, *.docx)", "*.dotx;*.docx"),
+            ("All files (*.*)", "*.*")
+        };
+        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(App.MainAppWindow, "Import Template", filters);
+        if (string.IsNullOrEmpty(path)) return;
 
         try
         {
-            App.ViewModel.BeginHouseStyleImport(file.Path);
+            App.ViewModel.BeginHouseStyleImport(path);
         }
         catch (Exception ex)
         {

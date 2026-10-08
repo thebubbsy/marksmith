@@ -83,13 +83,14 @@ public sealed partial class ImageInsertControl : UserControl
 
     private async void OnBrowseClick(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
-        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
-        foreach (var ext in ImageExtensions) picker.FileTypeFilter.Add(ext);
-
-        var file = await picker.PickSingleFileAsync();
-        if (file is not null) ImagePicked?.Invoke(file.Path);
+        var spec = string.Join(";", ImageExtensions.Select(e => "*" + e));
+        var filters = new[]
+        {
+            ($"Image files ({string.Join(", ", ImageExtensions)})", spec),
+            ("All files (*.*)", "*.*")
+        };
+        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(App.MainAppWindow, "Insert Image", filters);
+        if (!string.IsNullOrEmpty(path)) ImagePicked?.Invoke(path);
     }
 
     // ---- URL paste -----------------------------------------------------------------------------
