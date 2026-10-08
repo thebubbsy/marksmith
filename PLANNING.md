@@ -2987,3 +2987,95 @@ change was checked on a scratch-config instance (UIA + PrintWindow).
    - root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, the SmartArt outline keyboard pass;
    - the Google Docs OAuth decision;
    - Shape/SmartArt exports in real Word.
+
+### 2026-10-08 15:00–15:55 AEST (routine run #31, cloud: sequence notes, blocks and activations, drawn and kept in order)
+
+**This run was in a Linux cloud container, not on the PC.** The standing rules couldn't all be
+met:
+- The WinUI3 Desktop project can't build or launch on Linux, so there was no smoke launch and
+  no UIA/PrintWindow check.
+- The `.NET 8` SDK was installed into the container. `MarkSmith.Core` and `MarkSmith.Tests`
+  built and ran there.
+- The one Desktop file changed is XAML (`MermaidCanvasControl.xaml`). PR CI's Windows job
+  ("Build Marksmith v2 (Windows)") is its build check.
+- The work went to branch `claude/cool-maxwell-4r338u` as a PR, not straight to `main` (cloud
+  sessions push to their assigned branch).
+
+Reviewed run #30's "Next up" and took item 1 (notes, `loop/alt/opt` blocks, activations).
+
+**Found:**
+- **The sequence AST lost order.** Messages, notes and blocks sat in three separate lists, so a
+  parse→generate round trip, **and every Diagram Studio save**, rewrote a diagram:
+  - all notes first;
+  - then every block;
+  - then every plain message.
+- Other parser and Studio losses:
+  - Nested blocks were flattened (the inner block was written again at top level).
+  - `activate`/`deactivate`, `break`, `rect`, par's `and` and critical's `option` were dropped.
+  - Any other unrecognised line vanished.
+  - `par` matched any line starting with "par".
+  - A participant `box`'s `end` could close a real block.
+- Messages inside blocks never reached the canvas. Notes, frames and activation bars were never
+  drawn.
+
+**What shipped:**
+- Core `SequenceDiagramAst.Statements` is the body in written order:
+  - message, note, activate/deactivate, block start, divider (`else`/`and`/`option`), end, and
+    Raw (verbatim) for anything not modelled;
+  - `Messages`/`Blocks`/`Notes` are now derived from it (`RebuildIndexes`), with the same shape
+    as before;
+  - the generator writes `Statements` in order, indented by depth;
+  - unclosed blocks are closed.
+- Diagram Studio:
+  - loads every message, including the ones in blocks;
+  - keeps the script, and `CanvasToAst` refills its message slots from the canvas in row order;
+  - edited labels land in place, and `+`/`-` stay with their message;
+  - deleted participants take their notes and activations with them;
+  - new messages go at the end.
+- Core `SequenceLayout.Layout(participants, script)` lays out the whole script:
+  - notes get their own row (left of / right of / over one or two participants);
+  - frames have a keyword tab and a `[condition]` caption, nest, enclose their rows and
+    labels, and draw a dashed divider per `else`/`and`/`option`;
+  - `rect` is a tinted band;
+  - activation bars run from `+`/`activate` to `-`/`deactivate`, step right when stacked,
+    close at the last row if left open, and arrows meet the bar's edge, as Mermaid draws them.
+- VM `SequenceFrames`/`SequenceNotes`/`SequenceActivations`, which Fit (`GetContentBounds`)
+  includes. Canvas layers in `MermaidCanvasControl.xaml`, from the bottom: frames, lifelines,
+  activation bars, notes, connectors.
+
+**Tests:**
+- New `Mermaid/SequenceScriptTests.cs` (21) covers:
+  - round-trip order, nesting and indentation, stability;
+  - activations, break, rect, par/and, critical/option, raw lines, box `end`;
+  - the derived indexes;
+  - block messages on the canvas;
+  - Studio save order, in-place label edit, participant delete, new message appended;
+  - frames enclosing their rows and nesting, divider placement;
+  - note rows and left/over placement, Fit;
+  - activation bars, stacking and edge-meeting arrows, unclosed bars;
+  - rect bands, decorations cleared for other types.
+- Full suite on Linux: 3797 passed, 25 failed. The same 25 fail without this change: governance
+  docs, scratch-path assets, environment. It needs `SkiaSharp.NativeAssets.Linux.NoDependencies`
+  added temporarily to run; that change wasn't committed.
+
+**Not verified:** nothing was looked at. Next time on the PC, open both sequence templates and
+a diagram with nested `loop`/`alt`, notes and `+`/`-`, and check:
+- the frames/notes/bars colours on the always-dark canvas;
+- that the keyword tab doesn't collide with the caption on narrow frames.
+
+**Lessons:**
+- Linux cloud runs can do Core and VM work and tests, not WinUI. Pick items whose logic lives
+  in `MarkSmith.Core`, and keep XAML changes to bindings in the existing layer pattern.
+- Mermaid's `-` shorthand (`B-->>-A`) ends the **sender's** activation. The AST still calls it
+  `DeactivateTarget`.
+
+**Next up:**
+1. Check this run's drawing live on the PC (above). Then: drag a message up or down to
+   reorder it (`BuildSequenceScript` already refills slots in canvas order, so only the
+   gesture is missing).
+2. Participant `box` grouping is still dropped (as it always was): keep it and draw it.
+3. Carried over from #30: participant header colours on the dark canvas for every bundled
+   theme; the hover halo/dwell real-mouse check; and #28/#29's list (batch dialog / drag-drop /
+   clipboard self-copy, email automation attachments, Copy as email, EPUB follow-ups,
+   root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, SmartArt outline keyboard pass,
+   Google Docs OAuth decision, Shape/SmartArt exports in real Word).
