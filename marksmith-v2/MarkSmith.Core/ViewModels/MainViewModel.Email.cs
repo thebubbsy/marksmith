@@ -212,6 +212,55 @@ public sealed partial class MainViewModel
         return EmailPreviewPage.Build(doc, EmailPalette.From(CurrentTheme), attachments);
     }
 
+    /// <summary>Set by the desktop app: puts a copied email on the Windows clipboard (CF_HTML plus
+    /// plain text). Tests replace it to see what would be copied.</summary>
+    public Action<EmailClipboardContent>? PutEmailOnClipboard { get; set; }
+
+    /// <summary>"Copy as email": the document as the email body, on the clipboard, ready to paste
+    /// into a compose window (a reply, a webmail tab, a thread that's already open). Pictures and
+    /// diagrams come along: as files for classic Outlook, inline for everything else.</summary>
+    public async Task CopyAsEmailAsync()
+    {
+        if (PutEmailOnClipboard is null) return;
+        var (markdown, _) = ResolveSource();
+        if (markdown is null) return;
+        try
+        {
+            var settings = _settingsService.Current;
+            List<byte[]?>? mermaid = null;
+            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+            {
+                StatusText = "Drawing diagrams for the email…";
+                var prepared = EmailHtmlRenderer.Prepare(markdown, settings, CurrentTheme);
+                mermaid = await _mermaidHarvest.RenderMermaidPngsAsync(Host, prepared, settings, EmailPalette.From(CurrentTheme).DiagramTheme());
+            }
+
+            var doc = EmailComposer.Compose(new EmailComposeRequest
+            {
+                Markdown = markdown,
+                SourceLabel = EmailSourceLabel(),
+                BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+                MermaidPngs = mermaid,
+            }, settings, CurrentTheme);
+
+            var mode = EmailClipboard.ModeFor(MailApps.Lookup(".eml"));
+            if (mode == ClipboardImageMode.File) EmailClipboard.Clean();
+            var content = EmailClipboard.Build(doc, mode);
+            PutEmailOnClipboard(content);
+
+            var pictures = doc.InlineImages.Count;
+            var what = pictures == 0 ? "" : pictures == 1 ? " with its picture" : $" with its {pictures} pictures";
+            StatusText = $"Copied as email{what}. Paste it into a new message or a reply."
+                + (doc.Notes.Count > 0 ? $" · {doc.Notes[0].TrimEnd('.')}" : "");
+            StatusSeverity = doc.Notes.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Copy as email failed: {ex.Message}";
+            StatusSeverity = StatusSeverity.Error;
+        }
+    }
+
     /// <summary>Writes the document as an Outlook draft to the outbox and opens it in the default
     /// mail app (classic or new Outlook, or whatever handles .eml), ready to edit and Send.</summary>
     public Task CreateEmailDraftAsync() => ExportEmailAsync(openInMailApp: true);

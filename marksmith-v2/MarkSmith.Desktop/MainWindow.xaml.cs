@@ -218,6 +218,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         RootGrid.DataContext = ViewModel;
         ViewModel.Host = new BackgroundExportHostImpl(this);
+        ViewModel.PutEmailOnClipboard = content =>
+        {
+            var package = new DataPackage();
+            package.SetText(content.Text);
+            package.SetHtmlFormat(HtmlFormatHelper.CreateHtmlFormat(content.Html));
+            Clipboard.SetContent(package);
+            Clipboard.Flush(); // stays pasteable after the app closes
+        };
 
         // App-wide hover/press "lift" animation for every button already declared in XAML —
         // see Services/HoverPolish.cs. Flyout and ContentDialog content isn't in the tree yet
@@ -3284,6 +3292,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             DoAsync("Email draft (open in Outlook)", "Export", () => ViewModel.CreateEmailDraftAsync(), "export.email", "mail send message"),
             DoAsync("Save as email (.eml)", "Export", () => ViewModel.SaveEmailAsync(), keywords: "eml mail message"),
             DoAsync("Save as Outlook message (.msg)", "Export", () => ViewModel.SaveOutlookMessageAsync(), keywords: "msg outlook mail message"),
+            DoAsync("Copy as email", "Export", () => ViewModel.CopyAsEmailAsync(), keywords: "clipboard paste mail message reply gmail outlook"),
             DoAsync("Export all formats", "Export", () => ViewModel.ExportAllAsync()),
             Do("Copy the rendered HTML", "Export", () => OnCopyHtmlClick(this, click)),
             Do("Print the rendered document", "Export", PrintDocument, "file.print"),
@@ -3562,6 +3571,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnSaveOutlookMessageClick(object sender, RoutedEventArgs e)
     {
         await ViewModel.SaveOutlookMessageAsync();
+    }
+
+    private async void OnCopyAsEmailClick(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.CopyAsEmailAsync();
     }
 
     private void OnEmailDraftAcceleratorInvoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
