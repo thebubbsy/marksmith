@@ -85,7 +85,7 @@ public sealed class AutomationExportService
         var settings = job.Settings;
         var md = job.Markdown ?? "";
         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-        var hasMermaid = md.Contains("```mermaid", StringComparison.Ordinal);
+        var hasMermaid = Email.EmailHtmlRenderer.HasMermaid(md);
         bool isEmail = fmt is OutputFormats.Eml or OutputFormats.Msg;
         // Only start the preview engine when this export draws with it (an email's PDF copy does).
         var host = job.Host is not null && (fmt == OutputFormats.Pdf || hasMermaid || (isEmail && settings.EmailAttachPdf)) && await job.Host.EnsureReadyAsync()
@@ -208,7 +208,7 @@ public sealed class AutomationExportService
             {
                 try
                 {
-                    IReadOnlyList<byte[]?>? pngs = md.Contains("```mermaid", StringComparison.Ordinal) && host is not null
+                    IReadOnlyList<byte[]?>? pngs = Email.EmailHtmlRenderer.HasMermaid(md) && host is not null
                         ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
                         : null;
                     var docx = Path.Combine(temp, stem + ".docx");
@@ -231,14 +231,27 @@ public sealed class AutomationExportService
     {
         var fmt = OutputFormats.Normalize(job.Format) ?? OutputFormats.Pdf;
         var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.{fmt}");
-        var written = await ExportAsync(new AutomationExportJob
+        try
         {
-            Markdown = job.Markdown, Format = fmt, OutputPath = tmp, Settings = job.Settings, Host = job.Host,
-            Classification = job.Classification, SourceLabel = job.SourceLabel, EmailSubject = job.EmailSubject,
-            BaseDirectory = job.BaseDirectory, AllowRunningDoc = job.AllowRunningDoc,
-        });
-        try { return await File.ReadAllBytesAsync(written); }
-        finally { if (written == tmp) TryDelete(tmp); }
+            // The caller wants this document back, so it never goes into the running document
+            // (that changed the user's notebook and returned the whole notebook). Attachments are
+            // named after the document, not the temp file.
+            var written = await ExportAsync(new AutomationExportJob
+            {
+                Markdown = job.Markdown, Format = fmt, OutputPath = tmp, Settings = job.Settings, Host = job.Host,
+                Classification = job.Classification,
+                SourceLabel = job.SourceLabel ?? NameFor(job.Markdown),
+                EmailSubject = job.EmailSubject, BaseDirectory = job.BaseDirectory, AllowRunningDoc = false,
+            });
+            return await File.ReadAllBytesAsync(written);
+        }
+        finally { TryDelete(tmp); }
+    }
+
+    private static string NameFor(string? markdown)
+    {
+        var title = HistoryEntry.ExtractTitle(markdown ?? "");
+        return string.IsNullOrWhiteSpace(title) ? "Document" : title;
     }
 
     /// <summary>Documents batch convert picks up in <paramref name="folder"/>: everything the editor
@@ -251,7 +264,10 @@ public sealed class AutomationExportService
         var files = Directory.EnumerateFiles(folder, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
             .Where(Plugins.PluginFileReader.CanOpen)
             .Where(f => !Path.GetFileName(f).StartsWith("~$", StringComparison.Ordinal)) // Office lock files
+            // Only an output folder inside the source is skipped: when the source is itself inside
+            // the output folder (Documents\MarkSmith\inbox), skipping by prefix dropped every file.
             .Where(f => skip is null || string.Equals(skip, source, StringComparison.OrdinalIgnoreCase)
+                        || !skip.StartsWith(source, StringComparison.OrdinalIgnoreCase)
                         || !Path.GetFullPath(f).StartsWith(skip, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Array.Sort(files, StringComparer.OrdinalIgnoreCase);

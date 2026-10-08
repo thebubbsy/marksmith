@@ -339,10 +339,11 @@ public sealed class ApiServer : IDisposable
     // naive StartsWith("http://127.0.0.1") would also accept "http://127.0.0.1.evil.com".
     // A browser-originated request (a web page OR any extension). Used to bar governance reads,
     // settings access, and batch conversions, which must not be reachable from a page/extension even
-    // though IsAllowedOrigin permits the extension for its normal ingest/report flow. Empty/"null"
-    // (non-browser or opaque) is NOT a browser origin.
-    private bool IsBrowserOrigin(string? origin) =>
-        !string.IsNullOrEmpty(origin) && origin != "null";
+    // though IsAllowedOrigin permits the extension for its normal ingest/report flow. Only an
+    // absent Origin (curl, a script) is not a browser. "null" is: any web page can send it from a
+    // sandboxed iframe, and treating it as non-browser let a drive-by page rewrite the user's
+    // settings or start a batch conversion through this loopback API.
+    private bool IsBrowserOrigin(string? origin) => !string.IsNullOrEmpty(origin);
 
     private bool IsAllowedOrigin(string? origin)
     {
@@ -522,7 +523,7 @@ public sealed class ApiServer : IDisposable
                         await WriteJsonAsync(ctx, 200, new { ok = true, opened = result.Opened, path = result.Path, subject = result.Subject, notes = result.Notes });
                         break;
                     }
-                    ovr.Format = Email.MailApps.Resolve(ovr.Format ?? AppServices.Settings.Current.EmailFormat);
+                    ovr.Format = Email.MailApps.Resolve(ovr.Format ?? _getSettings().EmailFormat);
                     var draft = await _convert(md, ovr);
                     ctx.Response.StatusCode = 200;
                     var isMsg = ovr.Format == Email.MailApps.Msg;
@@ -670,6 +671,15 @@ public sealed class ApiServer : IDisposable
                     break;
             }
         }
+        catch (BodyTooLargeException)
+        {
+            try { await WriteJsonAsync(ctx, 413, new { error = $"request body is over {MaxBodyBytes / (1024 * 1024)} MB" }); } catch { }
+        }
+        catch (JsonException ex)
+        {
+            // A caller's malformed JSON is their 400, not our 500.
+            try { await WriteJsonAsync(ctx, 400, new { error = "the request body isn't valid JSON", detail = ex.Message }); } catch { }
+        }
         catch (Exception ex)
         {
             try { await WriteJsonAsync(ctx, 500, new { error = ex.Message }); } catch { }
@@ -704,10 +714,14 @@ public sealed class ApiServer : IDisposable
         while ((read = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
             sb.Append(buffer, 0, read);
-            if (sb.Length > MaxBodyBytes) return null;
+            // Over the cap (a chunked body with no or a false Content-Length): a 413, where null
+            // used to read as "markdown is required".
+            if (sb.Length > MaxBodyBytes) throw new BodyTooLargeException();
         }
         return sb.ToString();
     }
+
+    internal sealed class BodyTooLargeException : Exception { }
 
     private static async Task WriteJsonAsync(HttpListenerContext ctx, int status, object payload)
     {

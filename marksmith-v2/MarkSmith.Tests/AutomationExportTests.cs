@@ -158,6 +158,16 @@ public class AutomationExportServiceTests : IDisposable
     }
 
     [Fact]
+    public void A_source_folder_inside_the_output_folder_still_has_its_files_found()
+    {
+        var output = Path.Combine(_dir, "MarkSmith");
+        var inbox = Directory.CreateDirectory(Path.Combine(output, "inbox")).FullName;
+        File.WriteAllText(Path.Combine(inbox, "a.md"), "# A");
+        File.WriteAllText(Path.Combine(inbox, "b.md"), "# B");
+        Assert.Equal(new[] { "a.md", "b.md" }, AutomationExportService.FindBatchSources(inbox, recursive: false, output).Select(Path.GetFileName));
+    }
+
+    [Fact]
     public async Task On_a_trial_unattended_emails_dont_spend_its_word_exports()
     {
         AppServices.License.ResetToFree();
