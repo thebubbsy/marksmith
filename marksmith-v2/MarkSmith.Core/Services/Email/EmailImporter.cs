@@ -348,8 +348,10 @@ public static class EmailImporter
             if (a is MailboxAddress m)
             {
                 var name = (m.Name ?? "").Trim();
+                // A name with no address (an Exchange-only recipient) is just the name.
                 parts.Add(name.Length == 0 || name.Equals(m.Address, StringComparison.OrdinalIgnoreCase)
                     ? m.Address
+                    : string.IsNullOrWhiteSpace(m.Address) ? EscapeInline(name)
                     : $"{EscapeInline(name)} ({m.Address})");
             }
             else if (a is GroupAddress g)

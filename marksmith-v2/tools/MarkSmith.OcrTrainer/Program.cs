@@ -26,6 +26,7 @@ if (args.Length > 0 && args[0] == "probe")
 }
 var words = File.ReadAllLines(wordsPath).Where(w => w.Length >= 2 && w.All(char.IsLetter) && w.All(c => c < 128)).ToArray();
 Console.WriteLine($"{words.Length} words, {lines} lines, {epochs} epochs → {outPath}");
+Console.WriteLine($"{SampleGenerator.Families.Length} font families: {string.Join(", ", SampleGenerator.Families)}");
 
 // ---- data ----
 var sw = Stopwatch.StartNew();

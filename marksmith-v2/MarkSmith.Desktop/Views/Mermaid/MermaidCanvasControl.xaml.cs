@@ -67,6 +67,14 @@ public sealed partial class MermaidCanvasControl : UserControl
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
 
         ConnectorsItemsControl.PointerPressed += OnConnectorsItemsControlPointerPressed;
+        // Capture lost mid-drag (Alt+Tab, a dialog): the drag is over, nothing moves.
+        InfiniteCanvasGrid.PointerCaptureLost += (_, _) =>
+        {
+            if (_messageDrag is null) return;
+            _messageDrag = null;
+            _messageDragActive = false;
+            HorizontalAlignGuide.Visibility = Visibility.Collapsed;
+        };
         ConnectorsItemsControl.DoubleTapped += OnConnectorsItemsControlDoubleTapped;
 
         NodesItemsControl.PointerPressed += OnNodesItemsControlPointerPressed;
@@ -698,6 +706,7 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnCanvasPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (UpdateMessageDrag(e)) { e.Handled = true; return; }
         if (_isPanning)
         {
             var currentPos = e.GetCurrentPoint(CanvasScrollViewer).Position;
@@ -752,6 +761,7 @@ public sealed partial class MermaidCanvasControl : UserControl
 
     private void OnCanvasPointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (FinishMessageDrag(e)) { e.Handled = true; return; }
         if (_isPanning)
         {
             bool wasRightClick = _rightClickPending;
@@ -893,8 +903,58 @@ public sealed partial class MermaidCanvasControl : UserControl
             {
                 ViewModel.SelectedConnector = connVM;
                 ViewModel.SelectedNode = null;
+
+                // A sequence message can be dragged up or down to another row (the mouse twin of
+                // ↑/↓). It only becomes a drag once the pointer has moved a few pixels.
+                var point = e.GetCurrentPoint(InfiniteCanvasGrid);
+                if (ViewModel.IsSequenceDiagram && point.Properties.IsLeftButtonPressed)
+                {
+                    _messageDrag = connVM;
+                    _messageDragActive = false;
+                    _messageDragStartY = point.Position.Y;
+                    InfiniteCanvasGrid.CapturePointer(e.Pointer);
+                }
             }
         }
+    }
+
+    private DiagramConnectorViewModel? _messageDrag;
+    private bool _messageDragActive;
+    private double _messageDragStartY;
+
+    // While a message is dragged: a line across the canvas where it will land.
+    private bool UpdateMessageDrag(PointerRoutedEventArgs e)
+    {
+        if (_messageDrag is null || ViewModel is null) return false;
+        double y = e.GetCurrentPoint(InfiniteCanvasGrid).Position.Y;
+        if (!_messageDragActive && Math.Abs(y - _messageDragStartY) < 6) return true;
+        _messageDragActive = true;
+        int row = ViewModel.SequenceRowAt(y);
+        if (ViewModel.SequenceRowY(row) is { } rowY && ViewModel.GetContentBounds() is { } bounds)
+        {
+            HorizontalAlignGuide.X1 = bounds.X - 20;
+            HorizontalAlignGuide.X2 = bounds.X + bounds.Width + 20;
+            HorizontalAlignGuide.Y1 = HorizontalAlignGuide.Y2 = rowY;
+            HorizontalAlignGuide.Visibility = Visibility.Visible;
+        }
+        SetCursor(InfiniteCanvasGrid, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
+        return true;
+    }
+
+    private bool FinishMessageDrag(PointerRoutedEventArgs e)
+    {
+        if (_messageDrag is not { } conn || ViewModel is null) return false;
+        if (_messageDragActive)
+        {
+            int row = ViewModel.SequenceRowAt(e.GetCurrentPoint(InfiniteCanvasGrid).Position.Y);
+            ViewModel.MoveMessageToRow(conn, row);
+        }
+        _messageDrag = null;
+        _messageDragActive = false;
+        HorizontalAlignGuide.Visibility = Visibility.Collapsed;
+        SetCursor(InfiniteCanvasGrid, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+        InfiniteCanvasGrid.ReleasePointerCapture(e.Pointer);
+        return true;
     }
 
     private void OnNodesItemsControlDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

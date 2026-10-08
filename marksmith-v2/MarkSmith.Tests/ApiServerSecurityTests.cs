@@ -382,9 +382,10 @@ public class ApiServerSecurityTests
             ("http://[::1]:3000", 403, 403, 403, "settings are not readable cross-origin", "settings cannot be modified cross-origin", "batch conversion is not permitted cross-origin"),
             ("http://[::1]:8080", 403, 403, 403, "settings are not readable cross-origin", "settings cannot be modified cross-origin", "batch conversion is not permitted cross-origin"),
 
-            // Direct / Non-browser / Opaque
+            // Direct / non-browser
             ((string?)null, 200, 200, 200, (string?)null, (string?)null, (string?)null),
-            ("null", 200, 200, 200, (string?)null, (string?)null, (string?)null)
+            // Opaque: any web page can send Origin: null from a sandboxed iframe, so it's a browser.
+            ("null", 403, 403, 403, "settings are not readable cross-origin", "settings cannot be modified cross-origin", "batch conversion is not permitted cross-origin")
         };
 
         foreach (var (origin, expGet, expPost, expBatch, expGetMsg, expPostMsg, expBatchMsg) in testMatrix)
@@ -472,7 +473,7 @@ public class ApiServerSecurityTests
         var reqBadJson = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}/api/settings");
         reqBadJson.Content = new StringContent("{{invalid json", Encoding.UTF8, "application/json");
         var respBadJson = await client.SendAsync(reqBadJson);
-        Assert.Equal(HttpStatusCode.InternalServerError, respBadJson.StatusCode); // Deserializer throws JsonException -> 500
+        Assert.Equal(HttpStatusCode.BadRequest, respBadJson.StatusCode); // the caller's malformed JSON is a 400, not a server error
         Assert.Equal(0, saveCount);
 
         // 4. POST /api/batch with missing folder (Direct caller)

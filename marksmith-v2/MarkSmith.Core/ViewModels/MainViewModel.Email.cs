@@ -50,7 +50,7 @@ public sealed partial class MainViewModel
         get
         {
             var markdown = CurrentMarkdown;
-            var title = HistoryEntry.ExtractTitle(markdown ?? "");
+            var title = string.IsNullOrWhiteSpace(markdown) ? null : EmailHtmlRenderer.TitleOf(markdown, _settingsService.Current, CurrentTheme);
             var subject = EmailComposer.BuildSubject(EmailSubjectTemplate, title, EmailSourceLabel(), markdown, DateTime.Now);
             return subject.Length == 0 ? "Subject: (taken from the document once it has text)" : $"Subject: {subject}";
         }
@@ -212,6 +212,64 @@ public sealed partial class MainViewModel
         return EmailPreviewPage.Build(doc, EmailPalette.From(CurrentTheme), attachments);
     }
 
+    /// <summary>Set by the desktop app: puts a copied email on the Windows clipboard (CF_HTML plus
+    /// plain text). Tests replace it to see what would be copied.</summary>
+    public Action<EmailClipboardContent>? PutEmailOnClipboard { get; set; }
+
+    /// <summary>"Copy as email": the document as the email body, on the clipboard, ready to paste
+    /// into a compose window (a reply, a webmail tab, a thread that's already open). Pictures and
+    /// diagrams come along: as files for classic Outlook, inline for everything else.</summary>
+    public async Task CopyAsEmailAsync()
+    {
+        // Busy like any export: diagrams are drawn in the one shared export page, and two runs at
+        // once would read each other's pictures.
+        if (PutEmailOnClipboard is null || IsBusy) return;
+        var (markdown, _) = ResolveSource();
+        if (markdown is null) return;
+        IsBusy = true;
+        try
+        {
+            var settings = _settingsService.Current;
+            List<byte[]?>? mermaid = null;
+            if (EmailHtmlRenderer.HasMermaid(markdown) && Host is not null)
+            {
+                StatusText = "Drawing diagrams for the email…";
+                var prepared = EmailHtmlRenderer.Prepare(markdown, settings, CurrentTheme);
+                mermaid = await _mermaidHarvest.RenderMermaidPngsAsync(Host, prepared, settings, EmailPalette.From(CurrentTheme).DiagramTheme());
+            }
+
+            var doc = EmailComposer.Compose(new EmailComposeRequest
+            {
+                Markdown = markdown,
+                SourceLabel = EmailSourceLabel(),
+                BaseDirectory = UsePasteSource || string.IsNullOrWhiteSpace(InputFilePath) ? null : Path.GetDirectoryName(InputFilePath),
+                MermaidPngs = mermaid,
+            }, settings, CurrentTheme);
+
+            var mode = EmailClipboard.ModeFor(MailApps.Lookup(".eml"));
+            if (mode == ClipboardImageMode.File) EmailClipboard.Clean();
+            var content = EmailClipboard.Build(doc, mode);
+            PutEmailOnClipboard(content);
+
+            var pictures = doc.InlineImages.Count;
+            var what = pictures == 0 ? "" : pictures == 1 ? " with its picture" : $" with its {pictures} pictures";
+            // Linked pictures only show where they're pasted on this PC: say so rather than let a
+            // paste into a browser come out with broken images.
+            var where = pictures > 0 && mode == ClipboardImageMode.File
+                ? " Paste it into Outlook; a web mail app won't show the pictures (use Email draft for those)."
+                : " Paste it into a new message or a reply.";
+            StatusText = $"Copied as email{what}.{where}"
+                + (doc.Notes.Count > 0 ? $" · {doc.Notes[0].TrimEnd('.')}" : "");
+            StatusSeverity = doc.Notes.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Copy as email failed: {ex.Message}";
+            StatusSeverity = StatusSeverity.Error;
+        }
+        finally { IsBusy = false; }
+    }
+
     /// <summary>Writes the document as an Outlook draft to the outbox and opens it in the default
     /// mail app (classic or new Outlook, or whatever handles .eml), ready to edit and Send.</summary>
     public Task CreateEmailDraftAsync() => ExportEmailAsync(openInMailApp: true);
@@ -236,7 +294,7 @@ public sealed partial class MainViewModel
 
             var palette = EmailPalette.From(CurrentTheme);
             List<byte[]?>? mermaid = null;
-            if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+            if (EmailHtmlRenderer.HasMermaid(markdown) && Host is not null)
             {
                 StatusText = "Drawing diagrams for the email…";
                 var prepared = EmailHtmlRenderer.Prepare(markdown, settings, CurrentTheme);
@@ -291,11 +349,10 @@ public sealed partial class MainViewModel
             AnnounceExport(message, outPath);
         });
 
-        if (StatusSeverityOverride is { } severity)
-        {
+        // Only a run that finished: a failure keeps its Error, whatever caveat came before it.
+        if (StatusSeverityOverride is { } severity && StatusSeverity == StatusSeverity.Success)
             StatusSeverity = severity;
-            StatusSeverityOverride = null;
-        }
+        StatusSeverityOverride = null;
     }
 
     // RunConversionAsync marks a finished run as Success; a draft that went out with a caveat
@@ -339,7 +396,7 @@ public sealed partial class MainViewModel
                 {
                     StatusText = "Making the Word copy…";
                     List<byte[]?>? mermaid = null;
-                    if (markdown.Contains("```mermaid", StringComparison.Ordinal) && Host is not null)
+                    if (EmailHtmlRenderer.HasMermaid(markdown) && Host is not null)
                         mermaid = await _mermaidHarvest.RenderMermaidPngsAsync(Host, markdown, settings, CurrentTheme);
                     var docx = Path.Combine(temp, stem + ".docx");
                     await _docxExport.ExportAsync(markdown, docx, settings, mermaid);

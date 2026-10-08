@@ -39,9 +39,11 @@ public class OcrBenchmarkTests
 
     [Theory]
     [MemberData(nameof(Cases))]
-    public void MarkSmith_OCR_reads_at_least_90_percent_as_well_as_the_best_engine(string id)
+    public void MarkSmith_OCR_reads_at_least_90_percent_as_well_as_the_best_engine(string id) =>
+        Compare(OcrBenchmarkCorpus.Cases.Single(x => x.Id == id));
+
+    private void Compare(OcrBenchmarkCase c)
     {
-        var c = OcrBenchmarkCorpus.Cases.Single(x => x.Id == id);
         using var page = c.Make();
 
         var ours = new MarkSmithOcrProvider();

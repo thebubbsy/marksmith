@@ -325,8 +325,10 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     // True while the caret is inside a text-editing surface (the inline node/connector label editor
     // or an inspector TextBox). Editing shortcuts (Delete/arrows/etc.) must not fire there — Delete
     // should remove a character and the arrows should move the caret, not nudge a node.
-    private static bool IsEditingText() =>
-        FocusManager.GetFocusedElement() is TextBox;
+    // A desktop window has to name its XamlRoot: the parameterless call returns null, which made
+    // this always false.
+    private bool IsEditingText() =>
+        XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
 
     private void OnPalettePresetClick(object sender, RoutedEventArgs e)
     {

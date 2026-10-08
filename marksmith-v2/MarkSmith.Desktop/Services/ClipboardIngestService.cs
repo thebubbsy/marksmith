@@ -68,6 +68,7 @@ public sealed class ClipboardIngestService : IDisposable
     {
         var seq = GetClipboardSequenceNumber();
         if (seq == _lastSequence) return;
+        var previous = _lastSequence;
         _lastSequence = seq;
 
         try
@@ -94,7 +95,9 @@ public sealed class ClipboardIngestService : IDisposable
         }
         catch
         {
-            // Clipboard is a shared resource — another process holding it open throws. Skip this tick.
+            // Clipboard is a shared resource — another process holding it open throws. Try this
+            // copy again on the next tick rather than marking it seen and losing it.
+            _lastSequence = previous;
         }
     }
 

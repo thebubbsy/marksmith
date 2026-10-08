@@ -96,6 +96,9 @@ public partial class ShapeCanvasItemViewModel : ObservableObject
         OnPropertyChanged(nameof(ListSubtitle));
     }
 
+    /// <summary>Tells the canvas the line's points changed (they're a plain list, not observable).</summary>
+    public void NotifyPathChanged() => OnPropertyChanged(nameof(PathPoints));
+
     partial void OnPrstChanged(string value)
     {
         OnPropertyChanged(nameof(DisplayName));
@@ -604,6 +607,87 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
 
     /// <summary>Applies a handle drag to <paramref name="shape"/> from its starting rectangle,
     /// in the shape's own frame when it is turned.</summary>
+    // ---- connector ends ----
+
+    /// <summary>A line's points in canvas coordinates (its 0..100 local points placed in its box).</summary>
+    public static List<(double X, double Y)> ConnectorPoints(ShapeCanvasItemViewModel s)
+    {
+        if (s.PathPoints is null) return new();
+        double cx = s.X + s.Width / 2, cy = s.Y + s.Height / 2;
+        double rad = s.Rotation * Math.PI / 180, cos = Math.Cos(rad), sin = Math.Sin(rad);
+        // A turned line is drawn turned about its box's centre: so are its points.
+        return s.PathPoints.Select(p =>
+        {
+            double x = s.X + p.X / 100 * s.Width - cx, y = s.Y + p.Y / 100 * s.Height - cy;
+            return (cx + x * cos - y * sin, cy + x * sin + y * cos);
+        }).ToList();
+    }
+
+    /// <summary>Puts a line through <paramref name="points"/> (canvas coordinates): its box becomes
+    /// their bounds and the points are stored 0..100 inside it, as every connector is. A straight
+    /// horizontal or vertical line gets a 2 px box with its points on the centre line.</summary>
+    public static void SetConnectorPoints(ShapeCanvasItemViewModel s, IReadOnlyList<(double X, double Y)> points)
+    {
+        double minX = points.Min(p => p.X), maxX = points.Max(p => p.X);
+        double minY = points.Min(p => p.Y), maxY = points.Max(p => p.Y);
+        (double Start, double Size, Func<double, double> Local) Axis(double min, double max)
+        {
+            double span = max - min;
+            if (span < 0.5) { double c = (min + max) / 2; return (c - 1, 2, _ => 50); }
+            return (min, span, v => (v - min) / span * 100);
+        }
+        var ax = Axis(minX, maxX);
+        var ay = Axis(minY, maxY);
+        s.X = ax.Start;
+        s.Y = ay.Start;
+        s.Width = ax.Size;
+        s.Height = ay.Size;
+        // The points are where the line is drawn, so a turn is now part of them.
+        s.Rotation = 0;
+        s.PathPoints = points.Select(p => (ax.Local(p.X), ay.Local(p.Y))).ToList();
+        s.NotifyPathChanged();
+    }
+
+    /// <summary>The nearest connection point (a side's midpoint or the centre) of a shape within
+    /// <paramref name="radius"/> of (x, y), turned with the shape, or null. Lines aren't targets.</summary>
+    public (double X, double Y, ShapeCanvasItemViewModel Shape)? SnapTarget(double x, double y, ShapeCanvasItemViewModel? except, double radius = 14)
+    {
+        (double X, double Y, ShapeCanvasItemViewModel Shape)? best = null;
+        double bestDist = radius;
+        foreach (var shape in Shapes)
+        {
+            if (ReferenceEquals(shape, except) || shape.PathPoints is { Count: >= 2 }) continue;
+            foreach (var edges in new[] { ResizeEdges.Top, ResizeEdges.Right, ResizeEdges.Bottom, ResizeEdges.Left, ResizeEdges.None })
+            {
+                var (px, py) = HandlePosition(shape.X, shape.Y, shape.Width, shape.Height, shape.Rotation, edges);
+                double d = Math.Sqrt((px - x) * (px - x) + (py - y) * (py - y));
+                if (d <= bestDist) { bestDist = d; best = (px, py, shape); }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Re-routes a connector: moves point <paramref name="index"/> (an end, or a bend of an elbow
+    /// line) to (x, y), snapping onto a shape's side or centre when one is close, so a line can be
+    /// moved from one shape to another. Returns the shape it snapped to, if any.
+    /// </summary>
+    public ShapeCanvasItemViewModel? MoveConnectorPoint(ShapeCanvasItemViewModel line, int index, double x, double y, bool snap = true)
+    {
+        var points = ConnectorPoints(line);
+        if (index < 0 || index >= points.Count) return null;
+        ShapeCanvasItemViewModel? target = null;
+        // Only the two ends attach to shapes; a bend goes where it's put.
+        if (snap && (index == 0 || index == points.Count - 1) && SnapTarget(x, y, line) is { } hit)
+            (x, y, target) = hit;
+        points[index] = (x, y);
+        SetConnectorPoints(line, points);
+        CanvasMode = "editable";
+        PreviewPng = null;
+        CanvasChanged?.Invoke(this, EventArgs.Empty);
+        return target;
+    }
+
     public void ResizeShape(ShapeCanvasItemViewModel shape, (double X, double Y, double W, double H) start,
         ResizeEdges edges, double dx, double dy, bool keepAspect)
     {

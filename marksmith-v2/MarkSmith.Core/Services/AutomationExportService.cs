@@ -85,7 +85,7 @@ public sealed class AutomationExportService
         var settings = job.Settings;
         var md = job.Markdown ?? "";
         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
-        var hasMermaid = md.Contains("```mermaid", StringComparison.Ordinal);
+        var hasMermaid = Email.EmailHtmlRenderer.HasMermaid(md);
         bool isEmail = fmt is OutputFormats.Eml or OutputFormats.Msg;
         // Only start the preview engine when this export draws with it (an email's PDF copy does).
         var host = job.Host is not null && (fmt == OutputFormats.Pdf || hasMermaid || (isEmail && settings.EmailAttachPdf)) && await job.Host.EnsureReadyAsync()
@@ -173,11 +173,12 @@ public sealed class AutomationExportService
         return outPath;
     }
 
-    /// <summary>Exports to a temporary file and returns its bytes (the local API's /api/convert).</summary>
     /// <summary>
     /// The PDF and Word copies Settings › Email asks for, the same ones Email draft attaches.
     /// Automation emails used to carry none. A copy that can't be made is left off and the email
     /// still goes: the PDF needs the preview engine, and the Word copy is Pro (the email is free).
+    /// A trial's Word exports are the user's to spend: unattended emails don't attach one on a
+    /// trial, or three dropped files would use the whole trial up unseen.
     /// </summary>
     private async Task<List<Email.EmailAttachment>> BuildEmailAttachmentsAsync(
         string md, AutomationExportJob job, IWebRenderHost? host, Models.ThemeDefinition theme, string outPath, CancellationToken ct)
@@ -185,7 +186,7 @@ public sealed class AutomationExportService
         var settings = job.Settings;
         var list = new List<Email.EmailAttachment>();
         bool wantPdf = settings.EmailAttachPdf && host is not null;
-        bool wantDocx = settings.EmailAttachDocx && AppServices.License.CanExportDocx;
+        bool wantDocx = settings.EmailAttachDocx && AppServices.License.IsPro;
         if (!wantPdf && !wantDocx) return list;
 
         var stem = Email.EmailOutbox.SafeStem(string.IsNullOrWhiteSpace(job.SourceLabel) ? Path.GetFileNameWithoutExtension(outPath) : job.SourceLabel);
@@ -194,20 +195,28 @@ public sealed class AutomationExportService
         {
             if (wantPdf)
             {
-                var pdf = Path.Combine(temp, stem + ".pdf");
-                await _pdf.ExportAsync(host!, AppServices.MarkdownHtml.Render(md, settings, theme, job.Classification), pdf, settings, md);
-                list.Add(new Email.EmailAttachment(stem + ".pdf", await File.ReadAllBytesAsync(pdf, ct), "application/pdf"));
+                try
+                {
+                    var pdf = Path.Combine(temp, stem + ".pdf");
+                    await _pdf.ExportAsync(host!, AppServices.MarkdownHtml.Render(md, settings, theme, job.Classification), pdf, settings, md);
+                    list.Add(new Email.EmailAttachment(stem + ".pdf", await File.ReadAllBytesAsync(pdf, ct), "application/pdf"));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { /* left off; the email still goes */ }
             }
             ct.ThrowIfCancellationRequested();
             if (wantDocx)
             {
-                IReadOnlyList<byte[]?>? pngs = md.Contains("```mermaid", StringComparison.Ordinal) && host is not null
-                    ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
-                    : null;
-                var docx = Path.Combine(temp, stem + ".docx");
-                await _docx.ExportAsync(md, docx, settings, pngs);
-                list.Add(new Email.EmailAttachment(stem + ".docx", await File.ReadAllBytesAsync(docx, ct),
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                try
+                {
+                    IReadOnlyList<byte[]?>? pngs = Email.EmailHtmlRenderer.HasMermaid(md) && host is not null
+                        ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
+                        : null;
+                    var docx = Path.Combine(temp, stem + ".docx");
+                    await _docx.ExportAsync(md, docx, settings, pngs);
+                    list.Add(new Email.EmailAttachment(stem + ".docx", await File.ReadAllBytesAsync(docx, ct),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { /* left off; the email still goes */ }
             }
         }
         finally
@@ -217,18 +226,32 @@ public sealed class AutomationExportService
         return list;
     }
 
+    /// <summary>Exports to a temporary file and returns its bytes (the local API's /api/convert).</summary>
     public async Task<byte[]> ExportToBytesAsync(AutomationExportJob job)
     {
         var fmt = OutputFormats.Normalize(job.Format) ?? OutputFormats.Pdf;
         var tmp = Path.Combine(Path.GetTempPath(), $"mdpdfm_api_{Guid.NewGuid():N}.{fmt}");
-        var written = await ExportAsync(new AutomationExportJob
+        try
         {
-            Markdown = job.Markdown, Format = fmt, OutputPath = tmp, Settings = job.Settings, Host = job.Host,
-            Classification = job.Classification, SourceLabel = job.SourceLabel, EmailSubject = job.EmailSubject,
-            BaseDirectory = job.BaseDirectory, AllowRunningDoc = job.AllowRunningDoc,
-        });
-        try { return await File.ReadAllBytesAsync(written); }
-        finally { if (written == tmp) TryDelete(tmp); }
+            // The caller wants this document back, so it never goes into the running document
+            // (that changed the user's notebook and returned the whole notebook). Attachments are
+            // named after the document, not the temp file.
+            var written = await ExportAsync(new AutomationExportJob
+            {
+                Markdown = job.Markdown, Format = fmt, OutputPath = tmp, Settings = job.Settings, Host = job.Host,
+                Classification = job.Classification,
+                SourceLabel = job.SourceLabel ?? NameFor(job.Markdown),
+                EmailSubject = job.EmailSubject, BaseDirectory = job.BaseDirectory, AllowRunningDoc = false,
+            });
+            return await File.ReadAllBytesAsync(written);
+        }
+        finally { TryDelete(tmp); }
+    }
+
+    private static string NameFor(string? markdown)
+    {
+        var title = HistoryEntry.ExtractTitle(markdown ?? "");
+        return string.IsNullOrWhiteSpace(title) ? "Document" : title;
     }
 
     /// <summary>Documents batch convert picks up in <paramref name="folder"/>: everything the editor
@@ -241,7 +264,10 @@ public sealed class AutomationExportService
         var files = Directory.EnumerateFiles(folder, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
             .Where(Plugins.PluginFileReader.CanOpen)
             .Where(f => !Path.GetFileName(f).StartsWith("~$", StringComparison.Ordinal)) // Office lock files
+            // Only an output folder inside the source is skipped: when the source is itself inside
+            // the output folder (Documents\MarkSmith\inbox), skipping by prefix dropped every file.
             .Where(f => skip is null || string.Equals(skip, source, StringComparison.OrdinalIgnoreCase)
+                        || !skip.StartsWith(source, StringComparison.OrdinalIgnoreCase)
                         || !Path.GetFullPath(f).StartsWith(skip, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Array.Sort(files, StringComparer.OrdinalIgnoreCase);

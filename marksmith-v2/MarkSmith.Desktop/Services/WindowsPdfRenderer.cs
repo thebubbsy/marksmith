@@ -17,7 +17,9 @@ public static class WindowsPdfRenderer
     public const double Dpi = 300;
 
     private static readonly object Gate = new();
-    private static (string Path, PdfDocument Doc)? _last;
+    // The last PDF opened, kept while its pages are rendered one after another. Keyed by its
+    // size and time too, so a file saved again under the same name is opened afresh.
+    private static (string Path, long Length, DateTime Written, PdfDocument Doc)? _last;
 
     /// <summary>Page <paramref name="pageNumber"/> (1-based) of the PDF at <paramref name="path"/>,
     /// or null if Windows can't open it. Called from the import's background thread.</summary>
@@ -28,12 +30,14 @@ public static class WindowsPdfRenderer
             PdfDocument doc;
             lock (Gate)
             {
-                if (_last is { } l && string.Equals(l.Path, path, StringComparison.OrdinalIgnoreCase)) doc = l.Doc;
+                var info = new FileInfo(path);
+                if (_last is { } l && string.Equals(l.Path, path, StringComparison.OrdinalIgnoreCase)
+                    && l.Length == info.Length && l.Written == info.LastWriteTimeUtc) doc = l.Doc;
                 else
                 {
                     var file = StorageFile.GetFileFromPathAsync(path).AsTask().GetAwaiter().GetResult();
                     doc = PdfDocument.LoadFromFileAsync(file).AsTask().GetAwaiter().GetResult();
-                    _last = (path, doc);
+                    _last = (path, info.Length, info.LastWriteTimeUtc, doc);
                 }
             }
             if (pageNumber < 1 || pageNumber > doc.PageCount) return null;
@@ -55,5 +59,11 @@ public static class WindowsPdfRenderer
         {
             return null;
         }
+    }
+
+    /// <summary>Lets go of the last PDF once an import is done with it.</summary>
+    public static void Release()
+    {
+        lock (Gate) _last = null;
     }
 }

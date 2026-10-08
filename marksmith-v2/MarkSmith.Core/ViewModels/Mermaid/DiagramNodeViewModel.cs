@@ -137,6 +137,11 @@ public partial class DiagramNodeViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasCustomPosition;
 
+    /// <summary>The group this node sits in: the composite state it's inside, or the flowchart
+    /// subgraph it belongs to. Null at the top level.</summary>
+    [ObservableProperty]
+    private string? _parentId;
+
     /// <summary>How far a sequence participant's dashed lifeline runs below its header box (0 = none).
     /// Set by the studio's sequence layout; UI only, never saved.</summary>
     [ObservableProperty]

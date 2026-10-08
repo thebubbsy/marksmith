@@ -322,5 +322,12 @@ public class EpubCoverAndMetadataTests
         Assert.Contains("<dc:description>An adventurous journey</dc:description>", opf);
         Assert.Contains("<dc:rights>Public Domain</dc:rights>", opf);
     }
+    [Fact]
+    public void Two_books_with_the_same_title_in_different_files_get_different_identities()
+    {
+        var a = MarkSmith.Services.EpubExportService.StableIdentifier("Meeting Notes", null, "notes-monday");
+        var b = MarkSmith.Services.EpubExportService.StableIdentifier("Meeting Notes", null, "notes-friday");
+        Assert.NotEqual(a, b);
+        Assert.Equal(a, MarkSmith.Services.EpubExportService.StableIdentifier("Meeting Notes", null, "Notes-Monday"));
+    }
 }
-

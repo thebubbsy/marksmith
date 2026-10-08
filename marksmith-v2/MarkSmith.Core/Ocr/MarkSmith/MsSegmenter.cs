@@ -105,28 +105,57 @@ public static class MsSegmenter
     private static List<List<InkBlob>> Blocks(List<InkBlob> blobs, float typical)
     {
         var blocks = new List<List<InkBlob>>();
-        CutBlocks(blobs, typical, blocks, 0);
+        // A column gutter must be clearly wider than this text's own word spaces. In monospaced
+        // type the spaces of two lines can line up into a channel as wide as a gutter of
+        // proportional text, and cutting there scrambled the reading order.
+        float gutter = Math.Max(typical * 1.6f, WordSpace(blobs, typical) * 2f);
+        CutBlocks(blobs, typical, gutter, blocks, 0);
         return blocks;
     }
 
-    private static void CutBlocks(List<InkBlob> blobs, float typical, List<List<InkBlob>> output, int depth)
+    /// <summary>The page's word space: the 90th percentile of the gaps between each letter and the
+    /// next one along its line (gaps wider than four letter heights aren't spaces).</summary>
+    public static float WordSpace(List<InkBlob> blobs, float typical)
+    {
+        var letters = blobs.Where(b => b.Height >= typical * 0.4f).OrderBy(b => b.Left).ToList();
+        var gaps = new List<float>();
+        for (int i = 0; i < letters.Count; i++)
+        {
+            var a = letters[i];
+            int best = int.MaxValue;
+            for (int j = i + 1; j < letters.Count && letters[j].Left <= a.Right + typical * 4; j++)
+            {
+                var b = letters[j];
+                if (b.Left <= a.Right) continue;
+                int overlap = Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top);
+                if (overlap < Math.Min(a.Height, b.Height) * 0.5f) continue;
+                best = Math.Min(best, b.Left - a.Right - 1);
+            }
+            if (best != int.MaxValue) gaps.Add(best);
+        }
+        if (gaps.Count < 10) return 0;
+        gaps.Sort();
+        return gaps[(int)(gaps.Count * 0.9)];
+    }
+
+    private static void CutBlocks(List<InkBlob> blobs, float typical, float gutter, List<List<InkBlob>> output, int depth)
     {
         if (blobs.Count == 0) return;
         if (depth > 30 || blobs.Count < 3) { output.Add(blobs); return; }
         var v = Gap(blobs.Select(b => (b.Left, b.Right + 1)));
         var h = Gap(blobs.Select(b => (b.Top, b.Bottom + 1)));
-        // A column gutter is wider than a word space (~0.35 letter heights) by a clear margin.
-        bool canV = v.Size > typical * 1.6f;
+        // A column gutter is wider than a word space by a clear margin.
+        bool canV = v.Size > gutter;
         bool canH = h.Size > typical * 1.2f;
-        if (canV && (!canH || v.Size > typical * 2.5f))
+        if (canV && (!canH || v.Size > Math.Max(typical * 2.5f, gutter)))
         {
-            CutBlocks(blobs.Where(b => b.CenterX < v.At).ToList(), typical, output, depth + 1);
-            CutBlocks(blobs.Where(b => b.CenterX >= v.At).ToList(), typical, output, depth + 1);
+            CutBlocks(blobs.Where(b => b.CenterX < v.At).ToList(), typical, gutter, output, depth + 1);
+            CutBlocks(blobs.Where(b => b.CenterX >= v.At).ToList(), typical, gutter, output, depth + 1);
         }
         else if (canH)
         {
-            CutBlocks(blobs.Where(b => b.CenterY < h.At).ToList(), typical, output, depth + 1);
-            CutBlocks(blobs.Where(b => b.CenterY >= h.At).ToList(), typical, output, depth + 1);
+            CutBlocks(blobs.Where(b => b.CenterY < h.At).ToList(), typical, gutter, output, depth + 1);
+            CutBlocks(blobs.Where(b => b.CenterY >= h.At).ToList(), typical, gutter, output, depth + 1);
         }
         else output.Add(blobs);
     }

@@ -40,8 +40,16 @@ public static class MsgWriter
         var dir = Path.GetDirectoryName(Path.GetFullPath(path));
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var tmp = path + ".tmp";
-        using (var fs = File.Create(tmp)) WriteTo(doc, fs);
-        File.Move(tmp, path, overwrite: true);
+        try
+        {
+            using (var fs = File.Create(tmp)) WriteTo(doc, fs);
+            File.Move(tmp, path, overwrite: true);
+        }
+        finally
+        {
+            // A write that failed half way leaves no stray .tmp beside the user's documents.
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ }
+        }
     }
 
     public static void WriteTo(EmailDocument doc, Stream output, DateTime? now = null)

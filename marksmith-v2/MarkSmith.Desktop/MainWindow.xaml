@@ -1898,6 +1898,11 @@
                                                 ToolTipService.ToolTip="Saves an Outlook .msg draft beside your other exports, for people who file or share mail as .msg. Double-click it to open it in Outlook as a message you can send.">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C3;" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
+                                <MenuFlyoutItem Text="Copy as email" Click="OnCopyAsEmailClick"
+                                                AutomationProperties.Name="Copy as email"
+                                                ToolTipService.ToolTip="Copies the document as an email body, pictures and diagrams included, to paste into a message you already have open: a reply, Gmail, Outlook on the web. Free on every plan.">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8C8;" /></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                                 <MenuFlyoutSeparator />
                                 <MenuFlyoutItem x:Name="ExportAllItem" Text="Export all licensed formats" Click="OnExportAllClick">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71D;" /></MenuFlyoutItem.Icon>

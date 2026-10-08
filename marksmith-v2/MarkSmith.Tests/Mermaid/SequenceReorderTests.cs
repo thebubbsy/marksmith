@@ -134,4 +134,33 @@ public class SequenceReorderTests
         Assert.Equal("1", vm.Connectors.Single(c => c.Label == "y").SequenceNumber);
         Assert.Equal("2", vm.Connectors.Single(c => c.Label == "x").SequenceNumber);
     }
+    [Fact]
+    public void Dragging_a_message_to_a_row_moves_it_there_in_one_undo_step()
+    {
+        var vm = Load(Flow);
+        var third = vm.Connectors.Single(x => x.Label == "third");
+        // The drop row is found from the pointer's height: row 0 is the first arrow.
+        int top = vm.SequenceRowAt(vm.Connectors.Single(x => x.Label == "first").SourceY + 3);
+        Assert.Equal(0, top);
+        Assert.Equal(vm.Connectors.Single(x => x.Label == "first").SourceY, vm.SequenceRowY(0));
+
+        Assert.True(vm.MoveMessageToRow(third, 0));
+        AssertInOrder(vm.GenerateMermaidCode(), "A->>B: third", "A->>B: first", "B->>A: second");
+        Assert.Same(third, vm.SelectedConnector);
+        Assert.Equal("Moved \"third\" to row 1.", vm.StatusText);
+
+        vm.UndoCommand.Execute(null);
+        AssertInOrder(vm.GenerateMermaidCode(), "A->>B: first", "B->>A: second", "A->>B: third");
+    }
+
+    [Fact]
+    public void Dropping_a_message_on_its_own_row_or_off_the_end_does_nothing()
+    {
+        var vm = Load(Flow);
+        var first = vm.Connectors.Single(x => x.Label == "first");
+        Assert.False(vm.MoveMessageToRow(first, 0));
+        Assert.False(vm.MoveMessageToRow(first, 7));
+        Assert.False(vm.MoveMessageToRow(first, -1));
+        Assert.Equal(-1, Load("flowchart TD\n    A --> B\n").SequenceRowAt(100));
+    }
 }

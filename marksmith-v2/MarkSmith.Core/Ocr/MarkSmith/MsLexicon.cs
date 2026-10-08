@@ -45,6 +45,8 @@ public sealed class MsLexicon
     private static readonly (string From, string To)[] LookAlikes =
     {
         ("rn", "m"), ("m", "rn"), ("cl", "d"), ("d", "cl"), ("vv", "w"), ("w", "vv"), ("ri", "n"), ("li", "h"), ("ii", "u"), ("in", "m"),
+        // An o broken open by a photocopy reads as two marks.
+        ("C)", "o"), ("c)", "o"), ("()", "o"), ("()", "o"), ("0", "o"),
     };
 
     /// <summary>
@@ -52,10 +54,27 @@ public sealed class MsLexicon
     /// network read confidently is never changed: names, codes and words this list doesn't know
     /// stay as they were printed.
     /// </summary>
+    /// <summary>
+    /// Glyphs that are drawn alike in some typefaces, whatever the network's confidence: in a
+    /// typewriter face l and 1 are the same stroke with a serif, and i/l/I/| differ by a dot or a
+    /// pixel. A word only changes through these when the result is a real word.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> Confusable = new()
+    {
+        ["1"] = new[] { "l", "I", "i" }, ["l"] = new[] { "i", "I", "1" }, ["i"] = new[] { "l" }, ["I"] = new[] { "l", "i" },
+        ["|"] = new[] { "l", "I" }, ["!"] = new[] { "l", "i" }, ["0"] = new[] { "o", "O" },
+    };
+
+    /// <summary>The prior a look-alike substitution starts from (it then has to make a real word).</summary>
+    private const float ConfusableP = 0.08f;
+
     public List<ReadChar>? BestMatch(List<ReadChar> core)
     {
         if (core.Count < 2 || core.Count > 24) return null;
-        if (core.All(c => c.Probability >= 0.9f)) return null;
+        // A confidently read word is left alone, unless it holds a glyph that has a twin
+        // (pane1, cooi): the network can be sure and still wrong about those.
+        // Two-letter tokens (ls, lf) are too short to judge from a dictionary.
+        if (core.All(c => c.Probability >= 0.9f) && (core.Count < 3 || !core.Any(c => Confusable.ContainsKey(c.Text) || c.Text is "(" or ")"))) return null;
         double original = core.Sum(c => Math.Log(Math.Max(1e-6, c.Probability)));
 
         // Beam search over each letter's alternatives.
@@ -64,7 +83,10 @@ public sealed class MsLexicon
         {
             var next = new List<(List<ReadChar>, double)>();
             var options = c.Alternatives.Where(a => a.P >= 0.02f && a.Text.Length == 1 && (char.IsLetter(a.Text[0]) || a.Text == c.Text || a.Text == "'" || a.Text == "-"))
-                                        .DefaultIfEmpty((c.Text, c.Probability));
+                                        .DefaultIfEmpty((c.Text, c.Probability)).ToList();
+            if (Confusable.TryGetValue(c.Text, out var twins))
+                foreach (var t in twins)
+                    if (!options.Any(o => o.Text == t)) options.Add((t, ConfusableP));
             foreach (var (chars, score) in beam)
                 foreach (var (text, p) in options)
                 {
@@ -102,6 +124,34 @@ public sealed class MsLexicon
                 i = text.IndexOf(from, i + 1, StringComparison.Ordinal);
             }
         }
+    }
+
+    /// <summary>
+    /// Two words run together because the space between them was too narrow to see (italic type
+    /// leans into it): the split at the word's widest gap, when both halves are real words.
+    /// </summary>
+    public (List<ReadChar> First, List<ReadChar> Second)? SplitJoined(List<ReadChar> word, float minGap)
+    {
+        if (word.Count < 4 || !word.All(c => c.Text.Length == 1 && char.IsLetter(c.Text[0]))) return null;
+        var text = string.Concat(word.Select(c => c.Text));
+        if (Contains(text)) return null;
+        int widest = -1, widestGap = int.MinValue;
+        var gaps = new List<int>();
+        for (int i = 1; i < word.Count; i++)
+        {
+            int gap = word[i].Left - word[i - 1].Right;
+            gaps.Add(gap);
+            if (gap > widestGap) { widestGap = gap; widest = i; }
+        }
+        // A real (if narrow) space: well over the word's usual letter gap, and not a kerning
+        // gap inside a name the list doesn't know (Johnson, Newton).
+        gaps.Sort();
+        float median = gaps[gaps.Count / 2];
+        if (widest < 1 || widestGap < minGap || widestGap < median * 1.8f + 1) return null;
+        string a = text[..widest], b = text[widest..];
+        bool Word(string w) => w.Length >= 2 ? _words.Contains(w.ToLowerInvariant()) : w is "a" or "A" or "I";
+        if (!Word(a) || !Word(b)) return null;
+        return (word.GetRange(0, widest), word.GetRange(widest, word.Count - widest));
     }
 
     /// <summary>The corrected characters, keeping the original boxes (spread over a merge/split).</summary>

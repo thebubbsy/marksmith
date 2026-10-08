@@ -450,7 +450,9 @@
                                 <ComboBoxItem Content="Call (solid arrow)" Tag="SolidArrow" />
                                 <ComboBoxItem Content="Reply (dashed arrow)" Tag="DashedArrow" />
                                 <ComboBoxItem Content="Async (open arrow)" Tag="PointArrow" />
+                                <ComboBoxItem Content="Async reply (dashed open arrow)" Tag="DashedPoint" />
                                 <ComboBoxItem Content="Lost (cross)" Tag="CrossArrow" />
+                                <ComboBoxItem Content="Lost reply (dashed cross)" Tag="DashedCross" />
                                 <ComboBoxItem Content="Solid line" Tag="SolidOpen" />
                                 <ComboBoxItem Content="Dashed line" Tag="DashedOpen" />
                             </ComboBox>

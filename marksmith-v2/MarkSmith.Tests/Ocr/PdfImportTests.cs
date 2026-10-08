@@ -182,6 +182,33 @@ public class PdfImportTests : IDisposable
         Assert.Equal(Path.GetFullPath(elsewhere).Replace('\\', '/'), Plugins.PluginFileReader.MediaLinkFor(doc, elsewhere));
     }
 
+    [Fact]
+    public void Blank_pages_are_not_sent_to_OCR()
+    {
+        var d = new Doc();
+        d.Page().AddText("Words on the first page.", 12, new PdfPoint(60, 760), d.Regular);
+        d.Page(); // a blank separator page
+        var report = Import(d.B.Build());
+        Assert.Equal(2, report.Pages);
+        Assert.Equal(0, report.OcrPages);
+        Assert.Empty(report.Notes);
+    }
+
+    [Fact]
+    public void Code_keeps_its_brackets_and_text_keeps_its_symbols_literal()
+    {
+        var d = new Doc();
+        var p = d.Page();
+        p.AddText("Call", 11, new PdfPoint(60, 700), d.Regular);
+        p.AddText("print()", 11, new PdfPoint(90, 700), d.Mono);
+        p.AddText("to see a*b*c and <div> in [brackets].", 11, new PdfPoint(150, 700), d.Regular);
+        var md = Import(d.B.Build()).Markdown;
+        Assert.Contains("`print()`", md);
+        Assert.Contains(@"a\*b\*c", md);
+        Assert.Contains(@"\<div>", md);
+        Assert.Contains(@"\[brackets\]", md);
+    }
+
     private static byte[] Png(int w, int h, SKColor color)
     {
         using var bmp = new SKBitmap(w, h);

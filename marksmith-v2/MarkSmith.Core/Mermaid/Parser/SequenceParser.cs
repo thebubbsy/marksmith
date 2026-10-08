@@ -6,8 +6,12 @@ using MarkSmith.Mermaid.Ast;
 public static class SequenceParser
 {
     private static readonly Regex ParticipantRegex = new(@"^(participant|actor)\s+(?:""([^""]+)""|([^\s]+))(?:\s+as\s+(?:""([^""]+)""|([^\s]+)))?$", RegexOptions.IgnoreCase);
-    private static readonly Regex MessageRegex = new(@"^([^\s\-><+x\\]+)\s*(->>|-->>|->|-->|-x|-\\)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
-    private static readonly Regex ReverseMessageRegex = new(@"^([^\s\-><+x\\]+)\s*(<<--|<<-|<--|<-)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
+    // The sender is the shortest name before an arrow: a participant whose name has an x in it
+    // (Alex, Max) used to fail to match at all, because x was barred from names to make A-xB work.
+    // Longer arrows first. -\ is not Mermaid; it's still read (as the async -)) because older
+    // Diagram Studio saves wrote it.
+    private static readonly Regex MessageRegex = new(@"^([^\s:]+?)\s*(-->>|->>|--x|-->|--\)|->|-x|-\)|-\\)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
+    private static readonly Regex ReverseMessageRegex = new(@"^([^\s:<]+?)\s*(<<--|<<-|<--|<-)\s*([+-])?([^\s:]+)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
     private static readonly Regex NoteRegex = new(@"^Note\s+(left of|right of|over)\s+([^\s:]+(?:\s*,\s*[^\s:]+)*)\s*:\s*(.*)$", RegexOptions.IgnoreCase);
     // Word boundary after the keyword: "parse x" is not a par block, nor "options" an option.
     private static readonly Regex BlockStartRegex = new(@"^(loop|alt|opt|par_over|par|critical|break|rect)(?:\s+(.*))?$", RegexOptions.IgnoreCase);
@@ -99,8 +103,10 @@ public static class SequenceParser
                     "-->>" => SequenceMessageType.DashedArrow,
                     "->" => SequenceMessageType.SolidOpen,
                     "-->" => SequenceMessageType.DashedOpen,
-                    "-x" => SequenceMessageType.CrossArrow,
-                    "-\\" => SequenceMessageType.PointArrow,
+                    "-x" or "-X" => SequenceMessageType.CrossArrow,
+                    "--x" or "--X" => SequenceMessageType.DashedCross,
+                    "-)" or "-\\" => SequenceMessageType.PointArrow,
+                    "--)" => SequenceMessageType.DashedPoint,
                     _ => SequenceMessageType.SolidArrow
                 };
 

@@ -158,6 +158,37 @@ public class AutomationExportServiceTests : IDisposable
     }
 
     [Fact]
+    public void A_source_folder_inside_the_output_folder_still_has_its_files_found()
+    {
+        var output = Path.Combine(_dir, "MarkSmith");
+        var inbox = Directory.CreateDirectory(Path.Combine(output, "inbox")).FullName;
+        File.WriteAllText(Path.Combine(inbox, "a.md"), "# A");
+        File.WriteAllText(Path.Combine(inbox, "b.md"), "# B");
+        Assert.Equal(new[] { "a.md", "b.md" }, AutomationExportService.FindBatchSources(inbox, recursive: false, output).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task On_a_trial_unattended_emails_dont_spend_its_word_exports()
+    {
+        AppServices.License.ResetToFree();
+        Assert.True(AppServices.License.StartTrial().ok);
+        try
+        {
+            int before = AppServices.License.State.TrialExportsRemaining;
+            var settings = Settings(_dir);
+            settings.EmailAttachDocx = true;
+            var outPath = Path.Combine(_dir, "Plan.eml");
+            await new AutomationExportService().ExportAsync(new AutomationExportJob
+            {
+                Markdown = "# Plan\n\nStep one.\n", Format = "eml", OutputPath = outPath, Settings = settings, SourceLabel = "Plan",
+            });
+            Assert.Empty(AttachmentNames(outPath, "eml"));
+            Assert.Equal(before, AppServices.License.State.TrialExportsRemaining);
+        }
+        finally { AppServices.License.ResetToFree(); }
+    }
+
+    [Fact]
     public async Task On_free_the_word_copy_is_left_off_and_the_email_still_goes()
     {
         AppServices.License.ResetToFree();

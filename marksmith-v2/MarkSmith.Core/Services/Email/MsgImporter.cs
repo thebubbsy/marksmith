@@ -42,8 +42,11 @@ public static class MsgImporter
             };
             if (!string.IsNullOrWhiteSpace(r.Email ?? r.DisplayName)) list.Add(Mailbox(r.DisplayName, r.Email));
         }
+        // MimeMessage starts with Date = now: a message with no send or receive time must not
+        // claim it was sent the moment it was opened.
         if (msg.SentOn is { } sent) mime.Date = sent;
         else if (msg.ReceivedOn is { } received) mime.Date = received;
+        else mime.Date = DateTimeOffset.MinValue;
         if (IsUnsent(msgPath)) mime.Headers.Add("X-Unsent", "1");
 
         var builder = new BodyBuilder();
