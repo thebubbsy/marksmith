@@ -69,7 +69,6 @@ public sealed partial class DocxExportService
         .UseYamlFrontMatter()
         .UseAlertBlocks()
         .UseMathematics()
-        .UseEmojiAndSmiley(enableSmileys: false)
         .Build();
 
     // Shared AppServices.Themes singleton instead of a private instance — keeps a single catalog

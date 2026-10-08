@@ -187,4 +187,41 @@ public static class OcrGeometry
         while (a <= -45) { a += 90; (w, h) = (h, w); }
         return new RotatedBox(b.CenterX, b.CenterY, w, h, a);
     }
+    /// <summary>The bitmap turned clockwise by 90, 180 or 270 degrees.</summary>
+    public static SKBitmap RotateQuarter(SKBitmap src, int degrees)
+    {
+        bool swap = degrees is 90 or 270;
+        var dst = new SKBitmap(swap ? src.Height : src.Width, swap ? src.Width : src.Height, src.ColorType, src.AlphaType);
+        using var canvas = new SKCanvas(dst);
+        canvas.Clear(SKColors.White);
+        canvas.Translate(dst.Width / 2f, dst.Height / 2f);
+        canvas.RotateDegrees(degrees);
+        canvas.Translate(-src.Width / 2f, -src.Height / 2f);
+        canvas.DrawBitmap(src, 0, 0);
+        return dst;
+    }
+
+    /// <summary>
+    /// Decodes an image file the right way up: phone photos store the picture as the sensor saw
+    /// it and say in EXIF which way to turn it, which a plain decode ignores.
+    /// </summary>
+    public static SKBitmap? DecodeUpright(string path)
+    {
+        using var codec = SKCodec.Create(path);
+        if (codec is null) return null;
+        var bmp = SKBitmap.Decode(codec);
+        if (bmp is null) return null;
+        int turn = codec.EncodedOrigin switch
+        {
+            SKEncodedOrigin.BottomRight => 180,
+            SKEncodedOrigin.RightTop => 90,
+            SKEncodedOrigin.LeftBottom => 270,
+            _ => 0,
+        };
+        // Mirrored origins (rare outside selfies) are read as they are.
+        if (turn == 0) return bmp;
+        var upright = RotateQuarter(bmp, turn);
+        bmp.Dispose();
+        return upright;
+    }
 }

@@ -5818,6 +5818,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                         Progress = new Progress<string>(s => ViewModel.StatusText = s),
                     })
                     : await importer.ImportFromDocxAsync(file.Path);
+                Services.WindowsPdfRenderer.Release();
 
                 if (string.IsNullOrWhiteSpace(result.Markdown))
                 {

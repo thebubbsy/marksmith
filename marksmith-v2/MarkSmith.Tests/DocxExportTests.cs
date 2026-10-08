@@ -51,6 +51,15 @@ public class DocxExportTests
     [Fact] public void Tasklist_native_checkbox() => Assert.Contains("checkbox", Export("- [ ] open item"));
     [Fact] public void Tasklist_checked_state() => Assert.Contains("w14:val=\"1\"", Export("- [x] done item"));
     [Fact] public void Nested_tasklist_both_levels_native() { var x = Export("- [ ] parent\n  - [x] child"); Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(x, "<w:sdt>").Count); }
+    // With No emoji on, a shortcode must not turn into an emoji in Word (the parser converted it
+    // after the stripper had already run).
+    [Fact] public void Noemoji_leaves_shortcodes_as_text()
+    {
+        var xml = Export("Launch :rocket: today", new AppSettings { NoEmoji = true });
+        Assert.DoesNotContain("\U0001F680", xml);
+        Assert.Contains("Launch", xml);
+    }
+
     [Fact] public void Noemoji_still_native_checkbox() => Assert.Contains("checkbox", Export("- [ ] item", new AppSettings { NoEmoji = true }));
 
     // ---- math ---------------------------------------------------------------------------------

@@ -15,7 +15,7 @@ public static class OcrImport
 
     public static Task<OcrImportResult> ImageToMarkdownAsync(string path, string? engineId = null) => Task.Run(async () =>
     {
-        using var bitmap = SKBitmap.Decode(path) ?? throw new InvalidDataException($"{Path.GetFileName(path)} isn't a picture MarkSmith can open.");
+        using var bitmap = OcrGeometry.DecodeUpright(path) ?? throw new InvalidDataException($"{Path.GetFileName(path)} isn't a picture MarkSmith can open.");
         var engine = OcrEngines.Create(engineId ?? AppServices.Settings.Current.OcrEngine, out bool fellBack);
         var straight = OcrPreprocess.Deskew(bitmap, out _);
         try

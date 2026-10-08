@@ -57,17 +57,20 @@ public static class PdfMarkdownImporter
             {
                 ReadTextPage(page, content);
             }
-            else
+            else if (letters.Count > 0 || page.GetImages().Any() || page.ExperimentalAccess.Paths.Count() > 200)
             {
+                // Text with no character map, a scan, or text drawn as outlines: read it by OCR.
                 content.NeedsOcr = true;
-                content.ScanImage = ScanImage(page) ?? options.RenderPage?.Invoke(n);
             }
+            // Otherwise the page is blank or holds only a few vector shapes: nothing to read.
             if (!content.NeedsOcr && options.MediaDirectory is not null)
                 pictures += SavePictures(page, content, options, pictures);
             pages.Add(content);
         }
 
-        // OCR the pages that need it, with the engine Settings picked.
+        // OCR the pages that need it, with the engine Settings picked. Each page's picture is
+        // decoded (or rendered) only when its turn comes and freed straight after: a 200-page
+        // scan held in memory at once runs to gigabytes.
         int ocrPages = 0;
         string? engineName = null;
         if (pages.Any(p => p.NeedsOcr))
@@ -77,19 +80,28 @@ public static class PdfMarkdownImporter
             if (fellBack) notes.Add($"The chosen OCR engine isn't available here, so {engine.EngineName} read the scanned pages.");
             foreach (var p in pages.Where(p => p.NeedsOcr))
             {
-                if (p.ScanImage is null)
+                SKBitmap? scan = null;
+                try
                 {
-                    notes.Add($"Page {p.Number} has no readable text and couldn't be turned into a picture to read.");
-                    continue;
-                }
-                options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
-                using (p.ScanImage)
-                {
-                    var straight = OcrPreprocess.Deskew(p.ScanImage, out _);
+                    var page = doc.GetPage(p.Number);
+                    scan = ScanImage(page) ?? options.RenderPage?.Invoke(p.Number);
+                    if (scan is null)
+                    {
+                        notes.Add($"Page {p.Number} has no readable text and couldn't be turned into a picture to read.");
+                        continue;
+                    }
+                    options.Progress?.Report($"Reading scanned page {p.Number} with {engine.EngineName}…");
+                    var straight = OcrPreprocess.Deskew(scan, out _);
                     try { p.OcrMarkdown = OcrMarkdown.FromPage(engine.RecognizeAsync(straight).GetAwaiter().GetResult()); }
-                    finally { if (!ReferenceEquals(straight, p.ScanImage)) straight.Dispose(); }
+                    finally { if (!ReferenceEquals(straight, scan)) straight.Dispose(); }
+                    ocrPages++;
                 }
-                ocrPages++;
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // One bad page (an engine error, a broken image) costs that page, not the import.
+                    notes.Add($"Page {p.Number} couldn't be read: {ex.Message}");
+                }
+                finally { scan?.Dispose(); }
             }
         }
 
@@ -105,7 +117,6 @@ public static class PdfMarkdownImporter
         public int Number;
         public double Width, Height;
         public bool NeedsOcr;
-        public SKBitmap? ScanImage;
         public string? OcrMarkdown;
         public List<BlockContent> Blocks = new();
         /// <summary>Where body text starts on this page (the left margin of the text column).</summary>
@@ -212,7 +223,13 @@ public static class PdfMarkdownImporter
         // The page has no usable text, so its biggest picture (a scan, a photo of a page) is what
         // there is to read, unless it's a small logo or icon.
         if (best is null || bestArea < page.Width * page.Height * 0.05 || best.WidthInSamples < 200) return null;
-        return Decode(best);
+        var bmp = Decode(best);
+        // A page turned with /Rotate shows its scan turned the same way.
+        int turn = ((page.Rotation.Value % 360) + 360) % 360;
+        if (bmp is null || turn == 0) return bmp;
+        var turned = OcrGeometry.RotateQuarter(bmp, turn);
+        bmp.Dispose();
+        return turned;
     }
 
     private static SKBitmap? Decode(IPdfImage img)
@@ -542,9 +559,11 @@ public static class PdfMarkdownImporter
             int j = i;
             while (j + 1 < words.Count && words[j + 1].Bold == w.Bold && words[j + 1].Italic == w.Italic && words[j + 1].Mono == w.Mono && words[j + 1].Link == w.Link) j++;
             var run = string.Join(" ", words.Skip(i).Take(j - i + 1).Select(x => x.Text));
-            // Keep punctuation outside the markers so "**bold**," renders.
-            var m = Regex.Match(run, @"^(.*?)([.,;:!?)]*)$", RegexOptions.Singleline);
+            // Keep punctuation outside the markers so "**bold**," renders. In code only a
+            // sentence's own comma or full stop is outside: print() and f(x); keep theirs.
+            var m = Regex.Match(run, w.Mono ? @"^(.*?)([.,]?)$" : @"^(.*?)([.,;:!?)]*)$", RegexOptions.Singleline);
             string core = m.Groups[1].Value, tail = m.Groups[2].Value;
+            if (!w.Mono) core = EscapeMarkdown(core);
             string marked = core;
             if (w.Mono && !w.Bold) marked = "`" + core + "`";
             else
@@ -560,6 +579,16 @@ public static class PdfMarkdownImporter
         }
         return sb.ToString();
     }
+
+    private static readonly Regex MarkdownSpecial = new(@"([\\`*_\[\]<])", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Printed text is text: a literal *, _, [, &lt; or ` in the PDF would otherwise turn into
+    /// emphasis, a link or HTML. Web and mail addresses are left as written so they stay links.
+    /// </summary>
+    private static string EscapeMarkdown(string text) =>
+        string.Join(" ", text.Split(' ').Select(t =>
+            Regex.IsMatch(t, @"^(https?://|www\.)|@[\w-]+\.", RegexOptions.IgnoreCase) ? t : MarkdownSpecial.Replace(t, @"\$1")));
 
     private static byte[] ReadAll(Stream s)
     {

@@ -39,7 +39,10 @@ public static class OcrEngines
             new OcrEngineInfo(Auto, "Automatic", "The most accurate engine available: PaddleOCR when installed, otherwise MarkSmith OCR.", true, null),
             new OcrEngineInfo(MarkSmithId, "MarkSmith OCR", "Built by MarkSmith from the ground up in C#. Always available, fully offline.", ours.IsAvailable, ours.IsAvailable ? null : "Its network is missing from this build."),
             new OcrEngineInfo(Paddle, "PaddleOCR (PP-OCRv5)", "Open-source deep-learning OCR, the most accurate on printed documents. Bundled, offline.", paddle.IsAvailable, paddle.IsAvailable ? null : "Its model files aren't installed (ocr-models)."),
-            new OcrEngineInfo(Windows, "Windows OCR", "The OCR built into Windows 10 and 11, using your installed languages.", win?.IsAvailable == true, win is null ? "Only available in the Windows app with an OCR language installed." : null),
+            new OcrEngineInfo(Windows, "Windows OCR", "The OCR built into Windows 10 and 11, using your installed languages.", win?.IsAvailable == true,
+                win is null ? "Only available in the Windows app."
+                : win.IsAvailable ? null
+                : "Windows has no OCR language installed. Add one under Settings > Time & language > Language & region (Optional features: Optical character recognition)."),
             new OcrEngineInfo(Tesseract, "Tesseract 5", "The classic open-source OCR engine (LSTM, best English data). Bundled, offline.", tess.IsAvailable, tess.IsAvailable ? null : "Its library or language data isn't installed."),
         };
     }
