@@ -2869,3 +2869,121 @@ gains "Diagram Studio connectors and canvas, done properly".
    email automation attachments, Copy as email, EPUB follow-ups, root-scoped Ctrl+D/Alt+↑↓,
    Shape Studio rotated handles, the SmartArt outline keyboard pass, the Google Docs OAuth
    decision, Shape/SmartArt exports in real Word.
+
+### 2026-10-08 12:00–12:25 AEST (routine run #30: sequence and state diagrams drawn properly; Suite Hub for paying users)
+
+Reviewed run #29's "Next up" and took items 1–3. The PC was **unlocked** (no LogonUI), so every
+change was checked on a scratch-config instance (UIA + PrintWindow).
+
+**Found:**
+- **Sequence diagrams were boxes in a row.**
+  - Messages were box-to-box connectors, so A→B and B→A sat on the same line.
+  - The order of the conversation was invisible.
+  - Layout forced every header to 140x50, which clipped longer names.
+- **State diagrams were tangled.**
+  - One `[*]` node served as both start and end, which pulled the first and last states
+    together.
+  - The layered ranking relaxed around every cycle up to "node count + 5". Any loop (refund →
+    created) stretched the diagram across far-apart layers.
+  - The State palette had no start or end point, so you couldn't add one.
+- The toolbar offered **Top-Down/Left-Right** and **Elbow/Straight/Curved** on diagram types they
+  do nothing for.
+- **Suite Hub** was written for developers:
+  - "SAX streaming OpenXML O(1) compiler", "3-block cycle governance".
+  - The plan badge said "Pro Entitled" or "Free / Trial", which is wrong during a trial.
+  - "API off" didn't say what to do.
+  - "Copy CLI Syntax" copied `marksmith suite`, which isn't on PATH and only prints a status.
+- Settings **"Pro mode"** (skip insert dialogs) collided with the paid "MarkSmith Pro" name.
+
+**What shipped:**
+- `eeaabdf` Diagram Studio:
+  - Core `Mermaid/Routing/SequenceLayout` is the one sequence layout:
+    - participants across the top, with a dashed lifeline under each;
+    - one row per message, in order, lifeline to lifeline;
+    - each label sits above its line, and multi-line labels get taller rows;
+    - self-calls loop out to the right, with the label beside the loop;
+    - column spacing widens for the longest label between neighbours.
+  - Connectors take a fixed route via `SetRoute`. In sequence mode, any add, delete, move or
+    resize re-lays the whole conversation (collection hooks plus `UpdateConnectorGeometry` /
+    `MoveSelectedNodes`). A new "Lifelines" ItemsControl layer sits under the connectors.
+  - Node VM `LifelineLength/X/Top/Bottom`.
+  - State `[*]`:
+    - loads as a start dot (`[*]`) plus a separate end bullseye (`StateEndNodeId = "[*]end"`);
+    - a diagram that only ends gets just an end point;
+    - `CanvasToAst` writes every Start/End-shaped node back as `[*]`, so palette-dropped
+      points work too.
+    - New palette items: Start Point (EA3B) and End Point (ECCB). Glyphs were rendered from the
+      font and checked.
+  - Core `Mermaid/Routing/LayeredLayout`:
+    - breaks cycles with DFS back edges, sources first;
+    - ranks by longest path;
+    - orders layers with four barycentre sweeps;
+    - is deterministic.
+    - `ApplyAutoLayout` uses it for flowchart, class, state and ER.
+  - VM `GetContentBounds()` (nodes + lifelines + self-loops). Fit and the minimap use it, and the
+    minimap draws lifelines.
+  - `ShowsDirectionPicker` (flowchart only) and `ShowsRoutingPicker` (not sequence or Gantt).
+- `e65f7af` Suite Hub and Quick insert:
+  - Every card rewritten in plain words: Drawing studios, AI assistants, Browser extension,
+    Command line, Web companion, Document Galaxy.
+  - Core `ProGate.PlanBadge` gives the plan badge.
+  - Browser card:
+    - reads Connected / Not connected;
+    - **Turn on** sets `ApiEnabled` (same as Settings › Automation › Local API) and reports
+      success or a port-in-use message with the fix;
+    - Copy address only shows while connected.
+  - "Copy a command" flyout: convert a file, convert a folder, check the installation, using
+    the bundled exe's full path.
+  - "Pro mode" is **Quick insert** in Settings and comments. The stored key stays `ProMode`, so
+    existing settings carry over. The extension settings bridge never listed it, so nothing to
+    change there.
+
+**Verified live:**
+- Both sequence templates show lifelines, ordered rows, dashed replies and labels above their
+  lines.
+- The state template reads left to right, start dot → … → end bullseye, with no tangle.
+- Class and flowchart templates are unchanged.
+- Sequence hides both pickers; state shows routing only.
+- Suite Hub renders with "Free plan" and the new copy.
+- Turn on:
+  - with the user's instance holding 47821, it shows the port-in-use warning;
+  - on a free port (47993), the badge reads Connected and `/api/health` returned 200.
+
+**Tests:**
+- New: `Mermaid/DiagramStudioLayoutTests.cs` (19):
+  - rows in order; flat lifeline-to-lifeline messages; labels above the line; self-loops;
+  - lifelines past the last message; re-layout on add, move and delete; long labels widen gaps;
+  - no lifelines outside sequence diagrams; message order round-trips;
+  - start/end split and its `[*]` round trip; end-only diagrams; palette points write `[*]`;
+  - LayeredLayout cycles, pure cycle, self-loops, crossing reduction, determinism.
+- `ProGateTests`: plan badge.
+- Full suite (scratch OutDir): 3781 passed. The 20 failures are the same environmental set as
+  runs #25–#29 (scratch-path assets, governance docs, gauntlet, MarkdownCopy/HtmlToMarkdown
+  IsTransient, the user's HouseLayout WIP). Desktop build: 0 warnings.
+
+**Lessons:**
+- In C#, `x?.Tag as string switch { … }` is a precedence warning (CS8848); parenthesise the
+  `as`.
+- A test that selects a connector after selecting a node still has the node in `SelectedNodes`,
+  so `DeleteSelected` deletes the node. Clear the selection first. (The canvas click path
+  already does.)
+- `ProGateTests.cs` holds several classes; new facts go inside `ProGateCopyTests`, not at the end
+  of the file.
+
+**Release:** still held for the person-run Outlook check (run #27's three steps). v3.4.0 gains
+"Sequence and state diagrams drawn properly" and "Suite Hub rewritten".
+
+**Next up:**
+1. Diagram Studio, the last mile:
+   - sequence notes, `loop/alt/opt` blocks and activations are kept in the code but not drawn;
+     draw them as frames and bars;
+   - there is no way to reorder messages on the canvas (drag a message up or down);
+   - the hover halo and dwell still need a real-mouse check.
+2. Diagram Studio participant boxes take the theme heading colour (white on light themes). Check
+   that this reads well against the always-dark canvas for every bundled theme.
+3. Carried over from #28 and #29:
+   - batch dialog / drag-drop / clipboard self-copy check with real input;
+   - email automation attachments, Copy as email, EPUB follow-ups;
+   - root-scoped Ctrl+D/Alt+↑↓, Shape Studio rotated handles, the SmartArt outline keyboard pass;
+   - the Google Docs OAuth decision;
+   - Shape/SmartArt exports in real Word.
