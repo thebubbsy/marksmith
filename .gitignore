@@ -131,3 +131,6 @@ private-key.pem
 *.tsbuildinfo
 .env
 *.env.local
+
+# OCR model downloads (build/OcrModels.targets)
+marksmith-v2/.ocr-models/

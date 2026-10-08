@@ -98,12 +98,14 @@ public static class PluginFileReader
                 return new ImportedDocument(result.Markdown, "Word", null);
         }
 
-        // PDF: Tier 1 extracts lossless embedded Marksmith source; Tier 2 extracts structured text streams.
+        // PDF: MarkSmith's own embedded source when it has one; otherwise the text with its
+        // structure, pictures, and OCR for scanned pages (ReverseImportService.ImportFromPdf).
         if (ext == "pdf")
         {
             var result = await new Services.ReverseImportService().ImportFromPdfAsync(path);
             if (result.Tier != Services.ImportTier.None && !string.IsNullOrWhiteSpace(result.Markdown))
-                return new ImportedDocument(result.Markdown, "PDF", null);
+                return new ImportedDocument(result.Markdown, "PDF",
+                    result.Warning is null ? null : $"Imported {Path.GetFileName(path)} · {result.Warning}");
         }
 
         if (ext is "html" or "htm")
@@ -156,7 +158,9 @@ public static class PluginFileReader
     // "<name>_media" beside the file, like the Word importer — unless it sits somewhere transient
     // or read-only (an attachment Outlook opened from its temp folder), where the images would
     // vanish or can't be written: then the app's own imports folder.
-    private static string MediaDirFor(string sourcePath)
+    /// <summary>Where an imported document's pictures go: "&lt;name&gt;_media" beside it, or a
+    /// private folder when the document's own folder is read-only or temporary.</summary>
+    public static string MediaDirFor(string sourcePath)
     {
         var dir = Path.GetDirectoryName(sourcePath) ?? ".";
         var stem = Path.GetFileNameWithoutExtension(sourcePath);
@@ -165,6 +169,14 @@ public static class PluginFileReader
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(sourcePath).ToLowerInvariant())))[..10];
         return Path.Combine(Services.AppPaths.ConfigDir, "imports", stem + "-" + hash);
+    }
+
+    /// <summary>How the imported document links to <paramref name="mediaDir"/>: relative when it
+    /// sits beside the document, its full path when it's the private fallback folder.</summary>
+    public static string MediaLinkFor(string sourcePath, string mediaDir)
+    {
+        var rel = Path.GetRelativePath(Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ".", Path.GetFullPath(mediaDir));
+        return (rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel) ? Path.GetFullPath(mediaDir) : rel).Replace('\\', '/');
     }
 
     private static readonly System.Text.RegularExpressions.Regex DataImage = new(

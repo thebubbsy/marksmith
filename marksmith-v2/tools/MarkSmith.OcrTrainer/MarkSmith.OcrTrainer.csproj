@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Trains MarkSmith OCR's letter network (MarkSmith.Core/Ocr/MarkSmith/glyphnet.bin) on synthetic
+    lines rendered with the fonts installed on the machine. Not part of the solution build: run it
+    by hand when the network or the segmenter changes.
+      dotnet run -c Release (project tools/MarkSmith.OcrTrainer), arguments: lines epochs out.bin
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <MarkSmithSkipOcrModels>true</MarkSmithSkipOcrModels>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\MarkSmith.Core\MarkSmith.Core.csproj" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+  </ItemGroup>
+</Project>

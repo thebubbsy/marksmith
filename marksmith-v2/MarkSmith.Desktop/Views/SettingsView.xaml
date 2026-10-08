@@ -163,6 +163,23 @@
                                 <ComboBoxItem Content="Keep them inline" Tag="keep" />
                             </ComboBox>
                         </controls:SettingsCard>
+                        <controls:SettingsCard Glyph="&#xE8B9;" Header="OCR engine"
+                                               Description="Reads scanned PDF pages and pictures of text when you import them.">
+                            <controls:SettingsCard.Details>
+                                <StackPanel Spacing="6">
+                                    <ComboBox Style="{StaticResource SettingsComboStyle}" SelectedValuePath="Tag"
+                                              AutomationProperties.Name="OCR engine"
+                                              SelectedValue="{Binding OcrEngine, Mode=TwoWay}">
+                                        <ComboBoxItem Content="Automatic (best available)" Tag="auto" />
+                                        <ComboBoxItem Content="MarkSmith OCR (built by MarkSmith)" Tag="marksmith" />
+                                        <ComboBoxItem Content="PaddleOCR (PP-OCRv5)" Tag="paddle" />
+                                        <ComboBoxItem Content="Windows OCR" Tag="windows" />
+                                        <ComboBoxItem Content="Tesseract 5" Tag="tesseract" />
+                                    </ComboBox>
+                                    <TextBlock Text="{Binding OcrEngineDescription}" Style="{StaticResource SettingsHintStyle}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </controls:SettingsCard.Details>
+                        </controls:SettingsCard>
 
                         <TextBlock Text="Performance" Style="{StaticResource SettingsSectionStyle}" />
                         <controls:SettingsCard Glyph="&#xE950;" Header="Hardware acceleration"

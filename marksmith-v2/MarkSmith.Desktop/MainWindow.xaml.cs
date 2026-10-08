@@ -5753,19 +5753,45 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var picker = new FileOpenPicker();
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
-        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }) picker.FileTypeFilter.Add(ext);
+        foreach (var ext in new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions)) picker.FileTypeFilter.Add(ext);
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
 
         try
         {
             var ext = Path.GetExtension(file.Path).ToLowerInvariant();
+            var name = Path.GetFileName(file.Path);
+            if (Ocr.OcrImport.IsImage(file.Path))
+            {
+                // A picture of a page: read it with the OCR engine Settings picked.
+                ViewModel.StatusText = $"Reading the text in {name}…";
+                var read = await Ocr.OcrImport.ImageToMarkdownAsync(file.Path);
+                if (string.IsNullOrWhiteSpace(read.Markdown))
+                {
+                    ViewModel.StatusText = $"No text found in {name}.";
+                    ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+                    return;
+                }
+                ViewModel.PastedMarkdown = read.Markdown;
+                ViewModel.UsePasteSource = true;
+                ViewModel.StatusText = $"Imported {name} · read with {read.Engine}" + (read.FellBack ? " (the chosen engine isn't available here)" : "");
+                ViewModel.StatusSeverity = read.FellBack ? Models.StatusSeverity.Warning : Models.StatusSeverity.Success;
+                return;
+            }
             if (ext is ".docx" or ".pdf")
             {
                 // Word/PDF keep their own result: the tier and the "edited after export" warning.
                 var importer = new Services.ReverseImportService();
+                ViewModel.StatusText = $"Importing {name}…";
                 var result = ext == ".pdf"
-                    ? await importer.ImportFromPdfAsync(file.Path)
+                    ? await importer.ImportFromPdfAsync(file.Path, new Services.Import.PdfImportOptions
+                    {
+                        MediaDirectory = Plugins.PluginFileReader.MediaDirFor(file.Path),
+                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(file.Path, Plugins.PluginFileReader.MediaDirFor(file.Path)),
+                        RenderPage = n => Services.WindowsPdfRenderer.Render(file.Path, n),
+                        // Scanned pages take a moment each: say which one is being read.
+                        Progress = new Progress<string>(s => ViewModel.StatusText = s),
+                    })
                     : await importer.ImportFromDocxAsync(file.Path);
 
                 if (string.IsNullOrWhiteSpace(result.Markdown))
@@ -5778,8 +5804,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 // Load the extracted Markdown into the editor as a new document.
                 ViewModel.PastedMarkdown = result.Markdown;
                 ViewModel.UsePasteSource = true;
-                ViewModel.StatusText = $"Imported {Path.GetFileName(file.Path)} ({result.Tier})";
-                ViewModel.StatusSeverity = result.IsStale
+                ViewModel.StatusText = result.Tier == Services.ImportTier.EmbeddedSource
+                    ? $"Imported {name} (its original MarkSmith source)"
+                    : $"Imported {name}";
+                if (result.Pdf is { } pdf)
+                {
+                    ViewModel.StatusText += $" · {pdf.Pages} page{(pdf.Pages == 1 ? "" : "s")}";
+                    if (pdf.Pictures > 0) ViewModel.StatusText += $", {pdf.Pictures} picture{(pdf.Pictures == 1 ? "" : "s")}";
+                }
+                if (!result.IsStale && !string.IsNullOrWhiteSpace(result.Warning)) ViewModel.StatusText += " · " + result.Warning;
+                ViewModel.StatusSeverity = result.IsStale || result.Pdf?.Notes.Count > 0
                     ? Models.StatusSeverity.Warning
                     : Models.StatusSeverity.Success;
                 if (result.IsStale && !string.IsNullOrWhiteSpace(result.Warning))

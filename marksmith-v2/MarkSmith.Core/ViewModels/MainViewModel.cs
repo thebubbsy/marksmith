@@ -952,6 +952,7 @@ private readonly MarkdownExportService _mdExport = new();
         _pageBorder = settings.PageBorder;
         _trackChanges = settings.TrackChanges;
         LoadEmailSettings(settings);
+        LoadOcrSettings(settings);
         _authorName = settings.AuthorName;
         _customFontPath = settings.CustomFontPath;
         _ambiguityMode = settings.AmbiguityMode;

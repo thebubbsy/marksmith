@@ -35,7 +35,8 @@ public sealed record ReverseImportResult(
     ImportTier Tier,
     bool IsStale,
     string? Warning,
-    IReadOnlyList<string> ExtractedMedia);
+    IReadOnlyList<string> ExtractedMedia,
+    Import.PdfImportReport? Pdf = null);
 
 public sealed record DocxCommentInfo(
     string Id,
@@ -105,201 +106,70 @@ public sealed class ReverseImportService : IReverseImportService
     public string ImportFromDocx(Stream stream) =>
         ImportCore(stream, mediaDir: null, pandocPath: null).Markdown;
 
-    // ---- PDF → Markdown (D1 extension) ---------------------------------------------------------
+    // ---- PDF → Markdown ----------------------------------------------------------------------
 
     /// <summary>
-    /// Imports a PDF file into Markdown by extracting text from each page's content stream.
-    /// Digital PDFs (with selectable text) yield clean paragraphs; scanned/image-only PDFs
-    /// yield empty pages (use OcrEngineService for those — D2).
+    /// Imports a PDF. Tier 1: a MarkSmith-made PDF carries its exact Markdown (PdfSourceStore) and
+    /// comes back byte for byte. Otherwise <see cref="Import.PdfMarkdownImporter"/> reads it:
+    /// real text with its structure, pictures saved beside the file, and scanned pages read by
+    /// the OCR engine picked in Settings.
     /// </summary>
-    public Task<ReverseImportResult> ImportFromPdfAsync(string pdfPath) =>
-        Task.Run(() => ImportFromPdf(pdfPath));
+    public Task<ReverseImportResult> ImportFromPdfAsync(string pdfPath, Import.PdfImportOptions? options = null) =>
+        Task.Run(() => ImportFromPdf(pdfPath, options));
 
-    /// <summary>Synchronous PDF import entry point.</summary>
-    public ReverseImportResult ImportFromPdf(string pdfPath)
+    public ReverseImportResult ImportFromPdf(string pdfPath, Import.PdfImportOptions? options = null)
     {
+        var mediaDir = Plugins.PluginFileReader.MediaDirFor(pdfPath);
+        options ??= new Import.PdfImportOptions
+        {
+            MediaDirectory = mediaDir,
+            MediaLink = Plugins.PluginFileReader.MediaLinkFor(pdfPath, mediaDir),
+            RenderPage = PdfPageRenderer is null ? null : n => PdfPageRenderer(pdfPath, n),
+        };
         using var stream = File.OpenRead(pdfPath);
-        return ImportFromPdf(stream);
+        return ImportFromPdf(stream, options);
     }
 
-    /// <summary>Stream-based PDF import.</summary>
-    public ReverseImportResult ImportFromPdf(Stream stream)
+    /// <summary>Set by the desktop app: draws page N (1-based) of a PDF file with Windows' own PDF
+    /// renderer, so OCR can read pages that are neither text nor a single scanned picture.</summary>
+    public static Func<string, int, SkiaSharp.SKBitmap?>? PdfPageRenderer { get; set; }
+
+    public ReverseImportResult ImportFromPdf(Stream stream, Import.PdfImportOptions? options = null)
     {
-        // Use PdfDocumentOpenMode.Import for reading/extracting PDF document streams (ReadOnly is obsolete CS0618)
-        using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+        var bytes = new MemoryStream();
+        stream.CopyTo(bytes);
 
-        // Tier 1: embedded source (lossless) — Marksmith-made PDFs carry the exact Markdown in the
-        // Info dictionary (PdfSourceStore), so a PDF-only workflow recovers the source byte-for-byte.
-        var embedded = PdfSourceStore.Read(doc);
-        if (embedded is not null)
+        // Tier 1: embedded source (lossless).
+        try
         {
-            return new ReverseImportResult(
-                embedded.Markdown,
-                ImportTier.EmbeddedSource,
-                embedded.IsStale,
-                embedded.IsStale ? StaleWarning : null,
-                Array.Empty<string>());
+            bytes.Position = 0;
+            using var doc = PdfReader.Open(bytes, PdfDocumentOpenMode.Import);
+            var embedded = PdfSourceStore.Read(doc);
+            if (embedded is not null)
+            {
+                return new ReverseImportResult(
+                    embedded.Markdown,
+                    ImportTier.EmbeddedSource,
+                    embedded.IsStale,
+                    embedded.IsStale ? StaleWarning : null,
+                    Array.Empty<string>());
+            }
         }
+        catch (Exception) { /* PDFsharp can't open every PDF; PdfPig reads it below. */ }
 
-        var markdown = ExtractPdfMarkdown(doc);
-        if (string.IsNullOrWhiteSpace(markdown))
+        bytes.Position = 0;
+        var report = Import.PdfMarkdownImporter.Import(bytes, options);
+        var notes = report.Notes.ToList();
+        if (report.OcrPages > 0)
+            notes.Insert(0, $"{report.OcrPages} scanned page{(report.OcrPages == 1 ? "" : "s")} read with {report.OcrEngine}");
+        if (string.IsNullOrWhiteSpace(report.Markdown))
         {
             return new ReverseImportResult("", ImportTier.None, false,
-                "No extractable text found. This PDF may be scanned/image-only — try OCR (D2).",
-                Array.Empty<string>());
+                notes.Count > 0 ? string.Join(" · ", notes) : "This PDF has no text to import.",
+                Array.Empty<string>(), report);
         }
-        return new ReverseImportResult(markdown, ImportTier.UniversalEngine, false, null, Array.Empty<string>());
-    }
-
-    /// <summary>
-    /// Extracts structured Markdown from a PDF document by parsing page content streams for
-    /// text-showing operators (Tj, TJ, ', "). Handles font-size based heading detection and
-    /// paragraph grouping via text-position tracking.
-    /// </summary>
-    private static string ExtractPdfMarkdown(PdfDocument doc)
-    {
-        var sb = new StringBuilder();
-        for (int i = 0; i < doc.PageCount; i++)
-        {
-            var page = doc.Pages[i];
-            var pageText = ExtractPageText(page);
-            if (!string.IsNullOrWhiteSpace(pageText))
-            {
-                if (sb.Length > 0) sb.Append("\n\n");
-                sb.Append(pageText);
-            }
-        }
-        return sb.ToString().Trim();
-    }
-
-    private static string ExtractPageText(PdfPage page)
-    {
-        var contents = page.Contents;
-        if (contents is null) return "";
-
-        var sb = new StringBuilder();
-        foreach (var item in contents.Elements)
-        {
-            if (item is PdfSharp.Pdf.PdfDictionary dict)
-            {
-                var stream = dict.Stream;
-                if (stream is null) continue;
-                var bytes = stream.Value;
-                var content = Encoding.Latin1.GetString(bytes);
-                AppendContentStreamText(sb, content);
-            }
-        }
-        return sb.ToString().Trim();
-    }
-
-    // Regex patterns for PDF text-showing operators in content streams.
-    private static readonly Regex TjPattern = new(@"\(([^)]*)\)\s*Tj", RegexOptions.Compiled);
-    private static readonly Regex TJArrayPattern = new(@"\[(.*?)\]\s*TJ", RegexOptions.Compiled);
-    private static readonly Regex TJStringPattern = new(@"\(([^)]*)\)", RegexOptions.Compiled);
-    private static readonly Regex QuotePattern = new(@"\(([^)]*)\)\s*'", RegexOptions.Compiled);
-    // Line-break detection used to be rebuilt per reverse-import call.
-    private static readonly Regex TdPattern = new(@"([\d.-]+)\s+([\d.-]+)\s+Td|([\d.-]+)\s+([\d.-]+)\s+TD|T\*", RegexOptions.Compiled);
-
-    private static void AppendContentStreamText(StringBuilder sb, string content)
-    {
-        // Track text positioning for line breaks. Td/TD with significant Y-offset = new line.
-        var lines = new List<string>();
-        var currentLine = new StringBuilder();
-
-        // Process the content stream in order using a combined tokenizer approach.
-        // We look for text operators and positioning operators.
-        var allMatches = new List<(int pos, string type, string value)>();
-
-        foreach (Match m in TjPattern.Matches(content))
-            allMatches.Add((m.Index, "Tj", m.Groups[1].Value));
-        foreach (Match m in QuotePattern.Matches(content))
-            allMatches.Add((m.Index, "'", m.Groups[1].Value));
-        foreach (Match m in TJArrayPattern.Matches(content))
-        {
-            // Concatenate all string fragments within the TJ array.
-            var fragments = TJStringPattern.Matches(m.Groups[1].Value);
-            var combined = string.Concat(fragments.Select(f => f.Groups[1].Value));
-            allMatches.Add((m.Index, "TJ", combined));
-        }
-
-        // Detect line breaks via Td/TD/T* operators.
-        var newLinePositions = new HashSet<int>();
-        foreach (Match m in TdPattern.Matches(content))
-        {
-            newLinePositions.Add(m.Index);
-            // If Y offset is significant (negative = move down), it's a paragraph break.
-            var yStr = m.Groups[2].Success ? m.Groups[2].Value : m.Groups[4].Value;
-            if (double.TryParse(yStr, out double y) && Math.Abs(y) > 2)
-                newLinePositions.Add(m.Index); // paragraph-level break
-        }
-
-        // Sort all text fragments by position and build lines.
-        allMatches.Sort((a, b) => a.pos.CompareTo(b.pos));
-        int lastNewline = -1;
-        foreach (var (pos, type, value) in allMatches)
-        {
-            // Check if there's a newline operator between the last text and this one.
-            bool hasNewline = newLinePositions.Any(p => p > lastNewline && p < pos);
-            if (hasNewline && currentLine.Length > 0)
-            {
-                lines.Add(currentLine.ToString());
-                currentLine.Clear();
-            }
-            lastNewline = pos;
-
-            var decoded = DecodePdfString(value);
-            currentLine.Append(decoded);
-            if (type == "'") // ' operator moves to next line after showing text
-            {
-                lines.Add(currentLine.ToString());
-                currentLine.Clear();
-            }
-        }
-        if (currentLine.Length > 0)
-            lines.Add(currentLine.ToString());
-
-        // Join lines into paragraphs (heuristic: short gap = same paragraph).
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Length > 0)
-                sb.AppendLine(trimmed);
-        }
-    }
-
-    /// <summary>Decodes PDF string escape sequences (\n, \r, \t, \(, \), \\, octal).</summary>
-    private static string DecodePdfString(string raw)
-    {
-        var sb = new StringBuilder(raw.Length);
-        for (int i = 0; i < raw.Length; i++)
-        {
-            if (raw[i] == '\\' && i + 1 < raw.Length)
-            {
-                i++;
-                switch (raw[i])
-                {
-                    case 'n': sb.Append('\n'); break;
-                    case 'r': sb.Append('\r'); break;
-                    case 't': sb.Append('\t'); break;
-                    case '(': sb.Append('('); break;
-                    case ')': sb.Append(')'); break;
-                    case '\\': sb.Append('\\'); break;
-                    case >= '0' and <= '7':
-                        // Octal escape (up to 3 digits).
-                        var octal = raw[i].ToString();
-                        while (octal.Length < 3 && i + 1 < raw.Length && raw[i + 1] >= '0' && raw[i + 1] <= '7')
-                            octal += raw[++i];
-                        sb.Append((char)Convert.ToInt32(octal, 8));
-                        break;
-                    default: sb.Append(raw[i]); break;
-                }
-            }
-            else
-            {
-                sb.Append(raw[i]);
-            }
-        }
-        return sb.ToString();
+        return new ReverseImportResult(report.Markdown, ImportTier.UniversalEngine, false,
+            notes.Count > 0 ? string.Join(" · ", notes) : null, Array.Empty<string>(), report);
     }
 
     // ---- cascade core ------------------------------------------------------------------------
