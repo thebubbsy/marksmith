@@ -186,6 +186,16 @@ public sealed partial class MermaidCanvasControl : UserControl
             CanvasScrollViewer.ChangeView(null, null, clamped);
     }
 
+    /// <summary>Fit once the freshly loaded nodes have been measured and laid out.</summary>
+    public void FitToContentAfterLayout()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            UpdateLayout();
+            FitToContent();
+        });
+    }
+
     public void FitToContent()
     {
         var vm = ViewModel;
@@ -211,15 +221,17 @@ public sealed partial class MermaidCanvasControl : UserControl
         double contentW = maxX - minX + pad * 2;
         double contentH = maxY - minY + pad * 2;
         double vpW = CanvasScrollViewer.ViewportWidth;
-        double vpH = CanvasScrollViewer.ViewportHeight;
+        // The minimap sits over the bottom-left corner; fit into the band above it.
+        double vpH = CanvasScrollViewer.ViewportHeight - (MinimapControl.Visibility == Visibility.Visible ? MinimapControl.ActualHeight + 20 : 0);
         if (vpW <= 0 || vpH <= 0)
         {
             CanvasScrollViewer.ChangeView(0, 0, 1.0f);
             return;
         }
 
+        // Never magnify past 100%: a three-node diagram used to "fit" at 400%.
         float zoom = (float)Math.Clamp(
-            Math.Min(vpW / contentW, vpH / contentH),
+            Math.Min(1.0, Math.Min(vpW / contentW, vpH / contentH)),
             CanvasScrollViewer.MinZoomFactor,
             CanvasScrollViewer.MaxZoomFactor);
 
@@ -227,7 +239,9 @@ public sealed partial class MermaidCanvasControl : UserControl
         double offsetX = (minX - pad) - (vpW / zoom - contentW) / 2;
         double offsetY = (minY - pad) - (vpH / zoom - contentH) / 2;
 
-        CanvasScrollViewer.ChangeView(Math.Max(0, offsetX), Math.Max(0, offsetY), zoom);
+        // ChangeView takes offsets in zoomed pixels, not canvas units: at any fit below 100% the
+        // unscaled offset overshot and the diagram landed off to the left/top of the viewport.
+        CanvasScrollViewer.ChangeView(Math.Max(0, offsetX * zoom), Math.Max(0, offsetY * zoom), zoom);
     }
 
     #endregion
@@ -848,6 +862,34 @@ public sealed partial class MermaidCanvasControl : UserControl
     #endregion
 
     #region In-Place Inline Text Editing & Connectors
+
+    // Hover: a soft halo on the connector and a hand cursor, so a thin line reads as clickable.
+    // The wide transparent hit path in the template is what actually catches the pointer.
+    private void OnConnectorPointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DiagramConnectorViewModel conn } fe)
+        {
+            conn.IsHovered = true;
+            SetCursor(fe, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        }
+    }
+
+    private void OnConnectorPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: DiagramConnectorViewModel conn })
+            conn.IsHovered = false;
+    }
+
+    // UIElement.ProtectedCursor is protected in WinUI 3; reflection is the usual way to set it on
+    // an element we don't subclass (same helper as Shape Studio).
+    private static readonly System.Reflection.PropertyInfo? ProtectedCursorProperty =
+        typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+    private static void SetCursor(UIElement element, Microsoft.UI.Input.InputSystemCursorShape shape)
+    {
+        try { ProtectedCursorProperty?.SetValue(element, Microsoft.UI.Input.InputSystemCursor.Create(shape)); }
+        catch { /* cursor is cosmetic */ }
+    }
 
     private void OnConnectorsItemsControlPointerPressed(object sender, PointerRoutedEventArgs e)
     {

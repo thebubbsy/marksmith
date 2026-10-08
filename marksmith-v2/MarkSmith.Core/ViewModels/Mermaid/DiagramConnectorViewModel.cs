@@ -71,6 +71,98 @@ public partial class DiagramConnectorViewModel : ObservableObject
     [ObservableProperty]
     private double _strokeWidth = 2.0;
 
+    /// <summary>Pointer is over the connector (UI state only; never saved or synced).</summary>
+    [ObservableProperty]
+    private bool _isHovered;
+
+    // ---- What the canvas draws (derived; see ConnectorAppearance) ----
+
+    /// <summary>Selection colour shared with node selection chrome.</summary>
+    public const string SelectionColor = "#4CC9F0";
+
+    /// <summary>The canvas background, used to fill hollow markers so the line doesn't show through.</summary>
+    public const string CanvasColor = "#1E1E2E";
+
+    [ObservableProperty]
+    private string _startMarkerData = string.Empty;
+
+    [ObservableProperty]
+    private string _endMarkerData = string.Empty;
+
+    [ObservableProperty]
+    private string _startMarkerFill = "Transparent";
+
+    [ObservableProperty]
+    private string _endMarkerFill = "Transparent";
+
+    [ObservableProperty]
+    private bool _isDashed;
+
+    [ObservableProperty]
+    private double _displayStrokeWidth = 2.0;
+
+    [ObservableProperty]
+    private string _displayStroke = "#8D99AE";
+
+    /// <summary>Opacity of the soft halo behind the line: shown on hover, stronger when selected.</summary>
+    [ObservableProperty]
+    private double _haloOpacity;
+
+    public bool HasLabel => !string.IsNullOrWhiteSpace(Label);
+
+    // Where each end is and which way the line is travelling there (start: leaving the source,
+    // end: arriving at the target). Kept so markers can be rebuilt when only the style changes.
+    private MarkSmith.Core.Mermaid.Routing.Point _startTip, _endTip;
+    private double _startDirX, _startDirY = 1, _endDirX, _endDirY = 1;
+
+    partial void OnLabelChanged(string? value) => OnPropertyChanged(nameof(HasLabel));
+    partial void OnLineStyleChanged(string value) => RebuildMarkers();
+    partial void OnStartHeadChanged(string value) => RebuildMarkers();
+    partial void OnEndHeadChanged(string value) => RebuildMarkers();
+    partial void OnStrokeWidthChanged(double value) => RebuildMarkers();
+    partial void OnStrokeColorChanged(string value) => RebuildMarkers();
+    partial void OnIsSelectedChanged(bool value) => RebuildMarkers();
+    partial void OnIsHoveredChanged(bool value) => RebuildMarkers();
+
+    private void RebuildMarkers()
+    {
+        var look = MarkSmith.Core.Mermaid.Routing.ConnectorAppearance.Resolve(LineStyle, StartHead, EndHead);
+        IsDashed = look.Dashed;
+        DisplayStrokeWidth = StrokeWidth * look.WidthScale;
+        DisplayStroke = IsSelected ? SelectionColor : StrokeColor;
+        HaloOpacity = IsSelected ? 0.4 : IsHovered ? 0.22 : 0;
+
+        (StartMarkerData, StartMarkerFill) = Marker(look.Start, _startTip, -_startDirX, -_startDirY);
+        (EndMarkerData, EndMarkerFill) = Marker(look.End, _endTip, _endDirX, _endDirY);
+    }
+
+    private (string Data, string Fill) Marker(MarkSmith.Core.Mermaid.Routing.ConnectorMarker kind,
+        MarkSmith.Core.Mermaid.Routing.Point tip, double dirX, double dirY)
+    {
+        var shape = MarkSmith.Core.Mermaid.Routing.ConnectorAppearance.Shape(kind, tip, dirX, dirY, DisplayStrokeWidth);
+        if (shape is not { } s) return (string.Empty, "Transparent");
+        return (s.PathData, s.StrokeOnly ? "Transparent" : s.FilledWithStroke ? DisplayStroke : CanvasColor);
+    }
+
+    private void SetEnds(double sx, double sy, double sDirX, double sDirY, double tx, double ty, double tDirX, double tDirY)
+    {
+        _startTip = new(sx, sy);
+        _endTip = new(tx, ty);
+        if (Math.Abs(sDirX) + Math.Abs(sDirY) > 1e-6) (_startDirX, _startDirY) = (sDirX, sDirY);
+        if (Math.Abs(tDirX) + Math.Abs(tDirY) > 1e-6) (_endDirX, _endDirY) = (tDirX, tDirY);
+        RebuildMarkers();
+    }
+
+    // A polyline's direction at each end: away from the first point, into the last one.
+    private void SetEnds(IReadOnlyList<MarkSmith.Core.Mermaid.Routing.Point> pts)
+    {
+        var a = pts[0];
+        var b = pts.Skip(1).FirstOrDefault(p => p != a);
+        var z = pts[^1];
+        var y = pts.Take(pts.Count - 1).LastOrDefault(p => p != z);
+        SetEnds(a.X, a.Y, b.X - a.X, b.Y - a.Y, z.X, z.Y, z.X - y.X, z.Y - y.Y);
+    }
+
     public void UpdateGeometry(
         Point sourcePoint,
         Point targetPoint,
@@ -90,6 +182,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
         {
             case ConnectorRoutingMode.Straight:
                 PathData = System.FormattableString.Invariant($"M {SourceX:F1},{SourceY:F1} L {TargetX:F1},{TargetY:F1}");
+                SetEnds(SourceX, SourceY, TargetX - SourceX, TargetY - SourceY, TargetX, TargetY, TargetX - SourceX, TargetY - SourceY);
                 break;
 
             case ConnectorRoutingMode.Bezier:
@@ -99,6 +192,10 @@ public partial class DiagramConnectorViewModel : ObservableObject
                 double c2X = TargetX;
                 double c2Y = TargetAnchor == "Bottom" ? TargetY + ctrlDistance : (TargetAnchor == "Top" ? TargetY - ctrlDistance : TargetY);
                 PathData = System.FormattableString.Invariant($"M {SourceX:F1},{SourceY:F1} C {c1X:F1},{c1Y:F1} {c2X:F1},{c2Y:F1} {TargetX:F1},{TargetY:F1}");
+                // Side anchors put the control point on the end itself; fall back to the chord.
+                bool flatStart = Math.Abs(c1Y - SourceY) < 1e-6, flatEnd = Math.Abs(c2Y - TargetY) < 1e-6;
+                SetEnds(SourceX, SourceY, flatStart ? TargetX - SourceX : 0, flatStart ? TargetY - SourceY : c1Y - SourceY,
+                        TargetX, TargetY, flatEnd ? TargetX - SourceX : 0, flatEnd ? TargetY - SourceY : TargetY - c2Y);
                 break;
 
             case ConnectorRoutingMode.Orthogonal:
@@ -120,6 +217,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
                         int midIndex = routePoints.Count / 2;
                         MidpointX = (routePoints[midIndex - 1].X + routePoints[midIndex].X) / 2;
                         MidpointY = (routePoints[midIndex - 1].Y + routePoints[midIndex].Y) / 2;
+                        SetEnds(routePoints);
                         break;
                     }
                 }
@@ -127,6 +225,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
                 if (Math.Abs(SourceX - TargetX) < 5 || Math.Abs(SourceY - TargetY) < 5)
                 {
                     PathData = System.FormattableString.Invariant($"M {SourceX:F1},{SourceY:F1} L {TargetX:F1},{TargetY:F1}");
+                    SetEnds(SourceX, SourceY, TargetX - SourceX, TargetY - SourceY, TargetX, TargetY, TargetX - SourceX, TargetY - SourceY);
                 }
                 else if (SourceAnchor is "Left" or "Right" && TargetAnchor is "Left" or "Right")
                 {
@@ -139,6 +238,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
                         new(TargetX, TargetY)
                     };
                     PathData = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
+                    SetEnds(pts);
                 }
                 else
                 {
@@ -151,6 +251,7 @@ public partial class DiagramConnectorViewModel : ObservableObject
                         new(TargetX, TargetY)
                     };
                     PathData = MarkSmith.Core.Mermaid.Routing.OrthogonalRouter.GenerateRoundedPathData(pts, 8.0);
+                    SetEnds(pts);
                 }
                 break;
         }
@@ -164,6 +265,9 @@ public partial class DiagramConnectorViewModel : ObservableObject
         TargetY += deltaY;
         MidpointX += deltaX;
         MidpointY += deltaY;
+        _startTip = new(_startTip.X + deltaX, _startTip.Y + deltaY);
+        _endTip = new(_endTip.X + deltaX, _endTip.Y + deltaY);
+        RebuildMarkers();
 
         if (!string.IsNullOrEmpty(PathData))
         {

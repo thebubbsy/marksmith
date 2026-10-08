@@ -71,6 +71,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             {
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 WatchCollections(vm);
+
+                // Every whole-diagram load (template, another block) lands fitted in view, and so
+                // does the diagram the Studio opened with (it was loaded before DataContext).
+                vm.DiagramLoaded += (_, _) => _canvas.FitToContentAfterLayout();
+                if (_canvas.IsLoaded) _canvas.FitToContentAfterLayout();
+                else _canvas.Loaded += FitOnFirstLoad;
             }
             UpdateSelectionChrome();
         };
@@ -344,6 +350,12 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         }
     }
 
+    private void FitOnFirstLoad(object sender, RoutedEventArgs e)
+    {
+        _canvas.Loaded -= FitOnFirstLoad;
+        _canvas.FitToContentAfterLayout();
+    }
+
     private void OnAutoLayoutClick(object sender, RoutedEventArgs e)
     {
         // force: true clears every node's HasCustomPosition flag first - without it the
@@ -351,6 +363,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         // every node after a load), making the button appear dead.
         ViewModel?.SnapshotForUndo();
         ViewModel?.ApplyAutoLayout(force: true);
+        _canvas.FitToContentAfterLayout();
     }
 
     // ---- Template gallery (mermaid.live / draw.io parity) ---------------------------------
@@ -553,6 +566,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         NodeInspectorPanel.Visibility = node ? Visibility.Visible : Visibility.Collapsed;
         ConnectorInspectorPanel.Visibility = connector ? Visibility.Visible : Visibility.Collapsed;
         InspectorEmptyState.Visibility = node || connector ? Visibility.Collapsed : Visibility.Visible;
+        if (connector) UpdateConnectorInspector(vm!);
 
         int selectedNodes = vm?.SelectedNodes.Count ?? 0;
         DeleteSelectedButton.IsEnabled = node || connector || selectedNodes > 0;
@@ -564,6 +578,31 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         if (selectedNodes > 1) parts.Add($"{selectedNodes} selected");
         parts.Add(vm.IsGridSnapEnabled ? "Snap to 10 px grid" : "Snap off");
         CanvasSummaryText.Text = string.Join("  ·  ", parts);
+    }
+
+    // Show the connector vocabulary of the current diagram type (flowchart line + head, sequence
+    // message kind, class relationship; state and ER links have no style choices) and name the
+    // two ends by their labels.
+    private void UpdateConnectorInspector(MermaidStudioViewModel vm)
+    {
+        var conn = vm.SelectedConnector!;
+        string NameOf(string id)
+        {
+            var label = vm.Nodes.FirstOrDefault(n => n.Id == id)?.LabelText;
+            var first = (label ?? "").Split('\r', '\n').FirstOrDefault(l => l.Trim().Length > 0)?.Trim();
+            return string.IsNullOrEmpty(first) ? id : first;
+        }
+        ConnectorFromText.Text = NameOf(conn.SourceNodeId);
+        ConnectorToText.Text = NameOf(conn.TargetNodeId);
+        ToolTipService.SetToolTip(ConnectorFromText, ConnectorFromText.Text);
+        ToolTipService.SetToolTip(ConnectorToText, ConnectorToText.Text);
+
+        var type = vm.SelectedDiagramType;
+        bool flow = type is MarkSmith.Mermaid.Ast.MermaidDiagramType.Flowchart;
+        ConnectorLineCombo.Visibility = flow ? Visibility.Visible : Visibility.Collapsed;
+        ConnectorHeadCombo.Visibility = flow ? Visibility.Visible : Visibility.Collapsed;
+        ConnectorMessageCombo.Visibility = type is MarkSmith.Mermaid.Ast.MermaidDiagramType.Sequence ? Visibility.Visible : Visibility.Collapsed;
+        ConnectorRelationCombo.Visibility = type is MarkSmith.Mermaid.Ast.MermaidDiagramType.Class ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSyncToMarkdownClick(object sender, RoutedEventArgs e)

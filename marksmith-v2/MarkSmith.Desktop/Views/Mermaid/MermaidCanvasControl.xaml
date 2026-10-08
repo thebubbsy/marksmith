@@ -48,26 +48,78 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:DiagramConnectorViewModel">
-                            <Canvas>
-                                <!-- Line Path -->
+                            <!-- Everything a connector draws comes from DiagramConnectorViewModel /
+                                 Core ConnectorAppearance: dash, weight, the marker on each end (the
+                                 three Mermaid grammars store these differently), selection and hover. -->
+                            <Canvas PointerEntered="OnConnectorPointerEntered" PointerExited="OnConnectorPointerExited">
+                                <!-- Soft halo: hover and selection feedback -->
                                 <Path Data="{Binding PathData}"
-                                      Stroke="{Binding StrokeColor}"
-                                      StrokeThickness="{Binding StrokeWidth}"
+                                      Stroke="#4CC9F0"
+                                      StrokeThickness="10"
+                                      StrokeLineJoin="Round"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Opacity="{Binding HaloOpacity}"
+                                      IsHitTestVisible="False">
+                                    <Path.OpacityTransition>
+                                        <ScalarTransition Duration="0:0:0.12" />
+                                    </Path.OpacityTransition>
+                                </Path>
+
+                                <!-- Wide invisible hit target: a 2 px line is too thin to click -->
+                                <Path Data="{Binding PathData}"
+                                      Stroke="Transparent"
+                                      StrokeThickness="14"
                                       IsHitTestVisible="True" />
 
-                                <!-- Connector Label Overlay -->
-                                <Border Canvas.Left="{Binding MidpointX}"
-                                        Canvas.Top="{Binding MidpointY}"
-                                        Background="#2B2D42"
-                                        BorderBrush="#8D99AE"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Padding="6,2"
-                                        Margin="-30,-12,0,0">
-                                    <TextBlock Text="{Binding Label}"
-                                               FontSize="11"
-                                               Foreground="#EDF2F4" />
-                                </Border>
+                                <!-- The line itself: solid or dashed -->
+                                <Path Data="{Binding PathData}"
+                                      Stroke="{Binding DisplayStroke}"
+                                      StrokeThickness="{Binding DisplayStrokeWidth}"
+                                      StrokeLineJoin="Round"
+                                      Visibility="{Binding IsDashed, Converter={StaticResource BoolToVisConverter}, ConverterParameter=Invert}"
+                                      IsHitTestVisible="False" />
+                                <Path Data="{Binding PathData}"
+                                      Stroke="{Binding DisplayStroke}"
+                                      StrokeThickness="{Binding DisplayStrokeWidth}"
+                                      StrokeDashArray="4,3"
+                                      StrokeLineJoin="Round"
+                                      Visibility="{Binding IsDashed, Converter={StaticResource BoolToVisConverter}}"
+                                      IsHitTestVisible="False" />
+
+                                <!-- End markers -->
+                                <Path Data="{Binding StartMarkerData}"
+                                      Fill="{Binding StartMarkerFill}"
+                                      Stroke="{Binding DisplayStroke}"
+                                      StrokeThickness="1.6"
+                                      StrokeLineJoin="Round"
+                                      IsHitTestVisible="False" />
+                                <Path Data="{Binding EndMarkerData}"
+                                      Fill="{Binding EndMarkerFill}"
+                                      Stroke="{Binding DisplayStroke}"
+                                      StrokeThickness="1.6"
+                                      StrokeLineJoin="Round"
+                                      IsHitTestVisible="False" />
+
+                                <!-- Label, centred on the route's midpoint; only when there is one -->
+                                <Grid Canvas.Left="{Binding MidpointX}"
+                                      Canvas.Top="{Binding MidpointY}"
+                                      Width="240" Height="80" Margin="-120,-40,0,0"
+                                      Visibility="{Binding HasLabel, Converter={StaticResource BoolToVisConverter}}">
+                                    <Border HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Background="#2B2D42"
+                                            BorderBrush="{Binding DisplayStroke}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="7,3">
+                                        <TextBlock Text="{Binding Label}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   MaxWidth="220"
+                                                   TextAlignment="Center"
+                                                   Foreground="#EDF2F4" />
+                                    </Border>
+                                </Grid>
                             </Canvas>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -131,7 +183,7 @@
                                             CornerRadius="{Binding BoxCornerRadius, Converter={StaticResource NodeCornerConverter}}"
                                             Padding="10"
                                             Translation="0,0,12"
-                                            Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,RootNode,Rhombus,RhombusDiamond,Choice,ChoiceState,Milestone,Hexagon,Actor,CylindricalDatabase'}">
+                                            Visibility="{Binding Shape, Converter={StaticResource ShapeFallbackVisConverter}, ConverterParameter='Circle,RootNode,Rhombus,RhombusDiamond,Choice,ChoiceState,Milestone,Hexagon,Actor,CylindricalDatabase,Start,End'}">
                                         <Border.Shadow>
                                             <ThemeShadow />
                                         </Border.Shadow>
@@ -203,16 +255,25 @@
                                                    TextWrapping="Wrap" />
                                     </Grid>
 
+                                    <!-- State diagram [*]: UML start dot / end bullseye -->
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Start'}">
+                                        <Ellipse Fill="{Binding StrokeColor}" />
+                                    </Grid>
+                                    <Grid Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='End'}">
+                                        <Ellipse Stroke="{Binding StrokeColor}" StrokeThickness="2" />
+                                        <Ellipse Fill="{Binding StrokeColor}" Margin="6" />
+                                    </Grid>
+
                                     <!-- Actor Shape -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding Shape, Converter={StaticResource ShapeVisConverter}, ConverterParameter='Actor'}">
-                                        <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{Binding StrokeColor}" />
+                                        <FontIcon Glyph="&#xE77B;" FontSize="26" Foreground="{Binding StrokeColor}" />
                                         <TextBlock Text="{Binding LabelText}"
                                                    Foreground="#EDF2F4"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
                                                    HorizontalAlignment="Center"
-                                                   Margin="0,5,0,0" />
+                                                   Margin="0,2,0,0" />
                                     </StackPanel>
 
                                     <!-- Cylindrical Database Shape: fills the node like every other shape

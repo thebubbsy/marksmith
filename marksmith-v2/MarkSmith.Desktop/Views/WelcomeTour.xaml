@@ -196,7 +196,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE8D2;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Personalize the structure: shift every heading at once, and keep, remove or convert bold / italic. (Turn on Advanced mode in Settings to see these.)" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Personalize the structure: shift every heading at once, and keep, remove or convert bold / italic. (Style &amp; Export ▸ Formatting &amp; text.)" />
                     </Grid>
                 </StackPanel>
             </StackPanel>

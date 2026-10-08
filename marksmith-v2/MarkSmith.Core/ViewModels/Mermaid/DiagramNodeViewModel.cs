@@ -156,6 +156,22 @@ public partial class DiagramNodeViewModel : ObservableObject
         _ => AnchorTop
     };
 
+    /// <summary>A state diagram's [*] start/end point: drawn as a dot, never sized to its label.</summary>
+    public bool IsPseudoState => Shape is "Start" or "End";
+
+    /// <summary>
+    /// Grows (never shrinks) the node so its label fits: a class box with five members used to
+    /// load at the default 140x60 and clip everything after the second line.
+    /// </summary>
+    public void GrowToFitLabel()
+    {
+        if (string.IsNullOrWhiteSpace(LabelText) || IsPseudoState) return;
+        var lines = MarkSmith.Mermaid.Generator.MermaidCodeGenerator.Lines(LabelText);
+        int maxLineLen = lines.Max(l => l.Length);
+        Width = Math.Max(Width, maxLineLen * 8.5 + 32);
+        Height = Math.Max(Height, lines.Length * 19 + 24);
+    }
+
     public void RecalculateBoundsForText()
     {
         if (string.IsNullOrWhiteSpace(LabelText)) return;

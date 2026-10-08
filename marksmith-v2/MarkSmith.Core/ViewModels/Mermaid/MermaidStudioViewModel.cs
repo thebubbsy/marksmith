@@ -31,6 +31,13 @@ public partial class MermaidStudioViewModel : ObservableObject
     [ObservableProperty]
     private DiagramConnectorViewModel? _selectedConnector;
 
+    // The canvas highlights the selected connector from its own IsSelected flag.
+    partial void OnSelectedConnectorChanged(DiagramConnectorViewModel? oldValue, DiagramConnectorViewModel? newValue)
+    {
+        if (oldValue is not null) oldValue.IsSelected = false;
+        if (newValue is not null) newValue.IsSelected = true;
+    }
+
     [ObservableProperty]
     private double _zoomFactor = 1.0;
 
@@ -260,6 +267,10 @@ public partial class MermaidStudioViewModel : ObservableObject
         LoadFromMermaidCode(code);
     }
 
+    /// <summary>A whole new diagram replaced the canvas (template, document block, file): the
+    /// view fits it into the viewport. Not raised for edits, undo or live code sync.</summary>
+    public event EventHandler? DiagramLoaded;
+
     public void LoadFromMermaidCode(string code)
     {
         RawMermaidCode = code;
@@ -275,6 +286,7 @@ public partial class MermaidStudioViewModel : ObservableObject
             RestoreStudioStateFromDirectives();
             _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
             StatusText = $"Loaded {SelectedDiagramType} diagram ({Nodes.Count} nodes, {Connectors.Count} edges).";
+            DiagramLoaded?.Invoke(this, EventArgs.Empty);
         }
         else
         {
@@ -453,13 +465,16 @@ public partial class MermaidStudioViewModel : ObservableObject
                 foreach (var kvp in st.States)
                 {
                     var s = kvp.Value;
-                    Nodes.Add(new DiagramNodeViewModel
+                    var stateNode = new DiagramNodeViewModel
                     {
                         Id = s.Id,
                         LabelText = string.IsNullOrEmpty(s.Label) ? s.Id : MermaidCodeGenerator.FromBreakTags(s.Label),
                         Shape = s.Type.ToString(),
                         Category = "State"
-                    });
+                    };
+                    // [*] is a UML start/end dot, not a box with "[*]" written in it.
+                    if (stateNode.IsPseudoState) stateNode.Width = stateNode.Height = 28;
+                    Nodes.Add(stateNode);
                 }
                 foreach (var tr in st.Transitions)
                 {
@@ -511,7 +526,11 @@ public partial class MermaidStudioViewModel : ObservableObject
                         SourceAnchor = "Right",
                         TargetNodeId = rel.Entity2,
                         TargetAnchor = "Left",
-                        Label = rel.RelationshipName
+                        Label = rel.RelationshipName,
+                        // Display only (ER export keeps the parsed cardinalities): identifying
+                        // relationships are solid, non-identifying dashed, and ER links have no arrow.
+                        LineStyle = rel.IsIdentifying ? "Solid" : "Dashed",
+                        EndHead = "None"
                     });
                 }
                 break;
@@ -524,6 +543,9 @@ public partial class MermaidStudioViewModel : ObservableObject
                 break;
 
         }
+
+        // Size every node to its label first; a saved size below still wins.
+        foreach (var node in Nodes) node.GrowToFitLabel();
 
         var positions = MermaidMetadataService.ExtractPositions(ast.Comments);
         foreach (var node in Nodes)
@@ -758,40 +780,53 @@ public partial class MermaidStudioViewModel : ObservableObject
             bool vertical = isFlowchart && FlowchartDirection is FlowDirection.TD or FlowDirection.BT;
             bool reversePrimary = isFlowchart && FlowchartDirection is FlowDirection.BT or FlowDirection.RL;
 
-            int maxRank = layers.Count > 0 ? layers.Keys.Max() : 0;
-            double primarySpacing = vertical ? 160 : 200;
-            double crossSpacing = vertical ? 200 : 160;
+            // Size-aware layers: each rank is as deep as its biggest node and each node as wide as
+            // itself, plus a gap with room for an edge label and its markers. (Fixed 200/160 px
+            // steps used to butt grown class boxes together so labels covered the UML markers.)
+            // With default 140x60 nodes the steps come out the same as before.
+            double primaryGap = vertical ? 100 : 80;
+            double crossGap = vertical ? 60 : 100;
             double primaryOrigin = 100;
             double crossCenter = vertical ? 500 : 350;
+            double PrimarySize(DiagramNodeViewModel n) => vertical ? n.Height : n.Width;
+            double CrossSize(DiagramNodeViewModel n) => vertical ? n.Width : n.Height;
+
+            var orderedRanks = layers.Keys.OrderBy(k => k).ToList();
+            if (reversePrimary) orderedRanks.Reverse();
+            var depth = layers.ToDictionary(l => l.Key, l => l.Value.Max(PrimarySize));
+            var rankStart = new Dictionary<int, double>();
+            double cursor = primaryOrigin;
+            foreach (var rank in orderedRanks)
+            {
+                rankStart[rank] = cursor;
+                cursor += depth[rank] + primaryGap;
+            }
 
             foreach (var kvp in layers.OrderBy(l => l.Key))
             {
                 int rank = kvp.Key;
                 var layerNodes = kvp.Value;
-                int count = layerNodes.Count;
-                double totalSpan = (count - 1) * crossSpacing;
-                double crossStart = Math.Max(primaryOrigin, crossCenter - totalSpan / 2);
+                double totalSpan = layerNodes.Sum(CrossSize) + (layerNodes.Count - 1) * crossGap;
+                double crossPos = Math.Max(primaryOrigin, crossCenter - totalSpan / 2);
 
-                double primaryPos = reversePrimary
-                    ? primaryOrigin + (maxRank - rank) * primarySpacing
-                    : primaryOrigin + rank * primarySpacing;
-
-                for (int j = 0; j < layerNodes.Count; j++)
+                foreach (var node in layerNodes)
                 {
-                    if (!layerNodes[j].HasCustomPosition)
+                    if (!node.HasCustomPosition)
                     {
-                        double crossPos = crossStart + j * crossSpacing;
+                        // Centre each node within its rank so mixed sizes line up on one axis.
+                        double primaryPos = rankStart[rank] + (depth[rank] - PrimarySize(node)) / 2;
                         if (vertical)
                         {
-                            layerNodes[j].X = crossPos;
-                            layerNodes[j].Y = primaryPos;
+                            node.X = crossPos;
+                            node.Y = primaryPos;
                         }
                         else
                         {
-                            layerNodes[j].X = primaryPos;
-                            layerNodes[j].Y = crossPos;
+                            node.X = primaryPos;
+                            node.Y = crossPos;
                         }
                     }
+                    crossPos += CrossSize(node) + crossGap;
                 }
             }
         }
@@ -1094,8 +1129,15 @@ public partial class MermaidStudioViewModel : ObservableObject
             SourceAnchor = sourceAnchor,
             TargetNodeId = targetId,
             TargetAnchor = targetAnchor,
-            LineStyle = "Solid",
-            EndHead = "Normal",
+            // Each grammar keeps its style in a different field (see ConnectorAppearance): a new
+            // sequence message is a solid arrow, a class link an association, an ER link has no head.
+            LineStyle = SelectedDiagramType == MermaidDiagramType.Sequence ? "SolidArrow" : "Solid",
+            EndHead = SelectedDiagramType switch
+            {
+                MermaidDiagramType.Class => "Association",
+                MermaidDiagramType.Er => "None",
+                _ => "Normal",
+            },
             RoutingMode = ConnectorRouting // new connectors follow the active toolbar routing
         };
         UpdateConnectorGeometry(conn);
