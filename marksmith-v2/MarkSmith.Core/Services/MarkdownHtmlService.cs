@@ -71,6 +71,9 @@ public sealed partial class MarkdownHtmlService
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::chart(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline)]
     private static partial Regex ChartBlockRe();
 
+    [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::canvas(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex CanvasBlockRe();
+
     [GeneratedRegex(@"(?:\A\uFEFF?|(?<=\r?\n))[ \t]*:::(?:metrics|kpi)(?<attrs>[^\r\n]*)\r?\n(?<body>[\s\S]*?)\r?\n[ \t]*:::[ \t]*", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex MetricsBlockRe();
 
@@ -244,6 +247,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
+        markdown = LiftCanvasBlocks(markdown, smartArtFences, out var canvasBlocks);
         markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
@@ -402,6 +406,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
+        body = ReplaceCommentPlaceholders(body, "CANVAS", canvasBlocks);
         body = ReplaceCommentPlaceholders(body, "METRICS", metricsBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
@@ -2446,6 +2451,7 @@ public sealed partial class MarkdownHtmlService
         markdown = LiftColumnsBlocks(markdown, smartArtFences, out var columnsBlocks);
         markdown = LiftParallelBlocks(markdown, smartArtFences, out var parallelBlocks);
         markdown = LiftChartBlocks(markdown, smartArtFences, theme, out var chartBlocks);
+        markdown = LiftCanvasBlocks(markdown, smartArtFences, out var canvasBlocks);
         markdown = LiftMetricsBlocks(markdown, smartArtFences, theme, out var metricsBlocks);
         markdown = TableFormulaEvaluator.EvaluateTableMarkdown(markdown);
         markdown = LiftTableCellBlocks(markdown, smartArtFences, out var tableCellBlocks);
@@ -2493,6 +2499,7 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "COLUMNS", columnsBlocks);
         body = ReplaceCommentPlaceholders(body, "PARALLEL", parallelBlocks);
         body = ReplaceCommentPlaceholders(body, "CHART", chartBlocks);
+        body = ReplaceCommentPlaceholders(body, "CANVAS", canvasBlocks);
         body = ReplaceCommentPlaceholders(body, "METRICS", metricsBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
@@ -3453,6 +3460,37 @@ public sealed partial class MarkdownHtmlService
         });
 
         chartHtmlBlocks = blocks;
+        return markdown;
+    }
+
+    /// <summary>
+    /// <c>:::canvas</c>: an SVG drawing, or bare path data in a 100 × 100 box, as Word draws it
+    /// (DocxExportService.RenderCanvas). Drawn here too, through the same SVG sanitiser plugins
+    /// use; it used to show in the preview, PDF and HTML as its raw source.
+    /// </summary>
+    private static string LiftCanvasBlocks(string markdown, IReadOnlyList<(int Start, int End)> fencedSpans, out List<string> canvasHtmlBlocks)
+    {
+        var blocks = new List<string>();
+        markdown = CanvasBlockRe().Replace(markdown, m =>
+        {
+            foreach (var f in fencedSpans)
+                if (m.Index >= f.Start && m.Index < f.End) return m.Value;
+            // The exporter's own test: SVG markup or path commands, else it's left as text.
+            if (!new MarkSmith.Core.AdvancedFeatures.CanvasDetector().Validate(m.Value).IsValid) return m.Value;
+            var body = m.Groups["body"].Value.Trim();
+            string svg;
+            int open = body.IndexOf("<svg", StringComparison.OrdinalIgnoreCase);
+            int close = body.LastIndexOf("</svg>", StringComparison.OrdinalIgnoreCase);
+            if (open >= 0 && close > open)
+                svg = body[open..(close + 6)];
+            else if (body.Contains('<'))
+                svg = $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"100\" height=\"100\">{body}</svg>";
+            else
+                svg = $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"100\" height=\"100\"><path d=\"{System.Net.WebUtility.HtmlEncode(body)}\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg>";
+            blocks.Add($"<figure class=\"ms-canvas\" style=\"margin:1em 0;text-align:center;max-width:100%;overflow:auto\">{MarkSmith.Plugins.SvgSanitizer.Sanitize(svg)}</figure>");
+            return $"\n\n<!--CANVAS:{blocks.Count - 1}-->\n\n";
+        });
+        canvasHtmlBlocks = blocks;
         return markdown;
     }
 
