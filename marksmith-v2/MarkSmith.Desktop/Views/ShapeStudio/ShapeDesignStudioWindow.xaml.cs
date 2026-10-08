@@ -770,7 +770,7 @@ namespace MarkSmith.Views.ShapeStudio
             bool realSizeGeometry = s.PathPoints is { Count: >= 2 } || string.Equals(s.Prst, "roundrect", StringComparison.OrdinalIgnoreCase)
                 || PresetGeometry.Outline(s.Prst, 1, 1) is not null;
             if ((e.PropertyName == nameof(s.Fill) || e.PropertyName == nameof(s.Prst) ||
-                 e.PropertyName == nameof(s.IsSelected) || (sized && realSizeGeometry)) &&
+                 e.PropertyName == nameof(s.IsSelected) || e.PropertyName == nameof(s.PathPoints) || (sized && realSizeGeometry)) &&
                 _shapePaths.TryGetValue(s, out var path))
             {
                 ApplyShapeVisual(path, s, hovered: ReferenceEquals(s, _hoverShape));
@@ -906,7 +906,7 @@ namespace MarkSmith.Views.ShapeStudio
         {
             if (e.PropertyName is nameof(ShapeCanvasItemViewModel.X) or nameof(ShapeCanvasItemViewModel.Y)
                 or nameof(ShapeCanvasItemViewModel.Width) or nameof(ShapeCanvasItemViewModel.Height)
-                or nameof(ShapeCanvasItemViewModel.Rotation))
+                or nameof(ShapeCanvasItemViewModel.Rotation) or nameof(ShapeCanvasItemViewModel.PathPoints))
                 UpdateAdorner();
         }
 
@@ -918,6 +918,7 @@ namespace MarkSmith.Views.ShapeStudio
             bool show = s is not null && !ViewModel.IsDense && !ViewModel.IsPlacing && ViewModel.SelectionCount == 1
                         && s.PathPoints is not { Count: >= 2 } && ViewModel.Shapes.Contains(s);
             SelectionAdorner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            UpdatePointHandles(s);
             if (!show || s is null) return;
 
             double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
@@ -987,6 +988,123 @@ namespace MarkSmith.Views.ShapeStudio
             if (_resized && _adornedShape is { } s)
                 ViewModel.StatusMessage = $"Resized {s.DisplayName.ToLowerInvariant()} to {s.Width:F0} × {s.Height:F0} · Ctrl+Z to undo";
             _resizeEdges = ShapeDesignStudioViewModel.ResizeEdges.None;
+            e.Handled = true;
+        }
+
+        // ---- connector ends ----
+        // A selected line shows a round handle on each of its points. Dragging an end re-routes
+        // the line, snapping onto the side or centre of a shape it's dropped near (that shape's
+        // point is ringed while it would snap); a bend of an elbow line moves freely. Alt drops
+        // it exactly where the pointer is.
+
+        private Canvas? _pointAdorner;
+        private Microsoft.UI.Xaml.Shapes.Ellipse? _snapRing;
+        private readonly List<Microsoft.UI.Xaml.Shapes.Ellipse> _pointHandles = new();
+        private int _pointIndex = -1;
+        private bool _pointMoved;
+
+        private void EnsurePointAdorner()
+        {
+            if (_pointAdorner is not null) return;
+            _pointAdorner = new Canvas { Visibility = Visibility.Collapsed };
+            _snapRing = new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed,
+                Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                Fill = new SolidColorBrush(AccentColor(0x40)),
+            };
+            _pointAdorner.Children.Add(_snapRing);
+            MainCanvas.Children.Add(_pointAdorner);
+        }
+
+        private void UpdatePointHandles(ShapeCanvasItemViewModel? s)
+        {
+            bool show = s is not null && !ViewModel.IsDense && !ViewModel.IsPlacing && ViewModel.SelectionCount == 1
+                        && s.PathPoints is { Count: >= 2 } && ViewModel.Shapes.Contains(s);
+            if (!show && _pointAdorner is null) return;
+            EnsurePointAdorner();
+            _pointAdorner!.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (!show || s is null) return;
+
+            var points = ShapeDesignStudioViewModel.ConnectorPoints(s);
+            while (_pointHandles.Count < points.Count)
+            {
+                var h = new Microsoft.UI.Xaml.Shapes.Ellipse
+                {
+                    Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
+                    Stroke = new SolidColorBrush(AccentColor(0xFF)),
+                };
+                ToolTipService.SetToolTip(h, "Drag to re-route · it snaps to a shape's side or centre (Alt: no snap)");
+                SetCursor(h, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+                h.PointerPressed += OnPointHandlePressed;
+                h.PointerMoved += OnPointHandleMoved;
+                h.PointerReleased += OnPointHandleReleased;
+                h.PointerCaptureLost += (_, _) => { _pointIndex = -1; if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed; };
+                _pointAdorner.Children.Add(h);
+                _pointHandles.Add(h);
+            }
+            double z = Math.Max(0.05, CanvasScroller.ZoomFactor);
+            double size = (HandleSize + 2) / z;
+            for (int i = 0; i < _pointHandles.Count; i++)
+            {
+                var h = _pointHandles[i];
+                if (i >= points.Count) { h.Visibility = Visibility.Collapsed; continue; }
+                bool end = i == 0 || i == points.Count - 1;
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(h, i == 0 ? "Line start" : i == points.Count - 1 ? "Line end" : $"Bend {i}");
+                h.Visibility = Visibility.Visible;
+                h.Width = h.Height = end ? size : size * 0.8;
+                h.StrokeThickness = 1.25 / z;
+                Canvas.SetLeft(h, points[i].X - h.Width / 2);
+                Canvas.SetTop(h, points[i].Y - h.Height / 2);
+            }
+        }
+
+        private void OnPointHandlePressed(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not Microsoft.UI.Xaml.Shapes.Ellipse h || _adornedShape is null) return;
+            CanvasScroller.Focus(FocusState.Pointer);
+            _pointIndex = _pointHandles.IndexOf(h);
+            _pointMoved = false;
+            h.CapturePointer(e.Pointer);
+            e.Handled = true;
+        }
+
+        private void OnPointHandleMoved(object sender, PointerRoutedEventArgs e)
+        {
+            if (_pointIndex < 0 || _adornedShape is not { } line) return;
+            var cur = e.GetCurrentPoint(MainCanvas).Position;
+            if (!_pointMoved)
+            {
+                _pointMoved = true;
+                ViewModel.RecordUndo();
+            }
+            bool snap = !IsDown(VirtualKey.Menu);
+            var target = ViewModel.MoveConnectorPoint(line, _pointIndex, cur.X, cur.Y, snap);
+            if (_snapRing is not null)
+            {
+                var pts = ShapeDesignStudioViewModel.ConnectorPoints(line);
+                double z = Math.Max(0.05, CanvasScroller.ZoomFactor), r = 9 / z;
+                _snapRing.Visibility = target is null ? Visibility.Collapsed : Visibility.Visible;
+                _snapRing.Width = _snapRing.Height = r * 2;
+                _snapRing.StrokeThickness = 1.5 / z;
+                if (_pointIndex < pts.Count)
+                {
+                    Canvas.SetLeft(_snapRing, pts[_pointIndex].X - r);
+                    Canvas.SetTop(_snapRing, pts[_pointIndex].Y - r);
+                }
+            }
+            ViewModel.StatusMessage = target is null ? "Re-routing the line" : $"Snapped to {target.DisplayName.ToLowerInvariant()}";
+            e.Handled = true;
+        }
+
+        private void OnPointHandleReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (_pointIndex < 0) return;
+            if (sender is UIElement h) h.ReleasePointerCapture(e.Pointer);
+            if (_snapRing is not null) _snapRing.Visibility = Visibility.Collapsed;
+            if (_pointMoved) ViewModel.StatusMessage = "Line re-routed · Ctrl+Z to undo";
+            _pointIndex = -1;
             e.Handled = true;
         }
 
