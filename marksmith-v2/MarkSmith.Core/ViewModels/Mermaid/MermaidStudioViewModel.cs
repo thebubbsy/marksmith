@@ -242,6 +242,10 @@ public partial class MermaidStudioViewModel : ObservableObject
     private List<SequenceStatement> _sequenceScript = new();
     private bool _sequenceAutoNumber;
     private List<SequenceBox> _sequenceBoxes = new();
+    private List<FlowSubgraph> _flowSubgraphs = new();
+    private List<string> _flowStyleLines = new();
+    /// <summary>The loaded flowchart's edges in source order: linkStyle's numbers point at them.</summary>
+    private List<DiagramConnectorViewModel> _flowEdgesAtLoad = new();
     private readonly Dictionary<DiagramConnectorViewModel, SequenceStatement> _sequenceMessageOf = new(ReferenceEqualityComparer.Instance);
 
     public void InitializePalette()
@@ -388,6 +392,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceMessageOf.Clear();
         _sequenceAutoNumber = false;
         _sequenceBoxes = new List<SequenceBox>();
+        _flowSubgraphs = new List<FlowSubgraph>();
+        _flowStyleLines = new List<string>();
+        _flowEdgesAtLoad = new List<DiagramConnectorViewModel>();
 
         var nodeA = new DiagramNodeViewModel { Id = "A", LabelText = "Start Process", Shape = "RoundedRectangle", X = 200, Y = 150, Width = 150, Height = 60, HasCustomPosition = true };
         var nodeB = new DiagramNodeViewModel { Id = "B", LabelText = "Check Conditions", Shape = "Rhombus", X = 200, Y = 280, Width = 160, Height = 80, HasCustomPosition = true };
@@ -425,6 +432,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceMessageOf.Clear();
         _sequenceAutoNumber = false;
         _sequenceBoxes = new List<SequenceBox>();
+        _flowSubgraphs = new List<FlowSubgraph>();
+        _flowStyleLines = new List<string>();
+        _flowEdgesAtLoad = new List<DiagramConnectorViewModel>();
 
         switch (ast)
         {
@@ -432,6 +442,9 @@ public partial class MermaidStudioViewModel : ObservableObject
                 // Restore the authored layout direction so `graph LR` etc. round-trips and the
                 // Direction picker reflects the loaded diagram.
                 FlowchartDirection = flowchart.Direction;
+                // Not drawn on the canvas (yet), but never lost on save: see CanvasToAst.
+                _flowSubgraphs = flowchart.Subgraphs.ToList();
+                _flowStyleLines = flowchart.StyleLines.ToList();
                 foreach (var kvp in flowchart.Nodes)
                 {
                     var fn = kvp.Value;
@@ -458,9 +471,11 @@ public partial class MermaidStudioViewModel : ObservableObject
                         TargetAnchor = "Top",
                         Label = edge.Label is null ? null : MermaidCodeGenerator.FromBreakTags(edge.Label),
                         LineStyle = edge.LineStyle.ToString(),
+                        StartHead = edge.StartHead.ToString(),
                         EndHead = edge.EndHead.ToString()
                     });
                 }
+                _flowEdgesAtLoad = Connectors.ToList();
                 break;
 
             case SequenceDiagramAst seq:
@@ -925,6 +940,58 @@ public partial class MermaidStudioViewModel : ObservableObject
         {
             conn.SequenceNumber = null;
             UpdateConnectorGeometry(conn);
+        }
+    }
+
+    /// <summary>A loaded subgraph with only the nodes still on the canvas (each tagged with it),
+    /// or null when nothing is left in it or its nested subgraphs.</summary>
+    private static FlowSubgraph? PruneSubgraph(FlowSubgraph sg, FlowchartDiagramAst ast)
+    {
+        var kept = new FlowSubgraph { Id = sg.Id, Title = sg.Title };
+        foreach (var id in sg.NodeIds)
+            if (ast.Nodes.TryGetValue(id, out var node))
+            {
+                kept.NodeIds.Add(node.Id);
+                node.SubgraphId ??= sg.Id;
+            }
+        foreach (var nested in sg.NestedSubgraphs)
+            if (PruneSubgraph(nested, ast) is { } k) kept.NestedSubgraphs.Add(k);
+        return kept.NodeIds.Count > 0 || kept.NestedSubgraphs.Count > 0 ? kept : null;
+    }
+
+    /// <summary>
+    /// A kept style/click/class/linkStyle line as it should be written for what is on the canvas
+    /// now, or null to drop it. Mermaid creates any node a "style X" or "class X" names, so a line
+    /// for a deleted node would bring it back as a stray box; a linkStyle past the last edge is an
+    /// error.
+    /// </summary>
+    private int LinkIndexNow(int loadedIndex) =>
+        loadedIndex >= 0 && loadedIndex < _flowEdgesAtLoad.Count ? Connectors.IndexOf(_flowEdgesAtLoad[loadedIndex]) : -1;
+
+    private static string? StyleLineForCanvas(string line, FlowchartDiagramAst ast, Func<int, int> linkIndexNow)
+    {
+        var parts = line.Trim().Split((char[]?)null, 3, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return line;
+        switch (parts[0].ToLowerInvariant())
+        {
+            case "style":
+            case "click":
+                return ast.Nodes.ContainsKey(parts[1]) ? line : null;
+            case "class":
+                var ids = parts[1].Split(',').Select(i => i.Trim()).Where(ast.Nodes.ContainsKey).ToList();
+                if (ids.Count == 0) return null;
+                return parts.Length > 2 ? $"{parts[0]} {string.Join(",", ids)} {parts[2]}" : $"{parts[0]} {string.Join(",", ids)}";
+            case "linkstyle":
+                if (parts[1].Equals("default", StringComparison.OrdinalIgnoreCase)) return line;
+                // Numbers follow their edges: renumbered after a delete or reorder, dropped with
+                // a deleted edge (a stale number would style some other line).
+                var now = parts[1].Split(',')
+                    .Select(i => int.TryParse(i.Trim(), out var n) ? linkIndexNow(n) : -1)
+                    .Where(n => n >= 0).Distinct().OrderBy(n => n).ToList();
+                if (now.Count == 0) return null;
+                return parts.Length > 2 ? $"{parts[0]} {string.Join(",", now)} {parts[2]}" : $"{parts[0]} {string.Join(",", now)}";
+            default:
+                return line;
         }
     }
 
@@ -1828,15 +1895,21 @@ public partial class MermaidStudioViewModel : ObservableObject
                 {
                     Enum.TryParse<FlowLineStyle>(c.LineStyle, true, out var lineStyle);
                     Enum.TryParse<FlowArrowHead>(c.EndHead, true, out var endHead);
+                    if (!Enum.TryParse<FlowArrowHead>(c.StartHead, true, out var startHead)) startHead = FlowArrowHead.None;
                     flowchart.Edges.Add(new FlowEdge
                     {
                         FromId = c.SourceNodeId,
                         ToId = c.TargetNodeId,
                         Label = c.Label,
                         LineStyle = lineStyle,
+                        StartHead = startHead,
                         EndHead = endHead
                     });
                 }
+                foreach (var sg in _flowSubgraphs)
+                    if (PruneSubgraph(sg, flowchart) is { } kept) flowchart.Subgraphs.Add(kept);
+                foreach (var line in _flowStyleLines)
+                    if (StyleLineForCanvas(line, flowchart, LinkIndexNow) is { } kept) flowchart.StyleLines.Add(kept);
                 return flowchart;
 
             case MermaidDiagramType.Sequence:

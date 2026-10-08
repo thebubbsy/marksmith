@@ -120,6 +120,10 @@ public static class MermaidCodeGenerator
             string op = FormatEdgeOperator(edge);
             sb.AppendLine($"{indent}{fromOutput} {op} {toOutput}");
         }
+
+        // Styling after the nodes and edges it refers to (linkStyle counts edges in order).
+        foreach (var line in ast.StyleLines)
+            sb.AppendLine($"{indent}{line.Trim()}");
     }
 
     private static void GenerateSubgraph(FlowSubgraph sg, StringBuilder sb, string indent, int level, FlowchartDiagramAst ast, HashSet<string> emittedNodes)

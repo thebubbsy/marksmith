@@ -53,4 +53,19 @@ public sealed class FlowchartDiagramAst : MermaidDiagramAst
     public Dictionary<string, FlowNode> Nodes { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<FlowEdge> Edges { get; } = new();
     public List<FlowSubgraph> Subgraphs { get; } = new();
+
+    /// <summary>Styling and interaction lines kept verbatim, in order: classDef, class, style,
+    /// click, linkStyle. They used to be read as nodes, which wrote invalid Mermaid back.</summary>
+    public List<string> StyleLines { get; } = new();
+
+    /// <summary>The statement keywords kept in <see cref="StyleLines"/>.</summary>
+    public static readonly string[] StyleKeywords = { "classDef", "class", "style", "click", "linkStyle" };
+
+    public static bool IsStyleLine(string line)
+    {
+        foreach (var k in StyleKeywords)
+            if (line.Length > k.Length && line.StartsWith(k, StringComparison.OrdinalIgnoreCase) && char.IsWhiteSpace(line[k.Length]))
+                return true;
+        return false;
+    }
 }

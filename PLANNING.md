@@ -3297,3 +3297,41 @@ Linux Skia native added temporarily, or the run aborts.
 **Check on the PC:** in SmartArt Studio, click a row, then build a three-level tree using only
 the keyboard. Check the selection highlight is visible, typing starts in the new row after
 Enter, and Tab out of the outline still works when nothing is selected.
+
+### 2026-10-08 18:30–19:00 AEST (routine run #39, cloud: flowcharts survive a Diagram Studio save)
+
+Cloud run (see #31). New finding, from round-tripping one sample of each diagram type through
+the Studio (load, then save).
+
+**Found (flowchart):**
+- `classDef`, `class`, `style`, `click` and `linkStyle` lines were parsed as **nodes**, labelled
+  with the whole line. The output was **invalid Mermaid**: `classDef hot fill:#f96["classDef …"]`.
+- The parser kept subgraphs, but the Studio dropped them on save.
+- The Studio never loaded or saved an edge's start head, so `A <--> B` came back as `A --> B`.
+- **Found for run #40:**
+  - State: composite state contents and notes are lost.
+  - Class: methods and notes are lost.
+  - ER: `||--o{` is written back as `||--o}`, which changes the cardinality.
+
+**What shipped:**
+- `FlowchartDiagramAst.StyleLines`: those five statements are kept verbatim, in order. The
+  generator writes them after the edges.
+- Studio:
+  - keeps the loaded subgraphs and writes them back with the nodes still on the canvas (empty
+    ones are dropped, nesting is kept);
+  - keeps the style lines, with these rules, because Mermaid re-creates any node a `style` or
+    `class` line names and rejects a `linkStyle` past the last edge:
+    - `style`/`click` for a deleted node are dropped;
+    - `class` lists lose deleted ids;
+    - `linkStyle` numbers follow their edge (renumbered after deletes, dropped with the edge).
+  - loads and saves edge start heads.
+
+**Tests:** new `Mermaid/FlowchartStudioSaveTests` (5). Mermaid filter: 267/267.
+- Two of my own expectations were wrong (`linkStyle` is 0-based; a subgraph with a surviving
+  node stays). They were fixed in the tests, not the code.
+- **Lesson:** `FlowchartRoundtripTests.cs` already exists, and a new file differing only in
+  case compiled twice on Linux (CS2002) and would clash on Windows. The new file is
+  `FlowchartStudioSaveTests.cs`.
+
+**Check on the PC:** open a styled flowchart in Diagram Studio, move a node, save, and check
+the preview still renders the colours and the subgraph box.
