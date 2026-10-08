@@ -104,7 +104,9 @@ public class CopyAsEmailTests : IDisposable
         Assert.Contains("src=\"" + expectedSrc, copied.Html);
         Assert.Contains("The numbers are in.", copied.Text);
         Assert.Equal("Report", copied.Subject);
-        Assert.Equal("Copied as email with its picture. Paste it into a new message or a reply.", vm.StatusText);
+        Assert.Equal(app == MailAppKind.ClassicOutlook
+            ? "Copied as email with its picture. Paste it into Outlook; a web mail app won't show the pictures (use Email draft for those)."
+            : "Copied as email with its picture. Paste it into a new message or a reply.", vm.StatusText);
         Assert.Equal(StatusSeverity.Success, vm.StatusSeverity);
     }
 }

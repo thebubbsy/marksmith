@@ -250,7 +250,12 @@ public sealed partial class MainViewModel
 
             var pictures = doc.InlineImages.Count;
             var what = pictures == 0 ? "" : pictures == 1 ? " with its picture" : $" with its {pictures} pictures";
-            StatusText = $"Copied as email{what}. Paste it into a new message or a reply."
+            // Linked pictures only show where they're pasted on this PC: say so rather than let a
+            // paste into a browser come out with broken images.
+            var where = pictures > 0 && mode == ClipboardImageMode.File
+                ? " Paste it into Outlook; a web mail app won't show the pictures (use Email draft for those)."
+                : " Paste it into a new message or a reply.";
+            StatusText = $"Copied as email{what}.{where}"
                 + (doc.Notes.Count > 0 ? $" · {doc.Notes[0].TrimEnd('.')}" : "");
             StatusSeverity = doc.Notes.Count > 0 ? StatusSeverity.Warning : StatusSeverity.Success;
         }

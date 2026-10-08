@@ -240,4 +240,45 @@ public class StudioGroupsTests
         Assert.Equal(("Dog", false, "good"), MermaidStudioViewModel.ParseClassNote("note for Dog \"good\""));
         Assert.Equal(((string?)null, false, "free"), MermaidStudioViewModel.ParseClassNote("note \"free\""));
     }
+    [Fact]
+    public void Syncing_from_code_after_moving_a_composite_doesnt_shift_its_states()
+    {
+        var vm = Load(State);
+        var header = Node(vm, "Running");
+        header.X += 200;
+        vm.UpdateConnectedConnectors(header);
+        var at = vm.Nodes.ToDictionary(n => n.Id, n => (n.X, n.Y));
+        vm.SyncCanvasFromCode(vm.GenerateMermaidCode());
+        foreach (var n in vm.Nodes)
+        {
+            Assert.Equal(at[n.Id].X, n.X, 3);
+            Assert.Equal(at[n.Id].Y, n.Y, 3);
+        }
+    }
+
+    [Fact]
+    public void Deleting_every_state_inside_a_composite_doesnt_bring_them_back()
+    {
+        var vm = Load(State);
+        foreach (var id in new[] { "Loading", "Ready", "Running/[*]", "Running/[*]end" })
+        {
+            vm.SelectNode(Node(vm, id));
+            vm.DeleteSelected();
+        }
+        var code = vm.GenerateMermaidCode();
+        Assert.DoesNotContain("Loading", code);
+        Assert.DoesNotContain("Ready", code);
+    }
+
+    [Fact]
+    public void An_edge_into_a_composite_from_outside_round_trips_without_a_second_state()
+    {
+        var vm = Load(State);
+        vm.Connectors.Add(new DiagramConnectorViewModel { SourceNodeId = "Idle", TargetNodeId = "Ready" });
+        var code = vm.GenerateMermaidCode();
+        var again = Load(code);
+        Assert.Single(again.Nodes, n => n.Id == "Ready");
+        Assert.Equal("Running", Node(again, "Ready").ParentId);
+        Assert.Contains(again.Connectors, c => c.SourceNodeId == "Idle" && c.TargetNodeId == "Ready");
+    }
 }

@@ -51,7 +51,7 @@ public static class GroupedLayout
             chain.Reverse();
             return chain;
         }
-        var paths = nodes.ToDictionary(n => n.Id, n => Path(n.Id), cmp);
+        var paths = nodeById.Keys.ToDictionary(id => id, Path, cmp);
 
         // Representative of a node at a level (the group block it falls in there, or itself).
         string Rep(string nodeId, string? level)
@@ -74,7 +74,7 @@ public static class GroupedLayout
         (double W, double H, Dictionary<string, (double X, double Y)> Pos) Level(string? level)
         {
             var items = new List<string>();
-            foreach (var n in nodes)
+            foreach (var n in nodeById.Values)
                 if (!headerOf.ContainsKey(n.Id) && cmp.Equals(Valid(n.GroupId) ?? "", level ?? "")) items.Add(n.Id);
             foreach (var g in groups)
                 if (cmp.Equals(Valid(g.ParentGroupId) ?? "", level ?? "") && !cmp.Equals(g.Id, level ?? "")) items.Add("group:" + g.Id);

@@ -361,9 +361,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
 
         // Snapshot geometry by id before the rebuild.
-        var geometry = Nodes.ToDictionary(
-            n => n.Id,
-            n => (n.X, n.Y, n.Width, n.Height),
+        var geometry = Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(
+            g => g.Key,
+            g => (g.First().X, g.First().Y, g.First().Width, g.First().Height),
             StringComparer.OrdinalIgnoreCase);
 
         RawMermaidCode = code;
@@ -573,7 +573,15 @@ public partial class MermaidStudioViewModel : ObservableObject
             case StateDiagramAst st:
                 // A composite's states and transitions go on the canvas too, inside the
                 // composite's frame (each tagged with it), so they can be seen and edited.
-                AddStates(st.States.Values, st.Transitions, null);
+                // A transition written at the top level to a state inside a composite makes the
+                // parser create a second, empty state of that name: the nested one is the real one.
+                var nested = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                void CollectNested(IEnumerable<StateNode> list)
+                {
+                    foreach (var sub in list) { nested.Add(sub.Id); CollectNested(sub.SubStates); }
+                }
+                foreach (var top in st.States.Values) CollectNested(top.SubStates);
+                AddStates(st.States.Values.Where(t => !(nested.Contains(t.Id) && t.SubStates.Count == 0 && t.Id != StatePseudoId)), st.Transitions, null);
                 _stateNotes = st.Notes.ToList();
                 break;
 
@@ -673,6 +681,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         foreach (var s in states)
         {
             if (s.Id == StatePseudoId) { AddPseudo(); continue; }
+            if (Nodes.Any(n => n.Id.Equals(s.Id, StringComparison.OrdinalIgnoreCase))) continue;
             Nodes.Add(new DiagramNodeViewModel
             {
                 Id = s.Id,
@@ -799,14 +808,10 @@ public partial class MermaidStudioViewModel : ObservableObject
 
             string cleanLabel = n.LabelText.Replace("<<choice>>", "").Replace("<<fork>>", "").Replace("<<join>>", "").Trim();
             if (string.IsNullOrEmpty(cleanLabel)) cleanLabel = n.Id;
-            var node = new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
-            // A composite loaded with states the canvas doesn't hold (an older save) keeps them.
-            if (type == StateNodeType.Composite && !hasChildren.Contains(n.Id) && Loaded(n.Id) is { } loadedComposite)
-            {
-                node.SubStates.AddRange(loadedComposite.SubStates);
-                node.SubTransitions.AddRange(loadedComposite.SubTransitions);
-            }
-            return node;
+            // Every state inside a composite is on the canvas, so one whose states were all deleted
+            // is a plain state now (copying the loaded ones back would undo the deletes).
+            if (type == StateNodeType.Composite && !hasChildren.Contains(n.Id)) type = StateNodeType.Normal;
+            return new StateNode { Id = n.Id, Label = cleanLabel, Type = type };
         }
 
         foreach (var n in Nodes.Where(n => !n.IsPseudoState)) made[n.Id] = Make(n);
@@ -1102,7 +1107,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 UpdateConnectorGeometry(conn);
             }
         }
-        LayoutGroupDecorations();
+        LayoutGroupDecorations(carry: true);
     }
 
     public void UpdateAllConnectors()
@@ -1153,15 +1158,16 @@ public partial class MermaidStudioViewModel : ObservableObject
     /// for, fitted to where the nodes are now. Moving a composite's own box carries everything
     /// inside it. Reuses the sequence decoration layers (group boxes, note boxes).
     /// </summary>
-    private void LayoutGroupDecorations()
+    private void LayoutGroupDecorations(bool carry = false)
     {
         if (IsSequence) return;
         var groups = CanvasGroups();
         var byId = Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         // A composite's box moved (dragged or nudged): what's inside it follows, unless it was
-        // moved too (part of the same selection).
-        foreach (var g in groups.Where(g => g.HeaderNodeId is not null))
+        // moved too (part of the same selection). Only for a move the user made: a layout or a
+        // code sync puts every node where it belongs itself.
+        foreach (var g in groups.Where(g => carry && g.HeaderNodeId is not null))
         {
             if (!byId.TryGetValue(g.HeaderNodeId!, out var header)) continue;
             if (_groupHeaderAt.TryGetValue(g.Id, out var was) && (was.X != header.X || was.Y != header.Y))
@@ -1646,7 +1652,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 UpdateConnectorGeometry(conn);
             }
         }
-        LayoutGroupDecorations();
+        LayoutGroupDecorations(carry: true);
     }
 
     public DiagramNodeViewModel QuickAddNode(DiagramNodeViewModel sourceNode, string direction)

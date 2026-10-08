@@ -67,6 +67,14 @@ public sealed partial class MermaidCanvasControl : UserControl
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
 
         ConnectorsItemsControl.PointerPressed += OnConnectorsItemsControlPointerPressed;
+        // Capture lost mid-drag (Alt+Tab, a dialog): the drag is over, nothing moves.
+        InfiniteCanvasGrid.PointerCaptureLost += (_, _) =>
+        {
+            if (_messageDrag is null) return;
+            _messageDrag = null;
+            _messageDragActive = false;
+            HorizontalAlignGuide.Visibility = Visibility.Collapsed;
+        };
         ConnectorsItemsControl.DoubleTapped += OnConnectorsItemsControlDoubleTapped;
 
         NodesItemsControl.PointerPressed += OnNodesItemsControlPointerPressed;

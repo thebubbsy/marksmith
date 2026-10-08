@@ -40,7 +40,7 @@ public sealed class MsRecognizer
         // Words run together (an italic space too narrow to see): split where both halves are words.
         if (_lexicon is not null)
             for (int i = 0; i < words.Count; i++)
-                if (SplitCore(words[i]) is { } parts)
+                if (SplitCore(words[i], line) is { } parts)
                 {
                     words[i] = parts.First;
                     words.Insert(i + 1, parts.Second);
@@ -149,8 +149,10 @@ public sealed class MsRecognizer
             var parts = leftPart.Concat(rightPart).ToList();
             if (parts.Any(c => c.Text.Length == 0)) continue;
             // Commas, dots and quote marks are separate marks of their own; a piece cut out of
-            // a letter that reads as one is a fragment (an italic m read as ",,1").
-            if (parts.Any(c => SmallMarks.Contains(c.Text))) continue;
+            // a letter that reads as one is a fragment (an italic m read as ",,1"). Only the last
+            // piece may be one: a letter touching the full stop or comma after it (y, r.).
+            if (parts.Take(parts.Count - 1).Any(c => SmallMarks.Contains(c.Text))
+                || (SmallMarks.Contains(parts[^1].Text) && parts[^1].Text is not ("," or "." or ";" or ":" or "!" or "?"))) continue;
             // Mean log-probability per piece, with a small cost per extra piece so a confident
             // single letter isn't cut in two for nothing.
             double score = parts.Average(c => Math.Log(Math.Max(1e-6, c.Probability))) - 0.12 * (parts.Count - 1);
@@ -237,7 +239,7 @@ public sealed class MsRecognizer
         return gap > threshold;
     }
 
-    private static bool IsDigitish(string t) => t.Length == 1 && (char.IsDigit(t[0]) || t is "," or ".");
+    private static bool IsDigitish(string t) => t.Length == 1 && char.IsDigit(t[0]);
 
     /// <summary>
     /// The cell width of a monospaced line, or null for proportional type: most neighbouring
@@ -380,11 +382,11 @@ public sealed class MsRecognizer
     }
 
     // The letters of a word with its trailing punctuation (split at the widest gap of the letters).
-    private (List<ReadChar> First, List<ReadChar> Second)? SplitCore(List<ReadChar> word)
+    private (List<ReadChar> First, List<ReadChar> Second)? SplitCore(List<ReadChar> word, TextLine line)
     {
         int end = word.Count;
         while (end > 0 && !char.IsLetterOrDigit(word[end - 1].Text.FirstOrDefault())) end--;
-        if (end < 4 || _lexicon!.SplitJoined(word.GetRange(0, end)) is not { } split) return null;
+        if (end < 4 || _lexicon!.SplitJoined(word.GetRange(0, end), line.XHeight * 0.15f) is not { } split) return null;
         var second = split.Second.Concat(word.Skip(end)).ToList();
         return (split.First, second);
     }

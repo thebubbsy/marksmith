@@ -610,8 +610,18 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
     // ---- connector ends ----
 
     /// <summary>A line's points in canvas coordinates (its 0..100 local points placed in its box).</summary>
-    public static List<(double X, double Y)> ConnectorPoints(ShapeCanvasItemViewModel s) =>
-        s.PathPoints is null ? new() : s.PathPoints.Select(p => (s.X + p.X / 100 * s.Width, s.Y + p.Y / 100 * s.Height)).ToList();
+    public static List<(double X, double Y)> ConnectorPoints(ShapeCanvasItemViewModel s)
+    {
+        if (s.PathPoints is null) return new();
+        double cx = s.X + s.Width / 2, cy = s.Y + s.Height / 2;
+        double rad = s.Rotation * Math.PI / 180, cos = Math.Cos(rad), sin = Math.Sin(rad);
+        // A turned line is drawn turned about its box's centre: so are its points.
+        return s.PathPoints.Select(p =>
+        {
+            double x = s.X + p.X / 100 * s.Width - cx, y = s.Y + p.Y / 100 * s.Height - cy;
+            return (cx + x * cos - y * sin, cy + x * sin + y * cos);
+        }).ToList();
+    }
 
     /// <summary>Puts a line through <paramref name="points"/> (canvas coordinates): its box becomes
     /// their bounds and the points are stored 0..100 inside it, as every connector is. A straight
@@ -632,6 +642,8 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         s.Y = ay.Start;
         s.Width = ax.Size;
         s.Height = ay.Size;
+        // The points are where the line is drawn, so a turn is now part of them.
+        s.Rotation = 0;
         s.PathPoints = points.Select(p => (ax.Local(p.X), ay.Local(p.Y))).ToList();
         s.NotifyPathChanged();
     }

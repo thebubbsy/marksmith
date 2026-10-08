@@ -110,4 +110,18 @@ public class ShapeStudioConnectorRerouteTests
         Near(200, pts[1].X, 1.01);
         Near(131, pts[1].Y, 1.01);
     }
+    [Fact]
+    public void A_turned_lines_handles_sit_on_the_drawn_line_and_moving_one_keeps_the_rest_in_place()
+    {
+        var (vm, line, _) = Setup();
+        line.Rotation = 90; // drawn vertical about its centre (150, 131)
+        var pts = VM.ConnectorPoints(line);
+        Near(150, pts[0].X, 1.01); Near(81, pts[0].Y, 1.01);
+        Near(150, pts[1].X, 1.01); Near(181, pts[1].Y, 1.01);
+        vm.MoveConnectorPoint(line, 1, 150, 250, snap: false);
+        Assert.Equal(0, line.Rotation);
+        var after = VM.ConnectorPoints(line);
+        Near(150, after[0].X, 1.01); Near(81, after[0].Y, 1.01); // the other end didn't jump
+        Near(150, after[1].X, 1.01); Near(250, after[1].Y, 1.01);
+    }
 }
