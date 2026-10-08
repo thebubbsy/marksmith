@@ -4373,15 +4373,23 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     // ---- Left-pane hover-drawer ----
 
-    // Expand the Source/Files pane back to its pre-collapse width (hovering the drawer tab).
+    // The drawer slides rather than snapping: the column width is tweened while the pane keeps
+    // its full width (so it is clipped, not re-wrapped, mid-slide). Off when Windows animations are.
+    private const double LeftDrawerTabWidth = 28;
+    private static readonly TimeSpan LeftDrawerSlide = TimeSpan.FromMilliseconds(170);
+    private EventHandler<object>? _leftDrawerTween;
+    private DispatcherTimer? _leftDrawerDwell;
+    private bool _leftDrawerOpenedByKeyboard;
+
+    // Expand the Source/Files pane back to its pre-collapse width.
     private void ExpandLeftPane()
     {
+        _leftDrawerDwell?.Stop();
         if (!_leftPaneCollapsed) return;
         _leftPaneCollapsed = false;
-        LeftPaneCol.Width = new GridLength(_leftPaneExpandedWidth);
         LeftPane.Visibility = Visibility.Visible;
         if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Collapsed;
-        FitRightPane();
+        AnimateLeftColumn(_leftPaneExpandedWidth, () => FitRightPane());
     }
 
     // Tuck the pane away to a slim tab (leaving the pane with the mouse, or a short beat after a
@@ -4392,12 +4400,57 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // RULE: when the editor is blank the left pane is FORCIBLY expanded (the user needs the
         // file picker because there is nothing to work on yet) — never tuck it away.
         if (string.IsNullOrWhiteSpace(PasteTextBox?.Text)) return;
+        // Focus mode owns the columns while it is on.
+        if (FocusModeToggle?.IsChecked == true) return;
         _leftPaneCollapsed = true;
-        if (LeftPaneCol.ActualWidth > 28) _leftPaneExpandedWidth = LeftPaneCol.ActualWidth;
-        LeftPaneCol.Width = new GridLength(28);
-        LeftPane.Visibility = Visibility.Collapsed;
-        if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Visible;
-        FitRightPane();
+        _leftDrawerOpenedByKeyboard = false;
+        if (_leftDrawerTween is null && LeftPaneCol.ActualWidth > LeftDrawerTabWidth) _leftPaneExpandedWidth = LeftPaneCol.ActualWidth;
+        AnimateLeftColumn(LeftDrawerTabWidth, () =>
+        {
+            LeftPane.Visibility = Visibility.Collapsed;
+            if (LeftDrawerTab is not null) LeftDrawerTab.Visibility = Visibility.Visible;
+            FitRightPane();
+        });
+    }
+
+    // Tween LeftPaneCol to `target` px (ease-out cubic). A new call takes over from wherever an
+    // unfinished slide had got to, so a quick in-out never jumps.
+    private void AnimateLeftColumn(double target, Action onDone)
+    {
+        StopLeftDrawerTween();
+        double from = LeftPaneCol.ActualWidth > 0 ? LeftPaneCol.ActualWidth : LeftPaneCol.Width.Value;
+        if (!Services.HoverPolish.AnimationsEnabled || Math.Abs(from - target) < 1)
+        {
+            LeftPaneCol.Width = new GridLength(target);
+            onDone();
+            return;
+        }
+
+        // Hold the pane at its open width so the slide clips it instead of re-flowing every line.
+        LeftPane.Width = _leftPaneExpandedWidth;
+        LeftPane.HorizontalAlignment = HorizontalAlignment.Left;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        _leftDrawerTween = (_, _) =>
+        {
+            double t = Math.Min(1, clock.Elapsed.TotalMilliseconds / LeftDrawerSlide.TotalMilliseconds);
+            double eased = 1 - Math.Pow(1 - t, 3);
+            LeftPaneCol.Width = new GridLength(from + (target - from) * eased);
+            if (t >= 1)
+            {
+                StopLeftDrawerTween();
+                onDone();
+            }
+        };
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += _leftDrawerTween;
+    }
+
+    private void StopLeftDrawerTween()
+    {
+        if (_leftDrawerTween is null) return;
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= _leftDrawerTween;
+        _leftDrawerTween = null;
+        LeftPane.Width = double.NaN;
+        LeftPane.HorizontalAlignment = HorizontalAlignment.Stretch;
     }
 
     // Collapse on a short delay so the selection click finishes before the pane slides away.
@@ -4406,11 +4459,63 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         DispatcherQueue.TryEnqueue(async () =>
         {
             await Task.Delay(350);
-            CollapseLeftPane();
+            if (!_pointerOverLeftPane && !_leftDrawerOpenedByKeyboard) CollapseLeftPane();
         });
     }
 
-    private void OnLeftDrawerTabPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) => ExpandLeftPane();
+    // Hover opens the drawer after a short dwell, so sweeping the pointer past the window's left
+    // edge on the way somewhere else doesn't fling the pane open.
+    private void OnLeftDrawerTabPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _pointerOverLeftPane = true;
+        if (_leftDrawerDwell is null)
+        {
+            _leftDrawerDwell = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+            _leftDrawerDwell.Tick += (_, _) => { _leftDrawerDwell.Stop(); ExpandLeftPane(); };
+        }
+        _leftDrawerDwell.Start();
+    }
+
+    private void OnLeftDrawerTabPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _leftDrawerDwell?.Stop();
+        _pointerOverLeftPane = false;
+    }
+
+    // Click / Enter / Space (and screen readers' Invoke) open it at once. From the keyboard, focus
+    // moves into the pane and the pane stays open until focus leaves it.
+    private void OnLeftDrawerTabClick(object sender, RoutedEventArgs e)
+    {
+        // Anything but a pointer click (keyboard, Narrator's Invoke) gets the keyboard behaviour.
+        bool keyboard = LeftDrawerTab.FocusState != FocusState.Pointer;
+        ExpandLeftPane();
+        if (!keyboard) return;
+        _leftDrawerOpenedByKeyboard = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            var first = Microsoft.UI.Xaml.Input.FocusManager.FindFirstFocusableElement(LeftPane);
+            if (first is Control c) c.Focus(FocusState.Keyboard);
+        });
+    }
+
+    // A keyboard-opened drawer tucks away again once focus moves to the rest of the window
+    // (but not into a flyout, picker or dialog the pane itself opened).
+    private void OnLeftPaneLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!_leftDrawerOpenedByKeyboard) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (Content?.XamlRoot is not { } root) return;
+            if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is not DependencyObject focused) return;
+            bool insidePane = false, insideWindow = false;
+            for (var d = focused; d is not null; d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d))
+            {
+                if (ReferenceEquals(d, LeftPane)) { insidePane = true; break; }
+                if (ReferenceEquals(d, RootGrid)) { insideWindow = true; break; }
+            }
+            if (!insidePane && insideWindow && !_pointerOverLeftPane) CollapseLeftPane();
+        });
+    }
 
     private void OnLeftPanePointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
@@ -4424,7 +4529,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 return;
         }
         _pointerOverLeftPane = false;
-        CollapseLeftPane();
+        // A keyboard user who opened the drawer keeps it until their focus leaves it.
+        if (!_leftDrawerOpenedByKeyboard) CollapseLeftPane();
     }
 
     private void OnLeftPanePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) =>
@@ -4855,6 +4961,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private void ApplyFocusMode(bool focus)
     {
+        StopLeftDrawerTween();
         if (focus)
         {
             _savedLeftPaneWidth = LeftPaneCol.Width;
@@ -4877,9 +4984,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             LeftPaneCol.Width = _savedLeftPaneWidth.IsAuto ? new GridLength(320) : _savedLeftPaneWidth;
             RightPaneCol.Width = _savedRightPaneWidth.IsAuto ? new GridLength(380) : _savedRightPaneWidth;
-            LeftPaneCol.MinWidth = _savedLeftPaneMinWidth > 0 ? _savedLeftPaneMinWidth : 250;
+            // The Source column's MinWidth is 0 by design (it collapses to the 28 px drawer tab);
+            // restoring a 250 px floor here used to wedge a "collapsed" drawer open.
+            LeftPaneCol.MinWidth = _savedLeftPaneMinWidth;
             RightPaneCol.MinWidth = _savedRightPaneMinWidth > 0 ? _savedRightPaneMinWidth : 290;
-            if (LeftPane != null) LeftPane.Visibility = Visibility.Visible;
+            // Come back exactly as it was: a tucked-away drawer stays a tab (it used to return
+            // as a squeezed pane with the tab drawn over it).
+            if (LeftPane != null) LeftPane.Visibility = _leftPaneCollapsed ? Visibility.Collapsed : Visibility.Visible;
+            if (LeftDrawerTab != null) LeftDrawerTab.Visibility = _leftPaneCollapsed ? Visibility.Visible : Visibility.Collapsed;
+            if (_leftPaneCollapsed) LeftPaneCol.Width = new GridLength(LeftDrawerTabWidth);
             if (RightPane != null) RightPane.Visibility = Visibility.Visible;
             if (LeftSplitter != null) LeftSplitter.Visibility = Visibility.Visible;
             if (RightSplitter != null) RightSplitter.Visibility = Visibility.Visible;

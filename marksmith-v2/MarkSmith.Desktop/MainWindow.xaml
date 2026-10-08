@@ -229,7 +229,7 @@
                  collapses to a slim tab; hovering the tab re-expands it while the mouse is on it,
                  and it tucks away again the moment the pointer leaves. -->
             <Grid Grid.Column="0">
-            <Grid x:Name="LeftPane" RowSpacing="10" PointerExited="OnLeftPanePointerExited" PointerEntered="OnLeftPanePointerEntered">
+            <Grid x:Name="LeftPane" RowSpacing="10" PointerExited="OnLeftPanePointerExited" PointerEntered="OnLeftPanePointerEntered" LostFocus="OnLeftPaneLostFocus">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -484,22 +484,34 @@
                 </Border>
             </Grid>
 
-            <!-- Hover-drawer tab: only visible while the pane is collapsed; hovering it expands
-                 the pane, and leaving collapses it again. -->
-            <Border x:Name="LeftDrawerTab" Grid.Column="0" Width="28" HorizontalAlignment="Left"
-                    Visibility="Collapsed" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+            <!-- Drawer tab: only visible while the pane is tucked away. Hovering opens the pane
+                 after a short dwell; click, Enter/Space or a screen reader's Invoke open it at once
+                 (from the keyboard, focus moves into the pane). A real button so it is reachable
+                 without a mouse. -->
+            <Button x:Name="LeftDrawerTab" Grid.Column="0" Width="28" HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                    Visibility="Collapsed" Padding="0" CornerRadius="0" Tag="NoHoverPolish"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0"
-                    PointerEntered="OnLeftDrawerTabPointerEntered" PointerExited="OnLeftPanePointerExited"
-                    ToolTipService.ToolTip="Source panel — hover to expand">
-                <Grid>
-                    <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <FontIcon.RenderTransform>
-                            <RotateTransform Angle="90" />
-                        </FontIcon.RenderTransform>
-                    </FontIcon>
-                </Grid>
-            </Border>
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                    Click="OnLeftDrawerTabClick"
+                    PointerEntered="OnLeftDrawerTabPointerEntered" PointerExited="OnLeftDrawerTabPointerExited"
+                    AutomationProperties.Name="Show the Source panel"
+                    ToolTipService.ToolTip="Source — open a file, paste, or switch documents">
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <FontIcon Glyph="&#xE76C;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                    <!-- "Source" written up the tab, like a book spine -->
+                    <!-- A Canvas, not a Grid: a Grid clips the unrotated 52 px text to its 16 px slot -->
+                    <Canvas Width="16" Height="52" HorizontalAlignment="Center">
+                        <TextBlock Text="Source" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Width="52" Height="16" Canvas.Left="-18" Canvas.Top="18" TextAlignment="Center"
+                                   RenderTransformOrigin="0.5,0.5">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform Angle="90" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Canvas>
+                </StackPanel>
+            </Button>
             </Grid>
 
             <controls:GridSplitter x:Name="LeftSplitter" AutomationProperties.Name="Resize the Source pane" Grid.Column="1" Width="16" Background="Transparent" ResizeBehavior="BasedOnAlignment" ResizeDirection="Auto"
