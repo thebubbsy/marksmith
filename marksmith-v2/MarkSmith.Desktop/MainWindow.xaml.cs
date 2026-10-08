@@ -5488,7 +5488,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnInsertSmartArtClick(object sender, RoutedEventArgs e)
     {
         var control = new Views.SmartArtInsertControl();
-        if (await ShowInsertDialogAsync("Insert SmartArt Diagram", control) != ContentDialogResult.Primary) return;
+        if (await ShowInsertDialogAsync("Insert SmartArt", control) != ContentDialogResult.Primary) return;
         InsertMarkdown(control.GeneratedSnippet);
     }
 
@@ -5552,7 +5552,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             "A procedurally generated tile map (grass, road, water, wall) of the size you choose.",
             v => Services.InsertSnippetBuilder.WaveFunctionCollapse("Procedural WFC Grid", v[0], v[1]),
             ("Grid width", 5, 2, 20), ("Grid height", 5, 2, 20));
-        if (await ShowInsertDialogAsync("Insert Wave Function Collapse map", control) != ContentDialogResult.Primary) return;
+        if (await ShowInsertDialogAsync("Insert random tile map", control) != ContentDialogResult.Primary) return;
         InsertMarkdown(control.Snippet);
     }
 

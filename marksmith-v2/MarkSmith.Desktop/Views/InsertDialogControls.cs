@@ -29,6 +29,7 @@ public abstract class InsertDialogBody : UserControl
     private readonly TextBlock _preview;
     private readonly TextBlock _problem;
     private bool _valid = true;
+    private bool _opened;
 
     protected InsertDialogBody(string description)
     {
@@ -85,7 +86,13 @@ public abstract class InsertDialogBody : UserControl
             },
         };
 
-        Loaded += (_, _) => Refresh();
+        // Until the dialog has opened, a problem is the starting state, not a mistake: it shows in
+        // the secondary text colour (Insert stays disabled) and turns red only once the person edits.
+        Loaded += (_, _) =>
+        {
+            Refresh();
+            _opened = true;
+        };
         Services.HoverPolish.Track(this);
     }
 
@@ -109,6 +116,7 @@ public abstract class InsertDialogBody : UserControl
         var problem = Problem;
         _problem.Text = problem ?? "";
         _problem.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
+        _problem.Foreground = (Brush)Application.Current.Resources[_opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
         _preview.Text = Snippet.Trim('\n');
         var valid = problem is null;
         if (valid != _valid)

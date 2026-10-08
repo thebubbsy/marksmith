@@ -3544,3 +3544,112 @@ edits are still in the working tree, uncommitted.
    (Windows updates the extension from the first pattern).
 3. Carried over from #31: Diagram Studio composite states and notes drawn on the canvas, plus
    the participant-colour, hover-halo and real-Word checks.
+
+### 2026-10-09 10:30–11:10 AEST (routine run #42: Insert ▸ SmartArt rebuilt; an audit of every Insert dialog)
+
+Ran beside run #41 (file dialogs), which was editing `MainWindow.xaml.cs` and five view
+code-behinds, so this run picked the least-covered surfaces in this file: the Welcome tour, the
+Splash window and the Insert dialogs. The tour turned out to be in good shape (screenshot-checked;
+nothing to fix). **Insert ▸ SmartArt was the most half-baked dialog in the app.** The PC was
+unlocked and the user idle, so everything below was checked with PrintWindow screenshots of my
+own test instance (scratch config).
+
+**Found (SmartArt insert):**
+- **Indentation was thrown away.** Every line was trimmed, so the "Org Hierarchy" template drew
+  four boxes in one row. A hierarchy could never be built from this dialog.
+- It offered four made-up type names ("process", "list", "cycle", "hierarchy"). The Studio and
+  DOCX export speak Word's real layout ids, and the Studio has 25 drawing families.
+- The "selected" layout was shown by swapping the accent style on and off between four Buttons.
+  A screen reader couldn't tell which one was chosen.
+- Emoji template chips ("🚀 Project Phases"), Title Case labels with colons, and a "Feature
+  List" template that was app marketing ("Zero External Dependencies").
+- It was the only insert dialog outside the shared `InsertDialogBody` shell. So: no
+  Insert-disabled state, no caret in the first field, no "Inserts" card styling.
+- Title "Insert SmartArt Diagram" (Title Case; every other dialog is sentence case).
+
+**What shipped:**
+- **Core `Services/SmartArtInsert`** holds everything that isn't WinUI:
+  - **12 real Word layouts**, by the names Word's gallery uses: Basic Block List, Vertical
+    Bullet List, Basic Process, Basic Chevron Process, Vertical Process, Basic Timeline, Basic
+    Cycle, Basic Radial, Organization Chart, Basic Venn, Basic Matrix and Basic Pyramid. Each
+    has a one-line "when to pick it" hint and a different drawing family.
+  - **`Parse`** reads the outline with its indentation (spaces, tabs, pasted `-`/`*`/`1.`
+    markers). Levels never jump by more than one, and bare-CR TextBox breaks count as line
+    breaks. **`Build`** writes nested bullets, two spaces per level, which the preview, DOCX
+    export and Studio all read.
+  - **`Describe`** words the count for the layout: "6 boxes in 3 levels" for a hierarchy,
+    "4 shapes · 4 sub-points" otherwise.
+  - **`IndentHint`** says what an indent *does* in this layout: a box under the one above, or a
+    bullet point inside the shape above.
+  - **`Advice`** flags outlines that don't suit the layout: a flat org chart, several tops, a
+    matrix without 4 items, a crowded Venn, more than 8 shapes. It's advice only and never
+    disables Insert.
+  - **`ShiftLines`** indents or outdents the lines a selection touches, and the selection moves
+    with its text.
+  - **5 worked examples:** Project phases (chevron), Plan-do-check-act (cycle with sub-points),
+    Team structure (3-level org chart), SWOT (matrix) and Quarterly roadmap (timeline).
+- **`Views/SmartArtInsertControl.cs`**, now an `InsertDialogBody` (the XAML pair is deleted):
+  - a single-selection GridView of the layouts' real miniatures (the Studio's thumbnails, on a
+    light tile), with each tile's UIA name and help text, and a tooltip;
+  - a caption naming the chosen layout and what it's for;
+  - an "Examples" DropDownButton;
+  - a monospace outline box, with Outdent/Indent buttons and Word's Alt+Shift+Left/Right
+    (Tab is left alone, so it still leaves the box);
+  - an advice strip in the attention colour, as a polite live region.
+  - The host needed no change apart from the title: the class name and `GeneratedSnippet` are
+    unchanged.
+- **The Chevron miniature** now draws three stages, not four. Four was a thin line at tile size,
+  in both this gallery and SmartArt Studio's.
+- **Shared insert shell:** a dialog that opens empty (Video embed) said "Paste the video's link."
+  **in red** before anything was typed. That starting-state message now shows in secondary text
+  until the dialog has opened. Insert still stays disabled, and the message turns red after an
+  edit.
+- **Titles:** "Insert SmartArt", and "Insert random tile map" to match its menu item (it was
+  "Insert Wave Function Collapse map").
+
+**Verified live:**
+- The gallery shows the miniatures, and picking Organization Chart with a flat outline shows the
+  advice.
+- Team structure gives "6 boxes in 3 levels". **Inserted, the preview draws a real three-level
+  org chart.** The same template used to draw one row of boxes.
+- Indent and Outdent work on the caret line through UIA.
+- An empty outline disables Insert and says why.
+- Video embed opens muted and turns red after an edit.
+- Screenshots of all 15 Insert dialogs are in the audit below.
+
+**Tests:** new `SmartArtInsertTests` (34): every alias is in the catalog, carries Word's name and
+draws as its family; examples get no advice; parse, levels and markers; CR and CRLF; Build;
+Describe; Advice; ShiftLines; and the block rendering as a Hierarchy in `MarkdownHtmlService`.
+- The full suite with a scratch OutDir: 4025 passed, 18 failed. All 18 are the known path-based
+  ones (GovernanceDocsSync ×9, Gauntlet ×3, LiquidFill/M4 asset files ×3, MarkdownCopy ×2,
+  HtmlToMarkdown ×1). None are related to this run.
+
+**Insert-dialog audit (all 15 opened and screenshotted):**
+- Link, Table, Code block, Tab group, Chart, Data grid, Columns, Drawing canvas, Random tile
+  map, Workflow, Timeline and References are consistent: description, fields, "Inserts" card,
+  and the caret in the first field with its sample selected.
+- AI context metadata inserts directly (no dialog), by design.
+- **Insert image is the odd one out** (left alone: run #41 had its code-behind open):
+  - its own XAML, with no description line;
+  - an accent "Insert from URL" button inside the body, competing with the footer;
+  - only Cancel in the footer.
+
+  Next run: move it onto `InsertDialogBody`, with the drop zone and Browse as fields and the URL
+  as a field. The footer's Insert should insert the URL, and a dropped or browsed file should
+  insert at once.
+
+**Lessons:**
+- When a UIA lookup by window says "no window" right after a view switch, the process is
+  usually fine: a transient popup was returned first. Retry before suspecting a crash.
+- ContentDialog fields aren't always under the window in a ControlView walk.
+  `AutomationElement.FocusedElement` (pid-checked) is a reliable way to drive the first field.
+- A scratch config keeps an autosave: the next launch shows "Recover unsaved document". On a
+  scratch config Discard is fine (it's only test text). On the user's real config, never.
+
+**Next up:**
+1. Insert image onto the shared shell (above).
+2. Quick insert (Settings ▸ General) bypasses every insert dialog except SmartArt's: its click
+   handler has no `ProMode` branch. Add one that inserts the default example.
+3. Run #41's list: the type picker in "Export N tables" with a real mouse; Diagram Studio
+   composite states and notes on the canvas; the participant-colour, hover-halo and real-Word
+   checks.

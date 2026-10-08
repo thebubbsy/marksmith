@@ -224,8 +224,10 @@ namespace MarkSmith.Core.Preview
                 SmartArtPreviewFamily.BendingProcess => Flat(6),
                 SmartArtPreviewFamily.Cycle or SmartArtPreviewFamily.Radial => Flat(6),
                 SmartArtPreviewFamily.Matrix or SmartArtPreviewFamily.Pyramid or SmartArtPreviewFamily.InvertedPyramid
-                    or SmartArtPreviewFamily.Target or SmartArtPreviewFamily.BlockList or SmartArtPreviewFamily.Chevron
+                    or SmartArtPreviewFamily.Target or SmartArtPreviewFamily.BlockList
                     or SmartArtPreviewFamily.StepsUp or SmartArtPreviewFamily.StepsDown or SmartArtPreviewFamily.Timeline => Flat(4),
+                // A row of four chevrons is a thin line at tile size; three still reads as chevrons.
+                SmartArtPreviewFamily.Chevron => Flat(3),
                 SmartArtPreviewFamily.Pictures => Flat(2), // two cards stay recognisable at tile size; four were specks
                 SmartArtPreviewFamily.Balance => Flat(3),
                 _ => Flat(3),
