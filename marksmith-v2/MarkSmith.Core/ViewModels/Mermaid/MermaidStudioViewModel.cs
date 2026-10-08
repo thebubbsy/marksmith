@@ -241,6 +241,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     /// activations), and which statement each loaded message connector came from.</summary>
     private List<SequenceStatement> _sequenceScript = new();
     private bool _sequenceAutoNumber;
+    private List<SequenceBox> _sequenceBoxes = new();
     private readonly Dictionary<DiagramConnectorViewModel, SequenceStatement> _sequenceMessageOf = new(ReferenceEqualityComparer.Instance);
 
     public void InitializePalette()
@@ -386,6 +387,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceScript = new List<SequenceStatement>();
         _sequenceMessageOf.Clear();
         _sequenceAutoNumber = false;
+        _sequenceBoxes = new List<SequenceBox>();
 
         var nodeA = new DiagramNodeViewModel { Id = "A", LabelText = "Start Process", Shape = "RoundedRectangle", X = 200, Y = 150, Width = 150, Height = 60, HasCustomPosition = true };
         var nodeB = new DiagramNodeViewModel { Id = "B", LabelText = "Check Conditions", Shape = "Rhombus", X = 200, Y = 280, Width = 160, Height = 80, HasCustomPosition = true };
@@ -422,6 +424,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         _sequenceScript = new List<SequenceStatement>();
         _sequenceMessageOf.Clear();
         _sequenceAutoNumber = false;
+        _sequenceBoxes = new List<SequenceBox>();
 
         switch (ast)
         {
@@ -475,6 +478,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 // used to be left off the canvas). The written script is kept so notes, blocks and
                 // activations go back exactly where they were (see CanvasToAst).
                 _sequenceAutoNumber = seq.AutoNumber;
+                _sequenceBoxes = seq.Boxes.ToList();
                 _sequenceScript = seq.Statements.Count > 0
                     ? seq.Statements.ToList()
                     : seq.Messages.Select(SequenceStatement.ForMessage).ToList();
@@ -1025,7 +1029,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     {
         var boxes = Nodes.Select(n => new MarkSmith.Core.Mermaid.Routing.SequenceParticipantBox(n.Id, n.X, n.Y, n.Width, n.Height)).ToList();
         var (script, rowConnectors) = BuildSequenceScriptWithRows();
-        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, script, _sequenceAutoNumber);
+        var drawing = MarkSmith.Core.Mermaid.Routing.SequenceLayout.Layout(boxes, script, _sequenceAutoNumber, _sequenceBoxes);
 
         for (int i = 0; i < rowConnectors.Count && i < drawing.Routes.Count; i++)
         {
@@ -1036,6 +1040,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         foreach (var node in Nodes)
             node.LifelineLength = drawing.LifelineLengths.TryGetValue(node.Id, out var len) ? len : 0;
 
+        Replace(SequenceBoxes, drawing.Boxes);
         Replace(SequenceFrames, drawing.Frames);
         Replace(SequenceNotes, drawing.Notes);
         Replace(SequenceActivations, drawing.Activations);
@@ -1051,6 +1056,8 @@ public partial class MermaidStudioViewModel : ObservableObject
     /// <summary>Sequence block frames (loop/alt/opt/par/critical/break, and rect bands), outermost
     /// first. Empty for other diagram types.</summary>
     public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceFrame> SequenceFrames { get; } = new();
+    /// <summary>Participant boxes (<c>box … end</c>), drawn behind headers and lifelines.</summary>
+    public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceGroupBox> SequenceBoxes { get; } = new();
     /// <summary>Sequence notes (left of / right of / over).</summary>
     public ObservableCollection<MarkSmith.Core.Mermaid.Routing.SequenceNoteBox> SequenceNotes { get; } = new();
     /// <summary>Activation bars on sequence lifelines.</summary>
@@ -1058,6 +1065,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
     private void ClearSequenceDecorations()
     {
+        if (SequenceBoxes.Count > 0) SequenceBoxes.Clear();
         if (SequenceFrames.Count > 0) SequenceFrames.Clear();
         if (SequenceNotes.Count > 0) SequenceNotes.Clear();
         if (SequenceActivations.Count > 0) SequenceActivations.Clear();
@@ -1085,6 +1093,7 @@ public partial class MermaidStudioViewModel : ObservableObject
                 maxX = Math.Max(maxX, c.MidpointX + MarkSmith.Core.Mermaid.Routing.SequenceLayout.LabelWidth(c.Label) / 2);
             // Notes and block frames can sit outside the outermost lifelines.
             foreach (var r in SequenceFrames.Select(f => (f.X, f.Y, f.Width, f.Height))
+                         .Concat(SequenceBoxes.Select(b => (b.X, b.Y, b.Width, b.Height)))
                          .Concat(SequenceNotes.Select(n => (n.X, n.Y, n.Width, n.Height))))
             {
                 minX = Math.Min(minX, r.X);
@@ -1841,6 +1850,13 @@ public partial class MermaidStudioViewModel : ObservableObject
                         Alias = n.LabelText,
                         Type = string.Equals(n.Shape, "Actor", StringComparison.OrdinalIgnoreCase) ? SequenceParticipantType.Actor : SequenceParticipantType.Participant
                     });
+                }
+                // Boxes keep their surviving participants; one left empty is dropped.
+                foreach (var box in _sequenceBoxes)
+                {
+                    var kept = new SequenceBox { Header = box.Header };
+                    kept.ParticipantIds.AddRange(box.ParticipantIds.Where(id => Nodes.Any(n => n.Id.Equals(id, StringComparison.OrdinalIgnoreCase))));
+                    if (kept.ParticipantIds.Count > 0) seq.Boxes.Add(kept);
                 }
                 seq.Statements.AddRange(BuildSequenceScript());
                 seq.RebuildIndexes();

@@ -40,6 +40,31 @@
                 <!-- Layer 1: Background Grid Pattern -->
                 <Canvas x:Name="GridPatternCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
+                <!-- Layer 1-: sequence participant boxes (box Aqua Team ... end), behind
+                     everything else: a tinted panel with its label above the headers. -->
+                <ItemsControl x:Name="SequenceBoxesItemsControl" ItemsSource="{Binding SequenceBoxes}" IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="routing:SequenceGroupBox">
+                            <Canvas>
+                                <Rectangle Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"
+                                           Width="{Binding Width}" Height="{Binding Height}"
+                                           Fill="{Binding Fill}" Stroke="#33FFFFFF" StrokeThickness="1"
+                                           RadiusX="6" RadiusY="6" />
+                                <Grid Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}" Width="{Binding Width}" Height="24">
+                                    <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="#CDD6F4"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" Margin="10,0" />
+                                </Grid>
+                            </Canvas>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <!-- Layer 1a: sequence block frames (loop/alt/opt/par/critical/break) and rect
                      bands, outermost first. Laid out by Core SequenceLayout; under everything so
                      the messages they enclose stay on top. -->

@@ -3110,3 +3110,30 @@ Windows job. Run #31's Windows build passed, so its XAML compiles. Same branch a
 - Select a message, then press ↑/↓: the row moves and the status bar text is right.
 - The autonumber dot is legible and doesn't hide the arrow's start or an activation bar.
 - Mouse drag-to-reorder is still not there (keyboard only).
+
+### 2026-10-08 16:25–16:45 AEST (routine run #33, cloud: participant boxes kept and drawn)
+
+Cloud run (see #31). Took #31's "Next up" 2.
+
+**Found:** `box … end` participant groups were thrown away by the parser, so every Diagram
+Studio save ungrouped them.
+
+**What shipped:**
+- AST `SequenceBox` (`Header` kept verbatim, plus participant ids).
+- Parser: participants declared inside a box join it. A box is only recognised outside
+  blocks, and its `end` closes only the box.
+- Generator: writes each box with all its members inside, where its first member was declared.
+- Studio: keeps boxes. Deleting a participant removes it from its box, and a box left empty is
+  dropped.
+- Core `SequenceLayout.ReadBoxHeader` reads the colour as Mermaid does: CSS name, `#rgb`/
+  `#rrggbb`, `rgb()`/`rgba()`, or `transparent`. The rest of the header is the label. Fills are
+  20% alpha so text stays readable on the dark canvas.
+- Layout gives a `SequenceGroupBox` panel from 26 px above the headers (the label band) to the
+  bottom of the lifelines. Canvas: the bottom-most layer. Fit includes it.
+
+**Tests:** new `Mermaid/SequenceBoxTests.cs` (11). Mermaid filter: 257/257.
+
+**Check on the PC:** load a diagram with `box Aqua …` and `box rgb(…) …`:
+- each panel's label clears the participant headers;
+- the tint reads on the dark canvas;
+- the panels don't cover the arrows.

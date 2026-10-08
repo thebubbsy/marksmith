@@ -29,7 +29,12 @@ public sealed record SequenceDrawing(IReadOnlyList<SequenceMessageRoute?> Routes
     /// <summary>Outermost first, so drawing in order puts nested frames on top.</summary>
     public IReadOnlyList<SequenceFrame> Frames { get; init; } = Array.Empty<SequenceFrame>();
     public IReadOnlyList<SequenceActivationBar> Activations { get; init; } = Array.Empty<SequenceActivationBar>();
+    public IReadOnlyList<SequenceGroupBox> Boxes { get; init; } = Array.Empty<SequenceGroupBox>();
 }
+
+/// <summary>A participant box (<c>box Aqua Team</c>): a tinted panel behind its participants'
+/// headers and lifelines, labelled at the top. <see cref="Fill"/> is an #AARRGGBB string.</summary>
+public sealed record SequenceGroupBox(double X, double Y, double Width, double Height, string Label, string Fill);
 
 /// <summary>A note: its box and text.</summary>
 public sealed record SequenceNoteBox(double X, double Y, double Width, double Height, string Text)
@@ -94,7 +99,10 @@ public static class SequenceLayout
     /// and activation bars from <c>activate</c>/<c>+</c> to <c>deactivate</c>/<c>-</c>. Mermaid's
     /// <c>-</c> shorthand (<c>B-->>-A</c>) ends the sender's activation.
     /// </summary>
-    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceStatement> script, bool autoNumber = false)
+    /// <summary>Space above the headers for a participant box's label.</summary>
+    public const double BoxLabelBand = 26;
+
+    public static SequenceDrawing Layout(IReadOnlyList<SequenceParticipantBox> participants, IReadOnlyList<SequenceStatement> script, bool autoNumber = false, IReadOnlyList<SequenceBox>? boxes = null)
     {
         var routes = new List<SequenceMessageRoute?>();
         var lengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -315,12 +323,74 @@ public static class SequenceLayout
         foreach (var p in participants)
             lengths[p.Id] = Math.Max(Tail, lastRow + Tail - p.Bottom);
 
+        var groupBoxes = new List<SequenceGroupBox>();
+        foreach (var b in boxes ?? Array.Empty<SequenceBox>())
+        {
+            var members = b.ParticipantIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+            if (members.Count == 0) continue;
+            var (fill, label) = ReadBoxHeader(b.Header);
+            double left = members.Min(m => m.X) - 12, right = members.Max(m => m.X + m.Width) + 12;
+            double top = members.Min(m => m.Y) - BoxLabelBand;
+            double bottom = members.Max(m => m.Bottom + lengths[m.Id]) + 10;
+            groupBoxes.Add(new SequenceGroupBox(left, top, right - left, bottom - top, label, fill));
+        }
+
         return new SequenceDrawing(routes, lengths)
         {
+            Boxes = groupBoxes,
             Notes = notes,
             Frames = frames.OrderBy(f => f.Order).Select(f => f.Frame).ToList(),
             Activations = bars,
         };
+    }
+
+    private static readonly Dictionary<string, string> NamedColors = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["aqua"] = "00FFFF", ["cyan"] = "00FFFF", ["blue"] = "0000FF", ["navy"] = "000080", ["teal"] = "008080",
+        ["green"] = "008000", ["lime"] = "00FF00", ["olive"] = "808000", ["yellow"] = "FFFF00", ["gold"] = "FFD700",
+        ["orange"] = "FFA500", ["red"] = "FF0000", ["maroon"] = "800000", ["pink"] = "FFC0CB", ["purple"] = "800080",
+        ["fuchsia"] = "FF00FF", ["magenta"] = "FF00FF", ["violet"] = "EE82EE", ["indigo"] = "4B0082", ["brown"] = "A52A2A",
+        ["gray"] = "808080", ["grey"] = "808080", ["silver"] = "C0C0C0", ["white"] = "FFFFFF", ["black"] = "000000",
+        ["lightblue"] = "ADD8E6", ["lightgreen"] = "90EE90", ["lightyellow"] = "FFFFE0", ["lightgrey"] = "D3D3D3",
+        ["lightgray"] = "D3D3D3", ["skyblue"] = "87CEEB", ["salmon"] = "FA8072", ["coral"] = "FF7F50", ["tomato"] = "FF6347",
+        ["khaki"] = "F0E68C", ["beige"] = "F5F5DC", ["lavender"] = "E6E6FA", ["turquoise"] = "40E0D0", ["tan"] = "D2B48C",
+    };
+
+    /// <summary>The neutral panel used for "transparent" and colourless boxes on the dark canvas.</summary>
+    public const string DefaultBoxFill = "#14FFFFFF";
+
+    /// <summary>
+    /// Splits a box header into its fill and label, the way Mermaid reads it: a leading colour
+    /// (a CSS name, <c>#rgb</c>/<c>#rrggbb</c>, <c>rgb(…)</c>/<c>rgba(…)</c> or <c>transparent</c>)
+    /// and the rest as the label. Fills are made translucent so text stays readable on the dark
+    /// canvas.
+    /// </summary>
+    public static (string Fill, string Label) ReadBoxHeader(string? header)
+    {
+        string h = (header ?? string.Empty).Trim();
+        if (h.Length == 0) return (DefaultBoxFill, string.Empty);
+
+        var fn = System.Text.RegularExpressions.Regex.Match(h, @"^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)\s*(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (fn.Success)
+        {
+            string hex = string.Concat(fn.Groups[1].Value, ",", fn.Groups[2].Value, ",", fn.Groups[3].Value)
+                .Split(',').Select(v => Math.Clamp(int.Parse(v, System.Globalization.CultureInfo.InvariantCulture), 0, 255).ToString("X2")).Aggregate(string.Concat);
+            return ("#33" + hex, fn.Groups[4].Value.Trim());
+        }
+
+        int space = h.IndexOf(' ');
+        string first = space < 0 ? h : h[..space];
+        string rest = space < 0 ? string.Empty : h[(space + 1)..].Trim();
+        if (first.Equals("transparent", StringComparison.OrdinalIgnoreCase)) return (DefaultBoxFill, rest);
+        if (NamedColors.TryGetValue(first, out var named)) return ("#33" + named, rest);
+        var hexMatch = System.Text.RegularExpressions.Regex.Match(first, "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$");
+        if (hexMatch.Success)
+        {
+            string v = hexMatch.Groups[1].Value;
+            if (v.Length == 3) v = string.Concat(v.Select(c => new string(c, 2)));
+            return ("#33" + v.ToUpperInvariant(), rest);
+        }
+        return (DefaultBoxFill, h);
     }
 
     /// <summary>Reads an "autonumber" line: bare, with a start and optional step, or "off".</summary>

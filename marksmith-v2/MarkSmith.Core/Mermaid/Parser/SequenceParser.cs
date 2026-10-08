@@ -25,7 +25,7 @@ public static class SequenceParser
         // Every body line lands in ast.Statements in the order it was written; Messages, Blocks
         // and Notes are derived from that at the end, so nesting and order survive a round trip.
         int depth = 0;
-        int boxDepth = 0;
+        SequenceBox? box = null;
 
         foreach (var line in lines)
         {
@@ -56,11 +56,12 @@ public static class SequenceParser
                 continue;
             }
 
-            // A participant box only groups headers; its participants are read as usual and the
-            // grouping itself is not kept (it never was). Its "end" must not close a real block.
-            if (lower == "box" || lower.StartsWith("box "))
+            // A participant box groups the participant declarations up to its "end" (which must
+            // not close a real block).
+            if (depth == 0 && box is null && (lower == "box" || lower.StartsWith("box ")))
             {
-                boxDepth++;
+                box = new SequenceBox { Header = line.Length > 3 ? line.Substring(3).Trim() : string.Empty };
+                ast.Boxes.Add(box);
                 continue;
             }
 
@@ -76,6 +77,7 @@ public static class SequenceParser
                 if (!ast.Participants.Any(p => p.Id.Equals(pId, StringComparison.OrdinalIgnoreCase)))
                 {
                     ast.Participants.Add(new SequenceParticipant { Id = pId, Alias = alias, Type = pType });
+                    box?.ParticipantIds.Add(pId);
                 }
                 continue;
             }
@@ -231,9 +233,9 @@ public static class SequenceParser
                     ast.Statements.Add(new SequenceStatement { Kind = SequenceStatementKind.BlockEnd, Keyword = "end" });
                     depth--;
                 }
-                else if (boxDepth > 0)
+                else if (box is not null)
                 {
-                    boxDepth--;
+                    box = null;
                 }
                 continue;
             }

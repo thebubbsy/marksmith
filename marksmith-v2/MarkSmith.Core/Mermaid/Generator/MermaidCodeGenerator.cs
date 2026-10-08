@@ -198,17 +198,29 @@ public static class MermaidCodeGenerator
         if (ast.AutoNumber) sb.AppendLine($"{indent}autonumber");
         if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
+        // Boxed participants are written together inside their box, where the first of them
+        // was declared; Mermaid requires a box's participants to be declared inside it.
+        var boxOf = new Dictionary<string, SequenceBox>(StringComparer.OrdinalIgnoreCase);
+        foreach (var b in ast.Boxes)
+            foreach (var id in b.ParticipantIds)
+                boxOf.TryAdd(id, b);
+        var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in ast.Participants)
         {
-            string keyword = p.Type == SequenceParticipantType.Actor ? "actor" : "participant";
-            if (p.Alias != p.Id && !string.IsNullOrEmpty(p.Alias))
+            if (written.Contains(p.Id)) continue;
+            if (boxOf.TryGetValue(p.Id, out var box))
             {
-                sb.AppendLine($"{indent}{keyword} {p.Id} as {ToBreakTags(p.Alias)}");
+                sb.AppendLine($"{indent}box {OneLine(box.Header)}".TrimEnd());
+                foreach (var member in ast.Participants.Where(q => boxOf.TryGetValue(q.Id, out var qb) && ReferenceEquals(qb, box)))
+                {
+                    sb.AppendLine($"{indent}{indent}{FormatParticipant(member)}");
+                    written.Add(member.Id);
+                }
+                sb.AppendLine($"{indent}end");
+                continue;
             }
-            else
-            {
-                sb.AppendLine($"{indent}{keyword} {p.Id}");
-            }
+            sb.AppendLine($"{indent}{FormatParticipant(p)}");
+            written.Add(p.Id);
         }
 
         if (ast.Statements.Count > 0)
@@ -292,6 +304,14 @@ public static class MermaidCodeGenerator
                     break;
             }
         }
+    }
+
+    private static string FormatParticipant(SequenceParticipant p)
+    {
+        string keyword = p.Type == SequenceParticipantType.Actor ? "actor" : "participant";
+        return p.Alias != p.Id && !string.IsNullOrEmpty(p.Alias)
+            ? $"{keyword} {p.Id} as {ToBreakTags(p.Alias)}"
+            : $"{keyword} {p.Id}";
     }
 
     private static string FormatSequenceNote(SequenceNote note)

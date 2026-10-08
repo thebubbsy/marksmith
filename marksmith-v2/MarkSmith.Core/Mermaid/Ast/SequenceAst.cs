@@ -31,6 +31,14 @@ public sealed class SequenceBlock
     public List<(string Condition, List<SequenceMessage> Messages)> ElseBranches { get; } = new();
 }
 
+/// <summary>A participant group: <c>box [color] [label]</c> … <c>end</c> around participant
+/// declarations. <see cref="Header"/> is the text after "box", kept verbatim.</summary>
+public sealed class SequenceBox
+{
+    public string Header { get; set; } = string.Empty;
+    public List<string> ParticipantIds { get; } = new();
+}
+
 public enum NotePlacement { LeftOf, RightOf, Over }
 
 public sealed class SequenceNote
@@ -47,6 +55,7 @@ public sealed class SequenceDiagramAst : MermaidDiagramAst
     public List<SequenceMessage> Messages { get; } = new();
     public List<SequenceBlock> Blocks { get; } = new();
     public List<SequenceNote> Notes { get; } = new();
+    public List<SequenceBox> Boxes { get; } = new();
     public bool AutoNumber { get; set; }
 
     /// <summary>
