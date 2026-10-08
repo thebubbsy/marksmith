@@ -86,8 +86,9 @@ public sealed class AutomationExportService
         var md = job.Markdown ?? "";
         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
         var hasMermaid = md.Contains("```mermaid", StringComparison.Ordinal);
-        // Only start the preview engine when this export draws with it.
-        var host = job.Host is not null && (fmt == OutputFormats.Pdf || hasMermaid) && await job.Host.EnsureReadyAsync()
+        bool isEmail = fmt is OutputFormats.Eml or OutputFormats.Msg;
+        // Only start the preview engine when this export draws with it (an email's PDF copy does).
+        var host = job.Host is not null && (fmt == OutputFormats.Pdf || hasMermaid || (isEmail && settings.EmailAttachPdf)) && await job.Host.EnsureReadyAsync()
             ? job.Host : null;
         var appendDocx = fmt == OutputFormats.Docx && job.AllowRunningDoc
             && settings.AppendToRunningDoc && !string.IsNullOrWhiteSpace(settings.RunningDocPath);
@@ -154,6 +155,7 @@ public sealed class AutomationExportService
                     var prepared = Email.EmailHtmlRenderer.Prepare(md, settings, theme);
                     pngs = await _mermaid.RenderMermaidPngsAsync(host, prepared, settings, Email.EmailPalette.From(theme).DiagramTheme());
                 }
+                var attachments = await BuildEmailAttachmentsAsync(md, job, host, theme, outPath, ct);
                 var doc = Email.EmailComposer.Compose(new Email.EmailComposeRequest
                 {
                     Markdown = md,
@@ -161,6 +163,7 @@ public sealed class AutomationExportService
                     Subject = job.EmailSubject,
                     BaseDirectory = job.BaseDirectory,
                     MermaidPngs = pngs,
+                    Attachments = attachments,
                 }, settings, theme);
                 if (fmt == OutputFormats.Msg) Email.MsgWriter.Write(doc, outPath);
                 else Email.EmlWriter.Write(doc, outPath);
@@ -171,6 +174,49 @@ public sealed class AutomationExportService
     }
 
     /// <summary>Exports to a temporary file and returns its bytes (the local API's /api/convert).</summary>
+    /// <summary>
+    /// The PDF and Word copies Settings › Email asks for, the same ones Email draft attaches.
+    /// Automation emails used to carry none. A copy that can't be made is left off and the email
+    /// still goes: the PDF needs the preview engine, and the Word copy is Pro (the email is free).
+    /// </summary>
+    private async Task<List<Email.EmailAttachment>> BuildEmailAttachmentsAsync(
+        string md, AutomationExportJob job, IWebRenderHost? host, Models.ThemeDefinition theme, string outPath, CancellationToken ct)
+    {
+        var settings = job.Settings;
+        var list = new List<Email.EmailAttachment>();
+        bool wantPdf = settings.EmailAttachPdf && host is not null;
+        bool wantDocx = settings.EmailAttachDocx && AppServices.License.CanExportDocx;
+        if (!wantPdf && !wantDocx) return list;
+
+        var stem = Email.EmailOutbox.SafeStem(string.IsNullOrWhiteSpace(job.SourceLabel) ? Path.GetFileNameWithoutExtension(outPath) : job.SourceLabel);
+        var temp = Directory.CreateTempSubdirectory("MarkSmith-email-").FullName;
+        try
+        {
+            if (wantPdf)
+            {
+                var pdf = Path.Combine(temp, stem + ".pdf");
+                await _pdf.ExportAsync(host!, AppServices.MarkdownHtml.Render(md, settings, theme, job.Classification), pdf, settings, md);
+                list.Add(new Email.EmailAttachment(stem + ".pdf", await File.ReadAllBytesAsync(pdf, ct), "application/pdf"));
+            }
+            ct.ThrowIfCancellationRequested();
+            if (wantDocx)
+            {
+                IReadOnlyList<byte[]?>? pngs = md.Contains("```mermaid", StringComparison.Ordinal) && host is not null
+                    ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
+                    : null;
+                var docx = Path.Combine(temp, stem + ".docx");
+                await _docx.ExportAsync(md, docx, settings, pngs);
+                list.Add(new Email.EmailAttachment(stem + ".docx", await File.ReadAllBytesAsync(docx, ct),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(temp, recursive: true); } catch { /* best effort */ }
+        }
+        return list;
+    }
+
     public async Task<byte[]> ExportToBytesAsync(AutomationExportJob job)
     {
         var fmt = OutputFormats.Normalize(job.Format) ?? OutputFormats.Pdf;

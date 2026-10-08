@@ -3137,3 +3137,33 @@ Studio save ungrouped them.
 - each panel's label clears the participant headers;
 - the tint reads on the dark canvas;
 - the panels don't cover the arrows.
+
+### 2026-10-08 16:45–17:05 AEST (routine run #34, cloud: automation emails carry the PDF/Word copies)
+
+Cloud run (see #31). Took #28's carried item "email automation attachments".
+
+**Found:** Settings › Email "Attach a PDF copy" / "Attach a Word copy" were honoured by Email
+draft but not by automation. Every email from the watch folder, clipboard, batch or the local
+API went out with no attachments.
+
+**Decision:** automation follows the same settings as Email draft, and a copy that can't be
+made is left off rather than failing the export:
+- the PDF copy needs the preview engine, which automation has whenever the app is running;
+- the Word copy is Pro, as the setting's own description says;
+- the email itself stays free.
+
+**What shipped:**
+- `AutomationExportService` email branch: `BuildEmailAttachmentsAsync` makes `<source>.pdf`
+  and `<source>.docx` in a temp folder (deleted afterwards) and passes them to `EmailComposer`.
+  It covers both `.eml` and `.msg`.
+- The preview engine is now started for an email when a PDF copy is wanted.
+
+**Tests:** `AutomationExportTests`:
+- the Word copy is attached on Pro (eml and msg);
+- on Free, the Word copy (and the PDF, with no engine) is left off and the email still goes;
+- no attachments unless asked for.
+
+Full suite on Linux: 3820 passed. The same 25 fail before and after.
+
+**Check on the PC:** turn on "Attach a PDF copy", drop a file in the watched folder (format:
+email), then open the draft in Outlook. The PDF should be attached and open.

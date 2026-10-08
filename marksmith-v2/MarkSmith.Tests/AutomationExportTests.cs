@@ -135,6 +135,71 @@ public class AutomationExportServiceTests : IDisposable
         Assert.Contains("Friday", msg.HtmlBody);
     }
 
+    [Theory]
+    [InlineData("eml")]
+    [InlineData("msg")]
+    public async Task An_automation_email_carries_the_word_copy_settings_ask_for_on_pro(string fmt)
+    {
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+        try
+        {
+            var settings = Settings(_dir);
+            settings.EmailAttachDocx = true;
+            var outPath = Path.Combine(_dir, "Plan." + fmt);
+            await new AutomationExportService().ExportAsync(new AutomationExportJob
+            {
+                Markdown = "# Plan\n\nStep one.\n", Format = fmt, OutputPath = outPath, Settings = settings, SourceLabel = "Plan",
+            });
+            var names = AttachmentNames(outPath, fmt);
+            Assert.Contains("Plan.docx", names);
+        }
+        finally { AppServices.License.ResetToFree(); }
+    }
+
+    [Fact]
+    public async Task On_free_the_word_copy_is_left_off_and_the_email_still_goes()
+    {
+        AppServices.License.ResetToFree();
+        var settings = Settings(_dir);
+        settings.EmailAttachDocx = true;
+        settings.EmailAttachPdf = true; // no preview engine here: left off too, never a failure
+        var outPath = Path.Combine(_dir, "Plan.eml");
+        await new AutomationExportService().ExportAsync(new AutomationExportJob
+        {
+            Markdown = "# Plan\n\nStep one.\n", Format = "eml", OutputPath = outPath, Settings = settings, SourceLabel = "Plan",
+        });
+        Assert.Empty(AttachmentNames(outPath, "eml"));
+        Assert.Contains("Step one", MimeMessage.Load(outPath).HtmlBody);
+    }
+
+    [Fact]
+    public async Task No_attachments_unless_settings_ask()
+    {
+        AppServices.License.ResetToFree();
+        AppServices.License.ToggleDevPro();
+        try
+        {
+            var outPath = Path.Combine(_dir, "Plain.eml");
+            await new AutomationExportService().ExportAsync(new AutomationExportJob
+            {
+                Markdown = "# Plain", Format = "eml", OutputPath = outPath, Settings = Settings(_dir), SourceLabel = "Plain",
+            });
+            Assert.Empty(AttachmentNames(outPath, "eml"));
+        }
+        finally { AppServices.License.ResetToFree(); }
+    }
+
+    private static string[] AttachmentNames(string path, string fmt)
+    {
+        if (fmt == "msg")
+        {
+            using var msg = new MsgReader.Outlook.Storage.Message(path);
+            return msg.Attachments.OfType<MsgReader.Outlook.Storage.Attachment>().Where(a => !a.IsInline).Select(a => a.FileName).ToArray();
+        }
+        return MimeMessage.Load(path).Attachments.Select(a => a.ContentDisposition?.FileName ?? "").ToArray();
+    }
+
     [Fact]
     public async Task A_pdf_without_the_preview_engine_fails_with_a_reason()
     {
