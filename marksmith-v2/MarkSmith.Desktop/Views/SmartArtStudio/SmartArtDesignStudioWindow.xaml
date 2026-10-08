@@ -185,7 +185,7 @@
                              row's own + / delete buttons are subtle (chrome on hover only) so a long
                              outline isn't a wall of boxed buttons. -->
                         <ScrollViewer x:Name="OutlineScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                      IsTabStop="True" KeyDown="OnOutlineKeyDown" AutomationProperties.Name="Outline"
+                                      IsTabStop="True" PreviewKeyDown="OnOutlineKeyDown" AutomationProperties.Name="Outline"
                                       AutomationProperties.HelpText="Up and Down select · Alt+Up/Down move · Tab and Shift+Tab indent and outdent · Enter adds a sibling · Insert adds a child · F2 renames · Delete deletes">
                             <ItemsControl ItemsSource="{Binding OutlineRows}">
                                 <ItemsControl.ItemTemplate>

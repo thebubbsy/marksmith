@@ -209,7 +209,7 @@ public sealed class EpubExportService
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier ?? StableIdentifier(bookTitle, author), description, rights, chapters, coverFile, coverMediaType, images, titlePage));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier ?? StableIdentifier(bookTitle, author, Path.GetFileNameWithoutExtension(epubPath)), description, rights, chapters, coverFile, coverMediaType, images, titlePage));
         if (titlePage)
             WriteEntry(zip, "OEBPS/title.xhtml", TitleXhtml(bookTitle, author, publisher == ExportBranding.Tag ? null : publisher, language));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters, language));
@@ -491,11 +491,16 @@ public sealed class EpubExportService
     /// <summary>
     /// A book with no ISBN/identifier gets one derived from its title and author (a name-based
     /// UUID), not a random one per export: readers key their library on it, so re-exporting the
-    /// same book used to add a duplicate instead of replacing it.
+    /// same book used to add a duplicate instead of replacing it. The file name is part of it:
+    /// re-exporting a book to the same file keeps its identity, while two different books that
+    /// share a title (two "Meeting Notes", or two untitled exports with no author) aren't taken
+    /// for one another and replaced in the library.
     /// </summary>
-    internal static string StableIdentifier(string title, string? author)
+    internal static string StableIdentifier(string title, string? author, string? fileStem = null)
     {
-        var hash = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes("marksmith-epub\n" + title.Trim() + "\n" + (author ?? "").Trim()));
+        var key = "marksmith-epub\n" + title.Trim() + "\n" + (author ?? "").Trim()
+                  + (string.IsNullOrWhiteSpace(fileStem) ? "" : "\n" + fileStem.Trim().ToLowerInvariant());
+        var hash = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key));
         hash[6] = (byte)((hash[6] & 0x0F) | 0x50); // version 5 (name-based, SHA-1)
         hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC 4122 variant
         var hex = Convert.ToHexString(hash, 0, 16).ToLowerInvariant();

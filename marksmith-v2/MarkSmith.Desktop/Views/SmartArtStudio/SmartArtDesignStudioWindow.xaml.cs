@@ -156,10 +156,13 @@ namespace MarkSmith.Views.SmartArtStudio
 
         // The outline's keys, only while it has focus (Tab elsewhere still moves focus). The model
         // is the VM's HandleOutlineKey; this maps the keys and re-focuses the rename box it opens.
+        // PreviewKeyDown, because the ScrollViewer itself takes Up/Down/Home/End to scroll before
+        // a KeyDown handler would see them.
         private void OnOutlineKeyDown(object sender, KeyRoutedEventArgs e)
         {
             // Only when the outline itself has focus: a row's own buttons keep Tab for moving on.
-            if (!ReferenceEquals(FocusManager.GetFocusedElement(), OutlineScroll)) return;
+            // A desktop window has to name its XamlRoot; the parameterless call returns null.
+            if (OutlineScroll.XamlRoot is not { } root || !ReferenceEquals(FocusManager.GetFocusedElement(root), OutlineScroll)) return;
             bool Down(VirtualKey k) => (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(k)
                                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
             SmartArtDesignStudioViewModel.OutlineKey? key = e.Key switch
@@ -282,7 +285,7 @@ namespace MarkSmith.Views.SmartArtStudio
         // TextBoxes (rename box, Markdown Data) keep their native keys — focus guard.
         private void OnRootGridKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (FocusManager.GetFocusedElement() is TextBox) return;
+            if ((sender as UIElement)?.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox) return;
             var ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                         & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
 

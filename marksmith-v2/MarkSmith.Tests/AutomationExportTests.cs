@@ -158,6 +158,27 @@ public class AutomationExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task On_a_trial_unattended_emails_dont_spend_its_word_exports()
+    {
+        AppServices.License.ResetToFree();
+        Assert.True(AppServices.License.StartTrial().ok);
+        try
+        {
+            int before = AppServices.License.State.TrialExportsRemaining;
+            var settings = Settings(_dir);
+            settings.EmailAttachDocx = true;
+            var outPath = Path.Combine(_dir, "Plan.eml");
+            await new AutomationExportService().ExportAsync(new AutomationExportJob
+            {
+                Markdown = "# Plan\n\nStep one.\n", Format = "eml", OutputPath = outPath, Settings = settings, SourceLabel = "Plan",
+            });
+            Assert.Empty(AttachmentNames(outPath, "eml"));
+            Assert.Equal(before, AppServices.License.State.TrialExportsRemaining);
+        }
+        finally { AppServices.License.ResetToFree(); }
+    }
+
+    [Fact]
     public async Task On_free_the_word_copy_is_left_off_and_the_email_still_goes()
     {
         AppServices.License.ResetToFree();

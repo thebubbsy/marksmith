@@ -173,11 +173,12 @@ public sealed class AutomationExportService
         return outPath;
     }
 
-    /// <summary>Exports to a temporary file and returns its bytes (the local API's /api/convert).</summary>
     /// <summary>
     /// The PDF and Word copies Settings › Email asks for, the same ones Email draft attaches.
     /// Automation emails used to carry none. A copy that can't be made is left off and the email
     /// still goes: the PDF needs the preview engine, and the Word copy is Pro (the email is free).
+    /// A trial's Word exports are the user's to spend: unattended emails don't attach one on a
+    /// trial, or three dropped files would use the whole trial up unseen.
     /// </summary>
     private async Task<List<Email.EmailAttachment>> BuildEmailAttachmentsAsync(
         string md, AutomationExportJob job, IWebRenderHost? host, Models.ThemeDefinition theme, string outPath, CancellationToken ct)
@@ -185,7 +186,7 @@ public sealed class AutomationExportService
         var settings = job.Settings;
         var list = new List<Email.EmailAttachment>();
         bool wantPdf = settings.EmailAttachPdf && host is not null;
-        bool wantDocx = settings.EmailAttachDocx && AppServices.License.CanExportDocx;
+        bool wantDocx = settings.EmailAttachDocx && AppServices.License.IsPro;
         if (!wantPdf && !wantDocx) return list;
 
         var stem = Email.EmailOutbox.SafeStem(string.IsNullOrWhiteSpace(job.SourceLabel) ? Path.GetFileNameWithoutExtension(outPath) : job.SourceLabel);
@@ -194,20 +195,28 @@ public sealed class AutomationExportService
         {
             if (wantPdf)
             {
-                var pdf = Path.Combine(temp, stem + ".pdf");
-                await _pdf.ExportAsync(host!, AppServices.MarkdownHtml.Render(md, settings, theme, job.Classification), pdf, settings, md);
-                list.Add(new Email.EmailAttachment(stem + ".pdf", await File.ReadAllBytesAsync(pdf, ct), "application/pdf"));
+                try
+                {
+                    var pdf = Path.Combine(temp, stem + ".pdf");
+                    await _pdf.ExportAsync(host!, AppServices.MarkdownHtml.Render(md, settings, theme, job.Classification), pdf, settings, md);
+                    list.Add(new Email.EmailAttachment(stem + ".pdf", await File.ReadAllBytesAsync(pdf, ct), "application/pdf"));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { /* left off; the email still goes */ }
             }
             ct.ThrowIfCancellationRequested();
             if (wantDocx)
             {
-                IReadOnlyList<byte[]?>? pngs = md.Contains("```mermaid", StringComparison.Ordinal) && host is not null
-                    ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
-                    : null;
-                var docx = Path.Combine(temp, stem + ".docx");
-                await _docx.ExportAsync(md, docx, settings, pngs);
-                list.Add(new Email.EmailAttachment(stem + ".docx", await File.ReadAllBytesAsync(docx, ct),
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                try
+                {
+                    IReadOnlyList<byte[]?>? pngs = md.Contains("```mermaid", StringComparison.Ordinal) && host is not null
+                        ? await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme)
+                        : null;
+                    var docx = Path.Combine(temp, stem + ".docx");
+                    await _docx.ExportAsync(md, docx, settings, pngs);
+                    list.Add(new Email.EmailAttachment(stem + ".docx", await File.ReadAllBytesAsync(docx, ct),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { /* left off; the email still goes */ }
             }
         }
         finally
@@ -217,6 +226,7 @@ public sealed class AutomationExportService
         return list;
     }
 
+    /// <summary>Exports to a temporary file and returns its bytes (the local API's /api/convert).</summary>
     public async Task<byte[]> ExportToBytesAsync(AutomationExportJob job)
     {
         var fmt = OutputFormats.Normalize(job.Format) ?? OutputFormats.Pdf;

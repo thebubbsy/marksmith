@@ -215,7 +215,8 @@ public static class MermaidCodeGenerator
             if (boxOf.TryGetValue(p.Id, out var box))
             {
                 sb.AppendLine($"{indent}box {OneLine(box.Header)}".TrimEnd());
-                foreach (var member in ast.Participants.Where(q => boxOf.TryGetValue(q.Id, out var qb) && ReferenceEquals(qb, box)))
+                // A member introduced later with `create participant` is declared by that line.
+                foreach (var member in ast.Participants.Where(q => !q.CreatedInline && boxOf.TryGetValue(q.Id, out var qb) && ReferenceEquals(qb, box)))
                 {
                     sb.AppendLine($"{indent}{indent}{FormatParticipant(member)}");
                     written.Add(member.Id);
@@ -337,7 +338,9 @@ public static class MermaidCodeGenerator
             SequenceMessageType.SolidOpen => "->",
             SequenceMessageType.DashedOpen => "-->",
             SequenceMessageType.CrossArrow => "-x",
-            SequenceMessageType.PointArrow => "-\\",
+            SequenceMessageType.DashedCross => "--x",
+            SequenceMessageType.PointArrow => "-)",
+            SequenceMessageType.DashedPoint => "--)",
             _ => "->>"
         };
 
@@ -413,7 +416,10 @@ public static class MermaidCodeGenerator
             string returnStr = !string.IsNullOrEmpty(m.Type) ? $" {m.Type}" : string.Empty;
             return $"{vis}{m.Name}({string.Join(", ", m.Parameters)}){returnStr}{flags}".Trim();
         }
-        return $"{vis}{m.Type} {m.Name}{flags}".Replace(vis + " ", vis).Trim();
+        // "+String name"; with no type just "+name". (The old Replace(vis + " ", vis) removed
+        // every space when there was no visibility, joining "String name" into "Stringname".)
+        string typed = string.IsNullOrEmpty(m.Type) ? m.Name : $"{m.Type} {m.Name}";
+        return $"{vis}{typed}{flags}".Trim();
     }
 
     private static void GenerateState(StateDiagramAst ast, StringBuilder sb, string indent)
@@ -421,9 +427,20 @@ public static class MermaidCodeGenerator
         sb.AppendLine(ast.IsV2 ? "stateDiagram-v2" : "stateDiagram");
         if (!string.IsNullOrEmpty(ast.Title)) sb.AppendLine($"{indent}title {OneLine(ast.Title)}");
 
+        // A note about a state inside a composite is written inside that composite: at the top
+        // level Mermaid would read its state as a new, empty top-level one.
+        var notesIn = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var topNotes = new List<string>();
+        foreach (var note in ast.Notes)
+        {
+            var owner = StateDiagramAst.NoteTarget(note) is { } target ? CompositeOwning(ast.States.Values, target) : null;
+            if (owner is null) topNotes.Add(note);
+            else (notesIn.TryGetValue(owner, out var list) ? list : notesIn[owner] = new List<string>()).Add(note);
+        }
+
         foreach (var kvp in ast.States)
         {
-            GenerateStateNode(kvp.Value, sb, indent, 1);
+            GenerateStateNode(kvp.Value, sb, indent, 1, notesIn);
         }
 
         foreach (var trans in ast.Transitions)
@@ -432,18 +449,32 @@ public static class MermaidCodeGenerator
             sb.AppendLine($"{indent}{trans.FromId} --> {trans.ToId}{evt}");
         }
 
-        foreach (var note in ast.Notes)
+        foreach (var note in topNotes) WriteStateNote(note, sb, indent, indent);
+    }
+
+    // The composite whose own states include `id` (searched depth first), or null at the top level.
+    private static string? CompositeOwning(IEnumerable<StateNode> states, string id, string? owner = null)
+    {
+        foreach (var s in states)
         {
-            var noteLines = note.Split('\n');
-            for (int i = 0; i < noteLines.Length; i++)
-            {
-                bool body = noteLines.Length > 1 && i > 0 && i < noteLines.Length - 1;
-                sb.AppendLine($"{indent}{(body ? indent : string.Empty)}{noteLines[i].Trim()}");
-            }
+            if (s.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) return owner;
+            if (CompositeOwning(s.SubStates, id, s.Id) is { } found) return found;
+        }
+        return null;
+    }
+
+    private static void WriteStateNote(string note, StringBuilder sb, string at, string indent)
+    {
+        var noteLines = note.Split('\n');
+        for (int i = 0; i < noteLines.Length; i++)
+        {
+            bool body = noteLines.Length > 1 && i > 0 && i < noteLines.Length - 1;
+            sb.AppendLine($"{at}{(body ? indent : string.Empty)}{noteLines[i].Trim()}");
         }
     }
 
-    private static void GenerateStateNode(StateNode node, StringBuilder sb, string indent, int level)
+    private static void GenerateStateNode(StateNode node, StringBuilder sb, string indent, int level,
+        Dictionary<string, List<string>>? notesIn = null)
     {
         string curIndent = string.Concat(Enumerable.Repeat(indent, level));
 
@@ -464,13 +495,15 @@ public static class MermaidCodeGenerator
             sb.AppendLine($"{curIndent}state {node.Id} {{");
             foreach (var sub in node.SubStates)
             {
-                GenerateStateNode(sub, sb, indent, level + 1);
+                GenerateStateNode(sub, sb, indent, level + 1, notesIn);
             }
             foreach (var trans in node.SubTransitions)
             {
                 string evt = !string.IsNullOrEmpty(trans.EventLabel) ? $" : {OneLine(trans.EventLabel)}" : string.Empty;
                 sb.AppendLine($"{curIndent}{indent}{trans.FromId} --> {trans.ToId}{evt}");
             }
+            if (notesIn is not null && notesIn.TryGetValue(node.Id, out var notes))
+                foreach (var note in notes) WriteStateNote(note, sb, curIndent + indent, indent);
             sb.AppendLine($"{curIndent}}}");
         }
         else if (!string.IsNullOrEmpty(node.Label) && node.Label != node.Id && node.Type == StateNodeType.Normal)

@@ -56,6 +56,8 @@ public static class ConnectorAppearance
             case "DashedOpen": return new(true, 1, ConnectorMarker.None, ConnectorMarker.None);
             case "CrossArrow": return new(false, 1, ConnectorMarker.None, ConnectorMarker.Cross);
             case "PointArrow": return new(false, 1, ConnectorMarker.None, ConnectorMarker.OpenArrow);
+            case "DashedCross": return new(true, 1, ConnectorMarker.None, ConnectorMarker.Cross);
+            case "DashedPoint": return new(true, 1, ConnectorMarker.None, ConnectorMarker.OpenArrow);
         }
 
         // Class relationships: the relationship type carries the dash and the (source-end) marker.

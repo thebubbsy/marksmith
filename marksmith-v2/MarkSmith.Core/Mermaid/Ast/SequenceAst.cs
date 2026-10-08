@@ -13,7 +13,8 @@ public sealed class SequenceParticipant
     public bool CreatedInline { get; set; }
 }
 
-public enum SequenceMessageType { SolidArrow, DashedArrow, SolidOpen, DashedOpen, CrossArrow, PointArrow }
+/// <summary>Mermaid's message arrows: ->> -->> -> --> -x --x -) --). PointArrow is the async -).</summary>
+public enum SequenceMessageType { SolidArrow, DashedArrow, SolidOpen, DashedOpen, CrossArrow, PointArrow, DashedCross, DashedPoint }
 
 public sealed class SequenceMessage
 {
