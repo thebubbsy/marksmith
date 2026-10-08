@@ -5292,9 +5292,22 @@ public sealed partial class DocxExportService
         W.BorderType PageBorder<T>() where T : W.BorderType, new() =>
             new T { Val = W.BorderValues.Single, Size = 8, Space = 24, Color = ctx.BorderHex };
 
+        var layout = settings.BrandLayout;
+        // Template-learned layouts captured before TemplateTitle existed: read it from the file.
+        var templateTitle = layout?.TemplateTitle ?? TemplateThemeService.ReadTemplateTitle(settings.BrandTemplatePath);
+
         if (refMerge is { Applied: true, InheritedSectionProperties: { } inheritedSp })
         {
             var targetSp = (W.SectionProperties)inheritedSp.CloneNode(true);
+
+            // The template's own header and footer came across as they were: a running title
+            // that names the template's document ("Linear Algebra Cheatsheet") names this one.
+            foreach (var r in targetSp.Elements<W.HeaderReference>())
+                if (r.Id?.Value is { Length: > 0 } id && main.GetPartById(id) is HeaderPart hp && hp.Header is { } h)
+                    hp.Header = new W.Header(HouseLayout.RetitleRunningText(h.OuterXml, templateTitle, title));
+            foreach (var r in targetSp.Elements<W.FooterReference>())
+                if (r.Id?.Value is { Length: > 0 } id && main.GetPartById(id) is FooterPart fp && fp.Footer is { } f)
+                    fp.Footer = new W.Footer(HouseLayout.RetitleRunningText(f.OuterXml, templateTitle, title));
 
             // Watermark injection
             if (ctx.Watermark is { } wm)
@@ -5380,11 +5393,6 @@ public sealed partial class DocxExportService
 
             return targetSp;
         }
-
-
-        var layout = settings.BrandLayout;
-        // Template-learned layouts captured before TemplateTitle existed: read it from the file.
-        var templateTitle = layout?.TemplateTitle ?? TemplateThemeService.ReadTemplateTitle(settings.BrandTemplatePath);
 
 
         // ---- header: the template's own running header when the house style provides one ----

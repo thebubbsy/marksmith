@@ -15,12 +15,26 @@ public sealed record Sample(byte[] Image, float[] Features, int Label);
 public sealed class SampleGenerator
 {
     /// <summary>Fonts the network learns from. The benchmark's held-out fonts (FreeSerif, FreeSans,
-    /// Bitstream Charter, Courier 10 Pitch) and FreeMono, Courier's near twin, are never used.</summary>
-    public static readonly string[] Families =
+    /// Bitstream Charter, Courier 10 Pitch) and FreeMono, Courier's near twin, are never used.
+    /// The second group are open-licence (OFL) text families from Google Fonts, installed for
+    /// training only (npm @fontsource packages, converted to TTF); any that aren't installed on
+    /// the machine running the trainer are skipped.</summary>
+    public static readonly string[] Families = new[]
     {
         "Liberation Serif", "Liberation Sans", "Liberation Mono", "Carlito", "Caladea",
         "DejaVu Sans", "DejaVu Serif", "DejaVu Sans Mono", "Inter",
-    };
+        "Alegreya", "Cormorant Garamond", "Courier Prime", "Crimson Text", "EB Garamond", "Fira Mono", "Fira Sans",
+        "Gelasio", "IBM Plex Mono", "IBM Plex Sans", "IBM Plex Serif", "Inconsolata", "Karla", "Lato",
+        "Libre Baskerville", "Libre Franklin", "Lora", "Merriweather", "Noticia Text", "Noto Serif", "Nunito Sans",
+        "Open Sans", "PT Sans", "PT Serif", "Roboto", "Roboto Mono", "Roboto Slab", "Source Sans 3",
+        "Source Serif 4", "Space Mono", "Spectral", "Work Sans",
+    }.Where(Installed).ToArray();
+
+    private static bool Installed(string family)
+    {
+        using var tf = SkiaSharp.SKTypeface.FromFamilyName(family);
+        return tf is not null && string.Equals(tf.FamilyName, family, StringComparison.OrdinalIgnoreCase);
+    }
 
     private readonly string[] _words;
     private readonly Dictionary<string, int> _classIndex;
