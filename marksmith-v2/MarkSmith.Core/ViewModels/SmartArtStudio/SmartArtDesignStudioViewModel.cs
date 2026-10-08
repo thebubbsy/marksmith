@@ -661,6 +661,72 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         SyncTreeToMarkdown();
     }
 
+    /// <summary>Keys the outline answers to while it has keyboard focus.</summary>
+    public enum OutlineKey { Up, Down, Home, End, Tab, Enter, Insert, Delete, F2 }
+
+    /// <summary>
+    /// The outline's keyboard model, so the whole tree can be built without the mouse (it used to
+    /// answer only Delete and F2):
+    /// ↑/↓ and Home/End move the selection; Alt+↑/↓ move the item among its siblings;
+    /// Tab / Shift+Tab indent and outdent; Enter adds a sibling and Insert a child (both open for
+    /// typing); Delete deletes; F2 renames. Returns whether the key did something, so the window
+    /// lets an unused key (Tab with nothing selected) carry on to focus navigation.
+    /// </summary>
+    public bool HandleOutlineKey(OutlineKey key, bool shift = false, bool alt = false)
+    {
+        if (OutlineRows.Count == 0)
+        {
+            if (key is OutlineKey.Enter or OutlineKey.Insert) { AddChild(null); return true; }
+            return false;
+        }
+        var node = SelectedNode;
+        int row = node is null ? -1 : OutlineRows.IndexOf(node);
+        switch (key)
+        {
+            case OutlineKey.Up when alt:
+                if (node is null) return false;
+                MoveUp();
+                return true;
+            case OutlineKey.Down when alt:
+                if (node is null) return false;
+                MoveDown();
+                return true;
+            case OutlineKey.Up:
+                Select(OutlineRows[row <= 0 ? 0 : row - 1]);
+                return true;
+            case OutlineKey.Down:
+                Select(OutlineRows[row < 0 ? 0 : Math.Min(OutlineRows.Count - 1, row + 1)]);
+                return true;
+            case OutlineKey.Home:
+                Select(OutlineRows[0]);
+                return true;
+            case OutlineKey.End:
+                Select(OutlineRows[^1]);
+                return true;
+            case OutlineKey.Tab:
+                if (node is null) return false;
+                if (shift) Promote(); else Demote();
+                return true;
+            case OutlineKey.Enter:
+                if (node is null) return false;
+                AddSibling(node);
+                return true;
+            case OutlineKey.Insert:
+                if (node is null) return false;
+                AddChild(node);
+                return true;
+            case OutlineKey.Delete:
+                if (node is null) return false;
+                DeleteSelected(node);
+                return true;
+            case OutlineKey.F2:
+                if (node is null) return false;
+                BeginRename(node);
+                return true;
+        }
+        return false;
+    }
+
     [RelayCommand]
     public void BeginRename(StudioNodeViewModel? target = null)
     {

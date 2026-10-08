@@ -3259,3 +3259,41 @@ Cloud run (see #31). Took #30's carried "participant header colours" and the lon
 - dragging a corner grows it away from the opposite corner;
 - the cursors point along the handles;
 - Ctrl+Z undoes it.
+
+### 2026-10-08 18:05–18:30 AEST (routine run #38, cloud: SmartArt outline keyboard pass)
+
+Cloud run (see #31). Took the long-carried "SmartArt outline keyboard pass".
+
+**Found:**
+- The outline answered only Delete, F2 and Ctrl+Z/Y. Selecting, reordering, indenting and
+  adding items all needed the mouse.
+- The rows aren't focusable, so nothing in the outline held keyboard focus.
+- After Enter or Esc in the rename box, focus was left on the collapsed box.
+
+**What shipped:**
+- VM `HandleOutlineKey(OutlineKey, shift, alt)`, the outline's keyboard model:
+
+  | Keys | Action |
+  |---|---|
+  | ↑/↓, Home/End | Select |
+  | Alt+↑/↓ | Move among siblings |
+  | Tab / Shift+Tab | Indent / outdent |
+  | Enter | Add a sibling, ready to type |
+  | Insert | Add a child, ready to type |
+  | Delete, F2 | Delete, rename |
+
+  It returns false for a key that did nothing, so Tab with no selection still moves focus.
+  Enter or Insert on an empty outline starts it.
+- Window:
+  - `OutlineScroll` is a tab stop with `OnOutlineKeyDown`. It acts only while the outline
+    itself has focus, so a row's own buttons keep Tab.
+  - Clicking a row focuses the outline.
+  - Enter/Esc in the rename box return focus to the outline.
+  - The keys are listed in the outline's `AutomationProperties.HelpText`.
+
+**Tests:** new `SmartArtOutlineKeyboardTests` (7). SmartArt filter: 218/218. It needs the
+Linux Skia native added temporarily, or the run aborts.
+
+**Check on the PC:** in SmartArt Studio, click a row, then build a three-level tree using only
+the keyboard. Check the selection highlight is visible, typing starts in the new row after
+Enter, and Tab out of the outline still works when nothing is selected.
