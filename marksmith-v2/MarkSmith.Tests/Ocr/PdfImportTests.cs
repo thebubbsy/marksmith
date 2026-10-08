@@ -171,6 +171,17 @@ public class PdfImportTests : IDisposable
         Assert.NotNull(result.Pdf);
     }
 
+    [Fact]
+    public void Picture_links_point_at_the_media_folder_wherever_it_is()
+    {
+        var doc = Path.Combine(_dir, "report.pdf");
+        Assert.Equal("report_media", Plugins.PluginFileReader.MediaLinkFor(doc, Path.Combine(_dir, "report_media")));
+        // The private fallback for a PDF in a temporary or read-only folder isn't beside the
+        // document, so the link is its full path rather than a relative "report_media".
+        var elsewhere = Path.Combine(Directory.CreateTempSubdirectory("ms_media_").FullName, "report-abc");
+        Assert.Equal(Path.GetFullPath(elsewhere).Replace('\\', '/'), Plugins.PluginFileReader.MediaLinkFor(doc, elsewhere));
+    }
+
     private static byte[] Png(int w, int h, SKColor color)
     {
         using var bmp = new SKBitmap(w, h);

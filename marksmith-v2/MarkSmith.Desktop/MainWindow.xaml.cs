@@ -5787,6 +5787,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                     ? await importer.ImportFromPdfAsync(file.Path, new Services.Import.PdfImportOptions
                     {
                         MediaDirectory = Plugins.PluginFileReader.MediaDirFor(file.Path),
+                        MediaLink = Plugins.PluginFileReader.MediaLinkFor(file.Path, Plugins.PluginFileReader.MediaDirFor(file.Path)),
                         RenderPage = n => Services.WindowsPdfRenderer.Render(file.Path, n),
                         // Scanned pages take a moment each: say which one is being read.
                         Progress = new Progress<string>(s => ViewModel.StatusText = s),

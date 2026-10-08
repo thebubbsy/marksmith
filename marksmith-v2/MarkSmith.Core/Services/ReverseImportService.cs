@@ -119,9 +119,11 @@ public sealed class ReverseImportService : IReverseImportService
 
     public ReverseImportResult ImportFromPdf(string pdfPath, Import.PdfImportOptions? options = null)
     {
+        var mediaDir = Plugins.PluginFileReader.MediaDirFor(pdfPath);
         options ??= new Import.PdfImportOptions
         {
-            MediaDirectory = Plugins.PluginFileReader.MediaDirFor(pdfPath),
+            MediaDirectory = mediaDir,
+            MediaLink = Plugins.PluginFileReader.MediaLinkFor(pdfPath, mediaDir),
             RenderPage = PdfPageRenderer is null ? null : n => PdfPageRenderer(pdfPath, n),
         };
         using var stream = File.OpenRead(pdfPath);

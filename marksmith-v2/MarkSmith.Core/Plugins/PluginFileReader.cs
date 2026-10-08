@@ -171,6 +171,14 @@ public static class PluginFileReader
         return Path.Combine(Services.AppPaths.ConfigDir, "imports", stem + "-" + hash);
     }
 
+    /// <summary>How the imported document links to <paramref name="mediaDir"/>: relative when it
+    /// sits beside the document, its full path when it's the private fallback folder.</summary>
+    public static string MediaLinkFor(string sourcePath, string mediaDir)
+    {
+        var rel = Path.GetRelativePath(Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ".", Path.GetFullPath(mediaDir));
+        return (rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel) ? Path.GetFullPath(mediaDir) : rel).Replace('\\', '/');
+    }
+
     private static readonly System.Text.RegularExpressions.Regex DataImage = new(
         "^data:image/(png|jpe?g|gif|webp|bmp|svg[+]xml);base64,",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
