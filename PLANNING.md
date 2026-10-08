@@ -3200,3 +3200,22 @@ EPUB filter: 48/48.
 **Check on the PC:** open a two-chapter export in a real reader (Calibre, Apple Books, Thorium):
 - the title page centres and breaks to the next page;
 - re-exporting replaces the library entry instead of adding a second one.
+
+### 2026-10-08 17:25–17:35 AEST (routine run #36, cloud: free-plan batch message)
+
+Cloud run (see #31). Took #27's free-tier items.
+
+**Found:**
+- "Default output format defaults to Word on Free" was already fixed: the default is `pdf`.
+- The batch path (`AutomationExportService.ConvertFilesAsync`, used by the batch dialog and the
+  API) told **every** free user "DOCX export trial quota exhausted", including one who had never
+  started a trial.
+
+**What shipped:**
+- That phrase is now used only when the trial was actually used (`LicenseState.TrialUsed`).
+- Otherwise the line is `ProGate.ApiLine` alone: "Word export is a MarkSmith Pro feature.
+  Start the free trial…".
+- The existing trial-exhausted tests still pin the original wording for that case.
+
+**Tests:** `AutomationExportTests`: a free user who never had a trial is not told it ran out.
+Automation/Batch filter: 92/92.

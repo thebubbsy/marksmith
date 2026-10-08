@@ -267,6 +267,20 @@ public class AutomationExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_free_user_who_never_had_a_trial_is_not_told_it_ran_out()
+    {
+        AppServices.License.ResetToFree();
+        Assert.False(AppServices.License.State.TrialUsed);
+        File.WriteAllText(Path.Combine(_dir, "a.md"), "# A");
+        var result = await new AutomationExportService().ConvertFilesAsync(
+            new[] { Path.Combine(_dir, "a.md") }, null, Path.Combine(_dir, "out"), "docx", Settings(_dir), null);
+        var failure = Assert.Single(result.Failures);
+        Assert.DoesNotContain("trial quota", failure);
+        Assert.Contains("Pro feature", failure);
+        Assert.Contains("free trial", failure); // the offer, since it's still available
+    }
+
+    [Fact]
     public async Task One_bad_file_doesnt_stop_the_batch_and_its_reason_is_kept()
     {
         File.WriteAllText(Path.Combine(_dir, "good.md"), "# Good");

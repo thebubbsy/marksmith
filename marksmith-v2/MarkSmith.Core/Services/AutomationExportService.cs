@@ -282,7 +282,12 @@ public sealed class AutomationExportService
 
             if (OutputFormats.ProFeature(fmt) == FeatureId.DocxExport && !AppServices.License.CanExportDocx)
             {
-                result.Failures.Add($"{name}: DOCX export trial quota exhausted. {ProGate.ApiLine(FeatureId.DocxExport, AppServices.License.State)}");
+                // "Trial quota exhausted" only when there was a trial: a free user who never
+                // started one was told their trial had run out.
+                var state = AppServices.License.State;
+                result.Failures.Add(state.TrialUsed
+                    ? $"{name}: DOCX export trial quota exhausted. {ProGate.ApiLine(FeatureId.DocxExport, state)}"
+                    : $"{name}: {ProGate.ApiLine(FeatureId.DocxExport, state)}");
                 continue;
             }
 
