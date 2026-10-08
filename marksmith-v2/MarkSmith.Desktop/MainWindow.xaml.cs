@@ -1661,7 +1661,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseWatchFolderClick(object sender, RoutedEventArgs e)
     {
-        var folder = await Services.NativeFilePicker.PickFolderAsync(this, "Select Watch Folder");
+        var folder = await Services.NativeFilePicker.PickFolderAsync(
+            this, "Choose the folder to watch", Services.NativeFilePicker.Purpose.AutomationFolders,
+            okLabel: "Watch this folder", folder: Directory.Exists(ViewModel.WatchFolder) ? ViewModel.WatchFolder : null);
         if (!string.IsNullOrEmpty(folder)) ViewModel.WatchFolder = folder;
     }
 
@@ -1787,7 +1789,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         // Batch is Pro, except a batch that only writes email drafts (AutomationPolicy). The format
         // is picked in the dialog, so a free user still gets the dialog with the email formats.
-        var folderPath = await Services.NativeFilePicker.PickFolderAsync(this, "Select Batch Folder");
+        var folderPath = await Services.NativeFilePicker.PickFolderAsync(
+            this, "Choose a folder to convert", Services.NativeFilePicker.Purpose.AutomationFolders, okLabel: "Convert this folder");
         if (string.IsNullOrEmpty(folderPath)) return;
 
         var folderName = System.IO.Path.GetFileName(folderPath);
@@ -1908,22 +1911,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseBrandLogoClick(object sender, RoutedEventArgs e)
     {
-        var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Select Brand Logo",
-            ("Image Files (*.png;*.jpg;*.jpeg)", "*.png;*.jpg;*.jpeg"),
-            ("PNG Images (*.png)", "*.png"),
-            ("JPEG Images (*.jpg;*.jpeg)", "*.jpg;*.jpeg"));
+        var file = await PickLogoAsync();
         if (!string.IsNullOrEmpty(file)) ViewModel.BrandLogoPath = file;
     }
 
     private async void OnBrowseRunningDocClick(object sender, RoutedEventArgs e)
     {
         var file = await Services.NativeFilePicker.PickSaveFileAsync(
-            this,
-            "Save AI Notebook",
-            "AI-notebook.docx",
-            ("Word document (*.docx)", "*.docx"));
+            this, "Choose where to keep the AI notebook", Services.NativeFilePicker.Purpose.Exports,
+            "AI notebook.docx", new[] { Models.FileType.Of("Word document", ".docx") }, okLabel: "Use this file");
         if (!string.IsNullOrEmpty(file)) ViewModel.RunningDocPath = file;
     }
 
@@ -2187,15 +2183,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         var allExts = Plugins.PluginFileReader.NativeExtensions
             .Concat(App.Plugins.AllImporterExtensions)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(ext => ext.TrimStart('.'))
             .ToList();
-        var filterPattern = string.Join(";", allExts.Select(ext => "*." + ext));
         var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Open Document",
-            ("Supported Documents", filterPattern),
-            ("Markdown (*.md;*.markdown)", "*.md;*.markdown"),
-            ("All Files (*.*)", "*.*"));
+            this, "Open a document", Services.NativeFilePicker.Purpose.Documents,
+            new[]
+            {
+                Models.FileType.Of("All supported documents", allExts),
+                Models.FileType.Of("Markdown", ".md", ".markdown"),
+                Models.FileType.AllFiles,
+            },
+            okLabel: "Open", folder: OpenDocumentFolder);
         if (!string.IsNullOrEmpty(file))
         {
             ViewModel.InputFilePath = file;
@@ -2206,28 +2203,46 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseLogoClick(object sender, RoutedEventArgs e)
     {
-        var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Select Logo",
-            ("Image Files (*.png;*.jpg;*.jpeg)", "*.png;*.jpg;*.jpeg"),
-            ("PNG Images (*.png)", "*.png"),
-            ("JPEG Images (*.jpg;*.jpeg)", "*.jpg;*.jpeg"),
-            ("All Files (*.*)", "*.*"));
+        var file = await PickLogoAsync();
         if (!string.IsNullOrEmpty(file))
         {
             ViewModel.BrandLogoPath = file;
         }
     }
 
+    // Logo pickers in Style & Export and in the branding expander share one dialog.
+    private Task<string?> PickLogoAsync() => Services.NativeFilePicker.PickOpenFileAsync(
+        this, "Choose a logo", Services.NativeFilePicker.Purpose.Images,
+        new[]
+        {
+            Models.FileType.Of("Images", ".png", ".jpg", ".jpeg"),
+            Models.FileType.Of("PNG image", ".png"),
+            Models.FileType.Of("JPEG image", ".jpg", ".jpeg"),
+        },
+        okLabel: "Use this logo", start: Services.StartFolder.Pictures,
+        folder: Services.NativeFilePicker.FolderOf(ViewModel.BrandLogoPath));
+
+    // Save dialogs for something taken from the open document start beside it, named after it.
+    private string? OpenDocumentFolder
+        => !ViewModel.UsePasteSource && ViewModel.HasInputFile ? Services.NativeFilePicker.FolderOf(ViewModel.InputFilePath) : null;
+
+    private string SuggestedNameFromDocument(string what)
+        => !ViewModel.UsePasteSource && ViewModel.HasInputFile
+            ? Models.FileDialogRules.SafeFileName($"{Path.GetFileNameWithoutExtension(ViewModel.InputFilePath)} {what}", what)
+            : what;
+
     private async void OnBrowseFontClick(object sender, RoutedEventArgs e)
     {
         var file = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Select Font",
-            ("Font Files (*.ttf;*.otf)", "*.ttf;*.otf"),
-            ("TrueType Font (*.ttf)", "*.ttf"),
-            ("OpenType Font (*.otf)", "*.otf"),
-            ("All Files (*.*)", "*.*"));
+            this, "Choose a font to embed", Services.NativeFilePicker.Purpose.Fonts,
+            new[]
+            {
+                Models.FileType.Of("Fonts", ".ttf", ".otf"),
+                Models.FileType.Of("TrueType font", ".ttf"),
+                Models.FileType.Of("OpenType font", ".otf"),
+            },
+            okLabel: "Embed",
+            folder: Services.NativeFilePicker.FolderOf(ViewModel.CustomFontPath));
         if (!string.IsNullOrEmpty(file))
         {
             ViewModel.CustomFontPath = file;
@@ -2316,7 +2331,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnBrowseFolderClick(object sender, RoutedEventArgs e)
     {
-        var folder = await Services.NativeFilePicker.PickFolderAsync(this, "Select Output Folder");
+        var folder = await Services.NativeFilePicker.PickFolderAsync(
+            this, "Choose where exports are saved", Services.NativeFilePicker.Purpose.AutomationFolders,
+            okLabel: "Save exports here", folder: Directory.Exists(ViewModel.OutputFolder) ? ViewModel.OutputFolder : null);
         if (!string.IsNullOrEmpty(folder)) ViewModel.OutputFolder = folder;
     }
 
@@ -2559,11 +2576,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
             var ext = format.ToLowerInvariant();
             var file = await Services.NativeFilePicker.PickSaveFileAsync(
-                this,
-                "Export Diagram",
-                $"diagram.{ext}",
-                ($"{format.ToUpperInvariant()} image (*.{ext})", $"*.{ext}"),
-                ("All Files (*.*)", "*.*"));
+                this, "Save the diagram", Services.NativeFilePicker.Purpose.Exports,
+                $"{SuggestedNameFromDocument("diagram")}.{ext}",
+                new[] { Models.FileType.Of($"{format.ToUpperInvariant()} image", ext) },
+                okLabel: "Save", folder: OpenDocumentFolder);
             if (string.IsNullOrEmpty(file)) return;
 
             if (format == "svg")
@@ -5783,18 +5799,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
     private async void OnImportDocumentClick(object sender, RoutedEventArgs e)
     {
-        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions).ToList();
-        var filterPattern = string.Join(";", supportedExts.Select(x => "*" + x));
+        var supportedExts = new[] { ".docx", ".pdf", ".eml", ".msg", ".html", ".htm" }.Concat(Ocr.OcrImport.ImageExtensions);
         var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Import Document",
-            ("Supported Documents", filterPattern),
-            ("Word Documents (*.docx)", "*.docx"),
-            ("PDF Documents (*.pdf)", "*.pdf"),
-            ("Email Files (*.eml;*.msg)", "*.eml;*.msg"),
-            ("HTML Files (*.html;*.htm)", "*.html;*.htm"),
-            ("Images", string.Join(";", Ocr.OcrImport.ImageExtensions.Select(x => "*" + x))),
-            ("All Files (*.*)", "*.*"));
+            this, "Import a document as Markdown", Services.NativeFilePicker.Purpose.Documents,
+            new[]
+            {
+                Models.FileType.Of("Documents, emails and scans", supportedExts),
+                Models.FileType.Of("Word document", ".docx"),
+                Models.FileType.Of("PDF", ".pdf"),
+                Models.FileType.Of("Email", ".eml", ".msg"),
+                Models.FileType.Of("Web page", ".html", ".htm"),
+                Models.FileType.Of("Scanned page (read with OCR)", Ocr.OcrImport.ImageExtensions),
+            },
+            okLabel: "Import");
         if (string.IsNullOrEmpty(filePath)) return;
 
         try
@@ -5886,12 +5903,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async void OnInsertSpreadsheetClick(object sender, RoutedEventArgs e)
     {
         var filePath = await Services.NativeFilePicker.PickOpenFileAsync(
-            this,
-            "Insert Spreadsheet or CSV",
-            ("Spreadsheets and CSV (*.csv;*.xlsx)", "*.csv;*.xlsx"),
-            ("CSV files (*.csv)", "*.csv"),
-            ("Excel workbooks (*.xlsx)", "*.xlsx"),
-            ("All Files (*.*)", "*.*"));
+            this, "Insert a spreadsheet as a table", Services.NativeFilePicker.Purpose.Spreadsheets,
+            new[]
+            {
+                Models.FileType.Of("Spreadsheets", ".xlsx", ".csv"),
+                Models.FileType.Of("Excel workbook", ".xlsx"),
+                Models.FileType.Of("CSV", ".csv"),
+            },
+            okLabel: "Insert");
         if (string.IsNullOrEmpty(filePath)) return;
 
         try
@@ -6001,11 +6020,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
 
         var filePath = await Services.NativeFilePicker.PickSaveFileAsync(
-            this,
-            "Export Table",
-            "table.xlsx",
-            ("Excel workbook (*.xlsx)", "*.xlsx"),
-            ("CSV (single table) (*.csv)", "*.csv"));
+            this, exports.Count == 1 ? "Export the table" : $"Export {exports.Count} tables", Services.NativeFilePicker.Purpose.Spreadsheets,
+            $"{SuggestedNameFromDocument(exports.Count == 1 ? "table" : "tables")}.xlsx",
+            new[]
+            {
+                Models.FileType.Of(exports.Count == 1 ? "Excel workbook" : "Excel workbook, one sheet per table", ".xlsx"),
+                Models.FileType.Of(exports.Count == 1 ? "CSV" : "CSV, first table only", ".csv"),
+            },
+            okLabel: "Export", folder: OpenDocumentFolder);
         if (string.IsNullOrEmpty(filePath)) return;
 
         try

@@ -11,7 +11,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
-using Windows.Storage.Pickers;
 using Windows.UI;
 using MarkSmith.Models.MindMap;
 using MarkSmith.Services;
@@ -1288,14 +1287,18 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnSaveAsClick(object sender, RoutedEventArgs e)
         {
-            var filters = new[] { ("MarkSmith Galaxy Map (*.msmap)", "*.msmap") };
-            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(this, "Save Galaxy Map", SanitizeFileName(ViewModel.Title), filters, ".msmap");
+            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
+                this, "Save the galaxy", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
+                SanitizeFileName(ViewModel.Title) + ".msmap",
+                new[] { MarkSmith.Models.FileType.Of("Document Galaxy map", ".msmap") }, okLabel: "Save");
             if (!string.IsNullOrEmpty(path)) await ViewModel.SaveAsync(path);
         }
 
         private async void OnImportFolderClick(object sender, RoutedEventArgs e)
         {
-            var path = await MarkSmith.Services.NativeFilePicker.PickFolderAsync(this, "Import Vault or Directory");
+            var path = await MarkSmith.Services.NativeFilePicker.PickFolderAsync(
+                this, "Choose a notes folder or vault to map", MarkSmith.Services.NativeFilePicker.Purpose.Galaxy,
+                okLabel: "Map this folder");
             if (string.IsNullOrEmpty(path)) return;
 
             await ViewModel.ImportDirectoryAsync(path);
@@ -1304,8 +1307,10 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnExportDocxClick(object sender, RoutedEventArgs e)
         {
-            var filters = new[] { ("Word Document (*.docx)", "*.docx") };
-            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(this, "Export Word Document", SanitizeFileName(ViewModel.Title), filters, ".docx");
+            var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
+                this, "Export the galaxy as a Word document", MarkSmith.Services.NativeFilePicker.Purpose.Exports,
+                SanitizeFileName(ViewModel.Title) + ".docx",
+                new[] { MarkSmith.Models.FileType.Of("Word document", ".docx") }, okLabel: "Export");
             if (!string.IsNullOrEmpty(path)) ViewModel.ExportToDocx(path);
         }
 
@@ -1328,12 +1333,6 @@ namespace MarkSmith.Views.MindMap
             {
                 ViewModel.StatusMessage = $"⚠ Could not copy to the clipboard: {ex.Message}";
             }
-        }
-
-        private void InitializePicker(object picker)
-        {
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
         }
 
         private static string SanitizeFileName(string? name)
@@ -1498,12 +1497,14 @@ namespace MarkSmith.Views.MindMap
             var node = ViewModel.SelectedNode;
             if (node == null) return;
 
-            var filters = new[]
-            {
-                ("Supported Documents (*.md, *.markdown, *.txt, *.docx, *.pdf, *.pptx, *.epub)", "*.md;*.markdown;*.txt;*.docx;*.pdf;*.pptx;*.epub"),
-                ("All files (*.*)", "*.*")
-            };
-            var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(this, "Attach File to Node", filters);
+            var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(
+                this, $"Attach a file to \u201C{node.Title}\u201D", MarkSmith.Services.NativeFilePicker.Purpose.Documents,
+                new[]
+                {
+                    MarkSmith.Models.FileType.Of("Documents", ".md", ".markdown", ".txt", ".docx", ".pdf", ".pptx", ".epub"),
+                    MarkSmith.Models.FileType.AllFiles,
+                },
+                okLabel: "Attach");
             if (string.IsNullOrEmpty(path)) return;
 
             ViewModel.PushUndo("Attach file to node");

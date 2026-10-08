@@ -3434,3 +3434,113 @@ footers, pictures, a scanned page, mixed pages, and the app path.
 - Settings shows the OCR engine picker.
 - Import a text PDF, a scanned PDF and a PNG with each engine.
 - Windows OCR needs an English OCR language pack installed. Tesseract needs the VC++ runtime.
+
+### 2026-10-09 09:40–11:00 AEST (routine run #41: every file dialog, done properly)
+
+Reviewed the latest entries. The newest commit (e5b053a, the user's own) had replaced every
+`Windows.Storage.Pickers` call with a hand-written `NativeFilePicker` to stop 0x800706BE crashes.
+It touches every open, save and folder dialog in the app, so this run audited it on the real PC
+(unlocked, user idle) before doing anything else. That turned into the whole run.
+
+**Found:**
+- **The COM path never worked.** The IIDs it declared for `IFileDialog` and `IFileOpenDialog`
+  were invented: the real ones are `42f85136-…` and `d57c7288-…`, the same ones
+  System.Windows.Forms ships. Every dialog threw E_NOINTERFACE and silently fell back to
+  comdlg32's `GetOpenFileName` / `GetSaveFileName`.
+- **Every save dialog with a file-type list froze this PC's app.** The window showed "Not
+  Responding" / "Working on it…" and never drew, and the owner window stayed disabled. The
+  classic fallback froze the same way.
+  - Reproduced outside MarkSmith in a 30-line console app, and in WinForms' own `SaveFileDialog`
+    (filter "Text|*.txt").
+  - Bisected to `SetFileTypes`. Any extension filter freezes it, in OneDrive Documents or a
+    local temp folder alike. `*.*`, or `*.svg;*.*`, opens in about 0.5 s.
+  - Environment: Windhawk is injected into every process (mod
+    `explorer-details-better-file-sizes`, which computes folder sizes), Windows Search is
+    **Disabled**, and Everything 1.4 and 1.5a are both running. The exact trigger isn't
+    proven, but it's machine-level. It's probably also what the old broker picker was hitting
+    when it died with RPC_S_CALL_FAILED.
+- **Regressions from the picker swap:**
+  - MainWindow saves had no default extension, so "Export table" saved a typed `report` as a
+    file with no extension.
+  - Insert image no longer started in Pictures, and Galaxy no longer started in Documents.
+  - Diagram Studio's SVG export was owned by the *main* window. It could open behind the
+    studio while the studio stayed clickable.
+- **Inconsistent wording.** Dialog titles were Title Case ("Select Brand Logo", "Import Vault or
+  Directory"), filter labels came in four styles ("Image Files (*.png;*.jpg)" vs "Images" vs
+  "Word Document (*.docx)"), and every OK button said Open/Save.
+- Every dialog shared one remembered folder, so a logo picker opened wherever a table had last
+  been exported.
+
+**What shipped:**
+- **`Services/NativeFilePicker`, rebuilt.**
+  - It drives the Common Item Dialog through its vtable: IFileOpenDialog and IFileSaveDialog
+    share IFileDialog's slots 3–26.
+  - The IIDs are correct, each dialog runs on its own STA thread, one dialog at a time, and the
+    classic fallback is gone.
+  - If Windows can't show a dialog, the status bar names it. It never silently does nothing.
+  - API: `PickOpenFileAsync` / `PickSaveFileAsync` / `PickFolderAsync(owner, title, purpose,
+    types, okLabel, start, folder)`.
+  - `DialogOwner` converts from a `Window` or any `UIElement`. An element resolves its own
+    window through `XamlRoot.ContentIslandEnvironment.AppWindowId`, so a control hosted in
+    Diagram Studio passes `this` and its dialog is modal to the studio.
+- **Purposes** (`NativeFilePicker.Purpose`: documents, images, fonts, templates, spreadsheets,
+  exports, automation-folders, galaxy) become `SetClientGuid`. Windows keeps each one's last
+  folder separately. First use starts in Documents, or Pictures for images.
+- **Saves of something taken from the open document** (diagram from the preview, table export)
+  start in the document's folder and are named after it ("Q3 plan tables.xlsx").
+- **Save dialogs list their formats as `*.ext;*.*`** (`FileType.SaveSpec`). The type picker
+  still works, and the default extension follows the chosen type, but the folder view is never
+  filtered, so it can't freeze. A typed name with no extension always gets one
+  (`FileDialogRules.EnsureExtension`).
+- **Core `Models/FileDialogRules.cs`** (`FileType`, `FileDialogRules`) is the single place for
+  filter labels, specs, default extensions, extension enforcement, per-purpose GUIDs and safe
+  suggested names.
+  - Labels are just the sentence-case name. Windows appends the patterns itself when extensions
+    are shown, so labels that carried patterns showed them twice.
+- **All 20 call sites swept:**
+  - sentence-case titles that say what the dialog is for ("Choose a logo", "Import a document
+    as Markdown", "Attach a file to “Node”");
+  - OK buttons that say what happens (Insert, Import, Embed, Attach, Export, "Watch this
+    folder", "Save exports here");
+  - the watch, output and logo pickers reopen at the current value.
+- New test `FileDialogRulesTests` (16). It includes a source scan that fails if any Desktop file
+  uses `Windows.Storage.Pickers` again.
+
+**Verified live (scratch config, own test instance):**
+- The open dialog is the real Common Item Dialog: Documents, "All supported documents", an
+  "Open" button, dark theme, and the main window disabled while it's up.
+- Diagram Studio ▸ Export SVG:
+  - the dialog is owned by the studio, which is disabled behind it;
+  - it responds within a second, and the type row reads "SVG image (*.svg;*.*)";
+  - typing `my diagram` and pressing Export wrote `my diagram.svg`.
+- Builds and tests ran in an isolated copy (HEAD plus this run's files): see Tests below.
+
+**Concurrent run:** another session was rewriting `SmartArtInsertControl` (XAML deleted, new
+`.cs`, Core `SmartArtInsert`), `InsertDialogControls`, `HtmlPreviewRenderer` and two dialog
+titles in `MainWindow.xaml.cs` during this run. Its tree didn't compile mid-edit
+(`AutomationLiveSetting`, WMC9999). This commit contains only this run's files. Its
+`MainWindow.xaml.cs` is HEAD plus this run's hunks, staged through the index, so that session's
+edits are still in the working tree, uncommitted.
+
+**Tool notes:**
+- `dotnet-dump` (`~/.dotnet/tools`) `clrthreads` + `clrstack` on a mini-dump finds a frozen
+  managed thread's frame in seconds.
+- A 30-line console repro with flags beats bisecting inside the app.
+- **Never use CopyFromScreen while the user may be at the PC.** It captures whatever is on top,
+  including their private windows. Use only PrintWindow on your own test windows.
+- In the Common Item Dialog the file-name box is the `Edit` with control ID 0x3E9. The first
+  `ComboBoxEx32 > ComboBox > Edit` is the address bar.
+- WinUI's XAML compiler hits MAX_PATH from the scratchpad; build isolated copies under
+  `%TEMP%\msiso`.
+
+**For the user:**
+- On this PC any app's filtered Save As dialog may freeze, WinForms included. Windhawk's
+  "better file sizes" mod plus disabled Windows Search are the suspects. MarkSmith now avoids it.
+- Their uncommitted `EverythingHttpPlugin` work was left alone.
+
+**Next up:**
+1. Commit or finish the concurrent SmartArt-insert rewrite (not this run's).
+2. With a real mouse, check that the type picker in "Export N tables" switches `.xlsx` ↔ `.csv`
+   (Windows updates the extension from the first pattern).
+3. Carried over from #31: Diagram Studio composite states and notes drawn on the canvas, plus
+   the participant-colour, hover-halo and real-Word checks.

@@ -1175,12 +1175,12 @@ namespace MarkSmith.Views.ShapeStudio
             if (!ViewModel.HasShapes) return;
             try
             {
-                var suggestedName = System.IO.Path.GetFileNameWithoutExtension(ShapeDesignStudioViewModel.SuggestedExportName(template));
-                var filter = template
-                    ? new[] { ("Word template (*.dotx)", "*.dotx") }
-                    : new[] { ("Word document (*.docx)", "*.docx") };
-                var defaultExt = template ? ".dotx" : ".docx";
-                var path = await NativeFilePicker.PickSaveFileAsync(this, "Export", suggestedName, filter, defaultExt);
+                var path = await NativeFilePicker.PickSaveFileAsync(
+                    this, template ? "Export the shapes as a Word template" : "Export the shapes as a Word document",
+                    NativeFilePicker.Purpose.Exports,
+                    ShapeDesignStudioViewModel.SuggestedExportName(template),
+                    new[] { template ? Models.FileType.Of("Word template", ".dotx") : Models.FileType.Of("Word document", ".docx") },
+                    okLabel: "Export");
                 if (string.IsNullOrEmpty(path)) return;
                 await ViewModel.ExportToWordAsync(template, path);
             }
@@ -1263,12 +1263,10 @@ namespace MarkSmith.Views.ShapeStudio
 
         private async void OnPickImageClick(object sender, RoutedEventArgs e)
         {
-            var filters = new[]
-            {
-                ("Image files (*.png, *.jpg, *.jpeg, *.bmp, *.gif)", "*.png;*.jpg;*.jpeg;*.bmp;*.gif"),
-                ("All files (*.*)", "*.*")
-            };
-            var path = await NativeFilePicker.PickOpenFileAsync(this, "Select Picture", filters);
+            var path = await NativeFilePicker.PickOpenFileAsync(
+                this, "Choose a picture to turn into shapes", NativeFilePicker.Purpose.Images,
+                new[] { Models.FileType.Of("Images", ".png", ".jpg", ".jpeg", ".bmp", ".gif") },
+                okLabel: "Use this picture", start: StartFolder.Pictures);
             if (string.IsNullOrEmpty(path)) return;
             _composeImagePath = path;
             FuseImageLabel.Text = System.IO.Path.GetFileName(path);

@@ -1,514 +1,331 @@
 using System.Runtime.InteropServices;
+using MarkSmith.Models;
 using Microsoft.UI.Xaml;
 using WinRT.Interop;
 
 namespace MarkSmith.Services;
 
+/// <summary>Where a dialog opens the first time it's used for its purpose.</summary>
+public enum StartFolder { Documents, Pictures }
+
 /// <summary>
-/// Bulletproof native Windows file and folder picker service for WinUI 3 desktop apps.
-/// Avoids the fragile UWP pickerhost.exe RPC broker (Windows.Storage.Pickers) which crashes
-/// with 0x800706BE (RPC_S_CALL_FAILED) when running elevated as Administrator or in restricted
-/// user sessions. Uses native in-process COM (IFileOpenDialog / IFileSaveDialog) with Win32 fallback.
+/// The window a dialog belongs to: it's modal to that window and opens over it. Pass a Window, or
+/// any element inside one (a control hosted in Diagram Studio passes itself, so its dialogs open
+/// over the studio rather than behind it on the main window).
+/// </summary>
+public readonly struct DialogOwner
+{
+    public IntPtr Hwnd { get; }
+
+    private DialogOwner(IntPtr hwnd) => Hwnd = hwnd;
+
+    public static implicit operator DialogOwner(Window window) => new(WindowNative.GetWindowHandle(window));
+
+    public static implicit operator DialogOwner(UIElement element)
+    {
+        try
+        {
+            if (element.XamlRoot?.ContentIslandEnvironment is { } island)
+            {
+                var hwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(island.AppWindowId);
+                if (hwnd != IntPtr.Zero) return new DialogOwner(hwnd);
+            }
+        }
+        catch { }
+        return App.MainAppWindow is { } main ? main : default;
+    }
+}
+
+/// <summary>
+/// Every open, save and folder dialog in the app. Uses the shell's own Common Item Dialog
+/// in-process instead of Windows.Storage.Pickers, whose pickerhost.exe RPC broker fails with
+/// 0x800706BE (RPC_S_CALL_FAILED) when the app runs elevated or in a restricted session.
+///
+/// What every dialog gets:
+/// - its own thread (STA, as the shell dialogs require) so the window keeps painting behind it;
+/// - a purpose (<see cref="Purpose"/>): Windows remembers the last folder per purpose, so picking
+///   a logo doesn't open in the folder a table was last exported to;
+/// - a first-use folder (Documents or Pictures), or the open document's folder when given;
+/// - an OK button that says what happens ("Insert", "Import", "Export");
+/// - for saves, the file always gets an extension (<see cref="FileDialogRules.EnsureExtension"/>).
+///
+/// Save dialogs list their formats with <see cref="FileType.SaveSpec"/> ("*.svg;*.*") so the
+/// folder view is never filtered: on a real PC (Windhawk injected, Windows Search disabled) a save
+/// dialog showing a filtered folder froze at "Working on it…" before it drew, exactly as WinForms'
+/// SaveFileDialog does there.
 /// </summary>
 public static class NativeFilePicker
 {
+    /// <summary>The remembered-folder groups. Keep this list short: one per kind of file.</summary>
+    public static class Purpose
+    {
+        public const string Documents = "documents";
+        public const string Images = "images";
+        public const string Fonts = "fonts";
+        public const string Templates = "templates";
+        public const string Spreadsheets = "spreadsheets";
+        public const string Exports = "exports";
+        public const string AutomationFolders = "automation-folders";
+        public const string Galaxy = "galaxy";
+    }
+
+    private static int _dialogOpen;
+
     public static Task<string?> PickOpenFileAsync(
-        Window? parent,
-        string title,
-        params (string Name, string Spec)[] filters)
-        => PickOpenFileAsync(parent, title, filters, defaultExt: null);
-
-    public static async Task<string?> PickOpenFileAsync(
-        Window? parent,
-        string title,
-        (string Name, string Spec)[]? filters,
-        string? defaultExt = null)
-    {
-        return await Task.Run(() =>
-        {
-            IntPtr hwnd = GetHwnd(parent);
-            try
-            {
-                var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
-                try
-                {
-                    dialog.GetOptions(out var options);
-                    dialog.SetOptions(options | FILEOPENDIALOGOPTIONS.FOS_FORCEFILESYSTEM | FILEOPENDIALOGOPTIONS.FOS_FILEMUSTEXIST);
-
-                    if (!string.IsNullOrEmpty(title)) dialog.SetTitle(title);
-                    if (!string.IsNullOrEmpty(defaultExt)) dialog.SetDefaultExtension(defaultExt.TrimStart('.'));
-
-                    if (filters != null && filters.Length > 0)
-                    {
-                        var specs = filters.Select(f => new COMDLG_FILTERSPEC { pszName = f.Name, pszSpec = f.Spec }).ToArray();
-                        dialog.SetFileTypes((uint)specs.Length, specs);
-                    }
-
-                    int hr = dialog.Show(hwnd);
-                    if (hr == 0)
-                    {
-                        dialog.GetResult(out IShellItem item);
-                        if (item != null)
-                        {
-                            item.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out string path);
-                            return path;
-                        }
-                    }
-                    return null;
-                }
-                finally
-                {
-                    Marshal.ReleaseComObject(dialog);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[NativeFilePicker.PickOpenFileAsync] IFileOpenDialog error: {ex}");
-                return FallbackGetOpenFileName(hwnd, title, filters, defaultExt);
-            }
-        });
-    }
-
-    public static async Task<string[]?> PickOpenFilesAsync(
-        Window? parent,
-        string title,
-        (string Name, string Spec)[]? filters = null,
-        string? defaultExt = null)
-    {
-        return await Task.Run(() =>
-        {
-            IntPtr hwnd = GetHwnd(parent);
-            try
-            {
-                var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
-                try
-                {
-                    dialog.GetOptions(out var options);
-                    dialog.SetOptions(options | FILEOPENDIALOGOPTIONS.FOS_FORCEFILESYSTEM | FILEOPENDIALOGOPTIONS.FOS_FILEMUSTEXIST | FILEOPENDIALOGOPTIONS.FOS_ALLOWMULTISELECT);
-
-                    if (!string.IsNullOrEmpty(title)) dialog.SetTitle(title);
-                    if (!string.IsNullOrEmpty(defaultExt)) dialog.SetDefaultExtension(defaultExt.TrimStart('.'));
-
-                    if (filters != null && filters.Length > 0)
-                    {
-                        var specs = filters.Select(f => new COMDLG_FILTERSPEC { pszName = f.Name, pszSpec = f.Spec }).ToArray();
-                        dialog.SetFileTypes((uint)specs.Length, specs);
-                    }
-
-                    int hr = dialog.Show(hwnd);
-                    if (hr == 0)
-                    {
-                        dialog.GetResults(out IShellItemArray items);
-                        if (items != null)
-                        {
-                            items.GetCount(out uint count);
-                            var list = new List<string>((int)count);
-                            for (uint i = 0; i < count; i++)
-                            {
-                                items.GetItemAt(i, out var item);
-                                if (item != null)
-                                {
-                                    item.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out string p);
-                                    if (!string.IsNullOrEmpty(p)) list.Add(p);
-                                    Marshal.ReleaseComObject(item);
-                                }
-                            }
-                            Marshal.ReleaseComObject(items);
-                            return list.ToArray();
-                        }
-                    }
-                    return null;
-                }
-                finally
-                {
-                    Marshal.ReleaseComObject(dialog);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[NativeFilePicker.PickOpenFilesAsync] Error: {ex}");
-                var single = FallbackGetOpenFileName(hwnd, title, filters, defaultExt);
-                return single != null ? new[] { single } : null;
-            }
-        });
-    }
+        DialogOwner owner, string title, string purpose, IReadOnlyList<FileType> types,
+        string? okLabel = null, StartFolder start = StartFolder.Documents, string? folder = null)
+        => ShowAsync(new Request(owner, title, purpose, types, okLabel, start, folder, Save: false, PickFolder: false, SuggestedName: null));
 
     public static Task<string?> PickSaveFileAsync(
-        Window? parent,
-        string title,
-        string? suggestedFileName,
-        params (string Name, string Spec)[] filters)
-        => PickSaveFileAsync(parent, title, suggestedFileName, filters, defaultExt: null);
+        DialogOwner owner, string title, string purpose, string? suggestedName, IReadOnlyList<FileType> types,
+        string? okLabel = null, StartFolder start = StartFolder.Documents, string? folder = null)
+        => ShowAsync(new Request(owner, title, purpose, types, okLabel, start, folder, Save: true, PickFolder: false, SuggestedName: suggestedName));
 
-    public static async Task<string?> PickSaveFileAsync(
-        Window? parent,
-        string title,
-        string? suggestedFileName,
-        (string Name, string Spec)[]? filters,
-        string? defaultExt = null)
+    public static Task<string?> PickFolderAsync(
+        DialogOwner owner, string title, string purpose,
+        string? okLabel = "Select folder", StartFolder start = StartFolder.Documents, string? folder = null)
+        => ShowAsync(new Request(owner, title, purpose, Array.Empty<FileType>(), okLabel, start, folder, Save: false, PickFolder: true, SuggestedName: null));
+
+    /// <summary>The folder of a file that exists on disk, for "start next to the open document".</summary>
+    public static string? FolderOf(string? filePath)
     {
-        return await Task.Run(() =>
+        if (string.IsNullOrWhiteSpace(filePath)) return null;
+        try
         {
-            IntPtr hwnd = GetHwnd(parent);
+            var dir = Path.GetDirectoryName(filePath);
+            return !string.IsNullOrEmpty(dir) && Directory.Exists(dir) ? dir : null;
+        }
+        catch { return null; }
+    }
+
+    private sealed record Request(
+        DialogOwner Owner, string Title, string Purpose, IReadOnlyList<FileType> Types, string? OkLabel,
+        StartFolder Start, string? Folder, bool Save, bool PickFolder, string? SuggestedName);
+
+    private static async Task<string?> ShowAsync(Request request)
+    {
+        // A second click on a Browse button while a dialog is still opening would stack a second
+        // dialog behind the first; one at a time.
+        if (Interlocked.Exchange(ref _dialogOpen, 1) == 1) return null;
+        try
+        {
+            var hwnd = request.Owner.Hwnd;
+            if (hwnd == IntPtr.Zero && App.MainAppWindow is { } main) hwnd = WindowNative.GetWindowHandle(main);
+            return await RunOnStaThread(() => Show(hwnd, request));
+        }
+        catch (Exception ex)
+        {
+            ReportFailure(request, ex);
+            return null;
+        }
+        finally
+        {
+            Volatile.Write(ref _dialogOpen, 0);
+        }
+    }
+
+    private static Task<T> RunOnStaThread<T>(Func<T> work)
+    {
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { tcs.SetResult(work()); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        })
+        { IsBackground = true, Name = "MarkSmith file dialog" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return tcs.Task;
+    }
+
+    private const int HRESULT_CANCELLED = unchecked((int)0x800704C7);
+
+    private static string? Show(IntPtr hwnd, Request request)
+    {
+        using var dialog = Dialog.Create(request.Save);
+
+        var options = dialog.GetOptions() | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST;
+        if (request.PickFolder) options |= FOS_PICKFOLDERS;
+        else if (request.Save) options |= FOS_OVERWRITEPROMPT;
+        else options |= FOS_FILEMUSTEXIST;
+        dialog.SetOptions(options);
+
+        dialog.SetClientGuid(FileDialogRules.ClientGuid(request.Purpose));
+        if (!string.IsNullOrEmpty(request.Title)) dialog.SetTitle(request.Title);
+        if (!string.IsNullOrEmpty(request.OkLabel)) dialog.SetOkButtonLabel(request.OkLabel);
+        dialog.SetDefaultFolder(KnownFolderPath(request.Start));
+        dialog.SetFolder(request.Folder);
+
+        if (request.Types.Count > 0)
+        {
+            dialog.SetFileTypes(request.Types, request.Save);
+            dialog.SetFileTypeIndex(1);
+        }
+        if (request.Save)
+        {
+            // Set once, the dialog keeps the default extension in step with the chosen type.
+            if (FileDialogRules.DefaultExtension(request.Types) is { } ext) dialog.SetDefaultExtension(ext);
+            if (!string.IsNullOrEmpty(request.SuggestedName)) dialog.SetFileName(request.SuggestedName);
+        }
+
+        var hr = dialog.Show(hwnd);
+        if (hr == HRESULT_CANCELLED) return null;
+        Marshal.ThrowExceptionForHR(hr);
+
+        var path = dialog.GetResultPath();
+        if (string.IsNullOrEmpty(path)) return null;
+        return request.Save ? FileDialogRules.EnsureExtension(path, request.Types) : path;
+    }
+
+    // A dialog is never silently missing: if Windows can't show one, the status bar says so.
+    private static void ReportFailure(Request request, Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"[NativeFilePicker] '{request.Title}' failed: {ex}");
+        try
+        {
+            App.ViewModel.StatusText = $"Windows couldn't show the “{request.Title}” dialog: {ex.Message}";
+            App.ViewModel.StatusSeverity = StatusSeverity.Error;
+        }
+        catch { }
+    }
+
+    private static string? KnownFolderPath(StartFolder start)
+    {
+        var path = Environment.GetFolderPath(start == StartFolder.Pictures
+            ? Environment.SpecialFolder.MyPictures
+            : Environment.SpecialFolder.MyDocuments);
+        return string.IsNullOrEmpty(path) ? null : path;
+    }
+
+    private const uint FOS_OVERWRITEPROMPT = 0x00000002;
+    private const uint FOS_PICKFOLDERS = 0x00000020;
+    private const uint FOS_FORCEFILESYSTEM = 0x00000040;
+    private const uint FOS_PATHMUSTEXIST = 0x00000800;
+    private const uint FOS_FILEMUSTEXIST = 0x00001000;
+
+    /// <summary>
+    /// The Common Item Dialog, called through its vtable: IFileOpenDialog and IFileSaveDialog both
+    /// start with IFileDialog's slots (3-26), so one small slot table drives either dialog without
+    /// re-declaring three COM interfaces. The IIDs are the shobjidl ones (System.Windows.Forms ships
+    /// the same); the first version of this class had invented IIDs for IFileDialog and
+    /// IFileOpenDialog, so every dialog silently fell back to comdlg32's GetOpenFileName.
+    /// </summary>
+    private sealed class Dialog : IDisposable
+    {
+        private static readonly Guid ClsidOpen = new("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7");
+        private static readonly Guid ClsidSave = new("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B");
+        private static readonly Guid IidUnknown = new("00000000-0000-0000-C000-000000000046");
+        private static readonly Guid IidFileDialog = new("42f85136-db7e-439c-85f1-e4075d135fc8");
+        private static readonly Guid IidFileOpenDialog = new("d57c7288-d4ad-4768-be02-9d969532d960");
+        private static readonly Guid IidFileSaveDialog = new("84bccd23-5fde-4cdb-aea4-af64b83d78ab");
+        private static readonly Guid IidShellItem = new("43826d1e-e718-42ee-bc55-a1e261c37bfe");
+
+        private readonly IntPtr _p;
+        private readonly List<IntPtr> _allocations = new();
+
+        private Dialog(IntPtr p) => _p = p;
+
+        public static Dialog Create(bool save)
+        {
+            var clsid = save ? ClsidSave : ClsidOpen;
+            var iunk = IidUnknown;
+            Marshal.ThrowExceptionForHR(CoCreateInstance(ref clsid, IntPtr.Zero, 1 /* CLSCTX_INPROC_SERVER */, ref iunk, out var unk));
             try
             {
-                var dialog = (IFileSaveDialog)new FileSaveDialogRCW();
-                try
+                foreach (var candidate in new[] { save ? IidFileSaveDialog : IidFileOpenDialog, IidFileDialog })
                 {
-                    dialog.GetOptions(out var options);
-                    dialog.SetOptions(options | FILEOPENDIALOGOPTIONS.FOS_FORCEFILESYSTEM | FILEOPENDIALOGOPTIONS.FOS_OVERWRITEPROMPT | FILEOPENDIALOGOPTIONS.FOS_PATHMUSTEXIST);
-
-                    if (!string.IsNullOrEmpty(title)) dialog.SetTitle(title);
-                    if (!string.IsNullOrEmpty(suggestedFileName)) dialog.SetFileName(suggestedFileName);
-                    if (!string.IsNullOrEmpty(defaultExt)) dialog.SetDefaultExtension(defaultExt.TrimStart('.'));
-
-                    if (filters != null && filters.Length > 0)
-                    {
-                        var specs = filters.Select(f => new COMDLG_FILTERSPEC { pszName = f.Name, pszSpec = f.Spec }).ToArray();
-                        dialog.SetFileTypes((uint)specs.Length, specs);
-                    }
-
-                    int hr = dialog.Show(hwnd);
-                    if (hr == 0)
-                    {
-                        dialog.GetResult(out IShellItem item);
-                        if (item != null)
-                        {
-                            item.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out string path);
-                            return path;
-                        }
-                    }
-                    return null;
+                    var iid = candidate;
+                    if (Marshal.QueryInterface(unk, ref iid, out var p) == 0) return new Dialog(p);
                 }
-                finally
-                {
-                    Marshal.ReleaseComObject(dialog);
-                }
+                throw new COMException("The Windows file dialog is unavailable.", unchecked((int)0x80004002));
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[NativeFilePicker.PickSaveFileAsync] Error: {ex}");
-                return FallbackGetSaveFileName(hwnd, title, suggestedFileName, filters, defaultExt);
-            }
-        });
-    }
+            finally { Marshal.Release(unk); }
+        }
 
-    public static async Task<string?> PickFolderAsync(Window? parent, string title)
-    {
-        return await Task.Run(() =>
+        private static T Slot<T>(IntPtr target, int slot) where T : Delegate
+            => Marshal.GetDelegateForFunctionPointer<T>(Marshal.ReadIntPtr(Marshal.ReadIntPtr(target), slot * IntPtr.Size));
+
+        public int Show(IntPtr hwnd) => Slot<ShowFn>(_p, 3)(_p, hwnd);
+
+        public void SetFileTypes(IReadOnlyList<FileType> types, bool save)
         {
-            IntPtr hwnd = GetHwnd(parent);
+            // COMDLG_FILTERSPEC[]: pairs of string pointers, kept alive until the dialog is gone.
+            var array = Marshal.AllocCoTaskMem(types.Count * 2 * IntPtr.Size);
+            _allocations.Add(array);
+            for (var i = 0; i < types.Count; i++)
+            {
+                var name = Marshal.StringToCoTaskMemUni(types[i].Label);
+                var spec = Marshal.StringToCoTaskMemUni(save ? types[i].SaveSpec : types[i].Spec);
+                _allocations.Add(name);
+                _allocations.Add(spec);
+                Marshal.WriteIntPtr(array, 2 * i * IntPtr.Size, name);
+                Marshal.WriteIntPtr(array, (2 * i + 1) * IntPtr.Size, spec);
+            }
+            Check(Slot<SetFileTypesFn>(_p, 4)(_p, (uint)types.Count, array));
+        }
+
+        public void SetFileTypeIndex(uint index) => Check(Slot<UIntFn>(_p, 5)(_p, index));
+        public void SetOptions(uint options) => Check(Slot<UIntFn>(_p, 9)(_p, options));
+
+        public uint GetOptions()
+        {
+            Check(Slot<GetUIntFn>(_p, 10)(_p, out var options));
+            return options;
+        }
+
+        public void SetDefaultFolder(string? path) => WithShellItem(path, item => Slot<PtrFn>(_p, 11)(_p, item));
+        public void SetFolder(string? path) => WithShellItem(path, item => Slot<PtrFn>(_p, 12)(_p, item));
+        public void SetFileName(string name) => Check(Slot<StringFn>(_p, 15)(_p, name));
+        public void SetTitle(string title) => Check(Slot<StringFn>(_p, 17)(_p, title));
+        public void SetOkButtonLabel(string label) => Check(Slot<StringFn>(_p, 18)(_p, label));
+        public void SetDefaultExtension(string ext) => Check(Slot<StringFn>(_p, 22)(_p, ext));
+        public void SetClientGuid(Guid guid) => Check(Slot<GuidFn>(_p, 24)(_p, ref guid));
+
+        public string? GetResultPath()
+        {
+            Check(Slot<GetPtrFn>(_p, 20)(_p, out var item));
             try
             {
-                var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
-                try
-                {
-                    dialog.GetOptions(out var options);
-                    dialog.SetOptions(options | FILEOPENDIALOGOPTIONS.FOS_PICKFOLDERS | FILEOPENDIALOGOPTIONS.FOS_FORCEFILESYSTEM | FILEOPENDIALOGOPTIONS.FOS_PATHMUSTEXIST);
-
-                    if (!string.IsNullOrEmpty(title)) dialog.SetTitle(title);
-
-                    int hr = dialog.Show(hwnd);
-                    if (hr == 0)
-                    {
-                        dialog.GetResult(out IShellItem item);
-                        if (item != null)
-                        {
-                            item.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out string path);
-                            return path;
-                        }
-                    }
-                    return null;
-                }
-                finally
-                {
-                    Marshal.ReleaseComObject(dialog);
-                }
+                // IShellItem::GetDisplayName(SIGDN_FILESYSPATH)
+                Check(Slot<DisplayNameFn>(item, 5)(item, 0x80058000, out var name));
+                try { return Marshal.PtrToStringUni(name); }
+                finally { Marshal.FreeCoTaskMem(name); }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[NativeFilePicker.PickFolderAsync] Error: {ex}");
-                return null;
-            }
-        });
-    }
-
-    private static IntPtr GetHwnd(Window? parent)
-    {
-        try
-        {
-            if (parent != null) return WindowNative.GetWindowHandle(parent);
-            if (App.MainAppWindow != null) return WindowNative.GetWindowHandle(App.MainAppWindow);
+            finally { Marshal.Release(item); }
         }
-        catch { }
-        return IntPtr.Zero;
-    }
 
-    // ---- Win32 fallback via comdlg32.dll --------------------------------------------------------
-
-    [DllImport("comdlg32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    private static extern bool GetOpenFileName([In, Out] OpenFileName ofn);
-
-    [DllImport("comdlg32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    private static extern bool GetSaveFileName([In, Out] OpenFileName ofn);
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-    private class OpenFileName
-    {
-        public int structSize = Marshal.SizeOf<OpenFileName>();
-        public IntPtr hwndOwner = IntPtr.Zero;
-        public IntPtr hInstance = IntPtr.Zero;
-        public string? filter = null;
-        public string? customFilter = null;
-        public int maxCustFilter = 0;
-        public int filterIndex = 0;
-        public string? file = null;
-        public int maxFile = 0;
-        public string? fileTitle = null;
-        public int maxFileTitle = 0;
-        public string? initialDir = null;
-        public string? title = null;
-        public int flags = 0;
-        public short fileOffset = 0;
-        public short fileExtension = 0;
-        public string? defExt = null;
-        public IntPtr custData = IntPtr.Zero;
-        public IntPtr fnHook = IntPtr.Zero;
-        public string? templateName = null;
-        public IntPtr reservedPtr = IntPtr.Zero;
-        public int reservedInt = 0;
-        public int flagsEx = 0;
-    }
-
-    private const int OFN_EXPLORER = 0x00080000;
-    private const int OFN_FILEMUSTEXIST = 0x00001000;
-    private const int OFN_PATHMUSTEXIST = 0x00000800;
-    private const int OFN_OVERWRITEPROMPT = 0x00000002;
-
-    private static string FormatFilterString((string Name, string Spec)[]? filters)
-    {
-        if (filters == null || filters.Length == 0) return "All Files (*.*)\0*.*\0\0";
-        var sb = new System.Text.StringBuilder();
-        foreach (var (name, spec) in filters)
+        // Folders are hints: one that's gone or unreachable is skipped, never an error.
+        private static void WithShellItem(string? path, Func<IntPtr, int> use)
         {
-            sb.Append(name);
-            sb.Append('\0');
-            sb.Append(spec);
-            sb.Append('\0');
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+            var iid = IidShellItem;
+            if (SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out var item) != 0 || item == IntPtr.Zero) return;
+            try { use(item); }
+            finally { Marshal.Release(item); }
         }
-        sb.Append('\0');
-        return sb.ToString();
-    }
 
-    private static string? FallbackGetOpenFileName(IntPtr hwnd, string title, (string Name, string Spec)[]? filters, string? defaultExt)
-    {
-        try
+        private static void Check(int hr) => Marshal.ThrowExceptionForHR(hr);
+
+        public void Dispose()
         {
-            var ofn = new OpenFileName
-            {
-                hwndOwner = hwnd,
-                filter = FormatFilterString(filters),
-                file = new string(new char[2048]),
-                maxFile = 2048,
-                title = title,
-                flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST,
-                defExt = defaultExt?.TrimStart('.')
-            };
-            if (GetOpenFileName(ofn)) return ofn.file;
+            Marshal.Release(_p);
+            foreach (var p in _allocations) Marshal.FreeCoTaskMem(p);
         }
-        catch { }
-        return null;
-    }
 
-    private static string? FallbackGetSaveFileName(IntPtr hwnd, string title, string? suggestedFileName, (string Name, string Spec)[]? filters, string? defaultExt)
-    {
-        try
-        {
-            var initial = (suggestedFileName ?? "").PadRight(2048, '\0');
-            var ofn = new OpenFileName
-            {
-                hwndOwner = hwnd,
-                filter = FormatFilterString(filters),
-                file = initial,
-                maxFile = 2048,
-                title = title,
-                flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT,
-                defExt = defaultExt?.TrimStart('.')
-            };
-            if (GetSaveFileName(ofn)) return ofn.file?.TrimEnd('\0');
-        }
-        catch { }
-        return null;
-    }
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ShowFn(IntPtr self, IntPtr hwnd);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int SetFileTypesFn(IntPtr self, uint count, IntPtr specs);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int UIntFn(IntPtr self, uint value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetUIntFn(IntPtr self, out uint value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int PtrFn(IntPtr self, IntPtr value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GetPtrFn(IntPtr self, out IntPtr value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int StringFn(IntPtr self, [MarshalAs(UnmanagedType.LPWStr)] string value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GuidFn(IntPtr self, ref Guid value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int DisplayNameFn(IntPtr self, uint sigdn, out IntPtr name);
 
-    // ---- COM P/Invoke declarations -------------------------------------------------------------
+        [DllImport("ole32.dll")]
+        private static extern int CoCreateInstance(ref Guid clsid, IntPtr outer, uint context, ref Guid iid, out IntPtr ppv);
 
-    [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7"), ClassInterface(ClassInterfaceType.None)]
-    private class FileOpenDialogRCW { }
-
-    [ComImport, Guid("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B"), ClassInterface(ClassInterfaceType.None)]
-    private class FileSaveDialogRCW { }
-
-    [ComImport, Guid("42f85109-d1e2-4392-8649-0d888842127b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IFileDialog
-    {
-        [PreserveSig] int Show(IntPtr parent);
-        void SetFileTypes(uint cFileTypes, [In, MarshalAs(UnmanagedType.LPArray)] COMDLG_FILTERSPEC[] rgFilterSpec);
-        void SetFileTypeIndex(uint iFileType);
-        void GetFileTypeIndex(out uint piFileType);
-        void Advise(IntPtr pfde, out uint pdwCookie);
-        void Unadvise(uint dwCookie);
-        void SetOptions(FILEOPENDIALOGOPTIONS fos);
-        void GetOptions(out FILEOPENDIALOGOPTIONS pfos);
-        void SetDefaultFolder(IShellItem psi);
-        void SetFolder(IShellItem psi);
-        void GetFolder(out IShellItem ppsi);
-        void GetCurrentSelection(out IShellItem ppsi);
-        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
-        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
-        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
-        void GetResult(out IShellItem ppsi);
-        void AddPlace(IShellItem psi, int fdap);
-        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
-        void Close(int hr);
-        void SetClientGuid(ref Guid guid);
-        void ClearClientData();
-        void SetFilter(IntPtr pFilter);
-    }
-
-    [ComImport, Guid("d57c72be-8860-470e-9103-1e6d60e43e16"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IFileOpenDialog : IFileDialog
-    {
-        [PreserveSig] new int Show(IntPtr parent);
-        new void SetFileTypes(uint cFileTypes, [In, MarshalAs(UnmanagedType.LPArray)] COMDLG_FILTERSPEC[] rgFilterSpec);
-        new void SetFileTypeIndex(uint iFileType);
-        new void GetFileTypeIndex(out uint piFileType);
-        new void Advise(IntPtr pfde, out uint pdwCookie);
-        new void Unadvise(uint dwCookie);
-        new void SetOptions(FILEOPENDIALOGOPTIONS fos);
-        new void GetOptions(out FILEOPENDIALOGOPTIONS pfos);
-        new void SetDefaultFolder(IShellItem psi);
-        new void SetFolder(IShellItem psi);
-        new void GetFolder(out IShellItem ppsi);
-        new void GetCurrentSelection(out IShellItem ppsi);
-        new void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-        new void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
-        new void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-        new void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
-        new void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
-        new void GetResult(out IShellItem ppsi);
-        new void AddPlace(IShellItem psi, int fdap);
-        new void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
-        new void Close(int hr);
-        new void SetClientGuid(ref Guid guid);
-        new void ClearClientData();
-        new void SetFilter(IntPtr pFilter);
-        void GetResults(out IShellItemArray penum);
-        void GetSelectedItems(out IntPtr ppsai);
-    }
-
-    [ComImport, Guid("84bccd23-5fde-4cdb-aea4-af64b83d78ab"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IFileSaveDialog : IFileDialog
-    {
-        [PreserveSig] new int Show(IntPtr parent);
-        new void SetFileTypes(uint cFileTypes, [In, MarshalAs(UnmanagedType.LPArray)] COMDLG_FILTERSPEC[] rgFilterSpec);
-        new void SetFileTypeIndex(uint iFileType);
-        new void GetFileTypeIndex(out uint piFileType);
-        new void Advise(IntPtr pfde, out uint pdwCookie);
-        new void Unadvise(uint dwCookie);
-        new void SetOptions(FILEOPENDIALOGOPTIONS fos);
-        new void GetOptions(out FILEOPENDIALOGOPTIONS pfos);
-        new void SetDefaultFolder(IShellItem psi);
-        new void SetFolder(IShellItem psi);
-        new void GetFolder(out IShellItem ppsi);
-        new void GetCurrentSelection(out IShellItem ppsi);
-        new void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-        new void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
-        new void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-        new void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
-        new void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
-        new void GetResult(out IShellItem ppsi);
-        new void AddPlace(IShellItem psi, int fdap);
-        new void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
-        new void Close(int hr);
-        new void SetClientGuid(ref Guid guid);
-        new void ClearClientData();
-        new void SetFilter(IntPtr pFilter);
-        void SetSaveAsItem(IShellItem psi);
-        void SetProperties(IntPtr pStore);
-        void SetCollectedProperties(IntPtr pList, int fAppendDefault);
-        void GetProperties(out IntPtr ppStore);
-        void ApplyProperties(IShellItem psi, IntPtr pStore, IntPtr hwnd, IntPtr pSink);
-    }
-
-    [ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellItem
-    {
-        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
-        void GetParent(out IShellItem ppsi);
-        void GetDisplayName(SIGDN sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-        void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
-        void Compare(IShellItem psi, uint hint, out int piOrder);
-    }
-
-    [ComImport, Guid("b63ea76d-1f85-456f-a19c-48159efa858b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellItemArray
-    {
-        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
-        void GetPropertyStore(int flags, ref Guid riid, out IntPtr ppv);
-        void GetPropertyDescriptionList(IntPtr keyType, ref Guid riid, out IntPtr ppv);
-        void GetAttributes(int AttribFlags, uint sfgaoMask, out uint psfgaoAttribs);
-        void GetCount(out uint pdwNumItems);
-        void GetItemAt(uint dwIndex, out IShellItem ppsi);
-        void EnumItems(out IntPtr ppenumShellItems);
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct COMDLG_FILTERSPEC
-    {
-        [MarshalAs(UnmanagedType.LPWStr)] public string pszName;
-        [MarshalAs(UnmanagedType.LPWStr)] public string pszSpec;
-    }
-
-    [Flags]
-    private enum FILEOPENDIALOGOPTIONS : uint
-    {
-        FOS_OVERWRITEPROMPT = 0x00000002,
-        FOS_STRICTFILETYPES = 0x00000004,
-        FOS_NOCHANGEDIR = 0x00000008,
-        FOS_PICKFOLDERS = 0x00000020,
-        FOS_FORCEFILESYSTEM = 0x00000040,
-        FOS_ALLNONSTORAGEITEMS = 0x00000080,
-        FOS_NOVALIDATE = 0x00000100,
-        FOS_ALLOWMULTISELECT = 0x00000200,
-        FOS_PATHMUSTEXIST = 0x00000800,
-        FOS_FILEMUSTEXIST = 0x00001000,
-        FOS_CREATEPROMPT = 0x00002000,
-        FOS_SHAREAWARE = 0x00004000,
-        FOS_NOREADONLYRETURN = 0x00008000,
-        FOS_NOTESTFILECREATE = 0x00010000,
-        FOS_HIDEMRUPLACES = 0x00020000,
-        FOS_HIDEPINNEDPLACES = 0x00040000,
-        FOS_NODEREFERENCELINKS = 0x00100000,
-        FOS_OKBUTTONNEEDSINTERACTION = 0x00200000,
-        FOS_DONTADDTORECENT = 0x02000000,
-        FOS_FORCESHOWHIDDEN = 0x10000000,
-        FOS_DEFAULTNOMINIMODE = 0x20000000,
-        FOS_FORCEPREVIEWPANEON = 0x40000000,
-        FOS_SUPPORTSTREAMABLEITEMS = 0x80000000
-    }
-
-    private enum SIGDN : uint
-    {
-        SIGDN_NORMALDISPLAY = 0x00000000,
-        SIGDN_PARENTRELATIVEPARSING = 0x80018001,
-        SIGDN_DESKTOPABSOLUTEPARSING = 0x80028000,
-        SIGDN_PARENTRELATIVEEDITING = 0x80031001,
-        SIGDN_DESKTOPABSOLUTEEDITING = 0x8004c000,
-        SIGDN_FILESYSPATH = 0x80058000,
-        SIGDN_URL = 0x80068000,
-        SIGDN_PARENTRELATIVEFORADDRESSBAR = 0x8007c001,
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern int SHCreateItemFromParsingName(string path, IntPtr bindContext, ref Guid iid, out IntPtr item);
     }
 }

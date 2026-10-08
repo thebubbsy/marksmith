@@ -6,7 +6,6 @@ using MarkSmith.Services;
 using MarkSmith.ViewModels.Mermaid;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.Storage.Pickers;
 using WinRT.Interop;
 
 namespace MarkSmith.Views.Mermaid;
@@ -629,8 +628,9 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         if (ViewModel is null) return;
         string svg = BuildSvg();
 
-        var filters = new[] { ("SVG image (*.svg)", "*.svg") };
-        var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(App.MainAppWindow, "Export SVG", "diagram", filters, ".svg");
+        var path = await MarkSmith.Services.NativeFilePicker.PickSaveFileAsync(
+            this, "Export the diagram as SVG", MarkSmith.Services.NativeFilePicker.Purpose.Exports,
+            "diagram.svg", new[] { MarkSmith.Models.FileType.Of("SVG image", ".svg") }, okLabel: "Export");
         if (string.IsNullOrEmpty(path)) return; // user cancelled
 
         await System.IO.File.WriteAllTextAsync(path, svg);

@@ -6,7 +6,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
-using Windows.Storage.Pickers;
 using WinRT.Interop;
 using MarkSmith.Services;
 
@@ -83,13 +82,10 @@ public sealed partial class ImageInsertControl : UserControl
 
     private async void OnBrowseClick(object sender, RoutedEventArgs e)
     {
-        var spec = string.Join(";", ImageExtensions.Select(e => "*" + e));
-        var filters = new[]
-        {
-            ($"Image files ({string.Join(", ", ImageExtensions)})", spec),
-            ("All files (*.*)", "*.*")
-        };
-        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(App.MainAppWindow, "Insert Image", filters);
+        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(
+            this, "Insert an image", MarkSmith.Services.NativeFilePicker.Purpose.Images,
+            new[] { MarkSmith.Models.FileType.Of("Images", ImageExtensions) },
+            okLabel: "Insert", start: MarkSmith.Services.StartFolder.Pictures);
         if (!string.IsNullOrEmpty(path)) ImagePicked?.Invoke(path);
     }
 

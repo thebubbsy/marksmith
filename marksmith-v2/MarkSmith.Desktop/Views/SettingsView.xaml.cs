@@ -420,12 +420,15 @@ public sealed partial class SettingsView : UserControl
 
     private async void OnImportDotxClick(object sender, RoutedEventArgs e)
     {
-        var filters = new[]
-        {
-            ("Word Templates and Documents (*.dotx, *.docx)", "*.dotx;*.docx"),
-            ("All files (*.*)", "*.*")
-        };
-        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(App.MainAppWindow, "Import Template", filters);
+        var path = await MarkSmith.Services.NativeFilePicker.PickOpenFileAsync(
+            this, "Import a Word house style", MarkSmith.Services.NativeFilePicker.Purpose.Templates,
+            new[]
+            {
+                MarkSmith.Models.FileType.Of("Word templates and documents", ".dotx", ".docx"),
+                MarkSmith.Models.FileType.Of("Word template", ".dotx"),
+                MarkSmith.Models.FileType.Of("Word document", ".docx"),
+            },
+            okLabel: "Import");
         if (string.IsNullOrEmpty(path)) return;
 
         try
