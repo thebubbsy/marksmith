@@ -50,8 +50,12 @@ public sealed class EpubExportService
                         ?? NonEmpty(frontMatter, "title")
                         ?? HistoryEntry.ExtractTitle(markdown) ?? "Marksmith Export";
 
+        // The person, never the tool: a reader's library lists books by dc:creator, and every
+        // book used to be filed under "Marksmith". Settings' author name is the one Word exports
+        // stamp too; with none, the book simply has no creator (EPUB doesn't require one).
         var author = NonEmpty(meta?.Author)
-                     ?? NonEmpty(frontMatter, "author") ?? "Marksmith";
+                     ?? NonEmpty(frontMatter, "author")
+                     ?? NonEmpty(settings.AuthorName);
 
         var language = NonEmpty(meta?.Language)
                        ?? NonEmpty(frontMatter, "language")
@@ -194,13 +198,20 @@ public sealed class EpubExportService
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         if (File.Exists(epubPath)) File.Delete(epubPath);
 
+        // A book without a cover opens on a title page instead of straight into the text, once
+        // it is more than one chapter or the brand cover page is switched on (Settings › Branding,
+        // the same switch that gives Word exports a title page).
+        bool titlePage = coverFile is null && (chapters.Count > 1 || settings.BrandCoverPage);
+
         using var zip = ZipFile.Open(epubPath, ZipArchiveMode.Create);
 
         // 1) mimetype — MUST be first and stored uncompressed.
         WriteEntry(zip, "mimetype", "application/epub+zip", CompressionLevel.NoCompression);
         WriteEntry(zip, "META-INF/container.xml", ContainerXml());
         WriteEntry(zip, "OEBPS/style.css", Css(theme));
-        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier, description, rights, chapters, coverFile, coverMediaType, images));
+        WriteEntry(zip, "OEBPS/content.opf", Opf(bookTitle, author, language, publisher, identifier ?? StableIdentifier(bookTitle, author), description, rights, chapters, coverFile, coverMediaType, images, titlePage));
+        if (titlePage)
+            WriteEntry(zip, "OEBPS/title.xhtml", TitleXhtml(bookTitle, author, publisher == ExportBranding.Tag ? null : publisher, language));
         WriteEntry(zip, "OEBPS/nav.xhtml", Nav(chapters, language));
         if (coverFile is not null && coverBytes is not null)
         {
@@ -408,7 +419,7 @@ public sealed class EpubExportService
     private static string Opf(string title, string author, string language, string? publisher, string? identifier,
                                string? description, string? rights, List<Chapter> chapters,
                                string? coverFile, string? coverMediaType,
-                               IReadOnlyList<PackagedImage> images)
+                               IReadOnlyList<PackagedImage> images, bool titlePage = false)
     {
         var manifest = new StringBuilder();
         // Every embedded image needs its own manifest item, or the package fails validation even
@@ -421,6 +432,11 @@ public sealed class EpubExportService
             manifest.Append("    <item id=\"cover\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n");
             manifest.Append($"    <item id=\"cover-image\" href=\"{coverFile}\" media-type=\"{coverMediaType}\" properties=\"cover-image\"/>\n");
             spine.Append("    <itemref idref=\"cover\"/>\n");
+        }
+        if (titlePage)
+        {
+            manifest.Append("    <item id=\"titlepage\" href=\"title.xhtml\" media-type=\"application/xhtml+xml\"/>\n");
+            spine.Append("    <itemref idref=\"titlepage\"/>\n");
         }
         foreach (var c in chapters)
         {
@@ -436,7 +452,7 @@ public sealed class EpubExportService
         metaXml.AppendLine($"    <dc:identifier id=\"bookid\">{Esc(uid)}</dc:identifier>");
         metaXml.AppendLine($"    <dc:title>{Esc(title)}</dc:title>");
         metaXml.AppendLine($"    <dc:language>{Esc(language)}</dc:language>");
-        metaXml.AppendLine($"    <dc:creator>{Esc(author)}</dc:creator>");
+        if (!string.IsNullOrWhiteSpace(author)) metaXml.AppendLine($"    <dc:creator>{Esc(author)}</dc:creator>");
         if (!string.IsNullOrWhiteSpace(publisher)) metaXml.AppendLine($"    <dc:publisher>{Esc(publisher)}</dc:publisher>");
         if (!string.IsNullOrWhiteSpace(description)) metaXml.AppendLine($"    <dc:description>{Esc(description)}</dc:description>");
         if (!string.IsNullOrWhiteSpace(rights)) metaXml.AppendLine($"    <dc:rights>{Esc(rights)}</dc:rights>");
@@ -470,6 +486,38 @@ public sealed class EpubExportService
         if (html.Contains("<svg", StringComparison.Ordinal)) props.Add("svg");
         if (Regex.IsMatch(html, @"\b(?:src|poster)=""https?://", RegexOptions.IgnoreCase)) props.Add("remote-resources");
         return string.Join(' ', props);
+    }
+
+    /// <summary>
+    /// A book with no ISBN/identifier gets one derived from its title and author (a name-based
+    /// UUID), not a random one per export: readers key their library on it, so re-exporting the
+    /// same book used to add a duplicate instead of replacing it.
+    /// </summary>
+    internal static string StableIdentifier(string title, string? author)
+    {
+        var hash = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes("marksmith-epub\n" + title.Trim() + "\n" + (author ?? "").Trim()));
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x50); // version 5 (name-based, SHA-1)
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC 4122 variant
+        var hex = Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+        return $"urn:uuid:{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..32]}";
+    }
+
+    private static string TitleXhtml(string title, string? author, string? publisher, string language)
+    {
+        var lines = new StringBuilder();
+        lines.Append($"    <h1 class=\"title\">{Esc(title)}</h1>\n");
+        if (!string.IsNullOrWhiteSpace(author)) lines.Append($"    <p class=\"author\">{Esc(author)}</p>\n");
+        if (!string.IsNullOrWhiteSpace(publisher)) lines.Append($"    <p class=\"publisher\">{Esc(publisher)}</p>\n");
+        return $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{Esc(language)}" xml:lang="{Esc(language)}">
+        <head><meta charset="utf-8"/><title>{Esc(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+        <body>
+          <section epub:type="titlepage" class="titlepage">
+        {lines}  </section>
+        </body>
+        </html>
+        """;
     }
 
     private static string CoverXhtml(string coverFile, string language) =>
@@ -540,5 +588,9 @@ public sealed class EpubExportService
         .footnotes { font-size: .85em; margin-top: 2em; }
         a.footnote-ref { text-decoration: none; }
         details > summary { font-weight: bold; }
+        section.titlepage { text-align: center; margin-top: 30%; page-break-after: always; break-after: page; }
+        section.titlepage h1.title { font-size: 2.2em; margin-bottom: .6em; }
+        section.titlepage p.author { font-size: 1.25em; font-style: italic; margin: 0 0 2em; }
+        section.titlepage p.publisher { font-size: .9em; opacity: .75; }
         """;
 }

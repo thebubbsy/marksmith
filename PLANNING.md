@@ -3167,3 +3167,36 @@ Full suite on Linux: 3820 passed. The same 25 fail before and after.
 
 **Check on the PC:** turn on "Attach a PDF copy", drop a file in the watched folder (format:
 email), then open the draft in Outlook. The PDF should be attached and open.
+
+### 2026-10-08 17:05–17:25 AEST (routine run #35, cloud: EPUB follow-ups — author, stable identity, title page)
+
+Cloud run (see #31). Took the carried "EPUB follow-ups".
+
+**Found:**
+- With no author in front matter, `dc:creator` was "Marksmith". Readers file books by creator,
+  so every exported book was listed as written by the app.
+- With no ISBN, `dc:identifier` was a fresh random UUID per export. Readers key their library
+  on it, so re-exporting a book added a duplicate instead of updating it.
+- A coverless book opened straight into chapter text.
+- `EpubMetadata` is still never passed by the desktop (no UI collects it). Front matter
+  (`title/author/language/publisher/isbn/description/rights/cover`) is the working path, so no
+  dialog was built.
+
+**What shipped (`EpubExportService`):**
+- **Creator:** front matter author, then Settings `AuthorName` (the one Word exports stamp),
+  otherwise no `dc:creator` at all. EPUB doesn't require one.
+- **Identifier:** without an ISBN/identifier, a name-based UUID v5 from title + author, stable
+  across re-exports.
+- **Title page** (`title.xhtml`, `epub:type="titlepage"`, first in the spine): only when there
+  is no cover, and the book has more than one chapter or Branding's cover page switch is on.
+  It shows the title, the author, and the publisher (unless that's the default Marksmith tag).
+
+**Tests:** `EpubCoverAndMetadataTests`:
+- two tests that asserted the "Marksmith" creator now assert no creator;
+- new: settings author, stable/distinct identifiers, title page, and when there is none.
+
+EPUB filter: 48/48.
+
+**Check on the PC:** open a two-chapter export in a real reader (Calibre, Apple Books, Thorium):
+- the title page centres and breaks to the next page;
+- re-exporting replaces the library entry instead of adding a second one.
