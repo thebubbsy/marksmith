@@ -4688,3 +4688,70 @@ updating works from 3.12 and from 3.11 or earlier) were prepended to the workflo
 by `---`. This is the first release that 3.12 installs fetch through the new in-app update flow;
 watch for reports that MarkSmith doesn't reopen after installing. `MarksmithBaseVersion` is now
 **3.14.0** (`29350ed`).
+
+### 2026-10-10 06:00–06:50 AEST (routine run #54: the side panel, done properly)
+
+**Pick.** No other run was live (list_sessions: nothing running). The tree held a finished but
+uncommitted side-panel audit, written at 05:28 by a run that died before committing (reflog showed
+only `reset: moving to HEAD`). It was run #53's "Next up" #2 (OptionRow states) and more. Plus
+unrelated `EverythingHttpPlugin/*` edits, which are not this routine's and were left untouched.
+Per the routine's rule for dead-run WIP: reviewed every hunk, built, tested, checked it live, and shipped it.
+
+**Shipped (`0479389`):**
+- **`Controls/OptionRow` has visual states.** The title line lightens under the pointer
+  (`SubtleFillColorSecondaryBrush`, 120 ms `BrushTransition`). Only the title line changes, so a tall
+  editor row doesn't light up as one slab. Disabled greys the title and description. Clicking a
+  toggle row's title or description flips its switch, as a check box label does.
+- **Dependent rows grey with their parent:** Word ▸ Diagrams follows "Render Mermaid diagrams".
+  Glued connectors and Arrowhead style need editable shapes (`WordDiagramsAreShapes`). "Append to a
+  running document" only works for Word, and its description now says so when the default format is
+  something else (`RunningDocApplies`/`RunningDocDescription`). It also warns when the option is on but
+  no file is chosen.
+- **Arrowhead style was broken; now fixed (new Core `Services/Mermaid/ArrowheadStyle`).** Only the
+  rarely used fallback renderer read it, and it treated it as "fill in a head where there is none":
+  Triangle put a second head on the start of ordinary arrows and heads on plain lines, and None did
+  nothing. Now every native-shape path restyles the directional heads the diagram already has. It
+  never adds a head to `---`, and it leaves class/ER diamonds and circles alone. Combo relabelled
+  ("As drawn in the diagram", "Circle", "No arrowheads").
+- **"Render Mermaid diagrams" off now works in every export.** The fences stay as code in
+  HTML/PDF (they had shown as bare, unstyled text), Word, PowerPoint, email (HTML and plain text) and
+  Google Docs (all of which still drew diagrams). `MermaidHarvestService` skips the harvest. The
+  source shown as code is HTML-escaped.
+- **Presets:** the combo binds `ActivePreset`. It shows the preset in use, clears when a setting the
+  preset covers changes (`ExportPreset.Matches`), and re-selects a preset when the settings match it again.
+  Presets now capture 8 more look settings (light influence, Mermaid on, LLM normalise, page border,
+  glued connectors, arrowheads, custom font, author). These are nullable, so old presets.json files
+  leave them alone. The dead `OversizedDiagramMode` is no longer saved or applied. Automation
+  exports now always harvest diagram geometry, as the Export menu does. Before, a stale mode gave
+  unattended exports different diagrams. Save dialog: has a Name header, is pre-filled with the
+  active name, says "Replace" plus a note for an existing name, and Save is disabled while the name
+  is blank. Delete is disabled with nothing selected, and the status line confirms the current
+  settings are unchanged. Each item has a tooltip saying what it sets (`Summary`), and the same
+  text appears under the row for the active preset.
+- Copy: Bold and Italic rows got descriptions.
+- Tests: `SidePanelPolishTests` (arrowhead style, diagrams-off per exporter, presets, dependent row
+  bindings parsed from MainWindow.xaml, OptionRow states, every option row has a description).
+
+**Verified:**
+- Desktop build is green (scratch OutDir). Full suite: 4353 passed, 18 failed, all from the known
+  path-based set (governance, gauntlet, Milestone assets, HtmlToMarkdown/MarkdownCopy).
+- Parked test instance (scratch config, PrintWindow): the preset box reads "No presets saved yet"
+  and is disabled. Under the A4 lock, Page width greys its whole row. With "Render Mermaid diagrams"
+  turned off, Word ▸ Diagrams, Glued connectors and Arrowhead style all grey out (text and controls).
+- **Not verified:** the hover highlight with a real mouse (no synthetic input this run), the light
+  theme, and a Word export with a restyled arrowhead opened in Word (Word COM is blocked by its
+  first-run dialog).
+
+**Noticed, not fixed:** on a fresh config the "Everything else lives here" teaching tip stays open
+over the top of the Style & Export panel (covering the Preset label) for the whole session unless
+it is dismissed. Check whether it should light-dismiss, or close once the panel is used.
+
+**Next up:**
+1. The teaching tip above, plus a first-run pass: launch on a fresh config and go through every
+   onboarding surface (tour, extension card, Free banner, teaching tips) until they all behave.
+2. Settings and side panel in the light theme: hover brushes, page preview frame, Google warning
+   bar, and the OptionRow highlight.
+3. Real-mouse hover check of OptionRow when the user is idle.
+4. Carried over: the first real in-app update 3.13.0 → 3.14.0 (does the installer reopen MarkSmith?);
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; SmartArt Insert dialog tiles
+   through Direct2D.
