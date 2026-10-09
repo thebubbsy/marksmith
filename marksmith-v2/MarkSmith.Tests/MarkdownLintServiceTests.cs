@@ -177,4 +177,13 @@ public class MarkdownLintServiceTests
 
         Assert.Empty(issues);
     }
+
+    [Fact]
+    public void TwoTrailingSpaces_AreAHardLineBreak_NotAnIssue()
+    {
+        var issues = MarkdownLintService.Analyze("First line  \nSecond line\nOne space \nTab\t\n");
+        Assert.DoesNotContain(issues, i => i.Line == 1);
+        Assert.Contains(issues, i => i.Line == 3 && i.Message == "Trailing whitespace");
+        Assert.Contains(issues, i => i.Line == 4 && i.Message == "Trailing whitespace");
+    }
 }

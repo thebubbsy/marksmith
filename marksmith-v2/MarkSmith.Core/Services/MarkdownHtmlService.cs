@@ -2582,10 +2582,13 @@ public sealed partial class MarkdownHtmlService
     private static readonly Regex MermaidFenceRe =
         new("```mermaid[ \\t]*\\n.*?```", RegexOptions.Singleline | RegexOptions.Compiled);
 
-    // Is this document "just a diagram"? Exactly one mermaid block, a title, and at most a few
-    // words of intro — no other diagrams, tables, images, lists or code. Returns the title/subtitle.
-    private static (bool Focused, string Title, string Subtitle) AnalyzeDiagramFocus(string markdown)
+    // Is this document "just a diagram"? Exactly one mermaid block, ONE heading (its title), and at
+    // most a few words of intro — no other headings, diagrams, tables, images, lists or code. A
+    // report with several short sections used to qualify (every heading after the first was
+    // skipped), and its preview became a lone diagram with the rest of the document missing.
+    internal static (bool Focused, string Title, string Subtitle) AnalyzeDiagramFocus(string markdown)
     {
+        markdown = markdown.Replace("\r\n", "\n").Replace('\r', '\n');
         if (MermaidFenceRe.Matches(markdown).Count != 1) return (false, "", "");
         var rest = MermaidFenceRe.Replace(markdown, "");
         if (rest.Contains("```")) return (false, "", ""); // another code block
@@ -2596,7 +2599,12 @@ public sealed partial class MarkdownHtmlService
         {
             var line = raw.Trim();
             if (line.Length == 0) continue;
-            if (line.StartsWith('#')) { if (title.Length == 0) title = line.TrimStart('#', ' ').Trim(); continue; }
+            if (line.StartsWith('#'))
+            {
+                if (title.Length > 0) return (false, "", ""); // a second heading: a real document
+                title = line.TrimStart('#', ' ').Trim();
+                continue;
+            }
             // Any richer block means it's a real document, not a diagram card.
             if (line.Contains('|') || line.StartsWith("![") || line.StartsWith("- ") ||
                 line.StartsWith("* ") || line.StartsWith("> ") || OrderedListLineRe().IsMatch(line))
@@ -2650,6 +2658,12 @@ public sealed partial class MarkdownHtmlService
             #dv-controls button { background: {{theme.Secondary}}; color: {{theme.Text}}; border: 1px solid {{theme.Border}};
                                   border-radius: 6px; padding: 4px 12px; font-size: 14px; cursor: pointer; }
             #dv-controls button:hover { border-color: {{theme.Heading}}; }
+            /* A narrow pane (Split view) has no room for the title and the controls on one line, and
+               the controls used to cover the title; they move to the bottom edge instead. */
+            @media (max-width: 620px) {
+              #dv-head { max-width: calc(100% - 44px); }
+              #dv-controls { top: auto; bottom: 14px; right: 50%; transform: translateX(50%); }
+            }
             #dv-stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
             #dv-stage.dragging { cursor: grabbing; }
             #dv-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }

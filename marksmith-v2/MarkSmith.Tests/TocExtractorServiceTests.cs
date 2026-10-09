@@ -104,4 +104,13 @@ public sealed class TocExtractorServiceTests
         Assert.Equal(new[] { "A", "A.1", "B", "B.1" }, entries.Select(e => e.Text).ToArray());
         Assert.Equal(new[] { 1, 3, 2, 3 }, entries.Select(e => e.Level).ToArray());
     }
+
+    [Fact]
+    public void Extract_RecordsEachHeadingsLine_AndReadsAsItsText()
+    {
+        var md = "# A\n\ntext\n\n## B\r\n";
+        var entries = TocExtractorService.Extract(md);
+        Assert.Equal(new[] { 1, 5 }, entries.Select(e => e.Line).ToArray());
+        Assert.Equal("B", entries[1].ToString());
+    }
 }

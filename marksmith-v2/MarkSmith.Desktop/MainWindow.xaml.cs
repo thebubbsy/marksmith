@@ -273,6 +273,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         };
         WireStyleSectionMemory();
 
+        // The editor and the document: the TextBox shows a view (folded regions collapse to one
+        // line), the view model holds the whole document. Subscribed before every other TextChanged
+        // handler so they all see the view model already updated, as they did with the binding.
+        PasteTextBox.Text = ViewModel.CurrentMarkdown ?? string.Empty;
+        PasteTextBox.TextChanged += (_, _) => SyncDocumentFromEditor();
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ViewModel.CurrentMarkdown)) SyncEditorFromDocument();
+        };
+
         // Persistent undo/redo: the editor owns its undo stack (native TextBox undo is disabled in
         // XAML). Keep the caret in the ViewModel so undo snapshots can restore it exactly.
         PasteTextBox.SelectionChanged += (_, _) => ViewModel.EditorCaret = PasteTextBox.SelectionStart;
@@ -290,6 +300,9 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
 
         // Editor cursor position readout in the status bar (Ln/Col + selection size).
         PasteTextBox.SelectionChanged += (_, _) => UpdateCursorPosition();
+        // The gutter marks the caret's line, and re-wraps with the editor's width.
+        PasteTextBox.SelectionChanged += (_, _) => QueueGutterLayout();
+        PasteTextBox.SizeChanged += (_, _) => QueueGutterLayout();
 
         // Editor font-size zoom: apply the persisted size and let Ctrl+wheel adjust it live.
         ApplyEditorFontSize(App.Settings.Current.EditorFontSize, persist: false);
@@ -484,6 +497,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ExtensionTip.IsOpen = ViewModel.ShowExtensionTip;
         HistoryList.ItemsSource = ViewModel.History; // Flyout popups don't inherit DataContext
         TocList.ItemsSource = ViewModel.TocEntries; // Outline flyout (Task 17) — same reason
+        ViewModel.TocEntries.CollectionChanged += (_, _) => UpdateOutlineEmptyState();
+        UpdateOutlineEmptyState();
         ViewModel.RefreshToc();
         InitTrayIcon();
 
@@ -1651,7 +1666,12 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // id Markdig rendered on the heading element, so getElementById + scrollIntoView lands on it.
     private async void OnTocItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not Services.TocEntry entry || string.IsNullOrEmpty(entry.Anchor)) return;
+        if (e.ClickedItem is not Services.TocEntry entry) return;
+        OutlineButton.Flyout?.Hide();
+        // The outline used to scroll only the preview, so in Code view a click did nothing at all.
+        // Wherever the editor is showing, the caret goes to the heading too.
+        if (_viewMode != ViewMode.Preview && entry.Line > 0) GoToDocumentLine(entry.Line);
+        if (string.IsNullOrEmpty(entry.Anchor)) return;
         if (PreviewWebView.CoreWebView2 is not { } core) return;
         var js = "(function(){var el=document.getElementById(" +
                  System.Text.Json.JsonSerializer.Serialize(entry.Anchor) +
@@ -3697,6 +3717,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void ApplyViewMode(ViewMode mode)
     {
         _viewMode = mode;
+        // The step caption says what this view is for, like "Pick a file or paste Markdown" and
+        // "Finish the document" beside it (it used to read "Looking Glass Layer" in every view).
+        if (EditorStepCaption is not null)
+            EditorStepCaption.Text = mode switch
+            {
+                ViewMode.Split => "Edit with the result beside you",
+                ViewMode.Preview => "Check the finished document",
+                _ => "Write and edit the Markdown",
+            };
         var showEditor = mode is ViewMode.Code or ViewMode.Split;
         var showPreview = mode is ViewMode.Preview or ViewMode.Split;
 
@@ -3812,6 +3841,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             if (IsLineBreak(text[i])) { line++; lastNewline = i; }
         }
         var col = start - lastNewline;
+        line = _folds.DocumentLine(text, line); // past a fold, the document's line number
         var sel = tb.SelectionLength;
         CursorPosText.Text = sel > 0
             ? $"Ln {line}, Col {col}  ({sel} selected)"
@@ -3838,6 +3868,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (FindBar is null) return;
         EnsureEditorVisible();
+        // Search and replace must reach every line, so folds open when the bar does.
+        UnfoldAll();
 
         var selected = PasteTextBox.SelectedText ?? string.Empty;
         if (selected.Length is > 0 and <= 200 && selected.IndexOfAny(new[] { '\r', '\n' }) < 0)
@@ -4144,7 +4176,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var clamped = Math.Clamp(size, EditorFontMin, EditorFontMax);
         PasteTextBox.FontSize = clamped;
-        if (LineNumberText is not null) LineNumberText.FontSize = clamped;
+        UpdateLineNumbers(); // the gutter's width and the numbers' size follow the font
         if (EditorZoomText is not null)
             EditorZoomText.Text = $"{(int)Math.Round(clamped / EditorFontBase * 100.0)}%";
         if (persist)
@@ -4176,32 +4208,162 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    private void UpdateLineNumbers()
+    // The outline flyout says what it's for when there's nothing in it yet.
+    private void UpdateOutlineEmptyState()
     {
-        if (LineNumberText is null || LineGutter?.Visibility != Visibility.Visible) return;
-        var text = PasteTextBox?.Text ?? "";
-        var lineCount = 1;
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (IsLineBreak(text[i])) lineCount++;
-        }
-        var sb = new System.Text.StringBuilder(lineCount * 5);
-        for (var i = 1; i <= lineCount; i++)
-        {
-            sb.Append(i).Append('\n');
-        }
-        LineNumberText.Text = sb.ToString().TrimEnd('\n');
+        if (TocEmptyText is null || TocList is null) return;
+        var empty = ViewModel.TocEntries.Count == 0;
+        TocEmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        TocList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void SyncLineGutterScroll()
+    // ---- Line-number gutter ----
+
+    private int[] _lineStarts = { 0 };
+    private int[] _gutterLabels = { 1 };          // document line number per visible line
+    private bool[] _gutterFolded = { false };      // visible line is a fold's first line
+    private readonly List<TextBlock> _gutterNumbers = new();
+    private bool _gutterLayoutQueued;
+    private ScrollViewer? _editorScrollViewer;
+
+    // Text changed: re-index the line starts, size the gutter for the widest number, redraw.
+    private void UpdateLineNumbers()
     {
-        if (LineNumberScrollViewer is null || LineGutter?.Visibility != Visibility.Visible) return;
-        var sv = FindEditorScrollViewer();
-        if (sv != null)
+        if (LineNumberCanvas is null || LineGutter?.Visibility != Visibility.Visible) return;
+        var text = PasteTextBox?.Text ?? "";
+        var starts = new List<int>(Math.Max(16, _lineStarts.Length)) { 0 };
+        for (var i = 0; i < text.Length; i++)
         {
-            LineNumberScrollViewer.ChangeView(null, sv.VerticalOffset, null, true);
+            if (!IsLineBreak(text[i])) continue;
+            if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+            starts.Add(i + 1);
         }
+        _lineStarts = starts.ToArray();
+        // Past a fold the numbers jump by the lines it hides, so they stay the document's numbers.
+        _gutterLabels = _folds.DocumentLineNumbers(text, _lineStarts.Length);
+        _gutterFolded = new bool[_lineStarts.Length];
+        if (text.IndexOf('\u00BB') >= 0)
+            for (var l = 0; l < _lineStarts.Length; l++)
+            {
+                var end = l + 1 < _lineStarts.Length ? _lineStarts[l + 1] : text.Length;
+                var line = text.Substring(_lineStarts[l], end - _lineStarts[l]).TrimEnd('\r', '\n');
+                _gutterFolded[l] = _folds.IsFoldedLine(line);
+            }
+        var widest = _gutterLabels.Length == 0 ? 1 : _gutterLabels[^1];
+        var digits = Math.Max(2, widest.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
+        LineNumberCanvas.Width = Math.Ceiling(digits * PasteTextBox!.FontSize * 0.62) + 16;
+        QueueGutterLayout();
     }
+
+    // The TextBox lays its text out after TextChanged, so positions are read on the next tick.
+    private void QueueGutterLayout()
+    {
+        if (_gutterLayoutQueued || LineGutter?.Visibility != Visibility.Visible) return;
+        _gutterLayoutQueued = true;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            _gutterLayoutQueued = false;
+            LayoutGutter();
+        });
+    }
+
+    private void OnLineGutterSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        LineNumberCanvas.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+        QueueGutterLayout();
+    }
+
+    // Draws the numbers of the lines currently in view, each level with its line.
+    private void LayoutGutter()
+    {
+        if (LineNumberCanvas is null || PasteTextBox is null || LineGutter?.Visibility != Visibility.Visible) return;
+        var text = PasteTextBox.Text ?? "";
+        var height = LineNumberCanvas.ActualHeight;
+        var width = LineNumberCanvas.Width;
+        var used = 0;
+        if (height > 0)
+        {
+            // Character rects are measured from the top of the text inside the TextBox's own
+            // scroll viewer (inside its border and padding), not from the visible part of it.
+            _editorScrollViewer ??= FindEditorScrollViewer();
+            if (_editorScrollViewer is null) return;
+            double originY;
+            try { originY = LineNumberCanvas.TransformToVisual(_editorScrollViewer).TransformPoint(new Windows.Foundation.Point(0, 0)).Y; }
+            catch (ArgumentException) { return; } // not in the tree yet
+            originY += _editorScrollViewer.VerticalOffset - _editorScrollViewer.Padding.Top;
+            // The line box's height, from the first character (a 0-width rect a line tall).
+            var lineHeight = text.Length > 0 ? SafeRect(0).Height : 0;
+            if (lineHeight <= 0) lineHeight = Math.Max(1, PasteTextBox.FontSize * 1.33);
+            var caretLine = LineIndexAt(PasteTextBox.SelectionStart);
+
+            double TopOf(int line)
+            {
+                var start = _lineStarts[line];
+                if (text.Length == 0) return LineTop(0, false) - originY;
+                // An empty last line has no character: it sits one line below the final break.
+                if (start >= text.Length) return LineTop(text.Length - 1, false) + lineHeight - originY;
+                return LineTop(start, false) - originY;
+            }
+
+            // First line whose bottom is in view (binary search: tops grow with the line index).
+            int lo = 0, hi = _lineStarts.Length - 1;
+            while (lo < hi)
+            {
+                var mid = (lo + hi + 1) / 2;
+                if (TopOf(mid) <= -lineHeight) lo = mid; else hi = mid - 1;
+            }
+            var secondary = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+            var primary = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            var accent = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
+            for (var line = lo; line < _lineStarts.Length; line++)
+            {
+                var top = TopOf(line);
+                if (top > height) break;
+                if (top < -lineHeight) continue;
+                if (used == _gutterNumbers.Count)
+                {
+                    var made = new TextBlock
+                    {
+                        FontFamily = PasteTextBox.FontFamily,
+                        TextAlignment = TextAlignment.Right,
+                        IsTextSelectionEnabled = false,
+                    };
+                    _gutterNumbers.Add(made);
+                    LineNumberCanvas.Children.Add(made);
+                }
+                var tb = _gutterNumbers[used++];
+                tb.Visibility = Visibility.Visible;
+                tb.FontSize = PasteTextBox.FontSize;
+                tb.Width = width - 10;
+                var label = line < _gutterLabels.Length ? _gutterLabels[line] : line + 1;
+                tb.Text = label.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var folded = line < _gutterFolded.Length && _gutterFolded[line];
+                tb.Foreground = folded ? accent : line == caretLine ? primary : secondary;
+                // Centred on the line's box: the TextBox's line box is taller than a TextBlock's.
+                tb.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(tb, 0);
+                Canvas.SetTop(tb, top + Math.Max(0, (lineHeight - tb.DesiredSize.Height) / 2));
+            }
+        }
+        for (var i = used; i < _gutterNumbers.Count; i++) _gutterNumbers[i].Visibility = Visibility.Collapsed;
+    }
+
+    private double LineTop(int index, bool trailing) => SafeRect(index, trailing).Top;
+
+    private Windows.Foundation.Rect SafeRect(int index, bool trailing = false)
+    {
+        try { return PasteTextBox.GetRectFromCharacterIndex(Math.Clamp(index, 0, Math.Max(0, (PasteTextBox.Text ?? "").Length - 1)), trailing); }
+        catch (ArgumentException) { return default; }
+    }
+
+    // The 0-based line holding a character offset.
+    private int LineIndexAt(int offset)
+    {
+        var i = Array.BinarySearch(_lineStarts, offset);
+        return i >= 0 ? i : Math.Max(0, ~i - 1);
+    }
+
+    private void SyncLineGutterScroll() => LayoutGutter();
 
     // Word wrap is a persisted editor display setting.
     private void OnWordWrapToggled(object sender, RoutedEventArgs e)
@@ -4210,48 +4372,146 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         ApplyWordWrap(WordWrapToggle?.IsChecked == true, persist: true);
     }
 
-    private void OnToggleFoldAtCursorClick(object sender, RoutedEventArgs e)
+    // ---- Folding: a view of the document, never an edit to it ----
+    //
+    // The editor shows a folded region as its first line plus a "«+5 lines folded #2»" marker and
+    // _folds keeps the hidden lines; the view model always holds the whole document. (The old
+    // folding wrote the hidden lines into the document as a base64 comment, so folded sections
+    // disappeared from the preview and every export, and Ctrl+S saved the comment to disk.)
+
+    private readonly Services.Editor.EditorFolds _folds = new();
+    private bool _pushingEditorToDocument;
+
+    // The whole document behind the editor.
+    private string EditorDocument() => _folds.Document(PasteTextBox?.Text ?? string.Empty);
+
+    // Editor -> view model, on every edit (the job the TwoWay binding used to do).
+    private void SyncDocumentFromEditor()
+    {
+        var doc = EditorDocument();
+        if (doc == (ViewModel.CurrentMarkdown ?? string.Empty)) return;
+        // A programmatic Text set (file load, undo) only differs in its line breaks: the TextBox
+        // stores '\r'. Don't let that switch a file-backed document to the paste source.
+        if (SameIgnoringLineBreaks(doc, ViewModel.CurrentMarkdown)) return;
+        _pushingEditorToDocument = true;
+        try { ViewModel.CurrentMarkdown = doc; }
+        finally { _pushingEditorToDocument = false; }
+    }
+
+    // View model -> editor, when the document changes from anywhere else (file open, Diagram
+    // Studio, a cleanup). Folds are dropped: the text they hid may have changed.
+    private void SyncEditorFromDocument()
+    {
+        if (_pushingEditorToDocument || PasteTextBox is null) return;
+        var doc = ViewModel.CurrentMarkdown ?? string.Empty;
+        if (SameIgnoringLineBreaks(EditorDocument(), doc)) return;
+
+        var repaired = Services.Editor.EditorFolds.RepairLegacy(doc, out var legacyFolds);
+        PasteTextBox.Text = repaired;
+        UpdateFoldStatus();
+        if (legacyFolds > 0)
+        {
+            // An older version saved folds inside the file; put the hidden lines back where they were.
+            ViewModel.CurrentMarkdown = repaired;
+            ViewModel.StatusText = legacyFolds == 1
+                ? "Restored a folded section that an earlier version saved inside this document."
+                : $"Restored {legacyFolds} folded sections that an earlier version saved inside this document.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+        }
+    }
+
+    private static bool SameIgnoringLineBreaks(string? a, string? b)
+    {
+        a ??= string.Empty;
+        b ??= string.Empty;
+        if (a.Length == b.Length && string.Equals(a, b, StringComparison.Ordinal)) return true;
+        int i = 0, j = 0;
+        while (i < a.Length && j < b.Length)
+        {
+            var ca = a[i]; var cb = b[j];
+            var la = ca is '\r' or '\n'; var lb = cb is '\r' or '\n';
+            if (la && lb)
+            {
+                i += ca == '\r' && i + 1 < a.Length && a[i + 1] == '\n' ? 2 : 1;
+                j += cb == '\r' && j + 1 < b.Length && b[j + 1] == '\n' ? 2 : 1;
+                continue;
+            }
+            if (ca != cb) return false;
+            i++; j++;
+        }
+        return i == a.Length && j == b.Length;
+    }
+
+    // Replaces the editor's visible text with a new view of the same document and puts the caret
+    // on a line (folding never changes the document, so this adds no undo step).
+    private void ShowFoldedView(string visible, int caretLine)
+    {
+        PasteTextBox.Text = visible;
+        var offset = LineStartOffset(visible, caretLine);
+        PasteTextBox.Select(offset, 0);
+        PasteTextBox.Focus(FocusState.Programmatic);
+        UpdateFoldStatus();
+        UpdateLineNumbers();
+    }
+
+    private static int LineStartOffset(string text, int line)
+    {
+        var offset = 0;
+        for (var l = 1; l < line && offset < text.Length; offset++)
+            if (IsLineBreak(text[offset])) l++;
+        return Math.Min(offset, text.Length);
+    }
+
+    private void OnToggleFoldAtCursorClick(object sender, RoutedEventArgs e) => ToggleFoldAtCursor();
+
+    private void ToggleFoldAtCursor()
     {
         if (PasteTextBox is null) return;
         var text = PasteTextBox.Text ?? string.Empty;
-        var cursorLine = GetCursorLine(text, PasteTextBox.SelectionStart);
-        var folded = Services.Editor.EditorFoldingService.ToggleFoldAtLine(text, cursorLine);
-        if (folded != text)
+        var cursorLine = GetCursorLine(text, PasteTextBox.SelectionStart) + 1; // GetCursorLine is 0-based
+        var view = _folds.Toggle(text, cursorLine, out var at);
+        if (view == text)
         {
-            PasteTextBox.Text = folded;
-            UpdateFoldStatus();
+            ViewModel.StatusText = "Nothing to fold here. Put the cursor on a heading, in a code block or in a ::: block.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
         }
+        ShowFoldedView(view, at);
     }
 
     private void OnFoldAllCodeClick(object sender, RoutedEventArgs e)
     {
         if (PasteTextBox is null) return;
         var text = PasteTextBox.Text ?? string.Empty;
-        var folded = Services.Editor.EditorFoldingService.FoldAllCodeBlocks(text);
-        if (folded != text)
+        var view = _folds.FoldAllCode(text);
+        if (view == text)
         {
-            PasteTextBox.Text = folded;
-            UpdateFoldStatus();
+            ViewModel.StatusText = "There are no code blocks to fold.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Informational;
+            return;
         }
+        ShowFoldedView(view, GetCursorLine(view, Math.Min(PasteTextBox.SelectionStart, view.Length)) + 1);
     }
 
-    private void OnUnfoldAllClick(object sender, RoutedEventArgs e)
+    private void OnUnfoldAllClick(object sender, RoutedEventArgs e) => UnfoldAll();
+
+    // Opens every fold. Returns false when nothing was folded.
+    private bool UnfoldAll()
     {
-        if (PasteTextBox is null) return;
+        if (PasteTextBox is null) return false;
         var text = PasteTextBox.Text ?? string.Empty;
-        var unfolded = Services.Editor.EditorFoldingService.UnfoldAll(text);
-        if (unfolded != text)
-        {
-            PasteTextBox.Text = unfolded;
-            UpdateFoldStatus();
-        }
+        if (!_folds.HasFolds(text)) return false;
+        var line = _folds.DocumentLine(text, GetCursorLine(text, PasteTextBox.SelectionStart) + 1);
+        ShowFoldedView(_folds.UnfoldAll(text), line);
+        return true;
     }
 
     private void UpdateFoldStatus()
     {
         if (FoldStatusText is null || PasteTextBox is null) return;
-        int foldedCount = Services.Editor.EditorFoldingService.GetFoldedCount(PasteTextBox.Text ?? string.Empty);
-        FoldStatusText.Text = foldedCount > 0 ? $"Folded ({foldedCount})" : "Fold";
+        var count = _folds.Count(PasteTextBox.Text ?? string.Empty);
+        FoldStatusText.Text = count > 0 ? $"{count} folded" : "Fold";
+        if (FoldMenuUnfoldAll is not null) FoldMenuUnfoldAll.IsEnabled = count > 0;
     }
 
     // ISS-004: toggle the Looking Glass portal overlay (fog-of-war lens + glowing cursor ring,
@@ -4369,6 +4629,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         PasteTextBox.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
         ScrollViewer.SetHorizontalScrollBarVisibility(PasteTextBox, wrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto);
         ScrollViewer.SetHorizontalScrollMode(PasteTextBox, wrap ? ScrollMode.Disabled : ScrollMode.Enabled);
+        QueueGutterLayout(); // wrapping changes every line's height
         // The line-number gutter is ALWAYS visible and counts logical lines, so word wrap no
         // longer hides it (the old wrap-dependent visibility made a mystery "1" panel pop in and
         // out and read as broken when the text was a single logical line).
@@ -4589,12 +4850,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // Re-run the linter and refresh the issue-count chip and the flyout's issue list.
     private void UpdateLintIndicator()
     {
-        _lintIssues = Services.MarkdownLintService.Analyze(PasteTextBox?.Text);
+        // Lint the document, not the editor's view of it: a fold's marker isn't Markdown, and the
+        // line numbers must be the document's.
+        _lintIssues = Services.MarkdownLintService.Analyze(EditorDocument());
         // A clean document shows a check, not the warning triangle it used to show even at
         // "No issues"; the warning glyph is reserved for when there is something to review.
         if (LintIcon is not null) LintIcon.Glyph = _lintIssues.Count == 0 ? "\uE73E" : "\uE7BA";
         UpdateLintLabel();
-        if (LintList is not null) LintList.ItemsSource = _lintIssues.ToList();
+        if (LintList is not null) LintList.ItemsSource = _lintIssues.Select(i => new LintRow(i.Line, i.Message)).ToList();
+        if (LintEmptyText is not null) LintEmptyText.Visibility = _lintIssues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (LintList is not null) LintList.Visibility = _lintIssues.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private bool _editorStripCompact;
@@ -4622,7 +4887,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         if (EditorStripTools is null || LintButton is null || width <= 0) return;
         var tools = EditorStripTools.Children;
-        var zoomBits = tools.Take(3).ToList(); // A−, the % readout, A+
+        // A−, the % readout, A+ (by name: Take(3) used to hide the Find button and A−, and keep A+).
+        var zoomBits = new UIElement[] { EditorZoomOutButton, EditorZoomText, EditorZoomInButton };
         var readoutAndSeparators = tools.Where(c => c is Border || c == EditorZoomText).ToList();
 
         foreach (var c in tools) c.Visibility = Visibility.Visible;
@@ -4647,12 +4913,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     // the corresponding element in the live preview (ISS-012), so the user's eye lands on both.
     private void OnLintItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is Services.MarkdownLintService.LintIssue issue)
+        if (e.ClickedItem is LintRow issue)
         {
-            GoToLine(issue.Line);
+            GoToDocumentLine(issue.Line);
             TriggerIssueRadarBeacon(issue.Line);
             LintFlyout?.Hide();
         }
+    }
+
+    // One row of the Markdown issues flyout. ToString is what a screen reader announces for the
+    // list item (it used to read the record's debug text, "LintIssue { Line = 7, ... }").
+    [Microsoft.UI.Xaml.Data.Bindable]
+    public sealed record LintRow(int Line, string Message)
+    {
+        public string LineLabel => $"Line {Line}";
+        public override string ToString() => $"Line {Line}: {Message}";
     }
 
     // Fire the preview's triggerRedRadarBeacon(line) (injected by MarkdownHtmlService in interactive
@@ -4666,6 +4941,19 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     }
 
     // Move the caret to the start of the given 1-based line, select the line, and bring it into view.
+    // Moves the caret to a line of the DOCUMENT (lint issues, the outline): a folded line opens
+    // first, and folds above it are counted.
+    private void GoToDocumentLine(int documentLine)
+    {
+        var visible = _folds.VisibleLine(PasteTextBox.Text ?? string.Empty, documentLine);
+        if (visible == 0)
+        {
+            UnfoldAll();
+            visible = documentLine;
+        }
+        GoToLine(visible);
+    }
+
     private void GoToLine(int lineNo)
     {
         var text = PasteTextBox.Text ?? string.Empty;
@@ -5998,7 +6286,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // Determine which tables to export: the one under the cursor, or all if the cursor isn't
         // inside any table (the "export all tables" path).
         var text = PasteTextBox.Text ?? "";
-        var cursorLine = GetCursorLine(text, PasteTextBox.SelectionStart);
+        // 0-based, like Markdig's table lines; folds above the caret hide document lines.
+        var cursorLine = _folds.DocumentLine(text, GetCursorLine(text, PasteTextBox.SelectionStart) + 1) - 1;
         var tableAtCursor = Services.SpreadsheetService.FindTableAtLine(markdown, cursorLine);
 
         List<(string Name, Services.TableModel Model)> exports;
@@ -6086,7 +6375,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // exist only to power a nagging "Can we show you this as SmartArt?" bar — it earns its keep
         // better here, choosing a sensible starting layout for content the user opened the studio
         // to work on. An empty editor just opens the gallery.
-        var md = PasteTextBox?.Text ?? "";
+        var md = EditorDocument();
         if (string.IsNullOrWhiteSpace(md))
         {
             OpenSmartArtStudio();

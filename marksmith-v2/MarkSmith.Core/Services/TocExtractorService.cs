@@ -12,7 +12,13 @@ namespace MarkSmith.Services;
 /// <param name="Text">The heading's plain-text content (inline markup stripped).</param>
 /// <param name="Anchor">The element id Markdig's AutoIdentifiers assigned — the same id the rendered
 /// preview uses, so a flyout can scroll to it with <c>getElementById(anchor)</c>.</param>
-public sealed record TocEntry(int Level, string Text, string Anchor);
+/// <param name="Line">The heading's 1-based line in the Markdown (0 when unknown), so the outline
+/// can move the editor there too.</param>
+public sealed record TocEntry(int Level, string Text, string Anchor, int Line = 0)
+{
+    // What a screen reader announces for an outline row (a record otherwise prints its fields).
+    public override string ToString() => Text;
+}
 
 /// <summary>
 /// Builds a structured table-of-contents outline from a Markdown document (Task 17). Parses with the
@@ -42,7 +48,7 @@ public static class TocExtractorService
             var text = GetText(heading.Inline);
             if (text.Length == 0) continue;
             var anchor = heading.TryGetAttributes()?.Id ?? "";
-            entries.Add(new TocEntry(heading.Level, text, anchor));
+            entries.Add(new TocEntry(heading.Level, text, anchor, heading.Line + 1));
         }
         return entries;
     }

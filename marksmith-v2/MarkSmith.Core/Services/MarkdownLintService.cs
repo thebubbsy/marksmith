@@ -57,7 +57,9 @@ public static class MarkdownLintService
             }
 
             // Trailing whitespace (only when the line has real content — a blank line is handled below).
-            if (line.Length > 0 && char.IsWhiteSpace(line[^1]) && line.TrimEnd().Length > 0)
+            // Exactly two trailing spaces are Markdown's hard line break, typed on purpose, so they're
+            // left alone (as markdownlint's MD009 does); one, three or more, or a tab, are flagged.
+            if (line.Length > 0 && char.IsWhiteSpace(line[^1]) && line.TrimEnd().Length > 0 && !IsHardBreak(line))
                 issues.Add(new LintIssue(lineNo, "Trailing whitespace"));
 
             // Hard tab characters (Markdown style guides recommend spaces).
@@ -106,6 +108,9 @@ public static class MarkdownLintService
     /// that many copies of the same character, followed by nothing but whitespace (CommonMark
     /// forbids an info string on a closing fence).
     /// </summary>
+    private static bool IsHardBreak(string line) =>
+        line.EndsWith("  ", StringComparison.Ordinal) && line.Length >= 3 && !char.IsWhiteSpace(line[^3]);
+
     private static bool IsFenceOpener(string trimmed) =>
         trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~') &&
         trimmed[1] == trimmed[0] && trimmed[2] == trimmed[0];
