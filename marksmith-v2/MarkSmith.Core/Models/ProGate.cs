@@ -13,6 +13,13 @@ public static class ProGate
     public const string FreePlanIncludes =
         "Free includes PDF, web page, EPUB, Markdown and email exports, email automation, the live preview, every theme and every studio.";
 
+    /// <summary>What Pro adds on top of <see cref="FreePlanIncludes"/>: every feature that isn't
+    /// <see cref="FeatureClassifier.IsFree"/>, by the name people know it by. Branding isn't gated
+    /// itself (its cover page lands in Word exports, which are Pro, but the logo and document font
+    /// reach free formats too), so it isn't listed; the welcome tour once called it a Pro feature.</summary>
+    public const string ProPlanAdds =
+        "Pro adds Word and PowerPoint export, batch conversion, folder watching, clipboard automation and hands-free auto-export.";
+
     /// <summary>The trial in one sentence. It is the whole of Pro, capped by Word exports, not by days.</summary>
     public const string TrialSummary =
         "The free trial unlocks everything in Pro until you've made 3 Word exports.";

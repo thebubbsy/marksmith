@@ -27,11 +27,11 @@
             </StackPanel>
 
             <Button x:Name="GetExtensionButton" Grid.Column="2" Click="OnGetExtensionClick"
-                    ToolTipService.ToolTip="Open the MarkSmith Connector browser extension page"
+                    ToolTipService.ToolTip="Set up the MarkSmith Connector in Edge or Chrome: about a minute, once"
                     Style="{ThemeResource AccentButtonStyle}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xEA86;" FontSize="14" VerticalAlignment="Center" />
                     <TextBlock Text="Get the extension" />
-                    <FontIcon Glyph="&#xE8A7;" FontSize="12" VerticalAlignment="Center" />
                 </StackPanel>
             </Button>
 

@@ -1,0 +1,149 @@
+<UserControl
+    x:Class="MarkSmith.Views.ExtensionSetupView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- "Get the extension", done in the app: three numbered steps that end in Load unpacked on the
+         folder MarkSmith ships the extension in, then a live status that turns green when the
+         extension first checks in. Hosted in a ContentDialog by MainWindow.ShowExtensionSetupAsync. -->
+    <UserControl.Resources>
+        <Style x:Key="SetupStepTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="SetupStepBody" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Width="540" Spacing="16">
+        <TextBlock Style="{StaticResource SetupStepBody}" FontSize="13"
+                   Text="Send any ChatGPT, Claude, Gemini or Copilot answer to MarkSmith in one click, or open it as an Outlook draft. It takes about a minute, once, in Edge or Chrome." />
+
+        <!-- 1 · extensions page -->
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top">
+                <TextBlock Text="1" Style="{StaticResource StepBadgeTextStyle}" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="Open your browser's extensions page" Style="{StaticResource SetupStepTitle}" />
+                <TextBlock Style="{StaticResource SetupStepBody}"
+                           Text="Paste the address into the address bar. Browsers don't let other apps open this page for you." />
+                <StackPanel x:Name="BrowserPagesPanel" Orientation="Horizontal" Spacing="8" />
+            </StackPanel>
+        </Grid>
+
+        <!-- 2 · developer mode -->
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top">
+                <TextBlock Text="2" Style="{StaticResource StepBadgeTextStyle}" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="Turn on Developer mode" Style="{StaticResource SetupStepTitle}" />
+                <TextBlock Style="{StaticResource SetupStepBody}"
+                           Text="Edge: the switch in the menu on the left. Chrome: the switch at the top right. It lets the browser load an extension from a folder on this PC." />
+            </StackPanel>
+        </Grid>
+
+        <!-- 3 · load unpacked -->
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource StepBadgeStyle}" VerticalAlignment="Top">
+                <TextBlock Text="3" Style="{StaticResource StepBadgeTextStyle}" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="Click Load unpacked and choose the MarkSmith extension folder" Style="{StaticResource SetupStepTitle}" />
+                <!-- Shown when this copy of MarkSmith ships the extension. -->
+                <StackPanel x:Name="BundledPanel" Spacing="6">
+                    <TextBlock Style="{StaticResource SetupStepBody}"
+                               Text="Paste the folder's path into the folder picker's address bar, or open the folder and drag it onto the extensions page." />
+                    <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="FolderPathBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas"
+                                 FontSize="12" VerticalAlignment="Center"
+                                 AutomationProperties.Name="Extension folder" />
+                        <Button Grid.Column="1" x:Name="CopyFolderButton" Click="OnCopyFolderClick"
+                                AutomationProperties.Name="Copy folder path"
+                                ToolTipService.ToolTip="Copy the folder's path">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon x:Name="CopyFolderIcon" Glyph="&#xE8C8;" FontSize="14" />
+                                <TextBlock Text="Copy" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" Click="OnOpenFolderClick"
+                                AutomationProperties.Name="Open folder"
+                                ToolTipService.ToolTip="Show the folder in File Explorer">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE838;" FontSize="14" />
+                                <TextBlock Text="Open" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <TextBlock x:Name="VersionText" Style="{StaticResource SetupStepBody}" FontSize="11" Opacity="0.8" />
+                </StackPanel>
+                <!-- Shown when it doesn't (a build without the folder). -->
+                <StackPanel x:Name="MissingPanel" Spacing="6" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource SetupStepBody}"
+                               Text="This copy of MarkSmith doesn't include the extension files. Download the extension folder from GitHub, then choose it here." />
+                    <Button Click="OnOpenGuideClick" HorizontalAlignment="Left"
+                            ToolTipService.ToolTip="Open the extension's page on GitHub">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                            <TextBlock Text="Open the download page" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Live connection status: off (with Turn on), waiting, connected. -->
+        <Border x:Name="StatusCard" CornerRadius="8" Padding="14,12" BorderThickness="1"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="20" Height="20" VerticalAlignment="Center">
+                    <ProgressRing x:Name="WaitingRing" Width="18" Height="18" IsActive="False" />
+                    <FontIcon x:Name="StatusIcon" FontSize="18" />
+                </Grid>
+                <TextBlock x:Name="StatusText" Grid.Column="1" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="13"
+                           AutomationProperties.LiveSetting="Polite" />
+                <Button x:Name="TurnOnButton" Grid.Column="2" Click="OnTurnOnClick" Style="{StaticResource AccentButtonStyle}"
+                        VerticalAlignment="Center" Visibility="Collapsed"
+                        ToolTipService.ToolTip="Let the extension reach MarkSmith on this PC (Settings ▸ Automation ▸ Local API)">
+                    <TextBlock Text="Turn on" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <HyperlinkButton Click="OnOpenGuideClick" Padding="0" Margin="0,-6,0,0"
+                         ToolTipService.ToolTip="Permissions, options and troubleshooting">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Read the full extension guide" />
+                <FontIcon Glyph="&#xE8A7;" FontSize="12" />
+            </StackPanel>
+        </HyperlinkButton>
+    </StackPanel>
+</UserControl>

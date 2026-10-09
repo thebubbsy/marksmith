@@ -7,6 +7,8 @@ namespace MarkSmith.Controls
 {
     public sealed partial class ExtensionTip : UserControl
     {
+        public event EventHandler? GetExtensionRequested;
+
         public static readonly DependencyProperty IsOpenProperty =
             DependencyProperty.Register("IsOpen", typeof(bool), typeof(ExtensionTip), new PropertyMetadata(true, OnIsOpenChanged));
 
@@ -31,10 +33,11 @@ namespace MarkSmith.Controls
             HoverPolish.Track(this);
         }
 
-        private async void OnGetExtensionClick(object sender, RoutedEventArgs e)
+        // Opens the in-app setup guide (MainWindow.ShowExtensionSetupAsync), which points Load
+        // unpacked at the extension folder MarkSmith ships. It used to open the GitHub source folder.
+        private void OnGetExtensionClick(object sender, RoutedEventArgs e)
         {
-            try { await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/thebubbsy/MarkSmith/tree/main/extension")); }
-            catch { }
+            GetExtensionRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void OnCloseClick(object sender, RoutedEventArgs e)

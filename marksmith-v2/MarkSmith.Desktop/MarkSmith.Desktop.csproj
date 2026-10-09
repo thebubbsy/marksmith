@@ -78,6 +78,13 @@
     <!-- Bundled web assets (mermaid, KaTeX + fonts, highlight.js) served offline via a WebView2
          virtual host — no CDN calls, works without internet, faster preview. -->
     <Content Include="Assets\web\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The browser extension, unpacked, so "Get the extension" can point Load unpacked at a real
+         folder (BrowserExtensionPackage). Rides along in the installer, the zip and the update feed.
+         Tests and notes stay out. -->
+    <Content Include="..\..\extension\**\*"
+             Exclude="..\..\extension\tests\**;..\..\extension\node_modules\**;..\..\extension\**\*.test.js;..\..\extension\FEATURE-GAPS.md"
+             Link="BrowserExtension\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -78,7 +78,8 @@
 
             <!-- 1 · Welcome -->
             <StackPanel x:Name="Page0" Padding="8,4,8,4">
-                <FontIcon Glyph="&#xE8A5;" Style="{StaticResource TourHero}" />
+                <Image Source="ms-appx:///Assets/logo.png" Width="44" Height="44" HorizontalAlignment="Left"
+                       AutomationProperties.AccessibilityView="Raw" />
                 <TextBlock Text="Welcome to MarkSmith" Style="{StaticResource TourTitle}" />
                 <TextBlock Style="{StaticResource TourLead}"
                            Text="Turn messy AI-chat replies — ChatGPT, Gemini, Claude, Copilot — into polished, professional documents. Here's a 60-second tour of everything it can do." />
@@ -163,7 +164,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE71B;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="The browser extension adds a &quot;Copy as Markdown&quot; button to each chat and sends it here in one click." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="The browser extension adds Copy as Markdown and Email buttons under each AI reply and sends it here in one click. Set it up from the card at the top of the Source panel." />
                     </Grid>
                 </StackPanel>
             </StackPanel>
@@ -213,7 +214,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xEA86;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Six diagram engines from one code fence each: Mermaid ships built in; PlantUML, Graphviz, D2, Typst and Vega-Lite install as one-click plugins (Settings → Plugins) and render offline." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Six diagram engines from one code fence each: Mermaid ships built in; PlantUML, Graphviz, D2, Typst and Vega-Lite install as one-click plugins (Settings ▸ Plugins) and render offline." />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -279,7 +280,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE8B7;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Watch a folder or the clipboard and convert automatically; batch-convert a whole folder to PDF." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Watch a folder or the clipboard and convert automatically, or batch-convert a whole folder. (Source ▸ Automation.)" />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -287,7 +288,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE943;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Drive it from scripts via the local REST API — the same one both the Windows and cross-platform builds expose." />
+                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Drive it from scripts and other apps through the local REST API on this PC. (Settings ▸ Automation.)" />
                     </Grid>
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
@@ -295,30 +296,62 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE734;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Text="Free exports PDF, HTML, Markdown, EPUB and email. MarkSmith Pro adds Word and PowerPoint export, automation and branding — with a 3-DOCX-export trial." />
+                        <!-- Set from ProGate in code-behind, so the tour can't drift from the plan (it once
+                             listed branding as Pro; branding is free). -->
+                        <TextBlock x:Name="PlanText" Grid.Column="1" Style="{StaticResource TourFeatureText}" />
                     </Grid>
                 </StackPanel>
             </StackPanel>
 
-            <!-- 7 · Done -->
+            <!-- 7 · Done. Two clear starts instead of a checkbox under "Get started": either card
+                 finishes the tour. The sample opens in Split view so the result is on screen. -->
             <StackPanel x:Name="Page6" Padding="8,4,8,4" Visibility="Collapsed">
                 <FontIcon Glyph="&#xE73E;" Style="{StaticResource TourHero}" />
                 <TextBlock Text="You're all set" Style="{StaticResource TourTitle}" />
-                <TextBlock Style="{StaticResource TourLead}"
-                           Text="Learn fastest by doing — load a ready-made sample and start playing:" />
-                <StackPanel Spacing="10">
-                    <CheckBox x:Name="LoadSampleCheck" IsChecked="False" MaxWidth="500" HorizontalContentAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Text="Load a sample document — headings, a table, math, and live diagrams, ready to restyle and export" />
-                    </CheckBox>
-                    <Grid ColumnSpacing="12" Margin="0,6,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE897;" Style="{StaticResource TourGlyph}" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource TourFeatureText}" Opacity="0.75" Text="Replay this anytime: ⋯ menu (top right of Style &amp; Export) → Take a quick tour." />
-                    </Grid>
-                </StackPanel>
+                <TextBlock Style="{StaticResource TourLead}" Text="How would you like to start?" />
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <!-- The recommended start: accent border in every state. -->
+                    <Button x:Name="SampleCard" Click="OnSampleCard" Style="{StaticResource TourStepCard}" BorderThickness="2"
+                            AutomationProperties.Name="Open the sample document"
+                            ToolTipService.ToolTip="Open the sample beside its live preview">
+                        <Button.Resources>
+                            <ResourceDictionary>
+                                <StaticResource x:Key="ButtonBorderBrush" ResourceKey="AccentFillColorDefaultBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+                            </ResourceDictionary>
+                        </Button.Resources>
+                        <StackPanel Spacing="4">
+                            <FontIcon Glyph="&#xE8A5;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
+                            <TextBlock Text="Open the sample" FontWeight="SemiBold" />
+                            <TextBlock x:Name="SampleCaption" Style="{StaticResource TourStepCaption}"
+                                       Text="A short report with a table, math and live diagrams, shown beside its preview. Restyle it and export." />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" x:Name="BlankCard" Click="OnBlankCard" Style="{StaticResource TourStepCard}"
+                            AutomationProperties.Name="Start with my own document"
+                            ToolTipService.ToolTip="Close the tour and start in the editor">
+                        <StackPanel Spacing="4">
+                            <FontIcon Glyph="&#xE70F;" Style="{StaticResource TourGlyph}" HorizontalAlignment="Left" />
+                            <TextBlock Text="Start with my own" FontWeight="SemiBold" />
+                            <TextBlock Style="{StaticResource TourStepCaption}"
+                                       Text="Paste a reply from your AI chat, or drop a file on the Source panel." />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <Grid ColumnSpacing="12" Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE897;" Style="{StaticResource TourGlyph}" FontSize="14" Width="20" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource TourStepCaption}"
+                               Text="Replay this tour any time: the ⋯ menu at the top right of Style &amp; Export ▸ Take a quick tour." />
+                </Grid>
             </StackPanel>
         </Grid>
 

@@ -4757,3 +4757,84 @@ it is dismissed. Check whether it should light-dismiss, or close once the panel 
    through Direct2D.
 
 **Release (same run):** tagged **v3.14.0** on `0479389` after CI passed on it; release workflow built x64/arm64 installers and zips; notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.15.0** (`a0dd261`).
+
+### 2026-10-10 07:00–07:35 AEST (routine run #55: first run, done properly)
+
+**Pick.** No other run was live (list_sessions: nothing running). Run #54's "Next up" #1: launch on a
+fresh config and go through every onboarding surface until it behaves. Walked the whole first run
+in a parked test instance (scratch config, PrintWindow, UIA): the tour page by page, both endings,
+the tips after it, the sample document, and every "Get the extension" button.
+
+**What the walk found:**
+- Every "Get the extension" button (Source panel card, plain-paste hint bar, Suite Hub) opened the
+  extension's *source folder on GitHub*. No release ships the extension, so an installed copy of
+  MarkSmith had no way to get it. The biggest half-baked feature in onboarding.
+- The tour's Pro page said Pro adds "branding" (nothing gates branding) and claimed a
+  "cross-platform" build. Plan copy was hand-written, not from `ProGate`.
+- The last page's "Load a sample" was an unticked checkbox under "Get started". Ticked, the sample
+  opened in Code view: a wall of Markdown, no rendered result. On a replay with text in the editor
+  the checkbox silently did nothing.
+- Closing the tour dropped keyboard focus on the licence banner's "Start free trial" (focus ring
+  plus a tooltip that popped up on the real screen, outside the parked window).
+- The "Everything else lives here" tip stayed over Style & Export, and its ☕ drew as a purple blob.
+- In Split view the empty preview said "open the Code tab"; a cleared editor showed a blank page.
+
+**Shipped:**
+- **The extension ships inside the app.** `MarkSmith.Desktop.csproj` copies `extension/` (minus
+  tests and notes) to `BrowserExtension\` beside Marksmith.exe, so the installer, the portable zip
+  and the delta update feed all carry it, and updates refresh it. New Core
+  `Services/BrowserExtensionPackage` (locate the folder, read its version, the connection phase
+  and its wording).
+- **"Get the extension" is an in-app guide** (`Views/ExtensionSetupView`, hosted by
+  `MainWindow.ShowExtensionSetupAsync`): 1 copy `edge://extensions` / `chrome://extensions`
+  (browsers refuse to open these from other apps), 2 Developer mode, 3 Load unpacked with the
+  folder's path (Copy, Open), then a live status card: API off (Turn on), port in use (names the
+  port and Settings ▸ Automation; Turn on can't fix that so it isn't offered), waiting (spinner),
+  connected (green). All three entry points open it; Suite Hub closes itself first (one
+  ContentDialog at a time). Once the extension checks in, the Source panel card retires for good.
+  Buttons got the puzzle glyph (EA86) instead of "open in browser".
+- **Tour:** app logo on the welcome page; Pro page text built from `ProGate.FreePlanIncludes` +
+  new `ProGate.ProPlanAdds` + `TrialSummary`; no cross-platform claim; paths use ▸ and say where
+  things live (Source ▸ Automation, Settings ▸ Automation). The last page is two cards, "Open the
+  sample" (accent border, the recommended start) and "Start with my own"; Next/Skip step aside and
+  focus lands on the first card. On a replay with a document open, the sample card is disabled and
+  says why.
+- **Sample** opens in Split view beside its rendered preview with a status line ("Sample document
+  opened. Restyle it in Style & Export, then Generate PDF."); its own text no longer says "on the right".
+- Focus returns to the editor when the tour closes.
+- **⋯ menu tip** closes after 12 s or on the first keystroke in the editor; both tips' copy is
+  emoji-free.
+- Empty preview: Split view says the editor is on the left; a cleared editor in paste mode shows
+  the hint instead of a blank page.
+- `Services/CopyFeedback.CopyWithTick` shared by Settings and the guide (tick survives a double click).
+- Tests: `OnboardingPolishTests` (12 tests, 16 cases): bundled folder found / not found / broken manifest, the
+  csproj ships the extension without tests, no entry point opens the GitHub folder, the phase
+  table, port-in-use wording, ProPlanAdds names every Pro feature and not branding, the tour takes
+  plan copy from ProGate, ends in two cards, uses ▸, tips carry no emoji.
+
+**Verified:**
+- Desktop build green (scratch OutDir); `BrowserExtension\` holds exactly the 13 extension files
+  plus icons. Full suite: 4365 passed, 22 failed, all path-based from the scratch OutDir: the known
+  18, plus DocxRoundTrip ×3 and ToggleTests Tier4, which climb to `C:\Users\test_outputs` from a
+  scratch OutDir (checked the error; environmental).
+- Live, fresh config: every tour page; "Open the sample" lands in Split with the preview and status;
+  the tip closes itself; caret in the editor afterwards, no focus ring on the banner. The guide via
+  the Source card and via Suite Hub (hub closes, guide opens). Port-in-use message with the user's
+  own instance holding 47821; then on a free port (47955) a `GET /api/commands` with a
+  `chrome-extension://` Origin turned the card green within one poll and set ShowExtensionTip false.
+- **Not verified:** a real Load unpacked in Edge/Chrome from the bundled folder (the folder is the
+  same files the extension tests load), the light theme of the guide, and whether ISCC picks up
+  `BrowserExtension\` (it packs the whole publish folder, so it should; check the v3.15.0 zip).
+
+**Noticed, not fixed:** the Branding expander shows a PRO badge on Free although nothing gates it
+(its cover page only lands in Word exports, which are Pro). Defensible, but the logo and font reach
+free formats; worth a clearer badge tooltip or moving the badge onto the Cover page row.
+
+**Next up:**
+1. Check the v3.15.0 portable zip contains `BrowserExtension\` and load it unpacked in Edge once
+   someone is at the PC.
+2. Light theme pass: Settings, side panel, the extension guide, the tour's accent card.
+3. Branding PRO badge (above).
+4. Carried over: first real in-app update 3.14.0 → 3.15.0 (does the installer reopen MarkSmith?);
+   `EmailExportFlowTests.Subject_preview_follows_the_template` flake; SmartArt Insert dialog tiles
+   through Direct2D; real-mouse hover check of OptionRow.

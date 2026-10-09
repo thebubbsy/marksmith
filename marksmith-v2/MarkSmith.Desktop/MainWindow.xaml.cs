@@ -283,6 +283,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // handler so they all see the view model already updated, as they did with the binding.
         PasteTextBox.Text = ViewModel.CurrentMarkdown ?? string.Empty;
         PasteTextBox.TextChanged += (_, _) => SyncDocumentFromEditor();
+        // The ⋯ menu tip covers the top of Style & Export; typing means the user has moved on.
+        PasteTextBox.PreviewKeyDown += (_, _) => { if (MoreMenuTip.IsOpen) MoreMenuTip.IsOpen = false; };
         ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ViewModel.CurrentMarkdown)) SyncEditorFromDocument();
@@ -634,17 +636,31 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         App.Settings.Save();
         DispatcherQueue.TryEnqueue(() => ShowMoreMenuTip(
             "Enjoying MarkSmith?",
-            "Third launch already — glad it's earning its keep! If it saves you time, there's a ☕ Buy Me a Coffee in this menu. Tour, shortcuts and settings live here too."));
+            "Third launch already: glad it's earning its keep. If it saves you time, Buy Me a Coffee is in this menu. The tour, shortcuts and Settings live here too."));
     }
 
+    private DispatcherQueueTimer? _moreMenuTipTimer;
+
     // Points the TeachingTip at the ⋯ menu with the given copy. Used by the first-run intro
-    // (post-tour) and the third-launch tip jar reminder.
+    // (post-tour) and the third-launch tip jar reminder. It sits over the top of Style & Export,
+    // so it closes itself after a while, or as soon as the user starts typing, instead of
+    // covering the panel for the whole session. (No emoji in the copy: TeachingTip draws them as
+    // a blurred blob at subtitle size.)
     private void ShowMoreMenuTip(string title, string subtitle)
     {
         MoreMenuTip.Title = title;
         MoreMenuTip.Subtitle = subtitle;
         MoreMenuTip.IsOpen = true;
+        _moreMenuTipTimer ??= DispatcherQueue.CreateTimer();
+        _moreMenuTipTimer.Stop();
+        _moreMenuTipTimer.Interval = TimeSpan.FromSeconds(12);
+        _moreMenuTipTimer.IsRepeating = false;
+        _moreMenuTipTimer.Tick -= OnMoreMenuTipTimeout;
+        _moreMenuTipTimer.Tick += OnMoreMenuTipTimeout;
+        _moreMenuTipTimer.Start();
     }
+
+    private void OnMoreMenuTipTimeout(DispatcherQueueTimer sender, object args) => MoreMenuTip.IsOpen = false;
 
     // AppWindow sizes are physical pixels, so the old fixed Resize(1220, 800) opened at ~813×533
     // DIPs on a 150%-scaled laptop — narrower than the three panes need, so the Style & Export
@@ -877,6 +893,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
         {
             SyncSourcePanels();
+        }
+
+        // The "Get the extension" card has done its job once the extension checks in: retire it
+        // for good rather than advertising something that's already installed.
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.ExtensionConnected) &&
+            ViewModel.ExtensionConnected && ViewModel.ShowExtensionTip)
+        {
+            ExtensionTip.IsOpen = false;
+            ViewModel.ShowExtensionTip = false;
         }
 
         // Auto-recovery: any edit to the paste buffer (or a switch into/out of paste mode) re-arms
@@ -1272,7 +1297,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         Views.WelcomeTour? tour = null;
         try
         {
-            tour = new Views.WelcomeTour();
+            tour = new Views.WelcomeTour(editorHasDocument: !string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown));
             var dialog = new ContentDialog
             {
                 Content = tour,
@@ -1305,10 +1330,16 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             // relocated tour / shortcuts / settings / tip jar.
             ShowMoreMenuTip(
                 "Everything else lives here",
-                "Version history, recent exports, the tour, keyboard shortcuts, Settings — and a ☕ tip jar if MarkSmith saves your day.");
+                "Version history, recent exports, this tour, keyboard shortcuts and Settings. There's a tip jar too, if MarkSmith saves your day.");
         }
 
         if (tour?.LoadSampleRequested == true) LoadSampleDocument();
+
+        // Back to the editor. Left alone, WinUI hands focus to the first tab stop when the dialog
+        // closes: the licence banner's "Start free trial", drawn with a focus ring and its tooltip
+        // (the launch path avoids the same trap in OnInitialFocusLoaded).
+        if (PasteTextBox is { Visibility: Visibility.Visible, ActualWidth: > 0 })
+            PasteTextBox.Focus(FocusState.Programmatic);
     }
 
     // A showcase document for the tour: something in every direction the app is good at —
@@ -1320,7 +1351,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         # Quarterly Review — Sample Document
 
         This is a **sample** so you can try MarkSmith without hunting for a Markdown file.
-        Restyle it on the right, then hit **Generate PDF** below.
+        Restyle it in **Style & Export** on the right, then hit **Generate PDF**.
 
         > [!TIP]
         > Everything here survives export: the table, the math, and the diagrams.
@@ -1445,12 +1476,22 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         Try editing this markdown in the textbox on the left to see the live preview instantly update.
         """;
 
+    // Opens beside its live preview (Split), so the first thing a new user sees is the finished
+    // page, not a wall of Markdown. The tour disables the option when the editor has text; this
+    // guard is the backstop and says why rather than doing nothing.
     private void LoadSampleDocument()
     {
-        if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown)) return;
+        if (!string.IsNullOrWhiteSpace(ViewModel.PastedMarkdown))
+        {
+            ViewModel.StatusText = "The sample didn't open: the editor already has a document, and the sample never replaces your work.";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Warning;
+            return;
+        }
         ViewModel.DetachFromOpenFile();
         ViewModel.UsePasteSource = true;
         ViewModel.PastedMarkdown = SampleMarkdown;
+        if (CenterViewSelector.SelectedItem != ViewSplitTab) CenterViewSelector.SelectedItem = ViewSplitTab;
+        ViewModel.StatusText = "Sample document opened. Restyle it in Style & Export, then Generate PDF.";
     }
 
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
@@ -1485,17 +1526,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     {
         var suiteHubView = new Views.SuiteHubView(_automationManager.IsApiRunning,
             _automationManager.IsApiRunning ? _automationManager.ApiPort : ViewModel.ApiPort,
-            turnOnApi: async () =>
-            {
-                // Same setting as Settings › Automation › Local API; the property hook re-applies
-                // automation synchronously.
-                ViewModel.ApiEnabled = true;
-                await System.Threading.Tasks.Task.Delay(150);
-                bool running = _automationManager.IsApiRunning;
-                return (running, running ? _automationManager.ApiPort : ViewModel.ApiPort,
-                        running ? null : $"Couldn't turn on the connection: port {ViewModel.ApiPort} may be in use by another program. Pick a different port in Settings › Automation.");
-            });
+            turnOnApi: TurnOnApiAsync);
         ContentDialog? dialog = null;
+        var openExtensionSetup = false;
+
+        suiteHubView.OpenExtensionSetupRequested += () =>
+        {
+            openExtensionSetup = true;
+            dialog?.Hide();
+        };
 
         suiteHubView.OpenMermaidStudioRequested += () =>
         {
@@ -1533,6 +1572,51 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         dialog.Resources["ContentDialogMinWidth"] = 740.0;
         dialog.Resources["ContentDialogMaxHeight"] = 900.0;
         await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog);
+        // Only one ContentDialog can be open, so the guide waits for the hub to close.
+        if (openExtensionSetup) await ShowExtensionSetupAsync();
+    }
+
+    // Same setting as Settings ▸ Automation ▸ Local API; the property hook re-applies automation
+    // synchronously. Used by Suite Hub and the extension setup guide.
+    private async Task<(bool Running, int Port, string? Error)> TurnOnApiAsync()
+    {
+        ViewModel.ApiEnabled = true;
+        await Task.Delay(150);
+        bool running = _automationManager.IsApiRunning;
+        return (running, running ? _automationManager.ApiPort : ViewModel.ApiPort,
+                running ? null : $"Couldn't turn on the connection: port {ViewModel.ApiPort} may be in use by another program. Pick a different port in Settings ▸ Automation.");
+    }
+
+    private void OnGetExtensionRequested(object? sender, EventArgs e) => _ = ShowExtensionSetupAsync();
+
+    // "Get the extension" from anywhere (Source panel card, plain-paste hint, Suite Hub): the
+    // in-app guide that ends in Load unpacked on the folder MarkSmith ships the extension in.
+    private async Task ShowExtensionSetupAsync()
+    {
+        var view = new Views.ExtensionSetupView(
+            apiEnabled: () => ViewModel.ApiEnabled,
+            apiRunning: () => _automationManager.IsApiRunning,
+            apiPort: () => _automationManager.IsApiRunning ? _automationManager.ApiPort : ViewModel.ApiPort,
+            extensionConnected: () => ViewModel.ExtensionConnected,
+            turnOnApi: TurnOnApiAsync);
+        var dialog = new ContentDialog
+        {
+            Title = "Add MarkSmith to your browser",
+            Content = view,
+            CloseButtonText = "Done",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot,
+        };
+        // 540 of content plus the dialog's padding is wider than the stock ContentDialogMaxWidth.
+        dialog.Resources["ContentDialogMaxWidth"] = 640.0;
+        dialog.Resources["ContentDialogMaxHeight"] = 900.0;
+        try { await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog); }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = $"Couldn't open the extension guide: {ex.Message}";
+            ViewModel.StatusSeverity = Models.StatusSeverity.Error;
+        }
+        finally { view.Detach(); }
     }
 
     // ---- Automation (clipboard watcher / folder watcher / REST API) ----
@@ -3101,14 +3185,21 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private async Task<string> ResolvePreviewMarkdownAsync()
     {
         var vm = ViewModel;
-        if (vm.UsePasteSource) return vm.PastedMarkdown ?? "";
+        if (vm.UsePasteSource)
+            return string.IsNullOrWhiteSpace(vm.PastedMarkdown) ? EmptyPreviewMarkdown() : vm.PastedMarkdown;
         if (!string.IsNullOrWhiteSpace(vm.InputFilePath) && File.Exists(vm.InputFilePath))
             return await Plugins.PluginFileReader.ReadAsMarkdownAsync(vm.InputFilePath);
         if (!string.IsNullOrWhiteSpace(vm.PastedMarkdown))
             return vm.PastedMarkdown;
-        // "Paste" was the old name of the editor tab; it's "Code" now.
-        return "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or open the **Code** tab and paste or start typing.";
+        return EmptyPreviewMarkdown();
     }
+
+    // What the preview shows with nothing to render (it used to be a blank page once the editor
+    // was cleared). In Split view the editor is already beside it, so it doesn't send people to
+    // the Code tab. ("Paste" was the old name of the editor tab; it's "Code" now.)
+    private string EmptyPreviewMarkdown() => _viewMode == ViewMode.Split
+        ? "# MarkSmith\n\nPaste or type Markdown in the editor on the left and the finished page appears here as you go. Or drop a file on **1 · Source**."
+        : "# MarkSmith\n\nDrop a Markdown file on **1 · Source**, or open the **Code** tab and paste or start typing.";
 
     private async Task<bool> UpdatePreviewCanvasLiveAsync(string? markdown = null)
     {

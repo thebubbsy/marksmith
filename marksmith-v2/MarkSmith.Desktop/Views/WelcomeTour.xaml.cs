@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using MarkSmith.Models;
 using MarkSmith.Services;
 
 namespace MarkSmith.Views;
@@ -16,17 +17,25 @@ public sealed partial class WelcomeTour : UserControl
 {
     public event EventHandler? Completed;
 
-    // What the user opted into on the final page. Only honored when they finish with
-    // "Get started" — Skip means "leave me alone", so it stays false on that path.
+    // True when the user finished with the "Open the sample" card. Skip, Esc and "Start with
+    // my own" leave it false.
     public bool LoadSampleRequested { get; private set; }
 
     private StackPanel[] _pages = Array.Empty<StackPanel>();
     private int _index;
     private Storyboard? _transition;
 
-    public WelcomeTour()
+    // editorHasDocument: the tour was replayed with work in the editor. The sample never replaces
+    // a document, so its card says so and stays disabled instead of silently doing nothing.
+    public WelcomeTour(bool editorHasDocument = false)
     {
         InitializeComponent();
+        PlanText.Text = $"{ProGate.FreePlanIncludes} {ProGate.ProPlanAdds} {ProGate.TrialSummary}";
+        if (editorHasDocument)
+        {
+            SampleCard.IsEnabled = false;
+            SampleCaption.Text = "Your editor already has a document, and the sample never replaces your work. Clear the editor to try it.";
+        }
         // Page4 (3 · Preview & Export) runs before Page3 (Diagrams & math) so the numbered
         // pipeline reads 1, 2, 3 in order and the unnumbered extras follow it.
         _pages = new[] { Page0, Page1, Page2, Page4, Page3, Page5, Page6 };
@@ -68,9 +77,15 @@ public sealed partial class WelcomeTour : UserControl
             _pages[i].Visibility = i == _index ? Visibility.Visible : Visibility.Collapsed;
         if (Pips.SelectedPageIndex != _index) Pips.SelectedPageIndex = _index;
         BackButton.Visibility = _index > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NextButton.Content = _index >= Last ? "Get started" : "Next";
-        SkipButton.Visibility = _index >= Last ? Visibility.Collapsed : Visibility.Visible;
+        // The last page's two cards are its buttons, so Next and Skip step aside there.
+        var last = _index >= Last;
+        NextButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
+        SkipButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
         if (_index != previous) SlideIn(_pages[_index], forward: _index > previous);
+        // Next had focus and just collapsed; hand keyboard focus to the first card rather than
+        // dropping it on the dialog.
+        if (last && _index != previous)
+            (SampleCard.IsEnabled ? SampleCard : BlankCard).Focus(FocusState.Programmatic);
     }
 
     // The incoming page fades in while drifting 24px from the side it came from, so paging reads
@@ -129,16 +144,16 @@ public sealed partial class WelcomeTour : UserControl
 
     private void OnNext(object sender, RoutedEventArgs e)
     {
-        if (_index < Last)
-        {
-            Show(_index + 1);
-        }
-        else
-        {
-            LoadSampleRequested = LoadSampleCheck.IsChecked == true;
-            Completed?.Invoke(this, EventArgs.Empty);
-        }
+        if (_index < Last) Show(_index + 1);
     }
+
+    private void OnSampleCard(object sender, RoutedEventArgs e)
+    {
+        LoadSampleRequested = true;
+        Completed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnBlankCard(object sender, RoutedEventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
 
     private void OnSkip(object sender, RoutedEventArgs e) => Completed?.Invoke(this, EventArgs.Empty);
 }

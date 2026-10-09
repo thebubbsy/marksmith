@@ -299,31 +299,7 @@ public sealed partial class SettingsView : UserControl
         catch { /* no browser: the code and the address are both on screen */ }
     }
 
-    // Copy, then swap the button's icon for a tick for a moment: the only feedback a copy gets
-    // inside a dialog, where the main window's status bar is hidden.
-    private void CopyWithTick(string text, FontIcon icon)
-    {
-        if (string.IsNullOrEmpty(text)) return;
-        try
-        {
-            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(text);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        }
-        catch { return; }
-        var glyph = icon.Glyph;
-        icon.Glyph = "\uE73E"; // CheckMark
-        icon.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-        var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(1400);
-        timer.IsRepeating = false;
-        timer.Tick += (_, _) =>
-        {
-            icon.Glyph = glyph;
-            icon.ClearValue(FontIcon.ForegroundProperty);
-        };
-        timer.Start();
-    }
+    private static void CopyWithTick(string text, FontIcon icon) => CopyFeedback.CopyWithTick(text, icon);
 
     // ---- Automation ----
 

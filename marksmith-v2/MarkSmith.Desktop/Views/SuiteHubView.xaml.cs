@@ -17,10 +17,8 @@ public sealed partial class SuiteHubView : UserControl
     public event Action? OpenMermaidStudioRequested;
     public event Action? OpenShapeStudioRequested;
     public event Action? OpenGalaxyRequested;
-
-    // Where the browser extension lives when its README isn't next to the build (every installed
-    // copy) — the same page the main window's "Get the extension" tip opens.
-    private const string ExtensionPageUrl = "https://github.com/thebubbsy/MarkSmith/tree/main/extension";
+    // The host closes the hub and opens the extension setup guide (one ContentDialog at a time).
+    public event Action? OpenExtensionSetupRequested;
 
     private int _apiPort;
     private readonly Func<System.Threading.Tasks.Task<(bool Running, int Port, string? Error)>>? _turnOnApi;
@@ -248,27 +246,7 @@ public sealed partial class SuiteHubView : UserControl
         CopyToClipboard(url, $"Copied the local REST API address ({url}).");
     }
 
-    private void OnOpenExtensionDocsClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var extDocs = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "extension", "README.md"));
-            if (File.Exists(extDocs))
-            {
-                Process.Start(new ProcessStartInfo { FileName = extDocs, UseShellExecute = true });
-                SetNotification("Opened extension documentation.");
-            }
-            else
-            {
-                Process.Start(new ProcessStartInfo { FileName = ExtensionPageUrl, UseShellExecute = true });
-                SetNotification("Opened the browser extension page.");
-            }
-        }
-        catch (Exception ex)
-        {
-            SetNotification($"Couldn't open the extension guide: {ex.Message}", success: false);
-        }
-    }
+    private void OnOpenExtensionDocsClick(object sender, RoutedEventArgs e) => OpenExtensionSetupRequested?.Invoke();
 
     // Real, runnable commands (the old button copied "marksmith suite", which isn't on PATH and
     // only prints a status report). The bundled exe is quoted in full so a paste just works.
