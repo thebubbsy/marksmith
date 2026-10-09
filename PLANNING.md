@@ -4491,3 +4491,11 @@ more version through the broken path.
    shared static state it races on.
 3. Real-mouse items from run #49's #3, for when the user is idle.
 4. Untested by eye: the SmartArt Insert dialog (Insert ▸ SmartArt) tiles through Direct2D.
+
+**Run #52 cleanup incident:** both concurrent runs used `%TEMP%\ms52` as scratch. This run
+built into `ms52\app`; the other session kept an isolated source copy in `ms52\marksmith-v2` and
+a test instance's config in `ms52\ui`. This run's end-of-run `rm -rf %TEMP%\ms52` deleted every
+unlocked file of the other session's isolated copy. Its running instance (pid 14720) was left
+alone. Nothing in the repo was affected, but that session will need to re-copy its tree to
+build there again. **Rule: name scratch dirs after the session (or use the session scratchpad),
+and delete only paths this run created, never a whole shared `%TEMP%\msNN` folder.**
