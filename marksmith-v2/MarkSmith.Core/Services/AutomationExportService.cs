@@ -85,6 +85,8 @@ public sealed class AutomationExportService
         var settings = job.Settings;
         var md = job.Markdown ?? "";
         var theme = AppServices.Themes.GetOrDefault(settings.Theme);
+        // A watched or batch file's relative images live next to it, not next to the app.
+        using var images = DocumentImages.UseFolder(job.BaseDirectory);
         var hasMermaid = Email.EmailHtmlRenderer.HasMermaid(md);
         bool isEmail = fmt is OutputFormats.Eml or OutputFormats.Msg;
         // Only start the preview engine when this export draws with it (an email's PDF copy does).

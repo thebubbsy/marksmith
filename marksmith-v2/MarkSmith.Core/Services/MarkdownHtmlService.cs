@@ -259,7 +259,7 @@ public sealed partial class MarkdownHtmlService
         // Sanitize the markdig output FIRST — everything appended after this point (mermaid init,
         // KaTeX, the lens, plugin SVGs) is our own, trusted markup and must not be filtered.
         body = HtmlSanitizer.Apply(body);
-        body = EmbedLocalImages(body);
+        body = EmbedLocalImages(body, interactive);
 
         // Markdig renders ```mermaid fences as <pre><code class="language-mermaid">…</code></pre> with
         // the content HTML-escaped. Rewrite the fence to a <div class="mermaid">, but KEEP the content
@@ -2460,7 +2460,7 @@ public sealed partial class MarkdownHtmlService
 
         if (settings.NoEmoji) body = EmojiStripper.Strip(body);
         body = HtmlSanitizer.Apply(body);
-        body = EmbedLocalImages(body);
+        body = EmbedLocalImages(body, interactive: true);
 
         var isDark = isDarkEarly;
         var renderedSmartArt = new List<string>(smartArtBlocks.Count);
@@ -2856,7 +2856,7 @@ public sealed partial class MarkdownHtmlService
     private static readonly object ImageCacheLock = new();
     private const int MaxImageCacheEntries = 64;
 
-    private static string EmbedLocalImages(string body)
+    private static string EmbedLocalImages(string body, bool interactive = false)
     {
         if (!body.Contains("<img", StringComparison.Ordinal)) return body;
         long budgetUsed = 0;
@@ -2868,7 +2868,7 @@ public sealed partial class MarkdownHtmlService
             // Markdig percent-encodes link destinations (C:\Users\... arrives as C:%5CUsers%5C...),
             // so DETECT local paths against a decoded copy — but leave a remote URL's src exactly
             // as written, since decoding could corrupt legitimately-encoded query strings.
-            var decoded = Uri.UnescapeDataString(System.Net.WebUtility.HtmlDecode(src));
+            var decoded = System.Net.WebUtility.HtmlDecode(src);
 
             var width = "";
             var sizeHint = AltSizeHint.Match(alt);
@@ -2878,53 +2878,76 @@ public sealed partial class MarkdownHtmlService
                 width = $" width=\"{sizeHint.Groups[2].Value}\"";
             }
 
-            var localPath = decoded.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
-                ? decoded[8..].Replace('/', '\\')
-                : (decoded.Length > 2 && decoded[1] == ':' ? decoded : null);
-            if (localPath is not null)
+            if (!DocumentImages.LooksLocal(decoded))
+                return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
+
+            // Relative paths resolve against the open document's folder (DocumentImages.UseFolder).
+            var localPath = DocumentImages.Resolve(decoded);
+            if (localPath is null)
             {
-                try
+                // The live preview says what's wrong instead of drawing Chromium's broken-image
+                // glyph; exports keep the img so the alt text still reads.
+                if (interactive) return MissingImageCard(decoded, alt);
+                return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
+            }
+
+            var inlined = false;
+            try
+            {
+                var info = new FileInfo(localPath);
+                // Large/high-res local images (phone photos, screenshots, 1273px logos) are
+                // downscaled to a document-sensible size FIRST — a page is only ~800px wide,
+                // so a bigger source is wasted bytes that (base64-inflated) blow the
+                // NavigateToString ceiling and take the whole preview down. Small images
+                // pass through untouched.
+                // The resulting data URI is cached so a re-render reuses it instead of
+                // re-reading/re-encoding the file (see ImageCache above).
+                var cacheKey = $"{localPath}|{info.LastWriteTimeUtc.Ticks}|{info.Length}";
+                ImageCacheEntry? entry;
+                lock (ImageCacheLock) ImageCache.TryGetValue(cacheKey, out entry);
+                if (entry is null)
                 {
-                    var info = new FileInfo(localPath);
-                    if (info.Exists)
+                    var (data, mime) = PrepareImageForInline(localPath, info);
+                    if (data is not null && mime is not null)
                     {
-                        // Large/high-res local images (phone photos, screenshots, 1273px logos) are
-                        // downscaled to a document-sensible size FIRST — a page is only ~800px wide,
-                        // so a bigger source is wasted bytes that (base64-inflated) blow the
-                        // NavigateToString ceiling and take the whole preview down. Downscaling turns
-                        // a 1.7 MB PNG into ~100 KB that looks identical at display size. Small images
-                        // pass through untouched; SVG is never rasterized.
-                        // The resulting data URI is cached so a re-render reuses it instead of
-                        // re-reading/re-encoding the file (see ImageCache above).
-                        var cacheKey = $"{localPath}|{info.LastWriteTimeUtc.Ticks}|{info.Length}";
-                        ImageCacheEntry? entry;
-                        lock (ImageCacheLock) ImageCache.TryGetValue(cacheKey, out entry);
-                        if (entry is null)
+                        entry = new ImageCacheEntry(data.Length, $"data:{mime};base64,{Convert.ToBase64String(data)}");
+                        lock (ImageCacheLock)
                         {
-                            var (data, mime) = PrepareImageForInline(localPath, info);
-                            if (data is not null && mime is not null)
-                            {
-                                entry = new ImageCacheEntry(data.Length, $"data:{mime};base64,{Convert.ToBase64String(data)}");
-                                lock (ImageCacheLock)
-                                {
-                                    if (ImageCache.Count >= MaxImageCacheEntries) ImageCache.Clear();
-                                    ImageCache[cacheKey] = entry;
-                                }
-                            }
-                        }
-                        if (entry is not null &&
-                            budgetUsed + entry.ByteLength * 4 / 3 <= MaxInlineBudgetBytes)
-                        {
-                            src = entry.DataUri;
-                            budgetUsed += entry.ByteLength * 4 / 3;
+                            if (ImageCache.Count >= MaxImageCacheEntries) ImageCache.Clear();
+                            ImageCache[cacheKey] = entry;
                         }
                     }
                 }
-                catch { /* unreadable/undecodable file: leave the original src; alt text still shows */ }
+                if (entry is not null &&
+                    budgetUsed + entry.ByteLength * 4 / 3 <= MaxInlineBudgetBytes)
+                {
+                    src = entry.DataUri;
+                    budgetUsed += entry.ByteLength * 4 / 3;
+                    inlined = true;
+                }
             }
+            catch { /* unreadable/undecodable file: fall through to serving it as-is */ }
+
+            // Past the inline budget (or a format we don't re-encode): the WinUI web view serves the
+            // file itself, so the tenth photo in a report still shows in the preview and the PDF.
+            if (!inlined && DocumentImages.ServeUrl(localPath) is { } served) src = served;
 
             return $"<img src=\"{src}\" alt=\"{System.Net.WebUtility.HtmlEncode(alt)}\"{width}{rest}>";
         });
+    }
+
+    // Shown in the live preview where an image's file can't be found: the path as written, so a
+    // typo or a moved folder is obvious. Neutral colours (currentColor) suit every theme.
+    private static string MissingImageCard(string path, string alt)
+    {
+        var label = string.IsNullOrWhiteSpace(alt) ? "Image" : alt.Trim();
+        var shown = System.Net.WebUtility.HtmlEncode(Uri.UnescapeDataString(path));
+        return "<span class=\"ms-img-missing\" role=\"img\" aria-label=\"" + System.Net.WebUtility.HtmlEncode($"{label} (image not found)") + "\" "
+             + "style=\"display:inline-flex;flex-direction:column;gap:2px;max-width:100%;padding:10px 14px;border:1px dashed currentColor;"
+             + "border-radius:6px;opacity:.7;font-size:.85em;line-height:1.4;vertical-align:middle\">"
+             + "<strong>" + System.Net.WebUtility.HtmlEncode(label) + " · image not found</strong>"
+             + "<span style=\"font-family:Consolas,monospace;word-break:break-all\">" + shown + "</span>"
+             + "</span>";
     }
 
     private const int MaxImageDimension = 1400; // downscale target: covers 2x the ~800px page width
@@ -2935,7 +2958,8 @@ public sealed partial class MarkdownHtmlService
     private static (byte[]? Data, string? Mime) PrepareImageForInline(string path, FileInfo info)
     {
         var ext = info.Extension.ToLowerInvariant();
-        if (ext == ".svg") return (null, null); // vector: inlining raw would need XML, not a raster path
+        // Vector: inlined byte-for-byte when small (an <img> SVG can't run script); a big one is served.
+        if (ext == ".svg") return info.Length <= 350_000 ? (File.ReadAllBytes(path), "image/svg+xml") : (null, null);
 
         var raw = File.ReadAllBytes(path);
 
@@ -2968,11 +2992,16 @@ public sealed partial class MarkdownHtmlService
         {
             using var image = SKImage.FromBitmap(scaled);
             if (image is null) return (null, null);
-            // PNG keeps sharp edges + transparency for graphics/logos; the size win comes from the
-            // resolution drop, not lossy compression, so text/line art stays crisp.
-            using var encoded = image.Encode(SKEncodedImageFormat.Png, 90);
+            // PNG keeps sharp edges + transparency for graphics/logos. A photo (a JPEG, or anything
+            // with no transparency that was already a JPEG-sized file) goes back out as JPEG: as PNG
+            // a 1400px phone photo is ~3 MB, which never fit the inline budget, so photos simply
+            // didn't appear in the preview or the PDF.
+            var photo = ext is ".jpg" or ".jpeg" || (scaled.AlphaType == SKAlphaType.Opaque && ext is ".webp" or ".bmp");
+            using var encoded = photo
+                ? image.Encode(SKEncodedImageFormat.Jpeg, 85)
+                : image.Encode(SKEncodedImageFormat.Png, 90);
             if (encoded is null) return (null, null);
-            return (encoded.ToArray(), "image/png");
+            return (encoded.ToArray(), photo ? "image/jpeg" : "image/png");
         }
         finally
         {

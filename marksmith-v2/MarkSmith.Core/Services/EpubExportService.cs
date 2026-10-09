@@ -323,27 +323,9 @@ public sealed class EpubExportService
         return t;
     }
 
-    /// <summary>
-    /// Locates a local image the same way the DOCX exporter does — absolute path, then relative to
-    /// the app base directory, then to the working directory — so the two exporters agree on where
-    /// a document's images live instead of each inventing a rule.
-    /// </summary>
-    private static string? ResolveImagePath(string src)
-    {
-        var raw = src.StartsWith("file:///", StringComparison.OrdinalIgnoreCase) ? src[8..] : src;
-        raw = Uri.UnescapeDataString(raw);
-        var candidates = new[]
-        {
-            raw,
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, raw.Replace('/', Path.DirectorySeparatorChar)),
-            Path.Combine(Directory.GetCurrentDirectory(), raw.Replace('/', Path.DirectorySeparatorChar)),
-        };
-        foreach (var c in candidates)
-        {
-            try { if (File.Exists(c)) return Path.GetFullPath(c); } catch { }
-        }
-        return null;
-    }
+    /// <summary>Locates a local image the same way every other renderer does (DocumentImages):
+    /// absolute paths, then relative to the document's folder.</summary>
+    private static string? ResolveImagePath(string src) => DocumentImages.Resolve(src);
 
     /// <summary>The EPUB 3 core image media types; anything else is left as an external reference.</summary>
     private static string? MediaTypeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch

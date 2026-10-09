@@ -2164,23 +2164,43 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
+        // Images already in (or below) the document's folder are referenced where they are; others
+        // are copied in first. Destinations are relative to a saved document and survive spaces
+        // (InsertSnippetBuilder.Image), so a drop from "My Pictures" no longer writes broken Markdown.
+        var docFolder = ViewModel.DocumentFolder;
         var refs = new List<string>();
+        var copied = 0;
         foreach (var img in images)
         {
-            // Already living next to the document? Reference it in place instead of duplicating.
-            var srcDir = System.IO.Path.GetDirectoryName(img.Path);
-            if (string.Equals(srcDir, targetDir.Path, StringComparison.OrdinalIgnoreCase))
+            var path = img.Path;
+            if (!IsInsideFolder(path, docFolder ?? targetDir.Path))
             {
-                refs.Add($"![{System.IO.Path.GetFileNameWithoutExtension(img.Name)}]({img.Path})");
-                continue;
+                var dest = await img.CopyAsync(targetDir, img.Name, NameCollisionOption.GenerateUniqueName);
+                path = dest.Path;
+                copied++;
             }
-            var dest = await img.CopyAsync(targetDir, img.Name, NameCollisionOption.GenerateUniqueName);
-            refs.Add($"![{System.IO.Path.GetFileNameWithoutExtension(dest.Name)}]({dest.Path})");
+            refs.Add(Services.InsertSnippetBuilder.Image("", path, docFolder ?? "").Trim('\n'));
         }
 
-        InsertMarkdown(string.Join("\n", refs) + "\n");
-        ViewModel.StatusText = $"Embedded {refs.Count} image(s) into the document.";
+        InsertMarkdown("\n" + string.Join("\n\n", refs) + "\n");
+        var noun = refs.Count == 1 ? "image" : $"{refs.Count} images";
+        ViewModel.StatusText = copied == 0
+            ? $"Added {noun} to the document."
+            : docFolder is null
+                ? $"Added {noun}. Pasted text has no folder, so {(copied == 1 ? "it was" : "they were")} copied to {targetDir.Path}."
+                : $"Added {noun}, copied into the document's folder so {(refs.Count == 1 ? "it travels" : "they travel")} with it.";
         ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+    }
+
+    private static bool IsInsideFolder(string path, string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return false;
+        try
+        {
+            var rel = System.IO.Path.GetRelativePath(System.IO.Path.GetFullPath(folder), System.IO.Path.GetFullPath(path));
+            return !rel.StartsWith("..", StringComparison.Ordinal) && !System.IO.Path.IsPathRooted(rel);
+        }
+        catch { return false; }
     }
 
     private async Task<StorageFolder?> ResolveImageDropFolderAsync()
@@ -2657,6 +2677,41 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
         }
         catch { /* mapping already set or unavailable — CDN fallback in the HTML still works */ }
+        MapImageHost(core);
+    }
+
+    // Local images too big to inline into a NavigateToString page are served from this host (Core
+    // DocumentImages registers each one as it renders). Only registered files are answered, so a
+    // page can't use it to read anything else on disk.
+    private const string ImageHost = "marksmith.images";
+
+    private static void MapImageHost(Microsoft.Web.WebView2.Core.CoreWebView2 core)
+    {
+        try
+        {
+            Services.DocumentImages.ServedHost = ImageHost;
+            core.AddWebResourceRequestedFilter($"https://{ImageHost}/*",
+                Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
+            core.WebResourceRequested += (_, e) =>
+            {
+                var uri = e.Request.Uri;
+                if (!uri.StartsWith($"https://{ImageHost}/", StringComparison.OrdinalIgnoreCase)) return;
+                var path = Services.DocumentImages.ServedPath(uri);
+                try
+                {
+                    if (path is not null)
+                    {
+                        var stream = File.OpenRead(path).AsRandomAccessStream();
+                        e.Response = core.Environment.CreateWebResourceResponse(stream, 200, "OK",
+                            $"Content-Type: {Services.DocumentImages.MimeFor(path)}\r\nCache-Control: no-cache");
+                        return;
+                    }
+                }
+                catch { /* locked or vanished since the render: answer 404 below */ }
+                e.Response = core.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+            };
+        }
+        catch { /* older runtime: big images keep their file path, as before */ }
     }
 
     // The WebView initializes asynchronously after launch, but headless work (auto-generate on
@@ -5978,36 +6033,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             return;
         }
 
-        // Default experience: an interactive picker — drag & drop, browse, or paste a URL.
-        var control = new Views.ImageInsertControl();
-        ContentDialog? dialog = null;
-        control.ImagePicked += source =>
-        {
-            dialog?.Hide();
-            InsertImageMarkdown(source);
-        };
-        await ShowInsertDialogAsync("Insert image", control, primaryButtonText: null, configure: d => dialog = d);
-    }
-
-    // Turns a picked source (local path or URL) into markdown image syntax. Local paths get
-    // forward slashes so the WebView2 preview and the DOCX image embedder resolve them, and the
-    // alt text comes from the file name; URLs keep a generic alt.
-    private void InsertImageMarkdown(string source)
-    {
-        string src, alt;
-        if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            src = source;
-            alt = "image";
-        }
-        else
-        {
-            src = source.Replace('\\', '/');
-            alt = System.IO.Path.GetFileNameWithoutExtension(source);
-            if (string.IsNullOrWhiteSpace(alt)) alt = "image";
-        }
-        InsertMarkdown($"\n![{alt}]({src})\n");
+        // Default experience: drop, browse or paste a path/address, check the thumbnail and alt
+        // text, then Insert — the same footer as every other insert dialog.
+        var control = new Views.ImageInsertControl(ViewModel.DocumentFolder);
+        if (await ShowInsertDialogAsync("Insert image", control) != ContentDialogResult.Primary) return;
+        InsertMarkdown(control.Snippet);
     }
 
     private async void OnTableClick(object sender, RoutedEventArgs e)

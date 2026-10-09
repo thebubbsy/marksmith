@@ -117,7 +117,10 @@ public abstract class InsertDialogBody : UserControl
         _problem.Text = problem ?? "";
         _problem.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
         _problem.Foreground = (Brush)Application.Current.Resources[_opened ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
-        _preview.Text = Snippet.Trim('\n');
+        // An empty card read as broken; say plainly that nothing has been chosen yet.
+        var snippet = Snippet.Trim('\n');
+        _preview.Text = snippet.Length == 0 ? "Nothing yet" : snippet;
+        _preview.Opacity = snippet.Length == 0 ? 0.6 : 1;
         var valid = problem is null;
         if (valid != _valid)
         {

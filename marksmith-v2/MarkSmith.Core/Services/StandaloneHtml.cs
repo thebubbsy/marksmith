@@ -23,6 +23,10 @@ public static class StandaloneHtml
         @"(?<pre><script\b[^>]*?\bsrc="")(?<url>[^""]+)(?<post>"")",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex ServedImgSrc = new(
+        @"(?<pre><img\b[^>]*?\bsrc="")(?<url>https://[^""/]+/[0-9a-f]{24}/[^""]*)(?<post>"")",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex CssUrl = new(
         @"url\((?<q>['""]?)(?<path>[^'"")]+)\k<q>\)",
         RegexOptions.Compiled);
@@ -61,6 +65,19 @@ public static class StandaloneHtml
             var data = "data:text/javascript;base64," + Convert.ToBase64String(File.ReadAllBytes(file));
             return m.Groups["pre"].Value + data + m.Groups["post"].Value;
         });
+
+        // Images the preview served from the in-app image host (too big to inline) go in as data:
+        // URLs, so the saved page shows them too.
+        if (DocumentImages.ServedHost is not null)
+        {
+            html = ServedImgSrc.Replace(html, m =>
+            {
+                var file = DocumentImages.ServedPath(m.Groups["url"].Value);
+                if (file is null) return m.Value;
+                try { return m.Groups["pre"].Value + $"data:{DocumentImages.MimeFor(file)};base64,{Convert.ToBase64String(File.ReadAllBytes(file))}" + m.Groups["post"].Value; }
+                catch { return m.Value; }
+            });
+        }
 
         return html;
     }

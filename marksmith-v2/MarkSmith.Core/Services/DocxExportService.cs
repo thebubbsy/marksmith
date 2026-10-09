@@ -3326,20 +3326,10 @@ public sealed partial class DocxExportService
                 return ReadImageResponseWithLimit(response, MaxImageSizeBytes);
             }
 
-            // 3. Local File
-            var path = rawUrl.StartsWith("file:///", StringComparison.OrdinalIgnoreCase)
-                ? rawUrl[8..].Replace('/', '\\')
-                : (rawUrl.Length > 2 && rawUrl[1] == ':' ? rawUrl : null);
-
-            if (path is null || !File.Exists(path))
-            {
-                var relative = rawUrl.Replace('/', '\\');
-                var altPath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relative);
-                var altPath2 = Path.Combine(Directory.GetCurrentDirectory(), relative);
-                if (File.Exists(altPath1)) path = altPath1;
-                else if (File.Exists(altPath2)) path = altPath2;
-                else return null;
-            }
+            // 3. Local File: relative paths resolve against the document's folder first
+            // (DocumentImages), so "images/chart.png" next to the .md lands in the .docx.
+            var path = DocumentImages.Resolve(rawUrl);
+            if (path is null) return null;
 
             var fileInfo = new FileInfo(path);
             if (fileInfo.Length > MaxImageSizeBytes)

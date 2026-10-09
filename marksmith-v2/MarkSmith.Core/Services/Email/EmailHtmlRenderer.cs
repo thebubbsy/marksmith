@@ -795,15 +795,9 @@ public sealed class EmailHtmlRenderer
                 name = "image" + MimeExtension(mime);
                 return bytes.Length > 0;
             }
-            string path = url;
-            if (url.StartsWith("file:", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(url, UriKind.Absolute, out var uri)) path = uri.LocalPath;
-            path = Uri.UnescapeDataString(path);
-            if (!Path.IsPathRooted(path))
-            {
-                if (string.IsNullOrEmpty(_options.BaseDirectory)) return false;
-                path = Path.GetFullPath(Path.Combine(_options.BaseDirectory, path));
-            }
-            if (!File.Exists(path)) return false;
+            // The same lookup as the preview and every other exporter (relative to the document).
+            var path = DocumentImages.Resolve(url, _options.BaseDirectory);
+            if (path is null) return false;
             bytes = File.ReadAllBytes(path);
             name = Path.GetFileName(path);
             mime = Path.GetExtension(path).ToLowerInvariant() switch

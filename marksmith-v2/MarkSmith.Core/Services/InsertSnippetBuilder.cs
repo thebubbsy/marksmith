@@ -43,6 +43,19 @@ public static class InsertSnippetBuilder
     public static string Link(string text, string url) =>
         $"[{(text ?? "").Trim()}]({Or(url, "url")})";
 
+    /// <summary>
+    /// ![alt](destination) on its own line. A local file in or below
+    /// <paramref name="documentFolder"/> is written relative to it, anything else as a full path,
+    /// always with forward slashes, and wrapped in &lt;…&gt; when it holds spaces — a bare
+    /// destination with a space isn't an image at all (see <see cref="DocumentImages.Destination"/>).
+    /// An empty alt falls back to words from the file name.
+    /// </summary>
+    public static string Image(string alt, string source, string documentFolder = "")
+    {
+        var text = string.IsNullOrWhiteSpace(alt) ? DocumentImages.AltFromFileName(source) : alt;
+        return $"\n![{DocumentImages.EscapeAlt(text)}]({DocumentImages.Destination(source, documentFolder)})\n";
+    }
+
     /// <summary>Fenced code block; an empty language yields a bare ``` fence.</summary>
     public static string CodeBlock(string language, string body) =>
         $"\n```{(language ?? "").Trim()}\n{(body ?? "").TrimEnd()}\n```\n";

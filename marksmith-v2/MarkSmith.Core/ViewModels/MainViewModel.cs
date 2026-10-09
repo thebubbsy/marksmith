@@ -1320,8 +1320,16 @@ private readonly MarkdownExportService _mdExport = new();
     }
 
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.
-    public string BuildPreviewHtml(string markdown, bool interactive = false) =>
-        _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
+    public string BuildPreviewHtml(string markdown, bool interactive = false)
+    {
+        // Relative image paths ("images/chart.png") resolve against the open file's folder.
+        using var images = DocumentImages.UseFolder(DocumentFolder);
+        return _markdownHtml.Render(markdown, _settingsService.Current, CurrentTheme, LastClassification, interactive);
+    }
+
+    /// <summary>The folder of the open file, which relative image paths resolve against; null
+    /// for pasted text.</summary>
+    public string? DocumentFolder => UsePasteSource ? null : DocumentImages.FolderOf(InputFilePath);
 
     /// <summary>Canvas-only render for the live in-place swap path — skips the HTML shell.</summary>
     public string? BuildPreviewCanvasHtml(string markdown) =>
@@ -1951,6 +1959,8 @@ private readonly MarkdownExportService _mdExport = new();
         IsBusy = true;
         StatusText = $"{_exportAllStep}Converting to {kind}…";
         StatusSeverity = StatusSeverity.Informational;
+        // Every exporter finds the document's relative images through this (DocumentImages).
+        using var images = DocumentImages.UseFolder(DocumentFolder);
         try
         {
             await work(cts.Token);
