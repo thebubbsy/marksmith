@@ -87,8 +87,42 @@ public static class HoverPolish
         // Track rather than a one-off Apply: dialog content like Settings realises each page
         // only when it's first shown.
         dialog.Opened += (sender, _) => Track((FrameworkElement)sender);
+
+        // When a dialog closes WinUI hands focus to the first tab stop in the window, which in the
+        // main window is the licence banner's "Start free trial": a focus ring and a tooltip on a
+        // button nobody went near, after every dialog. Put focus back where it was instead.
+        var root = dialog.XamlRoot;
+        var before = root is null ? null : FocusManager.GetFocusedElement(root) as Control;
+        dialog.Closed += (_, _) => dialog.DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => ReturnFocus(root, before));
         return dialog.ShowAsync();
     }
+
+    /// <summary>
+    /// Where focus goes after a dialog when the control that had it before is gone (a dialog shown
+    /// at startup, or one opened from a flyout that has since closed). The main window points this
+    /// at the editor.
+    /// </summary>
+    public static Func<XamlRoot, Control?>? FocusFallback { get; set; }
+
+    private static void ReturnFocus(XamlRoot? root, Control? before)
+    {
+        if (root is null || IsContentDialogOpen(root)) return;
+
+        // Only undo WinUI's own fallback (focus nowhere, or parked on some button). Code after the
+        // dialog that moved focus on purpose, into a text box or a newly opened dialog, wins.
+        var now = FocusManager.GetFocusedElement(root);
+        if (now is not null && now is not ButtonBase) return;
+        if (now is not null && ReferenceEquals(now, before)) return;
+
+        var target = IsFocusable(before, root) ? before : FocusFallback?.Invoke(root);
+        if (IsFocusable(target, root) && !ReferenceEquals(target, now))
+            target!.Focus(FocusState.Programmatic);
+    }
+
+    private static bool IsFocusable(Control? c, XamlRoot root) =>
+        c is not null && c.IsLoaded && c.IsEnabled && c.Visibility == Visibility.Visible
+        && ReferenceEquals(c.XamlRoot, root);
 
     /// <summary>True when a ContentDialog is already showing on <paramref name="xamlRoot"/>.</summary>
     public static bool IsContentDialogOpen(XamlRoot? xamlRoot) =>

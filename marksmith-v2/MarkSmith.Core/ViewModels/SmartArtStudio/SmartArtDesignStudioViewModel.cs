@@ -313,7 +313,23 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         SelectSuggestedLayout();
         RebuildTree();
         UpdatePreview();
+        MarkKept();
     }
+
+    // ---- work that hasn't gone anywhere ----
+    // The outline and layout as the studio opened with them or last inserted them. Closing the
+    // window used to drop an edited graphic without a word; the window asks while they differ.
+
+    private (string Text, string? Layout) _kept;
+
+    /// <summary>True when the outline or layout changed since the studio opened or last inserted,
+    /// so closing it would lose the edit.</summary>
+    public bool HasUnkeptWork => !IsOutlineEmpty && _kept != KeptState();
+
+    /// <summary>Record the outline and layout as they stand as safe to close on.</summary>
+    public void MarkKept() => _kept = KeptState();
+
+    private (string, string?) KeptState() => ((MarkdownText ?? "").Trim(), SelectedLayout?.Alias);
 
     /// <summary>Open on the layout that suits the starting outline (an org chart for the sample
     /// hierarchy) instead of whichever layout sorts first alphabetically ("Accented Picture").</summary>
@@ -337,11 +353,21 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
     /// the user still picks the exact layout from the 176-layout gallery).</summary>
     public void Preload(string markdown, string layoutAlias)
     {
-        // A preload starts a new design: Ctrl+Z must not bring back the previous one.
-        _undoStack.Clear();
-        _redoStack.Clear();
-        OnPropertyChanged(nameof(CanUndo));
-        OnPropertyChanged(nameof(CanRedo));
+        // A preload starts a new design, so Ctrl+Z doesn't bring back the previous one, unless
+        // that one was never inserted: the studio is reused, and sending a second selection to it
+        // used to wipe an unfinished graphic for good. Then the old outline is one Ctrl+Z away.
+        bool replacingUnkept = HasUnkeptWork;
+        if (replacingUnkept)
+        {
+            PushUndo();
+        }
+        else
+        {
+            _undoStack.Clear();
+            _redoStack.Clear();
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        }
         MarkdownText = markdown; // triggers RebuildTree + UpdatePreview
         var item = _allLayouts.FirstOrDefault(l =>
                        string.Equals(l.Alias, layoutAlias, StringComparison.OrdinalIgnoreCase));
@@ -359,6 +385,9 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         }
         item ??= Layouts.FirstOrDefault();
         if (item is not null) SelectedLayout = item; // triggers UpdatePreview
+        MarkKept(); // the preloaded outline is the document's own; nothing to lose yet
+        if (replacingUnkept)
+            StatusMessage = "Opened the new selection. Your previous outline wasn't inserted: Ctrl+Z brings it back.";
     }
 
     partial void OnSelectedLayoutChanged(StudioLayoutItem? value) => UpdatePreview();
@@ -850,6 +879,7 @@ public partial class SmartArtDesignStudioViewModel : ObservableObject
         block.AppendLine(inner);
         block.AppendLine(":::");
         InsertToDocumentRequested?.Invoke(this, block.ToString());
+        MarkKept();
         // Built-in packages have an empty title ("✓ Added  to the document"); use the gallery's name.
         string name = SelectedLayout?.DisplayName ?? (string.IsNullOrWhiteSpace(pkg.Title) ? StudioLayoutItem.Humanize(alias) : pkg.Title);
         StatusMessage = $"✓ Added {name} to the document — preview & export it there.";

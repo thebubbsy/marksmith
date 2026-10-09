@@ -178,6 +178,9 @@ public class SmartArtStudioPolishTests
         vm.AddChild();
         vm.CommitRename();
         Assert.True(vm.CanUndo);
+        // Inserted first: an edit that never went anywhere stays one Ctrl+Z away instead
+        // (StudioCloseGuardTests).
+        vm.InsertIntoDocument();
         const string md = "- Plan\n- Build\n- Ship";
         vm.Preload(md, "process1");
         Assert.False(vm.CanUndo);

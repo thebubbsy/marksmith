@@ -4843,3 +4843,76 @@ free formats; worth a clearer badge tooltip or moving the badge onto the Cover p
 built x64/arm64 installers and zips; the downloaded x64 zip contains `Marksmith/BrowserExtension/`
 (all 16 files), so next-up #1's zip check is done (the installer packs the same publish folder).
 Notes prepended above the workflow body with `---`. `MarksmithBaseVersion` is now **3.16.0** (`893b61b`).
+
+### 2026-10-10 07:45–08:35 AEST (routine run #56: light theme, focus and closing a studio)
+
+**Pick.** No other run was live (list_sessions: nothing running). Run #55's "Next up" #2, the light
+theme pass. This PC is set to dark, so no run had ever seen the app in light. Added a test hook to
+force it, then walked every surface in a parked light-theme instance: the tour, the main window,
+Settings (all seven pages), Suite Hub, the whole Style & Export panel expanded, the command
+palette, Version History, Shape Studio, SmartArt Studio, Document Galaxy and Diagram Studio.
+
+**What the walk found:**
+- Light theme itself is in good shape: ThemeResource brushes everywhere, nothing unreadable in
+  any panel or dialog. Diagram Studio and the Galaxy canvas stay dark by design.
+- **Caption buttons follow Windows, not the window.** Shape Studio and SmartArt Studio drew white
+  minimise/maximise/close glyphs on a white bar. With the app following Windows this only bites
+  when the content's theme differs from Windows (Galaxy's light maps, a forced theme), but the
+  windows had no say in it at all.
+- **Focus landed on the banner's "Start free trial" after every startup dialog** (the recovery
+  prompt, the tour): focus ring, tooltip. Run #55 fixed the tour by hand; the cause was that the
+  initial-focus handler ran at Low priority, after the dialogs (queued at Normal) had already
+  remembered the banner button as the thing to return to.
+- **Shape Studio and SmartArt Studio threw work away on the X.** Build a pyramid, close the
+  window: gone, no question. Diagram Studio and Galaxy already asked. Worse, sending a second
+  selection to an open SmartArt Studio (Preload) replaced an uninserted outline and cleared undo.
+- The preview's WebView2 drew dark scrollbars in a light app under the forced theme.
+- Branding's PRO badge (run #55's note): nothing in Branding is gated; only the cover page lands
+  in a Pro format.
+
+**Shipped:**
+- `MARKSMITH_THEME=Light|Dark` test hook (`App.ForcedTheme`, like `MARKSMITH_CONFIG_DIR`, not a
+  user setting); the shared WebView2 profile follows it so preview scrollbars match.
+- `Services/CaptionButtons.Follow(window, element)` (in TitleBarInsets.cs): caption glyph,
+  hover and pressed colours from the element's ActualTheme, re-applied on ActualThemeChanged.
+  Used by the main window, Shape Studio and SmartArt Studio (Diagram Studio keeps its pinned set).
+- `ShowPolishedAsync` returns focus after every dialog: to what had it before, else to
+  `HoverPolish.FocusFallback` (the main window points it at the editor). It only undoes WinUI's
+  own fallback (focus nowhere or on a button), so code that focuses something after a dialog wins.
+  The main window now focuses the editor synchronously on Loaded, so startup dialogs remember it.
+- `Services/CloseGuard.Attach`: "Insert the diagram before closing?" with **Insert and close**
+  (default) / Discard / Keep editing. Core `ShapeDesignStudioViewModel.HasUnkeptWork`/`MarkKept`
+  (kept on insert, Word export, Copy as Markdown, load from Markdown) and
+  `SmartArtDesignStudioViewModel.HasUnkeptWork`/`MarkKept` (outline + layout; kept on open,
+  preload and insert). A preload over uninserted work now pushes it onto undo and says
+  "Ctrl+Z brings it back".
+- Branding header lost its PRO badge; the Cover page row says it lands "in Word exports (Pro)".
+- Tests: `StudioCloseGuardTests` (8). `SmartArtStudioPolishTests.Preloading_new_content_starts_a_fresh_undo_history`
+  now inserts first (an uninserted edit is deliberately kept on undo now).
+
+**Verified:**
+- Desktop build green (scratch OutDir). Full suite: 4394 passed, 1 failed before the test update
+  above (the deliberate behaviour change), then the 40 SmartArt/close-guard tests pass. Note: this
+  run's suite ran from the repo's own bin, so none of the usual 18-22 scratch-path failures.
+- Live, light, scratch config: recovery prompt → Restore leaves no ring on the banner; Shape Studio
+  with a preset → X → prompt (dark caption glyphs now) → Insert and close put the `:::shapes` block
+  in the editor; SmartArt: clean close closes freely, Add child → X → prompt; Keep editing stays;
+  Discard closes.
+
+**Noticed, not fixed:**
+- A studio insert goes to the editor caret, which is at 0 on a fresh window, so the diagram lands
+  above the document's title. Inserting at the end when the caret was never placed would be kinder.
+- Shape labels are stored HTML-escaped in the `:::shapes` block (`Vision &amp; Strategy` shows in
+  the editor). Round-trips, but it's visible text.
+- Version History is the only secondary window with a system title bar.
+- %TEMP% holds hundreds of `ms_emlimp_*`, `ms_mdcopy_*`, `ms-undo-*` folders/files left by the test
+  suite: tests that don't clean up after themselves.
+
+**Next up:**
+1. Live OS theme switch while running (brushes resolved in code at startup, e.g.
+   `SelectedBrushConverter` "themed", won't follow) — can't flip Windows' theme unattended; needs a
+   person, or a test that sets RootGrid.RequestedTheme and screenshots.
+2. Studio insert position (above).
+3. Test-suite temp litter (above).
+4. Carried over: first real in-app update 3.15.0 → 3.16.0; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.

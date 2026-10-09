@@ -29,6 +29,12 @@ namespace MarkSmith.Views.SmartArtStudio
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
+            CaptionButtons.Follow(this, AppTitleBar);
+            CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
+            {
+                ViewModel.InsertIntoDocument();
+                return !ViewModel.HasUnkeptWork; // false when the layout couldn't be resolved
+            }, "SmartArt graphic");
             this.RootGrid.DataContext = ViewModel;
 
             ViewModel.PreviewHtmlChanged += (s, e) => RefreshWebView();

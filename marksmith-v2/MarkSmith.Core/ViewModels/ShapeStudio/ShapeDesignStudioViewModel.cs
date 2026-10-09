@@ -563,6 +563,20 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         var n => $"{n} selected",
     };
 
+    // ---- work that hasn't gone anywhere ----
+    // The canvas as it last left the studio: inserted into the document, exported to Word,
+    // copied as Markdown or loaded from Markdown. Closing the window used to drop a diagram
+    // without a word; the window asks first while the canvas differs from this.
+
+    private List<ComposedShape> _keptCanvas = new();
+
+    /// <summary>True when the canvas has shapes that haven't been inserted, exported or copied
+    /// since they last changed. Closing the studio would lose them.</summary>
+    public bool HasUnkeptWork => Shapes.Count > 0 && !SameCanvas(_keptCanvas, SnapshotComposed());
+
+    /// <summary>Record that the canvas as it stands has gone somewhere safe.</summary>
+    public void MarkKept() => _keptCanvas = SnapshotComposed();
+
     // ---- undo / redo ----
     // Snapshot-based: every structural change (add, delete, duplicate, clear, preset, align,
     // recolour, move, trace, load) records the canvas first. Clear used to say "can't be undone".
@@ -1245,6 +1259,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
         var composed = SnapshotComposed();
         string block = ShapeMarkdownCodec.Serialize(composed);
         InsertToDocumentRequested?.Invoke(this, block);
+        MarkKept();
         StatusMessage = $"✓ Inserted {composed.Count} native DrawingML shapes into document.";
     }
 
@@ -2388,6 +2403,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
             Shapes = new ObservableCollection<ShapeCanvasItemViewModel>(parsed.Select(ToItem));
             SelectedShape = null;
             StatusMessage = $"Loaded {parsed.Count} shapes from markdown.";
+            MarkKept();
             await RefreshCanvasModeAsync();
             CanvasChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -2572,6 +2588,7 @@ public partial class ShapeDesignStudioViewModel : ObservableObject
                     ShapeComposerDocxWriter.WriteDocx(outPath, composed, w, h, themeXml);
             });
             LastExportPath = outPath;
+            _keptCanvas = composed;
             StatusMessage = $"✓ Exported {composed.Count:N0} native Word shapes → {Path.GetFileName(outPath)}";
             return true;
         }

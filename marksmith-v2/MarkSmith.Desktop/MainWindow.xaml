@@ -1797,17 +1797,13 @@
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8D4;" FontSize="14" />
                                         <TextBlock Text="Branding" FontWeight="SemiBold" />
-                                        <Border Background="{ThemeResource SystemAccentColor}" CornerRadius="4" Padding="5,1"
-                                                VerticalAlignment="Center" Visibility="{Binding ShowProBadge, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="PRO" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
-                                        </Border>
                                     </StackPanel>
                                 </Expander.Header>
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="Turn a converted chat into a client-ready deliverable: a cover page, your logo and your typeface."
                                                Style="{StaticResource StepCaptionStyle}" TextWrapping="Wrap" />
                                     <localcontrols:OptionRow Header="Cover page"
-                                                             Description="A Word title page with the document's title, your logo and today's date.">
+                                                             Description="A title page with the document's title, your logo and today's date, in Word exports (Pro).">
                                         <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding BrandCoverPage, Mode=TwoWay}" />
                                     </localcontrols:OptionRow>
                                     <localcontrols:OptionRow Header="Company logo"

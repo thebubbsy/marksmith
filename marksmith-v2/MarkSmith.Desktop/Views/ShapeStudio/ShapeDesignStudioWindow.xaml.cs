@@ -67,6 +67,12 @@ namespace MarkSmith.Views.ShapeStudio
             this.ExtendsContentIntoTitleBar = true;
             this.SetTitleBar(AppTitleBar);
             TitleBarInsets.Reserve(this, AppTitleBar); // keep the action buttons clear of min/max/close
+            CaptionButtons.Follow(this, AppTitleBar);
+            CloseGuard.Attach(this, () => ViewModel.HasUnkeptWork, () =>
+            {
+                ViewModel.InsertIntoDocument();
+                return true;
+            }, "diagram", alsoExportsOrCopies: true);
             this.RootGrid.DataContext = ViewModel;
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
             ViewModel.InsertToDocumentRequested += (s, block) => InsertToDocumentRequested?.Invoke(this, block);
@@ -1219,6 +1225,7 @@ namespace MarkSmith.Views.ShapeStudio
                 var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dp.SetText(block);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+                ViewModel.MarkKept();
                 ViewModel.StatusMessage = $"Copied {ViewModel.Shapes.Count} shapes as a :::shapes Markdown block.";
             }
             catch (Exception ex)

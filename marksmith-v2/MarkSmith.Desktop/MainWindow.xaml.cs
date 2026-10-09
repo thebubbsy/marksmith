@@ -219,6 +219,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        Services.CaptionButtons.Follow(this, AppTitleBar);
 
         RootGrid.DataContext = ViewModel;
         ViewModel.Host = new BackgroundExportHostImpl(this);
@@ -241,6 +242,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         {
             if (dialog.XamlRoot == Content.XamlRoot) MoreMenuTip.IsOpen = false;
         };
+        // A dialog with nothing to hand focus back to (the recovery prompt at startup, anything
+        // opened from a menu) returns it to the editor, not the banner's first button.
+        Services.HoverPolish.FocusFallback = root =>
+            root == Content.XamlRoot && PasteTextBox.Visibility == Visibility.Visible ? PasteTextBox : null;
 
         // Ctrl+, opens Settings (the gear button's tooltip has always advertised it). Added in code
         // because VirtualKey has no named member for the comma key, so XAML can't spell it.
@@ -608,9 +613,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
     private void OnInitialFocusLoaded(object sender, RoutedEventArgs e)
     {
         RootGrid.Loaded -= OnInitialFocusLoaded; // one-shot
+        // Focus now, not only after layout: the recovery prompt and the tour are queued at normal
+        // priority and remember what had focus when they open. Queued at Low alone, this ran after
+        // them, so closing either put focus back on the banner's button, focus ring and all.
+        if (PasteTextBox.Visibility == Visibility.Visible)
+            PasteTextBox.Focus(FocusState.Programmatic);
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
-            if (PasteTextBox is { Visibility: Visibility.Visible, ActualWidth: > 0 })
+            if (PasteTextBox is { Visibility: Visibility.Visible, ActualWidth: > 0 }
+                && !Services.HoverPolish.IsContentDialogOpen(Content.XamlRoot))
                 PasteTextBox.Focus(FocusState.Programmatic);
         });
     }
@@ -2590,6 +2601,14 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         await PreviewWebView.EnsureCoreWebView2Async(await Services.WebView2EnvironmentFactory.CreateAsync());
         MapAssetHost(PreviewWebView.CoreWebView2);
         var core = PreviewWebView.CoreWebView2;
+
+        // WebView2 draws its scrollbars and form controls in the Windows theme. The app follows
+        // Windows too, so they agree, except when a test instance forces a theme (App.ForcedTheme):
+        // then the shared profile follows the app, or a light app gets black preview scrollbars.
+        if (App.ForcedTheme is { } forcedTheme)
+            core.Profile.PreferredColorScheme = forcedTheme == ApplicationTheme.Light
+                ? Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Light
+                : Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Dark;
 
         // ISS-007: the preview is a document viewer, not a browser. Suppress the default right-click
         // context menu, and intercept link clicks so external URLs open in the system browser instead

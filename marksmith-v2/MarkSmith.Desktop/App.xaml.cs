@@ -24,9 +24,19 @@ public partial class App : Application
 
     public static Window MainAppWindow { get; private set; } = null!;
 
+    /// <summary>The theme forced by MARKSMITH_THEME, or null when the app follows Windows.</summary>
+    public static ApplicationTheme? ForcedTheme { get; private set; }
+
     public App()
     {
         InitializeComponent();
+
+        // Test hook: MARKSMITH_THEME=Light|Dark forces the app theme (it otherwise follows Windows),
+        // so a light-theme check can run on a PC set to dark and the other way round. Like
+        // MARKSMITH_CONFIG_DIR, it's for test instances, not a user setting.
+        if (Enum.TryParse(Environment.GetEnvironmentVariable("MARKSMITH_THEME"), ignoreCase: true, out ApplicationTheme forced)
+            && Enum.IsDefined(forced))
+            RequestedTheme = (ForcedTheme = forced).Value;
 
         // UI-thread exceptions (XAML callbacks, async-void handlers) surface here, not through
         // AppDomain.UnhandledException. Log every one so a crash is diagnosable from
