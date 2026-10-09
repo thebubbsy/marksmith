@@ -4324,3 +4324,8 @@ assume the binaries sit in the repo. Desktop builds and launches.
    states, image drag-drop onto the editor, the "Export N tables" type picker.
 4. Insert ▸ SmartArt dialog: confirm its 12 tiles look right through Direct2D (only the studio
    gallery was checked this run).
+
+**Release (same run):** tagged **v3.10.0** on `b2743f1` after CI passed on `3af8190`. The release
+workflow built the x64 and arm64 installers and zips (5 assets). Notes covering the SmartArt
+layouts and the Diagram Studio fixes were prepended to the workflow body. `MarksmithBaseVersion`
+is now **3.11.0**.
