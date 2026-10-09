@@ -4052,3 +4052,7 @@ path-based ones). Desktop builds and launches.
    it's the right one (E8AC was wrong for months).
 3. Run #45 list: open-file reload decision, Quick insert for SmartArt, Galaxy real-mouse checks,
    image drag-drop with a real mouse.
+
+**Release (same run):** tagged **v3.7.0** on `9f5eff6` after CI passed on `1fe208c`. The release
+workflow built the x64 and arm64 installers and zips. Notes were prepended to the workflow body
+afterwards, covering the PowerPoint rebuild. `MarksmithBaseVersion` is now **3.8.0** (`a7fc7da`).
