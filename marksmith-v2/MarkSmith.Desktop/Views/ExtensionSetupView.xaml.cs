@@ -77,8 +77,7 @@ public sealed partial class ExtensionSetupView : UserControl
             FontFamily = new FontFamily("Cascadia Mono, Consolas"),
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        });
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
         content.Children.Add(icon);
         var button = new Button { Content = content };
         ToolTipService.SetToolTip(button, $"Copy {address} for {browser}'s address bar");
@@ -100,12 +99,12 @@ public sealed partial class ExtensionSetupView : UserControl
         WaitingRing.Visibility = phase == Phase.Waiting ? Visibility.Visible : Visibility.Collapsed;
         StatusIcon.Visibility = phase == Phase.Waiting ? Visibility.Collapsed : Visibility.Visible;
         StatusIcon.Glyph = phase == Phase.Connected ? "\uE73E" : "\uE7BA"; // CheckMark / Warning
-        StatusIcon.Foreground = (Brush)Application.Current.Resources[
-            phase == Phase.Connected ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush"];
+        ThemeBrush.Set(StatusIcon, FontIcon.ForegroundProperty,
+            phase == Phase.Connected ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
         StatusText.Text = _error?.Text ?? BrowserExtensionPackage.Describe(phase, _apiPort());
         TurnOnButton.Visibility = phase == Phase.ApiOff ? Visibility.Visible : Visibility.Collapsed;
-        StatusCard.Background = (Brush)Application.Current.Resources[
-            phase == Phase.Connected ? "SystemFillColorSuccessBackgroundBrush" : "CardBackgroundFillColorDefaultBrush"];
+        ThemeBrush.Set(StatusCard, Border.BackgroundProperty,
+            phase == Phase.Connected ? "SystemFillColorSuccessBackgroundBrush" : "CardBackgroundFillColorDefaultBrush");
     }
 
     private async void OnTurnOnClick(object sender, RoutedEventArgs e)

@@ -66,5 +66,6 @@ public static class CaptionButtons
 
         Apply();
         themeSource.ActualThemeChanged += (_, _) => Apply();
+        ThemeFlipTestHook.Track(window);
     }
 }

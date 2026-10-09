@@ -26,7 +26,6 @@ public sealed class ImageInsertControl : InsertDialogBody
 
     private readonly string? _documentFolder;
     private readonly Border _zone;
-    private readonly Brush _zoneRestBrush;
     private readonly TextBlock _zoneTitle;
     private readonly TextBlock _zoneHint;
     private readonly FontIcon _zoneIcon;
@@ -72,8 +71,6 @@ public sealed class ImageInsertControl : InsertDialogBody
         _zone = new Border
         {
             AllowDrop = true,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
             BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(20, 18, 20, 16),
@@ -84,8 +81,7 @@ public sealed class ImageInsertControl : InsertDialogBody
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { _zoneIcon, _thumb, _zoneTitle, _zoneHint, browse },
             },
-        };
-        _zoneRestBrush = _zone.BorderBrush;
+        }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
         _zone.DragOver += OnDragOver;
         _zone.DragLeave += (_, _) => Highlight(false);
         _zone.Drop += OnDrop;
@@ -209,7 +205,7 @@ public sealed class ImageInsertControl : InsertDialogBody
 
     private void Highlight(bool active)
     {
-        _zone.BorderBrush = active ? (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"] : _zoneRestBrush;
+        ThemeBrush.Set(_zone, Border.BorderBrushProperty, active ? "AccentFillColorDefaultBrush" : "CardStrokeColorDefaultBrush");
         if (_thumb.Visibility != Visibility.Visible) _zoneTitle.Text = active ? "Release to use this image" : "Drag an image here";
     }
 

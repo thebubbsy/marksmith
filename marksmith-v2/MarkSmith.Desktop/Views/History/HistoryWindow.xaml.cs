@@ -88,6 +88,49 @@ public sealed partial class HistoryWindow : Window
         _noticeTimer.Tick += (_, _) => { _noticeTimer.Stop(); NoticeBar.IsOpen = false; };
         RootGrid.KeyDown += OnRootKeyDown;
         HoverPolish.Track(RootGrid);
+
+        // Open on the selected version, not in the search box (the first tab stop): a caret
+        // blinking in an empty search field read as "type something", and Ctrl+F reaches it.
+        _openedAt = DateTime.UtcNow;
+        TimelineScroll.LayoutUpdated += OnTimelineLayoutUpdated;
+    }
+
+    private DateTime _openedAt;
+    private bool _initialFocusDone;
+
+    private void OnTimelineLayoutUpdated(object? sender, object e)
+    {
+        if (_initialFocusDone) return;
+        // Only while the window is opening, and never over something the person chose themselves.
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        bool untouched = focused is null || (ReferenceEquals(focused, SearchBox) && SearchBox.Text.Length == 0);
+        if (!untouched || DateTime.UtcNow - _openedAt > TimeSpan.FromSeconds(3))
+        {
+            StopInitialFocus();
+            return;
+        }
+        if (_vm.Selected is not { } selected || FindVersionButton(TimelineScroll, selected) is not { } button) return;
+        StopInitialFocus();
+        button.Focus(FocusState.Programmatic);
+        button.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.3 });
+    }
+
+    private void StopInitialFocus()
+    {
+        _initialFocusDone = true;
+        TimelineScroll.LayoutUpdated -= OnTimelineLayoutUpdated;
+    }
+
+    private static Button? FindVersionButton(DependencyObject parent, object item)
+    {
+        int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is Button b && ReferenceEquals(b.DataContext, item)) return b;
+            if (FindVersionButton(child, item) is { } found) return found;
+        }
+        return null;
     }
 
     // The document HTML is laid out at page width (the export layout), wider than this pane, so

@@ -4988,3 +4988,80 @@ items: escaped shape labels and Version History's system title bar.
 **Release (same run):** tagged **v3.17.0** on `b9b411f` after CI passed on it. Release workflow built
 the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
 `MarksmithBaseVersion` is now **3.18.0** (`b0ed4c6`).
+
+### 2026-10-10 09:55–10:45 AEST (routine run #58: the app follows a light/dark switch while open)
+
+**Pick.** No other run was live (list_sessions: nothing running). Run #57's "Next up" #1 (live OS
+theme switch, carried since run #56), #2 (Version History opens in its search box) and #3 (test
+suite litter in %TEMP%). A leftover test instance from run #57's scratchpad was still running;
+stopped it (scratch path, not the user's).
+
+**How it was tested.** A run can't flip Windows' own theme unattended, so a new test hook,
+`MARKSMITH_THEME_FLIP=<seconds>`, flips every window with a custom title bar between light and
+dark on a timer, the way a Windows switch flips a running app. Launched with `MARKSMITH_THEME=Light`
+too, so the app's own theme and the windows' theme disagree after the first flip: anything still
+coloured from `Application.Current.Resources` shows up as a light-theme colour on a dark window.
+
+**What was wrong:**
+- About 40 places set a theme brush from code with `Application.Current.Resources["…Brush"]`,
+  which returns the brush of the theme the app *started* in. After a switch they kept the old
+  colours: the status line (its converter ran once per severity change), the find count, the
+  line-number gutter (resolved per layout, but always from the start theme), the expanded editor
+  bar's dividers (resolved once at startup), Suite Hub badges, the extension-setup status card,
+  copy ticks, and the text and cards inside insert dialogs, Settings and Galaxy's insights panel.
+- Version History's diff tints came from a brush converter. ItemsRepeater recycles rows with the
+  same data, so the conversion never ran again: after a switch the dark window kept light-green
+  and pink rows under white text.
+- Version History opened with a caret blinking in the empty search box (its first tab stop).
+- Every test run left ~10 files/folders in %TEMP% (`MarkSmith_5docs_*` 349, `ms-undo-*.json` 140,
+  `patch-out-*`, `neg-idx-*`, `ms-update-note-*`, …) plus its `MarkSmith.Tests\<pid>` config
+  folder (202 of them, 144 MB). Some tests do try to clean up but fail, e.g. the five-documents
+  test deletes its folder while its own `using var archive` still holds the .docx open.
+
+**Shipped:**
+- `Services/ThemeBrush`: `Get(key, theme)` resolves from the WinUI theme dictionaries for a given
+  theme (High Contrast falls back to the normal lookup); `Set(element, property, key)` /
+  `.Themed(property, key)` set it and keep it following the element's ActualTheme (re-applied on
+  ActualThemeChanged and Loaded); `Clear` stops following before a fixed value is set. Every
+  code-set theme brush in the desktop app now goes through it. **Use it for any new one** — never
+  `Application.Current.Resources["…Brush"]` for a colour.
+- Status line: `StatusSeverityBrushes.KeyFor` (was a converter) applied with ThemeBrush on
+  severity change. Gutter re-lays on `LineNumberCanvas.ActualThemeChanged`. Divider resolver
+  `ResolveDividerBrush` removed.
+- History diff: tints are two `{ThemeResource}` layers per line (critical/success *Background*
+  brushes) shown by `DiffKindVisibilityConverter` (was `DiffKindBrushConverter`). The dead
+  `"themed"` branch of `SelectedBrushConverter` removed ("subtle" is an accent wash, theme-safe).
+- History opens with focus on the selected version (scrolled into view); only while opening
+  (3 s) and only if focus is still nowhere or in an empty search box. Ctrl+F still reaches search.
+- `ThemeFlipTestHook` (in ThemeBrush.cs), registered from `CaptionButtons.Follow`.
+- Tests: `TestConfigIsolation` now gives each run `%TEMP%\MarkSmith.Tests\<pid>\{config,tmp}`,
+  points TMP/TEMP at `tmp`, deletes the run folder on exit and sweeps folders of test processes
+  that are gone. Old litter outside `MarkSmith.Tests` was left for the user (not this run's files).
+
+**Verified:**
+- Desktop build green (scratch OutDir `%TEMP%\ms58d`).
+- Live, parked, scratch config, `MARKSMITH_THEME=Light` + flip: main window gutter numbers and
+  status line correct in both phases; Version History unified and side-by-side diffs correct in
+  both phases; History opened with the 10:13 version focused, search box empty and unfocused;
+  Insert image dialog's card and captions correct.
+- The flip test also caught a crash in this run's first History fix (ItemsRepeater throws on a
+  null ItemTemplate), which is why the diff tints moved to XAML.
+- Full suite: 4415 passed, 1 skipped, 0 failed. %TEMP% had 6,372 entries before and after the run
+  (no new litter), and the sweep took `MarkSmith.Tests` from 202 run folders to 6.
+
+**Noticed, not fixed:**
+- `CloseGuard` and History's restore dialog pin the dialog's `RequestedTheme` to the window's theme
+  when they open, so a dialog that is open *during* a Windows switch keeps the old theme until it
+  closes. Rare and harmless; pinning only when the root has an explicit theme would fix it.
+- Under the flip hook, ContentDialogs follow the app theme, not the flipped window (popups aren't
+  under `window.Content`). That's the hook, not the app: a real switch flips both.
+- %TEMP% on this PC holds ~6,400 entries; `Microsoft.NET.Workload_*` (700) and the old test litter
+  above are the bulk.
+
+**Next up:**
+1. A real Windows light/dark switch with a person present, to confirm what the hook simulates
+   (title bars, WebView2 preview scrollbars, open dialogs).
+2. Studio windows (Diagram Studio, Galaxy) don't register with the flip hook; give their chrome
+   the same check.
+3. Carried over: first real in-app update; `EmailExportFlowTests.Subject_preview_follows_the_template`
+   flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.

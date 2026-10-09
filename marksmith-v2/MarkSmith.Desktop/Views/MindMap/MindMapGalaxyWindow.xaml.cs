@@ -1726,12 +1726,11 @@ namespace MarkSmith.Views.MindMap
 
         private async void OnConnectSelectedClick(object sender, RoutedEventArgs e) => await ShowConnectDialogAsync();
 
-        private static TextBlock DialogLead(string text) => new()
+        private static TextBlock DialogLead(string text) => new TextBlock
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
 
         private async Task ShowConnectDialogAsync()
         {
@@ -1902,8 +1901,6 @@ namespace MarkSmith.Views.MindMap
                 if (i % 3 == 0) tiles.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 var tile = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(12, 10, 12, 10),
@@ -1913,10 +1910,10 @@ namespace MarkSmith.Views.MindMap
                         Children =
                         {
                             new TextBlock { Text = figures[i].Value, FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
-                            new TextBlock { Text = figures[i].Label, FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] }
+                            new TextBlock { Text = figures[i].Label, FontSize = 12 }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush")
                         }
                     }
-                };
+                }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
                 Grid.SetRow(tile, i / 3);
                 Grid.SetColumn(tile, i % 3);
                 tiles.Children.Add(tile);
@@ -1937,7 +1934,7 @@ namespace MarkSmith.Views.MindMap
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 row.Children.Add(new TextBlock { Text = title, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 13 });
-                var detailText = new TextBlock { Text = detail, FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                var detailText = new TextBlock { Text = detail, FontSize = 12 }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
                 Grid.SetColumn(detailText, 1);
                 row.Children.Add(detailText);
 
@@ -1979,9 +1976,8 @@ namespace MarkSmith.Views.MindMap
                 {
                     Text = "Link these and they stop being lost.",
                     FontSize = 12,
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
                     Margin = new Thickness(0, 0, 0, 2)
-                });
+                }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
                 const int shown = 8;
                 foreach (var id in insights.IsolatedNodeIds.Take(shown))
                 {
@@ -1995,8 +1991,7 @@ namespace MarkSmith.Views.MindMap
                         Text = $"and {insights.IsolatedNodeIds.Count - shown} more",
                         FontSize = 12,
                         Margin = new Thickness(10, 2, 0, 0),
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
-                    });
+                    }.Themed(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush"));
                 }
             }
 
@@ -2011,7 +2006,7 @@ namespace MarkSmith.Views.MindMap
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     row.Children.Add(new TextBlock { Text = tag, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var detail = new TextBlock { Text = count == 1 ? "1 node" : $"{count} nodes", FontSize = 12, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                    var detail = new TextBlock { Text = count == 1 ? "1 node" : $"{count} nodes", FontSize = 12 }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
                     Grid.SetColumn(detail, 1);
                     row.Children.Add(detail);
 
@@ -2044,8 +2039,7 @@ namespace MarkSmith.Views.MindMap
                         .Select(kv => $"{kv.Key.TrimStart('.').ToUpperInvariant()} {kv.Value}")),
                     FontSize = 12,
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
-                });
+                }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
             }
 
             dialog = new ContentDialog
@@ -2106,12 +2100,13 @@ namespace MarkSmith.Views.MindMap
         private void UpdateSwatches()
         {
             string? current = ViewModel.SelectedNode?.ColorHex;
-            var ring = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
             var none = new SolidColorBrush(Colors.Transparent);
             foreach (var b in _swatches)
             {
                 bool on = current != null && b.Tag is string hex && string.Equals(hex, current, StringComparison.OrdinalIgnoreCase);
-                b.BorderBrush = on ? ring : none;
+                // The ring is the panel's text colour, so it follows a theme change like the text does.
+                if (on) ThemeBrush.Set(b, Control.BorderBrushProperty, "TextFillColorPrimaryBrush");
+                else { ThemeBrush.Clear(b, Control.BorderBrushProperty); b.BorderBrush = none; }
                 AutomationProperties.SetItemStatus(b, on ? "Current colour" : "");
             }
         }

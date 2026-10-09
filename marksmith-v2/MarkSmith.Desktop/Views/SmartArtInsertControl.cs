@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using SmartArt = MarkSmith.Services.SmartArtInsert;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views;
 
@@ -101,8 +102,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
         {
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
 
         AddField(new StackPanel { Spacing = 6, Children = { galleryHeader, _gallery, _layoutCaption } });
 
@@ -130,8 +130,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        });
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
         Grid.SetColumn(outdent, 1);
         Grid.SetColumn(indent, 2);
         indentRow.Children.Add(outdent);
@@ -144,9 +143,8 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             ColumnSpacing = 8,
             Padding = new Thickness(10, 8, 10, 8),
             CornerRadius = new CornerRadius(6),
-            Background = (Brush)Application.Current.Resources["SystemFillColorAttentionBackgroundBrush"],
             Visibility = Visibility.Collapsed,
-        };
+        }.Themed(Grid.BackgroundProperty, "SystemFillColorAttentionBackgroundBrush");
         _advice.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _advice.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _advice.Children.Add(new FontIcon
@@ -155,8 +153,7 @@ public sealed class SmartArtInsertControl : InsertDialogBody
             FontSize = 14,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 1, 0, 0),
-            Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
-        });
+        }.Themed(FontIcon.ForegroundProperty, "AccentTextFillColorPrimaryBrush"));
         Grid.SetColumn(_adviceText, 1);
         _advice.Children.Add(_adviceText);
         AutomationProperties.SetLiveSetting(_adviceText, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite);

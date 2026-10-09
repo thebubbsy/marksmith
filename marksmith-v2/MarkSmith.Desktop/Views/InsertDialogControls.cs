@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Snippets = MarkSmith.Services.InsertSnippetBuilder;
+using MarkSmith.Services;
 
 namespace MarkSmith.Views;
 
@@ -39,20 +40,16 @@ public abstract class InsertDialogBody : UserControl
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _problem = new TextBlock
         {
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Visibility = Visibility.Collapsed,
-            Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
-        };
+        }.Themed(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
 
         var previewCard = new Border
         {
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 8, 12, 10),
@@ -65,7 +62,7 @@ public abstract class InsertDialogBody : UserControl
                     new ScrollViewer { Content = _preview, MaxHeight = 132, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
                 },
             },
-        };
+        }.Themed(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush").Themed(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
 
         Content = new StackPanel
         {
@@ -78,8 +75,7 @@ public abstract class InsertDialogBody : UserControl
                     Text = description,
                     TextWrapping = TextWrapping.Wrap,
                     Style = (Style)Application.Current.Resources["BodyTextBlockStyle"],
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-                },
+                }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"),
                 _fields,
                 _problem,
                 previewCard,

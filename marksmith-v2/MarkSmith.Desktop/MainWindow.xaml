@@ -47,7 +47,6 @@
 
         <Grid.Resources>
             <conv:StatusSeverityConverter x:Key="StatusSeverityConverter" />
-            <conv:StatusSeverityToBrushConverter x:Key="StatusSeverityToBrushConverter" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:BoolToInverseConverter x:Key="BoolToInverseConverter" />
             <conv:ThemeNameToSwatchConverter x:Key="ThemeNameToSwatchConverter" />
@@ -2006,7 +2005,6 @@
                     </Border>
                     <TextBlock x:Name="StatusMsgText" Text="{Binding StatusText}"
                                VerticalAlignment="Center" FontSize="12" Opacity="0.85"
-                               Foreground="{Binding StatusSeverity, Converter={StaticResource StatusSeverityToBrushConverter}}"
                                TextTrimming="CharacterEllipsis" MaxWidth="560"
                                ToolTipService.ToolTip="{Binding StatusText}" />
                     <!-- Shown only while the status line is announcing a finished export (the

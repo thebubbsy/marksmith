@@ -13,6 +13,7 @@ using Windows.Storage;
 using WinRT.Interop;
 using MarkSmith.Mermaid.Sync;
 using Shortcuts = MarkSmith.Services.KeyboardShortcuts;
+using MarkSmith.Services;
 
 namespace MarkSmith;
 
@@ -317,6 +318,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         // The gutter marks the caret's line, and re-wraps with the editor's width.
         PasteTextBox.SelectionChanged += (_, _) => QueueGutterLayout();
         PasteTextBox.SizeChanged += (_, _) => QueueGutterLayout();
+        // Line numbers are coloured in code, so a Windows light/dark switch re-colours them.
+        LineNumberCanvas.ActualThemeChanged += (_, _) => QueueGutterLayout();
 
         // Editor font-size zoom: apply the persisted size and let Ctrl+wheel adjust it live.
         ApplyEditorFontSize(App.Settings.Current.EditorFontSize, persist: false);
@@ -491,6 +494,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _automationManager.ApiServer.OpenEmailDraft = OpenEmailDraftForApiAsync;
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ApplyStatusSeverityBrush();
         WireStreamingApi();
 
         // Expanded editing bar: when the bottom bar has room, common actions become direct buttons
@@ -820,14 +824,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         EditingExpandedPanel.Children.Add(MenuButton("", "Tools",
             "Tools — transform selected text, sort lines, clean up the document", ToolsClusterButton.Flyout));
 
-        Border Divider() => new()
+        // The clusters' divider is a ThemeResource in XAML; this mirrors it so the expanded bar's
+        // bands match the collapsed layout's separators, through a theme switch too.
+        Border Divider() => new Border
         {
             Width = 1,
             Height = 16,
-            Background = ResolveDividerBrush(EditingExpandedPanel.ActualTheme),
             Margin = new Thickness(4, 0, 4, 0),
             VerticalAlignment = VerticalAlignment.Center,
-        };
+        }.Themed(Border.BackgroundProperty, "CardStrokeColorDefaultBrush");
 
         static DropDownButton MenuButton(string glyph, string name, string tip, Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase flyout)
         {
@@ -844,41 +849,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         }
     }
 
-    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code so the expanded
-    // bar's bands stay visually identical to the collapsed layout's separators. CardStrokeColor
-    // lives in the WinUI theme dictionaries, so resolve via the active theme dictionary first
-    // (a plain TryGetValue on Resources can miss theme-dictionary-only keys), then fall back.
-    // The clusters' divider is a ThemeResource in XAML; this mirrors it from code so the expanded
-    // bar's bands stay visually identical to the collapsed layout's separators. The key lives in the
-    // WinUI theme dictionaries, so resolve via the ACTUAL theme of the bar (RequestedTheme can be
-    // Default even when the effective theme is dark) with a neutral fallback.
-    private static Microsoft.UI.Xaml.Media.Brush ResolveDividerBrush(ElementTheme actualTheme)
-    {
-        var app = Microsoft.UI.Xaml.Application.Current;
-        if (app is not null)
-        {
-            var theme = actualTheme == ElementTheme.Dark ? "Dark" : "Light";
-            if (app.Resources.ThemeDictionaries.TryGetValue(theme, out var dictObj) &&
-                dictObj is Microsoft.UI.Xaml.ResourceDictionary dict &&
-                dict.TryGetValue("CardStrokeColorDefaultBrush", out var value) &&
-                value is Microsoft.UI.Xaml.Media.Brush brush)
-            {
-                return brush;
-            }
-            if (app.Resources.TryGetValue("CardStrokeColorDefaultBrush", out var direct) &&
-                direct is Microsoft.UI.Xaml.Media.Brush directBrush)
-            {
-                return directBrush;
-            }
-        }
-        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(90, 128, 138, 158));
-    }
 
 
     // Routine status notes give way to "Ready." (Core MainViewModel.StatusFadesAway). Severity is
     // set just after the text, so both re-arm the timer; the tick checks the line is unchanged.
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _statusFadeTimer;
     private string _statusFadeFor = "";
+
+    private void ApplyStatusSeverityBrush() =>
+        ThemeBrush.Set(StatusMsgText, TextBlock.ForegroundProperty, Converters.StatusSeverityBrushes.KeyFor(ViewModel.StatusSeverity));
 
     private void ScheduleStatusFade()
     {
@@ -901,6 +880,11 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             or nameof(ViewModels.MainViewModel.IsBusy) or nameof(ViewModels.MainViewModel.StatusOutputPath))
         {
             ScheduleStatusFade();
+        }
+
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.StatusSeverity))
+        {
+            ApplyStatusSeverityBrush();
         }
 
         if (e.PropertyName == nameof(ViewModels.MainViewModel.UsePasteSource))
@@ -1133,8 +1117,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 8, 0, 0),
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
@@ -1888,14 +1871,15 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             for (var i = 0; i < paragraphs.Count; i++)
             {
                 var last = i == paragraphs.Count - 1;
-                body.Children.Add(new TextBlock
+                var paragraph = new TextBlock
                 {
                     Text = paragraphs[i],
                     TextWrapping = TextWrapping.Wrap,
                     // The free-plan line is reassurance, not the offer: quieter, below the rest.
                     Style = last ? (Style)Application.Current.Resources["CaptionTextBlockStyle"] : null,
-                    Foreground = last ? (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] : null,
-                });
+                };
+                if (last) paragraph.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+                body.Children.Add(paragraph);
             }
 
             var dialog = new ContentDialog
@@ -2073,9 +2057,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Output folder: " + App.Settings.Current.OutputFolder,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 12, 0, 0),
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-        };
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
@@ -3832,8 +3815,7 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             Text = "Each log holds the Markdown-to-HTML output of one render. Turn debug mode off with Ctrl+Alt+T.",
             TextWrapping = TextWrapping.Wrap,
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        });
+        }.Themed(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"));
 
         var dialog = new ContentDialog
         {
@@ -4305,8 +4287,8 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
             : count == 0 ? "No results"
             : _findMatchIndex >= 0 ? $"{_findMatchIndex + 1} of {count}"
             : count == 1 ? "1 match" : $"{count} matches";
-        FindCountText.Foreground = (Brush)Application.Current.Resources[
-            hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush"];
+        MarkSmith.Services.ThemeBrush.Set(FindCountText, TextBlock.ForegroundProperty,
+            hasQuery && count == 0 ? "SystemFillColorCriticalBrush" : "TextFillColorSecondaryBrush");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(FindCountText, FindCountText.Text);
 
         // Dead buttons look dead: nothing to step through or replace without a match.
@@ -4609,9 +4591,10 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
                 var mid = (lo + hi + 1) / 2;
                 if (TopOf(mid) <= -lineHeight) lo = mid; else hi = mid - 1;
             }
-            var secondary = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
-            var primary = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
-            var accent = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
+            // Resolved for the gutter's own theme each layout; a theme change re-lays it (see ctor).
+            var secondary = MarkSmith.Services.ThemeBrush.For(LineNumberCanvas, "TextFillColorTertiaryBrush");
+            var primary = MarkSmith.Services.ThemeBrush.For(LineNumberCanvas, "TextFillColorPrimaryBrush");
+            var accent = MarkSmith.Services.ThemeBrush.For(LineNumberCanvas, "AccentTextFillColorPrimaryBrush");
             for (var line = lo; line < _lineStarts.Length; line++)
             {
                 var top = TopOf(line);

@@ -10,7 +10,7 @@
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
-            <conv:DiffKindBrushConverter x:Key="DiffBrush" />
+            <conv:DiffKindVisibilityConverter x:Key="DiffIs" />
         </Grid.Resources>
 
         <Grid.RowDefinitions>
@@ -393,8 +393,14 @@
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
-                                        <Border Background="{Binding Kind, Converter={StaticResource DiffBrush}}" Padding="6,1"
-                                                Visibility="{Binding IsLine, Converter={StaticResource BoolToVis}}">
+                                        <!-- Tints are ThemeResource layers, not a converted brush: rows are recycled with the
+                                             same data, so a converter's brush never followed a light/dark switch. -->
+                                        <Grid Visibility="{Binding IsLine, Converter={StaticResource BoolToVis}}">
+                                            <Border Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"
+                                                    Visibility="{Binding Kind, Converter={StaticResource DiffIs}, ConverterParameter=Removed}" />
+                                            <Border Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                                    Visibility="{Binding Kind, Converter={StaticResource DiffIs}, ConverterParameter=Added}" />
+                                            <Border Padding="6,1">
                                             <Grid ColumnSpacing="8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="40" />
@@ -412,6 +418,7 @@
                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="NoWrap" />
                                             </Grid>
                                         </Border>
+                                        </Grid>
                                         <Border Visibility="{Binding IsGap, Converter={StaticResource BoolToVis}}" Margin="0,4" Padding="14,3"
                                                 Background="{ThemeResource LayerFillColorDefaultBrush}"
                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1">
@@ -441,8 +448,11 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Background="{Binding Left.Kind, Converter={StaticResource DiffBrush}}"
-                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Padding="4,1">
+                                            <Border Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"
+                                                    Visibility="{Binding Left.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Removed}" />
+                                            <Border Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                                    Visibility="{Binding Left.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Added}" />
+                                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Padding="4,1">
                                                 <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="38" />
@@ -454,7 +464,11 @@
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
                                                 </Grid>
                                             </Border>
-                                            <Border Grid.Column="1" Background="{Binding Right.Kind, Converter={StaticResource DiffBrush}}" Padding="4,1">
+                                            <Border Grid.Column="1" Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"
+                                                    Visibility="{Binding Right.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Removed}" />
+                                            <Border Grid.Column="1" Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                                    Visibility="{Binding Right.Kind, Converter={StaticResource DiffIs}, ConverterParameter=Added}" />
+                                            <Border Grid.Column="1" Padding="4,1">
                                                 <Grid ColumnSpacing="6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="38" />

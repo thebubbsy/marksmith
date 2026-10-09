@@ -27,7 +27,7 @@ public static class CopyFeedback
             icon.Tag = original;
         }
         icon.Glyph = "\uE73E"; // CheckMark
-        icon.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+        ThemeBrush.Set(icon, FontIcon.ForegroundProperty, "SystemFillColorSuccessBrush");
         var timer = icon.DispatcherQueue.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(1400);
         timer.IsRepeating = false;

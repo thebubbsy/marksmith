@@ -372,8 +372,8 @@ public sealed partial class SettingsView : UserControl
             status.Text = message;
             status.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
             // A failure in the error colour; everything else in the caption grey.
-            if (failed) status.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
-            else status.ClearValue(TextBlock.ForegroundProperty);
+            if (failed) ThemeBrush.Set(status, TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+            else { ThemeBrush.Clear(status, TextBlock.ForegroundProperty); status.ClearValue(TextBlock.ForegroundProperty); }
         }
         var ring = new ProgressRing { IsActive = false, Width = 18, Height = 18, Visibility = Visibility.Collapsed };
         // Green success tick shown once download hits 100% — animated in by ShowTick, replacing the
@@ -382,12 +382,11 @@ public sealed partial class SettingsView : UserControl
         {
             Glyph = "\uE73E", // CheckMark
             FontSize = 16,
-            Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"],
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
             Opacity = 0,
             RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
-        };
+        }.Themed(FontIcon.ForegroundProperty, "SystemFillColorSuccessBrush");
         // Standard buttons, not accent: with seven plugins listed, a column of accent Installs
         // turned the page blue and none of them read as "the" action.
         var installButton = new Button

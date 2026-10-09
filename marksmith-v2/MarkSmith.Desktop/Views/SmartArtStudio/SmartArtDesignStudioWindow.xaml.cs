@@ -191,13 +191,16 @@ namespace MarkSmith.Views.SmartArtStudio
 
         private void OnRowPointerEntered(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is Border b && Application.Current.Resources.TryGetValue("SubtleFillColorSecondaryBrush", out var brush) && brush is Brush hover)
-                b.Background = hover;
+            if (sender is Border b) ThemeBrush.Set(b, Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
         }
 
         private void OnRowPointerExited(object sender, PointerRoutedEventArgs e)
         {
-            if (sender is Border b) b.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            if (sender is Border b)
+            {
+                ThemeBrush.Clear(b, Border.BackgroundProperty);
+                b.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
         }
 
         private static bool IsInsideButton(DependencyObject source)

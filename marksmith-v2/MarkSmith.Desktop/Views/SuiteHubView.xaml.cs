@@ -84,8 +84,8 @@ public sealed partial class SuiteHubView : UserControl
     private static void SetBadge(TextBlock badge, string text, bool positive)
     {
         badge.Text = text;
-        badge.Foreground = (Brush)Application.Current.Resources[
-            positive ? "SystemFillColorSuccessBrush" : "TextFillColorSecondaryBrush"];
+        ThemeBrush.Set(badge, TextBlock.ForegroundProperty,
+            positive ? "SystemFillColorSuccessBrush" : "TextFillColorSecondaryBrush");
     }
 
     private void PopulateMetadata()
@@ -108,8 +108,8 @@ public sealed partial class SuiteHubView : UserControl
     {
         NotificationText.Text = message.TrimStart('✓', ' ');
         NotificationIcon.Glyph = success ? "\uE73E" : "\uE7BA";
-        NotificationIcon.Foreground = (Brush)Application.Current.Resources[
-            success ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush"];
+        ThemeBrush.Set(NotificationIcon, FontIcon.ForegroundProperty,
+            success ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
         FadeNotification(to: 1);
         _notificationTimer.Stop();
         _notificationTimer.Start();
