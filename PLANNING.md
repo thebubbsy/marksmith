@@ -4329,3 +4329,87 @@ assume the binaries sit in the repo. Desktop builds and launches.
 workflow built the x64 and arm64 installers and zips (5 assets). Notes covering the SmartArt
 layouts and the Diagram Studio fixes were prepended to the workflow body. `MarksmithBaseVersion`
 is now **3.11.0**.
+
+### 2026-10-09 22:00–22:45 AEST (routine run #51: 70 more SmartArt layouts look like themselves)
+
+The PC was locked (LogonUI) for the whole run, so there were no screenshots of the app. All
+checking was on headless-Edge contact sheets of Core's HTML/SVG output, plus UI Automation on a
+test instance (scratch `MARKSMITH_CONFIG_DIR`, scratch OutDir). Two Marksmith instances not
+started by this run (`bin\x86\Debug`, `bin\x64\Release`) were left alone. The EverythingHttpPlugin
+edits in the tree aren't ours and stay uncommitted. Every commit staged explicit paths.
+
+**Found:** after run #50, 176 layouts still drew as 89 distinct gallery tiles. Run #50's "Next up"
+#1 (Timeline, Horizontal List, Balance, Chevron, Hierarchy) was 38 layouts sharing 5 drawings. A
+dump of every remaining duplicate group showed 26 more groups in other families: all four matrices
+were one 2x2 grid, Funnel was an inverted pyramid, Interlocking Rings was a Linear Venn, and every
+vertical and bending process was the same boxes and arrows. Gallery tiles strip `<text>`, so
+anything drawn as a glyph vanished there. That's why Numbered and Quote text cards had one tile
+and Equation's tile lost its + and =.
+
+**Shipped:**
+- `434dfab` **Core `Preview/HtmlPreviewRenderer.Variants.Linear.cs`**: 33 variants.
+  - Timelines: numbered/small dots, horizontal and vertical; bullet timeline and inverted; circle
+    accent; alternating circles.
+  - Horizontal lists: picture, circle heads, action tabs, trapezoids, table, stacked pills, tab list.
+  - Chevrons: vertical list, numbered, increasing arrows, accent cards, closed.
+  - Balance/arrows: opposing ideas, plus/minus, counterbalance, up/down, ribbon,
+    converging/diverging.
+  - Org charts: rounded, picture, name+title, half circle, circle picture, labeled.
+  - New helpers: `BlockArrow` (R/L/U/D polygon), `ChevronPts`, `DiagRoundD`, `Number`, `TopText`
+    (text hanging from a marker, top-aligned so labels line up), `InColumns` (wrapping column
+    rows), `SplitSides`/`SideLines` (balance sides list every level, not just two),
+    `ArrowWithText`/`ArrowH` (text in an arrow's shaft, clear of the head).
+  - **The vertical org chart is now `DrawVerticalTree(sb, items, TreeStyle)`**: `DrawTree`
+    delegates to it with `TreeStyle.Org`, so one layout engine (hanging leaves included) serves
+    all seven org charts.
+- `0ab9ee8` **Core `Preview/HtmlPreviewRenderer.Variants.Blocks.cs`**: 37 variants.
+  - Matrices: titled, grid, basic, cycle (each wedge sits in its own card's inner corner).
+  - Pyramid list, segmented pyramid, funnel; basic, nested and list targets; interlocking rings.
+  - Steps: increasing circles, ascending pictures, upward/descending sweeps, descending blocks.
+  - Processes: staggered, arrow list, chevron rows, columns; bending: vertical, repeating
+    (boustrophedon), circles.
+  - Equations: vertical, converging text, random to result.
+  - Lists: lined, grouped and linked-circle hierarchy lists; square accent list, alternating
+    hexagons; table hierarchy (`DrawBlockHierarchy(..., table: true)`).
+  - **Glyph marks are now shapes**: `OpSign` (+/=), `QuoteMark`, and `CardNumber` (number bars
+    in tiles, the real "01" on the page).
+- Gallery: **155 distinct tiles** (was 89). `SmartArtLayoutVariantTests`: the no-duplicate theory
+  now covers 21 families, plus tests for variant resolution, level labels under timeline
+  markers, arrow text inside the shaft, org-chart connectors, glyph marks in tiles and Cycle
+  Matrix wedge placement.
+
+**Verified:**
+- Contact sheets for all 19 touched families, built with `%TEMP%\msg49\sa` (`Sheet.cs.txt` as
+  Program.cs; `dotnet run -- <outdir> <Family>`), then `msedge --headless=new --screenshot`.
+- What the sheets showed, and what I fixed: text overflowing arrow shafts (Ribbon,
+  Converging/Diverging), labels sagging under timeline markers, Cycle Matrix wedges in the
+  wrong quadrants, Nested Target squeezing its inner panels, overlapping hexagons, colliding
+  Descending Process labels, and Basic vs Grid Matrix tiles looking alike.
+- Full suite on a scratch OutDir: 4275 passed, 18 failed. All 18 are the known path-based set
+  (governance docs, gauntlet, Milestone asset files, HtmlToMarkdown/MarkdownCopy).
+- Desktop builds. In a test instance, Insert ▸ Diagrams and studios ▸ SmartArt Studio opens, and
+  selecting Small Dots Vertical and Segmented Pyramid works with the process responsive.
+- **Not seen:** the gallery tiles through Direct2D (locked PC). The new shapes avoid `<marker>`
+  (arrowheads are `Tri` polygons), and the only arcs are path `A` commands.
+
+**Lessons:**
+- `IsPictureVariant` tests `v >= PicCircles`, so **new enum values must go before the Pictures
+  block** or they become picture variants (grey placeholders recoloured in tiles).
+- Gallery tiles strip all text. A mark that tells two layouts apart (a number, a quote, an
+  operator) has to be a shape, or the tiles merge.
+- A Python edit script written through a bash heredoc still collapses `\n` into a real newline
+  inside C# string literals ("Newline in constant"). Use the Write tool for scripts that contain
+  escapes, or fix up with the Edit tool.
+- `Item.Bullets` stops two levels down; anything that flattens a whole side or subtree needs its
+  own walk (`SideLines`).
+
+**Next up:**
+1. The picture layouts still share tiles: 11 groups, about 30 layouts. They are the Bending/
+   Titled/Accent picture blocks, Snapshot/Picture Frame/Framed Text, Captioned/Bending Caption/
+   pList1, Semi-Transparent Text/Theme Accent, Picture Grid/Theme Grid, Alternating Blocks/Theme
+   Alternating, the four circle-picture lists (Meet the Team, Oval, Bubble, Alternating Circles),
+   Title/Picture Lineup, Meet the Team Card/Vertical, and pList2/Picture Strips/vList4/Picture
+   Accent List. Run the duplicate dump (`%TEMP%\msg51\dump`) to list them.
+2. Look at the gallery tiles through Direct2D when the PC is unlocked (SmartArt Studio gallery
+   and Insert ▸ SmartArt dialog). Run #50's #4 is still open.
+3. Real-mouse items from run #49's #3, for when the user is idle.
