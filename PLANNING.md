@@ -4681,3 +4681,10 @@ hover check while the user was idle (90+ min).
 3. Carried over: the first real in-app update 3.12.0 → next (does the installer reopen
    MarkSmith?); `EmailExportFlowTests.Subject_preview_follows_the_template` flake; remaining
    numbered SmartArt gallery names; SmartArt Insert dialog tiles through Direct2D.
+
+**Release (same run):** tagged **v3.13.0** on `b21e325` after CI passed on it. The release workflow
+built the x64 and arm64 installers and zips. The notes (Settings, Google Docs, smaller fixes, how
+updating works from 3.12 and from 3.11 or earlier) were prepended to the workflow body, separated
+by `---`. This is the first release that 3.12 installs fetch through the new in-app update flow;
+watch for reports that MarkSmith doesn't reopen after installing. `MarksmithBaseVersion` is now
+**3.14.0** (`29350ed`).
