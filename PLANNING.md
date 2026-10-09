@@ -4575,7 +4575,10 @@ check that run's transcript or PLANNING entry before assuming; both of us were w
 - Pasting into the editor collapses the Source panel; screenshots of the editor area shift.
 - A banner screenshot right after launch can catch the editor mid-entrance-animation; take two.
 
-**Release:** see the line below once tagged.
+**Release (same run):** tagged **v3.12.0** on `7dce5fc` after CI passed on `e2b274c`. The release
+workflow built x64 and arm64 installers and zips (so the new `.iss` `[Run]`/`[Code]` compiles under
+ISCC). Notes prepended to the workflow body with `---`. Installs from 3.11 and earlier still go
+through the old updater (the notes say so). `MarksmithBaseVersion` is now **3.13.0** (`be2361f`).
 
 **Next up:**
 1. Watch the first real in-app update (3.12.0 → next): confirm the installer reopens MarkSmith
