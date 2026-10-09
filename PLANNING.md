@@ -4413,3 +4413,10 @@ and Equation's tile lost its + and =.
 2. Look at the gallery tiles through Direct2D when the PC is unlocked (SmartArt Studio gallery
    and Insert ▸ SmartArt dialog). Run #50's #4 is still open.
 3. Real-mouse items from run #49's #3, for when the user is idle.
+
+**Release (same run):** tagged **v3.11.0** on `ffd9167` after CI passed on `434dfab` and
+`0ab9ee8`. The release workflow built the x64 and arm64 installers and zips (5 assets plus
+checksums). Notes covering the 70 layouts were prepended to the workflow body, separated by
+`---`, with the body's line breaks kept. (v3.10.0's notes have the workflow body flattened onto
+one line. That's cosmetic, and I left it alone.) `MarksmithBaseVersion` is now **3.12.0**
+(`1541c38`).
