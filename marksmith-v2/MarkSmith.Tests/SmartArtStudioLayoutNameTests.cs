@@ -7,7 +7,7 @@ public class SmartArtStudioLayoutNameTests
 {
     [Theory]
     [InlineData("AlternatingCircleProcess", "Alternating Circle Process")]
-    [InlineData("arrow1", "Arrow 1")]
+    [InlineData("radial6", "Radial 6")]
     [InlineData("architecture", "Architecture")]
     [InlineData("SWOTMatrix", "SWOT Matrix")]
     [InlineData("hub_and-spoke", "Hub and spoke")]

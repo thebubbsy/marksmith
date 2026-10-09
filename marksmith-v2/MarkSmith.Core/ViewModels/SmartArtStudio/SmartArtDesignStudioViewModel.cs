@@ -85,6 +85,35 @@ public class StudioLayoutItem
         ["target2"] = "Nested Target",
         ["target3"] = "Target List",
         ["balance1"] = "Balance",
+        ["arrow1"] = "Diverging Arrows",
+        ["arrow3"] = "Counterbalance Arrows",
+        ["arrow4"] = "Opposing Arrows",
+        ["arrow5"] = "Converging Arrows",
+        ["arrow6"] = "Arrow Ribbon",
+        ["bList2"] = "Bending Picture Accent List",
+        ["bProcess2"] = "Circular Bending Process",
+        ["bProcess4"] = "Repeating Bending Process",
+        ["hList3"] = "Table List",
+        ["hList6"] = "Trapezoid List",
+        ["hProcess4"] = "Alternating Flow",
+        ["hProcess6"] = "Process Arrows",
+        ["hProcess7"] = "Detailed Process",
+        ["lProcess2"] = "Grouped List",
+        ["lProcess3"] = "Chevron List",
+        ["pList1"] = "Picture Caption List",
+        ["pList2"] = "Horizontal Picture List",
+        ["process3"] = "Accent Process",
+        ["radial3"] = "Radial Venn",
+        ["radial4"] = "Converging Radial",
+        ["radial5"] = "Diverging Radial",
+        ["vList4"] = "Vertical Picture List",
+        ["vList6"] = "Vertical Arrow List",
+        ["PlusandMinus"] = "Plus and Minus",
+        ["NameandTitleOrganizationalChart"] = "Name and Title Organization Chart",
+        ["RandomtoResultProcess"] = "Random to Result Process",
+        ["SubStepProcess"] = "Sub-Step Process",
+        ["HorizontalMultiLevelHierarchy"] = "Horizontal Multi-Level Hierarchy",
+        ["BendingPictureSemiTransparentText"] = "Bending Picture Semi-Transparent Text",
     };
 
     /// <summary>Office's short layout ids abbreviate their orientation: h = horizontal, v = vertical,
@@ -128,7 +157,8 @@ public class StudioLayoutItem
             }
             sb.Append(sb.Length == 0 ? char.ToUpperInvariant(c) : c);
         }
-        return sb.ToString();
+        // Title case keeps the small words small: "Meet The Team" -> "Meet the Team".
+        return System.Text.RegularExpressions.Regex.Replace(sb.ToString(), "(?<=. )(The|And|To|Of)(?= )", m => m.Value.ToLowerInvariant());
     }
 }
 
