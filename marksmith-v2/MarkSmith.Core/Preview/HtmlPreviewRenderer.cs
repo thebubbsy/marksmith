@@ -796,12 +796,14 @@ namespace MarkSmith.Core.Preview
 
         /// <summary>Architecture / table hierarchy: each item is a block spanning the columns of its
         /// descendants, one row per level.</summary>
-        private static (double, double) DrawBlockHierarchy(StringBuilder sb, List<Item> items)
+        /// <param name="table">Table Hierarchy: the blocks butt together, square, each level a paler
+        /// tint of the first, instead of Architecture's separate rounded blocks.</param>
+        private static (double, double) DrawBlockHierarchy(StringBuilder sb, List<Item> items, bool table = false)
         {
             var (roots, leaves, depth) = BuildTree(items);
             double slot = Math.Max(96, (BaseW - Pad * 2) / Math.Max(1, leaves));
             double w = Math.Max(BaseW, Pad * 2 + leaves * slot);
-            double rowH = 58, gap = 8;
+            double rowH = 58, gap = table ? 2 : 8;
             double h = Pad * 2 + depth * rowH + (depth - 1) * gap;
             double ox = (w - leaves * slot) / 2;
             foreach (var n in All(roots))
@@ -810,7 +812,8 @@ namespace MarkSmith.Core.Preview
                 double y = Pad + n.Depth * (rowH + gap);
                 // Leaves stretch down to the bottom row so the blocks read as a solid stack.
                 double bh = n.Kids.Count == 0 ? rowH + (depth - 1 - n.Depth) * (rowH + gap) : rowH;
-                Box(sb, x, y, n.Leaves * slot - gap, bh, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false, rx: 4);
+                if (table) Box(sb, x, y, n.Leaves * slot - gap, bh, Tint(LevelColors[0], Math.Min(0.6, n.Depth * 0.2)), n.Item, withBullets: false, rx: 0, textColor: n.Depth >= 3 ? Ink : null);
+                else Box(sb, x, y, n.Leaves * slot - gap, bh, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false, rx: 4);
             }
             return (w, h);
         }
@@ -1344,8 +1347,7 @@ namespace MarkSmith.Core.Preview
                 x += 2 * r;
                 if (i < n - 1)
                 {
-                    string op = i == n - 2 ? "=" : "+";
-                    sb.Append($"<text x=\"{F(x + opW / 2)}\" y=\"{F(cy + 12)}\" text-anchor=\"middle\" font-size=\"34\" font-weight=\"600\" fill=\"#8a8886\">{op}</text>");
+                    OpSign(sb, x + opW / 2, cy, i == n - 2 ? '=' : '+', 24, "#8a8886");
                     x += opW;
                 }
             }

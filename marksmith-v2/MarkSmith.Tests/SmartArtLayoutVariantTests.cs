@@ -43,6 +43,19 @@ public class SmartArtLayoutVariantTests
     [InlineData(SmartArtPreviewFamily.Balance)]
     [InlineData(SmartArtPreviewFamily.Hierarchy)]
     [InlineData(SmartArtPreviewFamily.Chevron)]
+    [InlineData(SmartArtPreviewFamily.Matrix)]
+    [InlineData(SmartArtPreviewFamily.Pyramid)]
+    [InlineData(SmartArtPreviewFamily.InvertedPyramid)]
+    [InlineData(SmartArtPreviewFamily.Target)]
+    [InlineData(SmartArtPreviewFamily.LinearVenn)]
+    [InlineData(SmartArtPreviewFamily.StepsUp)]
+    [InlineData(SmartArtPreviewFamily.StepsDown)]
+    [InlineData(SmartArtPreviewFamily.VerticalProcess)]
+    [InlineData(SmartArtPreviewFamily.BendingProcess)]
+    [InlineData(SmartArtPreviewFamily.Equation)]
+    [InlineData(SmartArtPreviewFamily.HierarchyList)]
+    [InlineData(SmartArtPreviewFamily.BlockList)]
+    [InlineData(SmartArtPreviewFamily.BlockHierarchy)]
     public void Every_layout_in_the_big_families_has_its_own_thumbnail(SmartArtPreviewFamily family)
     {
         var tails = Layouts.Where(p => HtmlPreviewRenderer.ResolveFamily(p.UniqueId) == family).Select(p => Tail(p.UniqueId)).ToList();
@@ -55,8 +68,8 @@ public class SmartArtLayoutVariantTests
     public void The_gallery_has_far_more_than_one_drawing_per_family()
     {
         int distinct = Layouts.Select(p => HtmlPreviewRenderer.RenderThumbnailSvg(p.UniqueId)).Distinct().Count();
-        // 25 before run #50, 89 after it, 122 after run #51. Some layouts still share a drawing (Meet the Team / Meet the Team Oval).
-        Assert.True(distinct >= 120, $"{distinct} distinct thumbnails");
+        // 25 before run #50, 89 after it, 155 after run #51. Some picture layouts still share a drawing (Meet the Team / Meet the Team Oval).
+        Assert.True(distinct >= 150, $"{distinct} distinct thumbnails");
     }
 
     [Fact]
@@ -212,6 +225,32 @@ public class SmartArtLayoutVariantTests
         var md = "- A\n  - B\n    - D\n    - E\n  - C\n    - F\n    - G";
         foreach (var alias in new[] { "orgChart1", "hierarchy1", "pictureOrgChart+Icon", "NameandTitleOrganizationalChart", "HalfCircleOrganizationChart", "CirclePictureHierarchy", "hierarchy6" })
             Assert.Equal(6, Regex.Matches(Render(md, alias), "<path d=\"M[^\"]*V[^\"]*H[^\"]*V[^\"]*\" fill=\"none\" stroke=\"#8a8886\"").Count);
+    }
+
+    [Fact]
+    public void Gallery_tiles_keep_marks_that_used_to_be_text()
+    {
+        // Tiles strip text, so operators, card numbers and quote marks drawn as glyphs vanished:
+        // Numbered and Quote cards drew one tile, and Equation lost its plus and equals signs.
+        Assert.NotEqual(HtmlPreviewRenderer.RenderThumbnailSvg("TextCardSideLineNumbered"), HtmlPreviewRenderer.RenderThumbnailSvg("TextCardSideLineQuote"));
+        Assert.NotEqual(HtmlPreviewRenderer.RenderThumbnailSvg("TextCardShortLineNumber"), HtmlPreviewRenderer.RenderThumbnailSvg("TextCardShortLineQuote"));
+        Assert.True(Regex.Matches(HtmlPreviewRenderer.RenderThumbnailSvg("equation1"), "<rect").Count >= 4, "plus and equals as shapes");
+        Assert.DoesNotContain(">+</text>", Render("- A\n- B\n- C", "equation1"));
+    }
+
+    [Fact]
+    public void Cycle_matrix_wedges_sit_in_their_own_cards_corners()
+    {
+        // Each item's wedge is the inner corner of its card: Plan's card is top left, so is its wedge.
+        var html = Render("- Plan\n- Build\n- Test\n- Ship", "cycle4");
+        double cx = 400;
+        foreach (var (name, left, top) in new[] { ("Plan", true, true), ("Build", false, true), ("Test", true, false), ("Ship", false, false) })
+        {
+            var m = Regex.Match(html, $"<tspan x=\"([0-9.]+)\" y=\"([0-9.]+)\">{name}</tspan>");
+            double x = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), y = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            Assert.True(left ? x < cx : x > cx, $"{name} at x {x}");
+            Assert.True(top ? y < 28 + 210 : y > 28 + 210, $"{name} at y {y}");
+        }
     }
 
     [Fact]

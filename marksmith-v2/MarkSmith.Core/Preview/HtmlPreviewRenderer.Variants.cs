@@ -51,6 +51,24 @@ namespace MarkSmith.Core.Preview
         // Org charts
         TreeRounded, TreePictures, TreeNameTitle, TreeHalfCircle, TreeCirclePictures, TreeLabeled,
 
+        // Matrices
+        MatrixTitled, MatrixGrid, MatrixBasic, MatrixCycle,
+
+        // Pyramids, targets and rings
+        PyramidList, PyramidSegmented, Funnel, TargetBasic, TargetNested, TargetList, Rings,
+
+        // Steps
+        StepsIncreasingCircles, StepsAscendingPictures, StepsUpwardArrow, StepsDescendingArrow, StepsDescendingBlocks,
+
+        // Vertical and bending processes
+        VProcessStaggered, VProcessArrowList, VProcessChevronRows, VProcessColumns, BendColumns, BendRepeating, BendCircles,
+
+        // Equations
+        EquationVertical, EquationConverging, EquationRandomToResult,
+
+        // Hierarchy lists, block lists and block hierarchies
+        HierListLined, HierListGrouped, HierListLinkedCircles, BlockSquareAccent, BlockHexagons, BlockHierarchyTable,
+
         // Pictures (keep these last: IsPictureVariant tests ">= PicCircles")
         PicCircles, PicTeamCard, PicHexagons, PicOverlay, PicGrid, PicSide, PicAlternating,
         PicLineup, PicFrames, PicSpiral, PicBlocks, PicCallout, PicAccent,
@@ -159,6 +177,44 @@ namespace MarkSmith.Core.Preview
             ["CirclePictureHierarchy"] = PreviewVariant.TreeCirclePictures,
             ["hierarchy6"] = PreviewVariant.TreeLabeled,
 
+            ["matrix1"] = PreviewVariant.MatrixTitled,
+            ["matrix2"] = PreviewVariant.MatrixGrid,
+            ["matrix3"] = PreviewVariant.MatrixBasic,
+            ["cycle4"] = PreviewVariant.MatrixCycle,
+
+            ["pyramid2"] = PreviewVariant.PyramidList,
+            ["pyramid4"] = PreviewVariant.PyramidSegmented,
+            ["funnel1"] = PreviewVariant.Funnel,
+            ["target1"] = PreviewVariant.TargetBasic,
+            ["target2"] = PreviewVariant.TargetNested,
+            ["target3"] = PreviewVariant.TargetList,
+            ["rings+Icon"] = PreviewVariant.Rings,
+
+            ["IncreasingCircleProcess"] = PreviewVariant.StepsIncreasingCircles,
+            ["AscendingPictureAccentProcess"] = PreviewVariant.StepsAscendingPictures,
+            ["arrow2"] = PreviewVariant.StepsUpwardArrow,
+            ["DescendingProcess"] = PreviewVariant.StepsDescendingArrow,
+            ["BlockDescendingList"] = PreviewVariant.StepsDescendingBlocks,
+
+            ["vProcess5"] = PreviewVariant.VProcessStaggered,
+            ["vList6"] = PreviewVariant.VProcessArrowList,
+            ["lProcess3"] = PreviewVariant.VProcessChevronRows,
+            ["lProcess1"] = PreviewVariant.VProcessColumns,
+            ["process5"] = PreviewVariant.BendColumns,
+            ["bProcess4"] = PreviewVariant.BendRepeating,
+            ["bProcess2"] = PreviewVariant.BendCircles,
+
+            ["equation2"] = PreviewVariant.EquationVertical,
+            ["ConvergingText"] = PreviewVariant.EquationConverging,
+            ["RandomtoResultProcess"] = PreviewVariant.EquationRandomToResult,
+
+            ["LinedList"] = PreviewVariant.HierListLined,
+            ["lProcess2"] = PreviewVariant.HierListGrouped,
+            ["hList7"] = PreviewVariant.HierListLinkedCircles,
+            ["SquareAccentList"] = PreviewVariant.BlockSquareAccent,
+            ["AlternatingHexagons"] = PreviewVariant.BlockHexagons,
+            ["hierarchy4"] = PreviewVariant.BlockHierarchyTable,
+
             ["MeetTheTeam"] = PreviewVariant.PicCircles,
             ["MeetTheTeamOval"] = PreviewVariant.PicCircles,
             ["AlternatingPictureCircles"] = PreviewVariant.PicCircles,
@@ -202,7 +258,7 @@ namespace MarkSmith.Core.Preview
         private static bool IsPictureVariant(PreviewVariant v) =>
             v is >= PreviewVariant.PicCircles or PreviewVariant.RadialPictureCallout or PreviewVariant.RadialPictureList
                 or PreviewVariant.ListSideLineImage or PreviewVariant.HListPictures or PreviewVariant.TreePictures
-                or PreviewVariant.TreeCirclePictures;
+                or PreviewVariant.TreeCirclePictures or PreviewVariant.StepsAscendingPictures;
 
         /// <summary>Thumbnail outlines for variants that need a particular shape of data to read
         /// (three gears, bodies under process headers); null keeps the family's sample.</summary>
@@ -210,6 +266,7 @@ namespace MarkSmith.Core.Preview
         {
             static Item I(string t, params Item[] kids) => new() { Text = t, Children = kids.ToList() };
             static List<Item> Flat(int n) => Enumerable.Range(0, n).Select(i => I(((char)('A' + i)).ToString())).ToList();
+            static List<Item> Kids(int n) => Enumerable.Range(0, n).Select(i => I(((char)('A' + i)).ToString(), I("a"), I("b"))).ToList();
             static List<Item> Bodies(int n) => Enumerable.Range(0, n).Select(i => I(((char)('A' + i)).ToString(), I("a"))).ToList();
             return v switch
             {
@@ -237,6 +294,11 @@ namespace MarkSmith.Core.Preview
                 PreviewVariant.BalanceOpposingIdeas or PreviewVariant.BalancePlusMinus or PreviewVariant.BalanceCounterArrows
                     or PreviewVariant.BalanceUpDownArrows or PreviewVariant.BalanceRibbon or PreviewVariant.BalanceConverging
                     or PreviewVariant.BalanceDiverging => Bodies(2),
+                PreviewVariant.VProcessArrowList or PreviewVariant.BlockSquareAccent => Bodies(3),
+                PreviewVariant.VProcessChevronRows or PreviewVariant.VProcessColumns or PreviewVariant.HierListLined
+                    or PreviewVariant.HierListGrouped or PreviewVariant.HierListLinkedCircles => Kids(3),
+                PreviewVariant.MatrixCycle => Bodies(4),
+                PreviewVariant.BlockHexagons => Flat(5),
                 _ => null,
             };
         }
@@ -371,6 +433,44 @@ namespace MarkSmith.Core.Preview
             PreviewVariant.TreeHalfCircle => DrawVerticalTree(sb, items, TreeStyle.HalfCircle),
             PreviewVariant.TreeCirclePictures => DrawVerticalTree(sb, items, TreeStyle.CirclePictures),
             PreviewVariant.TreeLabeled => DrawVerticalTree(sb, items, TreeStyle.Labeled),
+
+            PreviewVariant.MatrixTitled => DrawMatrixStyled(sb, items, MatrixStyle.Titled),
+            PreviewVariant.MatrixGrid => DrawMatrixStyled(sb, items, MatrixStyle.QuadArrow),
+            PreviewVariant.MatrixBasic => DrawMatrixStyled(sb, items, MatrixStyle.Diamond),
+            PreviewVariant.MatrixCycle => DrawMatrixStyled(sb, items, MatrixStyle.Cycle),
+
+            PreviewVariant.PyramidList => DrawPyramidList(sb, Flatten(items)),
+            PreviewVariant.PyramidSegmented => DrawSegmentedPyramid(sb, Flatten(items)),
+            PreviewVariant.Funnel => DrawFunnel(sb, items),
+            PreviewVariant.TargetBasic => DrawBasicTarget(sb, items),
+            PreviewVariant.TargetNested => DrawNestedTarget(sb, items),
+            PreviewVariant.TargetList => DrawTargetList(sb, items),
+            PreviewVariant.Rings => DrawInterlockingRings(sb, items),
+
+            PreviewVariant.StepsIncreasingCircles => DrawIncreasingCircles(sb, items),
+            PreviewVariant.StepsAscendingPictures => DrawAscendingPictures(sb, items),
+            PreviewVariant.StepsUpwardArrow => DrawSwoosh(sb, items, up: true),
+            PreviewVariant.StepsDescendingArrow => DrawSwoosh(sb, items, up: false),
+            PreviewVariant.StepsDescendingBlocks => DrawDescendingBlocks(sb, items),
+
+            PreviewVariant.VProcessStaggered => DrawStaggeredProcess(sb, items),
+            PreviewVariant.VProcessArrowList => DrawVerticalArrowList(sb, items),
+            PreviewVariant.VProcessChevronRows => DrawChevronRows(sb, items),
+            PreviewVariant.VProcessColumns => DrawProcessColumns(sb, items),
+            PreviewVariant.BendColumns => DrawSnake(sb, items, SnakeStyle.Columns),
+            PreviewVariant.BendRepeating => DrawSnake(sb, items, SnakeStyle.Repeating),
+            PreviewVariant.BendCircles => DrawSnake(sb, items, SnakeStyle.Circles),
+
+            PreviewVariant.EquationVertical => DrawVerticalEquation(sb, items),
+            PreviewVariant.EquationConverging => DrawConvergingText(sb, items),
+            PreviewVariant.EquationRandomToResult => DrawRandomToResult(sb, items),
+
+            PreviewVariant.HierListLined => DrawLinedList(sb, items),
+            PreviewVariant.HierListGrouped => DrawGroupedList(sb, items),
+            PreviewVariant.HierListLinkedCircles => DrawLinkedCircleColumns(sb, items),
+            PreviewVariant.BlockSquareAccent => DrawSquareAccentList(sb, items),
+            PreviewVariant.BlockHexagons => DrawAlternatingHexagons(sb, items),
+            PreviewVariant.BlockHierarchyTable => DrawBlockHierarchy(sb, items, table: true),
 
             PreviewVariant.PicCircles => DrawPictureCircles(sb, items, cards: false),
             PreviewVariant.PicTeamCard => DrawPictureCircles(sb, items, cards: true),
@@ -1164,7 +1264,6 @@ namespace MarkSmith.Core.Preview
             double lead = sideLine ? markW + 18 : 0, ruleH = sideLine ? 0 : 14;
             double textW = cw - lead;
             double y = Pad;
-            string quote = ((char)0x201C).ToString();
             for (int r = 0; r * cols < items.Count; r++)
             {
                 var row = items.Skip(r * cols).Take(cols).ToList();
@@ -1181,10 +1280,8 @@ namespace MarkSmith.Core.Preview
                     if (imageH > 0) { Picture(sb, x + lead, ty, textW, imageH - 8); ty += imageH; }
                     if (sideLine)
                     {
-                        if (mark == CardMark.Number)
-                            sb.Append($"<text x=\"{F(x + markW / 2)}\" y=\"{F(y + 34)}\" text-anchor=\"middle\" font-size=\"34\" font-weight=\"300\" fill=\"{color}\">{idx + 1:00}</text>");
-                        else if (mark == CardMark.Quote)
-                            sb.Append($"<text x=\"{F(x + markW / 2)}\" y=\"{F(y + 44)}\" text-anchor=\"middle\" font-size=\"56\" font-family=\"Georgia, serif\" fill=\"{color}\">{quote}</text>");
+                        if (mark == CardMark.Number) CardNumber(sb, x + markW / 2, y + 34, 34, idx, color, centre: true);
+                        else if (mark == CardMark.Quote) QuoteMark(sb, x + markW / 2 - 16, y + 40, 40, color);
                         else if (mark == CardMark.Icon)
                         {
                             sb.Append($"<circle cx=\"{F(x + markW / 2)}\" cy=\"{F(y + 22)}\" r=\"20\" fill=\"{color}\"/>");
@@ -1194,10 +1291,8 @@ namespace MarkSmith.Core.Preview
                     }
                     else
                     {
-                        if (mark == CardMark.Number)
-                            sb.Append($"<text x=\"{F(x)}\" y=\"{F(ty + 28)}\" font-size=\"30\" font-weight=\"300\" fill=\"{color}\">{idx + 1:00}</text>");
-                        else if (mark == CardMark.Quote)
-                            sb.Append($"<text x=\"{F(x)}\" y=\"{F(ty + 40)}\" font-size=\"52\" font-family=\"Georgia, serif\" fill=\"{color}\">{quote}</text>");
+                        if (mark == CardMark.Number) CardNumber(sb, x, ty + 28, 30, idx, color, centre: false);
+                        else if (mark == CardMark.Quote) QuoteMark(sb, x, ty + 32, 36, color);
                         ty += topMark;
                         sb.Append($"<rect x=\"{F(x)}\" y=\"{F(ty + 2)}\" width=\"44\" height=\"4\" rx=\"2\" fill=\"{color}\"/>");
                         ty += ruleH;
@@ -1208,6 +1303,23 @@ namespace MarkSmith.Core.Preview
                 y += ch + gapY;
             }
             return (BaseW, y - gapY + Pad);
+        }
+
+        /// <summary>A card's number ("01"), light and large. Gallery tiles carry no text, so there it
+        /// is a pair of bars the number's size; otherwise Numbered and Quote cards drew the same tile.</summary>
+        private static void CardNumber(StringBuilder sb, double x, double baseline, double fs, int idx, string color, bool centre)
+        {
+            double w = fs * 1.1;
+            double left = centre ? x - w / 2 : x;
+            if (_thumbBars)
+            {
+                double bw = w * 0.4, bh = fs * 0.72;
+                sb.Append($"<rect x=\"{F(left)}\" y=\"{F(baseline - bh)}\" width=\"{F(bw)}\" height=\"{F(bh)}\" rx=\"{F(bw / 2)}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"3\"/>");
+                sb.Append($"<rect x=\"{F(left + w * 0.6)}\" y=\"{F(baseline - bh)}\" width=\"{F(fs * 0.12)}\" height=\"{F(bh)}\" fill=\"{color}\"/>");
+                return;
+            }
+            string anchor = centre ? "middle" : "start";
+            sb.Append($"<text x=\"{F(x)}\" y=\"{F(baseline)}\" text-anchor=\"{anchor}\" font-size=\"{F(fs)}\" font-weight=\"300\" fill=\"{color}\">{idx + 1:00}</text>");
         }
 
         /// <summary>Vertical Action List: the label in a block on the left, its actions in a
