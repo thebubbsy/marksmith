@@ -3976,3 +3976,8 @@ OutDir: 4089 passed, 18 failed (the known path-based ones).
    Check whether that is by design before treating it as polish.
 4. Image drag-drop onto the editor can't be driven by UIA. Check it by hand when the user is
    idle (real mouse, `mouse_event`), including a folder with spaces.
+
+**Release (same run):** tagged **v3.6.0** on `f4bc6ef` after CI passed on `77796c9`. The release
+workflow built the x64 and arm64 installers and zips. Notes were prepended to the workflow body
+afterwards, covering run #44 (folding, gutter, outline, lint) and run #45 (images, safe saving,
+screen-reader names). `MarksmithBaseVersion` is now **3.7.0** (`576806e`).
