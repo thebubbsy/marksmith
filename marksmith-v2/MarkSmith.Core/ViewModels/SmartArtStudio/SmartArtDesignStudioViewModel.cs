@@ -28,8 +28,8 @@ public class StudioLayoutItem
     /// <summary>The drawing the preview (and the gallery miniature) uses for this layout.</summary>
     public SmartArtPreviewFamily Family { get; set; }
 
-    /// <summary>The gallery miniature: the family's real shapes as SVG markup (no text).</summary>
-    public string ThumbnailSvg => HtmlPreviewRenderer.RenderThumbnailSvg(Family);
+    /// <summary>The gallery miniature: this layout's own drawing as SVG markup (no text).</summary>
+    public string ThumbnailSvg => HtmlPreviewRenderer.RenderThumbnailSvg(Alias);
 
     /// <summary>The names Word's SmartArt gallery shows for its built-in layouts, whose packages
     /// carry an empty title. Only the layouts whose Word name is certain are listed; the rest fall

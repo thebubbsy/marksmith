@@ -28,8 +28,8 @@ public static class SmartArtInsert
         /// <summary>The drawing the preview uses; drives the gallery miniature.</summary>
         public SmartArtPreviewFamily Family => HtmlPreviewRenderer.ResolveFamily(Alias);
 
-        /// <summary>The gallery miniature: the family's real shapes as SVG (no text).</summary>
-        public string ThumbnailSvg => HtmlPreviewRenderer.RenderThumbnailSvg(Family);
+        /// <summary>The gallery miniature: this layout's own drawing as SVG (no text).</summary>
+        public string ThumbnailSvg => HtmlPreviewRenderer.RenderThumbnailSvg(Alias);
 
         /// <summary>True when every level of the outline is a shape of its own, rather than the
         /// sub-items being bullet text inside their parent's shape.</summary>

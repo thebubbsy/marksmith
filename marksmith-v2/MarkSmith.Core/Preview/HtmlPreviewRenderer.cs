@@ -47,7 +47,7 @@ namespace MarkSmith.Core.Preview
     /// diagram's shapes and their sub-items are the shape's bullet text — the same data model the
     /// DOCX export hands to Word — except for hierarchies, where every level is a shape.
     /// </summary>
-    public static class HtmlPreviewRenderer
+    public static partial class HtmlPreviewRenderer
     {
         // Fluent accent ramp; every one carries white bold text at >= 3:1.
         private static readonly string[] Accents = { "#0078d4", "#107c41", "#ca5010", "#8764b8", "#038387", "#c239b3", "#986f0b", "#d13438" };
@@ -68,6 +68,7 @@ namespace MarkSmith.Core.Preview
         public static string RenderHtml(CanonicalAst ast, string layoutAlias, string layoutTitle = "SmartArt Diagram")
         {
             var family = ResolveFamily(layoutAlias);
+            var variant = ResolveVariant(layoutAlias);
             var items = ToItems(ast?.Root);
 
             string svg;
@@ -77,7 +78,7 @@ namespace MarkSmith.Core.Preview
             }
             else
             {
-                svg = DrawUniform(family, items);
+                svg = DrawUniform(family, variant, items);
             }
 
             // Only append the alias when it adds something (an untitled layout's title *is* its alias).
@@ -88,7 +89,7 @@ namespace MarkSmith.Core.Preview
                 : $"{layoutTitle} ({layoutAlias})";
 
             return $@"
-<div class=""smartart-container"" data-family=""{family}"" style=""width: 100%; max-width: 800px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.05); box-sizing: border-box;"">
+<div class=""smartart-container"" data-family=""{family}"" data-variant=""{variant}"" style=""width: 100%; max-width: 800px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.05); box-sizing: border-box;"">
   <div class=""smartart-caption"" style=""padding: 10px 14px 0; font-size: 12px; font-weight: 600; color: #605e5c; text-align: left;"">Layout: {WebUtility.HtmlEncode(layoutLabel)}</div>
   {svg}
 </div>";
@@ -100,16 +101,16 @@ namespace MarkSmith.Core.Preview
         [ThreadStatic] private static Dictionary<string, double>? _seenSizes;
         [ThreadStatic] private static Dictionary<string, double>? _sizeCaps;
 
-        private static string DrawUniform(SmartArtPreviewFamily family, List<Item> items)
+        private static string DrawUniform(SmartArtPreviewFamily family, PreviewVariant variant, List<Item> items)
         {
             try
             {
                 _seenSizes = new Dictionary<string, double>();
                 _sizeCaps = null;
-                DrawFamily(family, items);
+                DrawFamily(family, items, variant);
                 _sizeCaps = _seenSizes;
                 _seenSizes = null;
-                return DrawFamily(family, items);
+                return DrawFamily(family, items, variant);
             }
             finally
             {
@@ -120,30 +121,48 @@ namespace MarkSmith.Core.Preview
 
         private const double MinSharedFs = 10;
 
-        private static readonly Dictionary<SmartArtPreviewFamily, string> _thumbnails = new();
+        private static readonly Dictionary<(SmartArtPreviewFamily, PreviewVariant), string> _thumbnails = new();
 
         /// <summary>A miniature of the family's drawing for the layout gallery: the real shapes
         /// drawn from a small sample outline, with the text, tooltips and hover styles removed (the
         /// gallery renders it through Direct2D's SVG support, which has no text, and words at
         /// thumbnail size would only be noise). Sized by explicit width/height so an image source can
-        /// rasterize it. Cached per family.</summary>
-        public static string RenderThumbnailSvg(SmartArtPreviewFamily family)
+        /// rasterize it. Text that sits on the page rather than in a filled shape is drawn as grey
+        /// bars, the way Word's own gallery icons show it, so a text-led layout isn't an empty tile.
+        /// Cached per family and variant.</summary>
+        public static string RenderThumbnailSvg(SmartArtPreviewFamily family) => RenderThumbnail(family, PreviewVariant.Default);
+
+        /// <summary>The gallery miniature for one layout (alias, URN or title): its family's drawing
+        /// in the layout's own variant, so "Basic Cycle", "Block Cycle" and "Segmented Cycle" no
+        /// longer share a picture.</summary>
+        public static string RenderThumbnailSvg(string? layoutAlias) => RenderThumbnail(ResolveFamily(layoutAlias), ResolveVariant(layoutAlias));
+
+        private static string RenderThumbnail(SmartArtPreviewFamily family, PreviewVariant variant)
         {
             lock (_thumbnails)
             {
-                if (_thumbnails.TryGetValue(family, out var cached)) return cached;
-                var svg = DrawFamily(family, ThumbnailSample(family));
+                if (_thumbnails.TryGetValue((family, variant), out var cached)) return cached;
+                string svg;
+                try
+                {
+                    _thumbBars = true;
+                    svg = DrawFamily(family, ThumbnailSample(family, variant), variant);
+                }
+                finally { _thumbBars = false; }
                 svg = System.Text.RegularExpressions.Regex.Replace(svg,
                     "<text\\b[^>]*>.*?</text>|<title>.*?</title>|<style>.*?</style>", string.Empty,
                     System.Text.RegularExpressions.RegexOptions.Singleline);
                 // Picture placeholders are pale grey on white; at thumbnail size on a light tile they
                 // vanished, so the miniature draws them mid-grey with a white glyph.
-                if (family == SmartArtPreviewFamily.Pictures)
+                if (family == SmartArtPreviewFamily.Pictures || IsPictureVariant(variant))
                     svg = svg.Replace("fill=\"#c8c6c4\"/>", "fill=\"#ffffff\"/>").Replace("fill=\"#edebe9\"", "fill=\"#a19f9d\"");
                 // White cards (timeline labels, picture frames, empty matrix cells) disappear on the
                 // light tile; a miniature fills them with their own outline colour instead.
                 svg = System.Text.RegularExpressions.Regex.Replace(svg, "(<rect\\b[^>]*?)fill=\"#ffffff\"([^>]*?)stroke=\"(#[0-9a-fA-F]{6})\"",
                     m => $"{m.Groups[1].Value}fill=\"{m.Groups[3].Value}\"{m.Groups[2].Value}stroke=\"{m.Groups[3].Value}\"");
+                // Connectors are drawn for an 800-wide page; at tile size a 3 px line is a third of a
+                // pixel and the arcs that tell Block Cycle from Nondirectional Cycle disappear.
+                svg = ThickenForThumbnail(svg);
                 // Frame the shapes themselves: the drawing's 800-wide page left a three-box process as
                 // a sliver in the middle of the tile.
                 var (x0, y0, x1, y1) = ShapeBounds(svg);
@@ -151,7 +170,7 @@ namespace MarkSmith.Core.Preview
                 x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
                 svg = System.Text.RegularExpressions.Regex.Replace(svg, "viewBox=\"[^\"]*\"", $"viewBox=\"{F(x0)} {F(y0)} {F(x1 - x0)} {F(y1 - y0)}\"", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
                 svg = svg.Replace("width=\"100%\" style=\"display:block;width:100%;height:auto\"", $"width=\"{F(x1 - x0)}\" height=\"{F(y1 - y0)}\"");
-                _thumbnails[family] = svg;
+                _thumbnails[(family, variant)] = svg;
                 return svg;
             }
         }
@@ -210,10 +229,11 @@ namespace MarkSmith.Core.Preview
 
         /// <summary>The outline a thumbnail draws: enough items to show the family's shape (a bend, a
         /// ring, a tree with two levels) and no more. Single letters keep every box at its smallest.</summary>
-        private static List<Item> ThumbnailSample(SmartArtPreviewFamily family)
+        private static List<Item> ThumbnailSample(SmartArtPreviewFamily family, PreviewVariant variant = PreviewVariant.Default)
         {
             static Item I(string t, params Item[] kids) => new() { Text = t, Children = kids.ToList() };
             static List<Item> Flat(int n) => Enumerable.Range(0, n).Select(i => I(((char)('A' + i)).ToString())).ToList();
+            if (variant != PreviewVariant.Default && VariantSample(variant) is { } own) return own;
             return family switch
             {
                 SmartArtPreviewFamily.Hierarchy or SmartArtPreviewFamily.HorizontalHierarchy or SmartArtPreviewFamily.BlockHierarchy
@@ -234,9 +254,12 @@ namespace MarkSmith.Core.Preview
             };
         }
 
-        private static string DrawFamily(SmartArtPreviewFamily family, List<Item> items)
+        private static string DrawFamily(SmartArtPreviewFamily family, List<Item> items, PreviewVariant variant = PreviewVariant.Default)
         {
             var sb = new StringBuilder();
+            if (variant != PreviewVariant.Default && DrawVariant(sb, variant, items) is (double vw, double vh))
+                return Svg(vw, vh, sb.ToString(), out _);
+            sb.Clear();
             var (w, h) = family switch
             {
                 SmartArtPreviewFamily.Hierarchy => DrawTree(sb, items, horizontal: false),
@@ -614,7 +637,7 @@ namespace MarkSmith.Core.Preview
         /// family but the pyramid, whose tiers differ in width and pass a group of their own.</param>
         /// <param name="halo">Paints a pale outline behind the letters so labels stay legible where
         /// translucent shapes overlap (Venn).</param>
-        private static void Text(StringBuilder sb, double x, double y, double w, double h, string title, IReadOnlyList<string> bullets, string color, double maxFs = 15, bool alignLeft = false, double inset = 10, string? group = null, bool halo = false)
+        private static void Text(StringBuilder sb, double x, double y, double w, double h, string title, IReadOnlyList<string> bullets, string color, double maxFs = 15, bool alignLeft = false, double inset = 10, string? group = null, bool halo = false, bool thumbBars = true)
         {
             string key = group ?? $"{Math.Round(w)}x{Math.Round(h)}|{F(maxFs)}|{(title.Length == 0 ? "body" : "title")}|{color}";
             // The shared size never drops below 10 pt for the group's sake: a slot that only fits smaller
@@ -625,6 +648,11 @@ namespace MarkSmith.Core.Preview
                 _seenSizes[key] = _seenSizes.TryGetValue(key, out var seen) ? Math.Min(seen, fit.Fs) : fit.Fs;
             double top = y + (h - fit.Height) / 2;
             bool left = alignLeft;
+            if (_thumbBars && thumbBars && !halo && color == Ink)
+            {
+                TextBars(sb, x, top, w, inset, left, fit);
+                return;
+            }
             double tx = left ? x + inset : x + w / 2;
             string anchor = left ? "start" : "middle";
             string haloAttrs = halo ? " stroke=\"#ffffff\" stroke-opacity=\"0.75\" stroke-width=\"3\" stroke-linejoin=\"round\" paint-order=\"stroke\"" : "";
@@ -1272,7 +1300,7 @@ namespace MarkSmith.Core.Preview
             for (int i = 0; i < n; i++)
             {
                 double tw = step * 0.9;
-                Text(sb, x0 + i * step - tw / 2, cy - r * 0.6, tw, r * 1.2, items[i].Text, Array.Empty<string>(), Ink, maxFs: 14);
+                Text(sb, x0 + i * step - tw / 2, cy - r * 0.6, tw, r * 1.2, items[i].Text, Array.Empty<string>(), Ink, maxFs: 14, thumbBars: false);
             }
             return (BaseW, cy + r + Pad);
         }
