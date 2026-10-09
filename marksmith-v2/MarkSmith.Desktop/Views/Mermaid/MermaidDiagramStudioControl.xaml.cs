@@ -57,6 +57,15 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         // The palette rows said "Add shape to canvas" but only dragging did anything.
         palette.ShapeRequested += (_, item) => _canvas.AddInView(item);
 
+        // Ctrl+= and Ctrl+- on the main keyboard (the XAML pair only covers the numpad keys, so
+        // the shortcuts the zoom tooltips name did nothing on a laptop).
+        foreach (var (key, zoomIn) in new[] { ((Windows.System.VirtualKey)187, true), ((Windows.System.VirtualKey)189, false) })
+        {
+            var accel = new KeyboardAccelerator { Key = key, Modifiers = Windows.System.VirtualKeyModifiers.Control };
+            accel.Invoked += zoomIn ? OnZoomInAcceleratorInvoked : OnZoomOutAcceleratorInvoked;
+            KeyboardAccelerators.Add(accel);
+        }
+
         // The Studio window assigns DataContext AFTER LoadFromMarkdown runs, so this fires once
         // the restored palette is known — keeps the preset buttons' active highlight accurate.
         // It also seeds the Code pane with the initial generated source.
@@ -121,13 +130,19 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void InitializeCodeEditor()
     {
         if (ViewModel is null) return;
-        string code = ViewModel.GenerateMermaidCode();
+        string code = CodePaneText();
         _programmaticCodeUpdate = true;
         CodeEditorTextBox.Text = code;
         _programmaticCodeUpdate = false;
         _lastPushedCode = code;
         _codeDirty = false;
     }
+
+    // The Code tab shows the diagram without its %% {"id":...} position lines: a column of
+    // JSON cut off at the pane edge was the first thing it showed. Positions are kept by node id
+    // when the code is edited (SyncCanvasFromCode), and Sync to Markdown still writes them.
+    private string CodePaneText() =>
+        MarkSmith.Mermaid.Sync.MermaidSpatialMetadataService.StripFromCode(ViewModel!.GenerateMermaidCode());
 
     private void OnCodeEditorTextChanged(object sender, TextChangedEventArgs e)
     {
@@ -148,7 +163,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
             // and formatting survive.
             bool ok = ViewModel.SyncCanvasFromCode(CodeEditorTextBox.Text);
             _codeDirty = false;
-            _lastPushedCode = ViewModel.GenerateMermaidCode();
+            _lastPushedCode = CodePaneText();
             CodeStatusText.Text = ok
                 ? $"Synced to canvas · {ViewModel.Nodes.Count} nodes, {ViewModel.Connectors.Count} edges"
                 : "⚠ Mermaid syntax error — fix the highlighted code";
@@ -159,7 +174,7 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
         // Canvas -> code: if the canvas drifted from what the editor shows and the user isn't
         // actively editing, push the fresh generated source into the Code pane.
         if (CodeEditorTextBox.FocusState != FocusState.Unfocused) { RefreshPreview(); return; }
-        string current = ViewModel.GenerateMermaidCode();
+        string current = CodePaneText();
         if (!string.Equals(current, _lastPushedCode, StringComparison.Ordinal))
         {
             _programmaticCodeUpdate = true;
@@ -478,7 +493,8 @@ public sealed partial class MermaidDiagramStudioControl : UserControl
     private void OnEscapeAcceleratorInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
         if (IsEditingText()) return;
-        ViewModel?.ClearSelection();
+        // Esc mid-drag puts the shapes back; only an idle Esc clears the selection.
+        if (!_canvas.CancelActiveGesture()) ViewModel?.ClearSelection();
         args.Handled = true;
     }
 

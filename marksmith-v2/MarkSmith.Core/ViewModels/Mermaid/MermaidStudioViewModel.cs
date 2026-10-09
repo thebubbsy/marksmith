@@ -172,6 +172,43 @@ public partial class MermaidStudioViewModel : ObservableObject
         CanRedo = false;
     }
 
+    /// <summary>Drops the newest undo entry without applying it: a gesture that took its
+    /// snapshot and was then cancelled (Esc mid-drag) restores the state itself, and must not
+    /// leave a step behind that undoes nothing.</summary>
+    public void DiscardLastSnapshot()
+    {
+        if (_undoStack.Count == 0) return;
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        CanUndo = _undoStack.Count > 0;
+    }
+
+    /// <summary>The topmost node under a canvas point, within <paramref name="tolerance"/> px of its
+    /// box (so a release on a node's anchor dot, just outside the box, still counts). Topmost means
+    /// highest ZIndex, then latest added, which is the one drawn on top.</summary>
+    public DiagramNodeViewModel? NodeAt(double x, double y, double tolerance = 0, DiagramNodeViewModel? except = null)
+    {
+        DiagramNodeViewModel? best = null;
+        int bestIndex = -1;
+        for (int i = 0; i < Nodes.Count; i++)
+        {
+            var n = Nodes[i];
+            if (ReferenceEquals(n, except)) continue;
+            if (x < n.X - tolerance || x > n.X + n.Width + tolerance || y < n.Y - tolerance || y > n.Y + n.Height + tolerance) continue;
+            if (best is null || n.ZIndex > best.ZIndex || (n.ZIndex == best.ZIndex && i > bestIndex)) { best = n; bestIndex = i; }
+        }
+        return best;
+    }
+
+    /// <summary>The name a status message uses for a node: its label (first line), else its id.</summary>
+    public static string DisplayName(DiagramNodeViewModel node)
+    {
+        var label = (node.LabelText ?? string.Empty).Replace("\r", string.Empty).Split('\n')[0].Trim();
+        return label.Length > 0 ? label : node.Id;
+    }
+
+    private string DisplayNameOf(string nodeId) =>
+        Nodes.FirstOrDefault(n => n.Id.Equals(nodeId, StringComparison.OrdinalIgnoreCase)) is { } n ? DisplayName(n) : nodeId;
+
     [RelayCommand]
     public void Undo()
     {
@@ -408,7 +445,7 @@ public partial class MermaidStudioViewModel : ObservableObject
 
         var nodeA = new DiagramNodeViewModel { Id = "A", LabelText = "Start Process", Shape = "RoundedRectangle", X = 200, Y = 150, Width = 150, Height = 60, HasCustomPosition = true };
         var nodeB = new DiagramNodeViewModel { Id = "B", LabelText = "Check Conditions", Shape = "Rhombus", X = 200, Y = 280, Width = 160, Height = 80, HasCustomPosition = true };
-        var nodeC = new DiagramNodeViewModel { Id = "C", LabelText = "Success Action", Shape = "Rectangle", X = 450, Y = 290, Width = 150, Height = 60, HasCustomPosition = true };
+        var nodeC = new DiagramNodeViewModel { Id = "C", LabelText = "Success Action", Shape = "Rectangle", X = 500, Y = 290, Width = 150, Height = 60, HasCustomPosition = true };
 
         Nodes.Add(nodeA);
         Nodes.Add(nodeB);
@@ -423,7 +460,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         Connectors.Add(conn2);
 
         _savedCode = GenerateMermaidCode(); // baseline for unsaved-change detection
-        StatusText = "Sample flowchart initialized.";
+        StatusText = "A sample flowchart to start from. Templates has more starting points.";
     }
 
     public void AstToCanvas(MermaidDiagramAst ast)
@@ -1679,8 +1716,8 @@ public partial class MermaidStudioViewModel : ObservableObject
             case "top":
             case "up":
                 dirY = -1;
-                advanceStep = 120;
-                newY = Math.Max(20, sourceNode.Y - advanceStep);
+                advanceStep = sourceNode.Height > 0 ? sourceNode.Height + 60 : 120;
+                newY = sourceNode.Y - advanceStep;
                 sourceAnchor = "Top";
                 targetAnchor = "Bottom";
                 break;
@@ -1701,8 +1738,8 @@ public partial class MermaidStudioViewModel : ObservableObject
                 break;
             case "left":
                 dirX = -1;
-                advanceStep = 160;
-                newX = Math.Max(20, sourceNode.X - advanceStep);
+                advanceStep = sourceNode.Width > 0 ? sourceNode.Width + 80 : 160;
+                newX = sourceNode.X - advanceStep;
                 sourceAnchor = "Left";
                 targetAnchor = "Right";
                 break;
@@ -1718,24 +1755,31 @@ public partial class MermaidStudioViewModel : ObservableObject
         double nodeWidth = sourceNode.Width > 0 ? sourceNode.Width : 140;
         double nodeHeight = sourceNode.Height > 0 ? sourceNode.Height : 60;
 
-        // Collision-avoidance check to iteratively advance spawn coordinates along direction vector if target space intersects an existing node
-        int attempts = 0;
-        while (attempts < 50)
+        // Find a free slot. The next step out in the arrow's direction comes first; when a shape is
+        // already there, the slots beside it at the same distance are tried before going a step
+        // further, so the new shape branches off next to the one in the way. (It used to only go
+        // further out, so the new shape landed beyond the blocker and its connector had to loop
+        // around it.)
+        const double gap = 20;
+        bool Free(double x, double y) => x >= 20 && y >= 20 && !Nodes.Any(n =>
+            x < n.X + n.Width + gap && x + nodeWidth + gap > n.X && y < n.Y + n.Height + gap && y + nodeHeight + gap > n.Y);
+
+        double lateralStep = dirX != 0 ? nodeHeight + 40 : nodeWidth + 40;
+        double baseX = newX, baseY = newY;
+        bool placed = false;
+        for (int rank = 0; rank < 25 && !placed; rank++)
         {
-            var candidateRect = new Rect(newX, newY, nodeWidth, nodeHeight);
-            bool hasCollision = Nodes.Any(n => candidateRect.IntersectsWith(new Rect(n.X, n.Y, n.Width, n.Height)));
-            if (!hasCollision)
+            double rx = baseX + dirX * advanceStep * rank;
+            double ry = baseY + dirY * advanceStep * rank;
+            foreach (int side in new[] { 0, 1, -1, 2, -2 })
             {
-                break;
+                // Pulled in off the canvas edge, then checked like any other slot.
+                double cx = Math.Max(20, dirX != 0 ? rx : rx + side * lateralStep);
+                double cy = Math.Max(20, dirX != 0 ? ry + side * lateralStep : ry);
+                if (Free(cx, cy)) { newX = cx; newY = cy; placed = true; break; }
             }
-
-            if (dirX > 0) newX += advanceStep;
-            else if (dirX < 0) newX = Math.Max(20, newX - advanceStep);
-            else if (dirY > 0) newY += advanceStep;
-            else if (dirY < 0) newY = Math.Max(20, newY - advanceStep);
-
-            attempts++;
         }
+        if (!placed) { newX = Math.Max(20, baseX); newY = Math.Max(20, baseY); } // against the canvas edge
 
         var newNode = new DiagramNodeViewModel
         {
@@ -1753,7 +1797,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         Nodes.Add(newNode);
         AddConnectorCore(sourceNode.Id, sourceAnchor, newNode.Id, targetAnchor);
         SelectNode(newNode, false);
-        StatusText = $"Quick-added node '{newNode.LabelText}' ({direction}).";
+        StatusText = $"Added a shape connected to '{DisplayName(sourceNode)}'. Type to name it.";
         return newNode;
     }
 
@@ -1799,7 +1843,9 @@ public partial class MermaidStudioViewModel : ObservableObject
         }
     }
 
-    public DiagramNodeViewModel AddNodeFromPalette(MermaidPaletteItem item, double x, double y)
+    /// <summary>Adds a palette shape with its top-left at (x, y), or centred on (x, y) when
+    /// <paramref name="centreOnPoint"/> is set (a drop or double-click lands under the pointer).</summary>
+    public DiagramNodeViewModel AddNodeFromPalette(MermaidPaletteItem item, double x, double y, bool centreOnPoint = false)
     {
         SnapshotForUndo();
         int counter = Nodes.Count + 1;
@@ -1810,25 +1856,26 @@ public partial class MermaidStudioViewModel : ObservableObject
             id = $"node_{counter}";
         }
 
-        double snapX = IsGridSnapEnabled ? Math.Round(x / GridSnapSize) * GridSnapSize : x;
-        double snapY = IsGridSnapEnabled ? Math.Round(y / GridSnapSize) * GridSnapSize : y;
-
         var node = new DiagramNodeViewModel
         {
             Id = id,
             LabelText = item.DefaultText,
             Category = item.Category,
             Shape = item.ShapeType,
-            X = Math.Max(20, snapX),
-            Y = Math.Max(20, snapY),
             Width = item.ShapeType == "TaskBar" ? 260 : 140,
             Height = 60
         };
         if (node.IsPseudoState) node.Width = node.Height = 28;
 
+        if (centreOnPoint) { x -= node.Width / 2; y -= node.Height / 2; }
+        double snapX = IsGridSnapEnabled ? Math.Round(x / GridSnapSize) * GridSnapSize : x;
+        double snapY = IsGridSnapEnabled ? Math.Round(y / GridSnapSize) * GridSnapSize : y;
+        node.X = Math.Max(20, snapX);
+        node.Y = Math.Max(20, snapY);
+
         Nodes.Add(node);
         SelectNode(node, false);
-        StatusText = $"Added {node.Shape} node '{node.LabelText}' at ({node.X:F0}, {node.Y:F0}).";
+        StatusText = $"Added '{DisplayName(node)}'.";
         return node;
     }
 
@@ -1862,7 +1909,7 @@ public partial class MermaidStudioViewModel : ObservableObject
         UpdateConnectorGeometry(conn);
         Connectors.Add(conn);
         SelectedConnector = conn;
-        StatusText = $"Connected {sourceId} -> {targetId}.";
+        StatusText = $"Connected '{DisplayNameOf(sourceId)}' → '{DisplayNameOf(targetId)}'.";
     }
 
     [RelayCommand]
@@ -1963,7 +2010,7 @@ public partial class MermaidStudioViewModel : ObservableObject
     [RelayCommand]
     public void CopySelected()
     {
-        if (SelectedNodes.Count == 0) { StatusText = "Nothing selected to copy."; return; }
+        if (SelectedNodes.Count == 0) { StatusText = "Select a shape to copy."; return; }
 
         _clipboardNodes.Clear();
         _clipboardConnectors.Clear();
@@ -1978,20 +2025,27 @@ public partial class MermaidStudioViewModel : ObservableObject
             if (ids.Contains(c.SourceNodeId) && ids.Contains(c.TargetNodeId))
                 _clipboardConnectors.Add(new ConnectorSnapshot(c.SourceNodeId, c.SourceAnchor, c.TargetNodeId, c.TargetAnchor, c.LineStyle, c.StartHead, c.EndHead, c.Label, c.RoutingMode, c.StrokeColor, c.StrokeWidth));
 
-        StatusText = $"Copied {_clipboardNodes.Count} node(s) and {_clipboardConnectors.Count} connector(s).";
+        StatusText = _clipboardConnectors.Count == 0
+            ? $"Copied {CountOf(_clipboardNodes.Count, "shape", "shapes")}."
+            : $"Copied {CountOf(_clipboardNodes.Count, "shape", "shapes")} and {CountOf(_clipboardConnectors.Count, "connector", "connectors")}.";
     }
+
+    /// <summary>True once something has been copied (the canvas menu greys out Paste until then).</summary>
+    public bool CanPaste => _clipboardNodes.Count > 0;
+
+    private static string CountOf(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
 
     [RelayCommand]
     public void PasteClipboard()
     {
-        if (_clipboardNodes.Count == 0) { StatusText = "Clipboard is empty."; return; }
+        if (_clipboardNodes.Count == 0) { StatusText = "Nothing to paste yet: copy a shape first."; return; }
         PasteSnapshots(_clipboardNodes, _clipboardConnectors, offset: 30);
     }
 
     [RelayCommand]
     public void DuplicateSelected()
     {
-        if (SelectedNodes.Count == 0) { StatusText = "Nothing selected to duplicate."; return; }
+        if (SelectedNodes.Count == 0) { StatusText = "Select a shape to duplicate."; return; }
 
         var ids = new HashSet<string>(SelectedNodes.Select(n => n.Id), StringComparer.OrdinalIgnoreCase);
         var nodes = SelectedNodes

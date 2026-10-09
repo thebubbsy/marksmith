@@ -89,12 +89,14 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAnchors))]
+    [NotifyPropertyChangedFor(nameof(QuickAddOpacity))]
     private bool _isSelected;
 
     /// <summary>True while the pointer hovers the node — drives the hover glow and reveals
     /// the connector anchor dots (world-class editors only show anchors on hover/selection).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAnchors))]
+    [NotifyPropertyChangedFor(nameof(QuickAddOpacity))]
     private bool _isHovered;
 
     /// <summary>True while a connector is being drawn and this node is the prospective drop
@@ -104,6 +106,12 @@ public partial class DiagramNodeViewModel : ObservableObject
 
     /// <summary>Anchor dots are revealed when the node is hovered OR selected.</summary>
     public bool ShowAnchors => IsSelected || IsHovered;
+
+    /// <summary>The quick-add arrows fade in with the anchors.</summary>
+    public double QuickAddOpacity => ShowAnchors ? 1 : 0;
+
+    /// <summary>A 28 px start/end dot is too small to carry four arrows around it.</summary>
+    public bool CanQuickAdd => !IsPseudoState;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LabelColor))]

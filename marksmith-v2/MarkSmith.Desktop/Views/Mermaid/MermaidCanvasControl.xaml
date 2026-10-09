@@ -293,9 +293,10 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:DiagramNodeViewModel">
+                            <!-- Z-order lives on the item's container, not here (a ZIndex on the
+                                 template root does nothing inside an ItemsControl): ApplyZIndex. -->
                             <Grid Width="{Binding Width}"
                                   Height="{Binding Height}"
-                                  Canvas.ZIndex="{Binding ZIndex}"
                                   IsHitTestVisible="True"
                                   Background="Transparent"
                                   PointerEntered="OnNodePointerEntered"
@@ -499,29 +500,51 @@
                                     <Rectangle Width="9" Height="9" Fill="#EDF2F4" Stroke="#4CC9F0" StrokeThickness="1.5" IsHitTestVisible="False" />
                                 </Grid>
 
-                                <!-- Quick-Add Hover Container with Opacity transition -->
+                                <!-- Quick-add arrows: one step past each anchor dot, shown with the
+                                     anchors (hover or selection) and faded in. Click one to add a
+                                     connected shape on that side. They used to sit at Opacity 0 but
+                                     stay clickable, over the outer half of every anchor dot, so a
+                                     press meant to start a connector added a node instead. -->
                                 <Grid x:Name="QuickAddHoverContainer"
-                                      Background="Transparent"
-                                      Opacity="0"
-                                      IsHitTestVisible="True">
-
-
-                                    <!-- Directional Quick-Add Buttons (Top, Right, Bottom, Left) -->
-                                    <Button Width="22" Height="22" Padding="0" CornerRadius="11" Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1"
-                                            HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-26,0,0" Tag="Top" Click="OnQuickAddButtonClick">
-                                        <TextBlock Text="▲" FontSize="9" Foreground="#4CC9F0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                      Opacity="{Binding QuickAddOpacity}"
+                                      IsHitTestVisible="{Binding ShowAnchors}"
+                                      Visibility="{Binding CanQuickAdd, Converter={StaticResource BoolToVisConverter}}">
+                                    <Grid.OpacityTransition>
+                                        <ScalarTransition Duration="0:0:0.14" />
+                                    </Grid.OpacityTransition>
+                                    <Grid.Resources>
+                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#4CC9F0" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#38A9CF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#1E1E2E" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#1E1E2E" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#4CC9F0" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#38A9CF" />
+                                        <Style TargetType="Button">
+                                            <Setter Property="Width" Value="22" />
+                                            <Setter Property="Height" Value="22" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="CornerRadius" Value="11" />
+                                            <Setter Property="Background" Value="#2B2D42" />
+                                            <Setter Property="Foreground" Value="#4CC9F0" />
+                                            <Setter Property="BorderBrush" Value="#4CC9F0" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </Style>
+                                    </Grid.Resources>
+                                    <Button HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-35,0,0" Tag="Top" Click="OnQuickAddButtonClick"
+                                            ToolTipService.ToolTip="Add a connected shape above" AutomationProperties.Name="Add a connected shape above">
+                                        <FontIcon Glyph="&#xE70E;" FontSize="10" />
                                     </Button>
-                                    <Button Width="22" Height="22" Padding="0" CornerRadius="11" Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1"
-                                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-26,0" Tag="Right" Click="OnQuickAddButtonClick">
-                                        <TextBlock Text="►" FontSize="9" Foreground="#4CC9F0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Button HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-35,0" Tag="Right" Click="OnQuickAddButtonClick"
+                                            ToolTipService.ToolTip="Add a connected shape to the right" AutomationProperties.Name="Add a connected shape to the right">
+                                        <FontIcon Glyph="&#xE76C;" FontSize="10" />
                                     </Button>
-                                    <Button Width="22" Height="22" Padding="0" CornerRadius="11" Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1"
-                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-26" Tag="Bottom" Click="OnQuickAddButtonClick">
-                                        <TextBlock Text="▼" FontSize="9" Foreground="#4CC9F0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Button HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-35" Tag="Bottom" Click="OnQuickAddButtonClick"
+                                            ToolTipService.ToolTip="Add a connected shape below" AutomationProperties.Name="Add a connected shape below">
+                                        <FontIcon Glyph="&#xE70D;" FontSize="10" />
                                     </Button>
-                                    <Button Width="22" Height="22" Padding="0" CornerRadius="11" Background="#2B2D42" BorderBrush="#4CC9F0" BorderThickness="1"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-26,0,0,0" Tag="Left" Click="OnQuickAddButtonClick">
-                                        <TextBlock Text="◄" FontSize="9" Foreground="#4CC9F0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Button HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-35,0,0,0" Tag="Left" Click="OnQuickAddButtonClick"
+                                            ToolTipService.ToolTip="Add a connected shape to the left" AutomationProperties.Name="Add a connected shape to the left">
+                                        <FontIcon Glyph="&#xE76B;" FontSize="10" />
                                     </Button>
                                 </Grid>
                             </Grid>
@@ -606,9 +629,13 @@
                 BorderThickness="1"
                 Padding="4">
             <StackPanel Orientation="Horizontal">
-                <Button Width="32" Height="32" Padding="0" Click="OnZoomOutClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom out (Ctrl+wheel)" AutomationProperties.Name="Zoom out"><FontIcon Glyph="&#xE738;" FontSize="12" /></Button>
-                <TextBlock x:Name="ZoomLevelText" Text="100%" VerticalAlignment="Center" Margin="8,0" Foreground="#EDF2F4" Width="45" TextAlignment="Center" ToolTipService.ToolTip="Canvas zoom level" />
-                <Button Width="32" Height="32" Padding="0" Click="OnZoomInClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom in (Ctrl+wheel)" AutomationProperties.Name="Zoom in"><FontIcon Glyph="&#xE710;" FontSize="12" /></Button>
+                <Button Width="32" Height="32" Padding="0" Click="OnZoomOutClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom out (Ctrl+-, or Ctrl+wheel)" AutomationProperties.Name="Zoom out"><FontIcon Glyph="&#xE738;" FontSize="12" /></Button>
+                <!-- The level doubles as "back to 100%", the way most editors do it. -->
+                <Button Width="54" Height="32" Padding="0" Margin="2,0" Click="OnZoomResetClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0"
+                        ToolTipService.ToolTip="Zoom to 100% (Ctrl+0)" AutomationProperties.Name="Zoom to 100%">
+                    <TextBlock x:Name="ZoomLevelText" Text="100%" TextAlignment="Center" />
+                </Button>
+                <Button Width="32" Height="32" Padding="0" Click="OnZoomInClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" ToolTipService.ToolTip="Zoom in (Ctrl+=, or Ctrl+wheel)" AutomationProperties.Name="Zoom in"><FontIcon Glyph="&#xE710;" FontSize="12" /></Button>
                 <Button Content="Fit" Width="40" Height="32" Click="OnZoomFitClick" Background="Transparent" Foreground="#EDF2F4" BorderThickness="0" Margin="4,0,0,0" ToolTipService.ToolTip="Fit the whole diagram in view" AutomationProperties.Name="Fit to content" />
             </StackPanel>
         </Border>

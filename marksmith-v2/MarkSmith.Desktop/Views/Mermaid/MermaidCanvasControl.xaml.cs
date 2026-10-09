@@ -67,14 +67,16 @@ public sealed partial class MermaidCanvasControl : UserControl
         MinimapControl.TargetScrollViewer = CanvasScrollViewer;
 
         ConnectorsItemsControl.PointerPressed += OnConnectorsItemsControlPointerPressed;
-        // Capture lost mid-drag (Alt+Tab, a dialog): the drag is over, nothing moves.
-        InfiniteCanvasGrid.PointerCaptureLost += (_, _) =>
-        {
-            if (_messageDrag is null) return;
-            _messageDrag = null;
-            _messageDragActive = false;
-            HorizontalAlignGuide.Visibility = Visibility.Collapsed;
-        };
+        // Capture lost mid-gesture (Alt+Tab, a dialog, a second button): the gesture is over and
+        // whatever it moved stays where it is. Without this a node drag outlived the lost capture
+        // and the node kept following the pointer on plain hover.
+        InfiniteCanvasGrid.PointerCaptureLost += (_, _) => EndGesture(restore: false);
+        NodesItemsControl.PointerCaptureLost += (_, _) => EndGesture(restore: false);
+
+        _hoverExitTimer = DispatcherQueue.CreateTimer();
+        _hoverExitTimer.Interval = TimeSpan.FromMilliseconds(220);
+        _hoverExitTimer.IsRepeating = false;
+        _hoverExitTimer.Tick += (_, _) => FlushHoverExit();
         ConnectorsItemsControl.DoubleTapped += OnConnectorsItemsControlDoubleTapped;
 
         NodesItemsControl.PointerPressed += OnNodesItemsControlPointerPressed;
@@ -145,23 +147,11 @@ public sealed partial class MermaidCanvasControl : UserControl
         }
     }
 
-    private void OnZoomInClick(object sender, RoutedEventArgs e)
-    {
-        float newZoom = CanvasScrollViewer.ZoomFactor + 0.2f;
-        if (newZoom <= CanvasScrollViewer.MaxZoomFactor)
-        {
-            CanvasScrollViewer.ChangeView(null, null, newZoom);
-        }
-    }
+    private void OnZoomInClick(object sender, RoutedEventArgs e) => ZoomIn();
 
-    private void OnZoomOutClick(object sender, RoutedEventArgs e)
-    {
-        float newZoom = CanvasScrollViewer.ZoomFactor - 0.2f;
-        if (newZoom >= CanvasScrollViewer.MinZoomFactor)
-        {
-            CanvasScrollViewer.ChangeView(null, null, newZoom);
-        }
-    }
+    private void OnZoomOutClick(object sender, RoutedEventArgs e) => ZoomOut();
+
+    private void OnZoomResetClick(object sender, RoutedEventArgs e) => ZoomReset();
 
     private void OnZoomFitClick(object sender, RoutedEventArgs e)
     {
@@ -169,29 +159,32 @@ public sealed partial class MermaidCanvasControl : UserControl
     }
 
     // Public zoom entry points so the Studio's keyboard accelerators (Ctrl+= / Ctrl+- / Ctrl+0) can
-    // drive the canvas without duplicating the zoom math here.
-    public void ZoomIn()
-    {
-        float newZoom = CanvasScrollViewer.ZoomFactor + 0.2f;
-        if (newZoom <= CanvasScrollViewer.MaxZoomFactor)
-            CanvasScrollViewer.ChangeView(null, null, newZoom);
-    }
+    // drive the canvas without duplicating the zoom math here. The buttons step through the usual
+    // editor stops (they used to add 0.2, so 100% went 120, 140 and back down to 20, 40...), and
+    // every zoom keeps the middle of the view where it was: a bare ChangeView(null, null, zoom)
+    // zooms about the top-left corner, so the diagram slid out of view.
+    public void ZoomIn() => ZoomTo(MarkSmith.Core.Mermaid.Routing.ZoomSteps.Next(CanvasScrollViewer.ZoomFactor, CanvasScrollViewer.MaxZoomFactor));
 
-    public void ZoomOut()
-    {
-        float newZoom = CanvasScrollViewer.ZoomFactor - 0.2f;
-        if (newZoom >= CanvasScrollViewer.MinZoomFactor)
-            CanvasScrollViewer.ChangeView(null, null, newZoom);
-    }
+    public void ZoomOut() => ZoomTo(MarkSmith.Core.Mermaid.Routing.ZoomSteps.Previous(CanvasScrollViewer.ZoomFactor, CanvasScrollViewer.MinZoomFactor));
 
-    public void ZoomReset() => CanvasScrollViewer.ChangeView(null, null, 1.0f);
+    public void ZoomReset() => ZoomTo(1.0);
 
     /// <summary>Sets the canvas zoom to an explicit factor (driven by the toolbar slider).</summary>
     public void SetZoomFactor(double factor)
     {
-        float clamped = (float)Math.Clamp(factor, CanvasScrollViewer.MinZoomFactor, CanvasScrollViewer.MaxZoomFactor);
-        if (Math.Abs(CanvasScrollViewer.ZoomFactor - clamped) > 0.001f)
-            CanvasScrollViewer.ChangeView(null, null, clamped);
+        if (Math.Abs(CanvasScrollViewer.ZoomFactor - factor) > 0.001)
+            ZoomTo(factor);
+    }
+
+    private void ZoomTo(double factor)
+    {
+        float zoom = (float)Math.Clamp(factor, CanvasScrollViewer.MinZoomFactor, CanvasScrollViewer.MaxZoomFactor);
+        double old = Math.Max(0.01, CanvasScrollViewer.ZoomFactor);
+        double halfW = CanvasScrollViewer.ViewportWidth / 2, halfH = CanvasScrollViewer.ViewportHeight / 2;
+        // The canvas point at the middle of the view, then the offsets that put it back there.
+        double cx = (CanvasScrollViewer.HorizontalOffset + halfW) / old;
+        double cy = (CanvasScrollViewer.VerticalOffset + halfH) / old;
+        CanvasScrollViewer.ChangeView(Math.Max(0, cx * zoom - halfW), Math.Max(0, cy * zoom - halfH), zoom);
     }
 
     /// <summary>Fit once the freshly loaded nodes have been measured and laid out.</summary>
@@ -255,6 +248,9 @@ public sealed partial class MermaidCanvasControl : UserControl
         if (e.DataView.Contains("MermaidShapeType"))
         {
             e.AcceptedOperation = DataPackageOperation.Copy;
+            // Say what a drop does instead of the shell's generic "Copy" badge.
+            e.DragUIOverride.Caption = "Add to diagram";
+            e.DragUIOverride.IsGlyphVisible = false;
         }
     }
 
@@ -279,7 +275,8 @@ public sealed partial class MermaidCanvasControl : UserControl
                 DefaultText = text
             };
 
-            ViewModel.AddNodeFromPalette(paletteItem, dropPos.X, dropPos.Y);
+            // Centred under the pointer: the shape lands where it was let go, not hanging off it.
+            ViewModel.AddNodeFromPalette(paletteItem, dropPos.X, dropPos.Y, centreOnPoint: true);
         }
     }
 
@@ -360,6 +357,7 @@ public sealed partial class MermaidCanvasControl : UserControl
                     }
                 }
 
+                FlushHoverExit();
                 _isDraggingNode = true;
                 _draggedNode = nodeVM;
                 _dragSnapshotTaken = false;
@@ -479,23 +477,94 @@ public sealed partial class MermaidCanvasControl : UserControl
     // Setting IsHovered drives the hover ring and reveals the connector anchor dots (bound to
     // ShowAnchors in the node template). Hover is suppressed mid-drag so the glow doesn't flicker
     // as the pointer crosses other nodes during a move.
+    // Leaving a node hides its anchors and quick-add arrows after a short grace, so the pointer can
+    // cross the gap between the node and an arrow (or cut a corner) without them vanishing first.
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _hoverExitTimer;
+    private DiagramNodeViewModel? _hoverExitPending;
+
     private void OnNodePointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (_isDraggingNode || _isResizingNode || _isDrawingConnector) return;
         if (sender is FrameworkElement { DataContext: DiagramNodeViewModel node })
+        {
+            if (!ReferenceEquals(_hoverExitPending, node)) FlushHoverExit();
+            else { _hoverExitTimer.Stop(); _hoverExitPending = null; }
             node.IsHovered = true;
+        }
     }
 
     private void OnNodePointerExited(object sender, PointerRoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: DiagramNodeViewModel node })
-            node.IsHovered = false;
+        {
+            FlushHoverExit();
+            _hoverExitPending = node;
+            _hoverExitTimer.Start();
+        }
+    }
+
+    private void FlushHoverExit()
+    {
+        _hoverExitTimer.Stop();
+        if (_hoverExitPending is { } node) node.IsHovered = false;
+        _hoverExitPending = null;
     }
 
     // Each node is its own DataTemplate instance realized on demand, so the app-wide hover-lift
     // pass at construction time never sees the quick-add direction buttons inside it. Loaded
-    // fires once per realized node, so wire them up here instead.
-    private void OnNodeTemplateLoaded(object sender, RoutedEventArgs e) => HoverPolish.Apply((DependencyObject)sender);
+    // fires once per realized node, so wire them up here instead, along with the cursors that say
+    // what each part does: move on the body, a crosshair on the connector dots, diagonal arrows on
+    // the resize corners and a hand on the quick-add arrows.
+    private void OnNodeTemplateLoaded(object sender, RoutedEventArgs e)
+    {
+        var root = (FrameworkElement)sender;
+        HoverPolish.Apply(root);
+        SetCursor(root, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+        if (root.DataContext is DiagramNodeViewModel node) ApplyZIndex(node);
+
+        foreach (var child in Descendants(root))
+        {
+            switch (child)
+            {
+                case Button button:
+                    SetCursor(button, Microsoft.UI.Input.InputSystemCursorShape.Hand);
+                    break;
+                case Grid { Tag: "ResizeNW" or "ResizeSE" } nwse:
+                    SetCursor(nwse, Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
+                    break;
+                case Grid { Tag: "ResizeNE" or "ResizeSW" } nesw:
+                    SetCursor(nesw, Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest);
+                    break;
+                case Grid { Tag: "Top" or "Right" or "Bottom" or "Left" } anchor when anchor.Children.Count == 1 && anchor.Children[0] is Ellipse dot:
+                    SetCursor(anchor, Microsoft.UI.Input.InputSystemCursorShape.Cross);
+                    // The dot swells under the pointer: "grab here to connect".
+                    dot.CenterPoint = new System.Numerics.Vector3(6, 6, 0);
+                    dot.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(120) };
+                    anchor.PointerEntered += (_, _) => dot.Scale = new System.Numerics.Vector3(1.5f, 1.5f, 1);
+                    anchor.PointerExited += (_, _) => dot.Scale = System.Numerics.Vector3.One;
+                    break;
+            }
+        }
+    }
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var grandchild in Descendants(child)) yield return grandchild;
+        }
+    }
+
+    /// <summary>Puts a node's ZIndex on its item container, the element the canvas actually
+    /// stacks. Bring to Front / Send to Back changed the number and nothing moved.</summary>
+    private void ApplyZIndex(DiagramNodeViewModel node)
+    {
+        if (NodesItemsControl.ContainerFromItem(node) is UIElement container)
+            Canvas.SetZIndex(container, node.ZIndex);
+    }
 
     // ---- Double-click empty canvas → drop a fresh node straight into inline edit --------------
     private void OnCanvasDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -508,7 +577,7 @@ public sealed partial class MermaidCanvasControl : UserControl
         if (ViewModel is null) return;
         Point pos = e.GetPosition(InfiniteCanvasGrid);
         var item = new MermaidPaletteItem { Category = "Flowchart", ShapeType = "Rectangle", DefaultText = "New Node" };
-        var newNode = ViewModel.AddNodeFromPalette(item, pos.X, pos.Y);
+        var newNode = ViewModel.AddNodeFromPalette(item, pos.X, pos.Y, centreOnPoint: true);
         if (newNode != null)
         {
             ViewModel.SelectNode(newNode, false);
@@ -713,6 +782,13 @@ public sealed partial class MermaidCanvasControl : UserControl
             double deltaX = currentPos.X - _panStartMousePos.X;
             double deltaY = currentPos.Y - _panStartMousePos.Y;
 
+            // A right-press only becomes a pan once it moves; until then it may still be a click.
+            if (!_panCursorShown && (!_rightClickPending || deltaX * deltaX + deltaY * deltaY >= 25))
+            {
+                SetCursor(InfiniteCanvasGrid, Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+                _panCursorShown = true;
+            }
+
             CanvasScrollViewer.ChangeView(_panStartScrollX - deltaX, _panStartScrollY - deltaY, null);
             e.Handled = true;
             return;
@@ -767,6 +843,7 @@ public sealed partial class MermaidCanvasControl : UserControl
             bool wasRightClick = _rightClickPending;
             _isPanning = false;
             _rightClickPending = false;
+            ResetPanCursor();
             InfiniteCanvasGrid.ReleasePointerCapture(e.Pointer);
 
             // A stationary right-click (moved < 5px) opens the context menu instead of panning.
@@ -813,14 +890,16 @@ public sealed partial class MermaidCanvasControl : UserControl
 
             if (ViewModel != null && _connectorSourceNode != null)
             {
-                var targetNode = ViewModel.Nodes.FirstOrDefault(n =>
-                    n.Id != _connectorSourceNode.Id &&
-                    releasePos.X >= n.X && releasePos.X <= n.X + n.Width &&
-                    releasePos.Y >= n.Y && releasePos.Y <= n.Y + n.Height);
+                // Same test as the highlight, so a release on the ringed node always connects.
+                var targetNode = ViewModel.NodeAt(releasePos.X, releasePos.Y, ConnectDropTolerance, except: _connectorSourceNode);
 
                 if (targetNode != null)
                 {
                     ViewModel.AddConnector(_connectorSourceNode.Id, _connectorSourceAnchor, targetNode.Id, "Top");
+                }
+                else
+                {
+                    ViewModel.StatusText = "Not connected: let go over another shape to connect to it.";
                 }
             }
 
@@ -839,10 +918,7 @@ public sealed partial class MermaidCanvasControl : UserControl
         var vm = ViewModel;
         if (vm is null) return;
 
-        var target = vm.Nodes.FirstOrDefault(n =>
-            n != _connectorSourceNode &&
-            mousePos.X >= n.X && mousePos.X <= n.X + n.Width &&
-            mousePos.Y >= n.Y && mousePos.Y <= n.Y + n.Height);
+        var target = vm.NodeAt(mousePos.X, mousePos.Y, ConnectDropTolerance, except: _connectorSourceNode);
 
         if (target == _currentConnectionTarget) return;
 
@@ -861,6 +937,110 @@ public sealed partial class MermaidCanvasControl : UserControl
             _currentConnectionTarget.IsConnectionTarget = false;
             _currentConnectionTarget = null;
         }
+    }
+
+    // A release this close to a node's box still lands on it: the anchor dots sit half outside it.
+    private const double ConnectDropTolerance = 14;
+
+    private bool _panCursorShown;
+
+    private void ResetPanCursor()
+    {
+        if (!_panCursorShown) return;
+        SetCursor(InfiniteCanvasGrid, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+        _panCursorShown = false;
+    }
+
+    /// <summary>Esc while dragging, resizing, connecting, marquee-selecting or panning: stops the
+    /// gesture and puts back what it moved. Returns false when nothing was in progress, so Esc
+    /// can fall through to clearing the selection.</summary>
+    public bool CancelActiveGesture()
+    {
+        bool active = EndGesture(restore: true);
+        if (active)
+        {
+            NodesItemsControl.ReleasePointerCaptures();
+            InfiniteCanvasGrid.ReleasePointerCaptures();
+            if (ViewModel is { } vm) vm.StatusText = "Cancelled.";
+        }
+        return active;
+    }
+
+    // Ends whatever gesture is in progress. With restore, a drag or resize puts the nodes back and
+    // drops the undo step it took, so a cancelled gesture leaves no trace. The release handlers
+    // clear their own flags before releasing capture, so the capture-lost call that follows a
+    // normal release finds nothing to end.
+    private bool EndGesture(bool restore)
+    {
+        bool active = false;
+        var vm = ViewModel;
+
+        if (_isDraggingNode)
+        {
+            active = true;
+            if (restore && vm != null && _initialSelectedNodePositions != null && _dragSnapshotTaken)
+            {
+                foreach (var (node, start) in _initialSelectedNodePositions)
+                {
+                    node.X = start.X;
+                    node.Y = start.Y;
+                    vm.UpdateConnectedConnectors(node);
+                }
+                vm.DiscardLastSnapshot();
+            }
+            _isDraggingNode = false;
+            _draggedNode = null;
+            _initialSelectedNodePositions = null;
+            ClearAlignmentGuides();
+        }
+
+        if (_isResizingNode)
+        {
+            active = true;
+            if (restore && vm != null && _resizeNode is { } n && _resizeSnapshotTaken)
+            {
+                n.X = _resizeStartX; n.Y = _resizeStartY; n.Width = _resizeStartW; n.Height = _resizeStartH;
+                vm.UpdateConnectedConnectors(n);
+                vm.DiscardLastSnapshot();
+            }
+            _isResizingNode = false;
+            _resizeNode = null;
+        }
+
+        if (_isDrawingConnector)
+        {
+            active = true;
+            _isDrawingConnector = false;
+            _connectorSourceNode = null;
+            ClearConnectionTargetHighlight();
+            DraftConnectorPath.Visibility = Visibility.Collapsed;
+        }
+
+        if (_isRubberbanding)
+        {
+            active = true;
+            _isRubberbanding = false;
+            RubberbandSelectionBox.Visibility = Visibility.Collapsed;
+        }
+
+        if (_isPanning)
+        {
+            active = true;
+            _isPanning = false;
+            _rightClickPending = false;
+        }
+        ResetPanCursor();
+
+        if (_messageDrag != null)
+        {
+            active = true;
+            _messageDrag = null;
+            _messageDragActive = false;
+            HorizontalAlignGuide.Visibility = Visibility.Collapsed;
+            SetCursor(InfiniteCanvasGrid, Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+        }
+
+        return active;
     }
 
     #endregion
@@ -1092,36 +1272,53 @@ public sealed partial class MermaidCanvasControl : UserControl
         {
             // Ensure the right-clicked node is selected so menu ops act on it.
             if (!node.IsSelected) vm.SelectNode(node, false);
+            bool many = vm.SelectedNodes.Count > 1;
+            int maxZ = vm.Nodes.Max(n => n.ZIndex), minZ = vm.Nodes.Min(n => n.ZIndex);
+            bool overlapsAny = vm.Nodes.Any(n => !ReferenceEquals(n, node) &&
+                n.X < node.X + node.Width && node.X < n.X + n.Width && n.Y < node.Y + node.Height && node.Y < n.Y + n.Height);
 
-            flyout.Items.Add(MenuItem("Edit Label", "\uE8AC", (s, e) => StartNodeInPlaceEdit(node)));
+            var rename = MenuItem("Rename", 0xE8AC, (s, e) => StartNodeInPlaceEdit(node), "Double-click");
+            rename.IsEnabled = !many;
+            flyout.Items.Add(rename);
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Duplicate (Ctrl+D)", "\uE8C8", (s, e) => vm.DuplicateSelected()));
-            flyout.Items.Add(MenuItem("Copy (Ctrl+C)", "\uE8C8", (s, e) => vm.CopySelected()));
+            flyout.Items.Add(MenuItem("Duplicate", 0xE7C4, (s, e) => vm.DuplicateSelected(), "Ctrl+D"));
+            flyout.Items.Add(MenuItem("Copy", 0xE8C8, (s, e) => vm.CopySelected(), "Ctrl+C"));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Bring to Front", "\uE74A", (s, e) => BringToFront(node)));
-            flyout.Items.Add(MenuItem("Send to Back", "\uE74B", (s, e) => SendToBack(node)));
+            // Stacking only matters where shapes overlap; elsewhere both items would do nothing.
+            var front = MenuItem("Bring to Front", 0xE74A, (s, e) => BringToFront(node));
+            front.IsEnabled = overlapsAny && (node.ZIndex < maxZ || vm.Nodes.Count(n => n.ZIndex == maxZ) > 1);
+            var back = MenuItem("Send to Back", 0xE74B, (s, e) => SendToBack(node));
+            back.IsEnabled = overlapsAny && (node.ZIndex > minZ || vm.Nodes.Count(n => n.ZIndex == minZ) > 1);
+            flyout.Items.Add(front);
+            flyout.Items.Add(back);
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Delete (Del)", "\uE74D", (s, e) => vm.DeleteSelected()));
+            flyout.Items.Add(MenuItem(many ? $"Delete {vm.SelectedNodes.Count} shapes" : "Delete", 0xE74D, (s, e) => vm.DeleteSelected(), "Del"));
         }
         else if (_rightClickConnector is { } conn)
         {
             vm.SelectedConnector = conn;
             vm.SelectedNode = null;
 
-            flyout.Items.Add(MenuItem("Edit Label", "\uE8AC", (s, e) => StartConnectorInPlaceEdit(conn)));
+            flyout.Items.Add(MenuItem(string.IsNullOrEmpty(conn.Label) ? "Add Label" : "Edit Label", 0xE8AC, (s, e) => StartConnectorInPlaceEdit(conn), "Double-click"));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Delete Connector", "\uE74D", (s, e) => vm.DeleteSelected()));
+            flyout.Items.Add(MenuItem("Delete Connector", 0xE74D, (s, e) => vm.DeleteSelected(), "Del"));
         }
         else
         {
             // Empty canvas.
-            flyout.Items.Add(MenuItem("Add Node Here", "\uE710", (s, e) => AddNodeAt(canvasPos)));
+            flyout.Items.Add(MenuItem("Add Shape Here", 0xE710, (s, e) => AddNodeAt(canvasPos), "Double-click"));
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Paste (Ctrl+V)", "\uE77F", (s, e) => vm.PasteClipboard()));
-            flyout.Items.Add(MenuItem("Select All (Ctrl+A)", "\uE8B3", (s, e) => vm.SelectAll()));
+            var paste = MenuItem("Paste", 0xE77F, (s, e) => vm.PasteClipboard(), "Ctrl+V");
+            paste.IsEnabled = vm.CanPaste;
+            flyout.Items.Add(paste);
+            var selectAll = MenuItem("Select All", 0xE8B3, (s, e) => vm.SelectAll(), "Ctrl+A");
+            selectAll.IsEnabled = vm.Nodes.Count > 0;
+            flyout.Items.Add(selectAll);
             flyout.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-            flyout.Items.Add(MenuItem("Fit to Content", "\uE9A6", (s, e) => FitToContent()));
-            flyout.Items.Add(MenuItem("Reset Zoom (Ctrl+0)", "\uE71E", (s, e) => ZoomReset()));
+            var fit = MenuItem("Fit to Content", 0xE9A6, (s, e) => FitToContent());
+            fit.IsEnabled = vm.Nodes.Count > 0;
+            flyout.Items.Add(fit);
+            flyout.Items.Add(MenuItem("Zoom to 100%", 0xE71E, (s, e) => ZoomReset(), "Ctrl+0"));
         }
 
         // Anchor the flyout to the canvas at the pointer position.
@@ -1132,33 +1329,36 @@ public sealed partial class MermaidCanvasControl : UserControl
         flyout.ShowAt(InfiniteCanvasGrid, anchor);
     }
 
-    private static Microsoft.UI.Xaml.Controls.MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler handler)
+    // The shortcut goes in the menu's right-hand column (KeyboardAcceleratorTextOverride), not in
+    // brackets after the name.
+    private static Microsoft.UI.Xaml.Controls.MenuFlyoutItem MenuItem(string text, int glyph, RoutedEventHandler handler, string? shortcut = null)
     {
         var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem
         {
             Text = text,
-            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = glyph }
+            Icon = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = ((char)glyph).ToString() }
         };
+        if (shortcut != null) item.KeyboardAcceleratorTextOverride = shortcut;
         item.Click += handler;
         return item;
     }
 
+    // Stacking is canvas-only (Mermaid has no z-order), so it is not an undo step: undo would
+    // have restored identical code and done nothing.
     private void BringToFront(DiagramNodeViewModel node)
     {
         var vm = ViewModel; if (vm is null) return;
-        vm.SnapshotForUndo();
-        int maxZ = vm.Nodes.Max(n => n.ZIndex);
-        node.ZIndex = maxZ + 1;
-        vm.StatusText = $"Brought '{node.Id}' to front.";
+        node.ZIndex = vm.Nodes.Where(n => !ReferenceEquals(n, node)).Select(n => n.ZIndex).DefaultIfEmpty(node.ZIndex).Max() + 1;
+        ApplyZIndex(node);
+        vm.StatusText = $"Brought '{MermaidStudioViewModel.DisplayName(node)}' to the front.";
     }
 
     private void SendToBack(DiagramNodeViewModel node)
     {
         var vm = ViewModel; if (vm is null) return;
-        vm.SnapshotForUndo();
-        int minZ = vm.Nodes.Min(n => n.ZIndex);
-        node.ZIndex = minZ - 1;
-        vm.StatusText = $"Sent '{node.Id}' to back.";
+        node.ZIndex = vm.Nodes.Where(n => !ReferenceEquals(n, node)).Select(n => n.ZIndex).DefaultIfEmpty(node.ZIndex).Min() - 1;
+        ApplyZIndex(node);
+        vm.StatusText = $"Sent '{MermaidStudioViewModel.DisplayName(node)}' to the back.";
     }
 
     /// <summary>Adds a palette shape in the visible part of the canvas: the free spot nearest the
@@ -1200,7 +1400,7 @@ public sealed partial class MermaidCanvasControl : UserControl
     {
         var vm = ViewModel; if (vm is null) return;
         var item = new MermaidPaletteItem { Category = "Flowchart", ShapeType = "Rectangle", DefaultText = "New Node" };
-        vm.AddNodeFromPalette(item, pos.X, pos.Y);
+        vm.AddNodeFromPalette(item, pos.X, pos.Y, centreOnPoint: true);
     }
 
     #endregion

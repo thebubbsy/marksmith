@@ -20,6 +20,17 @@ public static class MermaidSpatialMetadataService
     public static bool IsSpatialMetadataLine(string line) => SpatialLineRegex.IsMatch(line);
 
     /// <summary>
+    /// One diagram's code without its spatial lines: what Diagram Studio's Code tab shows. The
+    /// studio keeps positions by node id when code is edited, so nothing is lost by hiding them.
+    /// </summary>
+    public static string StripFromCode(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return code ?? string.Empty;
+        var kept = code.Split('\n').Where(l => !IsSpatialMetadataLine(l.TrimEnd('\r')));
+        return string.Join("\n", kept);
+    }
+
+    /// <summary>
     /// Removes spatial metadata lines from every mermaid fence in <paramref name="markdown"/>.
     /// Returns the cleaned markdown; <paramref name="stash"/> maps mermaid block index to the
     /// removed lines (in order) so <see cref="Reinject"/> can restore them.

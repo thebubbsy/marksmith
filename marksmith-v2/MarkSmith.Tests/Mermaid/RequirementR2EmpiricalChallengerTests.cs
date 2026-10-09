@@ -319,11 +319,14 @@ public class RequirementR2EmpiricalChallengerTests
         var spawned = vm.QuickAddNode(n1, "Right");
 
         Assert.NotNull(spawned);
-        // Spawned node should avoid N2 by stepping further right
+        // Spawned node should avoid N2
         var spawnedRect = new Rect(spawned.X, spawned.Y, spawned.Width, spawned.Height);
         var n2Rect = new Rect(n2.X, n2.Y, n2.Width, n2.Height);
 
         Assert.False(spawnedRect.IntersectsWith(n2Rect), "Spawned node collided with existing node N2");
-        Assert.True(spawned.X > n2.X, "Spawned node did not step past N2");
+        // Run #48: it branches off beside N2 (same distance out, the next slot down or up) rather
+        // than jumping past it, which left its connector looping around N2.
+        Assert.Equal(n2.X, spawned.X, 3);
+        Assert.NotEqual(n2.Y, spawned.Y);
     }
 }
