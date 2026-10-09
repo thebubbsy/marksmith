@@ -4499,3 +4499,87 @@ unlocked file of the other session's isolated copy. Its running instance (pid 14
 alone. Nothing in the repo was affected, but that session will need to re-copy its tree to
 build there again. **Rule: name scratch dirs after the session (or use the session scratchpad),
 and delete only paths this run created, never a whole shared `%TEMP%\msNN` folder.**
+
+### 2026-10-10 01:00–02:10 AEST (routine run #52b: in-app updates, done properly; Word's layout names)
+
+**Two runs at once.** This session and `local_ca9bab9c` (the run whose entry is above) both started
+at ~01:00 and both found a dead run's half-done updater rework in the tree. Each saw the other
+editing `UpdateService.cs` in the same minute, took the other for the owner, backed out, and went
+to the same backlog item (SmartArt picture tiles). The other run committed that first (`7b7ec0b`),
+so this run dropped its own duplicate drawings and kept only the work the other didn't do. Then,
+since the other run's notes handed the updater to "the other session" and nobody was doing it,
+this run finished it. **Lesson: when you back away from WIP because another live run "owns" it,
+check that run's transcript or PLANNING entry before assuming; both of us were wrong.**
+
+**Shipped:**
+- `a38a407` **SmartArt gallery names.** About 30 untitled built-in layouts showed names made by
+  splitting their ids: "Plusand Minus", "Nameand Title Organizational Chart", "Randomto Result
+  Process", "Arrow 3", "Horizontal List 6", "Picture List 1". `StudioLayoutItem.WordNames` now has
+  Word's names for the 28 whose meaning the preview variants pin down (Counterbalance Arrows,
+  Trapezoid List, Picture Caption List, Alternating Flow, Chevron List, Converging Radial...), plus
+  Word's hyphens (Sub-Step, Semi-Transparent, Multi-Level). `Humanize` keeps small words small
+  ("Meet the Team"). Ids whose Word name isn't certain (hList2/7/9, vList3/5, process4/5, radial2/6,
+  bProcess3, hProcess10, lProcess1) keep the numbered fallback; add them only when certain.
+- `e2b274c` **In-app updates, end to end.** What was wrong: the installer (admin, `/VERYSILENT`)
+  ran while MarkSmith was open, so Windows had to force-close the app mid-install and nothing
+  reopened it; "Relaunch" skipped every save (`Environment.Exit`); the banner said "Marksmith
+  Update" whatever was happening; closing it broke its binding; Settings ▸ About poked VM fields
+  directly. Now:
+  - Core `MainViewModel.Updates.cs`: one `UpdatePhase` (Available, Downloading, ReadyToInstall,
+    Installing, Failed, Installed) and pure `DescribeUpdate` wording. Download and verify happen
+    while you work (cancellable); the hand-off saves the recovery draft, undo history and settings,
+    writes Core `UpdateResumeNote` (`<ConfigDir>\update-resume.json`), starts the installer
+    detached (`UpdateService.StartInstaller`, args from `InstallerArguments`: `/VERYSILENT
+    /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS /RELAUNCH=1 /LOG="<ConfigDir>\update-install.log"`)
+    and closes via `ExitForUpdate` (past minimise-to-tray and the debug-log dialog, then
+    `Application.Current.Exit()`). A declined UAC prompt (Win32 1223) keeps the app open, says so,
+    and a retry reuses the downloaded installer.
+  - Next launch: `ResumeAfterUpdate()` takes the note; the recovery check restores the draft
+    **without** the "Recover unsaved document?" dialog (or reopens the file that was open), and the
+    banner says "Updated to X" with a What's new link, or "The update didn't install" with the log
+    path when the running version is older than the note's.
+  - Unattended (found at launch): restarts only if `MayRestartUnattended` (setting on, nothing
+    typed, no studio/history window open); otherwise it waits in the banner.
+  - Desktop `Services/UpdateBannerPresenter` draws the state onto any InfoBar: the main banner and
+    Settings ▸ About use it, so they can't disagree. Cancel isn't accent; Downloading/Installing
+    can't be closed. Settings toggles renamed to say what they do ("Restart to install straight
+    away"; stored keys unchanged).
+  - `marksmith.iss`: a `[Run]` entry `Flags: nowait runasoriginaluser; Check: RelaunchRequested`
+    (`WizardSilent` and `{param:RELAUNCH|0}` = 1), so the updater's install reopens MarkSmith
+    un-elevated and winget/script installs don't.
+  - `MARKSMITH_UPDATE_FEED=<url>` points the check at a test feed and lets a dev build check.
+  - Tests: `UpdateFlowTests` (wording per phase, whole-percent progress, the unattended rule,
+    installer args incl. a quoted log path with a space, missing installer, the .iss entry, note
+    read-once / stale / damaged / InstalledIn).
+
+**Verified:**
+- End to end in a parked test instance against a local fake feed (`feed.py`: GitHub
+  `releases/latest` shape, throttled 400 KB/s) whose "installer" is a padded unsigned stand-in
+  that records its command line: Available → Download → 19% with Cancel → Cancel back to
+  Available → full download → Ready to install (green) → Restart and install: the app exited,
+  the draft, undo history and note were on disk, and the stand-in got exactly the args above.
+  Relaunch: draft restored with no dialog and a red "didn't install" banner (the stand-in installs
+  nothing). Seeded a note for the running version: green "Updated to MarkSmith 3.12.0" with
+  What's new. Settings ▸ About showed the same state. Screenshots via PrintWindow only.
+- Full suite on an isolated copy: 4308 passed, 15 failed (the known path-based set). Desktop builds.
+- **Not verified:** a real Inno install (no ISCC here; the release workflow compiles the .iss),
+  and a real UAC prompt. A padded *signed* exe fails `InstallerTrust` (appended bytes break the
+  signature), which is correct; use an unsigned stand-in for tests.
+- Gallery names checked live in SmartArt Studio; SmartArt suites 313/313 on the other run's HEAD.
+
+**Lessons:**
+- Scratch dirs: use the session scratchpad (or a session-unique name). Both runs picked
+  `%TEMP%\ms52`; one cleanup took the other's files (see the note above).
+- `gx.ps1 kill` that filters by `Path -like "$S*"` misses an exe outside `$S`; kill by pid and
+  check the path.
+- Pasting into the editor collapses the Source panel; screenshots of the editor area shift.
+- A banner screenshot right after launch can catch the editor mid-entrance-animation; take two.
+
+**Release:** see the line below once tagged.
+
+**Next up:**
+1. Watch the first real in-app update (3.12.0 → next): confirm the installer reopens MarkSmith
+   and the "Updated to" banner appears. Installs from 3.11 and earlier still use the old flow.
+2. Remaining numbered gallery names (list above) once their Word names are certain.
+3. `EmailExportFlowTests.Subject_preview_follows_the_template` flake (other run's #2).
+4. SmartArt Insert dialog tiles through Direct2D (other run's #4); real-mouse items (run #49 #3).
