@@ -3981,3 +3981,74 @@ OutDir: 4089 passed, 18 failed (the known path-based ones).
 workflow built the x64 and arm64 installers and zips. Notes were prepended to the workflow body
 afterwards, covering run #44 (folding, gutter, outline, lint) and run #45 (images, safe saving,
 screen-reader names). `MarksmithBaseVersion` is now **3.7.0** (`576806e`).
+
+### 2026-10-09 15:40–16:40 AEST (routine run #46: PowerPoint export, done properly)
+
+Unlocked, user active, so no synthetic input. Picked run #45's "Next up" #3 (PPTX dropped
+images). No earlier run had audited what a PowerPoint export actually looks like, so this was a
+full rebuild rather than an image fix.
+
+**Found (the old exporter was a regex line-splitter):**
+- No bullets at all: every line was a level-0 run, and the slide master had no `txStyles`.
+  Nested lists, numbered lists and plain paragraphs all looked the same.
+- Tables became one line of cells joined with "·". Images, SVGs and Mermaid diagrams were
+  dropped (alt text only). Links, bold, italic and inline code were stripped to plain text.
+- Long sections ran off the bottom of the slide. There was no title slide, no section
+  dividers, and no slide numbers. Code had no panel, monospace font or colours.
+- The Export menu's PowerPoint item used glyph E8AC, which is **Rename** (checked by rendering it
+  from the installed font). It is now E786 Slideshow.
+
+**Shipped (`1fe208c`):**
+- Core `Services/Presentation/SlideDeckBuilder` (Markdig AST → `PptxDeck` of measured blocks,
+  paginated) + `SlideGeometry` (the single source of slide geometry and text metrics, used by
+  both the paginator and the writer) + `SlideDeck.cs` model. `PptxExportService` draws the deck
+  as DrawingML XML strings. The Desktop VM and `AutomationExportService` now pass Mermaid PNGs
+  (`ExportAsync(md, path, settings, mermaidPngs)`).
+- Title slide from a leading H1: its short first paragraph is the subtitle, the author is the
+  byline, and the brand logo goes top-left. A heading with nothing under it is a section
+  divider. A `---` is a slide break, but never leaves an empty slide. Sections too long for one
+  slide continue on "Title (continued)" slides. Tables repeat their header row, code splits by
+  line, and a subheading never ends a slide. One oversized paragraph shrinks to fit (60% minimum).
+- Real bullets (• – ▪), numbering (1. a. i., with startAt), task-box bullets, inline formatting,
+  hyperlink relationships, and footnotes collected on a final "Notes" slide.
+- Native `a:tbl` tables with alignment, header fill and banding. Code on a themed roundRect
+  with `OpenXmlSyntaxHighlighter.GetHighlightedSpans` colours. Maths through `LatexText`.
+  Quotes and alerts sit on panels. HTML blocks go through `Import.HtmlToMarkdown`, then back
+  through the builder.
+- Images use `DocxExportService.FetchImageBytes` (relative to the document folder). WebP and
+  similar formats are re-encoded to PNG. SVGs are rasterised with the new
+  `SvgRasterizer.ToPng(..., transparent: true)`, so a dark theme has no white box. A missing
+  image becomes a dashed placeholder that says "Image not found: file.png".
+- The slide master has text styles and three layouts (Title Slide, Title and Content, Section
+  Header). Placeholders are used for titles and the first body text, so outline view works and
+  slides added in PowerPoint match. Every slide but the title slide has a slide number and a
+  deck-title footer. The package includes presProps, viewProps and tableStyles.
+
+**Verified:** `OpenXmlValidator(Office2019)` reports zero errors (light and Dracula). **Real
+PowerPoint renders work unattended**: COM `Presentations.Open(path, ReadOnly, Untitled,
+WithWindow=0)` + `Slide.Export(png, "PNG", 1280, 720)`. Unlike Word, PowerPoint showed no
+first-run dialog. Helpers are in `%TEMP%\msg46`: `render.ps1` (run it inside `Start-Job` with
+a timeout), `sheet.ps1` (contact sheet), and `app\` (scratch exporter with a stress-test deck).
+**Quit doesn't always end POWERPNT.** A `/AUTOMATION -Embedding` process with no window
+outlived the script, so kill it by that command line afterwards. The new tests are
+`PptxExportTests` (18). Full suite with a scratch OutDir: 4107 passed, 18 failed (the known
+path-based ones). Desktop builds and launches.
+
+**Lessons:**
+- Markdig quirk: a `[^1]:` definition directly after a definition list isn't parsed as a
+  footnote, in the preview as well. It isn't an exporter bug.
+- `MarkdownSlideDeckService` (the HTML presenter) already owns the name `SlideDeck`; the PPTX
+  model is `PptxDeck`.
+- In a Markdig table, `ColumnDefinitions.Count` is one higher than the real column count for
+  `| a | b |`. Count the cells.
+- PowerPoint draws a bullet with the first run's formatting, so a struck-through first word also
+  strikes the bullet. This is a known limitation and was left as is.
+
+**Next up:**
+1. PowerPoint with a real Mermaid render from the app (needs a Pro or trial licence on the test
+   instance; don't start a trial on the user's machine unattended). Check that diagram PNGs fill
+   the slide nicely at real sizes.
+2. The other Export-menu glyphs and the command palette icons: render each glyph and confirm
+   it's the right one (E8AC was wrong for months).
+3. Run #45 list: open-file reload decision, Quick insert for SmartArt, Galaxy real-mouse checks,
+   image drag-drop with a real mouse.
