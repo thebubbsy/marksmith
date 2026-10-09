@@ -129,6 +129,23 @@ Some extra paragraph.";
     }
 
     [Fact]
+    public void KanbanParser_Handles_ExtraColonFencing_WithoutLeakingCloserIntoLastCard()
+    {
+        // KanbanNormalizer's opener/closer regexes accept 3-OR-MORE colons (to allow nesting
+        // inside another ::: container), so the parser must too. Before the fix, a 4-colon fence
+        // fell through to the "not a kanban opener" branch: attributes were never parsed and the
+        // raw "::::" closer line was appended onto the last card's text as continuation content.
+        var blockText = "::::kanban title=\"Sprint 1\"\n# To Do\n- Ship it\n::::";
+
+        var kanban = KanbanParser.Parse(blockText);
+
+        Assert.Equal("Sprint 1", kanban.Title);
+        Assert.Single(kanban.Columns);
+        Assert.Single(kanban.Columns[0].Cards);
+        Assert.Equal("Ship it", kanban.Columns[0].Cards[0].Text);
+    }
+
+    [Fact]
     public void KanbanParser_Handles_EmptyColumns_And_ImplicitBacklog()
     {
         var blockText = @":::kanban
