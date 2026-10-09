@@ -62,6 +62,14 @@
     .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
            padding: 10px 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff;
            background: var(--accent); border: none; border-radius: 10px; transition: .15s; }
+    .btn:focus-visible,
+    .seg button:focus-visible,
+    .mini:focus-visible,
+    #histClear:focus-visible,
+    footer a:focus-visible {
+        outline: 2px solid #8f66ff;
+        outline-offset: 2px;
+    }
     .btn:hover:not(:disabled) { background: var(--accent-hi); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
     .btn.ghost { background: #14141d; border: 1px solid var(--line); color: var(--text); }
