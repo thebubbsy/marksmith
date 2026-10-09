@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Marksmith Connector</title>
+<style>
+    :root {
+        --bg: #12131b; --card: #1c1c28; --line: #2a2a3a; --text: #e8e8f0;
+        --dim: #9a9ab0; --accent: #5B50E6; --accent-hi: #756BF2; --ok: #3fb950;
+        --warn: #d29922; --err: #f85149;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+        width: 320px; background: var(--bg); color: var(--text);
+        font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px;
+    }
+    .wrap { padding: 14px; }
+
+    /* ── header ─────────────────────────────────────────── */
+    header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    header img { width: 30px; height: 30px; border-radius: 8px; background: transparent; padding: 0; filter: drop-shadow(0 2px 6px rgba(0,0,0,.3)); }
+    header .t { flex: 1; }
+    header h1 { font-size: 14.5px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+    header .sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+    .conn { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
+            padding: 4px 9px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+    .conn.ok  .dot { background: var(--ok);  box-shadow: 0 0 6px var(--ok); }
+    .conn.ok  { color: var(--ok); }
+    .conn.err .dot { background: var(--err); box-shadow: 0 0 6px var(--err); }
+    .conn.err { color: var(--err); }
+    .conn.busy .dot { background: var(--warn); animation: pulse 1s infinite; }
+    .conn.busy { color: var(--warn); }
+    @keyframes pulse { 50% { opacity: .35; } }
+
+    /* ── cards ──────────────────────────────────────────── */
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 12px; margin-bottom: 10px; }
+    .card h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
+               color: var(--dim); margin: 0 0 9px; font-weight: 600; }
+
+    /* ── detected-source panel ──────────────────────────── */
+    .src-line { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    .src-badge { font-size: 11px; font-weight: 700; text-transform: capitalize; color: #fff;
+                 padding: 3px 9px; border-radius: 6px; background: var(--accent); }
+    .src-model { font-size: 12px; color: var(--text); font-weight: 600; }
+    .src-stats { font-size: 11.5px; color: var(--dim); line-height: 1.5; }
+    .chip { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px;
+            border-radius: 10px; border: 1px solid var(--line); color: var(--dim); margin-left: 5px; }
+    .chip.math { color: #79c0ff; border-color: #1f6feb66; }
+    .chip.conf { color: var(--ok); border-color: #3fb95066; }
+
+    /* ── mode segmented control ─────────────────────────── */
+    .seg { display: flex; background: #14141d; border: 1px solid var(--line); border-radius: 9px;
+           overflow: hidden; margin-top: 10px; }
+    .seg button { flex: 1; padding: 7px 0; font-size: 11.5px; font-weight: 600; cursor: pointer;
+                  color: var(--dim); background: transparent; border: none; transition: .15s; }
+    .seg button.on { color: #fff; background: var(--accent); }
+
+    /* ── buttons ────────────────────────────────────────── */
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+           padding: 10px 0; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff;
+           background: var(--accent); border: none; border-radius: 10px; transition: .15s; }
+    .btn:hover:not(:disabled) { background: var(--accent-hi); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn.ghost { background: #14141d; border: 1px solid var(--line); color: var(--text); }
+    .btn.ghost:hover:not(:disabled) { background: #1e1e2c; border-color: var(--accent); }
+
+    .dl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .dl-grid .btn { padding: 8px 0; font-size: 12px; position: relative; }
+    .fmt { font-weight: 700; }
+    .pro { position: absolute; top: -6px; right: -4px; font-size: 8.5px; font-weight: 800; letter-spacing: .4px;
+           padding: 1px 5px; border-radius: 6px; background: var(--accent); color: #fff; pointer-events: none; }
+    .btn:focus-visible, .seg button:focus-visible, .mini:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+
+    /* ── email card ─────────────────────────────────────── */
+    .card h2 .free { float: right; text-transform: none; letter-spacing: 0; font-size: 10px; font-weight: 700;
+                     color: var(--ok); border: 1px solid #3fb95066; border-radius: 10px; padding: 0 7px; }
+    .fld { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .fld label { width: 52px; flex: none; font-size: 11.5px; color: var(--dim); }
+    .fld input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; font-size: 12px; color: var(--text);
+                 background: #14141d; border: 1px solid var(--line); border-radius: 7px; outline: none; transition: .15s; }
+    .fld input:hover { border-color: #3a3a52; }
+    .fld input:focus { border-color: var(--accent-hi); box-shadow: 0 0 0 3px rgba(91, 80, 230, .22); }
+    .fld input::placeholder { color: #6c6c84; }
+    #emailBtn { margin-top: 3px; }
+
+    /* ── capture preview / DLP / history ────────────────── */
+    pre { background: #14141d; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+          font-size: 11px; max-height: 150px; overflow: auto; white-space: pre-wrap;
+          word-break: break-word; color: #c8c8d8; margin: 0; }
+    #dlpCard { border-color: var(--err); }
+    #dlpBody { color: var(--err); }
+    .hist-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+    .hist-row:first-child { border-top: none; }
+    .hist-t { flex: 1; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hist-meta { font-size: 10px; color: var(--dim); flex: none; }
+    .hist-btns { display: flex; gap: 4px; flex: none; }
+    .mini { font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 6px;
+            border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+    .mini:hover { border-color: var(--accent); }
+    #histClear { float: right; font-size: 9.5px; background: none; border: none; color: var(--dim);
+                 cursor: pointer; text-decoration: underline; padding: 0; }
+
+    /* ── status / toast ─────────────────────────────────── */
+    #toast { min-height: 16px; font-size: 11.5px; margin-top: 9px; line-height: 1.45; text-align: center; }
+    #toast.ok { color: var(--ok); }
+    #toast.err { color: var(--err); }
+    #toast.dim { color: var(--dim); }
+
+    /* ── offline help ───────────────────────────────────── */
+    .help { font-size: 11.5px; color: var(--dim); line-height: 1.55; }
+    .help b { color: #c8c8d8; }
+    .help code { background: #14141d; border: 1px solid var(--line); border-radius: 5px;
+                 padding: 1px 5px; font-size: 10.5px; color: #79c0ff; cursor: pointer; }
+
+    /* ── footer ─────────────────────────────────────────── */
+    footer { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+    footer a { color: #756BF2; text-decoration: none; font-size: 11.5px; }
+    footer a:hover { text-decoration: underline; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line);
+               border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
+               vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <img src="icons/icon48.png" alt="Marksmith">
+        <div class="t">
+            <h1>Marksmith</h1>
+            <div class="sub">AI chat &rarr; polished documents</div>
+        </div>
+        <div class="conn busy" id="conn"><span class="dot"></span><span id="connTxt">Checking&hellip;</span></div>
+    </header>
+
+    <!-- Detected source / classification -->
+    <div class="card" id="srcCard">
+        <h2>Detected on this page</h2>
+        <div id="srcBody">
+            <div class="src-line">
+                <span class="src-badge" id="srcName">&hellip;</span>
+                <span class="src-model" id="srcModel"></span>
+            </div>
+            <div class="src-stats">
+                <span id="srcChars">&hellip;</span>
+                <span class="chip conf hidden" id="chipConf"></span>
+                <span class="chip math hidden" id="chipMath">&Sigma; math</span>
+            </div>
+        </div>
+        <div id="srcEmpty" class="help hidden"></div>
+        <div class="seg" id="modeSeg">
+            <button data-mode="latest" class="on">Latest reply</button>
+            <button data-mode="all">Full conversation</button>
+            <button data-mode="selection">Selection</button>
+        </div>
+    </div>
+
+    <!-- Primary action -->
+    <button class="btn" id="sendBtn" disabled>
+        <span id="sendIco">&#10148;</span><span id="sendTxt">Send to Marksmith</span>
+    </button>
+
+    <!-- Email: an Outlook draft opened by the app (free on every plan) -->
+    <div class="card" id="emailCard" style="margin-top:10px">
+        <h2>Email it <span class="free" title="Every email feature is free">FREE</span></h2>
+        <div class="fld">
+            <label for="emailTo">To</label>
+            <input type="text" id="emailTo" autocomplete="email" spellcheck="false" placeholder="Your default recipients">
+        </div>
+        <div class="fld">
+            <label for="emailSubject">Subject</label>
+            <input type="text" id="emailSubject" spellcheck="true" placeholder="From the reply's title">
+        </div>
+        <button class="btn" id="emailBtn" disabled title="Opens a new Outlook message with this reply in it, ready to send (Alt+Shift+E)">
+            <span>&#9993;</span><span id="emailTxt">Open as Outlook draft</span>
+        </button>
+    </div>
+
+    <!-- Direct downloads -->
+    <div class="card">
+        <h2>Download straight to your browser</h2>
+        <div class="dl-grid">
+            <button class="btn ghost dl" data-format="pdf"  disabled><span class="fmt">PDF</span></button>
+            <button class="btn ghost dl" data-format="docx" disabled><span class="fmt">DOCX</span></button>
+            <button class="btn ghost dl" data-format="pptx" disabled><span class="fmt">PPTX</span></button>
+            <button class="btn ghost dl" data-format="epub" disabled><span class="fmt">EPUB</span></button>
+            <button class="btn ghost dl" data-format="eml" disabled title="An .eml email draft: double-click it to open in Outlook"><span class="fmt">EML</span></button>
+            <button class="btn ghost" id="copyBtn" disabled title="Copy the capture as Markdown"><span class="fmt">&#10697; MD</span></button>
+        </div>
+    </div>
+
+    <button class="btn ghost" id="batchTabsBtn" style="margin-bottom:10px" title="Send every open AI chat tab to Marksmith as one document, a chapter per conversation">&#8862; Send all open AI chats</button>
+
+    <!-- Capture preview -->
+    <div class="card hidden" id="previewCard">
+        <h2>Captured markdown</h2>
+        <pre id="previewBody"></pre>
+    </div>
+
+    <!-- DLP warning -->
+    <div class="card hidden" id="dlpCard">
+        <h2 style="color:var(--err)">&#9888; Sensitive content detected</h2>
+        <div class="help" id="dlpBody"></div>
+    </div>
+
+    <!-- Capture history -->
+    <div class="card" id="histCard">
+        <h2>Recent captures <button id="histClear" title="Clear history">clear</button></h2>
+        <div id="histList"></div>
+    </div>
+
+    <div id="toast" class="dim"></div>
+
+    <!-- Offline / pairing help -->
+    <div class="card hidden" id="helpCard">
+        <h2>Can't reach Marksmith</h2>
+        <div class="help">
+            Make sure the app is running with <b>Source &rarr; Automation &rarr; Local REST API</b>
+            turned on, and the port matches (default <b>47821</b>).<br><br>
+            If it's on but still blocked, add this extension's ID under
+            <b>Automation &rarr; Allowed extension ID</b> in the app:<br>
+            <code id="extId" title="Click to copy">&hellip;</code>
+        </div>
+    </div>
+
+    <footer>
+        <a href="#" id="openOptions">&#9881; Options</a>
+        <a href="#" id="openAppSettings" title="Change MarkSmith's own settings from the browser">&#9673; App settings</a>
+        <span class="help" id="verTxt"></span>
+    </footer>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>
