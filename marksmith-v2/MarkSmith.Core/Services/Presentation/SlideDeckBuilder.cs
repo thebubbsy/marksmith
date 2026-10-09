@@ -31,6 +31,8 @@ public sealed class SlideDeckOptions
     /// <summary>Pre-rendered PNGs of the ```mermaid fences, in document order (2x scale).</summary>
     public IReadOnlyList<byte[]?>? MermaidPngs { get; init; }
     public bool NoEmoji { get; init; }
+    /// <summary>"Render Mermaid diagrams". Off: a ```mermaid fence is a code block like any other.</summary>
+    public bool DrawDiagrams { get; init; } = true;
     /// <summary>Loads an image destination; defaults to the Word exporter's loader (local files
     /// relative to the document folder, data: URIs, safe web addresses).</summary>
     public Func<string, byte[]?>? LoadImage { get; init; }
@@ -394,8 +396,10 @@ public static class SlideDeckBuilder
         public Ctx(SlideDeckOptions options, MarkdownDocument doc)
         {
             _options = options;
-            _mermaid = doc.Descendants<FencedCodeBlock>().Where(IsMermaid).ToList();
+            _mermaid = options.DrawDiagrams ? doc.Descendants<FencedCodeBlock>().Where(IsMermaid).ToList() : [];
         }
+
+        private bool IsDiagram(FencedCodeBlock f) => _options.DrawDiagrams && IsMermaid(f);
 
         private static bool IsMermaid(FencedCodeBlock f) =>
             f.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true;
@@ -435,7 +439,7 @@ public static class SlideDeckBuilder
                     Text(flow).Paragraphs.Add(para);
                     return;
                 }
-                case FencedCodeBlock fenced when IsMermaid(fenced):
+                case FencedCodeBlock fenced when IsDiagram(fenced):
                     AddDiagram(fenced, flow);
                     return;
                 case CodeBlock code:

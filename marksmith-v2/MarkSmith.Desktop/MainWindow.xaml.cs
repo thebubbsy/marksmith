@@ -1077,39 +1077,68 @@ public sealed partial class MainWindow : Window, Services.IWebRenderHost, Servic
         _ = RefreshPreviewAsync(); // undo/redo changes the source — keep the preview honest
     }
 
-    private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ComboBox { SelectedItem: Models.ExportPreset preset })
-            ViewModel.ApplyPreset(preset);
-    }
+    // Picking a preset applies it through the binding (MainViewModel.ActivePreset).
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)
     {
-        var box = new TextBox { PlaceholderText = "e.g. Client report — dark, branded", Margin = new Thickness(0, 12, 0, 0) };
+        // Starts from the preset in use, so re-saving a tweaked look under its own name is Enter.
+        var box = new TextBox
+        {
+            Header = "Name",
+            Text = ViewModel.ActivePreset?.Name ?? "",
+            PlaceholderText = "e.g. Client report, dark, branded",
+            Margin = new Thickness(0, 12, 0, 0),
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, "Preset name");
+        var replaces = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0),
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+        };
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
             Title = "Save preset",
-            Content = new StackPanel { Children = { new TextBlock { TextWrapping = TextWrapping.Wrap, Text = "Save the current theme, width, cleanup, formatting, diagram mode and branding as a named preset." }, box } },
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Text = "Saves how the document looks: theme, layout, cleanup and formatting, diagrams, and branding. " +
+                               "Automation and email settings aren't part of a preset.",
+                    },
+                    box,
+                    replaces,
+                },
+            },
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
         };
-        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+        void Validate()
         {
-            ViewModel.SavePreset(box.Text);
-            ViewModel.StatusText = $"Preset saved: {box.Text.Trim()}";
-            ViewModel.StatusSeverity = Models.StatusSeverity.Success;
+            var name = box.Text.Trim();
+            dialog.IsPrimaryButtonEnabled = name.Length > 0;
+            var existing = name.Length > 0 ? ViewModel.FindPreset(name) : null;
+            replaces.Text = existing is null ? "" : $"Replaces the saved preset \u201C{existing.Name}\u201D.";
+            replaces.Visibility = existing is null ? Visibility.Collapsed : Visibility.Visible;
+            dialog.PrimaryButtonText = existing is null ? "Save" : "Replace";
         }
+        box.TextChanged += (_, _) => Validate();
+        box.Loaded += (_, _) => { box.Focus(FocusState.Programmatic); box.SelectAll(); };
+        Validate();
+        if (await MarkSmith.Services.HoverPolish.ShowPolishedAsync(dialog) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
+            ViewModel.SavePreset(box.Text); // sets the status line and selects the new preset
     }
 
     private void OnDeletePresetClick(object sender, RoutedEventArgs e)
     {
-        if (PresetsCombo.SelectedItem is Models.ExportPreset preset)
-        {
+        if (ViewModel.ActivePreset is { } preset)
             ViewModel.DeletePreset(preset);
-            PresetsCombo.SelectedItem = null;
-        }
     }
 
     private void OnToggleThemeFavoriteClick(object sender, RoutedEventArgs e)

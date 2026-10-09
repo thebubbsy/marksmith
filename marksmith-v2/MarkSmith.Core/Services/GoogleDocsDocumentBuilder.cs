@@ -58,13 +58,14 @@ public static class GoogleDocsDocumentBuilder
         public int ImageCount;   // unique token order ([[IMG_N]] across ALL images)
         public int MermaidCount; // pairing index into the harvested mermaid-PNG list
         public int TableCount;
+        public bool DrawDiagrams = true; // "Render Mermaid diagrams"; off keeps fences as code
     }
 
     // ---- public entry -------------------------------------------------------------------------
 
     public static GoogleDocsBuildResult Build(string markdown, AppSettings settings, ThemeDefinition? theme = null)
     {
-        var st = new BuilderState();
+        var st = new BuilderState { DrawDiagrams = settings.MermaidEnabled };
         var doc = Markdown.Parse(markdown ?? "", Pipeline);
 
         foreach (var block in doc)
@@ -113,7 +114,7 @@ public static class GoogleDocsDocumentBuilder
                 break;
             }
 
-            case FencedCodeBlock f when f.Info?.TrimStart('`').StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
+            case FencedCodeBlock f when st.DrawDiagrams && f.Info?.TrimStart('`').StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
             {
                 var tokenOrder = st.ImageCount++;
                 var mermaidIndex = st.MermaidCount++;

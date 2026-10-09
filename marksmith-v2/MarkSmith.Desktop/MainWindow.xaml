@@ -372,11 +372,15 @@
                                                          Description="Each chat that arrives (clipboard, API or the browser extension) is exported straight away.">
                                     <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding AutoConvertIngests, Mode=TwoWay}" />
                                 </localcontrols:OptionRow>
+                                <!-- Only Word exports can be appended (AutomationExportService), so the row
+                                     greys and says why for any other default format. -->
                                 <localcontrols:OptionRow Header="Append to a running document"
-                                                         Description="When the default format is Word, add each export as a dated section of one growing .docx instead of a new file.">
+                                                         Description="{Binding RunningDocDescription}"
+                                                         IsEnabled="{Binding RunningDocApplies}">
                                     <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding AppendToRunningDoc, Mode=TwoWay}" />
                                     <localcontrols:OptionRow.Details>
-                                        <Grid ColumnSpacing="8" Visibility="{Binding AppendToRunningDoc, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <StackPanel Spacing="6" Visibility="{Binding AppendToRunningDoc, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Grid ColumnSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
@@ -390,6 +394,14 @@
                                                 <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                                             </Button>
                                         </Grid>
+                                        <!-- On with no file: say so, or exports quietly keep making new files. -->
+                                        <Grid ColumnSpacing="6" Visibility="{Binding RunningDocNeedsPath, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                            <TextBlock Grid.Column="1" Text="Choose the document to add to. Until then each export is saved as a new file."
+                                                       TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                        </StackPanel>
                                     </localcontrols:OptionRow.Details>
                                 </localcontrols:OptionRow>
 
@@ -1323,19 +1335,39 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <!-- Shows the preset in use (ActivePreset): picking one applies it, and it
+                                     clears itself once you change a setting the preset covers, so it never
+                                     names a look the document no longer has. -->
                                 <ComboBox x:Name="PresetsCombo" Grid.Column="0" Header="Preset"
-                                          ItemsSource="{Binding Presets}" DisplayMemberPath="Name"
-                                          PlaceholderText="Apply a saved preset…" HorizontalAlignment="Stretch"
-                                          SelectionChanged="OnPresetSelected" />
+                                          ItemsSource="{Binding Presets}"
+                                          SelectedItem="{Binding ActivePreset, Mode=TwoWay}"
+                                          PlaceholderText="{Binding PresetPlaceholder}" HorizontalAlignment="Stretch"
+                                          IsEnabled="{Binding HasPresets}">
+                                    <!-- One line, so the closed box stays the height of the Theme box; what a
+                                         preset sets is in its tooltip, and under the row for the one in use. -->
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                       ToolTipService.ToolTip="{Binding Summary}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                                 <Button Grid.Column="1" VerticalAlignment="Bottom" Click="OnSavePresetClick"
-                                        ToolTipService.ToolTip="Save current settings as a preset">
+                                        AutomationProperties.Name="Save as preset"
+                                        ToolTipService.ToolTip="Save the current look (theme, layout, cleanup, formatting, diagrams and branding) as a preset">
                                     <FontIcon Glyph="&#xE74E;" FontSize="14" />
                                 </Button>
                                 <Button Grid.Column="2" VerticalAlignment="Bottom" Click="OnDeletePresetClick"
-                                        ToolTipService.ToolTip="Delete the selected preset">
+                                        IsEnabled="{Binding HasActivePreset}"
+                                        AutomationProperties.Name="Delete preset"
+                                        ToolTipService.ToolTip="Delete the selected preset (your current settings stay as they are)">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                 </Button>
                             </Grid>
+                            <TextBlock Text="{Binding ActivePreset.Summary}" Margin="0,-6,0,0" TextWrapping="Wrap"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Visibility="{Binding HasActivePreset, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                             <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -1430,7 +1462,10 @@
                                                      Description="The document opens with Word's revision tracking on, so every later edit shows.">
                                 <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding TrackChanges, Mode=TwoWay}" />
                             </localcontrols:OptionRow>
+                            <!-- Diagram rows follow "Render Mermaid diagrams" (Diagrams section); the
+                                 connector rows only mean something for editable shapes. -->
                             <localcontrols:OptionRow Header="Diagrams"
+                                                     IsEnabled="{Binding MermaidEnabled}"
                                                      Description="ShapeForge rebuilds Mermaid diagrams (flowchart, sequence, class/ER, pie, gantt, mind map, timeline, quadrant) from Word's own shapes, every box and arrow editable. Anything it can't parse falls back to a picture.">
                                 <localcontrols:OptionRow.Details>
                                     <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Diagrams in Word exports"
@@ -1441,23 +1476,27 @@
                                 </localcontrols:OptionRow.Details>
                             </localcontrols:OptionRow>
                             <localcontrols:OptionRow Header="Glued connectors"
+                                                     IsEnabled="{Binding WordDiagramsAreShapes}"
                                                      Description="Lines stay attached to their shapes when you drag them in Word.">
                                 <ToggleSwitch Style="{StaticResource PanelToggleStyle}" IsOn="{Binding SmartConnectors, Mode=TwoWay}" />
                             </localcontrols:OptionRow>
-                            <localcontrols:OptionRow Header="Connector arrowheads"
-                                                     Description="Used for connectors whose diagram source doesn't pick one.">
+                            <!-- Core Mermaid.ArrowheadStyle: restyles the arrowheads a diagram has; never
+                                 adds one to a plain line or touches class/ER diamonds and circles. -->
+                            <localcontrols:OptionRow Header="Arrowhead style"
+                                                     IsEnabled="{Binding WordDiagramsAreShapes}"
+                                                     Description="Redraws the diagram's arrowheads in one shape. Plain lines stay plain, and class and ER diagram markers keep their meaning.">
                                 <localcontrols:OptionRow.Details>
                                     <!-- Tag is the stored value (DrawingML arrow names); Content is what people read. -->
-                                    <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Connector arrowheads"
+                                    <ComboBox HorizontalAlignment="Stretch" AutomationProperties.Name="Arrowhead style"
                                               SelectedValuePath="Tag"
                                               SelectedValue="{Binding ConnectorArrowhead, Mode=TwoWay}">
-                                        <ComboBoxItem Content="Default (from the diagram)" Tag="default" />
+                                        <ComboBoxItem Content="As drawn in the diagram" Tag="default" />
                                         <ComboBoxItem Content="Triangle" Tag="triangle" />
                                         <ComboBoxItem Content="Open arrow" Tag="open" />
-                                        <ComboBoxItem Content="Diamond" Tag="diamond" />
-                                        <ComboBoxItem Content="Oval" Tag="oval" />
                                         <ComboBoxItem Content="Stealth" Tag="stealth" />
-                                        <ComboBoxItem Content="None" Tag="none" />
+                                        <ComboBoxItem Content="Diamond" Tag="diamond" />
+                                        <ComboBoxItem Content="Circle" Tag="oval" />
+                                        <ComboBoxItem Content="No arrowheads" Tag="none" />
                                     </ComboBox>
                                 </localcontrols:OptionRow.Details>
                             </localcontrols:OptionRow>
@@ -1732,7 +1771,8 @@
                                                        SpinButtonPlacementMode="Compact" Minimum="-5" Maximum="5" SmallChange="1" />
                                         </localcontrols:OptionRow>
 
-                                        <localcontrols:OptionRow Header="Bold text">
+                                        <localcontrols:OptionRow Header="Bold text"
+                                                                 Description="What happens to **bold** text in the preview and every export.">
                                             <ComboBox Width="150" AutomationProperties.Name="Bold text"
                                                       SelectedIndex="{Binding BoldMode, Mode=TwoWay}">
                                                 <x:String>Keep</x:String>
@@ -1740,7 +1780,8 @@
                                                 <x:String>Make italic</x:String>
                                             </ComboBox>
                                         </localcontrols:OptionRow>
-                                        <localcontrols:OptionRow Header="Italic text">
+                                        <localcontrols:OptionRow Header="Italic text"
+                                                                 Description="What happens to *italic* text in the preview and every export.">
                                             <ComboBox Width="150" AutomationProperties.Name="Italic text"
                                                       SelectedIndex="{Binding ItalicMode, Mode=TwoWay}">
                                                 <x:String>Keep</x:String>

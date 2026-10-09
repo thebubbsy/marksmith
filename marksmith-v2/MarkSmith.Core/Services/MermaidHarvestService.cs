@@ -48,7 +48,8 @@ public sealed class MermaidHarvestService
     // where a diagram failed to render — DocxExportService falls back per-diagram.
     public async Task<List<byte[]?>> RenderMermaidPngsAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = FencesFor(markdown);
+        // "Render Mermaid diagrams" off: every exporter keeps the fences as code, so draw nothing.
+        var fences = settings.MermaidEnabled ? FencesFor(markdown) : new List<string>();
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) return new();
 
@@ -127,7 +128,8 @@ public sealed class MermaidHarvestService
     // rebuild the diagram in Word node-for-node instead of re-laying-it-out.
     public async Task<List<Mermaid.HarvestedDiagram?>> HarvestMermaidGeometryAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = FencesFor(markdown);
+        // "Render Mermaid diagrams" off: every exporter keeps the fences as code, so draw nothing.
+        var fences = settings.MermaidEnabled ? FencesFor(markdown) : new List<string>();
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) return new();
 
@@ -262,7 +264,8 @@ public sealed class MermaidHarvestService
     // ShapeForge can rebuild it as native Word shapes instead of falling back to a picture.
     public async Task<List<Mermaid.GenericDiagram?>> HarvestGenericGeometryAsync(IWebRenderHost host, string markdown, AppSettings settings, ThemeDefinition theme)
     {
-        var fences = FencesFor(markdown);
+        // "Render Mermaid diagrams" off: every exporter keeps the fences as code, so draw nothing.
+        var fences = settings.MermaidEnabled ? FencesFor(markdown) : new List<string>();
         if (fences.Count == 0) return new();
         if (!await host.EnsureReadyAsync()) return new();
 

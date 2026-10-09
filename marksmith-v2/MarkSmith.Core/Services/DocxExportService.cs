@@ -869,7 +869,8 @@ public sealed partial class DocxExportService
                 break;
             }
 
-            case FencedCodeBlock fence when fence.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
+            // "Render Mermaid diagrams" off: the fence falls through to the code-block case.
+            case FencedCodeBlock fence when ctx.Settings.MermaidEnabled && fence.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
             {
                 // Two user-selectable methods (settings.MermaidDocxMode):
                 //   ShapeForge (1) — rebuild the diagram as native, editable Word shapes; if the shape
@@ -888,6 +889,7 @@ public sealed partial class DocxExportService
                 if (ctx.MermaidMode == 1 && ctx.MermaidExactLayout && geo is { IsEmpty: false })
                 {
                     var md = geo.ToMDiagram(ctx.DiagramTheme);
+                    Mermaid.ArrowheadStyle.Apply(md, ctx.Settings.ConnectorArrowhead);
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;
@@ -931,6 +933,7 @@ public sealed partial class DocxExportService
                 else if (ctx.MermaidMode == 1 && gen is { IsEmpty: false })
                 {
                     var md = gen.ToMDiagram(ctx.DiagramTheme);
+                    Mermaid.ArrowheadStyle.Apply(md, ctx.Settings.ConnectorArrowhead);
                     if (ctx.OversizedDiagramMode == 3) // multi-page vertical
                     {
                         var drawId = ctx.NextDrawingId;

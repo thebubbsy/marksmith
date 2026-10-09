@@ -15,15 +15,15 @@ namespace MarkSmith.Services.Email;
 /// like Markdown: no asterisks, links written as "text (url)", tables as aligned columns.</summary>
 internal static class EmailTextRenderer
 {
-    public static string Render(MarkdownDocument doc, Block? omit, int figureCount)
+    public static string Render(MarkdownDocument doc, Block? omit, int figureCount, bool drawDiagrams = true)
     {
         var sb = new StringBuilder();
-        foreach (var b in doc) Block(sb, b, omit, "");
+        foreach (var b in doc) Block(sb, b, omit, "", drawDiagrams);
         var text = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\n{3,}", "\n\n");
         return text.Trim() + "\n";
     }
 
-    private static void Block(StringBuilder sb, Block block, Block? omit, string indent)
+    private static void Block(StringBuilder sb, Block block, Block? omit, string indent, bool drawDiagrams)
     {
         if (ReferenceEquals(block, omit)) return;
         switch (block)
@@ -45,7 +45,7 @@ internal static class EmailTextRenderer
             case MathBlock m:
                 sb.Append(indent).Append("    ").Append(LatexText.ToReadable(m.Lines.ToString())).Append("\n\n");
                 return;
-            case FencedCodeBlock f when f.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
+            case FencedCodeBlock f when drawDiagrams && f.Info?.Trim().StartsWith("mermaid", StringComparison.OrdinalIgnoreCase) == true:
                 sb.Append(indent).Append("[Diagram]\n\n");
                 return;
             case CodeBlock code:
@@ -56,10 +56,10 @@ internal static class EmailTextRenderer
             case AlertBlock alert:
                 sb.Append(indent).Append(char.ToUpperInvariant(alert.Kind.ToString().FirstOrDefault('n')))
                   .Append(alert.Kind.ToString().ToLowerInvariant().Skip(1).ToArray()).Append(":\n");
-                foreach (var c in alert) Block(sb, c, omit, indent + "  ");
+                foreach (var c in alert) Block(sb, c, omit, indent + "  ", drawDiagrams);
                 return;
             case QuoteBlock q:
-                foreach (var c in q) Block(sb, c, omit, indent + "> ");
+                foreach (var c in q) Block(sb, c, omit, indent + "> ", drawDiagrams);
                 return;
             case ListBlock list:
             {
@@ -70,7 +70,7 @@ internal static class EmailTextRenderer
                     if (item.FirstOrDefault() is ParagraphBlock { Inline.FirstChild: { } first } && EmailHtmlRenderer.CheckboxState(first) is { } ticked)
                         marker = ticked ? "[x] " : "[ ] ";
                     var inner = new StringBuilder();
-                    foreach (var c in item) Block(inner, c, omit, "");
+                    foreach (var c in item) Block(inner, c, omit, "", drawDiagrams);
                     var lines = inner.ToString().TrimEnd().Split('\n');
                     for (int i = 0; i < lines.Length; i++)
                     {
@@ -94,7 +94,7 @@ internal static class EmailTextRenderer
                 foreach (var fn in group.OfType<Footnote>().OrderBy(f => f.Order))
                 {
                     var inner = new StringBuilder();
-                    foreach (var c in fn) Block(inner, c, omit, "");
+                    foreach (var c in fn) Block(inner, c, omit, "", drawDiagrams);
                     sb.Append(indent).Append('[').Append(fn.Order).Append("] ").Append(inner.ToString().Trim()).Append('\n');
                 }
                 sb.Append('\n');
@@ -111,7 +111,7 @@ internal static class EmailTextRenderer
                 sb.Append(indent).Append(InlineText(leaf.Inline)).Append("\n\n");
                 return;
             case ContainerBlock container:
-                foreach (var c in container) Block(sb, c, omit, indent);
+                foreach (var c in container) Block(sb, c, omit, indent, drawDiagrams);
                 return;
         }
     }

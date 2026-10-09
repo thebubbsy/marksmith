@@ -1,7 +1,9 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Media;
 
 namespace MarkSmith.Controls;
 
@@ -34,11 +36,43 @@ public sealed partial class OptionRow : UserControl
 
     private long _detailsVisibilityToken;
     private UIElement? _watchedDetails;
+    private bool _pointerOver;
 
     public OptionRow()
     {
         InitializeComponent();
+        HeaderRow.PointerEntered += (_, _) => { _pointerOver = true; UpdateState(); };
+        HeaderRow.PointerExited += (_, _) => { _pointerOver = false; UpdateState(); };
+        HeaderRow.PointerCanceled += (_, _) => { _pointerOver = false; UpdateState(); };
+        HeaderRow.PointerCaptureLost += (_, _) => { _pointerOver = false; UpdateState(); };
+        HeaderRow.Tapped += OnHeaderTapped;
+        // IsEnabled already reaches the control inside; this greys the row's own text to match.
+        IsEnabledChanged += (_, _) => UpdateState();
+        Loaded += (_, _) => UpdateState(useTransitions: false);
         Sync();
+    }
+
+    private void UpdateState(bool useTransitions = true)
+    {
+        var state = !IsEnabled ? "Disabled" : _pointerOver ? "PointerOver" : "Normal";
+        VisualStateManager.GoToState(this, state, useTransitions);
+    }
+
+    // Clicking an option's title or description flips its switch, as clicking a check box's label
+    // does: the whole highlighted line is the target, not just the 40 px switch at its end.
+    private void OnHeaderTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (Action is not ToggleSwitch { IsEnabled: true } toggle || !IsEnabled) return;
+        if (e.OriginalSource is DependencyObject source && IsInside(source, ActionPart)) return; // the switch handles itself
+        toggle.IsOn = !toggle.IsOn;
+        e.Handled = true;
+    }
+
+    private static bool IsInside(DependencyObject element, DependencyObject ancestor)
+    {
+        for (var d = element; d is not null; d = VisualTreeHelper.GetParent(d))
+            if (ReferenceEquals(d, ancestor)) return true;
+        return false;
     }
 
     private void Sync()

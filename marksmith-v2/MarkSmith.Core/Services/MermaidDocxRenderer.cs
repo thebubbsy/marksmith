@@ -607,11 +607,9 @@ public static class MermaidDocxRenderer
         ArrowHead sHead = e.StartHead;
         ArrowHead eHead = e.EndHead;
         
-        // Apply Fallbacks if ArrowHead.None and setting is something else
-        if (sHead == ArrowHead.None && settings.ConnectorArrowhead is not "default" and not "none")
-            sHead = ParseArrowHeadSetting(settings.ConnectorArrowhead, isStart: true);
-        if (eHead == ArrowHead.None && settings.ConnectorArrowhead is not "default" and not "none")
-            eHead = ParseArrowHeadSetting(settings.ConnectorArrowhead, isStart: false);
+        // Word export's Arrowhead style: restyles the heads the diagram has (Mermaid.ArrowheadStyle).
+        sHead = Mermaid.ArrowheadStyle.Apply(sHead, settings.ConnectorArrowhead);
+        eHead = Mermaid.ArrowheadStyle.Apply(eHead, settings.ConnectorArrowhead);
 
         string startHead = HeadXml("headEnd", sHead);
         string endHead = HeadXml("tailEnd", eHead);
@@ -658,16 +656,6 @@ public static class MermaidDocxRenderer
         _ => $"<a:{el} type=\"none\"/>",
     };
     
-    private static ArrowHead ParseArrowHeadSetting(string setting, bool isStart) => setting.ToLowerInvariant() switch
-    {
-        "triangle" => ArrowHead.Triangle,
-        "open" => ArrowHead.Open,
-        "diamond" => ArrowHead.Diamond,
-        "oval" => ArrowHead.Oval,
-        "stealth" => ArrowHead.Stealth,
-        _ => ArrowHead.None
-    };
-
     private static string EdgeLabelXml(Edge e, Graph g, string bg, string text, uint id, double scale)
     {
         // Sit the label a FIXED ~24pt along the edge from the source box — proportional placement

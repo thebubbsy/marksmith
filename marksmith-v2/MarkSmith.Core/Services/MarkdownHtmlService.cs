@@ -193,6 +193,16 @@ public sealed partial class MarkdownHtmlService
         return markdown;
     }
 
+    // "Render Mermaid diagrams" off: Markdig's diagrams extension has already turned each fence
+    // into <div class="mermaid">, which with no script to draw it showed as bare, unstyled text.
+    // Put it back as the code block it is. Markdig writes the source unescaped inside that div,
+    // so it is encoded here, or a class diagram's A <|-- B would be read as markup.
+    private static string MermaidAsCode(string body) =>
+        MermaidDivRe().Replace(body, m =>
+            $"<pre><code class=\"language-mermaid\">{System.Net.WebUtility.HtmlEncode(System.Net.WebUtility.HtmlDecode(m.Value[MermaidDivOpen.Length..^"</div>".Length]))}</code></pre>");
+
+    private const string MermaidDivOpen = "<div class=\"mermaid\">";
+
     // interactive == the LIVE PREVIEW (not PDF export). Only then may we swap in the focused
     // diagram viewer; the exported document is never affected.
     public string Render(string markdown, AppSettings settings, ThemeDefinition theme,
@@ -266,8 +276,9 @@ public sealed partial class MarkdownHtmlService
         // escaped: mermaid reads the element's textContent (which the browser decodes automatically),
         // so diagrams render correctly, while the browser never parses malicious markup like
         // <img onerror=…> as live HTML inside the div. HtmlDecode-ing here would reintroduce that XSS.
-        body = MermaidFenceHtmlRe().Replace(body,
-            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
+        body = settings.MermaidEnabled
+            ? MermaidFenceHtmlRe().Replace(body, m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>")
+            : MermaidAsCode(body);
 
         // Some Markdown (typically a library's own README showing "here's how to render a
         // diagram") carries real Mermaid diagram source without a genuine ```mermaid fence:
@@ -2503,8 +2514,9 @@ public sealed partial class MarkdownHtmlService
         body = ReplaceCommentPlaceholders(body, "METRICS", metricsBlocks);
         body = ReplaceCommentPlaceholders(body, "TBLCELL", tableCellBlocks);
 
-        body = MermaidFenceHtmlRe().Replace(body,
-            m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>");
+        body = settings.MermaidEnabled
+            ? MermaidFenceHtmlRe().Replace(body, m => $"<div class=\"mermaid\">{m.Groups[1].Value}</div>")
+            : MermaidAsCode(body);
 
         if (settings.MermaidEnabled)
         {

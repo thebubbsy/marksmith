@@ -33,6 +33,8 @@ private readonly MarkdownExportService _mdExport = new();
     [NotifyPropertyChangedFor(nameof(IsDocxFormat))]
     [NotifyPropertyChangedFor(nameof(TargetFormatLabel))]
     [NotifyPropertyChangedFor(nameof(AutomationFormatNote))]
+    [NotifyPropertyChangedFor(nameof(RunningDocApplies))]
+    [NotifyPropertyChangedFor(nameof(RunningDocDescription))]
     private string _targetFormat = "pdf";
 
     /// <summary>
@@ -1070,6 +1072,7 @@ private readonly MarkdownExportService _mdExport = new();
 
     private void SaveSettingsDebounced()
     {
+        SyncActivePreset();
         _saveSettingsCts?.Cancel();
         _saveSettingsCts?.Dispose();
         _saveSettingsCts = new CancellationTokenSource();
@@ -1179,11 +1182,22 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnWatchFolderChanged(string value) { _settingsService.Current.WatchFolder = value; SaveSettingsDebounced(); }
     partial void OnWatchFolderAutoConvertChanged(bool value) { _settingsService.Current.WatchFolderAutoConvert = value; SaveSettingsDebounced(); }
     partial void OnMinimizeToTrayChanged(bool value) { _settingsService.Current.MinimizeToTray = value; SaveSettingsDebounced(); }
-    partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; SaveSettingsDebounced(); }
-    partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; SaveSettingsDebounced(); }
+    partial void OnAppendToRunningDocChanged(bool value) { _settingsService.Current.AppendToRunningDoc = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(RunningDocNeedsPath)); }
+    partial void OnRunningDocPathChanged(string value) { _settingsService.Current.RunningDocPath = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(RunningDocNeedsPath)); }
+
+    /// <summary>The running document only grows when automatic exports are Word documents
+    /// (AutomationExportService appends .docx only).</summary>
+    public bool RunningDocApplies => IsDocxFormat;
+
+    public string RunningDocDescription => RunningDocApplies
+        ? "Add each automatic export as a dated section of one growing .docx instead of a new file."
+        : $"Only for Word: your default format is {TargetFormatLabel}. Switch it to Word in Settings ▸ General to collect exports in one .docx.";
+
+    /// <summary>On, but no document chosen: every export is still a new file until one is.</summary>
+    public bool RunningDocNeedsPath => AppendToRunningDoc && string.IsNullOrWhiteSpace(RunningDocPath);
     partial void OnShowExtensionTipChanged(bool value) { _settingsService.Current.ShowExtensionTip = value; SaveSettingsDebounced(); }
     partial void OnIncludeTocChanged(bool value) { _settingsService.Current.IncludeToc = value; SaveSettingsDebounced(); }
-    partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; SaveSettingsDebounced(); }
+    partial void OnMermaidDocxModeChanged(int value) { _settingsService.Current.MermaidDocxMode = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(WordDiagramsAreShapes)); }
     partial void OnOversizedDiagramModeChanged(int value) { _settingsService.Current.OversizedDiagramMode = value; SaveSettingsDebounced(); }
     partial void OnBrandCoverPageChanged(bool value) { _settingsService.Current.BrandCoverPage = value; SaveSettingsDebounced(); }
     partial void OnBrandLogoPathChanged(string value) { _settingsService.Current.BrandLogoPath = value; SaveSettingsDebounced(); }
@@ -1219,7 +1233,11 @@ private readonly MarkdownExportService _mdExport = new();
     partial void OnPdfAllowPrintingChanged(bool value) { _settingsService.Current.PdfAllowPrinting = value; SaveSettingsDebounced(); }
     partial void OnPdfAllowCopyingChanged(bool value) { _settingsService.Current.PdfAllowCopying = value; SaveSettingsDebounced(); }
     partial void OnPdfAllowModifyingChanged(bool value) { _settingsService.Current.PdfAllowModifying = value; SaveSettingsDebounced(); }
-    partial void OnMermaidEnabledChanged(bool value) { _settingsService.Current.MermaidEnabled = value; SaveSettingsDebounced(); }
+    partial void OnMermaidEnabledChanged(bool value) { _settingsService.Current.MermaidEnabled = value; SaveSettingsDebounced(); OnPropertyChanged(nameof(WordDiagramsAreShapes)); }
+
+    /// <summary>Word exports draw diagrams as editable shapes, so the connector options (glued
+    /// lines, arrowhead style) do something. Off for pictures, or with Mermaid rendering off.</summary>
+    public bool WordDiagramsAreShapes => MermaidEnabled && MermaidDocxMode == 1;
     partial void OnSmartConnectorsChanged(bool value) { _settingsService.Current.SmartConnectors = value; SaveSettingsDebounced(); }
     partial void OnConnectorArrowheadChanged(string value) { _settingsService.Current.ConnectorArrowhead = value; SaveSettingsDebounced(); }
     partial void OnPageBorderChanged(bool value) { _settingsService.Current.PageBorder = value; SaveSettingsDebounced(); }
@@ -1294,6 +1312,54 @@ private readonly MarkdownExportService _mdExport = new();
     {
         Presets.Clear();
         foreach (var p in _presetsService.Load()) Presets.Add(p);
+        RaisePresetListChanged();
+        SyncActivePreset();
+    }
+
+    /// <summary>
+    /// The preset the side panel shows as in use: the one the settings match (the one just applied
+    /// or saved, at start-up, or again after a change is undone by hand). It clears as soon as a
+    /// setting it covers changes, so the combo never names a preset that no longer describes the
+    /// document. Picking one applies it.
+    /// </summary>
+    [ObservableProperty] private ExportPreset? _activePreset;
+    private bool _presetSync;
+
+    partial void OnActivePresetChanged(ExportPreset? value)
+    {
+        OnPropertyChanged(nameof(HasActivePreset));
+        if (!_presetSync && value is not null) ApplyPreset(value);
+    }
+
+    public bool HasActivePreset => ActivePreset is not null;
+
+    public bool HasPresets => Presets.Count > 0;
+
+    /// <summary>What the preset box says when no preset is in use.</summary>
+    public string PresetPlaceholder => HasPresets ? "Pick a preset to apply…" : "No presets saved yet";
+
+    private void RaisePresetListChanged()
+    {
+        OnPropertyChanged(nameof(HasPresets));
+        OnPropertyChanged(nameof(PresetPlaceholder));
+    }
+
+    private void SetActivePresetQuietly(ExportPreset? preset)
+    {
+        _presetSync = true;
+        try { ActivePreset = preset; }
+        finally { _presetSync = false; }
+    }
+
+    // Called on every settings change (SaveSettingsDebounced), after the new value is stored.
+    private void SyncActivePreset()
+    {
+        if (_presetSync) return; // mid-apply: the settings are half way to the preset
+        var current = _settingsService.Current;
+        if (ActivePreset is { } active && !active.Matches(current))
+            SetActivePresetQuietly(null);
+        if (ActivePreset is null && Presets.Count > 0)
+            SetActivePresetQuietly(Presets.FirstOrDefault(p => p.Matches(current)));
     }
 
     public void SavePreset(string name)
@@ -1305,17 +1371,40 @@ private readonly MarkdownExportService _mdExport = new();
             if (string.Equals(Presets[i].Name, name, StringComparison.OrdinalIgnoreCase)) Presets.RemoveAt(i);
         Presets.Insert(0, preset);
         _presetsService.Save(Presets);
+        RaisePresetListChanged();
+        SetActivePresetQuietly(preset);
+        StatusText = $"Preset saved: {name}";
+        StatusSeverity = StatusSeverity.Success;
     }
+
+    /// <summary>The saved preset with this name, if any (names compare ignoring case).</summary>
+    public ExportPreset? FindPreset(string name) =>
+        Presets.FirstOrDefault(p => string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public void DeletePreset(ExportPreset preset)
     {
+        if (ReferenceEquals(ActivePreset, preset)) SetActivePresetQuietly(null);
         Presets.Remove(preset);
         _presetsService.Save(Presets);
+        RaisePresetListChanged();
+        // The settings stay as they are: deleting a preset only forgets its name.
+        StatusText = $"Preset deleted: {preset.Name}. Your current settings are unchanged.";
+        StatusSeverity = StatusSeverity.Informational;
     }
 
     // Apply through the VM's observable properties so the UI updates live, each change persists to
     // settings, and the preview refreshes — same as if the user set them by hand.
     public void ApplyPreset(ExportPreset p)
+    {
+        _presetSync = true;
+        try { ApplyPresetValues(p); }
+        finally { _presetSync = false; }
+        SetActivePresetQuietly(p);
+        StatusText = $"Applied preset: {p.Name}";
+        StatusSeverity = StatusSeverity.Success;
+    }
+
+    private void ApplyPresetValues(ExportPreset p)
     {
         SelectedThemeName = p.Theme;
         ContentWidth = p.ContentWidth;
@@ -1330,12 +1419,18 @@ private readonly MarkdownExportService _mdExport = new();
         BoldMode = p.BoldMode;
         ItalicMode = p.ItalicMode;
         MermaidDocxMode = p.MermaidDocxMode;
-        OversizedDiagramMode = p.OversizedDiagramMode;
         BrandCoverPage = p.BrandCoverPage;
         BrandLogoPath = p.BrandLogoPath;
         BrandFontFamily = p.BrandFontFamily;
-        StatusText = $"Applied preset: {p.Name}";
-        StatusSeverity = StatusSeverity.Success;
+        // Older presets don't carry these; leave the settings alone rather than reset them.
+        if (p.ThemeLightInfluence is { } light) ThemeLightInfluence = light;
+        if (p.MermaidEnabled is { } mermaid) MermaidEnabled = mermaid;
+        if (p.NormalizeLlm is { } normalize) NormalizeLlm = normalize;
+        if (p.PageBorder is { } border) PageBorder = border;
+        if (p.SmartConnectors is { } glued) SmartConnectors = glued;
+        if (p.ConnectorArrowhead is { } heads) ConnectorArrowhead = heads;
+        if (p.CustomFontPath is { } font) CustomFontPath = font;
+        if (p.AuthorName is { } author) AuthorName = author;
     }
 
     // interactive: the live preview (enables the focused diagram viewer). PDF/export callers omit it.

@@ -119,12 +119,12 @@ public sealed class AutomationExportService
                 {
                     if (settings.MermaidDocxMode == 1)
                     {
-                        var mode = settings.OversizedDiagramMode;
-                        if (mode == 1 || mode is >= 3 and <= 7)
-                        {
-                            var harvested = await _mermaid.HarvestMermaidGeometryAsync(host, md, settings, theme);
-                            geometry = harvested.Any(g => g is { IsEmpty: false }) ? harvested : null;
-                        }
+                        // Always, as the Export menu does: the Word writer forces one-page shrink
+                        // whatever OversizedDiagramMode says, and skipping the harvest for a stale
+                        // stored mode (old settings, or a preset) gave unattended exports different
+                        // diagrams from the same document exported by hand.
+                        var harvested = await _mermaid.HarvestMermaidGeometryAsync(host, md, settings, theme);
+                        geometry = harvested.Any(g => g is { IsEmpty: false }) ? harvested : null;
                         generic = await _mermaid.HarvestGenericGeometryAsync(host, md, settings, theme);
                     }
                     pngs = await _mermaid.RenderMermaidPngsAsync(host, md, settings, theme);

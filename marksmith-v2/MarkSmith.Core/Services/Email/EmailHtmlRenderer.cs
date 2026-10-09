@@ -139,7 +139,7 @@ public sealed class EmailHtmlRenderer
         return new EmailRenderResult
         {
             Html = WrapDocument(bodyText, title),
-            Text = EmailTextRenderer.Render(doc, _omittedTitle, _figures.Count),
+            Text = EmailTextRenderer.Render(doc, _omittedTitle, _figures.Count, _settings.MermaidEnabled),
             Title = title,
             Images = _images,
             Notes = _notes,
@@ -229,7 +229,7 @@ public sealed class EmailHtmlRenderer
             case MathBlock math:
                 WriteMathBlock(sb, math);
                 return;
-            case FencedCodeBlock fenced when IsMermaid(fenced):
+            case FencedCodeBlock fenced when _settings.MermaidEnabled && IsMermaid(fenced):
                 WriteMermaid(sb, fenced);
                 return;
             case CodeBlock code:

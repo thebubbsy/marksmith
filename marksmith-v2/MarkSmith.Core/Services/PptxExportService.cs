@@ -46,6 +46,7 @@ public sealed class PptxExportService
             AuthorName = settings.AuthorName,
             MermaidPngs = mermaidPngs,
             NoEmoji = settings.NoEmoji,
+            DrawDiagrams = settings.MermaidEnabled,
         });
         var palette = new Palette(Themes.GetOrDefault(settings.Theme), settings.BrandFontFamily);
 

@@ -6,15 +6,43 @@
     <!-- One option inside a side-panel expander (Style & Export, Automation): the same shape as a
          Settings row without the card — title and description on the left, a toggle or small
          control right-aligned beside them, wider controls (combos, text boxes) underneath. -->
-    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-        <StackPanel Spacing="2" VerticalAlignment="Center">
-            <TextBlock x:Name="HeaderPart" TextWrapping="Wrap" />
-            <TextBlock x:Name="DescriptionPart" TextWrapping="Wrap"
-                       Style="{ThemeResource CaptionTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        </StackPanel>
-        <ContentPresenter x:Name="ActionPart" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" />
-        <ContentPresenter x:Name="DetailsPart" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0"
+    <Grid RowDefinitions="Auto,Auto">
+        <!-- The title line lightens under the pointer, as a list row does, so the eye can follow it
+             across to its switch. Only the title line: highlighting a whole row would light up a
+             tall editor (custom cleanup rules) as one slab. Disabled (a row whose parent option is
+             off) greys the text, not just the control, so it reads as unavailable at a glance. -->
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="CommonStates">
+                <VisualState x:Name="Normal" />
+                <VisualState x:Name="PointerOver">
+                    <VisualState.Setters>
+                        <Setter Target="HeaderRow.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="Disabled">
+                    <VisualState.Setters>
+                        <Setter Target="HeaderPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+                        <Setter Target="DescriptionPart.Foreground" Value="{ThemeResource TextFillColorDisabledBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <!-- Negative margin + matching padding: the highlight reaches past the text without moving it. -->
+        <Grid x:Name="HeaderRow" ColumnDefinitions="*,Auto" Margin="-8,-4" Padding="8,4" CornerRadius="4"
+              Background="Transparent">
+            <Grid.BackgroundTransition>
+                <BrushTransition Duration="0:0:0.12" />
+            </Grid.BackgroundTransition>
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock x:Name="HeaderPart" TextWrapping="Wrap" />
+                <TextBlock x:Name="DescriptionPart" TextWrapping="Wrap"
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <ContentPresenter x:Name="ActionPart" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" />
+        </Grid>
+        <ContentPresenter x:Name="DetailsPart" Grid.Row="1" Margin="0,8,0,0"
                           HorizontalContentAlignment="Stretch" />
     </Grid>
 </UserControl>
