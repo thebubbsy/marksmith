@@ -770,68 +770,28 @@ namespace MarkSmith.Core.Preview
 
         private static (double, double) DrawTree(StringBuilder sb, List<Item> items, bool horizontal)
         {
+            if (!horizontal) return DrawVerticalTree(sb, items, TreeStyle.Org);
             var edges = new StringBuilder();
             var nodes = new StringBuilder();
-
-            if (!horizontal)
+            var (roots, leaves, depth) = BuildTree(items);
+            double slot = 64;
+            double h = Math.Max(240, Pad * 2 + leaves * slot);
+            double colW = (BaseW - Pad * 2) / Math.Max(1, depth);
+            double boxW = Math.Min(190, colW - 36), boxH = 48;
+            double oy = (h - leaves * slot) / 2;
+            double X(TNode n) => Pad + n.Depth * colW + (colW - boxW) / 2;
+            double Y(TNode n) => oy + n.Pos * slot;
+            foreach (var n in All(roots))
             {
-                var (roots, leaves, depth) = BuildTree(items);
-                // More than six side-by-side leaves won't stay legible at 800 px: hang them instead.
-                if (leaves > 6) (roots, leaves, depth) = BuildTree(items, hang: true);
-                double slot = Math.Max(118, (BaseW - Pad * 2) / Math.Max(1, leaves));
-                double w = Math.Max(BaseW, Pad * 2 + leaves * slot);
-                double boxW = Math.Min(170, slot - 14), boxH = 56, gapY = 44, kidH = 40, kidGap = 8, indent = 18;
-                double ox = (w - leaves * slot) / 2;
-                double X(TNode n) => ox + n.Pos * slot;
-                double Y(TNode n) => Pad + n.Depth * (boxH + gapY);
-                double bottom = Pad + depth * boxH + (depth - 1) * gapY;
-                foreach (var n in All(roots))
+                foreach (var k in n.Kids)
                 {
-                    if (n.Hung)
-                    {
-                        double left = X(n) - boxW / 2;
-                        for (int j = 0; j < n.Kids.Count; j++)
-                        {
-                            double ky = Y(n) + boxH + kidGap + j * (kidH + kidGap);
-                            edges.Append($"<path d=\"M{F(left + indent / 2)} {F(Y(n) + boxH)}V{F(ky + kidH / 2)}H{F(left + indent)}\" fill=\"none\" stroke=\"{Connector}\" stroke-width=\"1.5\"/>");
-                            Box(nodes, left + indent, ky, boxW - indent, kidH, LevelColors[(n.Depth + 1) % LevelColors.Length], n.Kids[j].Item, withBullets: false);
-                            bottom = Math.Max(bottom, ky + kidH);
-                        }
-                        Box(nodes, left, Y(n), boxW, boxH, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false);
-                        continue;
-                    }
-                    foreach (var k in n.Kids)
-                    {
-                        double midY = Y(n) + boxH + gapY / 2;
-                        edges.Append($"<path d=\"M{F(X(n))} {F(Y(n) + boxH)}V{F(midY)}H{F(X(k))}V{F(Y(k))}\" fill=\"none\" stroke=\"{Connector}\" stroke-width=\"1.5\"/>");
-                    }
-                    Box(nodes, X(n) - boxW / 2, Y(n), boxW, boxH, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false);
+                    double midX = X(n) + boxW + (colW - boxW) / 2;
+                    edges.Append($"<path d=\"M{F(X(n) + boxW)} {F(Y(n))}H{F(midX)}V{F(Y(k))}H{F(X(k))}\" fill=\"none\" stroke=\"{Connector}\" stroke-width=\"1.5\"/>");
                 }
-                sb.Append(edges).Append(nodes);
-                return (w, bottom + Pad);
+                Box(nodes, X(n), Y(n) - boxH / 2, boxW, boxH, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false);
             }
-            else
-            {
-                var (roots, leaves, depth) = BuildTree(items);
-                double slot = 64;
-                double h = Math.Max(240, Pad * 2 + leaves * slot);
-                double colW = (BaseW - Pad * 2) / Math.Max(1, depth);
-                double boxW = Math.Min(190, colW - 36), boxH = 48;
-                double oy = (h - leaves * slot) / 2;
-                double X(TNode n) => Pad + n.Depth * colW + (colW - boxW) / 2;
-                double Y(TNode n) => oy + n.Pos * slot;
-                foreach (var n in All(roots))
-                {
-                    foreach (var k in n.Kids)
-                    {
-                        double midX = X(n) + boxW + (colW - boxW) / 2;
-                        edges.Append($"<path d=\"M{F(X(n) + boxW)} {F(Y(n))}H{F(midX)}V{F(Y(k))}H{F(X(k))}\" fill=\"none\" stroke=\"{Connector}\" stroke-width=\"1.5\"/>");
-                    }
-                    Box(nodes, X(n), Y(n) - boxH / 2, boxW, boxH, LevelColors[n.Depth % LevelColors.Length], n.Item, withBullets: false);
-                }
-                sb.Append(edges).Append(nodes);
-                return (BaseW, h);
-            }
+            sb.Append(edges).Append(nodes);
+            return (BaseW, h);
         }
 
         /// <summary>Architecture / table hierarchy: each item is a block spanning the columns of its
@@ -1337,15 +1297,7 @@ namespace MarkSmith.Core.Preview
 
         private static (double, double) DrawBalance(StringBuilder sb, List<Item> items)
         {
-            // Two sides: two items with children weigh their children; otherwise split the list.
-            Item left, right;
-            if (items.Count == 2 && items.Any(i => i.Children.Count > 0)) { left = items[0]; right = items[1]; }
-            else
-            {
-                int split = (items.Count + 1) / 2;
-                left = new Item { Text = "", Children = items.Take(split).ToList() };
-                right = new Item { Text = "", Children = items.Skip(split).ToList() };
-            }
+            SplitSides(items, out var left, out var right);
             const double bw = 210, bh = 40, gap = 6, headH = 44;
             double Stack(Item side) => (string.IsNullOrEmpty(side.Text) ? 0 : headH + 2) + Math.Min(6, side.Children.Count) * (bh + gap);
             int lw = Math.Min(6, left.Children.Count), rw = Math.Min(6, right.Children.Count);

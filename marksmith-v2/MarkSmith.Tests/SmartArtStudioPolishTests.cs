@@ -108,8 +108,8 @@ public class SmartArtStudioPolishTests
     [Fact]
     public void A_lone_timeline_item_leaves_no_empty_lower_row()
     {
-        var one = Regex.Match(Render("- Only item", "BulletTimeline"), "viewBox=\"0 0 [0-9.]+ ([0-9.]+)\"");
-        var two = Regex.Match(Render("- One\n- Two", "BulletTimeline"), "viewBox=\"0 0 [0-9.]+ ([0-9.]+)\"");
+        var one = Regex.Match(Render("- Only item", "hProcess11"), "viewBox=\"0 0 [0-9.]+ ([0-9.]+)\"");
+        var two = Regex.Match(Render("- One\n- Two", "hProcess11"), "viewBox=\"0 0 [0-9.]+ ([0-9.]+)\"");
         Assert.True(double.Parse(one.Groups[1].Value, CultureInfo.InvariantCulture) < double.Parse(two.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 

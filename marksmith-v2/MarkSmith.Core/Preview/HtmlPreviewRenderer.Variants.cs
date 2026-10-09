@@ -34,7 +34,24 @@ namespace MarkSmith.Core.Preview
         ListShortLineWide, ListNumberCard, ListNumberCircle, ListHomePlate, ListChevronAccent,
         ListIconCircles, ListCurved, ListCircleLine, ListBracket, ListVaryingWidth, ListReverse,
 
-        // Pictures
+        // Timelines
+        TimelineNumberedDots, TimelineNumberedDotsVertical, TimelineSmallDots, TimelineSmallDotsVertical,
+        TimelineBullet, TimelineBulletInverted, TimelineCircleAccent, TimelineAlternatingCircles,
+
+        // Horizontal lists
+        HListPictures, HListCircleHeads, HListAction, HListTrapezoids, HListTable, HListStacked, HListTabs,
+
+        // Chevrons
+        ChevronVerticalList, ChevronNumbered, ChevronIncreasingArrows, ChevronAccentCards, ChevronClosed,
+
+        // Balance and arrows
+        BalanceOpposingIdeas, BalancePlusMinus, BalanceCounterArrows, BalanceUpDownArrows, BalanceRibbon,
+        BalanceConverging, BalanceDiverging,
+
+        // Org charts
+        TreeRounded, TreePictures, TreeNameTitle, TreeHalfCircle, TreeCirclePictures, TreeLabeled,
+
+        // Pictures (keep these last: IsPictureVariant tests ">= PicCircles")
         PicCircles, PicTeamCard, PicHexagons, PicOverlay, PicGrid, PicSide, PicAlternating,
         PicLineup, PicFrames, PicSpiral, PicBlocks, PicCallout, PicAccent,
     }
@@ -104,6 +121,44 @@ namespace MarkSmith.Core.Preview
             ["VaryingWidthList"] = PreviewVariant.ListVaryingWidth,
             ["ReverseList"] = PreviewVariant.ListReverse,
 
+            ["NumberedDotsHorizontal"] = PreviewVariant.TimelineNumberedDots,
+            ["NumberedDotsVertical"] = PreviewVariant.TimelineNumberedDotsVertical,
+            ["SmallDotsHorizontal"] = PreviewVariant.TimelineSmallDots,
+            ["SmallDotsVertical"] = PreviewVariant.TimelineSmallDotsVertical,
+            ["BulletTimeline"] = PreviewVariant.TimelineBullet,
+            ["BulletTimelineInverted"] = PreviewVariant.TimelineBulletInverted,
+            ["CircleAccentTimeline"] = PreviewVariant.TimelineCircleAccent,
+            ["AlternatingCircleProcess"] = PreviewVariant.TimelineAlternatingCircles,
+
+            ["hList2"] = PreviewVariant.HListPictures,
+            ["hList9"] = PreviewVariant.HListCircleHeads,
+            ["HorizontalActionList"] = PreviewVariant.HListAction,
+            ["hList6"] = PreviewVariant.HListTrapezoids,
+            ["hList3"] = PreviewVariant.HListTable,
+            ["list1"] = PreviewVariant.HListStacked,
+            ["TabList"] = PreviewVariant.HListTabs,
+
+            ["chevron2"] = PreviewVariant.ChevronVerticalList,
+            ["NumberedLinearArrowProcess"] = PreviewVariant.ChevronNumbered,
+            ["IncreasingArrowsProcess"] = PreviewVariant.ChevronIncreasingArrows,
+            ["chevronAccent+Icon"] = PreviewVariant.ChevronAccentCards,
+            ["hChevron3"] = PreviewVariant.ChevronClosed,
+
+            ["OpposingIdeas"] = PreviewVariant.BalanceOpposingIdeas,
+            ["PlusandMinus"] = PreviewVariant.BalancePlusMinus,
+            ["arrow3"] = PreviewVariant.BalanceCounterArrows,
+            ["arrow4"] = PreviewVariant.BalanceUpDownArrows,
+            ["arrow6"] = PreviewVariant.BalanceRibbon,
+            ["arrow5"] = PreviewVariant.BalanceConverging,
+            ["arrow1"] = PreviewVariant.BalanceDiverging,
+
+            ["hierarchy1"] = PreviewVariant.TreeRounded,
+            ["pictureOrgChart+Icon"] = PreviewVariant.TreePictures,
+            ["NameandTitleOrganizationalChart"] = PreviewVariant.TreeNameTitle,
+            ["HalfCircleOrganizationChart"] = PreviewVariant.TreeHalfCircle,
+            ["CirclePictureHierarchy"] = PreviewVariant.TreeCirclePictures,
+            ["hierarchy6"] = PreviewVariant.TreeLabeled,
+
             ["MeetTheTeam"] = PreviewVariant.PicCircles,
             ["MeetTheTeamOval"] = PreviewVariant.PicCircles,
             ["AlternatingPictureCircles"] = PreviewVariant.PicCircles,
@@ -146,7 +201,8 @@ namespace MarkSmith.Core.Preview
 
         private static bool IsPictureVariant(PreviewVariant v) =>
             v is >= PreviewVariant.PicCircles or PreviewVariant.RadialPictureCallout or PreviewVariant.RadialPictureList
-                or PreviewVariant.ListSideLineImage;
+                or PreviewVariant.ListSideLineImage or PreviewVariant.HListPictures or PreviewVariant.TreePictures
+                or PreviewVariant.TreeCirclePictures;
 
         /// <summary>Thumbnail outlines for variants that need a particular shape of data to read
         /// (three gears, bodies under process headers); null keeps the family's sample.</summary>
@@ -174,6 +230,13 @@ namespace MarkSmith.Core.Preview
                 PreviewVariant.PicSpiral => Flat(5),
                 PreviewVariant.PicAccent => Flat(4),
                 PreviewVariant.PicGrid => Flat(4),
+                PreviewVariant.TimelineNumberedDots or PreviewVariant.TimelineSmallDots or PreviewVariant.TimelineNumberedDotsVertical
+                    or PreviewVariant.TimelineSmallDotsVertical or PreviewVariant.TimelineBullet or PreviewVariant.TimelineBulletInverted => Bodies(4),
+                PreviewVariant.TimelineCircleAccent or PreviewVariant.TimelineAlternatingCircles => Bodies(3),
+                PreviewVariant.ChevronVerticalList or PreviewVariant.ChevronNumbered or PreviewVariant.ChevronIncreasingArrows => Bodies(3),
+                PreviewVariant.BalanceOpposingIdeas or PreviewVariant.BalancePlusMinus or PreviewVariant.BalanceCounterArrows
+                    or PreviewVariant.BalanceUpDownArrows or PreviewVariant.BalanceRibbon or PreviewVariant.BalanceConverging
+                    or PreviewVariant.BalanceDiverging => Bodies(2),
                 _ => null,
             };
         }
@@ -270,6 +333,44 @@ namespace MarkSmith.Core.Preview
             PreviewVariant.ListBracket => DrawBracketList(sb, items),
             PreviewVariant.ListVaryingWidth => DrawVaryingWidth(sb, items),
             PreviewVariant.ListReverse => DrawReverseList(sb, items),
+
+            PreviewVariant.TimelineNumberedDots => DrawDotTimeline(sb, items, numbered: true),
+            PreviewVariant.TimelineSmallDots => DrawDotTimeline(sb, items, numbered: false),
+            PreviewVariant.TimelineNumberedDotsVertical => DrawDotTimelineVertical(sb, items, numbered: true),
+            PreviewVariant.TimelineSmallDotsVertical => DrawDotTimelineVertical(sb, items, numbered: false),
+            PreviewVariant.TimelineBullet => DrawBulletTimeline(sb, items, inverted: false),
+            PreviewVariant.TimelineBulletInverted => DrawBulletTimeline(sb, items, inverted: true),
+            PreviewVariant.TimelineCircleAccent => DrawCircleAccentTimeline(sb, items),
+            PreviewVariant.TimelineAlternatingCircles => DrawAlternatingCircles(sb, items),
+
+            PreviewVariant.HListPictures => DrawHListPictures(sb, items),
+            PreviewVariant.HListCircleHeads => DrawHListCircleHeads(sb, items),
+            PreviewVariant.HListAction => DrawHListAction(sb, items),
+            PreviewVariant.HListTrapezoids => DrawHListTrapezoids(sb, items),
+            PreviewVariant.HListTable => DrawHListTable(sb, items),
+            PreviewVariant.HListStacked => DrawHListStacked(sb, items),
+            PreviewVariant.HListTabs => DrawHListTabs(sb, items),
+
+            PreviewVariant.ChevronVerticalList => DrawVerticalChevrons(sb, items),
+            PreviewVariant.ChevronNumbered => DrawNumberedChevrons(sb, items),
+            PreviewVariant.ChevronIncreasingArrows => DrawIncreasingArrows(sb, items),
+            PreviewVariant.ChevronAccentCards => DrawChevronAccentCards(sb, items),
+            PreviewVariant.ChevronClosed => DrawClosedChevrons(sb, items),
+
+            PreviewVariant.BalanceOpposingIdeas => DrawOpposingIdeas(sb, items),
+            PreviewVariant.BalancePlusMinus => DrawPlusMinus(sb, items),
+            PreviewVariant.BalanceCounterArrows => DrawCounterArrows(sb, items),
+            PreviewVariant.BalanceUpDownArrows => DrawUpDownArrows(sb, items),
+            PreviewVariant.BalanceRibbon => DrawArrowRibbon(sb, items),
+            PreviewVariant.BalanceConverging => DrawFacingArrows(sb, items, converging: true),
+            PreviewVariant.BalanceDiverging => DrawFacingArrows(sb, items, converging: false),
+
+            PreviewVariant.TreeRounded => DrawVerticalTree(sb, items, TreeStyle.Rounded),
+            PreviewVariant.TreePictures => DrawVerticalTree(sb, items, TreeStyle.Pictures),
+            PreviewVariant.TreeNameTitle => DrawVerticalTree(sb, items, TreeStyle.NameTitle),
+            PreviewVariant.TreeHalfCircle => DrawVerticalTree(sb, items, TreeStyle.HalfCircle),
+            PreviewVariant.TreeCirclePictures => DrawVerticalTree(sb, items, TreeStyle.CirclePictures),
+            PreviewVariant.TreeLabeled => DrawVerticalTree(sb, items, TreeStyle.Labeled),
 
             PreviewVariant.PicCircles => DrawPictureCircles(sb, items, cards: false),
             PreviewVariant.PicTeamCard => DrawPictureCircles(sb, items, cards: true),

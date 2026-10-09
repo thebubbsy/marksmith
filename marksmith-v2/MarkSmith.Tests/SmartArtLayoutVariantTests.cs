@@ -38,6 +38,11 @@ public class SmartArtLayoutVariantTests
     [InlineData(SmartArtPreviewFamily.Cycle)]
     [InlineData(SmartArtPreviewFamily.Radial)]
     [InlineData(SmartArtPreviewFamily.Process)]
+    [InlineData(SmartArtPreviewFamily.Timeline)]
+    [InlineData(SmartArtPreviewFamily.HorizontalList)]
+    [InlineData(SmartArtPreviewFamily.Balance)]
+    [InlineData(SmartArtPreviewFamily.Hierarchy)]
+    [InlineData(SmartArtPreviewFamily.Chevron)]
     public void Every_layout_in_the_big_families_has_its_own_thumbnail(SmartArtPreviewFamily family)
     {
         var tails = Layouts.Where(p => HtmlPreviewRenderer.ResolveFamily(p.UniqueId) == family).Select(p => Tail(p.UniqueId)).ToList();
@@ -50,8 +55,8 @@ public class SmartArtLayoutVariantTests
     public void The_gallery_has_far_more_than_one_drawing_per_family()
     {
         int distinct = Layouts.Select(p => HtmlPreviewRenderer.RenderThumbnailSvg(p.UniqueId)).Distinct().Count();
-        // 25 before run #50. Some layouts still share a drawing (Meet the Team / Meet the Team Oval).
-        Assert.True(distinct >= 85, $"{distinct} distinct thumbnails");
+        // 25 before run #50, 89 after it, 122 after run #51. Some layouts still share a drawing (Meet the Team / Meet the Team Oval).
+        Assert.True(distinct >= 120, $"{distinct} distinct thumbnails");
     }
 
     [Fact]
@@ -156,6 +161,57 @@ public class SmartArtLayoutVariantTests
     {
         Assert.Contains("data-variant=\"CycleSegmented\"", Render("- A\n- B", "cycle8"));
         Assert.Contains("data-variant=\"Default\"", Render("- A\n- B", "cycle2"));
+    }
+
+    // Run #51: timelines, horizontal lists, balances, chevrons and org charts.
+
+    [Theory]
+    [InlineData("NumberedDotsHorizontal", "TimelineNumberedDots")]
+    [InlineData("SmallDotsVertical", "TimelineSmallDotsVertical")]
+    [InlineData("BulletTimelineInverted", "TimelineBulletInverted")]
+    [InlineData("AlternatingCircleProcess", "TimelineAlternatingCircles")]
+    [InlineData("hList6", "HListTrapezoids")]
+    [InlineData("TabList", "HListTabs")]
+    [InlineData("hChevron3", "ChevronClosed")]
+    [InlineData("arrow5", "BalanceConverging")]
+    [InlineData("HalfCircleOrganizationChart", "TreeHalfCircle")]
+    [InlineData("orgChart1", "Default")]
+    public void Linear_and_org_chart_layouts_draw_their_own_variant(string alias, string variant)
+    {
+        Assert.Contains($"data-variant=\"{variant}\"", Render("- A\n  - a\n- B", alias));
+    }
+
+    [Fact]
+    public void Labels_hanging_under_timeline_markers_start_level()
+    {
+        // A one-line label used to be centred in a slot sized for the tallest, so it sagged below its neighbours.
+        var html = Render("- Plan\n  - Scope\n  - Agree\n  - Budget\n- Ship", "NumberedDotsHorizontal");
+        double Top(string word) => double.Parse(Regex.Match(html, $"<tspan[^>]*y=\"([0-9.]+)\">{word}</tspan>").Groups[1].Value, CultureInfo.InvariantCulture);
+        Assert.Equal(Top("Plan"), Top("Ship"));
+    }
+
+    [Fact]
+    public void Arrow_layouts_keep_their_text_inside_the_shaft()
+    {
+        var md = "- Plan\n  - Scope the work\n  - Agree goals\n- Build\n  - Write the code\n- Test\n  - Automated checks\n- Ship\n- Learn";
+        foreach (var alias in new[] { "arrow1", "arrow5", "arrow6" })
+        {
+            var html = Render(md, alias);
+            var shafts = Regex.Matches(html, "<polygon points=\"([^\"]+)\"").Select(m => m.Groups[1].Value.Split(' ')
+                .Select(p => double.Parse(p.Split(',')[1], CultureInfo.InvariantCulture)).ToArray()).ToList();
+            // The shaft's top and bottom edges are the first and last points of each arrow.
+            var lines = Regex.Matches(html, "<tspan[^>]*y=\"([0-9.]+)\"").Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
+            Assert.All(lines, y => Assert.Contains(shafts, s => y > Math.Min(s[0], s[^1]) && y < Math.Max(s[0], s[^1]) + 1));
+        }
+    }
+
+    [Fact]
+    public void Org_chart_variants_keep_every_connector()
+    {
+        // A, its two children and their four: six edges whichever way the boxes are drawn.
+        var md = "- A\n  - B\n    - D\n    - E\n  - C\n    - F\n    - G";
+        foreach (var alias in new[] { "orgChart1", "hierarchy1", "pictureOrgChart+Icon", "NameandTitleOrganizationalChart", "HalfCircleOrganizationChart", "CirclePictureHierarchy", "hierarchy6" })
+            Assert.Equal(6, Regex.Matches(Render(md, alias), "<path d=\"M[^\"]*V[^\"]*H[^\"]*V[^\"]*\" fill=\"none\" stroke=\"#8a8886\"").Count);
     }
 
     [Fact]
