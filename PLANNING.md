@@ -4056,3 +4056,82 @@ path-based ones). Desktop builds and launches.
 **Release (same run):** tagged **v3.7.0** on `9f5eff6` after CI passed on `1fe208c`. The release
 workflow built the x64 and arm64 installers and zips. Notes were prepended to the workflow body
 afterwards, covering the PowerPoint rebuild. `MarksmithBaseVersion` is now **3.8.0** (`a7fc7da`).
+
+### 2026-10-09 16:50–17:40 AEST (routine run #47: every icon checked, Galaxy with a real mouse)
+
+Unlocked; the user was idle for most of the run (25+ minutes at the start), so real mouse input
+was used on the test instance's own windows. Picked run #46's "Next up" #2 (render every glyph),
+widened it to the whole app, then used the idle time for run #43's Galaxy real-mouse checks.
+
+**Found (icons):** all 453 glyph uses (136 codes) were rendered from the installed Segoe Fluent
+Icons font and checked against what their controls do.
+- Export PDF showed a printer and Word export a floppy disk. Once Word used a document glyph,
+  Markdown export looked identical to it.
+- Diagram Studio showed "{ }" in four places. SmartArt Studio showed a bullet list, Clean up a
+  paintbrush, Random tile map a lightning bolt and Buy me a coffee a smiley. Settings ▸
+  Automation used "{ }" while the side panel used the bolt.
+- Suite Hub: Drawing studios and the API port showed a TV monitor, AI assistants a bolt, and
+  "Get the extension" a question mark.
+- Seven menus gave icons to only some items: headings, letter case and sorting, Workflow,
+  Timeline and SmartArt, Shape Studio's "Actual size", Suite Hub's two copy menus, and Relaunch Now.
+- The command palette had no icons at all.
+- Quick insert skipped every insert dialog except SmartArt's (run #42's list).
+
+**Found (Galaxy, real mouse):** hover lift, hand cursor, SizeAll for drag and pan, node and link
+menus, and double-click all work. But:
+- Hovering a node in the bottom-right corner put the fixed preview card on top of that node.
+- The card, tour banner, tag pills, legend and minimap used translucent card brushes. Once the
+  map was panned under them, nodes and links showed through the preview text.
+- Clicking empty canvas cleared the selection but left the old node's preview card on screen.
+- Link labels ("evidence for") weren't hit-testable. Clicking or right-clicking the most
+  obvious part of a link did nothing.
+
+**Shipped:**
+- `2828ab5` Icons: about 30 glyph fixes. Every menu now gives icons to all its items or none.
+  Letterform icons (H1–H4, AB/ab/Ab, M↓) use the new `MenuLetterIconStyle` in App.xaml.
+  Core `Services/CommandIcons` maps each palette command to its menu item's glyph (category
+  fallbacks for themes and recent files), and the palette template has an icon column. SmartArt
+  now has a Quick insert branch. `CommandIconsTests` (48) checks that menus are all-or-none,
+  every `BuildPaletteCommands` label is mapped (and nothing stale), and each palette icon equals
+  its MainWindow menu item's glyph.
+- `151aadc` Galaxy: Core `Services/MindMap/PreviewCardPlacement` picks the corner (BR, TR, TL,
+  BL) that keeps the node clear, inside the band between `TopOverlay` and `ConnectionLegend`.
+  Canvas overlays use `SolidBackgroundFillColorTertiaryBrush`. An empty-canvas click hides the
+  card. `MakeLinkTarget` gives the label the line's press, hover, cursor and menu.
+  `PreviewCardPlacementTests` (6).
+
+**Verified:** screenshots of the palette (letterforms render), the Tools, Insert, Diagrams,
+Rich components, Export and More menus, Settings and Suite Hub. In Galaxy, with a real mouse:
+the card moves top-right for a bottom-right node, it's opaque, it hides on deselect, and a label
+right-click opens "Reverse direction / Delete link". Full suite with a scratch OutDir: 4161
+passed, 18 failed (the known path-based ones).
+
+**Lessons:**
+- **Menu popups CAN be screenshotted.** Each open MenuFlyout is its own top-level window of
+  class `Microsoft.UI.Content.PopupWindowSiteBridge` owned by the process, so `EnumWindows` by
+  pid + PrintWindow on that HWND captures it (submenus are separate windows). Helpers are in
+  `%TEMP%\msg47`: `enum.ps1`, `pw.ps1` and `menu.ps1 <buttonId> <name> [submenu]`.
+- **Real-mouse helper:** `%TEMP%\msg47\mouse.ps1 "<window title>" "move x y; down; glide x1 y1
+  x2 y2 n; up; right x y; dbl x y; esc; cursor"`. It uses window-relative coordinates in the
+  PrintWindow frame, refuses points not over our window, and reports the real cursor shape
+  (Hand/SizeAll/…). Our own `mouse_event` resets `GetLastInputInfo`, so the idle guard records
+  the tick of its own last input in `lastinput.txt` and only accepts that. Wait for a fresh idle
+  with a `until idle ≥ 62` loop, not a bare sleep.
+- A drag split across two script runs (down in one, up in the next) loses the next gesture.
+  Keep down…up in one call.
+- **The Write tool turns `\uXXXX` in C# source into raw characters.** Run
+  `%TEMP%\msg47\esc.py <file>` afterwards (it re-escapes the PUA range), or write glyphs with
+  `chr(92)` in Python.
+- `xml.etree` `iter()` on a MenuFlyoutSubItem walks into its children's icons. Read the
+  `.Icon` child directly when auditing.
+
+**Next up:**
+1. Command palette ranking: "case" also matches "Copy as email" (letters spread across words).
+   Look at Core `CommandSearch` subsequence scoring. This is polish, not a feature.
+2. Galaxy: re-place the preview card on pan and zoom (it's placed only when shown). Arrow-key
+   navigation between nodes is still undecided (run #43 #2).
+3. Run #45 and #46 lists: open-file reload decision, PowerPoint with real Mermaid PNGs (needs a
+   licence on the test instance), and image drag-drop with a real mouse (`mouse.ps1` makes this
+   doable now, from an Explorer window we open ourselves).
+4. Same real-mouse pass for Diagram Studio and Shape Studio hover/cursor states, and run #41's
+   "Export N tables" type picker.
