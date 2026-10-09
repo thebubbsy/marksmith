@@ -56,6 +56,8 @@ public class SmartArtLayoutVariantTests
     [InlineData(SmartArtPreviewFamily.HierarchyList)]
     [InlineData(SmartArtPreviewFamily.BlockList)]
     [InlineData(SmartArtPreviewFamily.BlockHierarchy)]
+    [InlineData(SmartArtPreviewFamily.Pictures)]
+    [InlineData(SmartArtPreviewFamily.HorizontalHierarchy)]
     public void Every_layout_in_the_big_families_has_its_own_thumbnail(SmartArtPreviewFamily family)
     {
         var tails = Layouts.Where(p => HtmlPreviewRenderer.ResolveFamily(p.UniqueId) == family).Select(p => Tail(p.UniqueId)).ToList();
@@ -67,9 +69,10 @@ public class SmartArtLayoutVariantTests
     [Fact]
     public void The_gallery_has_far_more_than_one_drawing_per_family()
     {
-        int distinct = Layouts.Select(p => HtmlPreviewRenderer.RenderThumbnailSvg(p.UniqueId)).Distinct().Count();
-        // 25 before run #50, 89 after it, 155 after run #51. Some picture layouts still share a drawing (Meet the Team / Meet the Team Oval).
-        Assert.True(distinct >= 150, $"{distinct} distinct thumbnails");
+        // 25 before run #50, 89 after it, 155 after run #51. Since run #52 no two layouts share one.
+        var dupes = Layouts.GroupBy(p => HtmlPreviewRenderer.RenderThumbnailSvg(p.UniqueId)).Where(g => g.Count() > 1)
+            .Select(g => string.Join("=", g.Select(p => Tail(p.UniqueId))));
+        Assert.Empty(dupes);
     }
 
     [Fact]
@@ -259,5 +262,47 @@ public class SmartArtLayoutVariantTests
         var html = Render("- A\n- B\n- C\n- D\n- E", "gear1");
         Assert.Equal(3, Regex.Matches(html, "<polygon").Count);
         Assert.Contains("2 more not shown.", html);
+    }
+
+    [Fact]
+    public void Bubble_picture_list_makes_the_first_bubble_the_big_one()
+    {
+        var html = Render("- Lead\n- Two\n- Three", "BubblePictureList");
+        var radii = Regex.Matches(html, "<circle cx=\"[0-9.]+\" cy=\"[0-9.]+\" r=\"([0-9.]+)\" fill=\"none\"")
+            .Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
+        Assert.Equal(3, radii.Count); // a donut ring round every picture
+        Assert.True(radii[0] > radii[1] * 2, $"rings {string.Join(",", radii)}");
+    }
+
+    [Fact]
+    public void Alternating_picture_circles_put_the_text_above_and_below_in_turn()
+    {
+        var html = Render("- One\n- Two\n- Three\n- Four", "AlternatingPictureCircles");
+        var ys = new[] { "One", "Two", "Three", "Four" }
+            .Select(t => double.Parse(Regex.Match(html, $"<tspan x=\"[0-9.]+\" y=\"([0-9.]+)\">{t}</tspan>").Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
+        Assert.True(ys[1] < ys[0] && ys[3] < ys[2] && ys[1] < ys[2], $"y {string.Join(",", ys)}");
+    }
+
+    [Fact]
+    public void Picture_accent_list_gives_every_child_its_own_picture()
+    {
+        var html = Render("- Team\n  - Alice\n  - Bob\n- Plan", "PictureAccentList");
+        // A picture placeholder is a hill path: one per header, one per child.
+        Assert.Equal(4, Regex.Matches(html, "<path d=\"M[^\"]*Z\" fill=\"#c8c6c4\"/>").Count);
+        Assert.Contains(">Alice</tspan>", html);
+    }
+
+    [Fact]
+    public void Horizontal_hierarchies_each_draw_their_own_way()
+    {
+        const string md = "- Root\n  - A\n  - B";
+        var plain = Render(md, "hierarchy2");
+        Assert.Contains("Level 1", Render(md, "hierarchy5"));
+        Assert.DoesNotContain("Level 1", plain);
+        // Multi-level: the root is a bar as tall as both children together.
+        var multi = Render(md, "HorizontalMultiLevelHierarchy");
+        var heights = Regex.Matches(multi, "<rect x=\"[0-9.]+\" y=\"[0-9.]+\" width=\"[0-9.]+\" height=\"([0-9.]+)\"")
+            .Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
+        Assert.True(heights[0] > heights[1] * 1.8, $"heights {string.Join(",", heights)}");
     }
 }
