@@ -4420,3 +4420,74 @@ checksums). Notes covering the 70 layouts were prepended to the workflow body, s
 `---`, with the body's line breaks kept. (v3.10.0's notes have the workflow body flattened onto
 one line. That's cosmetic, and I left it alone.) `MarksmithBaseVersion` is now **3.12.0**
 (`1541c38`).
+
+### 2026-10-10 01:00–01:45 AEST (routine run #52: every SmartArt layout has its own tile)
+
+**Concurrency first.** This run found the previous run's half-done update-flow rework in the tree
+(`UpdateService.cs`, `MainViewModel.cs`, new `MainViewModel.Updates.cs`). It started finishing it,
+then saw another live session of this routine (`local_0168ca77…`, active at 01:05) editing
+`UpdateService.cs` in the same minute, with the same design and further along (`/RELAUNCH=1`,
+installer `/LOG`, `/CLOSEAPPLICATIONS`). So this run backed out completely. It put
+`MainViewModel.Updates.cs` back byte-for-byte as that session left it, removed its own
+`StartInstaller` overload, and moved to work that touches none of those files.
+**The updater belongs to that session. Don't touch it from another run.**
+
+What this run learned about the updater, for that session to check against its own work:
+- `marksmith.iss` keeps Inno's default `CloseApplications=yes`, and `[Run]` is `skipifsilent`. A
+  silent install from inside the app therefore closes MarkSmith (Restart Manager, which will
+  likely force-terminate a WinUI process) and never reopens it. The old "Installed / Restart
+  now" banner state was unreachable for an installed copy.
+- `RelaunchApplication` calls `Environment.Exit(0)`, which skips `Closed` (no
+  `SaveUndoHistory`, and the tray icon is left behind). Anything that exits for an update must
+  flush the recovery file, the undo history and settings, and dispose the tray icon first.
+- Edits to an opened file switch the editor to paste mode, so the recovery file covers them.
+  Studio windows (Galaxy, Shape Studio) are *not* covered by it.
+
+**Shipped (`7b7ec0b`): the last 34 layouts that shared a gallery tile.** New Core
+`Preview/HtmlPreviewRenderer.Variants.Pictures.cs`: 18 picture variants and 3
+horizontal-hierarchy variants (`HTreeStyle` Org / MultiLevel / Labeled, placed *before* the
+Pictures enum block):
+- Picture blocks: Bending Picture Accent List (tab caption + round accent), Titled Picture Blocks
+  (title bar, picture, body panel), Picture Accent Blocks (rotated text strip).
+- Frames: Snapshot Picture List (framed snapshot rows), Framed Text Picture (half frame).
+- Captions: Bending Picture Caption (dark band overhanging the left), Picture Caption List
+  (outlined card), Horizontal Picture List (picture over a rounded block), Picture Strips,
+  Picture Accent List (header bars with child rows, each with a picture).
+- Theme layouts: Theme Picture Accent (big picture plus a stack), Theme Picture Grid (title cell
+  plus a wide picture), Theme Picture Alternating Accent (checkerboard).
+- Portraits: Meet the Team Oval, Bubble Picture List (big donut-ringed bubble, smaller ones
+  following its curve), Alternating Picture Circles (text above and below in turn, connector
+  dots), Meet the Team Card Vertical, Title Picture Lineup.
+- Horizontal hierarchies: Org (square cards with a coloured edge), Multi-Level (each item a bar
+  as tall as its subtree), Labeled ("Level n" bands).
+- Tests: the no-duplicate theory covers Pictures and HorizontalHierarchy, and the gallery test
+  now demands **one distinct tile per layout, catalog-wide (176/176)**. New tests cover Bubble
+  sizing, Alternating Circles' above/below order, Picture Accent List's child pictures, and the
+  three hierarchy styles.
+
+**Verified:**
+- Duplicate dump (`%TEMP%\msg51\dump`): empty.
+- Contact sheets (headless Edge) for all 32 picture layouts and the 4 hierarchies. Fixes made from
+  the sheets: Snapshot's accent dash now sits on its text block, Framed Text's panel and the
+  Org-chart cards are less pale in tiles, and Picture Accent List's tile sample has two headers.
+- **Direct2D, finally:** in a test instance (scratch config), SmartArt Studio's gallery filtered
+  to "picture" renders every new tile correctly. That closes run #50's #4 and run #51's #2 for
+  these layouts.
+- Tests: SmartArt and preview, 321/321. Full suite on a scratch OutDir: 4280 passed, 19 failed.
+  18 are the known path-based set. The 19th, `EmailExportFlowTests.Subject_preview_follows_the_template`,
+  passes alone (9/9), so it's flaky under parallel load: shared state, not this change.
+- The desktop build succeeds (the other session's uncommitted updater edits compile too). The
+  test instance was stopped. UIA helpers are in `%TEMP%\msg52` (`gx.ps1 kill` now kills by pid).
+
+**No release this run.** v3.11.0 shipped three hours ago with the same kind of work. The next
+line in the sand should be the updater rework from the other session, because today's in-app
+update closes MarkSmith and never brings it back. Releasing before that lands would push one
+more version through the broken path.
+
+**Next up:**
+1. (Other session, in progress) Finish the update flow: the banner and Settings wired to
+   `UpdatePhase`, `/RELAUNCH` in `marksmith.iss`, save before hand-off, then release.
+2. Make `EmailExportFlowTests.Subject_preview_follows_the_template` deterministic. Find the
+   shared static state it races on.
+3. Real-mouse items from run #49's #3, for when the user is idle.
+4. Untested by eye: the SmartArt Insert dialog (Insert ▸ SmartArt) tiles through Direct2D.
