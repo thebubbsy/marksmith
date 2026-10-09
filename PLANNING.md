@@ -4916,3 +4916,7 @@ palette, Version History, Shape Studio, SmartArt Studio, Document Galaxy and Dia
 3. Test-suite temp litter (above).
 4. Carried over: first real in-app update 3.15.0 → 3.16.0; `EmailExportFlowTests.Subject_preview_follows_the_template`
    flake; real-mouse hover check of OptionRow; Load unpacked of the bundled extension.
+
+**Release (same run):** tagged **v3.16.0** on `05b7a68` after CI passed on it. Release workflow built
+the x64/arm64 installers and zips (5 assets); notes prepended above the workflow body with `---`.
+`MarksmithBaseVersion` is now **3.17.0** (`b992037`).
