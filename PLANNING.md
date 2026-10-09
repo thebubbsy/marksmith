@@ -3847,3 +3847,61 @@ PrintWindow screenshots. No synthetic mouse input.
 built all four installers and zips. The notes were rewritten after the workflow (it overwrites
 them) to cover Document Galaxy and run #42's Insert ▸ SmartArt. `MarksmithBaseVersion` is now
 **3.6.0** (`80ae7cf`).
+
+### 2026-10-09 12:30–14:30 AEST (routine run #44: the writing surface, done properly)
+
+Unlocked, user active, so UIA + PrintWindow only, on a scratch-config test instance. Audited
+the editor itself (gutter, find, fold, lint, outline, preview), which no earlier run had covered.
+
+**Found:**
+- **Folding corrupted the document.** It wrote the hidden lines INTO the text as a base64
+  `<!-- FOLDED -->` comment. Folded sections vanished from the preview and every export, the
+  word count dropped, and Ctrl+S saved the comment to disk. Fold at the cursor also passed a
+  0-based line as 1-based, so it acted on the line above.
+- The line gutter numbered visual rows 1..N, so every wrapped line pushed the numbers out of
+  step with the text.
+- A report with several headings and one Mermaid block was previewed as a lone pan/zoom diagram,
+  with the rest of the document missing. At Split width the diagram controls also covered the title.
+- The lint flyout read "LintIssue { Line = 7 … }" to screen readers, had no empty state, and
+  flagged two trailing spaces (a deliberate hard line break).
+- The outline only scrolled the preview, so in Code view clicking a heading did nothing.
+- The editor strip's narrow-width shedding hid Find and A− instead of the zoom group.
+- The caption "Looking Glass Layer" appeared under Editor / Preview in every view.
+
+**Shipped (e511c6a):** Core `Services/Editor/EditorFolds` makes folding a view. The editor shows
+`## Details  «+5 lines folded #2»` and the view model always holds every line. **The editor
+TextBox no longer has a Text binding**: MainWindow syncs it both ways
+(`SyncDocumentFromEditor`/`SyncEditorFromDocument`, compared ignoring line breaks so a file
+load doesn't flip to the paste source). `EditorDocument()` is the whole document; use it, never
+`PasteTextBox.Text`, for anything document-level. Old FOLDED comments are repaired on open.
+Find, lint jumps and the outline open folds (`GoToDocumentLine`). Ln/Col, lint and table export
+use document lines.
+
+The gutter is a Canvas of numbers placed with
+`GetRectFromCharacterIndex`. Those rects are relative to the TextBox's inner ScrollViewer
+content: subtract VerticalOffset and Padding.Top, and use transform-to-ScrollViewer. Only visible
+lines are drawn. The caret line is bright, folded lines are accent, and numbers jump past folds.
+
+Also shipped: the diagram-focus rule (one heading only) plus a narrow-pane CSS fix, the lint rows,
+empty state and MD009-style hard-break exemption, and `TocEntry.Line` so the outline moves the
+editor (with an empty state). The strip and caption fixes are in too.
+
+**Tests:** new EditorFoldsTests (16), DiagramFocusTests (3), plus lint and TOC cases. Full suite
+with a scratch OutDir: 4065 passed, 18 failed (the known path-based ones).
+
+**Lessons:** `GetCursorLine` in MainWindow is **0-based**, while `GoToLine`/`EditorFolds` are
+1-based. WebView2 DOM can be inspected live with
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9344` + CDP (`%TEMP%\msg44\cdp.mjs`).
+The TextBox has no UIA ScrollPattern: scroll it with TextPattern `FindText(...).Select()` +
+`ScrollIntoView`. Helpers: `%TEMP%\msg44\gx.ps1`, `rt.ps1` (rebuild + relaunch + scrolled shot).
+
+**Next up:**
+1. **Insert image onto `InsertDialogBody`** (started, reverted unfinished). Fields: drop
+   zone + Browse filling a "File or web address" box, alt text prefilled from the file name, and
+   footer Insert. Add a Core `InsertSnippetBuilder.Image(alt, src, documentFolder)` that writes
+   paths relative to the document folder, uses forward slashes, and wraps destinations with spaces
+   in `<…>`. **Paths with spaces currently produce broken image Markdown**, and the editor's image
+   drag-drop (`OnEditorDrop`) has the same bug. It also copies images into the output folder for
+   pasted documents; reword its "Embedded N image(s)" status.
+2. Quick insert for SmartArt (run #42 list) and the Galaxy real-mouse checks (run #43 list).
+3. Consider cutting v3.6.0 once the image dialog lands (folding fix is user-visible).
