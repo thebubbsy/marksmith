@@ -4140,3 +4140,104 @@ passed, 18 failed (the known path-based ones).
 workflow built the x64 and arm64 installers and zips (5 assets). Notes were prepended to the
 workflow body afterwards, covering the icon pass, palette icons and the Galaxy fixes.
 `MarksmithBaseVersion` is now **3.9.0** (`4eb1438`).
+
+### 2026-10-09 20:00–21:00 AEST (routine run #49: Shape Studio inspector and lines, the status bar, palette ranking)
+
+The user was active for the whole run (idle 0–40 s), so this was UIA only, with no synthetic
+mouse. Test windows were **parked off-screen** (`gx.ps1 park` = SetWindowPos to x=-4200 with
+NOACTIVATE). PrintWindow still captures them, and they stay off the user's screen. Run #48
+(18:00) committed `c2ad73a` (Diagram Studio canvas by hand) but never wrote its PLANNING entry.
+It left **uncommitted, unbuilt edits** in `MermaidStudioViewModel.cs`, `MermaidCanvasControl.xaml.cs`,
+`MermaidDiagramStudioControl.xaml.cs`, `NodePaletteControl.xaml(.cs)` and
+`DiagramCanvasInteractionTests.cs` (last touched 19:28: a shape-palette "no matches" state and
+"Search shapes" wording). The EverythingHttpPlugin edits aren't ours either. **All of these were
+left untouched and uncommitted.** Every commit in this run staged explicit paths only. The
+Mermaid edits do compile alongside ours.
+
+**Found:**
+- Command palette: "case" also listed "Copy as email" (c…as…e). The loose subsequence fallback
+  matched almost anything.
+- Galaxy: the preview card was placed only when shown, so panning slid its node underneath it
+  (run #47's "Next up" #2).
+- Shape Studio, "Shapes on canvas": every connector was a bare "Line" row (the org chart had
+  six in a row). The "N shapes" count appeared only after an undo, never after a preset or a
+  drawn shape.
+- Shape Studio inspector: Position/Size were two unexplained numbers (the X/Y/W/H placeholders
+  vanish once a value is in). The Type box clipped "Rounded rectangle". A line said "Fill" and
+  had **no way to change its weight**.
+- **Lines were clipped to their box.** A horizontal connector's box is 2 px tall, and the Path
+  is clipped to it, so the Milestone Timeline's 3 pt track drew at 2 px. Any thicker line would
+  have done the same.
+- **Undo skipped weight-only edits.** `SameCanvas` didn't compare `StrokeWidthPt`.
+- Shape Studio's Shapes tab: fixed 84 px tiles fitted two per row and left a third of the pane
+  empty. The dark Slate Monochrome swatches disappeared on the flyout.
+- **SmartArt Studio outline:** `LevelToIndentConverter` expects 1-based heading levels, but the
+  outline bound its 0-based `Depth`. Depth 0 and depth 1 both sat at the left edge, so "CEO"
+  read as a sibling of "Executive Board" while the chart drew it as a child.
+- **Status bar:** ~20 of ~110 messages never set a severity and kept the previous one's colour
+  ("SmartArt Studio opened." in success green; after a failed export, routine notes in red).
+  Routine notes also stayed for the rest of the session.
+- Checked and fine: Shape Studio Export/Zoom menus, the colour-scheme flyout, the empty
+  inspector, preset thumbnails; SmartArt layout search and its no-match state; Settings ▸
+  General; every Style & Export expander. The SmartArt preview *looked* off-centre but is
+  centred (a lopsided tree); measured before touching it.
+
+**Shipped:**
+- `e2b9876` Palette: Core `CommandSearch` drops the loose subsequence fallback. Abbreviations
+  must start each piece at a word start ("exppdf", "instab"), in few pieces or as a pure
+  initialism. Initialisms rank above mid-word substrings ("ep" → Export PDF, not rEPlace).
+  `CommandSearch.Highlights` gives the matched ranges, and the palette bolds them (label
+  filled in `ContainerContentChanging`, not bound). Galaxy: `PlacePreviewCard` runs from
+  `UpdateTransform`, and `PreviewCardPlacement.Choose(..., current)` keeps the current corner
+  while it is still clear. Shape Studio: `ShapeDesignStudioViewModel.DescribeLines` names
+  unlabelled lines by the labelled shapes their ends touch (smallest shape wins, 6 px slack,
+  re-run on move/resize/relabel, skipped above 300 lines). `RefreshLineStats` runs on every
+  mutation. The inspector has X/Y/W/H captions (`InspectorAxis` style). Lines get
+  `IsLine`/`ColourLabel` ("Colour") and a Weight NumberBox (0.25–24 pt, NaN-safe). The line
+  Path grows past its box by half the stroke (negative margin plus a geometry translate).
+  `SameCanvas` compares `StrokeWidthPt`. The palette `ItemsWrapGrid` sizes its tiles in
+  `OnPaletteGridSizeChanged`. SmartArt: `LevelToIndentConverter` ConverterParameter="depth"
+  (20 px per level). Tests: `ShapeStudioLineNamesTests` (9), CommandSearch (+8),
+  PreviewCardPlacement (+2).
+- `2e25362` Status bar: `OnStatusTextChanged` resets `StatusSeverity` to Informational (every
+  caller sets severity after the text; checked by script, none before). Routine notes fade
+  back to "Ready." after 10 s (`StatusFadesAway`/`FadeStatus`, MainWindow
+  `ScheduleStatusFade`). Warnings, errors, finished exports with Open links, busy states and
+  "…" progress lines stay. `StatusLineTests` (8).
+
+**Verified:** screenshots of the palette ("case" → three letter-case commands with bold
+matches; "exppdf" → Export PDF), the Shape Studio inspector for a box and a line, a 6 pt
+weight on the org chart, the 3 pt timeline track, the 3-column Shapes tab and the SmartArt
+outline. Status line read via UIA: "SmartArt Studio opened." at t=0, "Ready." at t=11 s. Full
+suite with a scratch OutDir: 4223 passed, 18 failed (the known path-based ones). Desktop
+builds and launches.
+
+**Lessons:**
+- `gx.ps1` `Get-Win "MarkSmith"` matched "SmartArt Studio - MarkSmith" first. It now prefers
+  an exact title. `button MarkSmith Close` still hits the caption Close and quits the app
+  (it did, once).
+- A NumberBox is a `Spinner` in UIA; set it with RangeValuePattern (`%TEMP%\msg49\rv.ps1`).
+  ValuePattern on its inner edit didn't take.
+- WinUI `Shape`s are clipped to their layout slot. Anything stroked thicker than its box
+  needs a negative margin.
+- `ObservableCollection.Clear()` raises Reset with no OldItems. Track item subscriptions in a
+  set, not from the event args.
+- When a run starts with someone else's uncommitted work in the tree, `git add` explicit
+  paths and say so in the entry.
+
+**Next up:**
+1. **SmartArt previews per layout, not per family.** 176 layouts share 25 drawings: Pictures
+   33, Vertical List 21, Process 15, Cycle 12, Radial 12. "Basic Cycle", "Block Cycle" and
+   "Segmented Cycle" have identical thumbnails *and* identical previews, so the gallery can't
+   be used to choose between them. Thread the alias into `HtmlPreviewRenderer.DrawFamily` and
+   add variants per big family (cycle: circles+arrows / blocks / pie segments / no arrows /
+   gears; radial: hub-spoke / cluster / Venn-ish; process: arrows / accent / alternating).
+   Thumbnails come from the same drawers. Use `%TEMP%\msg49\sa` (scratch console referencing
+   Core, writes the studio's wrapper HTML) plus `msedge --headless --screenshot` to check.
+2. Run #48's leftover Diagram Studio edits (shape-palette "no matches" state): decide whether
+   to finish and commit or drop them. They compile but haven't been looked at in the app.
+3. Real-mouse items, for when the user is idle: Shape Studio hover/cursor states (canvas,
+   handles, palette tiles), image drag-drop onto the editor, run #41's "Export N tables"
+   type picker.
+4. Shape Studio: the timeline preset's cards float clear of the track (no ticks). Check Word's
+   output before calling it a bug.
