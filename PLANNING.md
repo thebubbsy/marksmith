@@ -3905,3 +3905,74 @@ The TextBox has no UIA ScrollPattern: scroll it with TextPattern `FindText(...).
    pasted documents; reword its "Embedded N image(s)" status.
 2. Quick insert for SmartArt (run #42 list) and the Galaxy real-mouse checks (run #43 list).
 3. Consider cutting v3.6.0 once the image dialog lands (folding fix is user-visible).
+
+### 2026-10-09 15:00–16:00 AEST (routine run #45: images and saving, done properly)
+
+Unlocked, user active, so UIA + PrintWindow + CDP only, on a scratch-config test instance
+(`%TEMP%\msg45`, test doc `doc\My Report\report.md` with 16 x 1 MB photos, an SVG, a spaced
+file name and a missing image). Started from run #44's "Next up" #1 (Insert image).
+
+**Found:**
+- **Relative images didn't work anywhere but email.** `![](images/a.png)` resolved next to the
+  APP in Word and EPUB (dropped silently) and not at all in the preview/PDF (absolute paths only).
+- **Photos vanished from the preview and the PDF.** Over 350 KB they were downscaled and
+  re-encoded as PNG (~3 MB at 1400 px), which never fit the 1.2 MB NavigateToString inline
+  budget, so they kept a file path the page can't load.
+- Small SVGs were never inlined either (same symptom).
+- Insert image wrote `![x](C:/My Pictures/x.png)` (a space breaks the destination), and the
+  editor drag-drop did the same.
+- **Ctrl+S could overwrite the wrong file.** `InputFilePath` is never cleared. Open a file, then
+  ingest a chat from the extension (or paste, import, OCR), press Ctrl+S: the file became the chat.
+  Editing also flips `UsePasteSource`, so nothing said whose text the editor held.
+- Ctrl+S silently replaced changes another program made to the open file.
+- Screen readers read command palette rows as `PaletteCommand { Label = …, Run = System.Func… }`
+  and recent-file rows as `MarkdownFileEntry { Path = … }`.
+- The open file doesn't reload when changed on disk. There is no watcher at all (not a
+  regression; see Next up).
+
+**Shipped:**
+- `7c4d482` Core `Services/DocumentImages` is the single local-image resolver (relative to the
+  document folder first; file: URIs, %20, `<…>`). The folder is ambient:
+  `DocumentImages.UseFolder(dir)` (AsyncLocal), set by `MainViewModel.BuildPreviewHtml`,
+  `RunConversionAsync`, `AutomationExportService` (job.BaseDirectory) and `BatchExportRunner`.
+  Preview, DOCX, EPUB and email all call `Resolve`. Photos re-encode as JPEG; anything still over
+  budget is served from `https://marksmith.images/<token>/<name>` (MainWindow `MapImageHost`, a
+  WebResourceRequested filter answering only tokens Core registered); `StandaloneHtml.Inline`
+  turns those into data URIs. Live preview shows an `ms-img-missing` card. Insert ▸ Image is now
+  an `InsertDialogBody` (`Views/ImageInsertControl.cs`, the old XAML control is gone) built on
+  `InsertSnippetBuilder.Image(alt, src, documentFolder)`. Every insert dialog's empty Inserts card
+  says "Nothing yet". Verified: 16-photo doc shows 18/18 images in preview (9 served), the PDF has
+  all 17 rasters; dialog thumbnails, alt prefill, bracketed relative destination, Insert.
+- `77796c9` `MainViewModel.IsEditingOpenFile` (set when a file loads, cleared by
+  `DetachFromOpenFile()` on ingest/import/OCR/sample, re-set when the file source is chosen
+  again). Ctrl+S refuses detached text with a status pointing at Export as Markdown. A
+  write-time+length stamp (`OpenFileChangedOnDisk` / `MarkOpenFileSaved`) drives a "File changed
+  outside MarkSmith" dialog (default "Don't save"). `DocumentFolder` =
+  `(!UsePasteSource || IsEditingOpenFile) && HasInputFile`. Palette/recent-file/Diagram Studio
+  records override `ToString`. Verified in-app: images after typing (18/18), both dialog buttons.
+
+**Tests:** new DocumentImagesTests (17), OpenFileSafetyTests (4). Full suite with a scratch
+OutDir: 4089 passed, 18 failed (the known path-based ones).
+
+**Lessons:**
+- **Any new text source must call `DetachFromOpenFile()`** before setting `PastedMarkdown`,
+  or Ctrl+S will write it over the last opened file. Use `ViewModel.DocumentFolder` for
+  anything that needs the document's folder, never `UsePasteSource`/`InputFilePath` directly.
+- WinUI `TextBox.TextChanged` is raised asynchronously: a bool set around a programmatic
+  `Text =` can't tell your edit from the person's. Compare against the value you set instead.
+- Bash heredocs into Python still eat backslashes (`\b` became a backspace byte in a regex).
+  Write scripts with the Write tool; `fixbs.py` in `%TEMP%\msg45` repairs stray 0x08 bytes.
+- `gx.ps1 button X Close` can hit the window's caption Close (it closed the test instance).
+  Use automation ids or WindowPattern.Close on secondary windows.
+- A11y sweep helper: `%TEMP%\msg45\a11y.ps1` flags any element whose name looks like debug
+  text. Palette entries can be run via `psave.ps1 "<label prefix>"`.
+
+**Next up:**
+1. **Open-file reload.** Decide (with the user if possible) whether an external change should
+   reload a clean editor automatically. The save guard covers data loss; a reload is closer to a
+   feature.
+2. Quick insert for SmartArt (run #42 list); the Galaxy real-mouse checks (run #43 list).
+3. PPTX export still drops every image (keeps alt text only), even with the new resolver.
+   Check whether that is by design before treating it as polish.
+4. Image drag-drop onto the editor can't be driven by UIA. Check it by hand when the user is
+   idle (real mouse, `mouse_event`), including a folder with spaces.
